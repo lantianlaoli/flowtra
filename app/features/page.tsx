@@ -1,36 +1,36 @@
 'use client';
 
 import Header from '@/components/layout/Header';
-import { Zap, Image, Play, BarChart3, Globe, Shield } from 'lucide-react';
+import { BoltIcon, PhotoIcon, PlayIcon, ChartBarIcon, GlobeAltIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
 const features = [
   {
-    icon: Zap,
+    icon: BoltIcon,
     title: 'AI-Powered Analysis',
     description: 'Advanced AI analyzes your product images to understand features, benefits, and target audience automatically.'
   },
   {
-    icon: Image,
+    icon: PhotoIcon,
     title: 'Professional Cover Images',
     description: 'Generate high-quality, professional advertisement images that grab attention and drive engagement.'
   },
   {
-    icon: Play,
+    icon: PlayIcon,
     title: 'Dynamic Video Ads',
     description: 'Create engaging video advertisements using state-of-the-art VEO models for maximum impact.'
   },
   {
-    icon: BarChart3,
+    icon: ChartBarIcon,
     title: 'Smart Analytics',
     description: 'Track performance metrics and optimize your campaigns with detailed analytics and insights.'
   },
   {
-    icon: Globe,
+    icon: GlobeAltIcon,
     title: 'Multi-Platform Export',
     description: 'Download content in various formats optimized for different social media platforms and advertising channels.'
   },
   {
-    icon: Shield,
+    icon: ShieldCheckIcon,
     title: 'Enterprise Security',
     description: 'Your data is protected with enterprise-grade security and privacy measures throughout the process.'
   }

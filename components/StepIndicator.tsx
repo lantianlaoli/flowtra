@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Upload, MessageSquare, Lightbulb, Image, Video, CheckCircle, X } from 'lucide-react';
+import { CheckIcon, ArrowUpTrayIcon, ChatBubbleLeftRightIcon, LightBulbIcon, PhotoIcon, VideoCameraIcon, CheckCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { WorkflowStep, StepResult } from '@/hooks/useWorkflow';
 
 interface Step {
@@ -10,12 +10,12 @@ interface Step {
 }
 
 const steps: Step[] = [
-  { id: 'upload', name: 'Upload Image', icon: Upload },
-  { id: 'describe', name: 'Describe Product', icon: MessageSquare },
-  { id: 'generate-prompts', name: 'Generate Prompts', icon: Lightbulb },
-  { id: 'generate-cover', name: 'Create Cover', icon: Image },
-  { id: 'generate-video', name: 'Create Video', icon: Video },
-  { id: 'complete', name: 'Complete', icon: CheckCircle },
+  { id: 'upload', name: 'Upload Image', icon: ArrowUpTrayIcon },
+  { id: 'describe', name: 'Describe Product', icon: ChatBubbleLeftRightIcon },
+  { id: 'generate-prompts', name: 'Generate Prompts', icon: LightBulbIcon },
+  { id: 'generate-cover', name: 'Create Cover', icon: PhotoIcon },
+  { id: 'generate-video', name: 'Create Video', icon: VideoCameraIcon },
+  { id: 'complete', name: 'Complete', icon: CheckCircleIcon },
 ];
 
 interface StepIndicatorProps {
@@ -66,9 +66,9 @@ export default function StepIndicator({ currentStep, isLoading, stepResults, sel
                   title={canClick ? `点击查看${step.name}详情` : undefined}
                 >
                   {stepResult.status === 'error' ? (
-                    <X className="h-5 w-5" />
+                    <XMarkIcon className="h-5 w-5" />
                   ) : isCompleted ? (
-                    <Check className="h-5 w-5" />
+                    <CheckIcon className="h-5 w-5" />
                   ) : (
                     <Icon className="h-5 w-5" />
                   )}

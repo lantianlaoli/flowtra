@@ -78,5 +78,13 @@ export function getCreditsFromProductId(productId: string): { credits: number; p
   return null
 }
 
-// Default initial credits for new users
+// Default initial credits for new users (enough for 1 complete workflow)
 export const INITIAL_FREE_CREDITS = 100
+
+// Complete workflow cost breakdown:
+// - Image description: 1-2 credits (OpenRouter API)
+// - Prompt generation: 1-2 credits (OpenRouter API) 
+// - Cover generation: ~10-15 credits (Kie.ai GPT4O-Image)
+// - Video generation: 30 credits (Veo3 Fast) or 150 credits (Veo3)
+// Total for complete workflow with Veo3 Fast: ~45-50 credits
+// With 100 free credits, users can complete 2 full workflows
