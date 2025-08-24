@@ -1,3 +1,5 @@
+'use client';
+
 import Header from '@/components/layout/Header';
 import { Zap, Image, Play, BarChart3, Globe, Shield } from 'lucide-react';
 
