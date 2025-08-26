@@ -1,18 +1,42 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+// Lazily initialize clients to avoid evaluating env vars during build time
+let browserClient: SupabaseClient | null = null
+let serviceClient: SupabaseClient | null = null
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export function getSupabase(): SupabaseClient {
+  if (browserClient) return browserClient
 
-// Service role client for bypassing RLS (use with caution, only in server-side operations)
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase public URL or anon key is not configured')
   }
-})
+
+  browserClient = createClient(supabaseUrl, supabaseAnonKey)
+  return browserClient
+}
+
+// Service role client for bypassing RLS (server-only)
+export function getSupabaseAdmin(): SupabaseClient {
+  if (serviceClient) return serviceClient
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Supabase service role configuration is missing')
+  }
+
+  serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  })
+  return serviceClient
+}
 
 // Database types for user_credits table
 export interface UserCredits {
@@ -80,6 +104,7 @@ export const uploadImageToStorage = async (file: File, filename?: string) => {
   const fileName = filename || `${Math.random().toString(36).substring(2)}.${fileExt}`
   const filePath = `covers/${fileName}`
 
+  const supabase = getSupabase()
   const { data, error } = await supabase.storage
     .from('images')
     .upload(filePath, file, {

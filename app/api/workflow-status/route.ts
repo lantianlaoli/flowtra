@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,6 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     // For authenticated users, check ownership
+    const supabase = getSupabase();
     let query = supabase
       .from('user_history')
       .select('*')

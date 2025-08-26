@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+import { getSupabase } from '@/lib/supabase';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
@@ -8,6 +10,7 @@ export async function POST() {
     console.log('Starting task monitoring...');
 
     // Find records that need monitoring
+    const supabase = getSupabase();
     const { data: records, error } = await supabase
       .from('user_history')
       .select('*')
@@ -27,8 +30,8 @@ export async function POST() {
     let completed = 0;
     let failed = 0;
 
-    if (records && records.length > 0) {
-      for (const record of records) {
+    if (Array.isArray(records) && records.length > 0) {
+      for (const record of (records as HistoryRecord[])) {
         try {
           await processRecord(record);
           processed++;
@@ -53,7 +56,7 @@ export async function POST() {
             await supabase
               .from('user_history')
               .update({
-                retry_count: newRetryCount,
+                retry_count: newRetryCount as number,
                 last_processed_at: new Date().toISOString()
               })
               .eq('id', record.id);
@@ -111,6 +114,7 @@ interface HistoryRecord {
 }
 
 async function processRecord(record: HistoryRecord) {
+  const supabase = getSupabase();
   console.log(`Processing record ${record.id}, step: ${record.current_step}, status: ${record.workflow_status}`);
 
   // Handle cover generation monitoring

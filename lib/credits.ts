@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase, supabaseAdmin, UserCredits } from '@/lib/supabase'
+import { getSupabase, getSupabaseAdmin, UserCredits } from '@/lib/supabase'
 
 interface CreditTransaction {
   id: string;
@@ -19,6 +19,7 @@ export async function getUserCredits(userId: string): Promise<{
   error?: string
 }> {
   try {
+    const supabase = getSupabase()
     const { data: credits, error } = await supabase
       .from('user_credits')
       .select('*')
@@ -60,6 +61,7 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
   error?: string
 }> {
   try {
+    const supabase = getSupabase()
     const { data: credits, error } = await supabase
       .from('user_credits')
       .insert({
@@ -159,6 +161,7 @@ export async function deductCredits(userId: string, creditsToDeduct: number): Pr
     }
 
     // Deduct credits
+    const supabase = getSupabase()
     const { data: updatedCredits, error } = await supabase
       .from('user_credits')
       .update({
@@ -218,6 +221,7 @@ export async function addCredits(userId: string, creditsToAdd: number, creemId?:
 
     if (shouldUpdate) {
       // Update existing record
+      const supabase = getSupabase()
       const { data: updatedCredits, error } = await supabase
         .from('user_credits')
         .update({
@@ -242,6 +246,7 @@ export async function addCredits(userId: string, creditsToAdd: number, creemId?:
       }
     } else {
       // Create new record
+      const supabase = getSupabase()
       const { data: newCredits, error } = await supabase
         .from('user_credits')
         .insert({
@@ -289,7 +294,7 @@ export async function recordCreditTransaction(
 }> {
   try {
     // Use admin client if specified (e.g., for webhooks) to bypass RLS
-    const client = useAdminClient ? supabaseAdmin : supabase
+    const client = useAdminClient ? getSupabaseAdmin() : getSupabase()
     
     const { data: transaction, error } = await client
       .from('credit_transactions')
@@ -332,7 +337,7 @@ export async function getCreditTransactions(userId: string): Promise<{
 }> {
   try {
     // Use admin client to bypass RLS since we're using Clerk auth instead of Supabase auth
-    const { data: transactions, error } = await supabaseAdmin
+    const { data: transactions, error } = await getSupabaseAdmin()
       .from('credit_transactions')
       .select('*')
       .eq('user_id', userId)

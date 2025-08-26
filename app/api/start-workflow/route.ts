@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+import { getSupabase } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { httpRequestWithRetry } from '@/lib/httpRequest';
 
@@ -20,6 +22,7 @@ export async function POST(request: NextRequest) {
     // Create history record first
     let historyRecord = null;
     if (userId) {
+      const supabase = getSupabase();
       const { data, error } = await supabase
         .from('user_history')
         .insert({
@@ -54,6 +57,7 @@ export async function POST(request: NextRequest) {
       const description = await describeImage(imageUrl);
       
       if (historyRecord) {
+        const supabase = getSupabase();
         await supabase
           .from('user_history')
           .update({
@@ -74,6 +78,7 @@ export async function POST(request: NextRequest) {
       const prompts = await generatePrompts(description);
       
       if (historyRecord) {
+        const supabase = getSupabase();
         await supabase
           .from('user_history')
           .update({
@@ -94,6 +99,7 @@ export async function POST(request: NextRequest) {
       const coverTaskId = await generateCover(imageUrl, prompts.image_prompt);
       
       if (historyRecord) {
+        const supabase = getSupabase();
         await supabase
           .from('user_history')
           .update({
@@ -120,6 +126,7 @@ export async function POST(request: NextRequest) {
       
       // Update status to failed
       if (historyRecord) {
+        const supabase = getSupabase();
         await supabase
           .from('user_history')
           .update({
@@ -145,6 +152,7 @@ export async function POST(request: NextRequest) {
 
 async function updateWorkflowProgress(historyId: string | undefined, step: string, percentage: number, status: string) {
   if (!historyId) return;
+  const supabase = getSupabase();
   
   await supabase
     .from('user_history')
