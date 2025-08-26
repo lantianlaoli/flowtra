@@ -70,13 +70,24 @@ export default function LandingPage() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-start gap-4">
-              <button
-                onClick={() => setShowUpload(true)}
-                className="bg-gray-900 text-white px-10 py-5 rounded-lg text-xl font-semibold hover:bg-gray-800 transition-colors flex items-center gap-3 min-w-[280px] justify-center"
-              >
-                <Sparkles className="w-6 h-6" />
-                Get My Video Ad
-              </button>
+              {user ? (
+                <button
+                  onClick={() => router.push('/dashboard?upload=true')}
+                  className="bg-gray-900 text-white px-10 py-5 rounded-lg text-xl font-semibold hover:bg-gray-800 transition-colors flex items-center gap-3 min-w-[280px] justify-center"
+                >
+                  <Sparkles className="w-6 h-6" />
+                  Get My Video Ad
+                </button>
+              ) : (
+                <SignInButton mode="modal" forceRedirectUrl="/dashboard?upload=true">
+                  <button
+                    className="bg-gray-900 text-white px-10 py-5 rounded-lg text-xl font-semibold hover:bg-gray-800 transition-colors flex items-center gap-3 min-w-[280px] justify-center"
+                  >
+                    <Sparkles className="w-6 h-6" />
+                    Get My Video Ad
+                  </button>
+                </SignInButton>
+              )}
             </div>
 
           </div>
