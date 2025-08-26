@@ -1,29 +1,46 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { SignedIn, SignedOut } from '@clerk/nextjs';
-import { ArrowUpTrayIcon, ArrowRightIcon, PlayIcon } from '@heroicons/react/24/outline';
+import { useState, useRef } from 'react';
+import { useUser, SignInButton } from '@clerk/nextjs';
+import { GiftIcon } from '@heroicons/react/24/outline';
+import { Sparkles } from 'lucide-react';
+import HandDrawnArrow from '@/components/ui/HandDrawnArrow';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FileUpload from '@/components/FileUpload';
 import { useRouter } from 'next/navigation';
+import { handleCreemCheckout } from '@/lib/payment';
 
 export default function LandingPage() {
   const [showUpload, setShowUpload] = useState(false);
-  const [currentPlatform, setCurrentPlatform] = useState(0);
+  const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
+  const { user } = useUser();
 
-  const platforms = ['Amazon', 'Walmart', 'eBay', 'Shopify', 'Etsy'];
-  
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentPlatform((prev) => (prev + 1) % platforms.length);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [platforms.length]);
-
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = () => {
     router.push('/dashboard?upload=true');
+  };
+
+  const handlePurchase = async (packageName: 'starter' | 'pro') => {
+    await handleCreemCheckout({
+      packageName,
+      userEmail: user!.emailAddresses[0].emailAddress,
+      onLoading: (isLoading) => setLoadingPackage(isLoading ? packageName : null),
+      onError: (error) => alert(error)
+    });
+  };
+
+  const handleVideoHover = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+    }
+  };
+
+  const handleVideoLeave = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = true;
+    }
   };
 
   return (
@@ -32,124 +49,82 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Promotion Badge */}
-        <div className="flex justify-center pt-8 mb-8">
-          <div className="bg-gray-900 text-white px-6 py-3 rounded-full text-sm font-medium flex items-center gap-2">
-            🎁 100 Free Credits
-            <span className="text-gray-300">Create 2 AI Video Ads</span>
-          </div>
-        </div>
-
         {/* Main Hero Section - Left/Right Layout */}
-        <div className="grid lg:grid-cols-2 gap-16 items-center py-20">
+        <div className="grid lg:grid-cols-5 gap-12 items-center py-16">
           {/* Left Content */}
-          <div className="space-y-8">
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 leading-tight">
-              Turn your{' '}
-              <span 
-                key={currentPlatform}
-                className="text-blue-600 inline-block animate-pulse"
-                style={{ animationDuration: '0.5s' }}
-              >
-                {platforms[currentPlatform]}
-              </span>
-              <br />
-              <span className="text-gray-700">products into viral video ads</span>
+          <div className="lg:col-span-3 space-y-8">
+            {/* Promotion Badge - Above Title */}
+            <div className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200">
+              <GiftIcon className="w-4 h-4" />
+              30 Free Credits
+              <span className="text-gray-500">Try 1 VEO3 Fast Video</span>
+            </div>
+
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
+              Ad Videos for Amazon & Walmart
             </h1>
             
             <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-              AI creates professional ads in minutes. No design skills needed.
+              Upload your product photo. Get a sales-ready ad in seconds.
             </p>
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-start gap-4">
-              <SignedOut>
-                <button
-                  onClick={() => setShowUpload(true)}
-                  className="bg-gray-900 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-3 min-w-[240px] justify-center"
-                >
-                  <ArrowUpTrayIcon className="w-5 h-5" />
-                  Upload Product Photo
-                </button>
-              </SignedOut>
-              
-              <SignedIn>
-                <button
-                  onClick={() => router.push('/dashboard')}
-                  className="bg-gray-900 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-3 min-w-[240px] justify-center"
-                >
-                  Go to Dashboard
-                  <ArrowRightIcon className="w-5 h-5" />
-                </button>
-              </SignedIn>
-
               <button
-                onClick={() => router.push('/pricing')}
-                className="border border-gray-300 text-gray-700 px-8 py-4 rounded-lg text-lg font-medium hover:border-gray-400 hover:bg-gray-50 transition-colors min-w-[200px]"
+                onClick={() => setShowUpload(true)}
+                className="bg-gray-900 text-white px-10 py-5 rounded-lg text-xl font-semibold hover:bg-gray-800 transition-colors flex items-center gap-3 min-w-[280px] justify-center"
               >
-                View Pricing
+                <Sparkles className="w-6 h-6" />
+                Get My Video Ad
               </button>
             </div>
 
           </div>
 
-          {/* Right Before/After Visual Impact */}
-          <div className="relative">
-            <div className="grid grid-cols-2 gap-6 items-center">
-              {/* Before - Static Image */}
-              <div className="relative">
-                <div className="bg-gray-100 rounded-2xl overflow-hidden shadow-lg border-2 border-gray-200">
-                  <img 
-                    src="https://tempfile.aiquickdraw.com/s/2d20e399065cf0bd885f1cd9d77b45c0_0_1756032920_4230.png"
-                    alt="Static product image"
-                    className="w-full h-40 object-cover"
+          {/* Right Demo - Vertical Layout */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Original Image - Top */}
+            <div className="relative">
+              <div className="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video">
+                <img 
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/bogl45guwpk.jpg"
+                  alt="Original product image"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="absolute top-3 left-3 bg-white text-gray-700 px-3 py-1 rounded-md text-xs font-medium border border-gray-200 shadow-sm">
+                Original
+              </div>
+            </div>
+
+            {/* Hand Drawn Arrow */}
+            <HandDrawnArrow className="w-5 h-5" />
+
+            {/* Generated Video - Bottom */}
+            <div className="relative">
+              <div className="bg-gray-900 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video">
+                <video 
+                  ref={videoRef}
+                  className="w-full h-full object-cover cursor-pointer"
+                  autoPlay 
+                  muted 
+                  loop 
+                  playsInline
+                  onMouseEnter={handleVideoHover}
+                  onMouseLeave={handleVideoLeave}
+                >
+                  <source 
+                    src="https://tempfile.aiquickdraw.com/p/bdbf3c847dd219aea0775162c9c77415_1756176082.mp4" 
+                    type="video/mp4" 
                   />
-                </div>
-                <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 bg-gray-600 text-white px-3 py-1 rounded-full text-xs font-medium">
-                  Static
-                </div>
-                <div className="absolute -top-3 -right-3 bg-red-100 text-red-600 px-2 py-1 rounded-full text-xs font-medium">
-                  Boring
-                </div>
+                </video>
               </div>
-
-              {/* After - Dynamic Video */}
-              <div className="relative">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-1 rounded-2xl shadow-2xl">
-                  <div className="bg-black rounded-2xl overflow-hidden">
-                    <video 
-                      className="w-full h-40 object-cover"
-                      autoPlay 
-                      muted 
-                      loop 
-                      playsInline
-                    >
-                      <source 
-                        src="https://tempfile.aiquickdraw.com/p/c1dc5ad1d1e55eecdc8375483407c865_1756033014.mp4" 
-                        type="video/mp4" 
-                      />
-                    </video>
-                  </div>
-                </div>
-                <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-medium">
-                  Dynamic
-                </div>
-                <div className="absolute -top-3 -right-3 bg-green-100 text-green-600 px-2 py-1 rounded-full text-xs font-medium">
-                  Viral
-                </div>
+              <div className="absolute top-3 left-3 bg-gray-900 text-white px-3 py-1 rounded-md text-xs font-medium shadow-sm">
+                AI Generated
               </div>
-            </div>
-
-            {/* Magic Arrow */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-              <div className="bg-white rounded-full p-3 shadow-lg border-2 border-yellow-400 animate-bounce">
-                <ArrowRightIcon className="w-6 h-6 text-yellow-600" />
+              <div className="absolute bottom-3 right-3 bg-black/50 text-white px-2 py-1 rounded text-xs">
+                Hover for sound
               </div>
-            </div>
-
-            {/* AI Magic Label */}
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
-              ✨ AI Magic Transformation
             </div>
           </div>
         </div>
@@ -158,20 +133,19 @@ export default function LandingPage() {
         {showUpload && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl p-8 max-w-md w-full">
-              <h3 className="text-2xl font-bold mb-4">Get Started with 100 Free Credits</h3>
+              <h3 className="text-2xl font-bold mb-4">Start Creating Your Ad</h3>
               <p className="text-gray-600 mb-6">
-                Sign up now and receive 100 free credits to create your first 2 professional AI video advertisements. No credit card required.
+                Upload your product photo and let AI create amazing advertisements for you. Get started with a free trial!
               </p>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => router.push('/sign-up')}
-                  className="flex-1 bg-gray-900 text-white px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors font-semibold"
-                >
-                  Start Free
-                </button>
+              <FileUpload 
+                onFileUpload={handleFileUpload} 
+                isLoading={false}
+                multiple={false}
+              />
+              <div className="mt-4 text-center">
                 <button
                   onClick={() => setShowUpload(false)}
-                  className="flex-1 border border-gray-300 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -189,68 +163,86 @@ export default function LandingPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             {/* Starter Plan */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm hover:shadow-lg transition-shadow">
+            <div className="bg-white rounded-2xl border-2 border-gray-900 p-8 shadow-sm transform scale-105 flex flex-col">
+              <div className="bg-gray-900 text-white px-3 py-1 rounded-md text-sm font-medium mb-4 inline-block">
+                Recommended
+              </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Starter</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
                 $29
                 <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
-              <ul className="space-y-3 mb-8">
+              <ul className="space-y-3 mb-8 flex-grow">
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
                   <span className="text-gray-600">2,000 credits</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
                   <span className="text-gray-600">~65 Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
                   <span className="text-gray-600">~13 Veo3 High Quality videos</span>
                 </li>
               </ul>
-              <button 
-                onClick={() => router.push('/pricing')}
-                className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Get Started
-              </button>
+              {user ? (
+                <button 
+                  onClick={() => handlePurchase('starter')}
+                  disabled={loadingPackage === 'starter'}
+                  className="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingPackage === 'starter' ? 'Processing...' : 'Get Started'}
+                </button>
+              ) : (
+                <SignInButton mode="modal">
+                  <button className="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors">
+                    Get Started
+                  </button>
+                </SignInButton>
+              )}
             </div>
 
             {/* Pro Plan */}
-            <div className="bg-gray-900 text-white rounded-2xl p-8 shadow-lg transform scale-105">
-              <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium mb-4 inline-block">
-                Recommended
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Pro</h3>
-              <div className="text-3xl font-bold mb-4">
+            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Pro</h3>
+              <div className="text-3xl font-bold text-gray-900 mb-4">
                 $99
-                <span className="text-lg font-normal text-gray-300">/package</span>
+                <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
-              <ul className="space-y-3 mb-8">
+              <ul className="space-y-3 mb-8 flex-grow">
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-gray-300">7,500 credits</span>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">7,500 credits</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-gray-300">~250 Veo3 Fast videos</span>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">~250 Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-gray-300">~50 Veo3 High Quality videos</span>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">~50 Veo3 High Quality videos</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-gray-300">Priority processing</span>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Priority processing</span>
                 </li>
               </ul>
-              <button 
-                onClick={() => router.push('/pricing')}
-                className="w-full bg-white text-gray-900 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
-              >
-                Get Started
-              </button>
+              {user ? (
+                <button 
+                  onClick={() => handlePurchase('pro')}
+                  disabled={loadingPackage === 'pro'}
+                  className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingPackage === 'pro' ? 'Processing...' : 'Get Started'}
+                </button>
+              ) : (
+                <SignInButton mode="modal">
+                  <button className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors">
+                    Get Started
+                  </button>
+                </SignInButton>
+              )}
             </div>
           </div>
         </div>

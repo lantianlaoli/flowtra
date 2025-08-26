@@ -1,6 +1,16 @@
 'use server'
 
-import { supabase, UserCredits } from '@/lib/supabase'
+import { supabase, supabaseAdmin, UserCredits } from '@/lib/supabase'
+
+interface CreditTransaction {
+  id: string;
+  user_id: string;
+  type: 'usage' | 'purchase' | 'refund';
+  amount: number;
+  description: string;
+  history_id?: string;
+  created_at: string;
+}
 
 // Get user's current credits
 export async function getUserCredits(userId: string): Promise<{
@@ -257,6 +267,92 @@ export async function addCredits(userId: string, creditsToAdd: number, creemId?:
     }
   } catch (error) {
     console.error('Add credits error:', error)
+    return {
+      success: false,
+      error: 'Something went wrong'
+    }
+  }
+}
+
+// Record a credit transaction
+export async function recordCreditTransaction(
+  userId: string, 
+  type: 'usage' | 'purchase' | 'refund',
+  amount: number,
+  description: string,
+  historyId?: string,
+  useAdminClient: boolean = false
+): Promise<{
+  success: boolean
+  transaction?: CreditTransaction
+  error?: string
+}> {
+  try {
+    // Use admin client if specified (e.g., for webhooks) to bypass RLS
+    const client = useAdminClient ? supabaseAdmin : supabase
+    
+    const { data: transaction, error } = await client
+      .from('credit_transactions')
+      .insert({
+        user_id: userId,
+        type,
+        amount: type === 'usage' ? -amount : amount, // Make usage negative
+        description,
+        history_id: historyId || null
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Failed to record transaction:', error)
+      return {
+        success: false,
+        error: 'Failed to record transaction'
+      }
+    }
+
+    return {
+      success: true,
+      transaction
+    }
+  } catch (error) {
+    console.error('Record transaction error:', error)
+    return {
+      success: false,
+      error: 'Something went wrong'
+    }
+  }
+}
+
+// Get user's credit transactions
+export async function getCreditTransactions(userId: string): Promise<{
+  success: boolean
+  transactions?: CreditTransaction[]
+  error?: string
+}> {
+  try {
+    // Use admin client to bypass RLS since we're using Clerk auth instead of Supabase auth
+    const { data: transactions, error } = await supabaseAdmin
+      .from('credit_transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50) // Limit to recent 50 transactions
+
+    if (error) {
+      console.error('Failed to fetch transactions:', error)
+      return {
+        success: false,
+        error: 'Failed to fetch transactions'
+      }
+    }
+
+    return {
+      success: true,
+      transactions: transactions || []
+    }
+  } catch (error) {
+    console.error('Get transactions error:', error)
     return {
       success: false,
       error: 'Something went wrong'

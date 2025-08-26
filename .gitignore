@@ -44,3 +44,6 @@ next-env.d.ts
 Thumbs.db
 
 .mcp.json
+
+
+.playwright-mcp

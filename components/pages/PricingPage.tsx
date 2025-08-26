@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { SignedIn, SignedOut, useUser } from '@clerk/nextjs';
+import { SignedIn, SignedOut, useUser, SignInButton } from '@clerk/nextjs';
 import Header from '@/components/layout/Header';
+import Footer from '@/components/layout/Footer';
 import { Check, Zap, Star } from 'lucide-react';
 
 interface PricingPlan {
@@ -22,13 +23,11 @@ const pricingPlans: PricingPlan[] = [
     credits: 2000,
     veo3FastVideos: 65,
     veo3HighQualityVideos: 13,
+    isRecommended: true,
     features: [
-      'AI Product Analysis',
-      'Professional Cover Images',
-      'Video Advertisements',
-      'Multiple Video Models',
-      'Download HD Content',
-      'Basic Support'
+      '2,000 credits',
+      '~65 Veo3 Fast videos',
+      '~13 Veo3 High Quality videos'
     ]
   },
   {
@@ -37,16 +36,11 @@ const pricingPlans: PricingPlan[] = [
     credits: 7500,
     veo3FastVideos: 250,
     veo3HighQualityVideos: 50,
-    isRecommended: true,
     features: [
-      'Everything in Starter',
-      'Priority Processing',
-      'Advanced Video Models',
-      'Bulk Processing',
-      'Custom Branding',
-      'Priority Support',
-      'Analytics Dashboard',
-      'API Access'
+      '7,500 credits',
+      '~250 Veo3 Fast videos',
+      '~50 Veo3 High Quality videos',
+      'Priority processing'
     ]
   }
 ];
@@ -81,74 +75,62 @@ export default function PricingPage() {
           {pricingPlans.map((plan) => (
             <div
               key={plan.name}
-              className={`relative bg-white rounded-2xl border-2 p-8 ${
+              className={`bg-white rounded-2xl p-8 shadow-sm flex flex-col ${
                 plan.isRecommended
-                  ? 'border-gray-900 shadow-lg'
-                  : 'border-gray-200'
+                  ? 'border-2 border-gray-900 transform scale-105'
+                  : 'border border-gray-200 hover:border-gray-300 transition-colors'
               }`}
             >
               {plan.isRecommended && (
-                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <div className="bg-gray-900 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1">
-                    <Star className="w-4 h-4" />
-                    Recommended
-                  </div>
+                <div className="bg-gray-900 text-white px-3 py-1 rounded-md text-sm font-medium mb-4 inline-block">
+                  Recommended
                 </div>
               )}
 
-              <div className="text-center mb-8">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-                <div className="mb-4">
-                  <span className="text-5xl font-bold text-gray-900">${plan.price}</span>
-                  <span className="text-gray-600 ml-2">one-time</span>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <Zap className="w-5 h-5 text-yellow-500" />
-                    <span className="text-lg font-semibold">{plan.credits.toLocaleString()} Credits</span>
-                  </div>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <div>≈ {plan.veo3FastVideos} Veo3 Fast videos</div>
-                    <div>≈ {plan.veo3HighQualityVideos} Veo3 high-quality videos</div>
-                  </div>
-                </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">{plan.name}</h3>
+              <div className="text-3xl font-bold text-gray-900 mb-4">
+                ${plan.price}
+                <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
-
-              <ul className="space-y-4 mb-8">
+              
+              <ul className="space-y-3 mb-8 flex-grow">
                 {plan.features.map((feature, index) => (
                   <li key={index} className="flex items-center gap-3">
-                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                    <span className="text-gray-700">{feature}</span>
+                    <div className={`w-2 h-2 rounded-full ${
+                      plan.isRecommended ? 'bg-gray-900' : 'bg-gray-600'
+                    }`}></div>
+                    <span className="text-gray-600">{feature}</span>
                   </li>
                 ))}
               </ul>
 
               <SignedOut>
-                <button
-                  onClick={() => window.location.href = '/sign-up'}
-                  className={`w-full py-3 px-6 rounded-lg font-medium transition-colors ${
-                    plan.isRecommended
-                      ? 'bg-gray-900 text-white hover:bg-gray-800'
-                      : 'border border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
-                  }`}
-                >
-                  Get Started
-                </button>
+                <SignInButton mode="modal">
+                  <button
+                    className={`w-full py-3 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      plan.isRecommended
+                        ? 'bg-gray-900 text-white hover:bg-gray-800'
+                        : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Get Started
+                  </button>
+                </SignInButton>
               </SignedOut>
 
               <SignedIn>
                 <button
                   onClick={() => handleSelectPlan(plan.name)}
                   disabled={selectedPlan === plan.name}
-                  className={`w-full py-3 px-6 rounded-lg font-medium transition-colors ${
+                  className={`w-full py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 ${
                     selectedPlan === plan.name
                       ? 'bg-green-600 text-white cursor-not-allowed'
                       : plan.isRecommended
-                      ? 'bg-gray-900 text-white hover:bg-gray-800'
-                      : 'border border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+                      ? 'bg-gray-900 text-white hover:bg-gray-800 cursor-pointer'
+                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
                   }`}
                 >
-                  {selectedPlan === plan.name ? 'Processing...' : `Choose ${plan.name}`}
+                  {selectedPlan === plan.name ? 'Processing...' : 'Get Started'}
                 </button>
               </SignedIn>
             </div>
@@ -193,39 +175,6 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* Plan Comparison */}
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8">
-            Which Plan Is Right for You?
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div className="bg-blue-50 rounded-xl p-8">
-              <h3 className="text-xl font-semibold text-blue-900 mb-4">Starter Package</h3>
-              <p className="text-blue-800 mb-4">
-                Perfect for small businesses and entrepreneurs just starting with AI advertisement creation.
-              </p>
-              <ul className="text-left text-blue-700 space-y-2">
-                <li>• Test AI video generation</li>
-                <li>• Create social media content</li>
-                <li>• Low-cost entry point</li>
-                <li>• Explore different video styles</li>
-              </ul>
-            </div>
-
-            <div className="bg-purple-50 rounded-xl p-8">
-              <h3 className="text-xl font-semibold text-purple-900 mb-4">Pro Package</h3>
-              <p className="text-purple-800 mb-4">
-                Ideal for businesses with regular marketing needs and professional campaign requirements.
-              </p>
-              <ul className="text-left text-purple-700 space-y-2">
-                <li>• Scale your marketing efforts</li>
-                <li>• Create premium campaigns</li>
-                <li>• Better cost per video</li>
-                <li>• Advanced features access</li>
-              </ul>
-            </div>
-          </div>
-        </div>
 
         {/* FAQ Section */}
         <div className="max-w-3xl mx-auto">
@@ -272,14 +221,7 @@ export default function PricingPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-gray-50 border-t border-gray-200 py-12">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-gray-600">
-            <p>&copy; 2024 Flowtra. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

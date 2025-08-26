@@ -1,53 +1,40 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useWorkflow, WorkflowStep } from '@/hooks/useWorkflow';
+import { useState } from 'react';
+import { useWorkflow } from '@/hooks/useWorkflow';
 import { useUser } from '@clerk/nextjs';
+import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import FileUpload from '@/components/FileUpload';
-import StepIndicator from '@/components/StepIndicator';
-import { Upload, Play, Image, FileText, Zap } from 'lucide-react';
+import { Download, RotateCcw, Share2, ArrowRight, History } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function Dashboard() {
   const { user, isLoaded } = useUser();
+  const { credits: userCredits } = useCredits();
+  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
+  const router = useRouter();
+  
   const {
     state,
     uploadFile,
-    retryFromStep,
-    checkCoverStatus,
-    checkVideoStatus
-  } = useWorkflow();
-  
-  const [viewingStep, setViewingStep] = useState<WorkflowStep | null>(null);
-  const [userCredits, setUserCredits] = useState<number>();
+    resetWorkflow
+  } = useWorkflow(user?.id, selectedModel);
 
-  // Poll for cover and video completion
-  useEffect(() => {
-    if (state.data.coverImage?.taskId && !state.data.coverImage.url) {
-      const interval = setInterval(checkCoverStatus, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [state.data.coverImage, checkCoverStatus]);
+  // No longer redirect non-authenticated users - allow guest access
+  // Guest users get limited usage (1 VEO3_fast), logged-in users get more (2 VEO3_fast)
 
-  useEffect(() => {
-    if (state.data.video?.taskId && !state.data.video.url) {
-      const interval = setInterval(checkVideoStatus, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [state.data.video, checkVideoStatus]);
+  // Credits are now managed by CreditsContext
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (isLoaded && !user) {
-      window.location.href = '/sign-in';
-    }
-  }, [isLoaded, user]);
-
-  // Fetch user credits
-  useEffect(() => {
-    // TODO: Implement getUserCredits API call
-    setUserCredits(2000); // Mock data
-  }, []);
+  const getStepMessage = (step: string | null) => {
+    const stepMessages = {
+      'describing': 'Analyzing your product image with AI...',
+      'generating_prompts': 'Creating creative advertisement concepts...',
+      'generating_cover': 'Designing your advertisement cover...',
+      'generating_video': 'Producing your video advertisement...'
+    };
+    return stepMessages[step as keyof typeof stepMessages] || 'Processing...';
+  };
 
   // Loading state
   if (!isLoaded) {
@@ -58,247 +45,223 @@ export default function Dashboard() {
     );
   }
 
-  // Not authenticated
-  if (!user) {
-    return null;
-  }
+  // Allow both authenticated and guest users to access dashboard
+
+  const handleFileUpload = async (files: File | File[]) => {
+    // Handle both single file and multiple files
+    const fileArray = Array.isArray(files) ? files : [files];
+    
+    // For now, process the first file (extend later for batch processing)
+    if (fileArray.length > 0) {
+      await uploadFile(fileArray[0]);
+    }
+  };
 
   const renderWorkflowContent = () => {
-    if (state.currentStep === 'upload') {
+    // Show upload interface when no workflow is running
+    if (!state.historyId || state.workflowStatus === 'started') {
       return (
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-xl mx-auto">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Upload className="w-8 h-8 text-gray-600" />
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Upload Your Product Image
+            <h2 className="text-xl font-medium text-gray-900 mb-2">
+              Create your advertisements
             </h2>
-            <p className="text-lg text-gray-600">
-              Upload a high-quality image of your product. Our AI will automatically analyze it and create amazing advertisements for you.
+            <p className="text-gray-600">
+              Upload a product image to generate professional video ads with AI
             </p>
           </div>
-          <FileUpload onFileUpload={uploadFile} isLoading={state.isLoading} />
+          
+          <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} />
         </div>
       );
     }
 
-    if (state.currentStep === 'complete') {
+    if (state.workflowStatus === 'completed') {
       return (
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Zap className="w-8 h-8 text-green-600" />
+            <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl">✓</span>
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              🎉 Advertisement Created Successfully!
-            </h2>
-            <p className="text-lg text-gray-600">
-              Your AI-generated advertisement is ready! Here are your final results:
+            <h1 className="text-3xl font-semibold text-gray-900 mb-4">
+              Video Generated Successfully
+            </h1>
+            <p className="text-gray-600 max-w-xl mx-auto">
+              Your advertisement video has been created and is ready to download.
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            {state.data.coverImage?.url && (
-              <div className="bg-white border border-gray-200 rounded-xl p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Image className="w-5 h-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">Cover Image</h3>
-                </div>
+          {/* Original Image and Video Result */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 max-w-4xl mx-auto">
+            {/* Original Image */}
+            {state.data.uploadedFile?.url && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Original Product</h3>
                 <img 
-                  src={state.data.coverImage.url} 
-                  alt="Generated cover" 
-                  className="w-full rounded-lg shadow-sm mb-4"
+                  src={state.data.uploadedFile.url} 
+                  alt="Original product" 
+                  className="w-full rounded-lg"
                 />
-                <a
-                  href={state.data.coverImage.url}
-                  download="flowtra-cover.jpg"
-                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Download Cover
-                </a>
               </div>
             )}
 
+            {/* Generated Video */}
             {state.data.video?.url && (
-              <div className="bg-white border border-gray-200 rounded-xl p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Play className="w-5 h-5 text-purple-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">Video Advertisement</h3>
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">Generated Video</h3>
+                  <a
+                    href={state.data.video.url}
+                    download="flowtra-video.mp4"
+                    className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </a>
                 </div>
-                <video 
-                  src={state.data.video.url} 
-                  controls 
-                  className="w-full rounded-lg shadow-sm mb-4"
-                />
-                <a
-                  href={state.data.video.url}
-                  download="flowtra-video.mp4"
-                  className="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
-                >
-                  Download Video
-                </a>
+                <div className="relative">
+                  <video 
+                    src={state.data.video.url} 
+                    controls 
+                    className="w-full rounded-lg"
+                  />
+                </div>
               </div>
             )}
           </div>
 
           {/* Campaign Details */}
-          {state.data.prompts && (
-            <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
-              <div className="flex items-center gap-2 mb-4">
-                <FileText className="w-5 h-5 text-gray-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Campaign Details</h3>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-1">Caption</h4>
-                  <p className="text-gray-700">{state.data.prompts.caption}</p>
+          {state.data.creativePrompts && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-8 max-w-4xl mx-auto">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Campaign Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white rounded-lg p-4 border border-gray-200">
+                  <h4 className="font-medium text-gray-900 mb-2">Advertisement Caption</h4>
+                  <p className="text-gray-600 text-sm">{state.data.creativePrompts.caption}</p>
                 </div>
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-1">Creative Summary</h4>
-                  <p className="text-gray-700">{state.data.prompts.creative_summary}</p>
+                <div className="bg-white rounded-lg p-4 border border-gray-200">
+                  <h4 className="font-medium text-gray-900 mb-2">Creative Strategy</h4>
+                  <p className="text-gray-600 text-sm">{state.data.creativePrompts.creative_summary}</p>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="text-center">
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
             <button
               onClick={() => window.location.reload()}
-              className="bg-gray-900 text-white px-8 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+              className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
             >
-              Create Another Advertisement
+              <RotateCcw className="w-4 h-4" />
+              Create Another Ad
+            </button>
+            <button
+              onClick={() => window.open('mailto:?subject=Check out my AI-generated ad!&body=I just created this amazing advertisement using AI!')}
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+              Share Results
             </button>
           </div>
         </div>
       );
     }
 
-    // Processing steps
-    return (
-      <div className="max-w-2xl mx-auto">
-        {state.data.uploadedFile && (
-          <div className="text-center mb-8">
-            <img 
-              src={state.data.uploadedFile.url} 
-              alt="Uploaded product" 
-              className="max-w-xs mx-auto rounded-lg shadow-lg"
-            />
+    // For processing workflow, show progress page
+    if (state.workflowStatus === 'in_progress' || state.workflowStatus === 'failed') {
+      return (
+        <div className="max-w-xl mx-auto">
+          <div className="text-center space-y-6">
+            <div className="w-16 h-16 bg-green-100 rounded-lg flex items-center justify-center mx-auto">
+              <span className="text-2xl">✓</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {state.workflowStatus === 'failed' ? 'Processing Failed' : 'Processing Your Advertisement'}
+              </h3>
+              <p className="text-gray-600 text-sm mb-6">
+                {state.workflowStatus === 'failed' 
+                  ? `Error: ${state.error || state.data.errorMessage || 'Unknown error occurred'}`
+                  : `Progress: ${state.progress}% - ${getStepMessage(state.currentStep)}`
+                }
+              </p>
+              {state.workflowStatus === 'in_progress' && (
+                <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                    style={{ width: `${state.progress}%` }}
+                  ></div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={() => router.push('/dashboard/history')}
+                className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <History className="w-4 h-4" />
+                View Progress
+              </button>
+              {state.workflowStatus === 'failed' ? (
+                <button
+                  onClick={() => resetWorkflow()}
+                  className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Try Again
+                </button>
+              ) : (
+                <button
+                  onClick={() => resetWorkflow()}
+                  className="flex items-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  Upload More
+                </button>
+              )}
+            </div>
           </div>
-        )}
-        
-        <div className="text-center">
-          {state.currentStep === 'describe' && (
-            <div className="mb-8">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Analyzing Your Product</h2>
-              <p className="text-gray-600">Our AI is examining your product image to understand its features and characteristics.</p>
-            </div>
-          )}
-          
-          {state.currentStep === 'generate-prompts' && (
-            <div className="mb-8">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Creating Advertisement Concept</h2>
-              <p className="text-gray-600">Generating creative briefs and concepts for your advertisement.</p>
-              {state.data.description && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6 text-left">
-                  <h3 className="font-semibold text-gray-900 mb-2">Product Analysis:</h3>
-                  <p className="text-sm text-gray-700">{state.data.description}</p>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {state.currentStep === 'generate-cover' && (
-            <div className="mb-8">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Generating Cover Image</h2>
-              <p className="text-gray-600 mb-4">Creating a professional advertisement image for your product. This may take a few minutes...</p>
-              {state.data.prompts && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-left">
-                  <h3 className="font-semibold text-gray-900 mb-2">Creative Concept:</h3>
-                  <p className="text-sm text-gray-700">{state.data.prompts.creative_summary}</p>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {state.currentStep === 'generate-video' && (
-            <div className="mb-8">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Creating Video Advertisement</h2>
-              <p className="text-gray-600 mb-4">Generating an engaging video advertisement for your product. This may take several minutes...</p>
-              {state.data.coverImage?.url && (
-                <div className="mb-4">
-                  <img 
-                    src={state.data.coverImage.url} 
-                    alt="Generated cover" 
-                    className="max-w-sm mx-auto rounded-lg shadow-md"
-                  />
-                  <p className="text-sm text-green-600 mt-2 font-medium">✓ Cover image completed</p>
-                </div>
-              )}
-            </div>
-          )}
         </div>
-      </div>
-    );
+      );
+    }
+
+    // Hide all processing steps from user
+    return null;
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar credits={userCredits} />
+    <div className="min-h-screen bg-gray-50">
+      <Sidebar 
+        credits={userCredits} 
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        userEmail={user?.primaryEmailAddress?.emailAddress}
+        userImageUrl={user?.imageUrl}
+      />
       
-      <div className="flex-1">
+      <div className="ml-64 bg-gray-50 min-h-screen">
         <div className="p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Workspace
+          <div className="mb-10">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-1">
+              Upload Product Photo
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-500 text-sm">
               Create professional AI-powered advertisements for your products
             </p>
           </div>
 
-          {/* Step Indicator */}
-          <div className="mb-8">
-            <StepIndicator 
-              currentStep={state.currentStep} 
-              isLoading={state.isLoading}
-              stepResults={state.stepResults}
-              selectedStep={viewingStep}
-              onStepClick={(step) => {
-                setViewingStep(viewingStep === step ? null : step);
-              }}
-            />
-          </div>
 
           {/* Error Display */}
           {state.error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-8">
               <strong>Error:</strong> {state.error}
-              {state.currentStep !== 'upload' && (
-                <button
-                  onClick={() => retryFromStep(state.currentStep)}
-                  className="ml-4 bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 transition-colors"
-                >
-                  Retry
-                </button>
-              )}
             </div>
           )}
 
           {/* Main Content */}
-          <div className="bg-white border border-gray-200 rounded-xl p-8">
+          <div className="bg-white border border-gray-200 rounded-lg p-8">
             {renderWorkflowContent()}
           </div>
         </div>

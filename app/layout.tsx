@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from '@clerk/nextjs'
 import { UserInitializer } from '@/components/UserInitializer'
+import { CreditsProvider } from '@/contexts/CreditsContext'
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -125,7 +126,9 @@ export default function RootLayout({
         </head>
         <body className="antialiased">
           <UserInitializer />
-          {children}
+          <CreditsProvider>
+            {children}
+          </CreditsProvider>
         </body>
       </html>
     </ClerkProvider>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { addCredits } from '@/lib/credits'
+import { addCredits, recordCreditTransaction } from '@/lib/credits'
 import { getCreditsFromProductId } from '@/lib/constants'
 
 export async function POST(request: NextRequest) {
@@ -65,8 +65,24 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Failed to add credits' }, { status: 500 })
         }
 
+        // Record the purchase transaction (use admin client to bypass RLS)
+        const transactionResult = await recordCreditTransaction(
+          userId,
+          'purchase',
+          packageInfo.credits,
+          `Purchase ${packageInfo.packageName} package`,
+          undefined, // historyId
+          true // useAdminClient
+        )
+
+        if (!transactionResult.success) {
+          console.error('❌ Failed to record transaction:', transactionResult.error)
+          // Don't fail the webhook if transaction recording fails, credits were already added
+        }
+
         console.log(`✅ Successfully added ${packageInfo.credits} credits to user ${userId} (${packageInfo.packageName} package)`)
         console.log(`💰 New balance: ${result.newBalance}`)
+        console.log(`📝 Transaction recorded: ${transactionResult.success ? 'Yes' : 'Failed'}`)
         
         return NextResponse.json({ 
           success: true, 

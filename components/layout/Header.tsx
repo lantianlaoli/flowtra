@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
-import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
+import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/nextjs';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface HeaderProps {
@@ -20,7 +20,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3">
             <Image 
-              src="/android-chrome-512x512.png" 
+              src="/logo.png" 
               alt="Flowtra Logo" 
               width={32} 
               height={32} 
@@ -29,50 +29,21 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
             <span className="text-xl font-semibold text-gray-900">Flowtra</span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
-            <Link 
-              href="/features" 
-              className="text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Features
-            </Link>
-            <Link 
-              href="/pricing" 
-              className="text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Pricing
-            </Link>
-            <Link 
-              href="/library" 
-              className="text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Library
-            </Link>
-            <Link 
-              href="/contact" 
-              className="text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Contact
-            </Link>
-          </nav>
-
           {/* Auth Buttons */}
           {showAuthButtons && (
             <div className="hidden md:flex items-center gap-4">
+              <Link 
+                href="/pricing" 
+                className="text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Pricing
+              </Link>
               <SignedOut>
-                <Link 
-                  href="/sign-in" 
-                  className="text-gray-600 hover:text-gray-900 transition-colors"
-                >
-                  Sign in
-                </Link>
-                <Link 
-                  href="/sign-up" 
-                  className="bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors"
-                >
-                  Join for free
-                </Link>
+                <SignInButton mode="modal">
+                  <button className="bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors">
+                    Make My First Ad
+                  </button>
+                </SignInButton>
               </SignedOut>
               <SignedIn>
                 <Link 
@@ -105,51 +76,24 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           <div className="md:hidden py-4 border-t border-gray-200">
             <nav className="flex flex-col gap-4">
               <Link 
-                href="/features" 
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Features
-              </Link>
-              <Link 
                 href="/pricing" 
                 className="text-gray-600 hover:text-gray-900 transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Pricing
               </Link>
-              <Link 
-                href="/library" 
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Library
-              </Link>
-              <Link 
-                href="/contact" 
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Contact
-              </Link>
               
               {showAuthButtons && (
                 <div className="pt-4 border-t border-gray-200">
                   <SignedOut>
-                    <Link 
-                      href="/sign-in" 
-                      className="block text-gray-600 hover:text-gray-900 transition-colors mb-2"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Sign in
-                    </Link>
-                    <Link 
-                      href="/sign-up" 
-                      className="block bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-center font-semibold"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Join for free
-                    </Link>
+                    <SignInButton mode="modal">
+                      <button 
+                        className="block bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-center font-semibold w-full"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Make My First Ad
+                      </button>
+                    </SignInButton>
                   </SignedOut>
                   <SignedIn>
                     <Link 
