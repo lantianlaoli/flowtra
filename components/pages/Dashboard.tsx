@@ -313,7 +313,7 @@ export default function Dashboard() {
           {/* Error Display */}
           {state.error && (
             <div className="mb-8">
-              {state.error.includes('服务器维护中') ? (
+              {state.error.includes('maintenance') ? (
                 <MaintenanceMessage message={state.error} />
               ) : (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">

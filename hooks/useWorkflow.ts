@@ -96,7 +96,7 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
       
       if (!creditsResult.success || !creditsResult.sufficient) {
         setLoading(false);
-        setError('服务器维护中，请稍后再试。如有紧急需求，请联系客服。');
+        setError('Service temporarily under maintenance, please try again later. Contact support for urgent needs.');
         return;
       }
       
