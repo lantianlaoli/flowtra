@@ -88,23 +88,7 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
     if (!file) return;
     
     try {
-      // Check KIE API credits first
       setLoading(true);
-      
-      console.log('🔍 Checking KIE credits...');
-      const creditsResponse = await fetch('/api/check-kie-credits');
-      const creditsResult = await creditsResponse.json();
-      
-      console.log('📊 KIE Credits Result:', creditsResult);
-      
-      if (!creditsResult.success || !creditsResult.sufficient) {
-        console.log('❌ KIE Credits insufficient, showing maintenance message');
-        setLoading(false);
-        setError('Service temporarily under maintenance, please try again later. Contact support for urgent needs.');
-        return;
-      }
-      
-      console.log('✅ KIE Credits sufficient, proceeding with upload');
       
       // Check guest usage limits
       const currentMaxUsage = userId ? maxUserUsage : maxGuestUsage;

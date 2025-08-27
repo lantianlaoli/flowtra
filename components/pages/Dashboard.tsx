@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useWorkflow } from '@/hooks/useWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
@@ -10,10 +10,21 @@ import MaintenanceMessage from '@/components/MaintenanceMessage';
 import { Download, RotateCcw, Share2, ArrowRight, History } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+interface KieCreditsStatus {
+  sufficient: boolean;
+  loading: boolean;
+  currentCredits?: number;
+  threshold?: number;
+}
+
 export default function Dashboard() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
   const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
+  const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
+    sufficient: true,
+    loading: true
+  });
   
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
     setSelectedModel(model);
@@ -30,6 +41,31 @@ export default function Dashboard() {
   // Guest users get limited usage (1 VEO3_fast), logged-in users get more (2 VEO3_fast)
 
   // Credits are now managed by CreditsContext
+
+  // Check KIE credits on page load
+  useEffect(() => {
+    const checkKieCredits = async () => {
+      try {
+        const response = await fetch('/api/check-kie-credits');
+        const result = await response.json();
+        
+        setKieCreditsStatus({
+          sufficient: result.success && result.sufficient,
+          loading: false,
+          currentCredits: result.currentCredits,
+          threshold: result.threshold
+        });
+      } catch (error) {
+        console.error('Failed to check KIE credits:', error);
+        setKieCreditsStatus({
+          sufficient: false,
+          loading: false
+        });
+      }
+    };
+
+    checkKieCredits();
+  }, []);
 
   const getStepMessage = (step: string | null) => {
     const stepMessages = {
@@ -63,6 +99,15 @@ export default function Dashboard() {
   };
 
   const renderWorkflowContent = () => {
+    // Check KIE credits first - if insufficient, show maintenance interface
+    if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
+      return (
+        <div className="max-w-xl mx-auto">
+          <MaintenanceMessage />
+        </div>
+      );
+    }
+    
     // Show upload interface when no workflow is running
     if (!state.historyId || state.workflowStatus === 'started') {
       return (

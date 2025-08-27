@@ -1,6 +1,7 @@
 'use client';
 
-import { AlertTriangle, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, ExternalLink, MessageSquare } from 'lucide-react';
 import { FaXTwitter, FaLinkedin, FaTiktok, FaThreads } from 'react-icons/fa6';
 
 interface MaintenanceMessageProps {
@@ -84,6 +85,17 @@ export default function MaintenanceMessage({ message }: MaintenanceMessageProps)
                 </a>
               ))}
             </div>
+          </div>
+          
+          {/* Support Button */}
+          <div className="pt-4">
+            <Link
+              href="/dashboard/support"
+              className="inline-flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors font-medium shadow-sm"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Get Support
+            </Link>
           </div>
           
           {/* Additional help */}
