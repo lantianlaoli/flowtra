@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useWorkflow } from '@/hooks/useWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
@@ -199,9 +200,11 @@ export default function Dashboard() {
             {state.data.uploadedFile?.url && (
               <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Original Product</h3>
-                <img 
+                <Image 
                   src={state.data.uploadedFile.url} 
                   alt="Original product" 
+                  width={400}
+                  height={400}
                   className="w-full rounded-lg"
                 />
               </div>

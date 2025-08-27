@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import { 
@@ -81,9 +82,11 @@ export default function Sidebar({ credits, selectedModel = 'auto', onModelChange
       <div className="p-6 flex-1">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-3 mb-8 group">
-          <img 
+          <Image 
             src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png" 
             alt="Flowtra Logo" 
+            width={32}
+            height={32}
             className="w-8 h-8"
           />
           <span className="text-lg font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">Flowtra</span>
@@ -95,9 +98,11 @@ export default function Sidebar({ credits, selectedModel = 'auto', onModelChange
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
                 {userImageUrl ? (
-                  <img 
+                  <Image 
                     src={userImageUrl} 
                     alt="User avatar" 
+                    width={32}
+                    height={32}
                     className="w-full h-full object-cover"
                   />
                 ) : (

@@ -1,13 +1,13 @@
-## 价格方案
+## Pricing Plans
 
-| 套餐 | 售价 | 积分额度 | 可生成广告数量 | 视频模型消耗 |
+| Plan | Price | Credits | Ad Generation Capacity | Video Model Consumption |
 | --- | --- | --- | --- | --- |
-| **Starter 套餐**（体验版） | **$29** | 2,000 积分 | - 约 **65 条 Veo3 Fast 视频**- 或约 **13 条 Veo3 高质视频** | Veo3 Fast：30 积分/条Veo3 高质：150 积分/条 |
-| **Pro 套餐**（推荐） | **$99** | 7,500 积分 | - 约 **250 条 Veo3 Fast 视频**- 或约 **50 条 Veo3 高质视频** | Veo3 Fast：30 积分/条Veo3 高质：150 积分/条 |
+| **Starter Plan** (Trial) | **$29** | 2,000 credits | - Approx **65 Veo3 Fast videos**- Or approx **13 Veo3 high-quality videos** | Veo3 Fast: 30 credits/vidVeo3 High-quality: 150 credits/vid |
+| **Pro Plan** (Recommended) | **$99** | 7,500 credits | - Approx **250 Veo3 Fast videos**- Or approx **50 Veo3 high-quality videos** | Veo3 Fast: 30 credits/vidVeo3 High-quality: 150 credits/vid |
 
 ---
 
-### 营销文案示例（可放在表格下方）
+### Marketing Copy Examples (can be placed below the table)
 
-- **Starter 套餐**：适合刚开始投放广告的卖家，低成本快速体验 AI 视频生成。
-- **Pro 套餐**：主推选择！更高额度、更低单条成本，满足重度广告需求。
+- **Starter Plan**: Perfect for sellers just starting with ad campaigns, low-cost quick experience with AI video generation.
+- **Pro Plan**: Top choice! Higher credits, lower cost per video, meets heavy advertising demands.

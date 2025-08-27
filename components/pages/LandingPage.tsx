@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { useUser, SignInButton } from '@clerk/nextjs';
 import { GiftIcon } from '@heroicons/react/24/outline';
 import { Sparkles } from 'lucide-react';
@@ -97,9 +98,11 @@ export default function LandingPage() {
             {/* Original Image - Top */}
             <div className="relative">
               <div className="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video">
-                <img 
+                <Image 
                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/bogl45guwpk.jpg"
                   alt="Original product photo showing e-commerce item ready for AI video advertisement generation"
+                  width={800}
+                  height={450}
                   className="w-full h-full object-cover"
                 />
               </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -177,9 +178,11 @@ export default function HistoryPage() {
                 </div>
               </div>
               <div>
-                <img 
+                <Image 
                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/download_guide.png" 
                   alt="Video download guide showing the three dots menu"
+                  width={600}
+                  height={240}
                   className="w-full h-60 object-contain rounded-xl"
                 />
               </div>
@@ -232,9 +235,11 @@ export default function HistoryPage() {
                   {/* Image as main content */}
                   <div className="relative bg-white">
                     <div className="aspect-[4/3] bg-white">
-                      <img
+                      <Image
                         src={item.originalImageUrl}
                         alt="Original product"
+                        width={400}
+                        height={300}
                         className="w-full h-full object-cover"
                       />
                     </div>

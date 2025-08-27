@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { uploadImageToStorage } from '@/lib/supabase';
+import { startWorkflowProcess } from '@/lib/workflow';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,26 +29,19 @@ export async function POST(request: NextRequest) {
 
     // Always start background workflow after upload
     try {
-      const workflowResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/start-workflow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          imageUrl: uploadResult.fullUrl,
-          userId: userId,
-          videoModel: videoModel as 'veo3' | 'veo3_fast'
-        })
+      console.log('Starting workflow process directly...');
+      const workflowResult = await startWorkflowProcess({
+        imageUrl: uploadResult.fullUrl,
+        userId: userId || undefined,
+        videoModel: videoModel as 'veo3' | 'veo3_fast'
       });
 
-      if (workflowResponse.ok) {
-        const workflowData = await workflowResponse.json();
-        historyId = workflowData.historyId;
+      if (workflowResult.success) {
+        historyId = workflowResult.historyId;
         workflowStarted = true;
-        console.log('Background workflow started successfully:', workflowData);
+        console.log('Background workflow started successfully:', workflowResult);
       } else {
-        const errorData = await workflowResponse.text();
-        console.error('Failed to start background workflow:', workflowResponse.status, errorData);
+        console.error('Failed to start background workflow:', workflowResult.error, workflowResult.details);
       }
     } catch (workflowError) {
       console.error('Error starting background workflow:', workflowError);
