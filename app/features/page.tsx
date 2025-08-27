@@ -1,4 +1,5 @@
-import { metadata } from './metadata';
+'use client';
+
 import Header from '@/components/layout/Header';
 import { BoltIcon, PhotoIcon, PlayIcon, ChartBarIcon, GlobeAltIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
@@ -35,7 +36,6 @@ const features = [
   }
 ];
 
-export { metadata };
 
 export default function FeaturesPage() {
   return (
