@@ -19,7 +19,7 @@ export async function getUserCredits(userId: string): Promise<{
   error?: string
 }> {
   try {
-    const supabase = getSupabase()
+    const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
     const { data: credits, error } = await supabase
       .from('user_credits')
       .select('*')
@@ -61,7 +61,7 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
   error?: string
 }> {
   try {
-    const supabase = getSupabase()
+    const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
     const { data: credits, error } = await supabase
       .from('user_credits')
       .insert({
@@ -80,6 +80,16 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
     }
 
     console.log(`✅ Initialized ${initialCredits} credits for new user:`, userId)
+    
+    // Record the initial credit transaction
+    await recordCreditTransaction(
+      userId,
+      'purchase',
+      initialCredits,
+      'Initial free credits for new user',
+      undefined,
+      true // Use admin client
+    )
     
     return {
       success: true,
@@ -161,7 +171,7 @@ export async function deductCredits(userId: string, creditsToDeduct: number): Pr
     }
 
     // Deduct credits
-    const supabase = getSupabase()
+    const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
     const { data: updatedCredits, error } = await supabase
       .from('user_credits')
       .update({
@@ -221,7 +231,7 @@ export async function addCredits(userId: string, creditsToAdd: number, creemId?:
 
     if (shouldUpdate) {
       // Update existing record
-      const supabase = getSupabase()
+      const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
       const { data: updatedCredits, error } = await supabase
         .from('user_credits')
         .update({
@@ -246,7 +256,7 @@ export async function addCredits(userId: string, creditsToAdd: number, creemId?:
       }
     } else {
       // Create new record
-      const supabase = getSupabase()
+      const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
       const { data: newCredits, error } = await supabase
         .from('user_credits')
         .insert({
