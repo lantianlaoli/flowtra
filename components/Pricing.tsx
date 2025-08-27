@@ -16,7 +16,7 @@ export function Pricing({ onPurchase }: PricingProps) {
 
   const handlePurchase = async (packageName: 'starter' | 'pro') => {
     if (!user?.emailAddresses?.[0]?.emailAddress) {
-      alert('请先登录后再购买套餐')
+      alert('Please sign in first to purchase a plan')
       return
     }
 
@@ -24,7 +24,7 @@ export function Pricing({ onPurchase }: PricingProps) {
       packageName,
       userEmail: user.emailAddresses[0].emailAddress,
       onLoading: (isLoading) => setIsLoading(isLoading ? packageName : null),
-      onError: (error) => alert('购买失败，请稍后重试')
+      onError: () => alert('Purchase failed, please try again later')
     })
 
     if (onPurchase) {
@@ -37,10 +37,10 @@ export function Pricing({ onPurchase }: PricingProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-            选择适合你的套餐
+            Choose Your Perfect Plan
           </h2>
           <p className="mt-4 text-lg text-gray-600">
-            AI 智能视频生成，让你的产品广告脱颖而出
+            AI-powered video generation to make your product ads stand out
           </p>
         </div>
 
@@ -61,7 +61,7 @@ export function Pricing({ onPurchase }: PricingProps) {
                     <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center">
                       <HiStar className="w-2.5 h-2.5 text-white" />
                     </div>
-                    <span className="text-sm font-medium text-gray-900">推荐选择</span>
+                    <span className="text-sm font-medium text-gray-900">Recommended</span>
                   </div>
                 )}
 
@@ -77,11 +77,11 @@ export function Pricing({ onPurchase }: PricingProps) {
 
                   <div className="mb-6">
                     <p className="text-sm text-gray-600">
-                      包含 <span className="font-semibold text-gray-900">{pkg.credits.toLocaleString()}</span> 积分
+                      Includes <span className="font-semibold text-gray-900">{pkg.credits.toLocaleString()}</span> credits
                     </p>
                     <div className="mt-2 text-sm text-gray-600 space-y-1">
-                      <div>≈ {pkg.videoEstimates.veo3_fast} 条 Veo3 Fast 视频</div>
-                      <div>≈ {pkg.videoEstimates.veo3} 条 Veo3 高质视频</div>
+                      <div>≈ {pkg.videoEstimates.veo3_fast} Veo3 Fast videos</div>
+                      <div>≈ {pkg.videoEstimates.veo3} Veo3 high-quality videos</div>
                     </div>
                   </div>
 
@@ -112,10 +112,10 @@ export function Pricing({ onPurchase }: PricingProps) {
                     {isLoading === packageKey ? (
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                        处理中...
+                        Processing...
                       </div>
                     ) : (
-                      `立即购买 ${pkg.name}`
+                      `Buy ${pkg.name} Now`
                     )}
                   </button>
                 </div>
@@ -126,10 +126,10 @@ export function Pricing({ onPurchase }: PricingProps) {
 
         <div className="mt-12 text-center">
           <p className="text-sm text-gray-500">
-            所有套餐包含：AI 智能分析、高质量视频生成、24/7 技术支持
+            All plans include: AI analysis, high-quality video generation, 24/7 support
           </p>
           <p className="mt-2 text-xs text-gray-400">
-            * 视频生成数量基于模型积分消耗计算，实际可生成数量可能略有差异
+            * Video generation count based on model credit consumption, actual count may vary slightly
           </p>
         </div>
       </div>

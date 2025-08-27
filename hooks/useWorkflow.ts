@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 
 export type WorkflowStep = 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'complete';
-export type WorkflowStatus = 'started' | 'in_progress' | 'completed' | 'failed';
+export type WorkflowStatus = 'started' | 'workflow_initiated' | 'in_progress' | 'completed' | 'failed';
 
 export interface WorkflowState {
   isLoading: boolean;
@@ -65,6 +65,17 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
     maxGuestUsage: userId ? maxUserUsage : maxGuestUsage
   });
 
+  // Update video model when selectedModel changes
+  useEffect(() => {
+    setState(prev => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        videoModel: selectedModel
+      }
+    }));
+  }, [selectedModel]);
+
   const setLoading = useCallback((loading: boolean) => {
     setState(prev => ({ ...prev, isLoading: loading, error: null }));
   }, []);
@@ -115,16 +126,18 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
         ...prev,
         isLoading: false,
         historyId: result.historyId,
-        workflowStatus: 'started',
+        workflowStatus: result.workflowStarted ? 'workflow_initiated' : 'started',
         data: {
           ...prev.data,
           uploadedFile: { url: result.fileUrl, path: result.path }
         }
       }));
 
-      // Start polling if we got a historyId
+      // Start polling if we got a historyId (with delay to allow UI to show success state)
       if (result.historyId) {
-        pollWorkflowStatus(result.historyId);
+        setTimeout(() => {
+          pollWorkflowStatus(result.historyId);
+        }, 1000); // Wait 1 second before starting to poll
       }
 
     } catch (error: any) {
@@ -153,23 +166,31 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
           return;
         }
         
-        setState(prev => ({
-          ...prev,
-          workflowStatus: result.workflowStatus,
-          currentStep: result.currentStep,
-          progress: result.progress,
-          data: {
-            ...prev.data,
-            productDescription: result.data.productDescription,
-            creativePrompts: result.data.creativePrompts,
-            video: result.data.videoUrl ? {
-              url: result.data.videoUrl
-            } : undefined,
-            errorMessage: result.data.errorMessage,
-            creditsUsed: result.data.creditsUsed,
-            videoModel: result.data.videoModel
-          }
-        }));
+        setState(prev => {
+          // Don't override workflow_initiated status until user explicitly navigates away
+          // This allows the success screen to stay visible until user clicks a button
+          const shouldUpdateStatus = prev.workflowStatus !== 'workflow_initiated' || 
+                                   result.workflowStatus === 'failed' || 
+                                   result.workflowStatus === 'completed';
+          
+          return {
+            ...prev,
+            workflowStatus: shouldUpdateStatus ? result.workflowStatus : prev.workflowStatus,
+            currentStep: result.currentStep,
+            progress: result.progress,
+            data: {
+              ...prev.data,
+              productDescription: result.data.productDescription,
+              creativePrompts: result.data.creativePrompts,
+              video: result.data.videoUrl ? {
+                url: result.data.videoUrl
+              } : undefined,
+              errorMessage: result.data.errorMessage,
+              creditsUsed: result.data.creditsUsed,
+              videoModel: result.data.videoModel
+            }
+          };
+        });
         
         // Stop polling if completed or failed
         if (result.isCompleted || result.isFailed) {

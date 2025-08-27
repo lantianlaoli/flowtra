@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+
+# Disallow internal pages
+Disallow: /api/
+Disallow: /debug/
+Disallow: /dashboard/
+Disallow: /_next/
+Disallow: /admin/
+
+# Allow important pages
+Allow: /
+Allow: /features
+Allow: /pricing
+Allow: /terms
+Allow: /privacy
+
+# Sitemap location
+Sitemap: https://flowtra.com/sitemap.xml

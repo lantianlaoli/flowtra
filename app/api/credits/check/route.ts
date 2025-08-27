@@ -4,7 +4,7 @@ export const revalidate = 0
 import { auth } from '@clerk/nextjs/server'
 import { getUserCredits } from '@/lib/credits'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   // Ensure this route is dynamic and not statically evaluated at build time
   try {
     const { userId } = await auth()

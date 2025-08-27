@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { getSupabase } from '@/lib/supabase';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth();
     
@@ -53,7 +53,9 @@ export async function GET(request: NextRequest) {
       videoModel: item.video_model,
       creditsUsed: item.credits_used,
       status: mapWorkflowStatus(item.workflow_status || item.status),
-      createdAt: item.created_at
+      createdAt: item.created_at,
+      progress: item.progress_percentage,
+      currentStep: item.current_step
     }));
 
     return NextResponse.json({

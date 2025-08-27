@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { SignedIn, SignedOut, useUser, SignInButton } from '@clerk/nextjs';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { Check, Zap, Star } from 'lucide-react';
+import { Zap } from 'lucide-react';
 
 interface PricingPlan {
   name: string;
@@ -46,7 +46,7 @@ const pricingPlans: PricingPlan[] = [
 ];
 
 export default function PricingPage() {
-  const { user } = useUser();
+  useUser();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
   const handleSelectPlan = (planName: string) => {

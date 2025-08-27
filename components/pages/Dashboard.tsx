@@ -13,6 +13,10 @@ export default function Dashboard() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
   const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
+  
+  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
+    setSelectedModel(model);
+  };
   const router = useRouter();
   
   const {
@@ -72,6 +76,58 @@ export default function Dashboard() {
           </div>
           
           <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} />
+        </div>
+      );
+    }
+
+    // Show workflow initiated success state
+    if (state.workflowStatus === 'workflow_initiated') {
+      return (
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-8">
+            <div className="text-center space-y-6">
+              {/* Success icon */}
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto border-4 border-green-200">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              
+              {/* Success message */}
+              <div>
+                <h3 className="text-2xl font-semibold text-gray-900 mb-3">
+                  Advertisement Generation Started
+                </h3>
+                <p className="text-gray-700 text-base leading-relaxed mb-4">
+                  Your AI-powered advertisement is now being created. Our system is analyzing your product and generating professional video content.
+                </p>
+                <div className="bg-white/60 rounded-lg p-4 border border-green-200/50">
+                  <p className="text-sm text-gray-600">
+                    <strong>Estimated time:</strong> 3-5 minutes • 
+                    <strong> Process:</strong> Product analysis → Creative concepts → Cover design → Video generation
+                  </p>
+                </div>
+              </div>
+              
+              {/* Action buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+                <button
+                  onClick={() => router.push('/dashboard/history')}
+                  className="flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium shadow-sm"
+                >
+                  <History className="w-4 h-4" />
+                  Watch Progress Live
+                </button>
+                <button
+                  onClick={() => resetWorkflow()}
+                  className="flex items-center justify-center gap-2 bg-white text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors font-medium border border-gray-300 shadow-sm"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  Create Another Ad
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       );
     }
@@ -236,7 +292,7 @@ export default function Dashboard() {
       <Sidebar 
         credits={userCredits} 
         selectedModel={selectedModel}
-        onModelChange={setSelectedModel}
+        onModelChange={handleModelChange}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />

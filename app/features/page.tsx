@@ -1,5 +1,4 @@
-'use client';
-
+import { metadata } from './metadata';
 import Header from '@/components/layout/Header';
 import { BoltIcon, PhotoIcon, PlayIcon, ChartBarIcon, GlobeAltIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
@@ -36,6 +35,8 @@ const features = [
   }
 ];
 
+export { metadata };
+
 export default function FeaturesPage() {
   return (
     <div className="min-h-screen bg-white">
@@ -43,7 +44,7 @@ export default function FeaturesPage() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         {/* Header */}
-        <div className="text-center mb-16">
+        <header className="text-center mb-16">
           <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
             Powerful Features for
             <br />
@@ -52,7 +53,7 @@ export default function FeaturesPage() {
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Everything you need to create professional advertisements that convert. From AI analysis to final export.
           </p>
-        </div>
+        </header>
 
         {/* Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">

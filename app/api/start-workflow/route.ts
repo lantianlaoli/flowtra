@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { getSupabase } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { httpRequestWithRetry } from '@/lib/httpRequest';
+import { getCreditCost } from '@/lib/constants';
 
 interface StartWorkflowRequest {
   imageUrl: string;
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
           user_id: userId,
           original_image_url: imageUrl,
           video_model: videoModel,
-          credits_used: videoModel === 'veo3' ? 50 : 25,
+          credits_used: getCreditCost(videoModel),
           workflow_status: 'started',
           current_step: 'describing',
           progress_percentage: 5,
@@ -265,7 +266,7 @@ Provide a concise caption.
 
 Produce a clear creative summary based on the user's reference and intent.
 
-All video prompts must be a JSON object containing all required fields (see below). Optional fields should be included if provided by the user.
+All video prompts must be a JSON object containing all required fields (see below). CRITICAL: The dialogue field must contain actual voiceover script or spoken narration - never use phrases like "No dialogue", "None", or leave it empty. Write compelling spoken content that a narrator would say to sell the product.
 
 Output Requirements
 Respond ONLY with the following structured JSON:
@@ -299,7 +300,7 @@ Respond ONLY with the following structured JSON:
       },
       {
         role: 'user',
-        content: `This is the initial creative brief:\nCreate an advertisement\n\nDescription of the product:\n${productDescription}\n\nUse the Think tool to double check your output`
+        content: `This is the initial creative brief:\nCreate a compelling video advertisement with voiceover and audio\n\nDescription of the product:\n${productDescription}\n\nIMPORTANT: The video must include:\n- Engaging voiceover narration or dialogue that describes the product benefits\n- Background music or sound effects that enhance the mood\n- Clear spoken content that explains why customers should choose this product\n\nMake sure the 'dialogue' field contains actual spoken words, not just \"No dialogue\" or empty content.\n\nUse the Think tool to double check your output`
       }
     ],
     max_tokens: 1500,

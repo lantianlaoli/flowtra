@@ -20,7 +20,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3">
             <Image 
-              src="/logo.png" 
+              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png" 
               alt="Flowtra Logo" 
               width={32} 
               height={32} 

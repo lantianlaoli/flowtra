@@ -61,11 +61,11 @@ export default function LandingPage() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
-              Ad Videos for Amazon & Walmart
+              AI Ad Videos for Amazon & Walmart Products
             </h1>
             
             <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-              Upload your product photo. Get a sales-ready ad in seconds.
+              Upload your product photo. Get professional sales-ready video advertisements in seconds using advanced AI technology.
             </p>
 
             {/* CTA Buttons */}
@@ -99,7 +99,7 @@ export default function LandingPage() {
               <div className="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video">
                 <img 
                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/bogl45guwpk.jpg"
-                  alt="Original product image"
+                  alt="Original product photo showing e-commerce item ready for AI video advertisement generation"
                   className="w-full h-full object-cover"
                 />
               </div>

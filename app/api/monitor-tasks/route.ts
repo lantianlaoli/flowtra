@@ -218,12 +218,21 @@ Music: ${videoPrompt.music}
 Ending: ${videoPrompt.ending}
 Other details: ${videoPrompt.other_details}`;
 
+  console.log('Generated video prompt:', fullPrompt);
+  console.log('Dialogue content:', videoPrompt.dialogue);
+
   const requestBody = {
     prompt: fullPrompt,
     model: record.video_model || 'veo3_fast',
     aspectRatio: "16:9",
-    imageUrls: [coverImageUrl]
+    imageUrls: [coverImageUrl],
+    enableAudio: true,
+    audioEnabled: true,
+    generateVoiceover: true,
+    includeDialogue: true
   };
+
+  console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
     method: 'POST',

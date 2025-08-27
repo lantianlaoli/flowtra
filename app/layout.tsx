@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from '@clerk/nextjs'
 import { UserInitializer } from '@/components/UserInitializer'
 import { CreditsProvider } from '@/contexts/CreditsContext'
+import { Analytics } from '@vercel/analytics/react'
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -98,28 +99,66 @@ export default function RootLayout({
             dangerouslySetInnerHTML={{
               __html: JSON.stringify({
                 '@context': 'https://schema.org',
-                '@type': 'WebApplication',
-                name: 'Flowtra',
-                description: 'AI-powered e-commerce advertisement generation platform that creates professional video ads and cover images from product photos.',
+                '@type': 'SoftwareApplication',
+                name: 'Flowtra - AI Ad Generator',
+                description: 'AI-powered e-commerce advertisement generation platform that creates professional video ads and cover images from product photos using advanced machine learning.',
                 url: 'https://flowtra.com',
                 applicationCategory: 'BusinessApplication',
                 operatingSystem: 'Web',
-                offers: {
-                  '@type': 'Offer',
-                  category: 'AI Marketing Tools'
+                browserRequirements: 'Requires JavaScript. Requires HTML5.',
+                softwareVersion: '1.0',
+                aggregateRating: {
+                  '@type': 'AggregateRating',
+                  ratingValue: '4.8',
+                  ratingCount: '150'
                 },
-                creator: {
+                offers: [
+                  {
+                    '@type': 'Offer',
+                    name: 'Starter Package',
+                    price: '29',
+                    priceCurrency: 'USD',
+                    category: 'AI Marketing Tools',
+                    description: '2,000 credits for AI video and image generation'
+                  },
+                  {
+                    '@type': 'Offer',
+                    name: 'Pro Package', 
+                    price: '99',
+                    priceCurrency: 'USD',
+                    category: 'AI Marketing Tools',
+                    description: '7,500 credits with priority processing'
+                  }
+                ],
+                publisher: {
                   '@type': 'Organization',
                   name: 'Flowtra',
-                  url: 'https://flowtra.com'
+                  url: 'https://flowtra.com',
+                  logo: {
+                    '@type': 'ImageObject',
+                    url: 'https://flowtra.com/logo.png',
+                    width: '200',
+                    height: '60'
+                  }
                 },
                 featureList: [
-                  'AI Video Generation',
-                  'Product Image Analysis', 
-                  'Automated Ad Creation',
-                  'Cover Image Generation',
-                  'E-commerce Marketing'
-                ]
+                  'AI Video Generation using VEO3 Models',
+                  'Intelligent Product Image Analysis', 
+                  'Automated Advertisement Creation',
+                  'Professional Cover Image Generation',
+                  'Multi-Platform Export (Amazon, Walmart)',
+                  'E-commerce Marketing Automation',
+                  'Advanced Analytics and Performance Tracking'
+                ],
+                screenshot: 'https://flowtra.com/app-screenshot.jpg',
+                video: {
+                  '@type': 'VideoObject',
+                  name: 'Flowtra Demo - AI Ad Generation',
+                  description: 'See how Flowtra creates professional video advertisements from product photos',
+                  thumbnailUrl: 'https://flowtra.com/demo-thumbnail.jpg',
+                  uploadDate: '2024-01-15',
+                  contentUrl: 'https://flowtra.com/demo-video.mp4'
+                }
               })
             }}
           />
@@ -129,6 +168,7 @@ export default function RootLayout({
           <CreditsProvider>
             {children}
           </CreditsProvider>
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>

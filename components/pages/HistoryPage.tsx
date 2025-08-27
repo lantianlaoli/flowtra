@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Image, Play, Calendar, Zap, Filter, ArrowRight, Eye } from 'lucide-react';
+import { Calendar, Eye, Download } from 'lucide-react';
 
 interface HistoryItem {
   id: string;
@@ -16,10 +16,10 @@ interface HistoryItem {
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;
+  progress?: number;
+  currentStep?: string;
 }
 
-// Empty mock data - will be replaced with actual API call
-const mockHistory: HistoryItem[] = [];
 
 export default function HistoryPage() {
   const { user, isLoaded } = useUser();
@@ -113,8 +113,17 @@ export default function HistoryPage() {
     });
   };
 
-  const totalCreditsUsed = history.reduce((sum, item) => sum + item.creditsUsed, 0);
-  const completedAds = history.filter(item => item.status === 'completed').length;
+  const getStepMessage = (step?: string) => {
+    const stepMessages = {
+      'describing': 'Analyzing product...',
+      'generating_prompts': 'Creating concepts...',
+      'generating_cover': 'Designing cover...',
+      'generating_video': 'Generating video...'
+    };
+    return stepMessages[step as keyof typeof stepMessages] || 'Processing...';
+  };
+
+  
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -141,101 +150,63 @@ export default function HistoryPage() {
           </div>
 
           {/* How to Download Guide */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-8">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">How to Download Videos</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-3">
+            <h2 className="text-lg font-medium text-gray-900 mb-2 flex items-center gap-2">
+              <Download className="w-5 h-5 text-gray-700" />
+              How to Download Videos
+            </h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-center">
               <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-medium mt-0.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-[11px] font-medium">
                     1
                   </div>
-                  <p className="text-gray-700">Click the &ldquo;Preview&rdquo; button on any completed project</p>
+                  <p className="text-gray-700 text-base leading-snug">Click the &ldquo;Preview&rdquo; button on any completed project</p>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-medium mt-0.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-[11px] font-medium">
                     2
                   </div>
-                  <p className="text-gray-700">In the video player, click the three dots menu (⋮) in the bottom right corner</p>
+                  <p className="text-gray-700 text-base leading-snug">In the video player, click the three dots menu (⋮) in the bottom right corner</p>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-medium mt-0.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-[11px] font-medium">
                     3
                   </div>
-                  <p className="text-gray-700">Select &ldquo;Download&rdquo; to save the video to your device</p>
+                  <p className="text-gray-700 text-base leading-snug">Select &ldquo;Download&rdquo; to save the video to your device</p>
                 </div>
               </div>
-              <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div>
                 <img 
-                  src="/download_guide.png" 
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/download_guide.png" 
                   alt="Video download guide showing the three dots menu"
-                  className="w-full rounded-lg"
+                  className="w-full h-60 object-contain rounded-xl"
                 />
               </div>
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-gray-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Projects</p>
-                  <p className="text-2xl font-bold text-gray-900">{history.length}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Play className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Completed</p>
-                  <p className="text-2xl font-bold text-gray-900">{completedAds}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Credits Spent</p>
-                  <p className="text-2xl font-bold text-gray-900">{totalCreditsUsed}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          
 
           {/* Filter Tabs */}
           <div className="mb-6">
-            <div className="flex items-center gap-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-medium text-gray-900">All Projects</h2>
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-500">Filter:</span>
+              <div className="bg-gray-50 p-1 rounded-lg inline-flex">
+                {(['all', 'completed', 'processing', 'failed'] as const).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setFilter(status)}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
+                      filter === status
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </button>
+                ))}
               </div>
-            </div>
-            <div className="bg-gray-50 p-1 rounded-lg inline-flex">
-              {(['all', 'completed', 'processing', 'failed'] as const).map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setFilter(status)}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
-                    filter === status
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </button>
-              ))}
             </div>
           </div>
 
@@ -257,71 +228,67 @@ export default function HistoryPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredHistory.map((item) => (
-                <div key={item.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-colors">
-                  {/* Card Header - Transformation Flow */}
-                  <div className="p-4 border-b border-gray-100 bg-gray-50">
-                    <div className="flex items-center justify-between gap-3">
-                      {/* Original Image */}
-                      <div className="flex-1 text-center">
-                        <div className="w-12 h-12 mx-auto rounded-lg overflow-hidden border border-gray-200 bg-white mb-2 relative">
-                          <img 
-                            src={item.originalImageUrl} 
-                            alt="Original product"
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute top-1 right-1 w-4 h-4 bg-gray-800 rounded-full flex items-center justify-center">
-                            <Image className="w-2 h-2 text-white" />
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-600">Original</p>
-                      </div>
-
-                      <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-
-                      {/* Video */}
-                      <div className="flex-1 text-center">
-                        <div className="w-12 h-12 mx-auto rounded-lg border border-gray-200 bg-black mb-2 flex items-center justify-center relative">
-                          <Play className="w-4 h-4 text-white" />
-                          <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${getStatusColor(item.status)}`}></div>
-                        </div>
-                        <p className="text-xs text-gray-600">Video</p>
-                      </div>
+                <div key={item.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-colors flex flex-col">
+                  {/* Image as main content */}
+                  <div className="relative bg-white">
+                    <div className="aspect-[4/3] bg-white">
+                      <img
+                        src={item.originalImageUrl}
+                        alt="Original product"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    {/* Status badge */}
+                    <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full border border-gray-200 bg-white/90 backdrop-blur text-xs text-gray-700 inline-flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${getStatusColor(item.status)}`}></span>
+                      <span>{getStatusText(item.status)}</span>
                     </div>
                   </div>
 
                   {/* Card Content */}
-                  <div className="p-4">
-                    <div className="mb-4">
-                      <h3 className="font-medium text-gray-900 text-sm mb-1 line-clamp-2">
-                        {item.productDescription || 'Untitled Project'}
-                      </h3>
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <span>{formatDate(item.createdAt)}</span>
-                        <span>•</span>
-                        <span>{item.creditsUsed} credits</span>
-                        <span>•</span>
-                        <span className="uppercase">{item.videoModel}</span>
-                      </div>
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="font-medium text-gray-900 text-sm mb-1 line-clamp-2">
+                      {item.productDescription || 'Untitled Project'}
+                    </h3>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span>{formatDate(item.createdAt)}</span>
+                      <span>•</span>
+                      <span>-{item.creditsUsed}</span>
+                      <span>•</span>
+                      <span className="uppercase">{item.videoModel}</span>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${getStatusColor(item.status)}`}></div>
-                        <span className="text-xs text-gray-600">{getStatusText(item.status)}</span>
+                    {/* Progress bar for processing items */}
+                    {item.status === 'processing' && (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                          <span>{getStepMessage(item.currentStep)}</span>
+                          <span>{item.progress || 0}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                            style={{ width: `${item.progress || 0}%` }}
+                          ></div>
+                        </div>
                       </div>
+                    )}
 
-                      {item.status === 'completed' && item.videoUrl && (
+                    {item.status === 'completed' && item.videoUrl && (
+                      <div className="mt-4 -mx-4 -mb-4 border-t border-gray-200">
                         <a
                           href={item.videoUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors"
+                          className="block w-full px-4 py-2.5 text-center bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors"
                         >
-                          <Eye className="w-3 h-3" />
-                          Preview
+                          <span className="inline-flex items-center justify-center gap-2">
+                            <Eye className="w-4 h-4" />
+                            Preview
+                          </span>
                         </a>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Zap, CreditCard, ArrowRight, History } from 'lucide-react';
-import { HiStar, HiLightningBolt, HiCreditCard, HiTrendingUp, HiClipboardList, HiCheck, HiPlus, HiMinus } from 'react-icons/hi';
+import { ArrowRight } from 'lucide-react';
+import { HiStar, HiLightningBolt, HiCreditCard, HiTrendingUp, HiClipboardList, HiPlus, HiMinus } from 'react-icons/hi';
 import { handleCreemCheckout } from '@/lib/payment';
 
 interface CreditTransaction {
@@ -124,31 +124,6 @@ export default function CreditsPage() {
     });
   };
 
-  const getTransactionColor = (type: string) => {
-    switch (type) {
-      case 'purchase':
-        return 'text-green-600';
-      case 'usage':
-        return 'text-red-600';
-      case 'refund':
-        return 'text-blue-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
-
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case 'purchase':
-        return '+';
-      case 'usage':
-        return '';
-      case 'refund':
-        return '+';
-      default:
-        return '';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -336,19 +311,13 @@ export default function CreditsPage() {
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                        transaction.type === 'purchase' 
-                          ? 'bg-green-100' 
-                          : transaction.type === 'usage' 
-                          ? 'bg-red-100' 
-                          : 'bg-blue-100'
-                      }`}>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100`}>
                         {transaction.type === 'purchase' ? (
-                          <HiPlus className="w-4 h-4 text-green-600" />
+                          <HiPlus className="w-4 h-4 text-gray-700" />
                         ) : transaction.type === 'usage' ? (
-                          <HiMinus className="w-4 h-4 text-red-600" />
+                          <HiMinus className="w-4 h-4 text-gray-700" />
                         ) : (
-                          <HiLightningBolt className="w-4 h-4 text-blue-600" />
+                          <HiLightningBolt className="w-4 h-4 text-gray-700" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -357,12 +326,8 @@ export default function CreditsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold ${
-                        transaction.type === 'purchase' 
-                          ? 'text-green-700' 
-                          : 'text-gray-900'
-                      }`}>
-                        {transaction.type === 'purchase' ? '+' : ''}
+                      <span className={`text-sm font-semibold text-gray-900 tabular-nums`}>
+                        {transaction.type === 'purchase' ? '+' : transaction.type === 'usage' ? '-' : ''}
                         {transaction.amount.toLocaleString()}
                       </span>
                       <span className="text-xs text-gray-500">credits</span>

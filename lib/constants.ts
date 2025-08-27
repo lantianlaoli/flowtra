@@ -11,12 +11,12 @@ export const PACKAGES = {
     price: 29,
     priceSymbol: '$',
     credits: 2000,
-    description: '体验版',
+    description: 'Trial Pack',
     features: [
-      '2,000 积分',
-      '约 65 条 Veo3 Fast 视频',
-      '或约 13 条 Veo3 高质视频',
-      'AI 智能视频生成'
+      '2,000 credits',
+      '≈ 65 Veo3 Fast videos',
+      'or ≈ 13 Veo3 high-quality videos',
+      'AI-powered video generation'
     ],
     videoEstimates: {
       veo3_fast: 65,   // 2000 / 30 ≈ 65
@@ -28,13 +28,13 @@ export const PACKAGES = {
     price: 99,
     priceSymbol: '$',
     credits: 7500,
-    description: '推荐套餐',
+    description: 'Recommended Plan',
     features: [
-      '7,500 积分',
-      '约 250 条 Veo3 Fast 视频',
-      '或约 50 条 Veo3 高质视频',
-      'AI 智能视频生成',
-      '优先处理队列'
+      '7,500 credits',
+      '≈ 250 Veo3 Fast videos',
+      'or ≈ 50 Veo3 high-quality videos',
+      'AI-powered video generation',
+      'Priority processing queue'
     ],
     videoEstimates: {
       veo3_fast: 250,  // 7500 / 30 = 250

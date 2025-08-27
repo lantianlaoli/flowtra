@@ -81,7 +81,7 @@ export default function Sidebar({ credits, selectedModel = 'auto', onModelChange
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-3 mb-8 group">
           <img 
-            src="/logo.png" 
+            src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png" 
             alt="Flowtra Logo" 
             className="w-8 h-8"
           />
@@ -132,7 +132,7 @@ export default function Sidebar({ credits, selectedModel = 'auto', onModelChange
             {/* Custom Dropdown Options */}
             {isOpen && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md overflow-hidden z-50">
-                {modelOptions.map((option, index) => (
+                {modelOptions.map((option) => (
                   <button
                     key={option.value}
                     onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast')}
