@@ -81,6 +81,9 @@ export function getCreditsFromProductId(productId: string): { credits: number; p
 // Default initial credits for new users (enough for 1 complete workflow)
 export const INITIAL_FREE_CREDITS = 100
 
+// KIE API credit threshold for service availability
+export const KIE_CREDIT_THRESHOLD = 600
+
 // Complete workflow cost breakdown:
 // - Image description: 1-2 credits (OpenRouter API)
 // - Prompt generation: 1-2 credits (OpenRouter API) 

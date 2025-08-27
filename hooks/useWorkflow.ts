@@ -88,6 +88,18 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
     if (!file) return;
     
     try {
+      // Check KIE API credits first
+      setLoading(true);
+      
+      const creditsResponse = await fetch('/api/check-kie-credits');
+      const creditsResult = await creditsResponse.json();
+      
+      if (!creditsResult.success || !creditsResult.sufficient) {
+        setLoading(false);
+        setError('服务器维护中，请稍后再试。如有紧急需求，请联系客服。');
+        return;
+      }
+      
       // Check guest usage limits
       const currentMaxUsage = userId ? maxUserUsage : maxGuestUsage;
       const currentUsageCount = userId ? 0 : guestUsageCount; // For logged users, check from backend
@@ -97,10 +109,9 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
           ? `You have reached the limit of ${maxUserUsage} free generations. Please purchase credits to continue.`
           : `You have reached the guest limit of ${maxGuestUsage} free generation. Please sign up for more generations.`;
         setError(message);
+        setLoading(false);
         return;
       }
-      
-      setLoading(true);
       
       // Increment guest usage count when starting
       if (!userId) {

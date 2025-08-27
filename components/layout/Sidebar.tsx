@@ -16,6 +16,7 @@ import {
   User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import FeedbackWidget from '@/components/FeedbackWidget';
 
 interface SidebarProps {
   credits?: number;
@@ -213,14 +214,15 @@ export default function Sidebar({ credits, selectedModel = 'auto', onModelChange
         </nav>
       </div>
       
-      {/* Back to Landing */}
-      <div className="p-6 border-t border-gray-200">
+      {/* Feedback and Navigation */}
+      <div className="p-6 border-t border-gray-200 space-y-2">
+        <FeedbackWidget />
         <Link 
           href="/"
-          className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors duration-150"
+          className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors font-medium"
         >
-          <Home className="w-4 h-4" />
-          Back to Landing
+          <Home className="w-5 h-5" />
+          <span>Back to Landing</span>
         </Link>
       </div>
     </div>

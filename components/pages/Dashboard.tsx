@@ -6,6 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import FileUpload from '@/components/FileUpload';
+import MaintenanceMessage from '@/components/MaintenanceMessage';
 import { Download, RotateCcw, Share2, ArrowRight, History } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -311,8 +312,14 @@ export default function Dashboard() {
 
           {/* Error Display */}
           {state.error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-8">
-              <strong>Error:</strong> {state.error}
+            <div className="mb-8">
+              {state.error.includes('服务器维护中') ? (
+                <MaintenanceMessage message={state.error} />
+              ) : (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
+                  <strong>Error:</strong> {state.error}
+                </div>
+              )}
             </div>
           )}
 
