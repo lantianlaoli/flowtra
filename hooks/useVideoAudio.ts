@@ -4,116 +4,64 @@ import { useCallback, useState, useEffect } from 'react';
 
 interface UseVideoAudioOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>;
-  requireUserInteraction?: boolean;
 }
 
-export function useVideoAudio({ videoRef, requireUserInteraction = true }: UseVideoAudioOptions) {
+export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [userHasInteracted, setUserHasInteracted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Detect user interaction on the page
+  // Detect any user interaction to enable audio capability
   useEffect(() => {
-    if (!requireUserInteraction) {
+    const handleInteraction = () => {
       setUserHasInteracted(true);
-      return;
-    }
-
-    const handleUserInteraction = () => {
-      setUserHasInteracted(true);
-      document.removeEventListener('click', handleUserInteraction, true);
-      document.removeEventListener('touchstart', handleUserInteraction, true);
-      document.removeEventListener('keydown', handleUserInteraction, true);
     };
 
-    // Use capture phase to ensure we catch the interaction early
-    document.addEventListener('click', handleUserInteraction, true);
-    document.addEventListener('touchstart', handleUserInteraction, true);
-    document.addEventListener('keydown', handleUserInteraction, true);
+    // Listen for any user interaction
+    document.addEventListener('click', handleInteraction, { once: true });
+    document.addEventListener('keydown', handleInteraction, { once: true });
+    document.addEventListener('touchstart', handleInteraction, { once: true });
 
     return () => {
-      document.removeEventListener('click', handleUserInteraction, true);
-      document.removeEventListener('touchstart', handleUserInteraction, true);
-      document.removeEventListener('keydown', handleUserInteraction, true);
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
     };
-  }, [requireUserInteraction]);
+  }, []);
 
-  const enableAudio = useCallback(async () => {
-    if (!videoRef.current || !userHasInteracted) {
-      return false;
-    }
-
-    try {
-      const video = videoRef.current;
-      
-      // Ensure video is loaded and ready
-      if (video.readyState < 2) {
-        await new Promise((resolve) => {
-          video.addEventListener('loadeddata', resolve, { once: true });
-        });
-      }
-
-      // Ensure video is playing before unmuting
-      if (video.paused) {
-        await video.play();
-      }
-      
-      // Small delay to ensure video is stable
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      video.muted = false;
-      setAudioEnabled(true);
-      return true;
-    } catch (error) {
-      console.warn('Failed to enable audio:', error);
-      // Fallback: try to play without unmuting first
+  const handleHover = useCallback(() => {
+    setIsHovered(true);
+    
+    if (videoRef.current && userHasInteracted) {
       try {
-        if (videoRef.current && videoRef.current.paused) {
-          await videoRef.current.play();
-        }
-      } catch (playError) {
-        console.warn('Failed to play video:', playError);
+        // Simply unmute - don't touch video playback
+        videoRef.current.muted = false;
+        setAudioEnabled(true);
+      } catch (error) {
+        console.warn('Failed to unmute video:', error);
       }
-      return false;
     }
   }, [videoRef, userHasInteracted]);
 
-  const disableAudio = useCallback(() => {
-    if (videoRef.current) {
-      videoRef.current.muted = true;
-      setAudioEnabled(false);
-    }
-  }, [videoRef]);
-
-  const handleHover = useCallback(async () => {
-    setIsHovered(true);
-    
-    if (userHasInteracted) {
-      await enableAudio();
-    }
-  }, [enableAudio, userHasInteracted]);
-
   const handleLeave = useCallback(() => {
     setIsHovered(false);
-    disableAudio();
-  }, [disableAudio]);
-
-  const toggleAudio = useCallback(async () => {
-    if (audioEnabled) {
-      disableAudio();
-    } else {
-      await enableAudio();
+    
+    if (videoRef.current) {
+      try {
+        // Simply mute - don't touch video playback
+        videoRef.current.muted = true;
+        setAudioEnabled(false);
+      } catch (error) {
+        console.warn('Failed to mute video:', error);
+      }
     }
-  }, [audioEnabled, enableAudio, disableAudio]);
+  }, [videoRef]);
 
   return {
     audioEnabled,
     userHasInteracted,
     isHovered,
     handleHover,
-    handleLeave,
-    toggleAudio,
-    enableAudio,
-    disableAudio
+    handleLeave
   };
 }

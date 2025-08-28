@@ -110,6 +110,7 @@ export default function LandingPage() {
                 <VideoPlayer
                   src="https://tempfile.aiquickdraw.com/p/bdbf3c847dd219aea0775162c9c77415_1756176082.mp4"
                   className="rounded-lg"
+                  showControls={true}
                 />
               </div>
               <div className="absolute top-3 left-3 bg-gray-900 text-white px-3 py-1 rounded-md text-xs font-medium shadow-sm">
@@ -166,6 +167,7 @@ export default function LandingPage() {
                     <VideoPlayer
                       src="https://tempfile.aiquickdraw.com/p/d51126ac584cea6e6916851b6e6ace9d_1756336008.mp4"
                       className="rounded-lg"
+                      showControls={true}
                     />
                   </div>
                   <div className="absolute top-3 right-3 bg-gray-900 text-white px-3 py-1 rounded-md text-xs font-medium">
@@ -210,6 +212,7 @@ export default function LandingPage() {
                     <VideoPlayer
                       src="https://tempfile.aiquickdraw.com/p/0fcc1f33f4dc11aa3771d75213b53bf6_1756263260.mp4"
                       className="rounded-lg"
+                      showControls={true}
                     />
                   </div>
                   <div className="absolute top-3 right-3 bg-gray-900 text-white px-3 py-1 rounded-md text-xs font-medium">
@@ -276,20 +279,22 @@ export default function LandingPage() {
           
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px]">
+              <table className="w-full min-w-[1000px]">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="text-left py-4 px-6 font-semibold text-gray-900 w-1/5">Feature</th>
-                    <th className="text-center py-4 px-6 font-bold text-white bg-gray-900 w-1/5">Flowtra</th>
-                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/5">n8n (Workflow Automation)</th>
-                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/5">Runway</th>
-                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/5">Synthesia</th>
+                    <th className="text-left py-4 px-6 font-semibold text-gray-900 w-1/6">Feature</th>
+                    <th className="text-center py-4 px-6 font-bold text-white bg-gray-900 w-1/6">Flowtra</th>
+                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/6">Traditional Advertising</th>
+                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/6">n8n (Workflow Automation)</th>
+                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/6">Runway</th>
+                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/6">Synthesia</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
                   <tr className="border-b border-gray-100">
                     <td className="py-4 px-6 font-medium text-gray-900">Core Focus</td>
                     <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">AI-generated ads for ecommerce & retail</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Manual video production with crew, equipment & studios</td>
                     <td className="py-4 px-6 text-center text-gray-600">General automation platform, requires manual AI integration</td>
                     <td className="py-4 px-6 text-center text-gray-600">Creative AI video editing, effects & generative video</td>
                     <td className="py-4 px-6 text-center text-gray-600">AI avatars & corporate training videos</td>
@@ -297,6 +302,7 @@ export default function LandingPage() {
                   <tr className="border-b border-gray-100">
                     <td className="py-4 px-6 font-medium text-gray-900">Ease of Use</td>
                     <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">Plug-and-play, no coding required</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Very High — requires project management & multiple vendors</td>
                     <td className="py-4 px-6 text-center text-gray-600">High — needs developers & API knowledge</td>
                     <td className="py-4 px-6 text-center text-gray-600">Medium — designed for creators, but not ad-focused</td>
                     <td className="py-4 px-6 text-center text-gray-600">Easy — template-based, but limited for ads</td>
@@ -304,6 +310,7 @@ export default function LandingPage() {
                   <tr className="border-b border-gray-100">
                     <td className="py-4 px-6 font-medium text-gray-900">Pricing Model</td>
                     <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">Pay-as-you-go credits (from $29)</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Project-based: $5,000-$50,000+ per video</td>
                     <td className="py-4 px-6 text-center text-gray-600">Free open-source, but hidden costs for APIs/GPUs</td>
                     <td className="py-4 px-6 text-center text-gray-600">Subscription ($12–$76/mo, limited minutes)</td>
                     <td className="py-4 px-6 text-center text-gray-600">Subscription ($30–$500+/mo, per seat & per minute)</td>
@@ -314,6 +321,7 @@ export default function LandingPage() {
                       <div className="font-semibold text-gray-900 mb-1">Starter $29 → 2,000 credits ≈ 65 ads</div>
                       <div className="font-semibold text-gray-900">Pro $99 → 7,500 credits ≈ 250 ads</div>
                     </td>
+                    <td className="py-4 px-6 text-center text-gray-600">Single 30s ad: $15,000+ (2-4 weeks production time)</td>
                     <td className="py-4 px-6 text-center text-gray-600">No packages; must buy external compute & APIs</td>
                     <td className="py-4 px-6 text-center text-gray-600">Standard plan: 625 video credits (minutes) for $35/mo</td>
                     <td className="py-4 px-6 text-center text-gray-600">Starter $30/mo = 10 minutes of video</td>
@@ -324,6 +332,7 @@ export default function LandingPage() {
                       <div className="font-semibold text-gray-900 mb-1">Veo3 Fast: 30 credits/ad</div>
                       <div className="font-semibold text-gray-900">Veo3 HQ: 150 credits/ad</div>
                     </td>
+                    <td className="py-4 px-6 text-center text-gray-600">Human resources: crew, equipment, studio rental per day</td>
                     <td className="py-4 px-6 text-center text-gray-600">Depends on external models (OpenAI, Stability, etc.)</td>
                     <td className="py-4 px-6 text-center text-gray-600">Credit system based on seconds of video</td>
                     <td className="py-4 px-6 text-center text-gray-600">Charged per minute of video generated</td>
@@ -334,6 +343,12 @@ export default function LandingPage() {
                       <span className="inline-flex items-center gap-2 text-green-600 font-semibold">
                         <Check className="w-5 h-5" />
                         Pre-built ad templates for online stores & local shops
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <span className="inline-flex items-center gap-2 text-orange-500">
+                        <Check className="w-5 h-5" />
+                        Full customization but requires extensive planning & budget
                       </span>
                     </td>
                     <td className="py-4 px-6 text-center">
@@ -358,6 +373,7 @@ export default function LandingPage() {
                   <tr>
                     <td className="py-4 px-6 font-medium text-gray-900">Best For</td>
                     <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">Ecommerce sellers, retail shops, cross-border merchants</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Large brands with big budgets & long lead times</td>
                     <td className="py-4 px-6 text-center text-gray-600">Developers & technical teams</td>
                     <td className="py-4 px-6 text-center text-gray-600">Video creators, editors, agencies</td>
                     <td className="py-4 px-6 text-center text-gray-600">Enterprises, training, corporate comms</td>
