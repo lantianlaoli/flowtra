@@ -45,7 +45,7 @@ export default function FAQ() {
   };
 
   return (
-    <section className="py-16 bg-gray-50">
+    <section className="py-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -83,17 +83,6 @@ export default function FAQ() {
               )}
             </div>
           ))}
-        </div>
-
-        {/* Additional CTA */}
-        <div className="text-center mt-12">
-          <p className="text-gray-600 mb-4">Still have questions?</p>
-          <a 
-            href="/dashboard/support" 
-            className="inline-flex items-center text-gray-900 font-semibold hover:text-gray-700 transition-colors"
-          >
-            Contact our support team →
-          </a>
         </div>
       </div>
     </section>

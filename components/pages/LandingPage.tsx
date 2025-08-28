@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import { useUser, SignInButton } from '@clerk/nextjs';
 import { GiftIcon } from '@heroicons/react/24/outline';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Check, X } from 'lucide-react';
 import HandDrawnArrow from '@/components/ui/HandDrawnArrow';
 import SimpleArrow from '@/components/ui/SimpleArrow';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -18,7 +18,6 @@ import { handleCreemCheckout } from '@/lib/payment';
 export default function LandingPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
   const { user } = useUser();
 
@@ -33,18 +32,6 @@ export default function LandingPage() {
       onLoading: (isLoading) => setLoadingPackage(isLoading ? packageName : null),
       onError: (error) => alert(error)
     });
-  };
-
-  const handleVideoHover = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = false;
-    }
-  };
-
-  const handleVideoLeave = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = true;
-    }
   };
 
   return (
@@ -120,27 +107,13 @@ export default function LandingPage() {
             {/* Generated Video - Bottom */}
             <div className="relative">
               <div className="bg-gray-900 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video">
-                <video 
-                  ref={videoRef}
-                  className="w-full h-full object-cover cursor-pointer"
-                  autoPlay 
-                  muted 
-                  loop 
-                  playsInline
-                  onMouseEnter={handleVideoHover}
-                  onMouseLeave={handleVideoLeave}
-                >
-                  <source 
-                    src="https://tempfile.aiquickdraw.com/p/bdbf3c847dd219aea0775162c9c77415_1756176082.mp4" 
-                    type="video/mp4" 
-                  />
-                </video>
+                <VideoPlayer
+                  src="https://tempfile.aiquickdraw.com/p/bdbf3c847dd219aea0775162c9c77415_1756176082.mp4"
+                  className="rounded-lg"
+                />
               </div>
               <div className="absolute top-3 left-3 bg-gray-900 text-white px-3 py-1 rounded-md text-xs font-medium shadow-sm">
                 AI Generated
-              </div>
-              <div className="absolute bottom-3 right-3 bg-black/50 text-white px-2 py-1 rounded text-xs">
-                Hover for sound
               </div>
             </div>
           </div>
@@ -159,61 +132,89 @@ export default function LandingPage() {
 
           <div className="space-y-16 max-w-6xl mx-auto">
             {/* Example 1 - Horizontal Layout */}
-            <div className="group bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100 hover:shadow-2xl hover:border-gray-200 transition-all duration-500 p-8">
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 lg:gap-12 items-center">
+            <div className="group bg-gray-50 rounded-2xl border border-gray-200 hover:border-gray-300 transition-all duration-300 p-10">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 lg:gap-16 items-center">
                 {/* Before Image */}
-                <div className="aspect-video bg-gray-50 rounded-xl border border-gray-100 overflow-hidden shadow-inner">
-                  <Image
-                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/yikk0aysjf.jpg"
-                    alt="Original product photo"
-                    width={600}
-                    height={338}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="relative">
+                  <div className="aspect-video bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <Image
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/yikk0aysjf.jpg"
+                      alt="Original product photo"
+                      width={600}
+                      height={338}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="absolute top-3 left-3 bg-white border border-gray-200 text-gray-700 px-3 py-1 rounded-md text-xs font-medium">
+                    Original
+                  </div>
                 </div>
                 
-                {/* Simple Arrow */}
+                {/* Arrow */}
                 <div className="flex justify-center lg:flex-col">
-                  <SimpleArrow className="w-8 h-8 lg:w-6 lg:h-6" direction="right" />
-                  <SimpleArrow className="w-8 h-8 lg:hidden" direction="down" />
+                  <div className="bg-gray-200 rounded-full p-3 group-hover:bg-gray-300 transition-colors duration-200">
+                    <SimpleArrow className="w-6 h-6 text-gray-600 lg:w-5 lg:h-5" direction="right" />
+                  </div>
+                  <div className="bg-gray-200 rounded-full p-3 lg:hidden group-hover:bg-gray-300 transition-colors duration-200">
+                    <SimpleArrow className="w-6 h-6 text-gray-600" direction="down" />
+                  </div>
                 </div>
                 
                 {/* After Video */}
-                <div className="aspect-video bg-gray-900 rounded-xl border border-gray-200 overflow-hidden shadow-xl">
-                  <VideoPlayer
-                    src="https://tempfile.aiquickdraw.com/p/d51126ac584cea6e6916851b6e6ace9d_1756336008.mp4"
-                    className="rounded-xl"
-                  />
+                <div className="relative">
+                  <div className="aspect-video bg-gray-900 rounded-lg border border-gray-200 overflow-hidden">
+                    <VideoPlayer
+                      src="https://tempfile.aiquickdraw.com/p/d51126ac584cea6e6916851b6e6ace9d_1756336008.mp4"
+                      className="rounded-lg"
+                    />
+                  </div>
+                  <div className="absolute top-3 right-3 bg-gray-900 text-white px-3 py-1 rounded-md text-xs font-medium">
+                    AI Generated
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Example 2 - Horizontal Layout */}
-            <div className="group bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100 hover:shadow-2xl hover:border-gray-200 transition-all duration-500 p-8">
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 lg:gap-12 items-center">
+            <div className="group bg-gray-50 rounded-2xl border border-gray-200 hover:border-gray-300 transition-all duration-300 p-10">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 lg:gap-16 items-center">
                 {/* Before Image */}
-                <div className="aspect-video bg-gray-50 rounded-xl border border-gray-100 overflow-hidden shadow-inner">
-                  <Image
-                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/c9rcl8nebk4.jpg"
-                    alt="Original product photo"
-                    width={600}
-                    height={338}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="relative">
+                  <div className="aspect-video bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <Image
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/ayu1e4eo7n9.jpg"
+                      alt="Original product photo"
+                      width={600}
+                      height={338}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="absolute top-3 left-3 bg-white border border-gray-200 text-gray-700 px-3 py-1 rounded-md text-xs font-medium">
+                    Original
+                  </div>
                 </div>
                 
-                {/* Simple Arrow */}
+                {/* Arrow */}
                 <div className="flex justify-center lg:flex-col">
-                  <SimpleArrow className="w-8 h-8 lg:w-6 lg:h-6" direction="right" />
-                  <SimpleArrow className="w-8 h-8 lg:hidden" direction="down" />
+                  <div className="bg-gray-200 rounded-full p-3 group-hover:bg-gray-300 transition-colors duration-200">
+                    <SimpleArrow className="w-6 h-6 text-gray-600 lg:w-5 lg:h-5" direction="right" />
+                  </div>
+                  <div className="bg-gray-200 rounded-full p-3 lg:hidden group-hover:bg-gray-300 transition-colors duration-200">
+                    <SimpleArrow className="w-6 h-6 text-gray-600" direction="down" />
+                  </div>
                 </div>
                 
                 {/* After Video */}
-                <div className="aspect-video bg-gray-900 rounded-xl border border-gray-200 overflow-hidden shadow-xl">
-                  <VideoPlayer
-                    src="https://tempfile.aiquickdraw.com/p/5dbfabdaae650dc2f16c8995af2828e4_1756280513.mp4"
-                    className="rounded-xl"
-                  />
+                <div className="relative">
+                  <div className="aspect-video bg-gray-900 rounded-lg border border-gray-200 overflow-hidden">
+                    <VideoPlayer
+                      src="https://tempfile.aiquickdraw.com/p/0fcc1f33f4dc11aa3771d75213b53bf6_1756263260.mp4"
+                      className="rounded-lg"
+                    />
+                  </div>
+                  <div className="absolute top-3 right-3 bg-gray-900 text-white px-3 py-1 rounded-md text-xs font-medium">
+                    AI Generated
+                  </div>
                 </div>
               </div>
             </div>
@@ -265,6 +266,107 @@ export default function LandingPage() {
             </div>
           </div>
         )}
+
+        {/* Competitor Comparison Section */}
+        <div className="py-16">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Why Choose Flowtra?</h2>
+            <p className="text-lg text-gray-600">See how we compare to other solutions in the market</p>
+          </div>
+          
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px]">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="text-left py-4 px-6 font-semibold text-gray-900 w-1/5">Feature</th>
+                    <th className="text-center py-4 px-6 font-bold text-white bg-gray-900 w-1/5">Flowtra</th>
+                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/5">n8n (Workflow Automation)</th>
+                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/5">Runway</th>
+                    <th className="text-center py-4 px-6 font-semibold text-gray-700 w-1/5">Synthesia</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  <tr className="border-b border-gray-100">
+                    <td className="py-4 px-6 font-medium text-gray-900">Core Focus</td>
+                    <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">AI-generated ads for ecommerce & retail</td>
+                    <td className="py-4 px-6 text-center text-gray-600">General automation platform, requires manual AI integration</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Creative AI video editing, effects & generative video</td>
+                    <td className="py-4 px-6 text-center text-gray-600">AI avatars & corporate training videos</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-4 px-6 font-medium text-gray-900">Ease of Use</td>
+                    <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">Plug-and-play, no coding required</td>
+                    <td className="py-4 px-6 text-center text-gray-600">High — needs developers & API knowledge</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Medium — designed for creators, but not ad-focused</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Easy — template-based, but limited for ads</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-4 px-6 font-medium text-gray-900">Pricing Model</td>
+                    <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">Pay-as-you-go credits (from $29)</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Free open-source, but hidden costs for APIs/GPUs</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Subscription ($12–$76/mo, limited minutes)</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Subscription ($30–$500+/mo, per seat & per minute)</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-4 px-6 font-medium text-gray-900">Example Package</td>
+                    <td className="py-4 px-6 text-center bg-gray-50 text-sm">
+                      <div className="font-semibold text-gray-900 mb-1">Starter $29 → 2,000 credits ≈ 65 ads</div>
+                      <div className="font-semibold text-gray-900">Pro $99 → 7,500 credits ≈ 250 ads</div>
+                    </td>
+                    <td className="py-4 px-6 text-center text-gray-600">No packages; must buy external compute & APIs</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Standard plan: 625 video credits (minutes) for $35/mo</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Starter $30/mo = 10 minutes of video</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-4 px-6 font-medium text-gray-900">Video Model Consumption</td>
+                    <td className="py-4 px-6 text-center bg-gray-50 text-sm">
+                      <div className="font-semibold text-gray-900 mb-1">Veo3 Fast: 30 credits/ad</div>
+                      <div className="font-semibold text-gray-900">Veo3 HQ: 150 credits/ad</div>
+                    </td>
+                    <td className="py-4 px-6 text-center text-gray-600">Depends on external models (OpenAI, Stability, etc.)</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Credit system based on seconds of video</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Charged per minute of video generated</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-4 px-6 font-medium text-gray-900">Ad Customization</td>
+                    <td className="py-4 px-6 text-center bg-gray-50">
+                      <span className="inline-flex items-center gap-2 text-green-600 font-semibold">
+                        <Check className="w-5 h-5" />
+                        Pre-built ad templates for online stores & local shops
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <span className="inline-flex items-center gap-2 text-red-500">
+                        <X className="w-5 h-5" />
+                        Requires manual workflow design
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <span className="inline-flex items-center gap-2 text-red-500">
+                        <X className="w-5 h-5" />
+                        Strong for effects, weak for retail ads
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <span className="inline-flex items-center gap-2 text-red-500">
+                        <X className="w-5 h-5" />
+                        Strong for avatars, weak for ecommerce ads
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 px-6 font-medium text-gray-900">Best For</td>
+                    <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">Ecommerce sellers, retail shops, cross-border merchants</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Developers & technical teams</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Video creators, editors, agencies</td>
+                    <td className="py-4 px-6 text-center text-gray-600">Enterprises, training, corporate comms</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
         {/* Pricing Section */}
         <div className="py-16">
