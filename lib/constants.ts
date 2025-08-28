@@ -4,6 +4,12 @@ export const CREDIT_COSTS = {
   'veo3': 150,        // Veo3 High Quality: 150 credits per video
 } as const
 
+// Processing times for different video models
+export const MODEL_PROCESSING_TIMES = {
+  'veo3_fast': '2-3 min',    // Veo3 Fast: 2-3 minutes processing time
+  'veo3': '5-8 min',         // Veo3 High Quality: 5-8 minutes processing time
+} as const
+
 // Package definitions based on price.md
 export const PACKAGES = {
   starter: {
@@ -51,6 +57,11 @@ export function getPackageByName(packageName: 'starter' | 'pro') {
 // Get credit cost for video model
 export function getCreditCost(model: keyof typeof CREDIT_COSTS): number {
   return CREDIT_COSTS[model]
+}
+
+// Get processing time for video model
+export function getProcessingTime(model: keyof typeof MODEL_PROCESSING_TIMES): string {
+  return MODEL_PROCESSING_TIMES[model]
 }
 
 // Auto mode intelligent model selection based on user credits

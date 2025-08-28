@@ -48,6 +48,16 @@ export interface UserCredits {
   updated_at: string
 }
 
+// Database types for articles table
+export interface Article {
+  id: string
+  title: string
+  slug: string
+  content: string
+  cover?: string
+  created_at: string
+}
+
 // Database types for user_history table
 export interface UserHistory {
   id: string
@@ -125,4 +135,65 @@ export const uploadImageToStorage = async (file: File, filename?: string) => {
     publicUrl,
     fullUrl: publicUrl
   }
+}
+
+// Article management functions
+export async function getAllArticles(): Promise<Article[]> {
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('articles')
+    .select('*')
+    .order('created_at', { ascending: false })
+  
+  if (error) {
+    console.error('Error fetching articles:', error)
+    return []
+  }
+  
+  return data || []
+}
+
+export async function getArticleBySlug(slug: string): Promise<Article | null> {
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('articles')
+    .select('*')
+    .eq('slug', slug)
+    .single()
+  
+  if (error) {
+    console.error('Error fetching article:', error)
+    return null
+  }
+  
+  return data
+}
+
+// Utility function to generate reading time estimate
+export function calculateReadingTime(content: string): string {
+  const wordsPerMinute = 200
+  const wordCount = content.split(/\s+/).length
+  const minutes = Math.max(1, Math.ceil(wordCount / wordsPerMinute))
+  return `${minutes} min read`
+}
+
+// Utility function to extract excerpt from markdown content
+export function extractExcerpt(content: string, maxLength: number = 160): string {
+  // Remove markdown syntax and get plain text
+  const plainText = content
+    .replace(/#{1,6}\s/g, '') // Remove headers
+    .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+    .replace(/\*(.*?)\*/g, '$1') // Remove italic
+    .replace(/`(.*?)`/g, '$1') // Remove inline code
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links, keep text
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '') // Remove images
+    .replace(/>\s/g, '') // Remove blockquotes
+    .replace(/\n/g, ' ') // Replace newlines with spaces
+    .trim()
+  
+  if (plainText.length <= maxLength) {
+    return plainText
+  }
+  
+  return plainText.substring(0, maxLength).replace(/\s+\S*$/, '') + '...'
 }

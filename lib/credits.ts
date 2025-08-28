@@ -146,46 +146,60 @@ export async function checkCredits(userId: string, requiredCredits: number): Pro
   }
 }
 
-// Deduct credits from user account
+// Deduct credits from user account (supports negative values for refunds)
 export async function deductCredits(userId: string, creditsToDeduct: number): Promise<{
   success: boolean
   remainingCredits?: number
   error?: string
 }> {
   try {
-    // First check if user has enough credits
-    const checkResult = await checkCredits(userId, creditsToDeduct)
-    
-    if (!checkResult.success) {
-      return {
-        success: false,
-        error: checkResult.error
+    // For positive values (actual deduction), check if user has enough credits
+    if (creditsToDeduct > 0) {
+      const checkResult = await checkCredits(userId, creditsToDeduct)
+      
+      if (!checkResult.success) {
+        return {
+          success: false,
+          error: checkResult.error
+        }
+      }
+
+      if (!checkResult.hasEnoughCredits) {
+        return {
+          success: false,
+          error: 'Insufficient credits'
+        }
       }
     }
 
-    if (!checkResult.hasEnoughCredits) {
+    // Get current credits for calculation
+    const currentResult = await getUserCredits(userId)
+    if (!currentResult.success || !currentResult.credits) {
       return {
         success: false,
-        error: 'Insufficient credits'
+        error: 'Failed to get current credits'
       }
     }
 
-    // Deduct credits
+    const currentCredits = currentResult.credits.credits_remaining
+    const newBalance = currentCredits - creditsToDeduct // Negative creditsToDeduct will add credits
+
+    // Update credits
     const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
     const { data: updatedCredits, error } = await supabase
       .from('user_credits')
       .update({
-        credits_remaining: (checkResult.currentCredits || 0) - creditsToDeduct
+        credits_remaining: newBalance
       })
       .eq('user_id', userId)
       .select()
       .single()
 
     if (error) {
-      console.error('Failed to deduct credits:', error)
+      console.error('Failed to update credits:', error)
       return {
         success: false,
-        error: 'Failed to deduct credits'
+        error: 'Failed to update credits'
       }
     }
 

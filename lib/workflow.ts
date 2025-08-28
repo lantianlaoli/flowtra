@@ -2,6 +2,7 @@ import { getSupabase } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { httpRequestWithRetry } from '@/lib/httpRequest';
 import { getCreditCost } from '@/lib/constants';
+import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
   imageUrl: string;
@@ -28,7 +29,43 @@ export async function startWorkflowProcess({
       return { success: false, error: 'Image URL is required', message: 'Image URL is required' };
     }
 
-    // Create history record first
+    // Check and deduct credits immediately for authenticated users
+    let creditsUsed = 0;
+    if (userId) {
+      creditsUsed = getCreditCost(videoModel);
+      
+      // Check if user has enough credits
+      const checkResult = await checkCredits(userId, creditsUsed);
+      if (!checkResult.success) {
+        return { 
+          success: false, 
+          error: checkResult.error || 'Failed to check credits', 
+          message: checkResult.error || 'Failed to check credits' 
+        };
+      }
+      
+      if (!checkResult.hasEnoughCredits) {
+        return { 
+          success: false, 
+          error: 'Insufficient credits', 
+          message: `Insufficient credits. Need ${creditsUsed}, have ${checkResult.currentCredits || 0}` 
+        };
+      }
+      
+      // Deduct credits immediately
+      const deductResult = await deductCredits(userId, creditsUsed);
+      if (!deductResult.success) {
+        return { 
+          success: false, 
+          error: deductResult.error || 'Failed to deduct credits', 
+          message: deductResult.error || 'Failed to deduct credits' 
+        };
+      }
+      
+      console.log(`✅ Deducted ${creditsUsed} credits from user ${userId} at workflow start`);
+    }
+
+    // Create history record after successful credit deduction
     let historyRecord = null;
     if (userId) {
       const supabase = getSupabase();
@@ -38,7 +75,7 @@ export async function startWorkflowProcess({
           user_id: userId,
           original_image_url: imageUrl,
           video_model: videoModel,
-          credits_used: getCreditCost(videoModel),
+          credits_used: creditsUsed,
           workflow_status: 'started',
           current_step: 'describing',
           progress_percentage: 5,
@@ -49,10 +86,35 @@ export async function startWorkflowProcess({
 
       if (error) {
         console.error('Failed to create history record:', error);
+        
+        // Refund credits if history creation fails
+        const refundResult = await deductCredits(userId, -creditsUsed); // Negative amount adds credits back
+        if (refundResult.success) {
+          await recordCreditTransaction(
+            userId,
+            'refund',
+            creditsUsed,
+            'Refund for failed workflow creation',
+            undefined,
+            true
+          );
+          console.log(`↩️ Refunded ${creditsUsed} credits due to history creation failure`);
+        }
+        
         return { success: false, error: 'Failed to create workflow record', message: 'Failed to create workflow record' };
       }
       
       historyRecord = data;
+      
+      // Record the initial credit deduction transaction
+      await recordCreditTransaction(
+        userId,
+        'usage',
+        creditsUsed,
+        `Workflow started - ${videoModel === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'}`,
+        historyRecord.id,
+        true // useAdminClient
+      );
     }
 
     console.log(`Starting workflow for user ${userId}, history ${historyRecord?.id}`);
@@ -133,7 +195,7 @@ export async function startWorkflowProcess({
     } catch (error) {
       console.error('Workflow error:', error);
       
-      // Update status to failed
+      // Update status to failed and refund credits
       if (historyRecord) {
         const supabase = getSupabase();
         await supabase
@@ -144,6 +206,24 @@ export async function startWorkflowProcess({
             last_processed_at: new Date().toISOString()
           })
           .eq('id', historyRecord.id);
+          
+        // Refund credits for workflow failure
+        if (userId && creditsUsed > 0) {
+          const refundResult = await deductCredits(userId, -creditsUsed); // Negative amount adds credits back
+          if (refundResult.success) {
+            await recordCreditTransaction(
+              userId,
+              'refund',
+              creditsUsed,
+              'Refund for failed workflow',
+              historyRecord.id,
+              true
+            );
+            console.log(`↩️ Refunded ${creditsUsed} credits due to workflow failure for user ${userId}`);
+          } else {
+            console.error(`Failed to refund credits for workflow failure:`, refundResult.error);
+          }
+        }
       }
 
       return {

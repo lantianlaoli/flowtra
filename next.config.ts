@@ -51,6 +51,16 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Add CORS headers for external video resources
+      {
+        source: '/_next/static/(.*)',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+        ],
+      },
     ];
   },
 };

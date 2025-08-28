@@ -11,15 +11,16 @@ import {
   Zap,
   ChevronDown,
   Check,
-  Sparkles,
   Plus,
   Home,
   User,
-  Lock
+  Lock,
+  Coins,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import FeedbackWidget from '@/components/FeedbackWidget';
-import { CREDIT_COSTS, canAffordModel, getAutoModeSelection } from '@/lib/constants';
+import { CREDIT_COSTS, canAffordModel, getAutoModeSelection, getProcessingTime } from '@/lib/constants';
 
 interface SidebarProps {
   credits?: number;
@@ -48,7 +49,7 @@ const navigation = [
 ];
 
 export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelChange, userEmail, userImageUrl }: SidebarProps) {
-  // Model options for dropdown with credit costs
+  // Model options for dropdown with credit costs and processing times
   const getModelOptions = () => {
     const autoSelection = getAutoModeSelection(credits);
     return [
@@ -57,14 +58,16 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
         label: 'Auto', 
         description: '',
         cost: autoSelection ? CREDIT_COSTS[autoSelection] : CREDIT_COSTS.veo3_fast,
+        processingTime: autoSelection ? getProcessingTime(autoSelection) : '2-3 min',
         affordable: canAffordModel(credits, 'auto'),
         showCost: !!autoSelection
       },
       { 
         value: 'veo3', 
-        label: 'VEO3 High Quality', 
+        label: 'VEO3 High', 
         description: '',
         cost: CREDIT_COSTS.veo3,
+        processingTime: getProcessingTime('veo3'),
         affordable: canAffordModel(credits, 'veo3'),
         showCost: true
       },
@@ -73,6 +76,7 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
         label: 'VEO3 Fast', 
         description: '',
         cost: CREDIT_COSTS.veo3_fast,
+        processingTime: getProcessingTime('veo3_fast'),
         affordable: canAffordModel(credits, 'veo3_fast'),
         showCost: true
       }
@@ -190,12 +194,13 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
                         )}
                       </div>
                       {option.showCost && (
-                        <span className={cn(
-                          "text-xs font-medium",
+                        <div className={cn(
+                          "flex items-center gap-1 text-xs font-medium",
                           option.affordable ? "text-gray-600" : "text-red-500"
                         )}>
-                          {option.cost} credits
-                        </span>
+                          <Coins className="w-3 h-3" />
+                          <span>{option.cost}</span>
+                        </div>
                       )}
                     </div>
                     {selectedModel === option.value && option.affordable && (
@@ -211,12 +216,17 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
           {selectedOption?.showCost && (
             <div className="mt-2 flex items-center justify-center text-xs text-gray-600 bg-gray-50 rounded-md px-2 py-1.5 border border-gray-200">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-3 h-3 text-gray-500" />
+                <Coins className="w-3 h-3 text-gray-500" />
                 <span className={cn(
                   "font-medium",
                   selectedOption.affordable ? "text-gray-700" : "text-red-500"
                 )}>
-                  {selectedOption.cost} credits
+                  {selectedOption.cost}
+                </span>
+                <span className="text-gray-400">•</span>
+                <Clock className="w-3 h-3 text-gray-500" />
+                <span className="font-medium text-gray-700">
+                  {selectedOption.processingTime}
                 </span>
               </div>
             </div>

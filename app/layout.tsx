@@ -3,6 +3,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { UserInitializer } from '@/components/UserInitializer'
 import { CreditsProvider } from '@/contexts/CreditsContext'
 import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -155,10 +156,20 @@ export default function RootLayout({
                 video: {
                   '@type': 'VideoObject',
                   name: 'Flowtra Demo - AI Ad Generation',
-                  description: 'See how Flowtra creates professional video advertisements from product photos',
+                  description: 'See how Flowtra creates professional video advertisements from product photos using advanced AI technology',
                   thumbnailUrl: 'https://flowtra.com/demo-thumbnail.jpg',
-                  uploadDate: '2024-01-15',
-                  contentUrl: 'https://flowtra.com/demo-video.mp4'
+                  uploadDate: '2024-01-15T12:00:00+00:00',
+                  contentUrl: 'https://flowtra.com/demo-video.mp4',
+                  duration: 'PT45S',
+                  embedUrl: 'https://flowtra.com/demo-video-embed',
+                  publisher: {
+                    '@type': 'Organization',
+                    name: 'Flowtra',
+                    logo: {
+                      '@type': 'ImageObject',
+                      url: 'https://flowtra.com/logo.png'
+                    }
+                  }
                 }
               })
             }}
@@ -170,6 +181,7 @@ export default function RootLayout({
             {children}
           </CreditsProvider>
           <Analytics />
+          <SpeedInsights />
         </body>
       </html>
     </ClerkProvider>

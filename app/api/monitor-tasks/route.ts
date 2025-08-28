@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabase } from '@/lib/supabase';
-import { deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { recordCreditTransaction, deductCredits } from '@/lib/credits';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 export async function POST() {
@@ -41,7 +41,7 @@ export async function POST() {
           // Update retry count and handle failures
           const newRetryCount = (record.retry_count || 0) + 1;
           if (newRetryCount >= 5) {
-            // Mark as failed after 5 retries
+            // Mark as failed after 5 retries and refund credits
             await supabase
               .from('user_history')
               .update({
@@ -50,6 +50,25 @@ export async function POST() {
                 last_processed_at: new Date().toISOString()
               })
               .eq('id', record.id);
+            
+            // Refund credits for failed workflow
+            if (record.user_id && record.credits_used > 0) {
+              const refundResult = await deductCredits(record.user_id, -record.credits_used); // Negative amount adds credits back
+              if (refundResult.success) {
+                await recordCreditTransaction(
+                  record.user_id,
+                  'refund',
+                  record.credits_used,
+                  'Refund for failed workflow after max retries',
+                  record.id,
+                  true // useAdminClient
+                );
+                console.log(`↩️ Refunded ${record.credits_used} credits due to workflow failure (max retries) for user ${record.user_id}`);
+              } else {
+                console.error(`Failed to refund credits for failed workflow:`, refundResult.error);
+              }
+            }
+            
             failed++;
           } else {
             // Increment retry count
@@ -141,6 +160,21 @@ async function processRecord(record: HistoryRecord) {
       console.log(`Started video generation for record ${record.id}, taskId: ${videoTaskId}`);
       
     } else if (coverResult.status === 'FAILED') {
+      // Refund credits when cover generation fails
+      if (record.user_id && record.credits_used > 0) {
+        const refundResult = await deductCredits(record.user_id, -record.credits_used);
+        if (refundResult.success) {
+          await recordCreditTransaction(
+            record.user_id,
+            'refund',
+            record.credits_used,
+            'Refund for cover generation failure',
+            record.id,
+            true
+          );
+          console.log(`↩️ Refunded ${record.credits_used} credits due to cover generation failure for user ${record.user_id}`);
+        }
+      }
       throw new Error('Cover generation failed');
     }
     // If still generating, do nothing and wait for next check
@@ -153,27 +187,8 @@ async function processRecord(record: HistoryRecord) {
     if (videoResult.status === 'SUCCESS' && videoResult.videoUrl) {
       console.log(`Video completed for record ${record.id}`);
       
-      // Deduct credits when workflow completes successfully
-      if (record.user_id && record.credits_used > 0) {
-        const deductResult = await deductCredits(record.user_id, record.credits_used);
-        if (!deductResult.success) {
-          console.error(`Failed to deduct credits for record ${record.id}:`, deductResult.error);
-          // Continue with completion anyway - don't fail the workflow for billing issues
-        } else {
-          console.log(`✅ Deducted ${record.credits_used} credits from user ${record.user_id}`);
-          
-          // Record the transaction (use admin client to bypass RLS)
-          const modelName = record.video_model === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast';
-          await recordCreditTransaction(
-            record.user_id,
-            'usage',
-            record.credits_used,
-            `Video generation - ${modelName}`,
-            record.id,
-            true // useAdminClient
-          );
-        }
-      }
+      // Note: Credits are already deducted at workflow start, no need to deduct again
+      console.log(`✅ Workflow completed for user ${record.user_id} - credits were deducted at start`);
       
       await supabase
         .from('user_history')
@@ -186,6 +201,21 @@ async function processRecord(record: HistoryRecord) {
         .eq('id', record.id);
         
     } else if (videoResult.status === 'FAILED') {
+      // Refund credits when video generation fails
+      if (record.user_id && record.credits_used > 0) {
+        const refundResult = await deductCredits(record.user_id, -record.credits_used);
+        if (refundResult.success) {
+          await recordCreditTransaction(
+            record.user_id,
+            'refund',
+            record.credits_used,
+            'Refund for video generation failure',
+            record.id,
+            true
+          );
+          console.log(`↩️ Refunded ${record.credits_used} credits due to video generation failure for user ${record.user_id}`);
+        }
+      }
       throw new Error(`Video generation failed: ${videoResult.errorMessage || 'Unknown error'}`);
     }
     // If still generating, do nothing and wait for next check

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Coins } from 'lucide-react';
 import { HiStar, HiLightningBolt, HiCreditCard, HiTrendingUp, HiClipboardList, HiPlus, HiMinus } from 'react-icons/hi';
 import { handleCreemCheckout } from '@/lib/payment';
 
@@ -159,9 +159,11 @@ export default function CreditsPage() {
                   </div>
                   <h2 className="text-lg font-medium text-gray-900">Current Balance</h2>
                 </div>
-                <div className="text-3xl font-semibold text-gray-900 mb-3">
-                  {userCredits?.toLocaleString() || 0}
-                  <span className="text-base text-gray-500 font-normal ml-2">credits</span>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="text-3xl font-semibold text-gray-900">
+                    {userCredits?.toLocaleString() || 0}
+                  </div>
+                  <Coins className="w-6 h-6 text-gray-500" />
                 </div>
                 <div className="text-sm text-gray-600 space-y-1">
                   <p>≈ {Math.floor((userCredits || 0) / 30)} Fast videos</p>
@@ -252,8 +254,11 @@ export default function CreditsPage() {
                       <span className="text-2xl font-bold text-gray-900">${plan.price}</span>
                       <span className="text-sm text-gray-600 ml-2">one-time</span>
                     </div>
-                    <div className="text-lg font-semibold text-gray-900 mb-3">
-                      {plan.credits.toLocaleString()} Credits
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="text-lg font-semibold text-gray-900">
+                        {plan.credits.toLocaleString()}
+                      </div>
+                      <Coins className="w-5 h-5 text-gray-500" />
                     </div>
                     <div className="text-sm text-gray-600 space-y-1">
                       <div>≈ {plan.veo3FastVideos} Veo3 Fast videos</div>
@@ -327,10 +332,9 @@ export default function CreditsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-semibold text-gray-900 tabular-nums`}>
-                        {transaction.type === 'purchase' ? '+' : transaction.type === 'usage' ? '-' : ''}
-                        {transaction.amount.toLocaleString()}
+                        {Math.abs(transaction.amount).toLocaleString()}
                       </span>
-                      <span className="text-xs text-gray-500">credits</span>
+                      <Coins className="w-3 h-3 text-gray-500" />
                     </div>
                   </div>
                 ))}

@@ -33,6 +33,12 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           {showAuthButtons && (
             <div className="hidden md:flex items-center gap-4">
               <Link 
+                href="/blog" 
+                className="text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Blog
+              </Link>
+              <Link 
                 href="/pricing" 
                 className="text-gray-600 hover:text-gray-900 transition-colors"
               >
@@ -75,6 +81,13 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-gray-200">
             <nav className="flex flex-col gap-4">
+              <Link 
+                href="/blog" 
+                className="text-gray-600 hover:text-gray-900 transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Blog
+              </Link>
               <Link 
                 href="/pricing" 
                 className="text-gray-600 hover:text-gray-900 transition-colors"
