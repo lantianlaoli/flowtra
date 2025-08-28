@@ -6,6 +6,7 @@ import { useUser, SignInButton } from '@clerk/nextjs';
 import { GiftIcon } from '@heroicons/react/24/outline';
 import { Sparkles } from 'lucide-react';
 import HandDrawnArrow from '@/components/ui/HandDrawnArrow';
+import SimpleArrow from '@/components/ui/SimpleArrow';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FileUpload from '@/components/FileUpload';
@@ -16,6 +17,8 @@ export default function LandingPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const exampleVideo1Ref = useRef<HTMLVideoElement>(null);
+  const exampleVideo2Ref = useRef<HTMLVideoElement>(null);
   const router = useRouter();
   const { user } = useUser();
 
@@ -39,6 +42,18 @@ export default function LandingPage() {
   };
 
   const handleVideoLeave = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = true;
+    }
+  };
+
+  const handleExampleCardHover = (videoRef: React.RefObject<HTMLVideoElement | null>) => {
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+    }
+  };
+
+  const handleExampleCardLeave = (videoRef: React.RefObject<HTMLVideoElement | null>) => {
     if (videoRef.current) {
       videoRef.current.muted = true;
     }
@@ -140,6 +155,121 @@ export default function LandingPage() {
                 Hover for sound
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Examples Section - Horizontal Layout */}
+        <div className="py-24">
+          <div className="text-center mb-20">
+            <h2 className="text-4xl font-bold text-gray-900 mb-6">
+              Real Results from Real Products
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              See how our AI transforms ordinary product photos into compelling video advertisements
+            </p>
+          </div>
+
+          <div className="space-y-16 max-w-6xl mx-auto">
+            {/* Example 1 - Horizontal Layout */}
+            <div 
+              className="group bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100 hover:shadow-2xl hover:border-gray-200 transition-all duration-500 p-8"
+              onMouseEnter={() => handleExampleCardHover(exampleVideo1Ref)}
+              onMouseLeave={() => handleExampleCardLeave(exampleVideo1Ref)}
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 lg:gap-12 items-center">
+                {/* Before Image */}
+                <div className="aspect-video bg-gray-50 rounded-xl border border-gray-100 overflow-hidden shadow-inner">
+                  <Image
+                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/yikk0aysjf.jpg"
+                    alt="Original product photo"
+                    width={600}
+                    height={338}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {/* Simple Arrow */}
+                <div className="flex justify-center lg:flex-col">
+                  <SimpleArrow className="w-8 h-8 lg:w-6 lg:h-6" direction="right" />
+                  <SimpleArrow className="w-8 h-8 lg:hidden" direction="down" />
+                </div>
+                
+                {/* After Video */}
+                <div className="aspect-video bg-gray-900 rounded-xl border border-gray-200 overflow-hidden shadow-xl relative">
+                  <video
+                    ref={exampleVideo1Ref}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  >
+                    <source src="https://tempfile.aiquickdraw.com/p/d51126ac584cea6e6916851b6e6ace9d_1756336008.mp4" type="video/mp4" />
+                  </video>
+                </div>
+              </div>
+            </div>
+
+            {/* Example 2 - Horizontal Layout */}
+            <div 
+              className="group bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100 hover:shadow-2xl hover:border-gray-200 transition-all duration-500 p-8"
+              onMouseEnter={() => handleExampleCardHover(exampleVideo2Ref)}
+              onMouseLeave={() => handleExampleCardLeave(exampleVideo2Ref)}
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 lg:gap-12 items-center">
+                {/* Before Image */}
+                <div className="aspect-video bg-gray-50 rounded-xl border border-gray-100 overflow-hidden shadow-inner">
+                  <Image
+                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/c9rcl8nebk4.jpg"
+                    alt="Original product photo"
+                    width={600}
+                    height={338}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {/* Simple Arrow */}
+                <div className="flex justify-center lg:flex-col">
+                  <SimpleArrow className="w-8 h-8 lg:w-6 lg:h-6" direction="right" />
+                  <SimpleArrow className="w-8 h-8 lg:hidden" direction="down" />
+                </div>
+                
+                {/* After Video */}
+                <div className="aspect-video bg-gray-900 rounded-xl border border-gray-200 overflow-hidden shadow-xl relative">
+                  <video
+                    ref={exampleVideo2Ref}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  >
+                    <source src="https://tempfile.aiquickdraw.com/p/5dbfabdaae650dc2f16c8995af2828e4_1756280513.mp4" type="video/mp4" />
+                  </video>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Call to Action */}
+          <div className="text-center mt-16">
+            <p className="text-lg text-gray-600 mb-8 font-medium">Ready to transform your products?</p>
+            {user ? (
+              <button
+                onClick={() => router.push('/dashboard?upload=true')}
+                className="bg-gray-900 text-white px-10 py-4 rounded-xl font-semibold hover:bg-gray-800 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+              >
+                <Sparkles className="w-5 h-5" />
+                Start Creating Videos
+              </button>
+            ) : (
+              <SignInButton mode="modal" forceRedirectUrl="/dashboard?upload=true">
+                <button className="bg-gray-900 text-white px-10 py-4 rounded-xl font-semibold hover:bg-gray-800 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+                  <Sparkles className="w-5 h-5" />
+                  Start Creating Videos
+                </button>
+              </SignInButton>
+            )}
           </div>
         </div>
 
