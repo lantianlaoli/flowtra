@@ -55,23 +55,26 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
       { 
         value: 'auto', 
         label: 'Auto', 
-        description: autoSelection ? `Will use ${autoSelection === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'}` : 'No affordable model',
+        description: '',
         cost: autoSelection ? CREDIT_COSTS[autoSelection] : CREDIT_COSTS.veo3_fast,
-        affordable: canAffordModel(credits, 'auto')
+        affordable: canAffordModel(credits, 'auto'),
+        showCost: !!autoSelection
       },
       { 
         value: 'veo3', 
         label: 'VEO3 High Quality', 
-        description: '3-5 minutes',
+        description: '',
         cost: CREDIT_COSTS.veo3,
-        affordable: canAffordModel(credits, 'veo3')
+        affordable: canAffordModel(credits, 'veo3'),
+        showCost: true
       },
       { 
         value: 'veo3_fast', 
         label: 'VEO3 Fast', 
-        description: '1-2 minutes',
+        description: '',
         cost: CREDIT_COSTS.veo3_fast,
-        affordable: canAffordModel(credits, 'veo3_fast')
+        affordable: canAffordModel(credits, 'veo3_fast'),
+        showCost: true
       }
     ];
   };
@@ -179,24 +182,21 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
                         : "text-gray-700"
                     )}
                   >
-                    <div className="flex flex-col flex-1">
+                    <div className="flex items-center justify-between flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{option.label}</span>
                         {!option.affordable && (
                           <Lock className="w-3 h-3 text-gray-400" />
                         )}
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">
-                          {option.description}
-                        </span>
+                      {option.showCost && (
                         <span className={cn(
                           "text-xs font-medium",
                           option.affordable ? "text-gray-600" : "text-red-500"
                         )}>
                           {option.cost} credits
                         </span>
-                      </div>
+                      )}
                     </div>
                     {selectedModel === option.value && option.affordable && (
                       <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
@@ -208,20 +208,19 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
               </div>
             )}
           </div>
-          <div className="mt-2 flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded-md px-2 py-1.5 border border-gray-200">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-3 h-3 text-gray-500" />
-              <span>{selectedOption?.description}</span>
+          {selectedOption?.showCost && (
+            <div className="mt-2 flex items-center justify-center text-xs text-gray-600 bg-gray-50 rounded-md px-2 py-1.5 border border-gray-200">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3 h-3 text-gray-500" />
+                <span className={cn(
+                  "font-medium",
+                  selectedOption.affordable ? "text-gray-700" : "text-red-500"
+                )}>
+                  {selectedOption.cost} credits
+                </span>
+              </div>
             </div>
-            {selectedOption && (
-              <span className={cn(
-                "font-medium",
-                selectedOption.affordable ? "text-gray-700" : "text-red-500"
-              )}>
-                {selectedOption.cost} credits
-              </span>
-            )}
-          </div>
+          )}
         </div>
         
         {/* Credits Display */}
