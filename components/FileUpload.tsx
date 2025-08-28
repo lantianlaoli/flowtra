@@ -90,7 +90,7 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
               <div key={index} className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-6 h-6 bg-gray-100 rounded flex items-center justify-center">
-                    <Image className="w-3 h-3 text-gray-600" aria-hidden="true" />
+                    <Image className="w-3 h-3 text-gray-600" aria-hidden="true" alt="" />
                   </div>
                   <span className="text-sm font-medium text-gray-900 truncate max-w-xs">
                     {file.name}
