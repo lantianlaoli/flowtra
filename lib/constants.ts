@@ -53,6 +53,34 @@ export function getCreditCost(model: keyof typeof CREDIT_COSTS): number {
   return CREDIT_COSTS[model]
 }
 
+// Auto mode intelligent model selection based on user credits
+export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' | null {
+  // Try from most expensive to cheapest
+  if (userCredits >= CREDIT_COSTS.veo3) {
+    return 'veo3'
+  } else if (userCredits >= CREDIT_COSTS.veo3_fast) {
+    return 'veo3_fast'
+  } else {
+    return null // Insufficient credits for any model
+  }
+}
+
+// Check if user has sufficient credits for a model
+export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 'veo3_fast'): boolean {
+  if (model === 'auto') {
+    return userCredits >= CREDIT_COSTS.veo3_fast // Auto requires at least the cheapest model
+  }
+  return userCredits >= CREDIT_COSTS[model]
+}
+
+// Get the actual model that will be used (resolves auto to specific model)
+export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast', userCredits: number): 'veo3' | 'veo3_fast' | null {
+  if (selectedModel === 'auto') {
+    return getAutoModeSelection(userCredits)
+  }
+  return canAffordModel(userCredits, selectedModel) ? selectedModel : null
+}
+
 // Map product_id to credits and package info
 export function getCreditsFromProductId(productId: string): { credits: number; packageName: string } | null {
   // Get environment-specific product IDs

@@ -14,10 +14,12 @@ import {
   Sparkles,
   Plus,
   Home,
-  User
+  User,
+  Lock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import FeedbackWidget from '@/components/FeedbackWidget';
+import { CREDIT_COSTS, canAffordModel, getAutoModeSelection } from '@/lib/constants';
 
 interface SidebarProps {
   credits?: number;
@@ -45,13 +47,36 @@ const navigation = [
   }
 ];
 
-export default function Sidebar({ credits, selectedModel = 'auto', onModelChange, userEmail, userImageUrl }: SidebarProps) {
-  // Model options for dropdown
-  const modelOptions = [
-    { value: 'auto', label: 'Auto', description: 'Best quality' },
-    { value: 'veo3', label: 'VEO3 High Quality', description: '3-5 minutes' },
-    { value: 'veo3_fast', label: 'VEO3 Fast', description: '1-2 minutes' }
-  ];
+export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelChange, userEmail, userImageUrl }: SidebarProps) {
+  // Model options for dropdown with credit costs
+  const getModelOptions = () => {
+    const autoSelection = getAutoModeSelection(credits);
+    return [
+      { 
+        value: 'auto', 
+        label: 'Auto', 
+        description: autoSelection ? `Will use ${autoSelection === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'}` : 'No affordable model',
+        cost: autoSelection ? CREDIT_COSTS[autoSelection] : CREDIT_COSTS.veo3_fast,
+        affordable: canAffordModel(credits, 'auto')
+      },
+      { 
+        value: 'veo3', 
+        label: 'VEO3 High Quality', 
+        description: '3-5 minutes',
+        cost: CREDIT_COSTS.veo3,
+        affordable: canAffordModel(credits, 'veo3')
+      },
+      { 
+        value: 'veo3_fast', 
+        label: 'VEO3 Fast', 
+        description: '1-2 minutes',
+        cost: CREDIT_COSTS.veo3_fast,
+        affordable: canAffordModel(credits, 'veo3_fast')
+      }
+    ];
+  };
+  
+  const modelOptions = getModelOptions();
   const pathname = usePathname();
   
   // Custom dropdown state
@@ -72,7 +97,8 @@ export default function Sidebar({ credits, selectedModel = 'auto', onModelChange
   
   const selectedOption = modelOptions.find(opt => opt.value === selectedModel);
   
-  const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast') => {
+  const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast', affordable: boolean) => {
+    if (!affordable) return; // Prevent selection of unaffordable options
     onModelChange?.(value);
     setIsOpen(false);
   };
@@ -141,22 +167,39 @@ export default function Sidebar({ credits, selectedModel = 'auto', onModelChange
                 {modelOptions.map((option) => (
                   <button
                     key={option.value}
-                    onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast')}
+                    onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast', option.affordable)}
+                    disabled={!option.affordable}
                     className={cn(
-                      "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100",
+                      "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between",
+                      !option.affordable 
+                        ? "cursor-not-allowed opacity-50 bg-gray-50" 
+                        : "hover:bg-gray-100 cursor-pointer",
                       selectedModel === option.value 
                         ? "bg-gray-100 text-gray-900" 
                         : "text-gray-700"
                     )}
                   >
-                    <div className="flex flex-col">
-                      <span className="font-medium">{option.label}</span>
-                      <span className="text-xs text-gray-500">
-                        {option.description}
-                      </span>
+                    <div className="flex flex-col flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{option.label}</span>
+                        {!option.affordable && (
+                          <Lock className="w-3 h-3 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">
+                          {option.description}
+                        </span>
+                        <span className={cn(
+                          "text-xs font-medium",
+                          option.affordable ? "text-gray-600" : "text-red-500"
+                        )}>
+                          {option.cost} credits
+                        </span>
+                      </div>
                     </div>
-                    {selectedModel === option.value && (
-                      <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center">
+                    {selectedModel === option.value && option.affordable && (
+                      <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
                         <Check className="h-2.5 w-2.5 text-white" />
                       </div>
                     )}
@@ -165,9 +208,19 @@ export default function Sidebar({ credits, selectedModel = 'auto', onModelChange
               </div>
             )}
           </div>
-          <div className="mt-2 flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-md px-2 py-1.5 border border-gray-200">
-            <Sparkles className="w-3 h-3 text-gray-500" />
-            <span>{selectedOption?.description}</span>
+          <div className="mt-2 flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded-md px-2 py-1.5 border border-gray-200">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3 h-3 text-gray-500" />
+              <span>{selectedOption?.description}</span>
+            </div>
+            {selectedOption && (
+              <span className={cn(
+                "font-medium",
+                selectedOption.affordable ? "text-gray-700" : "text-red-500"
+              )}>
+                {selectedOption.cost} credits
+              </span>
+            )}
           </div>
         </div>
         

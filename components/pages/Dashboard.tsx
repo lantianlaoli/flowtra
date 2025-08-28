@@ -8,8 +8,10 @@ import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import FileUpload from '@/components/FileUpload';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
+import InsufficientCredits from '@/components/InsufficientCredits';
 import { Download, RotateCcw, Share2, ArrowRight, History } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { canAffordModel, CREDIT_COSTS } from '@/lib/constants';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -107,6 +109,11 @@ export default function Dashboard() {
           <MaintenanceMessage />
         </div>
       );
+    }
+    
+    // Check user credits - if insufficient for any model, show recharge guidance
+    if (userCredits !== undefined && !canAffordModel(userCredits, 'auto')) {
+      return <InsufficientCredits currentCredits={userCredits} requiredCredits={CREDIT_COSTS.veo3_fast} />;
     }
     
     // Show upload interface when no workflow is running
