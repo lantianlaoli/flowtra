@@ -107,19 +107,10 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
                 )}
               </div>
             ))}
-            {isLoading ? (
-              <div className="flex items-center justify-center space-x-3 mt-4">
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-600 border-t-transparent"></div>
-                <span className="text-gray-600 font-medium">Processing {selectedFiles.length} image{selectedFiles.length > 1 ? 's' : ''}...</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center space-x-2 text-gray-600 font-medium mt-4">
-                <div className="w-5 h-5 bg-gray-200 rounded-full flex items-center justify-center">
-                  <span className="text-xs">✓</span>
-                </div>
-                {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} ready to process
-              </div>
-            )}
+            <div className="flex items-center justify-center space-x-3 mt-4">
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-600 border-t-transparent"></div>
+              <span className="text-gray-600 font-medium">Processing {selectedFiles.length} image{selectedFiles.length > 1 ? 's' : ''}...</span>
+            </div>
           </div>
         ) : (
           <div>

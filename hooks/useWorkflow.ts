@@ -30,7 +30,7 @@ export interface WorkflowState {
   maxGuestUsage: number;
 }
 
-export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo3' | 'veo3_fast' = 'auto') => {
+export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo3' | 'veo3_fast' = 'auto', updateCredits?: (newCredits: number) => void, refetchCredits?: () => Promise<void>) => {
   // Initialize guest usage limits
   const maxGuestUsage = 1; // Guest users: 1 VEO3_fast
   const maxUserUsage = 2;   // Logged users: 2 VEO3_fast
@@ -134,6 +134,12 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
         }
       }));
 
+      // Update credits immediately after successful workflow start
+      if (result.workflowStarted && result.remainingCredits !== undefined && updateCredits && userId) {
+        console.log(`🔄 Updating credits in sidebar: ${result.remainingCredits} remaining after using ${result.creditsUsed}`);
+        updateCredits(result.remainingCredits);
+      }
+
       // Start polling if we got a historyId (with delay to allow UI to show success state)
       if (result.historyId) {
         setTimeout(() => {
@@ -146,6 +152,13 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
       if (!userId) {
         updateGuestUsage(Math.max(0, guestUsageCount - 1));
       }
+      
+      // Refetch credits in case of error (credits might have been refunded)
+      if (userId && refetchCredits) {
+        console.log('🔄 Refetching credits due to upload error');
+        refetchCredits();
+      }
+      
       setError(error.message || 'Upload failed');
     }
   }, [userId, guestUsageCount, maxGuestUsage, updateGuestUsage, setLoading, setError, selectedModel]);
@@ -174,6 +187,11 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
                                    result.workflowStatus === 'failed' || 
                                    result.workflowStatus === 'completed';
           
+          // Update credits in sidebar when credits are used/refunded
+          if (result.data.creditsUsed && updateCredits && userId && result.data.creditsRemaining !== undefined) {
+            updateCredits(result.data.creditsRemaining);
+          }
+          
           return {
             ...prev,
             workflowStatus: shouldUpdateStatus ? result.workflowStatus : prev.workflowStatus,
@@ -200,6 +218,11 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
           }
           if (result.isFailed) {
             setError(result.data.errorMessage || 'Workflow failed');
+            // Refetch credits in case of failure (credits might have been refunded)
+            if (userId && refetchCredits) {
+              console.log('🔄 Refetching credits due to workflow failure');
+              refetchCredits();
+            }
           }
         }
         

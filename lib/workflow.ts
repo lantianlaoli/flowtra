@@ -2,7 +2,7 @@ import { getSupabase } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { httpRequestWithRetry } from '@/lib/httpRequest';
 import { getCreditCost } from '@/lib/constants';
-import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { checkCredits, deductCredits, recordCreditTransaction, getUserCredits } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
   imageUrl: string;
@@ -17,6 +17,8 @@ export interface StartWorkflowResult {
   coverTaskId?: string;
   error?: string;
   details?: string;
+  remainingCredits?: number;
+  creditsUsed?: number;
 }
 
 export async function startWorkflowProcess({ 
@@ -62,7 +64,7 @@ export async function startWorkflowProcess({
         };
       }
       
-      console.log(`✅ Deducted ${creditsUsed} credits from user ${userId} at workflow start`);
+      console.log(`✅ Deducted ${creditsUsed} credits from user ${userId} at workflow start. Remaining: ${deductResult.remainingCredits}`);
     }
 
     // Create history record after successful credit deduction
@@ -185,11 +187,15 @@ export async function startWorkflowProcess({
       console.log(`Cover generation started for history ${historyRecord?.id}, taskId: ${coverTaskId}`);
 
       // Return success immediately - monitoring will handle the rest
+      const finalCreditsResult = userId ? await getUserCredits(userId) : null;
+      const finalRemainingCredits = finalCreditsResult?.credits?.credits_remaining;
       return {
         success: true,
         historyId: historyRecord?.id,
         message: 'Workflow started successfully. Cover and video generation in progress.',
-        coverTaskId: coverTaskId
+        coverTaskId: coverTaskId,
+        remainingCredits: finalRemainingCredits,
+        creditsUsed: creditsUsed
       };
 
     } catch (error) {

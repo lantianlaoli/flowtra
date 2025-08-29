@@ -22,7 +22,7 @@ interface KieCreditsStatus {
 
 export default function Dashboard() {
   const { user, isLoaded } = useUser();
-  const { credits: userCredits } = useCredits();
+  const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
   const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
     sufficient: true,
@@ -38,7 +38,7 @@ export default function Dashboard() {
     state,
     uploadFile,
     resetWorkflow
-  } = useWorkflow(user?.id, selectedModel);
+  } = useWorkflow(user?.id, selectedModel, updateCredits, refetchCredits);
 
   // No longer redirect non-authenticated users - allow guest access
   // Guest users get limited usage (1 VEO3_fast), logged-in users get more (2 VEO3_fast)
@@ -138,43 +138,40 @@ export default function Dashboard() {
     if (state.workflowStatus === 'workflow_initiated') {
       return (
         <div className="max-w-2xl mx-auto">
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-8">
-            <div className="text-center space-y-6">
-              {/* Success icon */}
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto border-4 border-green-200">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Success block */}
+          <div className="border border-gray-200 bg-white hover:bg-gray-50 transition-colors duration-150">
+            <div className="px-8 py-10">
+              {/* Success indicator */}
+              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 border border-gray-200 mx-auto mb-6">
+                <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               
-              {/* Success message */}
-              <div>
-                <h3 className="text-2xl font-semibold text-gray-900 mb-3">
+              {/* Content block */}
+              <div className="text-center space-y-4">
+                <h3 className="text-xl font-medium text-gray-900">
                   Advertisement Generation Started
                 </h3>
-                <p className="text-gray-700 text-base leading-relaxed mb-4">
-                  Your AI-powered advertisement is now being created. Our system is analyzing your product and generating professional video content.
+                <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
+                  Your advertisement is being created. The process is now running in the background.
                 </p>
-                <div className="bg-white/60 rounded-lg p-4 border border-green-200/50">
-                  <p className="text-sm text-gray-600">
-                    <strong>Estimated time:</strong> 3-5 minutes • 
-                    <strong> Process:</strong> Product analysis → Creative concepts → Cover design → Video generation
-                  </p>
-                </div>
               </div>
-              
-              {/* Action buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+            </div>
+            
+            {/* Action block */}
+            <div className="border-t border-gray-200 px-8 py-6 bg-gray-50">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button
                   onClick={() => router.push('/dashboard/history')}
-                  className="flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium shadow-sm"
+                  className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 border border-gray-900 hover:bg-gray-800 hover:border-gray-800 transition-colors duration-150 text-sm font-medium"
                 >
                   <History className="w-4 h-4" />
-                  Watch Progress Live
+                  View Progress
                 </button>
                 <button
                   onClick={() => resetWorkflow()}
-                  className="flex items-center justify-center gap-2 bg-white text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors font-medium border border-gray-300 shadow-sm"
+                  className="flex items-center justify-center gap-2 bg-white text-gray-700 px-5 py-2.5 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors duration-150 text-sm font-medium"
                 >
                   <ArrowRight className="w-4 h-4" />
                   Create Another Ad

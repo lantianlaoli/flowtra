@@ -6,6 +6,7 @@ import { useUser } from '@clerk/nextjs';
 interface CreditsContextType {
   credits: number | undefined;
   refetchCredits: () => Promise<void>;
+  updateCredits: (newCredits: number) => void;
   isLoading: boolean;
 }
 
@@ -60,8 +61,12 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
     await fetchCredits();
   };
 
+  const updateCredits = (newCredits: number) => {
+    setCredits(newCredits);
+  };
+
   return (
-    <CreditsContext.Provider value={{ credits, refetchCredits, isLoading }}>
+    <CreditsContext.Provider value={{ credits, refetchCredits, updateCredits, isLoading }}>
       {children}
     </CreditsContext.Provider>
   );

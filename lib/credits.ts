@@ -62,16 +62,34 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
 }> {
   try {
     const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
+    
+    // Use UPSERT to prevent duplicate initialization
     const { data: credits, error } = await supabase
       .from('user_credits')
-      .insert({
+      .upsert({
         user_id: userId,
         credits_remaining: initialCredits
+      }, {
+        onConflict: 'user_id',
+        ignoreDuplicates: true  // Don't update if record already exists
       })
       .select()
       .single()
 
     if (error) {
+      // If it's a duplicate key error, user already has credits - this is not an error
+      if (error.code === '23505' || error.message?.includes('duplicate')) {
+        console.log(`👤 User ${userId} already has credits initialized, skipping duplicate initialization`)
+        // Get existing credits
+        const existingResult = await getUserCredits(userId)
+        if (existingResult.success && existingResult.credits) {
+          return {
+            success: true,
+            credits: existingResult.credits
+          }
+        }
+      }
+      
       console.error('Failed to initialize user credits:', error)
       return {
         success: false,
@@ -79,17 +97,22 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
       }
     }
 
-    console.log(`✅ Initialized ${initialCredits} credits for new user:`, userId)
-    
-    // Record the initial credit transaction
-    await recordCreditTransaction(
-      userId,
-      'purchase',
-      initialCredits,
-      'Initial free credits for new user',
-      undefined,
-      true // Use admin client
-    )
+    // Only log and record transaction if this is a new initialization
+    if (credits) {
+      console.log(`✅ Initialized ${initialCredits} credits for new user:`, userId)
+      
+      // Record the initial credit transaction
+      await recordCreditTransaction(
+        userId,
+        'purchase',
+        initialCredits,
+        'Initial free credits for new user',
+        undefined,
+        true // Use admin client
+      )
+    } else {
+      console.log(`👤 User ${userId} already has credits, no initialization needed`)
+    }
     
     return {
       success: true,
