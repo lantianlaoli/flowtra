@@ -8,16 +8,18 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Flowtra - AI-Powered E-commerce Ad Generation",
-  description: "Generate professional video advertisements and cover images from product photos using AI. Automated marketing content creation for e-commerce businesses.",
+  description: "Create professional video ads from product photos using AI. Generate Amazon, Walmart, and local store advertisements in seconds. Try free with 30 credits.",
   keywords: [
-    "AI video generation",
-    "e-commerce advertising", 
-    "product ads",
-    "marketing automation",
-    "AI marketing tools",
-    "video ad creator",
-    "product photography",
-    "advertisement generator"
+    "AI video ads",
+    "product advertisement generator",
+    "Amazon product ads",
+    "Walmart advertising tools",
+    "local store video ads",
+    "e-commerce video creation",
+    "automated marketing content",
+    "AI advertisement maker",
+    "retail store marketing videos",
+    "AI video ads from photos"
   ],
   authors: [{ name: "Flowtra Team" }],
   creator: "Flowtra",
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Flowtra - AI-Powered E-commerce Ad Generation",
-    description: "Generate professional video advertisements and cover images from product photos using AI. Automated marketing content creation for e-commerce businesses.",
+    description: "Create professional video ads from product photos using AI. Generate Amazon, Walmart, and local store advertisements in seconds. Try free with 30 credits.",
     url: 'https://flowtra.com',
     siteName: 'Flowtra',
     images: [
@@ -50,7 +52,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Flowtra - AI-Powered E-commerce Ad Generation',
-    description: 'Generate professional video advertisements and cover images from product photos using AI.',
+    description: 'Create professional video ads from product photos using AI. Generate Amazon, Walmart, and local store ads.',
     images: ['/twitter-image.jpg'],
     creator: '@flowtra',
   },

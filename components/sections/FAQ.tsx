@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import FAQSchema from '@/components/seo/FAQSchema';
 
 interface FAQItem {
   question: string;
@@ -46,6 +47,7 @@ export default function FAQ() {
 
   return (
     <section className="py-16">
+      <FAQSchema faqData={faqData} />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">

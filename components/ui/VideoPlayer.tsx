@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, forwardRef, useEffect, useState } from 'react';
+import { useRef, forwardRef } from 'react';
 import { useVideoAudio } from '@/hooks/useVideoAudio';
 
 interface VideoPlayerProps {
@@ -33,7 +33,6 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
     const {
       audioEnabled,
       userHasInteracted,
-      isHovered,
       handleHover,
       handleLeave
     } = useVideoAudio({ videoRef: currentRef });
@@ -71,7 +70,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
         
         {showControls && (
           <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-sm">
-            {!userHasInteracted ? 'Move mouse to enable audio' : (audioEnabled ? 'Audio on' : 'Hover for audio')}
+            {!userHasInteracted ? 'Click anywhere, then hover for audio' : (audioEnabled ? 'Audio on' : 'Hover for audio')}
           </div>
         )}
       </div>

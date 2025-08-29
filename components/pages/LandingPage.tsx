@@ -8,6 +8,7 @@ import { Sparkles, Check, X } from 'lucide-react';
 import HandDrawnArrow from '@/components/ui/HandDrawnArrow';
 import SimpleArrow from '@/components/ui/SimpleArrow';
 import VideoPlayer from '@/components/ui/VideoPlayer';
+import DemoVideoSchema from '@/components/seo/DemoVideoSchema';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FileUpload from '@/components/FileUpload';
@@ -36,6 +37,23 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* SEO Schema for demo videos */}
+      <DemoVideoSchema 
+        videoUrl="https://tempfile.aiquickdraw.com/p/bdbf3c847dd219aea0775162c9c77415_1756176082.mp4"
+        title="AI Video Ad Generator Demo - Product Photo to Advertisement"
+        description="See how Flowtra transforms a simple product photo into professional video advertisements for Amazon, Walmart, and local stores using AI technology"
+      />
+      <DemoVideoSchema 
+        videoUrl="https://tempfile.aiquickdraw.com/p/d51126ac584cea6e6916851b6e6ace9d_1756336008.mp4"
+        title="E-commerce Product AI Video Advertisement Example"
+        description="Real example of AI-generated video advertisement created from product photo for online retail marketing"
+      />
+      <DemoVideoSchema 
+        videoUrl="https://tempfile.aiquickdraw.com/p/0fcc1f33f4dc11aa3771d75213b53bf6_1756263260.mp4"
+        title="Local Store AI Video Ad Creation from Product Image"
+        description="Demonstration of AI technology creating professional video advertisements for local stores from a single product photograph"
+      />
+      
       <Header />
 
       {/* Hero Section */}
@@ -52,11 +70,11 @@ export default function LandingPage() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
-              AI Ad Videos for Amazon & Walmart Products
+              AI Ads from Your Product Photos
             </h1>
             
             <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-              Upload your product photo. Get professional sales-ready video advertisements in seconds using advanced AI technology.
+              Turn a single image into ready-to-use video ads for Amazon, Walmart, and local stores.
             </p>
 
             {/* CTA Buttons */}
@@ -90,7 +108,7 @@ export default function LandingPage() {
               <div className="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video">
                 <Image 
                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/bogl45guwpk.jpg"
-                  alt="Original product photo showing e-commerce item ready for AI video advertisement generation"
+                  alt="AI video advertisement generator showing product photo transformation for Amazon and Walmart ads"
                   width={800}
                   height={450}
                   className="w-full h-full object-cover"
@@ -124,10 +142,10 @@ export default function LandingPage() {
         <div className="py-24">
           <div className="text-center mb-20">
             <h2 className="text-4xl font-bold text-gray-900 mb-6">
-              Real Results from Real Products
+              AI-Generated Product Advertisement Examples
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              See how our AI transforms ordinary product photos into compelling video advertisements
+              See how our AI transforms ordinary product photos into compelling video advertisements for Amazon, Walmart, and local stores
             </p>
           </div>
 
@@ -140,7 +158,7 @@ export default function LandingPage() {
                   <div className="aspect-video bg-white rounded-lg border border-gray-200 overflow-hidden">
                     <Image
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/yikk0aysjf.jpg"
-                      alt="Original product photo"
+                      alt="Original e-commerce product photo before AI video ad generation"
                       width={600}
                       height={338}
                       className="w-full h-full object-cover"
@@ -185,7 +203,7 @@ export default function LandingPage() {
                   <div className="aspect-video bg-white rounded-lg border border-gray-200 overflow-hidden">
                     <Image
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/covers/ayu1e4eo7n9.jpg"
-                      alt="Original product photo"
+                      alt="Local store product photo ready for AI advertisement creation"
                       width={600}
                       height={338}
                       className="w-full h-full object-cover"
