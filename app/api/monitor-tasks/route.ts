@@ -51,21 +51,21 @@ export async function POST() {
               })
               .eq('id', record.id);
             
-            // Refund credits for failed workflow
-            if (record.user_id && record.credits_used > 0) {
-              const refundResult = await deductCredits(record.user_id, -record.credits_used); // Negative amount adds credits back
+            // Refund generation credits for failed workflow
+            if (record.user_id && record.generation_credits_used > 0) {
+              const refundResult = await deductCredits(record.user_id, -record.generation_credits_used); // Negative amount adds credits back
               if (refundResult.success) {
                 await recordCreditTransaction(
                   record.user_id,
                   'refund',
-                  record.credits_used,
+                  record.generation_credits_used,
                   'Refund for failed workflow after max retries',
                   record.id,
                   true // useAdminClient
                 );
-                console.log(`↩️ Refunded ${record.credits_used} credits due to workflow failure (max retries) for user ${record.user_id}`);
+                console.log(`↩️ Refunded ${record.generation_credits_used} generation credits due to workflow failure (max retries) for user ${record.user_id}`);
               } else {
-                console.error(`Failed to refund credits for failed workflow:`, refundResult.error);
+                console.error(`Failed to refund generation credits for failed workflow:`, refundResult.error);
               }
             }
             
@@ -128,6 +128,9 @@ interface HistoryRecord {
   creative_prompts: Record<string, unknown>;
   video_model: string;
   credits_used: number;
+  generation_credits_used: number;
+  download_credits_used: number;
+  downloaded: boolean;
   retry_count: number;
   last_processed_at: string;
 }
@@ -160,19 +163,19 @@ async function processRecord(record: HistoryRecord) {
       console.log(`Started video generation for record ${record.id}, taskId: ${videoTaskId}`);
       
     } else if (coverResult.status === 'FAILED') {
-      // Refund credits when cover generation fails
-      if (record.user_id && record.credits_used > 0) {
-        const refundResult = await deductCredits(record.user_id, -record.credits_used);
+      // Refund generation credits when cover generation fails
+      if (record.user_id && record.generation_credits_used > 0) {
+        const refundResult = await deductCredits(record.user_id, -record.generation_credits_used);
         if (refundResult.success) {
           await recordCreditTransaction(
             record.user_id,
             'refund',
-            record.credits_used,
+            record.generation_credits_used,
             'Refund for cover generation failure',
             record.id,
             true
           );
-          console.log(`↩️ Refunded ${record.credits_used} credits due to cover generation failure for user ${record.user_id}`);
+          console.log(`↩️ Refunded ${record.generation_credits_used} generation credits due to cover generation failure for user ${record.user_id}`);
         }
       }
       throw new Error('Cover generation failed');
@@ -201,19 +204,19 @@ async function processRecord(record: HistoryRecord) {
         .eq('id', record.id);
         
     } else if (videoResult.status === 'FAILED') {
-      // Refund credits when video generation fails
-      if (record.user_id && record.credits_used > 0) {
-        const refundResult = await deductCredits(record.user_id, -record.credits_used);
+      // Refund generation credits when video generation fails
+      if (record.user_id && record.generation_credits_used > 0) {
+        const refundResult = await deductCredits(record.user_id, -record.generation_credits_used);
         if (refundResult.success) {
           await recordCreditTransaction(
             record.user_id,
             'refund',
-            record.credits_used,
+            record.generation_credits_used,
             'Refund for video generation failure',
             record.id,
             true
           );
-          console.log(`↩️ Refunded ${record.credits_used} credits due to video generation failure for user ${record.user_id}`);
+          console.log(`↩️ Refunded ${record.generation_credits_used} generation credits due to video generation failure for user ${record.user_id}`);
         }
       }
       throw new Error(`Video generation failed: ${videoResult.errorMessage || 'Unknown error'}`);

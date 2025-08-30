@@ -59,6 +59,16 @@ export function getCreditCost(model: keyof typeof CREDIT_COSTS): number {
   return CREDIT_COSTS[model]
 }
 
+// Get generation cost (40% of total)
+export function getGenerationCost(model: keyof typeof CREDIT_COSTS): number {
+  return Math.round(CREDIT_COSTS[model] * 0.4)
+}
+
+// Get download cost (60% of total)
+export function getDownloadCost(model: keyof typeof CREDIT_COSTS): number {
+  return Math.round(CREDIT_COSTS[model] * 0.6)
+}
+
 // Get processing time for video model
 export function getProcessingTime(model: keyof typeof MODEL_PROCESSING_TIMES): string {
   return MODEL_PROCESSING_TIMES[model]
@@ -122,6 +132,7 @@ export const INITIAL_FREE_CREDITS = 100
 
 // KIE API credit threshold for service availability
 export const KIE_CREDIT_THRESHOLD = 600
+
 
 // Complete workflow cost breakdown:
 // - Image description: 1-2 credits (OpenRouter API)

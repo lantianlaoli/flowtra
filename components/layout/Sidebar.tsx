@@ -16,11 +16,13 @@ import {
   User,
   Lock,
   Coins,
-  Clock
+  Clock,
+  Cpu,
+  Download
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import FeedbackWidget from '@/components/FeedbackWidget';
-import { CREDIT_COSTS, canAffordModel, getAutoModeSelection, getProcessingTime } from '@/lib/constants';
+import { CREDIT_COSTS, canAffordModel, getAutoModeSelection, getProcessingTime, getGenerationCost, getDownloadCost } from '@/lib/constants';
 
 interface SidebarProps {
   credits?: number;
@@ -215,16 +217,32 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
           </div>
           {selectedOption?.showCost && (
             <div className="mt-2 flex items-center justify-center text-xs text-gray-600 bg-gray-50 rounded-md px-2 py-1.5 border border-gray-200">
-              <div className="flex items-center gap-2">
-                <Coins className="w-3 h-3 text-gray-500" />
-                <span className={cn(
-                  "font-medium",
-                  selectedOption.affordable ? "text-gray-700" : "text-red-500"
-                )}>
-                  {selectedOption.cost}
-                </span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <Cpu className="w-4 h-4 text-gray-500" />
+                  <span className={cn(
+                    "font-medium",
+                    selectedOption.affordable ? "text-gray-700" : "text-red-500"
+                  )}>
+                    {selectedOption.value === 'auto' 
+                      ? getGenerationCost(getAutoModeSelection(credits) || 'veo3_fast')
+                      : getGenerationCost(selectedOption.value as keyof typeof CREDIT_COSTS)}
+                  </span>
+                </div>
                 <span className="text-gray-400">•</span>
-                <Clock className="w-3 h-3 text-gray-500" />
+                <div className="flex items-center gap-1">
+                  <Download className="w-4 h-4 text-gray-500" />
+                  <span className={cn(
+                    "font-medium",
+                    selectedOption.affordable ? "text-gray-700" : "text-red-500"
+                  )}>
+                    {selectedOption.value === 'auto' 
+                      ? getDownloadCost(getAutoModeSelection(credits) || 'veo3_fast')
+                      : getDownloadCost(selectedOption.value as keyof typeof CREDIT_COSTS)}
+                  </span>
+                </div>
+                <span className="text-gray-400">•</span>
+                <Clock className="w-4 h-4 text-gray-500" />
                 <span className="font-medium text-gray-700">
                   {selectedOption.processingTime}
                 </span>

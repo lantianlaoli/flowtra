@@ -1,7 +1,7 @@
 import { getSupabase } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { httpRequestWithRetry } from '@/lib/httpRequest';
-import { getCreditCost } from '@/lib/constants';
+import { getCreditCost, getGenerationCost } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction, getUserCredits } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
@@ -31,13 +31,13 @@ export async function startWorkflowProcess({
       return { success: false, error: 'Image URL is required', message: 'Image URL is required' };
     }
 
-    // Check and deduct credits immediately for authenticated users
-    let creditsUsed = 0;
+    // Check and deduct generation credits (40%) for authenticated users
+    let generationCreditsUsed = 0;
     if (userId) {
-      creditsUsed = getCreditCost(videoModel);
+      generationCreditsUsed = getGenerationCost(videoModel);
       
-      // Check if user has enough credits
-      const checkResult = await checkCredits(userId, creditsUsed);
+      // Check if user has enough credits (need at least generation cost upfront)
+      const checkResult = await checkCredits(userId, generationCreditsUsed);
       if (!checkResult.success) {
         return { 
           success: false, 
@@ -50,12 +50,12 @@ export async function startWorkflowProcess({
         return { 
           success: false, 
           error: 'Insufficient credits', 
-          message: `Insufficient credits. Need ${creditsUsed}, have ${checkResult.currentCredits || 0}` 
+          message: `Insufficient credits. Need ${generationCreditsUsed}, have ${checkResult.currentCredits || 0}` 
         };
       }
       
-      // Deduct credits immediately
-      const deductResult = await deductCredits(userId, creditsUsed);
+      // Deduct generation credits immediately
+      const deductResult = await deductCredits(userId, generationCreditsUsed);
       if (!deductResult.success) {
         return { 
           success: false, 
@@ -64,7 +64,7 @@ export async function startWorkflowProcess({
         };
       }
       
-      console.log(`✅ Deducted ${creditsUsed} credits from user ${userId} at workflow start. Remaining: ${deductResult.remainingCredits}`);
+      console.log(`✅ Deducted ${generationCreditsUsed} generation credits from user ${userId} at workflow start. Remaining: ${deductResult.remainingCredits}`);
     }
 
     // Create history record after successful credit deduction
@@ -77,7 +77,8 @@ export async function startWorkflowProcess({
           user_id: userId,
           original_image_url: imageUrl,
           video_model: videoModel,
-          credits_used: creditsUsed,
+          credits_used: getCreditCost(videoModel), // Total cost for reference
+          generation_credits_used: generationCreditsUsed,
           workflow_status: 'started',
           current_step: 'describing',
           progress_percentage: 5,
@@ -89,18 +90,18 @@ export async function startWorkflowProcess({
       if (error) {
         console.error('Failed to create history record:', error);
         
-        // Refund credits if history creation fails
-        const refundResult = await deductCredits(userId, -creditsUsed); // Negative amount adds credits back
+        // Refund generation credits if history creation fails
+        const refundResult = await deductCredits(userId, -generationCreditsUsed); // Negative amount adds credits back
         if (refundResult.success) {
           await recordCreditTransaction(
             userId,
             'refund',
-            creditsUsed,
+            generationCreditsUsed,
             'Refund for failed workflow creation',
             undefined,
             true
           );
-          console.log(`↩️ Refunded ${creditsUsed} credits due to history creation failure`);
+          console.log(`↩️ Refunded ${generationCreditsUsed} generation credits due to history creation failure`);
         }
         
         return { success: false, error: 'Failed to create workflow record', message: 'Failed to create workflow record' };
@@ -108,12 +109,12 @@ export async function startWorkflowProcess({
       
       historyRecord = data;
       
-      // Record the initial credit deduction transaction
+      // Record the initial generation credit deduction transaction
       await recordCreditTransaction(
         userId,
         'usage',
-        creditsUsed,
-        `Workflow started - ${videoModel === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'}`,
+        generationCreditsUsed,
+        `Video generation started - ${videoModel === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'} (40%)`,
         historyRecord.id,
         true // useAdminClient
       );
@@ -195,7 +196,7 @@ export async function startWorkflowProcess({
         message: 'Workflow started successfully. Cover and video generation in progress.',
         coverTaskId: coverTaskId,
         remainingCredits: finalRemainingCredits,
-        creditsUsed: creditsUsed
+        creditsUsed: generationCreditsUsed
       };
 
     } catch (error) {
@@ -213,21 +214,21 @@ export async function startWorkflowProcess({
           })
           .eq('id', historyRecord.id);
           
-        // Refund credits for workflow failure
-        if (userId && creditsUsed > 0) {
-          const refundResult = await deductCredits(userId, -creditsUsed); // Negative amount adds credits back
+        // Refund generation credits for workflow failure
+        if (userId && generationCreditsUsed > 0) {
+          const refundResult = await deductCredits(userId, -generationCreditsUsed); // Negative amount adds credits back
           if (refundResult.success) {
             await recordCreditTransaction(
               userId,
               'refund',
-              creditsUsed,
+              generationCreditsUsed,
               'Refund for failed workflow',
               historyRecord.id,
               true
             );
-            console.log(`↩️ Refunded ${creditsUsed} credits due to workflow failure for user ${userId}`);
+            console.log(`↩️ Refunded ${generationCreditsUsed} generation credits due to workflow failure for user ${userId}`);
           } else {
-            console.error(`Failed to refund credits for workflow failure:`, refundResult.error);
+            console.error(`Failed to refund generation credits for workflow failure:`, refundResult.error);
           }
         }
       }
