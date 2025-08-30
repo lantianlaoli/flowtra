@@ -5,13 +5,18 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Calendar, Eye, Download } from 'lucide-react';
+import { Calendar, Download } from 'lucide-react';
+import { getDownloadCost, getGenerationCost } from '@/lib/constants';
+import VideoPlayer from '@/components/ui/VideoPlayer';
 
 interface HistoryItem {
   id: string;
   originalImageUrl: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  downloaded?: boolean;
+  downloadCreditsUsed?: number;
+  generationCreditsUsed?: number;
   productDescription?: string;
   videoModel: 'veo3' | 'veo3_fast';
   creditsUsed: number;
@@ -26,7 +31,9 @@ export default function HistoryPage() {
   const { user, isLoaded } = useUser();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'completed' | 'processing' | 'failed'>('all');
-  const { credits: userCredits } = useCredits();
+  const { credits: userCredits, refetchCredits } = useCredits();
+  const [downloadingVideo, setDownloadingVideo] = useState<string | null>(null);
+  const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -124,6 +131,86 @@ export default function HistoryPage() {
     return stepMessages[step as keyof typeof stepMessages] || 'Processing...';
   };
 
+  const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast') => {
+    if (!user?.id || !userCredits) return;
+
+    const downloadCost = getDownloadCost(videoModel);
+    if (userCredits < downloadCost) {
+      alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
+      return;
+    }
+
+    // Direct download without confirmation
+
+    setDownloadingVideo(historyId);
+
+    try {
+      const response = await fetch('/api/download-video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          historyId,
+          userId: user.id,
+        }),
+      });
+
+      if (response.ok) {
+        // Check if response is a video file (binary) or JSON
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType?.includes('video/mp4')) {
+          // This is the video file, trigger download
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `flowtra-video-${historyId}.mp4`;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          // Clean up the blob URL
+          window.URL.revokeObjectURL(url);
+          
+          // Update the history item
+          setHistory(prevHistory =>
+            prevHistory.map(item =>
+              item.id === historyId
+                ? {
+                    ...item,
+                    downloaded: true,
+                    downloadCreditsUsed: downloadCost,
+                  }
+                : item
+            )
+          );
+
+          // Refresh credits
+          await refetchCredits();
+          
+          // Video downloaded successfully - no need for intrusive alert
+          // The UI already updates to show "Already Downloaded" state
+        } else {
+          // This is a JSON response, handle error
+          const result = await response.json();
+          alert(result.message || 'Failed to download video');
+        }
+      } else {
+        const result = await response.json();
+        alert(result.message || 'Failed to authorize download');
+      }
+    } catch (error) {
+      console.error('Error downloading video:', error);
+      alert('An error occurred while downloading the video');
+    } finally {
+      setDownloadingVideo(null);
+    }
+  };
+
   
 
   return (
@@ -150,42 +237,19 @@ export default function HistoryPage() {
             </p>
           </div>
 
-          {/* How to Download Guide */}
+          {/* Video Preview Guide */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-3">
             <h2 className="text-lg font-medium text-gray-900 mb-2 flex items-center gap-2">
               <Download className="w-5 h-5 text-gray-700" />
-              How to Download Videos
+              How It Works
             </h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-center">
-              <div className="space-y-3">
-                <div className="flex items-start gap-2.5">
-                  <div className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-[11px] font-medium">
-                    1
-                  </div>
-                  <p className="text-gray-700 text-base leading-snug">Click the &ldquo;Preview&rdquo; button on any completed project</p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <div className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-[11px] font-medium">
-                    2
-                  </div>
-                  <p className="text-gray-700 text-base leading-snug">In the video player, click the three dots menu (⋮) in the bottom right corner</p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <div className="w-6 h-6 bg-gray-900 text-white rounded-full flex items-center justify-center text-[11px] font-medium">
-                    3
-                  </div>
-                  <p className="text-gray-700 text-base leading-snug">Select &ldquo;Download&rdquo; to save the video to your device</p>
-                </div>
-              </div>
-              <div>
-                <Image 
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/download_guide.png" 
-                  alt="Video download guide showing the three dots menu"
-                  width={600}
-                  height={240}
-                  className="w-full h-60 object-contain rounded-xl"
-                />
-              </div>
+            <div className="space-y-2">
+              <p className="text-gray-700 text-sm">
+                <span className="font-medium">Preview:</span> Hover over any completed video to see it play with audio
+              </p>
+              <p className="text-gray-700 text-sm">
+                <span className="font-medium">Download:</span> Click the download button to save the video (additional credits required)
+              </p>
             </div>
           </div>
 
@@ -232,16 +296,31 @@ export default function HistoryPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredHistory.map((item) => (
                 <div key={item.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-colors flex flex-col">
-                  {/* Image as main content */}
-                  <div className="relative bg-white">
-                    <div className="aspect-[4/3] bg-white">
-                      <Image
-                        src={item.originalImageUrl}
-                        alt="Original product"
-                        width={400}
-                        height={300}
-                        className="w-full h-full object-cover"
-                      />
+                  {/* Video Preview on Hover */}
+                  <div 
+                    className="relative bg-white"
+                    onMouseEnter={() => item.status === 'completed' && item.videoUrl && setHoveredVideo(item.id)}
+                    onMouseLeave={() => setHoveredVideo(null)}
+                  >
+                    <div className="aspect-[16/9] bg-white relative overflow-hidden">
+                      {item.status === 'completed' && item.videoUrl && hoveredVideo === item.id ? (
+                        <VideoPlayer
+                          src={item.videoUrl}
+                          className="w-full h-full object-cover"
+                          autoPlay={true}
+                          loop={true}
+                          playsInline={true}
+                          showControls={true}
+                        />
+                      ) : (
+                        <Image
+                          src={item.originalImageUrl}
+                          alt="Original product"
+                          width={400}
+                          height={300}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
                     </div>
                     {/* Status badge */}
                     <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full border border-gray-200 bg-white/90 backdrop-blur text-xs text-gray-700 inline-flex items-center gap-2">
@@ -258,9 +337,9 @@ export default function HistoryPage() {
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                       <span>{formatDate(item.createdAt)}</span>
                       <span>•</span>
-                      <span>-{item.creditsUsed}</span>
-                      <span>•</span>
                       <span className="uppercase">{item.videoModel}</span>
+                      <span>•</span>
+                      <span>{getGenerationCost(item.videoModel)}+{getDownloadCost(item.videoModel)} credits</span>
                     </div>
 
                     {/* Progress bar for processing items */}
@@ -280,18 +359,48 @@ export default function HistoryPage() {
                     )}
 
                     {item.status === 'completed' && item.videoUrl && (
-                      <div className="mt-4 -mx-4 -mb-4 border-t border-gray-200">
-                        <a
-                          href={item.videoUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block w-full px-4 py-2.5 text-center bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors"
-                        >
-                          <span className="inline-flex items-center justify-center gap-2">
-                            <Eye className="w-4 h-4" />
-                            Preview
-                          </span>
-                        </a>
+                      <div className="mt-4 -mx-4 -mb-4">
+                        {/* Download Button - Notion-style Design */}
+                        {item.downloaded ? (
+                          <a
+                            href={item.videoUrl}
+                            download={`flowtra-video-${item.id}.mp4`}
+                            className="group block w-full px-4 py-3 border-t border-gray-200 bg-white hover:bg-gray-50 transition-colors duration-150"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Download className="w-4 h-4 text-gray-600" />
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-gray-900">Already Downloaded</div>
+                              </div>
+                              <div className="text-xs text-gray-500">Click to download again</div>
+                            </div>
+                          </a>
+                        ) : (
+                          <button
+                            onClick={() => downloadVideo(item.id, item.videoModel)}
+                            disabled={downloadingVideo === item.id || !userCredits || userCredits < getDownloadCost(item.videoModel)}
+                            className="group w-full px-4 py-3 border-t border-gray-200 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors duration-150"
+                          >
+                            <div className="flex items-center gap-3">
+                              {downloadingVideo === item.id ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium text-gray-700">Downloading...</div>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <Download className="w-4 h-4 text-gray-600 group-disabled:text-gray-400" />
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium text-gray-900 group-disabled:text-gray-500">Download Video</div>
+                                  </div>
+                                  <div className="text-xs text-gray-500 group-disabled:text-gray-400">MP4 file</div>
+                                </>
+                              )}
+                            </div>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
