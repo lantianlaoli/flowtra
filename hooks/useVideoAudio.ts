@@ -32,9 +32,13 @@ export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
   const handleHover = useCallback(() => {
     setIsHovered(true);
     
-    if (videoRef.current && userHasInteracted) {
+    if (videoRef.current) {
       try {
-        // Simply unmute - don't touch video playback
+        // Enable audio on hover - this counts as user interaction
+        // This provides better UX for video previews
+        if (!userHasInteracted) {
+          setUserHasInteracted(true);
+        }
         videoRef.current.muted = false;
         setAudioEnabled(true);
       } catch (error) {

@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ArrowRight, Coins } from 'lucide-react';
-import { HiStar, HiLightningBolt, HiCreditCard, HiTrendingUp, HiClipboardList, HiPlus, HiMinus } from 'react-icons/hi';
-import { handleCreemCheckout } from '@/lib/payment';
+import { Coins } from 'lucide-react';
+import { HiPlus, HiMinus, HiLightningBolt, HiClipboardList } from 'react-icons/hi';
 
 interface CreditTransaction {
   id: string;
@@ -16,34 +15,15 @@ interface CreditTransaction {
   created_at: string;
 }
 
-// This will be replaced with actual API data
-
-const pricingPlans = [
-  {
-    name: 'Starter',
-    price: 29,
-    credits: 2000,
-    veo3FastVideos: 65,
-    veo3HighQualityVideos: 13,
-    popular: true
-  },
-  {
-    name: 'Pro',
-    price: 99,
-    credits: 7500,
-    veo3FastVideos: 250,
-    veo3HighQualityVideos: 50,
-    popular: false
-  }
-];
-
 export default function CreditsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
+
+  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
+    setSelectedModel(model);
+  };
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -92,28 +72,6 @@ export default function CreditsPage() {
     return null;
   }
 
-  const handlePurchase = async (planName: string) => {
-    if (!user?.primaryEmailAddress?.emailAddress) {
-      setErrorMessage('Please log in before purchasing');
-      return;
-    }
-
-    setErrorMessage(null);
-    setSelectedPlan(planName);
-
-    const packageName = planName.toLowerCase() as 'starter' | 'pro';
-
-    await handleCreemCheckout({
-      packageName,
-      userEmail: user.primaryEmailAddress.emailAddress,
-      onLoading: setIsLoading,
-      onError: (error) => {
-        setErrorMessage(error);
-        setSelectedPlan(null);
-      }
-    });
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -124,18 +82,19 @@ export default function CreditsPage() {
     });
   };
 
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar 
         credits={userCredits}
+        selectedModel={selectedModel}
+        onModelChange={handleModelChange}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
       
-      <div className="ml-64 bg-white min-h-screen">
-        <div className="p-12 max-w-6xl mx-auto">
-          <div className="mb-12">
+      <div className="ml-64 bg-gray-50 min-h-screen">
+        <div className="p-8 max-w-7xl mx-auto">
+          <div className="mb-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                 <HiLightningBolt className="w-4 h-4 text-gray-700" />
@@ -145,53 +104,42 @@ export default function CreditsPage() {
               </h1>
             </div>
             <p className="text-gray-500 text-base max-w-2xl">
-              Manage your credit balance and view your usage history
+              View your credit transaction history
             </p>
           </div>
 
-          {/* Current Balance - Notion style */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                    <HiLightningBolt className="w-4 h-4 text-white" />
-                  </div>
-                  <h2 className="text-lg font-medium text-gray-900">Current Balance</h2>
-                </div>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="text-3xl font-semibold text-gray-900">
-                    {userCredits?.toLocaleString() || 0}
-                  </div>
-                  <Coins className="w-6 h-6 text-gray-500" />
-                </div>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <p>≈ {Math.floor((userCredits || 0) / 30)} Fast videos</p>
-                  <p>≈ {Math.floor((userCredits || 0) / 150)} High-quality videos</p>
-                </div>
-              </div>
-              <div>
-                <button
-                  onClick={() => document.getElementById('purchase-plans')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="bg-black hover:bg-gray-800 text-white px-4 py-2 rounded-md transition-colors flex items-center gap-2 text-sm font-medium"
-                >
-                  <HiCreditCard className="w-4 h-4" />
-                  Purchase
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Usage Stats */}
+          {/* Statistics based on transaction history */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <div className="bg-white border border-gray-200 rounded-lg p-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <HiTrendingUp className="w-4 h-4 text-gray-700" />
+                  <HiPlus className="w-4 h-4 text-gray-700" />
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Total Purchased</p>
-                  <p className="text-xl font-semibold text-gray-900">0</p>
+                  <p className="text-xl font-semibold text-gray-900">
+                    {transactions
+                      .filter(t => t.type === 'purchase')
+                      .reduce((sum, t) => sum + t.amount, 0)
+                      .toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <HiMinus className="w-4 h-4 text-gray-700" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Used</p>
+                  <p className="text-xl font-semibold text-gray-900">
+                    {transactions
+                      .filter(t => t.type === 'usage')
+                      .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+                      .toLocaleString()}
+                  </p>
                 </div>
               </div>
             </div>
@@ -202,108 +150,28 @@ export default function CreditsPage() {
                   <HiLightningBolt className="w-4 h-4 text-gray-700" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Used</p>
-                  <p className="text-xl font-semibold text-gray-900">0</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <HiClipboardList className="w-4 h-4 text-gray-700" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Ads Created</p>
-                  <p className="text-xl font-semibold text-gray-900">0</p>
+                  <p className="text-sm text-gray-600">Total Refunded</p>
+                  <p className="text-xl font-semibold text-gray-900">
+                    {transactions
+                      .filter(t => t.type === 'refund')
+                      .reduce((sum, t) => sum + t.amount, 0)
+                      .toLocaleString()}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Purchase Plans */}
-          <div id="purchase-plans" className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Purchase Additional Credits</h2>
-            
-            {/* Error message */}
-            {errorMessage && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
-                {errorMessage}
-              </div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {pricingPlans.map((plan) => (
-                <div
-                  key={plan.name}
-                  className={`bg-white border rounded-lg p-6 transition-colors hover:bg-gray-50 flex flex-col h-full ${
-                    plan.popular ? 'border-gray-400' : 'border-gray-200'
-                  }`}
-                >
-                  {plan.popular && (
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center">
-                        <HiStar className="w-2.5 h-2.5 text-white" />
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">Most Popular</span>
-                    </div>
-                  )}
-                  
-                  <div className="flex-1 mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">{plan.name} Package</h3>
-                    <div className="mb-4">
-                      <span className="text-2xl font-bold text-gray-900">${plan.price}</span>
-                      <span className="text-sm text-gray-600 ml-2">one-time</span>
-                    </div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="text-lg font-semibold text-gray-900">
-                        {plan.credits.toLocaleString()}
-                      </div>
-                      <Coins className="w-5 h-5 text-gray-500" />
-                    </div>
-                    <div className="text-sm text-gray-600 space-y-1">
-                      <div>≈ {plan.veo3FastVideos} Veo3 Fast videos</div>
-                      <div>≈ {plan.veo3HighQualityVideos} Veo3 high-quality videos</div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handlePurchase(plan.name)}
-                    disabled={selectedPlan === plan.name || isLoading}
-                    className={`w-full py-2.5 px-4 rounded-md font-medium transition-colors text-sm flex items-center justify-center gap-2 mt-auto ${
-                      selectedPlan === plan.name || isLoading
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : plan.popular
-                        ? 'bg-black text-white hover:bg-gray-800'
-                        : 'border border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
-                    }`}
-                  >
-                    {(selectedPlan === plan.name || isLoading) ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                        Processing...
-                      </div>
-                    ) : (
-                      <>
-                        Purchase {plan.name}
-                        <ArrowRight className="w-3 h-3" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Transaction History - Notion style */}
+          {/* Transaction History */}
           <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-6">Recent Activity</h2>
+            <h2 className="text-lg font-medium text-gray-900 mb-6">Transaction History</h2>
             
             {transactions.length === 0 ? (
               <div className="bg-gray-50 border border-gray-200 rounded-lg py-16 text-center">
                 <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center mx-auto mb-4">
                   <HiClipboardList className="w-6 h-6 text-gray-500" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No transactions yet</h3>
                 <p className="text-gray-600">Your credit transactions will appear here</p>
               </div>
             ) : (

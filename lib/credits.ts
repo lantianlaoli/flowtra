@@ -135,9 +135,13 @@ export async function checkCredits(userId: string, requiredCredits: number): Pro
   error?: string
 }> {
   try {
+    console.log('🔍 checkCredits called:', { userId, requiredCredits });
+    
     const result = await getUserCredits(userId)
+    console.log('📊 getUserCredits result:', result);
     
     if (!result.success) {
+      console.error('❌ getUserCredits failed:', result.error);
       return {
         success: false,
         error: result.error
@@ -145,7 +149,7 @@ export async function checkCredits(userId: string, requiredCredits: number): Pro
     }
 
     if (!result.credits) {
-      console.warn('User credits not found, this suggests initialization failed:', userId)
+      console.warn('⚠️ User credits not found, this suggests initialization failed:', userId)
       return {
         success: false,
         error: 'User credits not initialized. Please refresh the page and try again.'
@@ -154,6 +158,13 @@ export async function checkCredits(userId: string, requiredCredits: number): Pro
 
     const currentCredits = result.credits.credits_remaining
     const hasEnoughCredits = currentCredits >= requiredCredits
+    
+    console.log('💰 Credits comparison:', {
+      currentCredits,
+      requiredCredits,
+      hasEnoughCredits,
+      difference: currentCredits - requiredCredits
+    });
 
     return {
       success: true,
@@ -161,7 +172,7 @@ export async function checkCredits(userId: string, requiredCredits: number): Pro
       currentCredits
     }
   } catch (error) {
-    console.error('Check credits error:', error)
+    console.error('💥 Check credits error:', error)
     return {
       success: false,
       error: 'Something went wrong'

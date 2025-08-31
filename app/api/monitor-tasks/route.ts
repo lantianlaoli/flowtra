@@ -133,6 +133,7 @@ interface HistoryRecord {
   downloaded: boolean;
   retry_count: number;
   last_processed_at: string;
+  watermark_text: string;
 }
 
 async function processRecord(record: HistoryRecord) {
@@ -262,7 +263,8 @@ Other details: ${videoPrompt.other_details}`;
     enableAudio: true,
     audioEnabled: true,
     generateVoiceover: true,
-    includeDialogue: true
+    includeDialogue: true,
+    ...(record.watermark_text && { watermark: record.watermark_text })
   };
 
   console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));

@@ -9,7 +9,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import FileUpload from '@/components/FileUpload';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
-import { Download, RotateCcw, Share2, ArrowRight, History } from 'lucide-react';
+import { Download, RotateCcw, Share2, ArrowRight, History, Tag, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { canAffordModel, CREDIT_COSTS } from '@/lib/constants';
 
@@ -28,6 +28,7 @@ export default function Dashboard() {
     sufficient: true,
     loading: true
   });
+  const [watermarkText, setWatermarkText] = useState('');
   
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
     setSelectedModel(model);
@@ -37,6 +38,7 @@ export default function Dashboard() {
   const {
     state,
     uploadFile,
+    startWorkflowWithConfig,
     resetWorkflow
   } = useWorkflow(user?.id, selectedModel, updateCredits, refetchCredits);
 
@@ -101,6 +103,15 @@ export default function Dashboard() {
     }
   };
 
+  const handleStartWorkflow = async () => {
+    const watermarkConfig = {
+      enabled: watermarkText.trim().length > 0,
+      text: watermarkText.trim()
+    };
+    
+    await startWorkflowWithConfig(watermarkConfig);
+  };
+
   const renderWorkflowContent = () => {
     // Check KIE credits first - if insufficient, show maintenance interface
     if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
@@ -112,24 +123,116 @@ export default function Dashboard() {
     }
     
     // Check user credits - if insufficient for any model, show recharge guidance
+    console.log('🔍 Credits check:', {
+      userCredits,
+      selectedModel,
+      canAffordAuto: canAffordModel(userCredits || 0, 'auto'),
+      canAffordVeo3Fast: canAffordModel(userCredits || 0, 'veo3_fast'),
+      canAffordVeo3: canAffordModel(userCredits || 0, 'veo3'),
+      requiredForAuto: CREDIT_COSTS.veo3_fast
+    });
+    
     if (userCredits !== undefined && !canAffordModel(userCredits, 'auto')) {
       return <InsufficientCredits currentCredits={userCredits} requiredCredits={CREDIT_COSTS.veo3_fast} />;
     }
     
     // Show upload interface when no workflow is running
-    if (!state.historyId || state.workflowStatus === 'started') {
+    if (state.workflowStatus === 'started') {
       return (
-        <div className="max-w-xl mx-auto">
-          <div className="text-center mb-8">
-            <h2 className="text-xl font-medium text-gray-900 mb-2">
-              Create your advertisements
-            </h2>
-            <p className="text-gray-600">
-              Upload a product image to generate professional video ads with AI
-            </p>
-          </div>
-          
+        <div className="max-w-4xl mx-auto">
           <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} />
+        </div>
+      );
+    }
+
+    // Show watermark configuration interface after upload
+    if (state.workflowStatus === 'uploaded_waiting_config') {
+      return (
+        <div className="max-w-6xl mx-auto">
+          {/* Left-Right Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Side - Image Preview and Action Buttons */}
+            <div className="space-y-6">
+              {/* Image Preview */}
+              {state.data.uploadedFile?.url && (
+                <div className="text-center">
+                  <Image 
+                    src={state.data.uploadedFile.url} 
+                    alt="Product" 
+                    width={500}
+                    height={500}
+                    className="w-full h-auto rounded-lg"
+                  />
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                <button
+                  onClick={handleStartWorkflow}
+                  disabled={state.isLoading}
+                  className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  {state.isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="w-5 h-5" />
+                      Generate Video
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => {
+                    // Create a hidden file input and trigger it
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (file) {
+                        handleFileUpload(file);
+                      }
+                    };
+                    input.click();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors font-medium"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Change Photo
+                </button>
+              </div>
+            </div>
+
+            {/* Right Side - Configuration Area */}
+            <div className="space-y-6">
+              {/* Watermark Input */}
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Configuration</h3>
+                <input
+                  type="text"
+                  value={watermarkText}
+                  onChange={(e) => setWatermarkText(e.target.value)}
+                  placeholder="Watermark text (optional)"
+                  maxLength={20}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-base"
+                />
+                <p className="text-sm text-gray-500 mt-2">
+                  Add your brand watermark to the generated video
+                </p>
+              </div>
+
+              {/* Future configuration options can be added here */}
+              <div className="text-center text-gray-400 py-8">
+                <Tag className="w-8 h-8 mx-auto mb-3" />
+                <p className="text-sm">More configuration options coming soon</p>
+              </div>
+            </div>
+          </div>
         </div>
       );
     }
@@ -137,47 +240,40 @@ export default function Dashboard() {
     // Show workflow initiated success state
     if (state.workflowStatus === 'workflow_initiated') {
       return (
-        <div className="max-w-2xl mx-auto">
-          {/* Success block */}
-          <div className="border border-gray-200 bg-white hover:bg-gray-50 transition-colors duration-150">
-            <div className="px-8 py-10">
-              {/* Success indicator */}
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-100 border border-gray-200 mx-auto mb-6">
-                <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              
-              {/* Content block */}
-              <div className="text-center space-y-4">
-                <h3 className="text-xl font-medium text-gray-900">
-                  Advertisement Generation Started
-                </h3>
-                <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
-                  Your advertisement is being created. The process is now running in the background.
-                </p>
-              </div>
-            </div>
-            
-            {/* Action block */}
-            <div className="border-t border-gray-200 px-8 py-6 bg-gray-50">
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <button
-                  onClick={() => router.push('/dashboard/history')}
-                  className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 border border-gray-900 hover:bg-gray-800 hover:border-gray-800 transition-colors duration-150 text-sm font-medium"
-                >
-                  <History className="w-4 h-4" />
-                  View Progress
-                </button>
-                <button
-                  onClick={() => resetWorkflow()}
-                  className="flex items-center justify-center gap-2 bg-white text-gray-700 px-5 py-2.5 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors duration-150 text-sm font-medium"
-                >
-                  <ArrowRight className="w-4 h-4" />
-                  Create Another Ad
-                </button>
-              </div>
-            </div>
+        <div className="max-w-2xl mx-auto text-center space-y-6">
+          {/* Success indicator */}
+          <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          
+          {/* Content */}
+          <div className="space-y-4">
+            <h3 className="text-xl font-medium text-gray-900">
+              Advertisement Generation Started
+            </h3>
+            <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
+              Your advertisement is being created. The process is now running in the background.
+            </p>
+          </div>
+          
+          {/* Action buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => router.push('/dashboard/history')}
+              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+            >
+              <History className="w-4 h-4" />
+              View Progress
+            </button>
+            <button
+              onClick={() => resetWorkflow()}
+              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium"
+            >
+              <ArrowRight className="w-4 h-4" />
+              Create Another Ad
+            </button>
           </div>
         </div>
       );
@@ -280,57 +376,56 @@ export default function Dashboard() {
     // For processing workflow, show progress page
     if (state.workflowStatus === 'in_progress' || state.workflowStatus === 'failed') {
       return (
-        <div className="max-w-xl mx-auto">
-          <div className="text-center space-y-6">
-            <div className="w-16 h-16 bg-green-100 rounded-lg flex items-center justify-center mx-auto">
-              <span className="text-2xl">✓</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {state.workflowStatus === 'failed' ? 'Processing Failed' : 'Processing Your Advertisement'}
-              </h3>
-              <p className="text-gray-600 text-sm mb-6">
-                {state.workflowStatus === 'failed' 
-                  ? `Error: ${state.error || state.data.errorMessage || 'Unknown error occurred'}`
-                  : `Progress: ${state.progress}% - ${getStepMessage(state.currentStep)}`
-                }
-              </p>
-              {state.workflowStatus === 'in_progress' && (
-                <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                    style={{ width: `${state.progress}%` }}
-                  ></div>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <div className="max-w-xl mx-auto text-center space-y-6">
+          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto">
+            <span className="text-2xl">✓</span>
+          </div>
+          
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900">
+              {state.workflowStatus === 'failed' ? 'Processing Failed' : 'Processing Your Advertisement'}
+            </h3>
+            <p className="text-gray-600 text-sm">
+              {state.workflowStatus === 'failed' 
+                ? `Error: ${state.error || state.data.errorMessage || 'Unknown error occurred'}`
+                : `Progress: ${state.progress}% - ${getStepMessage(state.currentStep)}`
+              }
+            </p>
+            {state.workflowStatus === 'in_progress' && (
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${state.progress}%` }}
+                ></div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => router.push('/dashboard/history')}
+              className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              <History className="w-4 h-4" />
+              View Progress
+            </button>
+            {state.workflowStatus === 'failed' ? (
               <button
-                onClick={() => router.push('/dashboard/history')}
+                onClick={() => resetWorkflow()}
                 className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
               >
-                <History className="w-4 h-4" />
-                View Progress
+                <RotateCcw className="w-4 h-4" />
+                Try Again
               </button>
-              {state.workflowStatus === 'failed' ? (
-                <button
-                  onClick={() => resetWorkflow()}
-                  className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Try Again
-                </button>
-              ) : (
-                <button
-                  onClick={() => resetWorkflow()}
-                  className="flex items-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <ArrowRight className="w-4 h-4" />
-                  Upload More
-                </button>
-              )}
-            </div>
+            ) : (
+              <button
+                onClick={() => resetWorkflow()}
+                className="flex items-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <ArrowRight className="w-4 h-4" />
+                Upload More
+              </button>
+            )}
           </div>
         </div>
       );
@@ -351,12 +446,17 @@ export default function Dashboard() {
       />
       
       <div className="ml-64 bg-gray-50 min-h-screen">
-        <div className="p-8">
-          <div className="mb-10">
-            <h1 className="text-2xl font-semibold text-gray-900 mb-1">
-              Upload Product Photo
-            </h1>
-            <p className="text-gray-500 text-sm">
+        <div className="p-8 max-w-7xl mx-auto">
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <Upload className="w-4 h-4 text-gray-700" />
+              </div>
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Upload Product Photo
+              </h1>
+            </div>
+            <p className="text-gray-500 text-base max-w-2xl">
               Create professional AI-powered advertisements for your products
             </p>
           </div>
@@ -366,7 +466,7 @@ export default function Dashboard() {
           {state.error && (
             <div className="mb-8">
               {state.error.includes('maintenance') ? (
-                <MaintenanceMessage message={state.error} />
+                <MaintenanceMessage />
               ) : (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
                   <strong>Error:</strong> {state.error}

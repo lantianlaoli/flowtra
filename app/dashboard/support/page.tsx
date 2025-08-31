@@ -1,14 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ExternalLink, MessageSquare, HelpCircle, Mail } from 'lucide-react';
+import { ExternalLink, MessageSquare } from 'lucide-react';
 import { FaXTwitter, FaLinkedin, FaTiktok, FaThreads } from 'react-icons/fa6';
 
 export default function SupportPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
+  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
+
+  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
+    setSelectedModel(model);
+  };
 
   const contactLinks = [
     {
@@ -41,23 +47,7 @@ export default function SupportPage() {
     }
   ];
 
-  const helpTopics = [
-    {
-      icon: HelpCircle,
-      title: 'Getting Started',
-      description: 'Learn how to upload images and generate your first video ad'
-    },
-    {
-      icon: MessageSquare,
-      title: 'Common Issues',
-      description: 'Solutions to frequently encountered problems'
-    },
-    {
-      icon: Mail,
-      title: 'Feature Requests',
-      description: 'Suggest new features or improvements'
-    }
-  ];
+
 
   // Loading state
   if (!isLoaded) {
@@ -69,25 +59,31 @@ export default function SupportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar 
         credits={userCredits}
+        selectedModel={selectedModel}
+        onModelChange={handleModelChange}
         userEmail={user?.primaryEmailAddress?.emailAddress}
       />
       
-      <div className="flex-1 lg:pl-64">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
+      <div className="ml-64 bg-gray-50 min-h-screen">
+        <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Support & Contact
-            </h1>
-            <p className="text-gray-600">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <MessageSquare className="w-4 h-4 text-gray-700" />
+              </div>
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Support & Contact
+              </h1>
+            </div>
+            <p className="text-gray-500 text-base max-w-2xl">
               Get help, report issues, or share feedback with our team
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="max-w-2xl">
             {/* Contact Channels */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -117,62 +113,6 @@ export default function SupportPage() {
                     <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
                   </a>
                 ))}
-              </div>
-            </div>
-
-            {/* Help Topics */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <HelpCircle className="w-5 h-5" />
-                Common Help Topics
-              </h2>
-              
-              <div className="space-y-4">
-                {helpTopics.map((topic, index) => (
-                  <div
-                    key={index}
-                    className="p-4 border border-gray-200 rounded-lg"
-                  >
-                    <div className="flex items-start gap-3">
-                      <topic.icon className="w-5 h-5 text-gray-600 mt-0.5" />
-                      <div>
-                        <h3 className="font-medium text-gray-900 mb-1">{topic.title}</h3>
-                        <p className="text-sm text-gray-600">{topic.description}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h3 className="font-medium text-blue-900 mb-2">💡 Before Contacting Support</h3>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Include specific error messages if any</li>
-                  <li>• Describe the steps that led to the issue</li>
-                  <li>• Mention your browser and device type</li>
-                  <li>• Share screenshots if helpful</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          {/* Response Time */}
-          <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Response Times</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <FaXTwitter className="text-xl text-gray-700" />
-                <div>
-                  <div className="font-medium text-gray-900">X (Twitter)</div>
-                  <div className="text-sm text-gray-600">Usually within 2-4 hours</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <FaLinkedin className="text-xl text-blue-600" />
-                <div>
-                  <div className="font-medium text-gray-900">LinkedIn</div>
-                  <div className="text-sm text-gray-600">1-2 business days</div>
-                </div>
               </div>
             </div>
           </div>

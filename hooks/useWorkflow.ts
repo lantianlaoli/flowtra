@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 
 export type WorkflowStep = 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'complete';
-export type WorkflowStatus = 'started' | 'workflow_initiated' | 'in_progress' | 'completed' | 'failed';
+export type WorkflowStatus = 'started' | 'uploaded_waiting_config' | 'workflow_initiated' | 'in_progress' | 'completed' | 'failed';
 
 export interface WorkflowState {
   isLoading: boolean;
@@ -23,6 +23,10 @@ export interface WorkflowState {
     errorMessage?: string;
     creditsUsed?: number;
     videoModel?: 'auto' | 'veo3' | 'veo3_fast';
+    watermark?: {
+      enabled: boolean;
+      text: string;
+    };
   };
   
   // Guest usage tracking
@@ -127,7 +131,7 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
         ...prev,
         isLoading: false,
         historyId: result.historyId,
-        workflowStatus: result.workflowStarted ? 'workflow_initiated' : 'started',
+        workflowStatus: result.workflowStarted ? 'workflow_initiated' : 'uploaded_waiting_config',
         data: {
           ...prev.data,
           uploadedFile: { url: result.fileUrl, path: result.path }
@@ -259,9 +263,76 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
     });
   }, [selectedModel, guestUsageCount, userId, maxUserUsage, maxGuestUsage]);
 
+  const startWorkflowWithConfig = useCallback(async (watermarkConfig: { enabled: boolean; text: string }) => {
+    if (!state.data.uploadedFile?.url || !state.data.uploadedFile?.path) {
+      setError('No uploaded file found');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const requestData = {
+        imageUrl: state.data.uploadedFile.url,
+        imagePath: state.data.uploadedFile.path,
+        userId: userId,
+        videoModel: selectedModel,
+        watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined
+      };
+
+      const response = await fetch('/api/start-workflow', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to start workflow');
+      }
+
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        historyId: result.historyId,
+        workflowStatus: 'workflow_initiated',
+        data: {
+          ...prev.data,
+          watermark: watermarkConfig
+        }
+      }));
+
+      // Update credits immediately after successful workflow start
+      if (result.remainingCredits !== undefined && updateCredits && userId) {
+        console.log(`🔄 Updating credits in sidebar: ${result.remainingCredits} remaining after using ${result.creditsUsed}`);
+        updateCredits(result.remainingCredits);
+      }
+
+      // Start polling if we got a historyId (with delay to allow UI to show success state)
+      if (result.historyId) {
+        setTimeout(() => {
+          pollWorkflowStatus(result.historyId);
+        }, 1000); // Wait 1 second before starting to poll
+      }
+
+    } catch (error: any) {
+      // Refetch credits in case of error (credits might have been refunded)
+      if (userId && refetchCredits) {
+        console.log('🔄 Refetching credits due to workflow start error');
+        refetchCredits();
+      }
+      
+      setError(error.message || 'Failed to start workflow');
+    }
+  }, [state.data.uploadedFile, userId, selectedModel, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
+
   return {
     state,
     uploadFile,
+    startWorkflowWithConfig,
     resetWorkflow,
     pollWorkflowStatus
   };

@@ -1,13 +1,14 @@
 import { getSupabase } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { httpRequestWithRetry } from '@/lib/httpRequest';
-import { getCreditCost, getGenerationCost } from '@/lib/constants';
+import { getCreditCost, getGenerationCost, CREDIT_COSTS } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction, getUserCredits } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
   imageUrl: string;
   userId?: string;
-  videoModel?: 'veo3' | 'veo3_fast';
+  videoModel?: 'veo3' | 'veo3_fast' | 'auto';
+  watermark?: string;
 }
 
 export interface StartWorkflowResult {
@@ -24,21 +25,77 @@ export interface StartWorkflowResult {
 export async function startWorkflowProcess({ 
   imageUrl, 
   userId, 
-  videoModel = 'veo3_fast' 
+  videoModel = 'veo3_fast',
+  watermark 
 }: StartWorkflowRequest): Promise<StartWorkflowResult> {
   try {
+    console.log('🔍 startWorkflowProcess started with:', {
+      imageUrl,
+      userId,
+      videoModel,
+      watermark
+    });
+
     if (!imageUrl) {
       return { success: false, error: 'Image URL is required', message: 'Image URL is required' };
     }
 
     // Check and deduct generation credits (40%) for authenticated users
     let generationCreditsUsed = 0;
+    let actualModel: 'veo3' | 'veo3_fast';
+    
+    // Resolve auto mode to actual model
+    if (videoModel === 'auto') {
+      // For auto mode, we need to determine the actual model based on user credits
+      // This will be resolved later when we have user context
+      actualModel = 'veo3_fast'; // Default fallback
+    } else {
+      actualModel = videoModel;
+    }
+    
     if (userId) {
-      generationCreditsUsed = getGenerationCost(videoModel);
+      // Resolve auto mode to actual model based on user credits
+      if (videoModel === 'auto') {
+        // Get user credits to determine best model
+        const userCreditsResult = await getUserCredits(userId);
+        if (userCreditsResult.success && userCreditsResult.credits) {
+          const userCredits = userCreditsResult.credits.credits_remaining;
+          // Choose best model user can afford
+          if (userCredits >= CREDIT_COSTS.veo3) {
+            actualModel = 'veo3';
+          } else if (userCredits >= CREDIT_COSTS.veo3_fast) {
+            actualModel = 'veo3_fast';
+          } else {
+            return {
+              success: false,
+              error: 'Insufficient credits',
+              message: `Insufficient credits. Need at least ${CREDIT_COSTS.veo3_fast}, have ${userCredits}`
+            };
+          }
+        } else {
+          return {
+            success: false,
+            error: 'Failed to get user credits',
+            message: 'Failed to get user credits'
+          };
+        }
+      }
+      
+      generationCreditsUsed = getGenerationCost(actualModel);
+      console.log('💰 Credits calculation:', {
+        originalVideoModel: videoModel,
+        actualModel,
+        totalCost: getCreditCost(actualModel),
+        generationCost: generationCreditsUsed
+      });
       
       // Check if user has enough credits (need at least generation cost upfront)
+      console.log('🔍 Checking credits for user:', userId, 'required:', generationCreditsUsed);
       const checkResult = await checkCredits(userId, generationCreditsUsed);
+      console.log('📊 Credits check result:', checkResult);
+      
       if (!checkResult.success) {
+        console.error('❌ Credits check failed:', checkResult.error);
         return { 
           success: false, 
           error: checkResult.error || 'Failed to check credits', 
@@ -47,6 +104,10 @@ export async function startWorkflowProcess({
       }
       
       if (!checkResult.hasEnoughCredits) {
+        console.error('❌ Insufficient credits:', {
+          required: generationCreditsUsed,
+          current: checkResult.currentCredits
+        });
         return { 
           success: false, 
           error: 'Insufficient credits', 
@@ -54,9 +115,13 @@ export async function startWorkflowProcess({
         };
       }
       
+      console.log('✅ Credits check passed, deducting generation credits...');
       // Deduct generation credits immediately
       const deductResult = await deductCredits(userId, generationCreditsUsed);
+      console.log('💸 Credits deduction result:', deductResult);
+      
       if (!deductResult.success) {
+        console.error('❌ Credits deduction failed:', deductResult.error);
         return { 
           success: false, 
           error: deductResult.error || 'Failed to deduct credits', 
@@ -71,21 +136,22 @@ export async function startWorkflowProcess({
     let historyRecord = null;
     if (userId) {
       const supabase = getSupabase();
-      const { data, error } = await supabase
-        .from('user_history')
-        .insert({
-          user_id: userId,
-          original_image_url: imageUrl,
-          video_model: videoModel,
-          credits_used: getCreditCost(videoModel), // Total cost for reference
-          generation_credits_used: generationCreditsUsed,
-          workflow_status: 'started',
-          current_step: 'describing',
-          progress_percentage: 5,
-          last_processed_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+              const { data, error } = await supabase
+          .from('user_history')
+          .insert({
+            user_id: userId,
+            original_image_url: imageUrl,
+            video_model: actualModel, // Use resolved model, not original
+            credits_used: getCreditCost(actualModel), // Total cost for reference
+            generation_credits_used: generationCreditsUsed,
+            workflow_status: 'started',
+            current_step: 'describing',
+            progress_percentage: 5,
+            last_processed_at: new Date().toISOString(),
+            watermark_text: watermark
+          })
+          .select()
+          .single();
 
       if (error) {
         console.error('Failed to create history record:', error);

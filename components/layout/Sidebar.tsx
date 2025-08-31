@@ -8,7 +8,6 @@ import {
   Upload, 
   History, 
   CreditCard, 
-  Zap,
   ChevronDown,
   Check,
   Plus,
@@ -17,7 +16,7 @@ import {
   Lock,
   Coins,
   Clock,
-  Cpu,
+  Sparkles,
   Download
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -217,9 +216,9 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
           </div>
           {selectedOption?.showCost && (
             <div className="mt-2 flex items-center justify-center text-xs text-gray-600 bg-gray-50 rounded-md px-2 py-1.5 border border-gray-200">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
-                  <Cpu className="w-4 h-4 text-gray-500" />
+                  <Sparkles className="w-3 h-3 text-gray-500" />
                   <span className={cn(
                     "font-medium",
                     selectedOption.affordable ? "text-gray-700" : "text-red-500"
@@ -231,21 +230,20 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
                 </div>
                 <span className="text-gray-400">•</span>
                 <div className="flex items-center gap-1">
-                  <Download className="w-4 h-4 text-gray-500" />
-                  <span className={cn(
-                    "font-medium",
-                    selectedOption.affordable ? "text-gray-700" : "text-red-500"
-                  )}>
+                  <Download className="w-3 h-3 text-gray-500" />
+                  <span className="font-medium text-gray-700">
                     {selectedOption.value === 'auto' 
                       ? getDownloadCost(getAutoModeSelection(credits) || 'veo3_fast')
                       : getDownloadCost(selectedOption.value as keyof typeof CREDIT_COSTS)}
                   </span>
                 </div>
                 <span className="text-gray-400">•</span>
-                <Clock className="w-4 h-4 text-gray-500" />
-                <span className="font-medium text-gray-700">
-                  {selectedOption.processingTime}
-                </span>
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-gray-500" />
+                  <span className="font-medium text-gray-700">
+                    {selectedOption.processingTime}
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -253,23 +251,23 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
         
         {/* Credits Display */}
         {credits !== undefined && (
-          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center">
-                  <Zap className="w-2.5 h-2.5 text-white" />
+                <div className="w-5 h-5 bg-gradient-to-br from-gray-900 to-gray-700 rounded-lg flex items-center justify-center shadow-sm">
+                  <Coins className="w-3 h-3 text-white" />
                 </div>
                 <span className="text-sm font-medium text-gray-900">Credits</span>
               </div>
               <Link 
                 href="/pricing"
-                className="w-6 h-6 border border-gray-300 hover:border-gray-400 rounded-md flex items-center justify-center transition-colors duration-150 hover:bg-gray-50"
+                className="w-8 h-8 bg-gray-900 hover:bg-gray-800 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-105 shadow-sm hover:shadow-md"
                 title="Buy more credits"
               >
-                <Plus className="w-3.5 h-3.5 text-gray-600" />
+                <Plus className="w-4 h-4 text-white" />
               </Link>
             </div>
-            <div className="text-xl font-semibold text-gray-900">{credits.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-gray-900 tracking-tight">{credits.toLocaleString()}</div>
           </div>
         )}
 

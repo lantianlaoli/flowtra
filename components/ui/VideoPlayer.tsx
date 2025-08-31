@@ -10,8 +10,6 @@ interface VideoPlayerProps {
   loop?: boolean;
   playsInline?: boolean;
   showControls?: boolean;
-  onHover?: () => void;
-  onLeave?: () => void;
 }
 
 const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
@@ -21,9 +19,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
     autoPlay = true, 
     loop = true, 
     playsInline = true,
-    showControls = false,
-    onHover,
-    onLeave
+    showControls = false
   }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     
@@ -32,19 +28,16 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
     
     const {
       audioEnabled,
-      userHasInteracted,
       handleHover,
       handleLeave
     } = useVideoAudio({ videoRef: currentRef });
 
     const onMouseEnter = () => {
       handleHover();
-      onHover?.();
     };
 
     const onMouseLeave = () => {
       handleLeave();
-      onLeave?.();
     };
 
     return (
@@ -63,6 +56,12 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           preload="metadata"
           controls={false}
           onError={(e) => console.warn('Video error:', e)}
+          onLoadedMetadata={() => {
+            // Ensure video is muted initially for autoplay compliance
+            if (currentRef.current) {
+              currentRef.current.muted = true;
+            }
+          }}
         >
           <source src={src} type="video/mp4" />
           Your browser does not support the video tag.
@@ -70,7 +69,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
         
         {showControls && (
           <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-sm">
-            {!userHasInteracted ? 'Click anywhere, then hover for audio' : (audioEnabled ? 'Audio on' : 'Hover for audio')}
+            {audioEnabled ? 'Audio on' : 'Hover for audio'}
           </div>
         )}
       </div>
