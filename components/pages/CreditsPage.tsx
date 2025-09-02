@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Coins } from 'lucide-react';
+import { Coins, User } from 'lucide-react';
 import { HiPlus, HiMinus, HiLightningBolt, HiClipboardList } from 'react-icons/hi';
 
 interface CreditTransaction {
@@ -97,14 +97,14 @@ export default function CreditsPage() {
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <HiLightningBolt className="w-4 h-4 text-gray-700" />
+                <User className="w-4 h-4 text-gray-700" />
               </div>
               <h1 className="text-2xl font-semibold text-gray-900">
-                Credits
+                Account
               </h1>
             </div>
             <p className="text-gray-500 text-base max-w-2xl">
-              View your credit transaction history
+              Manage your credits and billing
             </p>
           </div>
 

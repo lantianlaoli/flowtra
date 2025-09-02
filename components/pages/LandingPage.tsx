@@ -65,8 +65,8 @@ export default function LandingPage() {
             {/* Promotion Badge - Above Title */}
             <div className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200">
               <GiftIcon className="w-4 h-4" />
-              30 Free Credits
-              <span className="text-gray-500">Try 1 VEO3 Fast Video</span>
+              100 Free Credits
+              <span className="text-gray-500">Try 3 VEO3 Fast Video</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">

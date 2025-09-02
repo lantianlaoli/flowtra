@@ -108,18 +108,28 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
               </div>
             ))}
             {isLoading ? (
-              <div className="flex items-center justify-center space-x-3 mt-4">
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-600 border-t-transparent"></div>
-                <span className="text-gray-600 font-medium">Processing {selectedFiles.length} image{selectedFiles.length > 1 ? 's' : ''}...</span>
+              <div className="flex items-center justify-center space-x-3 mt-4 animate-bounce-in">
+                <div className="relative">
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 w-5 h-5 border-2 border-transparent border-r-blue-500 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+                </div>
+                <span className="text-blue-600 font-medium animate-pulse">Working on it...</span>
               </div>
             ) : (
-              <div className="text-center mt-4">
-                <p className="text-sm text-gray-500 mb-3">File selected successfully!</p>
+              <div className="text-center mt-4 animate-slide-in-right">
+                <div className="flex items-center justify-center gap-2 mb-3">
+                  <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-green-600 font-medium">Ready to go!</p>
+                </div>
                 <button
                   onClick={() => setSelectedFiles([])}
-                  className="text-sm text-gray-600 hover:text-gray-800 underline"
+                  className="text-sm text-gray-600 hover:text-gray-800 underline hover:no-underline hover:text-gray-900 transition-all duration-200"
                 >
-                  Choose different file
+                  Try another photo
                 </button>
               </div>
             )}
@@ -128,10 +138,10 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
           <div>
             <p className="text-gray-500 mb-6 text-sm">
               {isLoading 
-                ? 'Processing your images...' 
+                ? 'Creating magic...' 
                 : multiple 
-                  ? 'Drag and drop up to 3 images, or click to browse'
-                  : 'Drag and drop an image, or click to browse'
+                  ? 'Drop your photos here or click to browse'
+                  : 'Drop your photo here or click to browse'
               }
             </p>
             <input
@@ -159,7 +169,7 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
               ) : (
                 <>
                   <Upload className="w-4 h-4" />
-                  <span>{multiple ? 'Choose Images' : 'Choose Image'}</span>
+                  <span>{multiple ? 'Select Photos' : 'Select Photo'}</span>
                 </>
               )}
             </label>

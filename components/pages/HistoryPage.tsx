@@ -5,9 +5,10 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Download, ChevronLeft, ChevronRight, Clock, Zap, Coins, Sparkles, FileVideo, CheckCircle, AlertCircle, PlayCircle, PauseCircle } from 'lucide-react';
+import { Download, ChevronLeft, ChevronRight, Clock, Zap, Coins, Sparkles, FileVideo, CheckCircle, AlertCircle, PlayCircle, PauseCircle, RotateCcw, Loader2, Play } from 'lucide-react';
 import { getDownloadCost, getGenerationCost } from '@/lib/constants';
 import VideoPlayer from '@/components/ui/VideoPlayer';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface HistoryItem {
   id: string;
@@ -37,6 +38,7 @@ export default function HistoryPage() {
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
+  const [downloadStates, setDownloadStates] = useState<Record<string, 'idle' | 'processing' | 'success'>>({});
 
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
     setSelectedModel(model);
@@ -172,12 +174,17 @@ export default function HistoryPage() {
   const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast') => {
     if (!user?.id || !userCredits) return;
 
+    const item = history.find(h => h.id === historyId);
+    const isFirstDownload = !item?.downloaded;
     const downloadCost = getDownloadCost(videoModel);
-    if (userCredits < downloadCost) {
+    
+    if (isFirstDownload && userCredits < downloadCost) {
       alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
       return;
     }
 
+    // Start download animation
+    setDownloadStates(prev => ({ ...prev, [historyId]: 'processing' }));
     setDownloadingVideo(historyId);
 
     try {
@@ -209,30 +216,45 @@ export default function HistoryPage() {
           
           window.URL.revokeObjectURL(url);
           
+          // Show success state
+          setDownloadStates(prev => ({ ...prev, [historyId]: 'success' }));
+          
+          // Update history
           setHistory(prevHistory =>
             prevHistory.map(item =>
               item.id === historyId
                 ? {
                     ...item,
                     downloaded: true,
-                    downloadCreditsUsed: downloadCost,
+                    downloadCreditsUsed: isFirstDownload ? downloadCost : item.downloadCreditsUsed,
                   }
                 : item
             )
           );
 
-          await refetchCredits();
+          if (isFirstDownload) {
+            await refetchCredits();
+          }
+
+          // Reset to idle after 3 seconds
+          setTimeout(() => {
+            setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
+          }, 3000);
+
         } else {
           const result = await response.json();
           alert(result.message || 'Failed to download video');
+          setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
         }
       } else {
         const result = await response.json();
         alert(result.message || 'Failed to authorize download');
+        setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
       }
     } catch (error) {
       console.error('Error downloading video:', error);
       alert('An error occurred while downloading the video');
+      setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
     } finally {
       setDownloadingVideo(null);
     }
@@ -240,6 +262,32 @@ export default function HistoryPage() {
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const getDownloadButtonContent = (item: HistoryItem) => {
+    const downloadState = downloadStates[item.id] || 'idle';
+    const isFirstDownload = !item.downloaded;
+    
+    switch (downloadState) {
+      case 'processing':
+        return {
+          icon: <Loader2 className="w-4 h-4 text-gray-600 animate-spin" />,
+          text: isFirstDownload ? 'Cooking up your very first ad...' : 'Grabbing your ad, hang tight...',
+          showCredits: isFirstDownload
+        };
+      case 'success':
+        return {
+          icon: <CheckCircle className="w-4 h-4 text-gray-700" />,
+          text: isFirstDownload ? 'Boom! Your first ad is here' : 'Got it back for you',
+          showCredits: false
+        };
+      default:
+        return {
+          icon: <Download className="w-4 h-4 text-gray-600" />,
+          text: isFirstDownload ? 'Get My Ad Video' : 'Download Again',
+          showCredits: isFirstDownload
+        };
+    }
   };
 
   return (
@@ -257,14 +305,14 @@ export default function HistoryPage() {
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <FileVideo className="w-4 h-4 text-gray-700" />
+                <Play className="w-4 h-4 text-gray-700" />
               </div>
               <h1 className="text-2xl font-semibold text-gray-900">
-                History
+                My Videos
               </h1>
             </div>
             <p className="text-gray-500 text-base max-w-2xl">
-              View and manage your AI-generated advertisement projects
+              View and manage your created video ads
             </p>
           </div>
 
@@ -397,8 +445,8 @@ export default function HistoryPage() {
                        {item.status === 'processing' && (
                          <div className="mt-2">
                            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                             <span>{getStepMessage(item.currentStep)}</span>
-                             <span>{item.progress || 0}%</span>
+                             <span className="text-blue-600">{getStepMessage(item.currentStep)}</span>
+                             <span className="text-blue-600">{item.progress || 0}%</span>
                            </div>
                            <div className="w-full bg-gray-200 rounded-full h-1.5">
                              <div 
@@ -418,7 +466,7 @@ export default function HistoryPage() {
                          {item.status === 'failed' && (
                            <div className="flex items-center justify-between">
                              <div className="flex items-center gap-2.5">
-                               <CheckCircle className="w-4 h-4 text-gray-700" />
+                               <RotateCcw className="w-4 h-4 text-gray-600" />
                                <span className="text-sm font-medium text-gray-900">Credits Refunded</span>
                              </div>
                              <div className="flex items-center gap-1.5">
@@ -428,58 +476,67 @@ export default function HistoryPage() {
                            </div>
                          )}
 
-                         {item.status === 'completed' && item.videoUrl && !item.downloaded && (
-                           <button
+                         {item.status === 'completed' && item.videoUrl && (
+                           <motion.button
                              onClick={() => downloadVideo(item.id, item.videoModel)}
-                             disabled={downloadingVideo === item.id || !userCredits || userCredits < getDownloadCost(item.videoModel)}
-                             className="w-full text-left"
+                             disabled={downloadingVideo === item.id || (!item.downloaded && (!userCredits || userCredits < getDownloadCost(item.videoModel)))}
+                             className="w-full text-left hover:bg-gray-50 rounded cursor-pointer transition-colors"
+                             whileHover={{ scale: 1.02 }}
+                             whileTap={{ scale: 0.98 }}
                            >
-                             <div className="flex items-center justify-between">
-                               <div className="flex items-center gap-2.5">
-                                 <Download className="w-4 h-4 text-gray-600 group-disabled:text-gray-400" />
-                                 <span className="text-sm font-medium text-gray-900 group-disabled:text-gray-500">Download Video</span>
-                               </div>
-                               <div className="flex items-center gap-1.5">
-                                 <Coins className="w-4 h-4 text-gray-600 group-disabled:text-gray-400" />
-                                 <span className="text-sm font-bold text-gray-900 group-disabled:text-gray-500">{getDownloadCost(item.videoModel)}</span>
-                               </div>
-                             </div>
-                           </button>
-                         )}
-
-                         {item.status === 'completed' && item.videoUrl && item.downloaded && (
-                           <div className="flex items-center justify-between">
-                             <div className="flex items-center gap-2.5">
-                               <CheckCircle className="w-4 h-4 text-gray-700" />
-                               <span className="text-sm font-medium text-gray-900">Downloaded</span>
-                             </div>
-                             <div className="flex items-center gap-1.5">
-                               <Coins className="w-4 h-4 text-gray-600" />
-                               <span className="text-sm font-bold text-gray-900">
-                                 {item.downloadCreditsUsed || 0}
-                               </span>
-                             </div>
-                           </div>
-                         )}
-
-                         {item.status === 'completed' && item.videoUrl && downloadingVideo === item.id && (
-                           <div className="flex items-center justify-between">
-                             <div className="flex items-center gap-2.5">
-                               <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
-                               <span className="text-sm font-medium text-gray-700">Downloading...</span>
-                             </div>
-                             <div className="flex items-center gap-1.5">
-                               <Coins className="w-4 h-4 text-gray-400" />
-                               <span className="text-sm font-bold text-gray-400">-</span>
-                             </div>
-                           </div>
+                             <AnimatePresence mode="wait">
+                               <motion.div
+                                 key={`${item.id}-${downloadStates[item.id] || 'idle'}`}
+                                 initial={{ opacity: 0, y: 5 }}
+                                 animate={{ opacity: 1, y: 0 }}
+                                 exit={{ opacity: 0, y: -5 }}
+                                 transition={{ duration: 0.2, ease: "easeInOut" }}
+                                 className="flex items-center justify-between"
+                               >
+                                 <motion.div 
+                                   className="flex items-center gap-2.5"
+                                   layout
+                                 >
+                                   <motion.div
+                                     key={`icon-${downloadStates[item.id] || 'idle'}`}
+                                     initial={{ rotate: -10, scale: 0.8 }}
+                                     animate={{ rotate: 0, scale: 1 }}
+                                     transition={{ duration: 0.3, ease: "backOut" }}
+                                   >
+                                     {getDownloadButtonContent(item).icon}
+                                   </motion.div>
+                                   <motion.span
+                                     key={`text-${downloadStates[item.id] || 'idle'}`}
+                                     initial={{ opacity: 0, x: -10 }}
+                                     animate={{ opacity: 1, x: 0 }}
+                                     transition={{ duration: 0.3, delay: 0.1 }}
+                                     className="text-sm font-medium text-gray-900"
+                                   >
+                                     {getDownloadButtonContent(item).text}
+                                   </motion.span>
+                                 </motion.div>
+                                 {getDownloadButtonContent(item).showCredits && (
+                                   <motion.div
+                                     initial={{ opacity: 0, scale: 0.8 }}
+                                     animate={{ opacity: 1, scale: 1 }}
+                                     exit={{ opacity: 0, scale: 0.8 }}
+                                     transition={{ duration: 0.2 }}
+                                     className="flex items-center gap-1.5"
+                                   >
+                                     <Coins className="w-4 h-4 text-gray-600" />
+                                     <span className="text-sm font-bold text-gray-900">{getDownloadCost(item.videoModel)}</span>
+                                   </motion.div>
+                                 )}
+                               </motion.div>
+                             </AnimatePresence>
+                           </motion.button>
                          )}
 
                          {item.status === 'processing' && (
                            <div className="flex items-center justify-between">
                              <div className="flex items-center gap-2.5">
-                               <PlayCircle className="w-4 h-4 text-gray-600 animate-pulse" />
-                               <span className="text-sm font-medium text-gray-500">Processing...</span>
+                               <PlayCircle className="w-4 h-4 text-blue-600 animate-pulse" />
+                               <span className="text-sm font-medium text-blue-600">Processing...</span>
                              </div>
                              <div className="flex items-center gap-1.5">
                                <Coins className="w-4 h-4 text-gray-400" />

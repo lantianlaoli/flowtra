@@ -1,5 +1,5 @@
 import CreditsPage from '@/components/pages/CreditsPage';
 
-export default function DashboardCreditsPage() {
+export default function AccountPage() {
   return <CreditsPage />;
 }

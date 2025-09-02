@@ -53,82 +53,79 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       }, { status: 400 });
     }
 
-    // Check if already downloaded
-    if (historyRecord.downloaded) {
-      return NextResponse.json({
-        success: true,
-        message: 'Video already downloaded',
-        downloadUrl: historyRecord.video_url
-      });
-    }
+    // Handle download logic - first time download charges credits, repeat downloads are free
+    const isFirstDownload = !historyRecord.downloaded;
 
-    // Calculate remaining download cost (60% of total cost)
-    const totalCost = getCreditCost(historyRecord.video_model as 'veo3' | 'veo3_fast');
-    const downloadCost = Math.round(totalCost * 0.6);
+    if (isFirstDownload) {
+      // Calculate remaining download cost (60% of total cost) for first download only
+      const totalCost = getCreditCost(historyRecord.video_model as 'veo3' | 'veo3_fast');
+      const downloadCost = Math.round(totalCost * 0.6);
 
-    // Check if user has enough credits
-    const creditCheck = await checkCredits(userId, downloadCost);
-    if (!creditCheck.success) {
-      return NextResponse.json({
-        success: false,
-        message: creditCheck.error || 'Failed to check credits'
-      }, { status: 500 });
-    }
+      // Check if user has enough credits
+      const creditCheck = await checkCredits(userId, downloadCost);
+      if (!creditCheck.success) {
+        return NextResponse.json({
+          success: false,
+          message: creditCheck.error || 'Failed to check credits'
+        }, { status: 500 });
+      }
 
-    if (!creditCheck.hasEnoughCredits) {
-      return NextResponse.json({
-        success: false,
-        message: `Insufficient credits. Need ${downloadCost}, have ${creditCheck.currentCredits || 0}`
-      }, { status: 400 });
-    }
+      if (!creditCheck.hasEnoughCredits) {
+        return NextResponse.json({
+          success: false,
+          message: `Insufficient credits. Need ${downloadCost}, have ${creditCheck.currentCredits || 0}`
+        }, { status: 400 });
+      }
 
-    // Deduct download credits
-    const deductResult = await deductCredits(userId, downloadCost);
-    if (!deductResult.success) {
-      return NextResponse.json({
-        success: false,
-        message: deductResult.error || 'Failed to deduct credits'
-      }, { status: 500 });
-    }
+      // Deduct download credits
+      const deductResult = await deductCredits(userId, downloadCost);
+      if (!deductResult.success) {
+        return NextResponse.json({
+          success: false,
+          message: deductResult.error || 'Failed to deduct credits'
+        }, { status: 500 });
+      }
 
-    // Record the transaction
-    await recordCreditTransaction(
-      userId,
-      'usage',
-      downloadCost,
-      `Video download - ${historyRecord.video_model === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'}`,
-      historyId,
-      true
-    );
-
-    // Update the history record
-    const { error: updateError } = await supabase
-      .from('user_history')
-      .update({
-        downloaded: true,
-        download_credits_used: downloadCost,
-        last_processed_at: new Date().toISOString()
-      })
-      .eq('id', historyId);
-
-    if (updateError) {
-      console.error('Failed to update history record:', updateError);
-      // Try to refund credits if update failed
-      await deductCredits(userId, -downloadCost);
+      // Record the transaction
       await recordCreditTransaction(
         userId,
-        'refund',
+        'usage',
         downloadCost,
-        'Refund for failed download update',
+        `Video download - ${historyRecord.video_model === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'}`,
         historyId,
         true
       );
-      
-      return NextResponse.json({
-        success: false,
-        message: 'Failed to update download record'
-      }, { status: 500 });
+
+      // Update the history record to mark as downloaded
+      const { error: updateError } = await supabase
+        .from('user_history')
+        .update({
+          downloaded: true,
+          download_credits_used: downloadCost,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', historyId);
+
+      if (updateError) {
+        console.error('Failed to update history record:', updateError);
+        // Try to refund credits if update failed
+        await deductCredits(userId, -downloadCost);
+        await recordCreditTransaction(
+          userId,
+          'refund',
+          downloadCost,
+          'Refund for failed download update',
+          historyId,
+          true
+        );
+        
+        return NextResponse.json({
+          success: false,
+          message: 'Failed to update download record'
+        }, { status: 500 });
+      }
     }
+    // For repeat downloads, no credit deduction or database updates needed
 
     // Fetch the video file from the external URL and return it directly
     try {

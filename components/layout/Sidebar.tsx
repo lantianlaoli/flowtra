@@ -5,9 +5,6 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import { 
-  Upload, 
-  History, 
-  CreditCard, 
   ChevronDown,
   Check,
   Plus,
@@ -17,7 +14,8 @@ import {
   Coins,
   Clock,
   Sparkles,
-  Download
+  Download,
+  Play
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import FeedbackWidget from '@/components/FeedbackWidget';
@@ -33,19 +31,24 @@ interface SidebarProps {
 
 const navigation = [
   {
-    name: 'Upload Product Photo',
+    name: 'Home',
     href: '/dashboard',
-    icon: Upload
+    icon: Home
   },
   {
-    name: 'History',
-    href: '/dashboard/history',
-    icon: History
+    name: 'Generate Ad',
+    href: '/dashboard/generate',
+    icon: Sparkles
   },
   {
-    name: 'Credits',
-    href: '/dashboard/credits',
-    icon: CreditCard
+    name: 'My Videos',
+    href: '/dashboard/videos',
+    icon: Play
+  },
+  {
+    name: 'Account',
+    href: '/dashboard/account',
+    icon: User
   }
 ];
 
