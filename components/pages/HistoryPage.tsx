@@ -150,6 +150,36 @@ export default function HistoryPage() {
     });
   };
 
+  const getExpiryInfo = (createdAt: string) => {
+    const createdDate = new Date(createdAt);
+    const expiryDate = new Date(createdDate.getTime() + 14 * 24 * 60 * 60 * 1000); // Add 14 days
+    const now = new Date();
+    const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysUntilExpiry <= 0) {
+      return {
+        status: 'expired' as const,
+        message: 'Expired',
+        daysLeft: 0,
+        className: 'bg-red-100 text-red-800 border-red-200'
+      };
+    } else if (daysUntilExpiry <= 3) {
+      return {
+        status: 'expiring' as const,
+        message: `Expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}`,
+        daysLeft: daysUntilExpiry,
+        className: 'bg-amber-100 text-amber-800 border-amber-200'
+      };
+    } else {
+      return {
+        status: 'active' as const,
+        message: '',
+        daysLeft: daysUntilExpiry,
+        className: ''
+      };
+    }
+  };
+
   const getModelDisplayName = (model: string) => {
     switch (model) {
       case 'veo3':
@@ -267,25 +297,39 @@ export default function HistoryPage() {
   const getDownloadButtonContent = (item: HistoryItem) => {
     const downloadState = downloadStates[item.id] || 'idle';
     const isFirstDownload = !item.downloaded;
+    const downloadCost = getDownloadCost(item.videoModel);
+    const hasInsufficientCredits = isFirstDownload && (!userCredits || userCredits < downloadCost);
+    
+    if (hasInsufficientCredits) {
+      return {
+        icon: <AlertCircle className="w-4 h-4 text-red-500" />,
+        text: 'Insufficient Credits',
+        showCredits: true,
+        isInsufficientCredits: true
+      };
+    }
     
     switch (downloadState) {
       case 'processing':
         return {
           icon: <Loader2 className="w-4 h-4 text-gray-600 animate-spin" />,
           text: isFirstDownload ? 'Cooking up your very first ad...' : 'Grabbing your ad, hang tight...',
-          showCredits: isFirstDownload
+          showCredits: isFirstDownload,
+          isInsufficientCredits: false
         };
       case 'success':
         return {
           icon: <CheckCircle className="w-4 h-4 text-gray-700" />,
           text: isFirstDownload ? 'Boom! Your first ad is here' : 'Got it back for you',
-          showCredits: false
+          showCredits: false,
+          isInsufficientCredits: false
         };
       default:
         return {
           icon: <Download className="w-4 h-4 text-gray-600" />,
           text: isFirstDownload ? 'Get My Ad Video' : 'Download Again',
-          showCredits: isFirstDownload
+          showCredits: isFirstDownload,
+          isInsufficientCredits: false
         };
     }
   };
@@ -402,18 +446,35 @@ export default function HistoryPage() {
                         )}
                       </div>
                       
-                      {/* Status badge */}
-                      <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full border border-gray-200 bg-white/90 backdrop-blur text-xs font-medium inline-flex items-center gap-1.5">
-                        {item.status === 'completed' ? (
-                          <CheckCircle className="w-3 h-3 text-gray-700" />
-                        ) : item.status === 'processing' ? (
-                          <PlayCircle className="w-3 h-3 text-gray-600" />
-                        ) : item.status === 'failed' ? (
-                          <AlertCircle className="w-3 h-3 text-gray-800" />
-                        ) : (
-                          <PauseCircle className="w-3 h-3 text-gray-500" />
-                        )}
-                        <span>{getStatusText(item.status)}</span>
+                      {/* Status and Expiry badges */}
+                      <div className="absolute top-3 right-3 flex gap-2">
+                        {/* Status badge */}
+                        <div className="px-2.5 py-1 rounded-full border border-gray-200 bg-white/90 backdrop-blur text-xs font-medium inline-flex items-center gap-1.5">
+                          {item.status === 'completed' ? (
+                            <CheckCircle className="w-3 h-3 text-gray-700" />
+                          ) : item.status === 'processing' ? (
+                            <PlayCircle className="w-3 h-3 text-gray-600" />
+                          ) : item.status === 'failed' ? (
+                            <AlertCircle className="w-3 h-3 text-gray-800" />
+                          ) : (
+                            <PauseCircle className="w-3 h-3 text-gray-500" />
+                          )}
+                          <span>{getStatusText(item.status)}</span>
+                        </div>
+                        
+                        {/* Expiry badge - only show for completed videos that are expiring or expired */}
+                        {item.status === 'completed' && (() => {
+                          const expiryInfo = getExpiryInfo(item.createdAt);
+                          if (expiryInfo.status !== 'active') {
+                            return (
+                              <div className={`px-2.5 py-1 rounded-full border text-xs font-medium inline-flex items-center gap-1.5 ${expiryInfo.className}`}>
+                                <Clock className="w-3 h-3" />
+                                <span>{expiryInfo.message}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
 
@@ -510,7 +571,11 @@ export default function HistoryPage() {
                                      initial={{ opacity: 0, x: -10 }}
                                      animate={{ opacity: 1, x: 0 }}
                                      transition={{ duration: 0.3, delay: 0.1 }}
-                                     className="text-sm font-medium text-gray-900"
+                                     className={`text-sm font-medium ${
+                                       getDownloadButtonContent(item).isInsufficientCredits 
+                                         ? 'text-red-600' 
+                                         : 'text-gray-900'
+                                     }`}
                                    >
                                      {getDownloadButtonContent(item).text}
                                    </motion.span>
