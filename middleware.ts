@@ -5,10 +5,6 @@ const isProtectedRoute = createRouteMatcher([
   '/dashboard(.*)',
   '/api/create-checkout(.*)',
   '/api/credits(.*)',
-  '/api/generate-video(.*)',
-  '/api/generate-cover(.*)',
-  '/api/generate-prompts(.*)',
-  '/api/describe-image(.*)',
   '/api/upload(.*)'
 ])
 

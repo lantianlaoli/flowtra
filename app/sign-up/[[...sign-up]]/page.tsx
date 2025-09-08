@@ -9,7 +9,6 @@ export default function Page() {
           <p className="mt-2 text-gray-600">Start creating professional AI advertisements today</p>
         </div>
         <SignUp 
-          afterSignUpUrl="/dashboard"
           signInUrl="/sign-in"
           appearance={{
             elements: {

@@ -45,7 +45,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                 Pricing
               </Link>
               <SignedOut>
-                <SignInButton mode="modal">
+                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                   <button className="bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors">
                     Make My First Ad
                   </button>
@@ -99,7 +99,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               {showAuthButtons && (
                 <div className="pt-4 border-t border-gray-200">
                   <SignedOut>
-                    <SignInButton mode="modal">
+                    <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                       <button 
                         className="block bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-center font-semibold w-full"
                         onClick={() => setMobileMenuOpen(false)}
