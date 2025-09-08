@@ -26,7 +26,7 @@ export default function LandingPage() {
     router.push('/dashboard?upload=true');
   };
 
-  const handlePurchase = async (packageName: 'starter' | 'pro') => {
+  const handlePurchase = async (packageName: 'lite' | 'basic' | 'pro') => {
     await handleCreemCheckout({
       packageName,
       userEmail: user!.emailAddresses[0].emailAddress,
@@ -327,7 +327,7 @@ export default function LandingPage() {
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="py-4 px-6 font-medium text-gray-900">Pricing Model</td>
-                    <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">Pay-as-you-go credits (from $29)</td>
+                    <td className="py-4 px-6 text-center bg-gray-50 font-semibold text-gray-900">Pay-as-you-go credits (from $9)</td>
                     <td className="py-4 px-6 text-center text-gray-600">Project-based: $5,000-$50,000+ per video</td>
                     <td className="py-4 px-6 text-center text-gray-600">Free open-source, but hidden costs for APIs/GPUs</td>
                     <td className="py-4 px-6 text-center text-gray-600">Subscription ($12–$76/mo, limited minutes)</td>
@@ -336,8 +336,9 @@ export default function LandingPage() {
                   <tr className="border-b border-gray-100">
                     <td className="py-4 px-6 font-medium text-gray-900">Example Package</td>
                     <td className="py-4 px-6 text-center bg-gray-50 text-sm">
-                      <div className="font-semibold text-gray-900 mb-1">Starter $29 → 2,000 credits ≈ 65 ads</div>
-                      <div className="font-semibold text-gray-900">Pro $99 → 7,500 credits ≈ 250 ads</div>
+                      <div className="font-semibold text-gray-900 mb-1">Lite $9 → 500 credits ≈ 16 ads</div>
+                      <div className="font-semibold text-gray-900 mb-1">Basic $29 → 2,000 credits ≈ 66 ads</div>
+                      <div className="font-semibold text-gray-900">Pro $49 → 3,500 credits ≈ 116 ads</div>
                     </td>
                     <td className="py-4 px-6 text-center text-gray-600">Single 30s ad: $15,000+ (2-4 weeks production time)</td>
                     <td className="py-4 px-6 text-center text-gray-600">No packages; must buy external compute & APIs</td>
@@ -409,13 +410,51 @@ export default function LandingPage() {
             <p className="text-lg text-gray-600">Choose the plan that fits your needs</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* Starter Plan */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {/* Lite Plan */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Lite</h3>
+              <div className="text-3xl font-bold text-gray-900 mb-4">
+                $9
+                <span className="text-lg font-normal text-gray-600">/package</span>
+              </div>
+              <ul className="space-y-3 mb-8 flex-grow">
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">500 credits</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">~16 Veo3 Fast videos</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">~3 Veo3 High Quality videos</span>
+                </li>
+              </ul>
+              {user ? (
+                <button 
+                  onClick={() => handlePurchase('lite')}
+                  disabled={loadingPackage === 'lite'}
+                  className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingPackage === 'lite' ? 'Processing...' : 'Get Started'}
+                </button>
+              ) : (
+                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+                  <button className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors">
+                    Get Started
+                  </button>
+                </SignInButton>
+              )}
+            </div>
+
+            {/* Basic Plan (Recommended) */}
             <div className="bg-white rounded-2xl border-2 border-gray-900 p-8 shadow-sm transform scale-105 flex flex-col">
               <div className="bg-gray-900 text-white px-3 py-1 rounded-md text-sm font-medium mb-4 inline-block">
                 Recommended
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Starter</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Basic</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
                 $29
                 <span className="text-lg font-normal text-gray-600">/package</span>
@@ -427,7 +466,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">~65 Veo3 Fast videos</span>
+                  <span className="text-gray-600">~66 Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
@@ -436,14 +475,14 @@ export default function LandingPage() {
               </ul>
               {user ? (
                 <button 
-                  onClick={() => handlePurchase('starter')}
-                  disabled={loadingPackage === 'starter'}
+                  onClick={() => handlePurchase('basic')}
+                  disabled={loadingPackage === 'basic'}
                   className="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loadingPackage === 'starter' ? 'Processing...' : 'Get Started'}
+                  {loadingPackage === 'basic' ? 'Processing...' : 'Get Started'}
                 </button>
               ) : (
-                <SignInButton mode="modal">
+                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                   <button className="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors">
                     Get Started
                   </button>
@@ -455,21 +494,21 @@ export default function LandingPage() {
             <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col">
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Pro</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
-                $99
+                $49
                 <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
               <ul className="space-y-3 mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">7,500 credits</span>
+                  <span className="text-gray-600">3,500 credits</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">~250 Veo3 Fast videos</span>
+                  <span className="text-gray-600">~116 Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">~50 Veo3 High Quality videos</span>
+                  <span className="text-gray-600">~23 Veo3 High Quality videos</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
@@ -485,7 +524,7 @@ export default function LandingPage() {
                   {loadingPackage === 'pro' ? 'Processing...' : 'Get Started'}
                 </button>
               ) : (
-                <SignInButton mode="modal">
+                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                   <button className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors">
                     Get Started
                   </button>

@@ -18,28 +18,40 @@ interface PricingPlan {
 
 const pricingPlans: PricingPlan[] = [
   {
-    name: 'Starter',
+    name: 'Lite',
+    price: 9,
+    credits: 500,
+    veo3FastVideos: 16,
+    veo3HighQualityVideos: 3,
+    features: [
+      '500 credits',
+      '~16 Veo3 Fast videos',
+      '~3 Veo3 High Quality videos'
+    ]
+  },
+  {
+    name: 'Basic',
     price: 29,
     credits: 2000,
-    veo3FastVideos: 65,
+    veo3FastVideos: 66,
     veo3HighQualityVideos: 13,
     isRecommended: true,
     features: [
       '2,000 credits',
-      '~65 Veo3 Fast videos',
+      '~66 Veo3 Fast videos',
       '~13 Veo3 High Quality videos'
     ]
   },
   {
     name: 'Pro',
-    price: 99,
-    credits: 7500,
-    veo3FastVideos: 250,
-    veo3HighQualityVideos: 50,
+    price: 49,
+    credits: 3500,
+    veo3FastVideos: 116,
+    veo3HighQualityVideos: 23,
     features: [
-      '7,500 credits',
-      '~250 Veo3 Fast videos',
-      '~50 Veo3 High Quality videos',
+      '3,500 credits',
+      '~116 Veo3 Fast videos',
+      '~23 Veo3 High Quality videos',
       'Priority processing'
     ]
   }
@@ -66,12 +78,12 @@ export default function PricingPage() {
             Simple, Transparent Pricing
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Choose the perfect plan for your business. Start creating professional AI advertisements today.
+            Choose the plan that fits your needs
           </p>
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
           {pricingPlans.map((plan) => (
             <div
               key={plan.name}
@@ -105,7 +117,7 @@ export default function PricingPage() {
               </ul>
 
               <SignedOut>
-                <SignInButton mode="modal">
+                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                   <button
                     className={`w-full py-3 rounded-lg font-semibold transition-colors cursor-pointer ${
                       plan.isRecommended

@@ -12,45 +12,62 @@ export const MODEL_PROCESSING_TIMES = {
 
 // Package definitions based on price.md
 export const PACKAGES = {
-  starter: {
-    name: 'Starter',
+  lite: {
+    name: 'Lite',
+    price: 9,
+    priceSymbol: '$',
+    credits: 500,
+    description: 'Entry Pack',
+    features: [
+      '500 credits',
+      '≈ 16 Veo3 Fast videos',
+      'or ≈ 3 Veo3 high-quality videos',
+      'AI-powered video generation'
+    ],
+    videoEstimates: {
+      veo3_fast: 16,  // 500 / 30 ≈ 16
+      veo3: 3         // 500 / 150 ≈ 3
+    }
+  },
+  basic: {
+    name: 'Basic',
     price: 29,
     priceSymbol: '$',
     credits: 2000,
-    description: 'Trial Pack',
+    description: 'Recommended Plan',
     features: [
       '2,000 credits',
-      '≈ 65 Veo3 Fast videos',
+      '≈ 66 Veo3 Fast videos',
       'or ≈ 13 Veo3 high-quality videos',
       'AI-powered video generation'
     ],
     videoEstimates: {
-      veo3_fast: 65,   // 2000 / 30 ≈ 65
+      veo3_fast: 66,   // 2000 / 30 ≈ 66
       veo3: 13         // 2000 / 150 ≈ 13
     }
   },
   pro: {
     name: 'Pro', 
-    price: 99,
+    price: 49,
     priceSymbol: '$',
-    credits: 7500,
-    description: 'Recommended Plan',
+    credits: 3500,
+    description: 'Advanced Pack',
     features: [
-      '7,500 credits',
-      '≈ 250 Veo3 Fast videos',
-      'or ≈ 50 Veo3 high-quality videos',
+      '3,500 credits',
+      '≈ 116 Veo3 Fast videos',
+      'or ≈ 23 Veo3 high-quality videos',
       'AI-powered video generation',
       'Priority processing queue'
     ],
     videoEstimates: {
-      veo3_fast: 250,  // 7500 / 30 = 250
-      veo3: 50         // 7500 / 150 = 50
+      veo3_fast: 116,  // 3500 / 30 ≈ 116
+      veo3: 23         // 3500 / 150 ≈ 23
     }
   }
 } as const
 
 // Get package details by name
-export function getPackageByName(packageName: 'starter' | 'pro') {
+export function getPackageByName(packageName: 'lite' | 'basic' | 'pro') {
   return PACKAGES[packageName]
 }
 
@@ -105,15 +122,32 @@ export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast', use
 // Map product_id to credits and package info
 export function getCreditsFromProductId(productId: string): { credits: number; packageName: string } | null {
   // Get environment-specific product IDs
+  const liteDevId = process.env.LITE_PACK_CREEM_DEV_ID
+  const liteProdId = process.env.LITE_PACK_CREEM_PROD_ID
+  const basicDevId = process.env.BASIC_PACK_CREEM_DEV_ID
+  const basicProdId = process.env.BASIC_PACK_CREEM_PROD_ID
+  // Backward compatibility for old STARTER envs mapping to BASIC
   const starterDevId = process.env.STARTER_PACK_CREEM_DEV_ID
   const starterProdId = process.env.STARTER_PACK_CREEM_PROD_ID
   const proDevId = process.env.PRO_PACK_CREEM_DEV_ID
   const proProdId = process.env.PRO_PACK_CREEM_PROD_ID
 
-  if (productId === starterDevId || productId === starterProdId) {
+  if (productId === liteDevId || productId === liteProdId) {
     return {
-      credits: PACKAGES.starter.credits,
-      packageName: 'starter'
+      credits: PACKAGES.lite.credits,
+      packageName: 'lite'
+    }
+  }
+
+  if (
+    productId === basicDevId ||
+    productId === basicProdId ||
+    productId === starterDevId ||
+    productId === starterProdId
+  ) {
+    return {
+      credits: PACKAGES.basic.credits,
+      packageName: 'basic'
     }
   }
   

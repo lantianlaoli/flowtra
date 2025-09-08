@@ -93,7 +93,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      signUpForceRedirectUrl="/dashboard"
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+    >
       <html lang="en" suppressHydrationWarning={true}>
         <head>
           <meta name="google-site-verification" content="s9LILAiVY8VS08_NWNu9kW3hdlnlQgDMa-Hy1y1Ly3A" />
@@ -119,7 +123,15 @@ export default function RootLayout({
                 offers: [
                   {
                     '@type': 'Offer',
-                    name: 'Starter Package',
+                    name: 'Lite Package',
+                    price: '9',
+                    priceCurrency: 'USD',
+                    category: 'AI Marketing Tools',
+                    description: '500 credits for AI video generation'
+                  },
+                  {
+                    '@type': 'Offer',
+                    name: 'Basic Package',
                     price: '29',
                     priceCurrency: 'USD',
                     category: 'AI Marketing Tools',
@@ -127,11 +139,11 @@ export default function RootLayout({
                   },
                   {
                     '@type': 'Offer',
-                    name: 'Pro Package', 
-                    price: '99',
+                    name: 'Pro Package',
+                    price: '49',
                     priceCurrency: 'USD',
                     category: 'AI Marketing Tools',
-                    description: '7,500 credits with priority processing'
+                    description: '3,500 credits with priority processing'
                   }
                 ],
                 publisher: {
@@ -147,7 +159,7 @@ export default function RootLayout({
                 },
                 featureList: [
                   'AI Video Generation using VEO3 Models',
-                  'Intelligent Product Image Analysis', 
+                  'Intelligent Product Image Analysis',
                   'Automated Advertisement Creation',
                   'Professional Cover Image Generation',
                   'Multi-Platform Export (Amazon, Walmart)',

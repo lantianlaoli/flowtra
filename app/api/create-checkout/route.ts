@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get package details
-    const packageData = getPackageByName(packageName as 'starter' | 'pro')
+    const packageData = getPackageByName(packageName as 'lite' | 'basic' | 'pro')
     if (!packageData) {
       return NextResponse.json(
         { success: false, error: 'Invalid package name' },
@@ -40,8 +40,13 @@ export async function POST(request: NextRequest) {
     
     // Get product ID based on environment and package
     let productId: string | undefined
-    if (packageName === 'starter') {
-      productId = isDevMode ? process.env.STARTER_PACK_CREEM_DEV_ID : process.env.STARTER_PACK_CREEM_PROD_ID
+    if (packageName === 'lite') {
+      productId = isDevMode ? process.env.LITE_PACK_CREEM_DEV_ID : process.env.LITE_PACK_CREEM_PROD_ID
+    } else if (packageName === 'basic') {
+      // Prefer BASIC envs, fallback to legacy STARTER envs for compatibility
+      productId = isDevMode 
+        ? (process.env.BASIC_PACK_CREEM_DEV_ID || process.env.STARTER_PACK_CREEM_DEV_ID)
+        : (process.env.BASIC_PACK_CREEM_PROD_ID || process.env.STARTER_PACK_CREEM_PROD_ID)
     } else if (packageName === 'pro') {
       productId = isDevMode ? process.env.PRO_PACK_CREEM_DEV_ID : process.env.PRO_PACK_CREEM_PROD_ID
     }

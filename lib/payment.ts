@@ -1,5 +1,5 @@
 export interface PaymentOptions {
-  packageName: 'starter' | 'pro';
+  packageName: 'lite' | 'basic' | 'pro';
   userEmail: string;
   onLoading?: (isLoading: boolean) => void;
   onError?: (error: string) => void;

@@ -14,7 +14,7 @@ export function Pricing({ onPurchase }: PricingProps) {
   const { user } = useUser()
   const [isLoading, setIsLoading] = useState<string | null>(null)
 
-  const handlePurchase = async (packageName: 'starter' | 'pro') => {
+  const handlePurchase = async (packageName: 'lite' | 'basic' | 'pro') => {
     if (!user?.emailAddresses?.[0]?.emailAddress) {
       alert('Please sign in first to purchase a plan')
       return
@@ -44,10 +44,10 @@ export function Pricing({ onPurchase }: PricingProps) {
           </p>
         </div>
 
-        <div className="mt-16 grid gap-6 lg:grid-cols-2 lg:gap-8">
+        <div className="mt-16 grid gap-6 lg:grid-cols-3 lg:gap-8">
           {Object.entries(PACKAGES).map(([key, pkg]) => {
-            const packageKey = key as 'starter' | 'pro'
-            const isPopular = packageKey === 'starter'
+            const packageKey = key as 'lite' | 'basic' | 'pro'
+            const isPopular = packageKey === 'basic'
             
             return (
               <div
