@@ -54,7 +54,7 @@ export async function getUserCredits(userId: string): Promise<{
   }
 }
 
-// Initialize credits for new user with free starter credits
+// Initialize credits for new user with free initial credits
 export async function initializeUserCredits(userId: string, initialCredits: number = 100): Promise<{
   success: boolean
   credits?: UserCredits

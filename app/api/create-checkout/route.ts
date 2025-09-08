@@ -43,10 +43,10 @@ export async function POST(request: NextRequest) {
     if (packageName === 'lite') {
       productId = isDevMode ? process.env.LITE_PACK_CREEM_DEV_ID : process.env.LITE_PACK_CREEM_PROD_ID
     } else if (packageName === 'basic') {
-      // Prefer BASIC envs, fallback to legacy STARTER envs for compatibility
+      // Basic plan product IDs
       productId = isDevMode 
-        ? (process.env.BASIC_PACK_CREEM_DEV_ID || process.env.STARTER_PACK_CREEM_DEV_ID)
-        : (process.env.BASIC_PACK_CREEM_PROD_ID || process.env.STARTER_PACK_CREEM_PROD_ID)
+        ? process.env.BASIC_PACK_CREEM_DEV_ID
+        : process.env.BASIC_PACK_CREEM_PROD_ID
     } else if (packageName === 'pro') {
       productId = isDevMode ? process.env.PRO_PACK_CREEM_DEV_ID : process.env.PRO_PACK_CREEM_PROD_ID
     }

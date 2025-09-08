@@ -126,9 +126,6 @@ export function getCreditsFromProductId(productId: string): { credits: number; p
   const liteProdId = process.env.LITE_PACK_CREEM_PROD_ID
   const basicDevId = process.env.BASIC_PACK_CREEM_DEV_ID
   const basicProdId = process.env.BASIC_PACK_CREEM_PROD_ID
-  // Backward compatibility for old STARTER envs mapping to BASIC
-  const starterDevId = process.env.STARTER_PACK_CREEM_DEV_ID
-  const starterProdId = process.env.STARTER_PACK_CREEM_PROD_ID
   const proDevId = process.env.PRO_PACK_CREEM_DEV_ID
   const proProdId = process.env.PRO_PACK_CREEM_PROD_ID
 
@@ -139,12 +136,7 @@ export function getCreditsFromProductId(productId: string): { credits: number; p
     }
   }
 
-  if (
-    productId === basicDevId ||
-    productId === basicProdId ||
-    productId === starterDevId ||
-    productId === starterProdId
-  ) {
+  if (productId === basicDevId || productId === basicProdId) {
     return {
       credits: PACKAGES.basic.credits,
       packageName: 'basic'
