@@ -28,8 +28,10 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
     
     const {
       audioEnabled,
+      needsClickToEnable,
       handleHover,
-      handleLeave
+      handleLeave,
+      handleClickEnable,
     } = useVideoAudio({ videoRef: currentRef });
 
     const onMouseEnter = () => {
@@ -57,8 +59,8 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           controls={false}
           onError={(e) => console.warn('Video error:', e)}
           onLoadedMetadata={() => {
-            // Ensure video is muted initially for autoplay compliance
-            if (currentRef.current) {
+            // Respect current audio state; ensure muted only if audio not enabled
+            if (currentRef.current && !audioEnabled) {
               currentRef.current.muted = true;
             }
           }}
@@ -66,10 +68,19 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           <source src={src} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
-        
-        {showControls && (
-          <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-sm">
-            {audioEnabled ? 'Audio on' : 'Hover for audio'}
+        {/* Click-to-enable overlay when required by browser policy */}
+        {(needsClickToEnable || showControls) && !audioEnabled && (
+          <button
+            type="button"
+            onClick={handleClickEnable}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-sm hover:bg-black/80"
+          >
+            Click to enable sound
+          </button>
+        )}
+        {showControls && audioEnabled && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-sm">
+            Audio on
           </div>
         )}
       </div>

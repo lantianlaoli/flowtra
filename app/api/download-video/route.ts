@@ -57,9 +57,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     const isFirstDownload = !historyRecord.downloaded;
 
     if (isFirstDownload) {
-      // Calculate remaining download cost (60% of total cost) for first download only
-      const totalCost = getCreditCost(historyRecord.video_model as 'veo3' | 'veo3_fast');
-      const downloadCost = Math.round(totalCost * 0.6);
+      // Charge full cost on first download (generation is free)
+      const downloadCost = getCreditCost(historyRecord.video_model as 'veo3' | 'veo3_fast');
 
       // Check if user has enough credits
       const creditCheck = await checkCredits(userId, downloadCost);

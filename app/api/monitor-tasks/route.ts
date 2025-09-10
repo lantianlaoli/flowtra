@@ -298,7 +298,7 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     },
-  }, 3, 10000);
+  }, 3, 15000);
 
   if (!response.ok) {
     throw new Error(`Failed to check cover status: ${response.status} ${response.statusText}`);
@@ -330,7 +330,7 @@ async function checkVideoStatus(taskId: string): Promise<{status: string, videoU
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     },
-  }, 3, 10000);
+  }, 3, 15000);
 
   if (!response.ok) {
     throw new Error(`Failed to check video status: ${response.status} ${response.statusText}`);

@@ -38,7 +38,7 @@ pnpm dev
 The following environment variables are required:
 
 - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anon public key
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` - Your Supabase publishable default key
 
 ## Project Structure
 

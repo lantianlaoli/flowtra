@@ -5,7 +5,7 @@ export async function fetchWithRetry(
   url: string, 
   options: RequestInit, 
   maxRetries = 3,
-  timeoutMs = 15000 // Reduced to 15 seconds
+  timeoutMs = 30000 // Increased to 30 seconds for image downloads
 ): Promise<Response> {
   let lastError: Error | null = null;
   
@@ -41,10 +41,17 @@ export async function fetchWithRetry(
         throw lastError;
       }
       
-      // Wait before retrying with shorter delays for timeout issues
-      const baseDelay = (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'ETIMEDOUT') ? 500 : 1000;
-      const delay = Math.min(baseDelay * Math.pow(1.5, attempt - 1), 3000);
-      console.log(`Retrying in ${delay}ms...`);
+      // Wait before retrying with progressive delays, optimized for image download issues
+      let baseDelay = 1000;
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+      
+      // Longer delay for image timeout issues
+      if (errorMessage.includes('timeout') || errorMessage.includes('invalid_image_url')) {
+        baseDelay = 2000;
+      }
+      
+      const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 5000);
+      console.log(`Retrying in ${delay}ms... (attempt ${attempt}/${maxRetries})`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -68,6 +75,9 @@ export function getNetworkErrorResponse(error: unknown) {
     }
     if (errorMessage.includes('timeout') || errorMessage.includes('aborted')) {
       return { error: 'Request timed out. Please try again.', status: 504 };
+    }
+    if (errorMessage.includes('invalid_image_url')) {
+      return { error: 'Image URL timeout or invalid. Please check the image URL.', status: 504 };
     }
     if (errorMessage.includes('enotfound') || errorCode === 'ENOTFOUND') {
       return { error: 'Service temporarily unavailable. Please try again.', status: 503 };

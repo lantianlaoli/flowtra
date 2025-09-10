@@ -426,9 +426,6 @@ export default function GenerateAdPage() {
                 Generate Ad
               </h1>
             </div>
-            <p className="text-gray-500 text-base max-w-2xl">
-              Turn your photos into powerful ads
-            </p>
           </div>
 
           {/* Error Display */}

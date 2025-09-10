@@ -78,9 +78,6 @@ export default function SupportPage() {
                 Support & Contact
               </h1>
             </div>
-            <p className="text-gray-500 text-base max-w-2xl">
-              Get help, report issues, or share feedback with our team
-            </p>
           </div>
 
           <div className="max-w-2xl">

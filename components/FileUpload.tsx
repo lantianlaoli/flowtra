@@ -108,12 +108,9 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
               </div>
             ))}
             {isLoading ? (
-              <div className="flex items-center justify-center space-x-3 mt-4 animate-bounce-in">
-                <div className="relative">
-                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                  <div className="absolute inset-0 w-5 h-5 border-2 border-transparent border-r-blue-500 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
-                </div>
-                <span className="text-blue-600 font-medium animate-pulse">Working on it...</span>
+              <div className="flex items-center justify-center space-x-3 mt-4">
+                <div className="w-5 h-5 border-2 border-gray-900 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-black font-medium">Uploading...</span>
               </div>
             ) : (
               <div className="text-center mt-4 animate-slide-in-right">
@@ -138,7 +135,7 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
           <div>
             <p className="text-gray-500 mb-6 text-sm">
               {isLoading 
-                ? 'Creating magic...' 
+                ? 'Uploading...'
                 : multiple 
                   ? 'Drop your photos here or click to browse'
                   : 'Drop your photo here or click to browse'
@@ -163,8 +160,8 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
             >
               {isLoading ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-400 border-t-transparent"></div>
-                  <span>Processing...</span>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-900 border-t-transparent"></div>
+                  <span className="text-black">Uploading...</span>
                 </>
               ) : (
                 <>

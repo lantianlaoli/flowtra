@@ -156,8 +156,12 @@ export function getCreditsFromProductId(productId: string): { credits: number; p
 // Default initial credits for new users (enough for 1 complete workflow)
 export const INITIAL_FREE_CREDITS = 100
 
-// KIE API credit threshold for service availability
-export const KIE_CREDIT_THRESHOLD = 600
+// KIE API credit threshold for service availability (configurable via env)
+export const KIE_CREDIT_THRESHOLD = (() => {
+  const raw = process.env.KIE_CREDIT_THRESHOLD;
+  const parsed = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 600;
+})();
 
 
 // Complete workflow cost breakdown:

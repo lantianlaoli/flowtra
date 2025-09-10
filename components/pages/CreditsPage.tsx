@@ -103,9 +103,6 @@ export default function CreditsPage() {
                 Account
               </h1>
             </div>
-            <p className="text-gray-500 text-base max-w-2xl">
-              Manage your credits and billing
-            </p>
           </div>
 
           {/* Statistics based on transaction history */}

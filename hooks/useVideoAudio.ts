@@ -10,6 +10,7 @@ export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [userHasInteracted, setUserHasInteracted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [needsClickToEnable, setNeedsClickToEnable] = useState(false);
 
   // Detect any user interaction to enable audio capability
   useEffect(() => {
@@ -17,13 +18,13 @@ export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
       setUserHasInteracted(true);
     };
 
-    // Listen for any user interaction
-    document.addEventListener('click', handleInteraction, { once: true });
+    // Listen for any user interaction that browsers consider activation
+    document.addEventListener('pointerdown', handleInteraction, { once: true });
     document.addEventListener('keydown', handleInteraction, { once: true });
     document.addEventListener('touchstart', handleInteraction, { once: true });
 
     return () => {
-      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('pointerdown', handleInteraction);
       document.removeEventListener('keydown', handleInteraction);
       document.removeEventListener('touchstart', handleInteraction);
     };
@@ -31,19 +32,37 @@ export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
 
   const handleHover = useCallback(() => {
     setIsHovered(true);
-    
-    if (videoRef.current) {
+    if (!videoRef.current) return;
+
+    // Only attempt audio if user has interacted (browser policy)
+    if (userHasInteracted) {
       try {
-        // Enable audio on hover - this counts as user interaction
-        // This provides better UX for video previews
-        if (!userHasInteracted) {
-          setUserHasInteracted(true);
-        }
         videoRef.current.muted = false;
-        setAudioEnabled(true);
+        const playPromise = videoRef.current.play?.();
+        if (playPromise && typeof playPromise.then === 'function') {
+          playPromise
+            .then(() => {
+              setAudioEnabled(true);
+              setNeedsClickToEnable(false);
+            })
+            .catch(() => {
+              // Fallback: require click to enable
+              setAudioEnabled(false);
+              setNeedsClickToEnable(true);
+            });
+        } else {
+          // Older browsers
+          setAudioEnabled(true);
+          setNeedsClickToEnable(false);
+        }
       } catch (error) {
-        console.warn('Failed to unmute video:', error);
+        console.warn('Failed to unmute/play video:', error);
+        setNeedsClickToEnable(true);
+        setAudioEnabled(false);
       }
+    } else {
+      // No prior interaction – show hint to click
+      setNeedsClickToEnable(true);
     }
   }, [videoRef, userHasInteracted]);
 
@@ -61,11 +80,41 @@ export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
     }
   }, [videoRef]);
 
+  const handleClickEnable = useCallback(() => {
+    if (!videoRef.current) return;
+    try {
+      setUserHasInteracted(true);
+      videoRef.current.muted = false;
+      const playPromise = videoRef.current.play?.();
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise
+          .then(() => {
+            setAudioEnabled(true);
+            setNeedsClickToEnable(false);
+          })
+          .catch((err) => {
+            console.warn('Play with audio failed:', err);
+            setAudioEnabled(false);
+            setNeedsClickToEnable(true);
+          });
+      } else {
+        setAudioEnabled(true);
+        setNeedsClickToEnable(false);
+      }
+    } catch (error) {
+      console.warn('Failed to enable audio on click:', error);
+      setNeedsClickToEnable(true);
+      setAudioEnabled(false);
+    }
+  }, [videoRef]);
+
   return {
     audioEnabled,
     userHasInteracted,
     isHovered,
+    needsClickToEnable,
     handleHover,
-    handleLeave
+    handleLeave,
+    handleClickEnable
   };
 }

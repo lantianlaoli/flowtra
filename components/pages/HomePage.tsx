@@ -124,9 +124,6 @@ export default function HomePage() {
                 Hello, {getUserName()}
               </h1>
             </div>
-            <p className="text-gray-600 text-lg">
-              Ready to create your next viral ad?
-            </p>
           </div>
 
           {/* Stats Cards - Compact Layout */}
