@@ -5,12 +5,12 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Download, ChevronLeft, ChevronRight, Clock, Zap, Coins, Sparkles, FileVideo, CheckCircle, AlertCircle, PlayCircle, PauseCircle, RotateCcw, Loader2, Play } from 'lucide-react';
-import { getDownloadCost, getGenerationCost } from '@/lib/constants';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, CheckCircle, AlertCircle, PlayCircle, RotateCcw, Loader2, Play, Image as ImageIcon, Video } from 'lucide-react';
+import { getCreditCost } from '@/lib/constants';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface HistoryItem {
+interface V1HistoryItem {
   id: string;
   originalImageUrl: string;
   coverImageUrl?: string;
@@ -25,7 +25,29 @@ interface HistoryItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
+  isV2?: false;
 }
+
+interface V2InstanceItem {
+  id: string;
+  originalImageUrl: string;
+  coverImageUrl?: string;
+  videoUrl?: string;
+  downloaded?: boolean;
+  downloadCreditsUsed?: number;
+  generationCreditsUsed?: number;
+  productDescription?: string;
+  videoModel: 'veo3' | 'veo3_fast';
+  creditsUsed: number;
+  status: 'processing' | 'completed' | 'failed';
+  createdAt: string;
+  progress?: number;
+  currentStep?: string;
+  isV2: true;
+  elementsData?: Record<string, unknown>;
+}
+
+type HistoryItem = V1HistoryItem | V2InstanceItem;
 
 const ITEMS_PER_PAGE = 6; // 2 rows × 3 columns = 6 items per page
 
@@ -38,7 +60,11 @@ export default function HistoryPage() {
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
-  const [downloadStates, setDownloadStates] = useState<Record<string, 'idle' | 'processing' | 'success'>>({});
+  const [, setDownloadStates] = useState<Record<string, 'idle' | 'processing' | 'success'>>({});
+  // Cover UI transient state: 'packing' -> 'done' -> cleared
+  const [coverStates, setCoverStates] = useState<Record<string, 'packing' | 'done' | null>>({});
+  // Video UI transient state: 'packing' -> 'done' -> cleared
+  const [videoStates, setVideoStates] = useState<Record<string, 'packing' | 'done' | null>>({});
 
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
     setSelectedModel(model);
@@ -74,6 +100,34 @@ export default function HistoryPage() {
     fetchHistory();
   }, [user?.id]);
 
+  // Poll for processing updates while there are in-progress items
+  const hasProcessing = history.some(h => h.status === 'processing');
+  useEffect(() => {
+    if (!user?.id) return;
+    if (!hasProcessing) return;
+
+    let isCancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/history');
+        const json = await res.json();
+        if (!isCancelled && json?.success && Array.isArray(json.history)) {
+          setHistory(json.history);
+        }
+      } catch (err) {
+        console.warn('Polling history failed:', err);
+      }
+    };
+
+    const interval = setInterval(poll, 5000);
+    // Do an immediate poll to reduce perceived latency
+    poll();
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [user?.id, hasProcessing]);
+
   // Reset to first page when filter changes
   useEffect(() => {
     setCurrentPage(1);
@@ -93,9 +147,10 @@ export default function HistoryPage() {
     return null;
   }
 
-  const filteredHistory = history.filter(item => 
-    filter === 'all' || item.status === filter
-  );
+  const filteredHistory = history.filter(item => {
+    // Status filter
+    return filter === 'all' || item.status === filter;
+  });
 
   // Pagination
   const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE);
@@ -150,63 +205,17 @@ export default function HistoryPage() {
     });
   };
 
-  const getExpiryInfo = (createdAt: string) => {
-    const createdDate = new Date(createdAt);
-    const expiryDate = new Date(createdDate.getTime() + 14 * 24 * 60 * 60 * 1000); // Add 14 days
-    const now = new Date();
-    const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (daysUntilExpiry <= 0) {
-      return {
-        status: 'expired' as const,
-        message: 'Expired',
-        daysLeft: 0,
-        className: 'bg-red-100 text-red-800 border-red-200'
-      };
-    } else if (daysUntilExpiry <= 3) {
-      return {
-        status: 'expiring' as const,
-        message: `Expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}`,
-        daysLeft: daysUntilExpiry,
-        className: 'bg-amber-100 text-amber-800 border-amber-200'
-      };
-    } else {
-      return {
-        status: 'active' as const,
-        message: '',
-        daysLeft: daysUntilExpiry,
-        className: ''
-      };
-    }
-  };
 
-  const getModelDisplayName = (model: string) => {
-    switch (model) {
-      case 'veo3':
-        return 'VEO 3';
-      case 'veo3_fast':
-        return 'VEO 3 Fast';
-      default:
-        return model.toUpperCase();
-    }
-  };
 
-  const getStepMessage = (step?: string) => {
-    const stepMessages = {
-      'describing': 'Analyzing product...',
-      'generating_prompts': 'Creating concepts...',
-      'generating_cover': 'Designing cover...',
-      'generating_video': 'Generating video...'
-    };
-    return stepMessages[step as keyof typeof stepMessages] || 'Processing...';
-  };
+  // Removed unused getStepMessage helper to satisfy lint
 
+  // V1 download function
   const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast') => {
     if (!user?.id || !userCredits) return;
 
     const item = history.find(h => h.id === historyId);
     const isFirstDownload = !item?.downloaded;
-    const downloadCost = getDownloadCost(videoModel);
+    const downloadCost = getCreditCost(videoModel);
     
     if (isFirstDownload && userCredits < downloadCost) {
       alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
@@ -290,49 +299,182 @@ export default function HistoryPage() {
     }
   };
 
+  // Generate a short emotional phrase for the Cover button
+  const getPackingText = (stage: 'packing' | 'done') =>
+    stage === 'packing' ? 'Packing…' : 'Ready!';
+
+  // V1 cover download function (free) — show phrase only, no video download state
+  const downloadV1Cover = async (historyId: string) => {
+    if (!user?.id) return;
+
+    const item = history.find(h => h.id === historyId);
+    if (!item || !item.coverImageUrl) return;
+
+    try {
+      // Fetch as blob to force background download without navigation
+      const res = await fetch(item.coverImageUrl, { mode: 'cors' });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const contentType = blob.type || 'image/jpeg';
+      const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `cover-${historyId}.${ext}`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Download failed');
+    }
+  };
+
+  // V2 download function
+  const downloadV2Content = async (instanceId: string, contentType: 'cover' | 'video', videoModel: 'veo3' | 'veo3_fast') => {
+    if (!user?.id) return;
+
+    const downloadCost = getCreditCost(videoModel);
+    
+    if (contentType === 'video' && (!userCredits || userCredits < downloadCost)) {
+      alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
+      return;
+    }
+
+    // Only track download state for paid video; cover should not affect video button state
+    if (contentType === 'video') {
+      setDownloadStates(prev => ({ ...prev, [instanceId]: 'processing' }));
+    }
+
+    try {
+      const response = await fetch(`/api/v2/download-content/${instanceId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ contentType }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to download content');
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.downloadUrl) {
+        // For cover: fetch as blob to avoid any navigation; for video keep direct download flow
+        if (contentType === 'cover') {
+          const res2 = await fetch(result.downloadUrl, { mode: 'cors' });
+          const blob2 = await res2.blob();
+          const url2 = URL.createObjectURL(blob2);
+          const contentType2 = blob2.type || 'image/jpeg';
+          const ext2 = contentType2.includes('png') ? 'png' : contentType2.includes('webp') ? 'webp' : 'jpg';
+          const link2 = document.createElement('a');
+          link2.href = url2;
+          link2.download = `${contentType}-${instanceId}.${ext2}`;
+          link2.style.display = 'none';
+          document.body.appendChild(link2);
+          link2.click();
+          document.body.removeChild(link2);
+          URL.revokeObjectURL(url2);
+        } else {
+          // Fetch video as blob as well to avoid any chance of navigation
+          const res3 = await fetch(result.downloadUrl, { mode: 'cors' });
+          const blob3 = await res3.blob();
+          const url3 = URL.createObjectURL(blob3);
+          const link3 = document.createElement('a');
+          link3.href = url3;
+          link3.download = `${contentType}-${instanceId}.mp4`;
+          link3.style.display = 'none';
+          document.body.appendChild(link3);
+          link3.click();
+          document.body.removeChild(link3);
+          URL.revokeObjectURL(url3);
+        }
+
+        // Show success state only for paid video
+        if (contentType === 'video') {
+          setDownloadStates(prev => ({ ...prev, [instanceId]: 'success' }));
+        }
+
+        // Update local state if it was a video download (paid content)
+        if (contentType === 'video' && result.creditsUsed > 0) {
+          setHistory(prevHistory =>
+            prevHistory.map(item => 
+              item.id === instanceId && item.isV2
+                ? { ...item, downloaded: true }
+                : item
+            )
+          );
+
+          await refetchCredits();
+        }
+
+        // Reset to idle after 3 seconds (video only)
+        if (contentType === 'video') {
+          setTimeout(() => {
+            setDownloadStates(prev => ({ ...prev, [instanceId]: 'idle' }));
+          }, 3000);
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert(error instanceof Error ? error.message : 'Download failed');
+      if (contentType === 'video') {
+        setDownloadStates(prev => ({ ...prev, [instanceId]: 'idle' }));
+      }
+      throw error;
+    }
+  };
+
+  // Unified handler to show emotional phrase on Cover click then trigger download
+  const handleCoverClick = async (item: HistoryItem) => {
+    const id = item.id;
+    setCoverStates(prev => ({ ...prev, [id]: 'packing' }));
+    try {
+      if (item.isV2) {
+        await downloadV2Content(item.id, 'cover', item.videoModel);
+      } else {
+        await downloadV1Cover(item.id);
+      }
+      // Mark as done to show a pleasant finish message
+      setCoverStates(prev => ({ ...prev, [id]: 'done' }));
+    } finally {
+      // Clear after a brief moment to restore default UI
+      setTimeout(() => {
+        setCoverStates(prev => ({ ...prev, [id]: null }));
+      }, 1200);
+    }
+  };
+
+  // Unified handler to show emotional text on Video click then trigger download
+  const handleVideoClick = async (item: HistoryItem) => {
+    const id = item.id;
+    setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
+    try {
+      if (item.isV2) {
+        await downloadV2Content(item.id, 'video', item.videoModel);
+      } else {
+        await downloadVideo(item.id, item.videoModel);
+      }
+      setVideoStates(prev => ({ ...prev, [id]: 'done' }));
+    } finally {
+      setTimeout(() => {
+        setVideoStates(prev => ({ ...prev, [id]: null }));
+      }, 1200);
+    }
+  };
+
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  const getDownloadButtonContent = (item: HistoryItem) => {
-    const downloadState = downloadStates[item.id] || 'idle';
-    const isFirstDownload = !item.downloaded;
-    const downloadCost = getDownloadCost(item.videoModel);
-    const hasInsufficientCredits = isFirstDownload && (!userCredits || userCredits < downloadCost);
-    
-    if (hasInsufficientCredits) {
-      return {
-        icon: <AlertCircle className="w-4 h-4 text-red-500" />,
-        text: 'Insufficient Credits',
-        showCredits: true,
-        isInsufficientCredits: true
-      };
-    }
-    
-    switch (downloadState) {
-      case 'processing':
-        return {
-          icon: <Loader2 className="w-4 h-4 text-gray-600 animate-spin" />,
-          text: isFirstDownload ? 'Cooking up your very first ad...' : 'Grabbing your ad, hang tight...',
-          showCredits: isFirstDownload,
-          isInsufficientCredits: false
-        };
-      case 'success':
-        return {
-          icon: <CheckCircle className="w-4 h-4 text-gray-700" />,
-          text: isFirstDownload ? 'Boom! Your first ad is here' : 'Got it back for you',
-          showCredits: false,
-          isInsufficientCredits: false
-        };
-      default:
-        return {
-          icon: <Download className="w-4 h-4 text-gray-600" />,
-          text: isFirstDownload ? 'Get My Ad Video' : 'Download Again',
-          showCredits: isFirstDownload,
-          isInsufficientCredits: false
-        };
-    }
-  };
+  // Note: Cover button is always free and uses static icon in the UI.
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -352,42 +494,31 @@ export default function HistoryPage() {
                 <Play className="w-4 h-4 text-gray-700" />
               </div>
               <h1 className="text-2xl font-semibold text-gray-900">
-                My Videos
+                My Ads
               </h1>
             </div>
-            <p className="text-gray-500 text-base max-w-2xl">
-              View and manage your created video ads
-            </p>
           </div>
 
           {/* Filter Tabs */}
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-medium text-gray-900">
-                {filter === 'all' ? 'All Projects' : 
-                 filter === 'completed' ? 'Completed Projects' :
-                 filter === 'processing' ? 'Processing Projects' :
-                 'Failed Projects'}
-                <span className="ml-2 text-sm text-gray-500 font-normal">
-                  ({filteredHistory.length})
-                </span>
-              </h2>
-              
-
-              <div className="bg-gray-50 p-1 rounded-lg inline-flex">
-                {(['all', 'completed', 'processing', 'failed'] as const).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setFilter(status)}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
-                      filter === status
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </button>
-                ))}
+            <div className="flex items-center justify-end">
+              <div className="flex items-center gap-3">
+                {/* Status Filter */}
+                <div className="bg-gray-50 p-1 rounded-lg inline-flex">
+                  {(['all', 'completed', 'processing', 'failed'] as const).map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => setFilter(status)}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
+                        filter === status
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -435,6 +566,14 @@ export default function HistoryPage() {
                             playsInline={true}
                             showControls={false}
                           />
+                        ) : item.coverImageUrl ? (
+                          <Image
+                            src={item.coverImageUrl}
+                            alt="Generated cover"
+                            width={400}
+                            height={300}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <Image
                             src={item.originalImageUrl}
@@ -446,171 +585,228 @@ export default function HistoryPage() {
                         )}
                       </div>
                       
-                      {/* Status and Expiry badges */}
-                      <div className="absolute top-3 right-3 flex gap-2">
-                        {/* Status badge */}
-                        <div className="px-2.5 py-1 rounded-full border border-gray-200 bg-white/90 backdrop-blur text-xs font-medium inline-flex items-center gap-1.5">
-                          {item.status === 'completed' ? (
-                            <CheckCircle className="w-3 h-3 text-gray-700" />
-                          ) : item.status === 'processing' ? (
-                            <PlayCircle className="w-3 h-3 text-gray-600" />
-                          ) : item.status === 'failed' ? (
-                            <AlertCircle className="w-3 h-3 text-gray-800" />
-                          ) : (
-                            <PauseCircle className="w-3 h-3 text-gray-500" />
-                          )}
-                          <span>{getStatusText(item.status)}</span>
-                        </div>
-                        
-                        {/* Expiry badge - only show for completed videos that are expiring or expired */}
-                        {item.status === 'completed' && (() => {
-                          const expiryInfo = getExpiryInfo(item.createdAt);
-                          if (expiryInfo.status !== 'active') {
-                            return (
-                              <div className={`px-2.5 py-1 rounded-full border text-xs font-medium inline-flex items-center gap-1.5 ${expiryInfo.className}`}>
-                                <Clock className="w-3 h-3" />
-                                <span>{expiryInfo.message}</span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
                     </div>
 
                     {/* Card Content */}
                     <div className="p-4 flex-1 flex flex-col">
-                      <h3 className="font-medium text-gray-900 text-base mb-3 line-clamp-1">
-                        {item.productDescription || 'Untitled Project'}
-                      </h3>
                       
                       {/* Enhanced metadata display */}
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Clock className="w-4 h-4" />
-                          <span className="font-medium">{formatDate(item.createdAt)}</span>
-                          <span className="text-gray-300">•</span>
-                          <span className="text-gray-400">{formatTime(item.createdAt)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Zap className="w-4 h-4" />
-                          <span className="font-medium">{getModelDisplayName(item.videoModel)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Sparkles className="w-4 h-4" />
-                          <span className="font-medium">{item.generationCreditsUsed || getGenerationCost(item.videoModel)}</span>
+                      <div className="space-y-2 mb-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2 text-gray-500">
+                            <Clock className="w-4 h-4" />
+                            <span className="font-medium">{formatDate(item.createdAt)}</span>
+                            <span className="text-gray-300">•</span>
+                            <span className="text-gray-400">{formatTime(item.createdAt)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {/* Status */}
+                            <div className="flex items-center gap-1">
+                              {item.status === 'completed' ? (
+                                <CheckCircle className="w-3 h-3 text-green-600" />
+                              ) : item.status === 'processing' ? (
+                                <PlayCircle className="w-3 h-3 text-gray-600" />
+                              ) : item.status === 'failed' ? (
+                                <AlertCircle className="w-3 h-3 text-red-600" />
+                              ) : (
+                                <PlayCircle className="w-3 h-3 text-gray-500" />
+                              )}
+                              <span className="text-xs font-medium text-gray-700">{getStatusText(item.status)}</span>
+                            </div>
+                            {/* Version */}
+                            <div className={`px-2 py-1 rounded text-xs font-bold ${
+                              item.isV2 
+                                ? 'bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700' 
+                                : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {item.isV2 ? 'V2' : 'V1'}
+                            </div>
+                          </div>
                         </div>
                       </div>
 
-                                             {/* Progress bar for processing items */}
-                       {item.status === 'processing' && (
-                         <div className="mt-2">
-                           <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                             <span className="text-blue-600">{getStepMessage(item.currentStep)}</span>
-                             <span className="text-blue-600">{item.progress || 0}%</span>
-                           </div>
-                           <div className="w-full bg-gray-200 rounded-full h-1.5">
-                             <div 
-                               className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
-                               style={{ width: `${item.progress || 0}%` }}
-                             ></div>
-                           </div>
-                         </div>
-                       )}
+                      {/* Processing: no progress bar; keep layout consistent */}
+                      {item.status === 'processing' && (
+                        <div className="mt-2" />
+                      )}
 
+                      {/* Bottom action area - pinned to bottom for alignment */}
+                      <div className="mt-auto">
+                        <div className="border-t border-gray-200 bg-white -mx-4 -mb-4 px-4 py-3 min-h-[64px] flex items-center">
+                          {item.status === 'failed' && (
+                            <div className="flex gap-3 w-full">
+                              {/* Cover Download Button (Left side) */}
+                              {item.coverImageUrl && (
+                                <button
+                                  onClick={() => item.isV2 ? 
+                                    downloadV2Content(item.id, 'cover', item.videoModel) : 
+                                    downloadV1Cover(item.id)
+                                  }
+                                  className="h-10 flex-1 flex items-center justify-between px-3 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <ImageIcon className="w-4 h-4 text-white" />
+                                    <span>Cover</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-green-400">
+                                    <span className="text-xs font-bold">FREE</span>
+                                  </div>
+                                </button>
+                              )}
+                              
+                              {/* No charge info (Right side) */}
+                              <div className={`${item.coverImageUrl ? 'flex-1' : 'w-full'} flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg`}>
+                                <div className="flex items-center gap-2.5">
+                                  <RotateCcw className="w-4 h-4 text-gray-600" />
+                                  <span className="font-medium text-gray-900">No charge</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-gray-700">
+                                  <Coins className="w-4 h-4" />
+                                  <span className="font-bold">0</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
+                          {item.status === 'completed' && (
+                            <div className="flex gap-3 w-full">
+                              {/* Cover Download Button (Free) - Both V1 and V2 */}
+                              {item.coverImageUrl && (
+                                <button
+                                  onClick={() => handleCoverClick(item)}
+                                  className="flex-1 px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <ImageIcon className="w-4 h-4 text-white" />
+                                    <span>Cover</span>
+                                  </div>
+                                  <AnimatePresence mode="wait" initial={false}>
+                                    <motion.div
+                                      key={coverStates[item.id] || 'free'}
+                                      initial={{ opacity: 0, y: 6 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -6 }}
+                                      transition={{ duration: 0.18 }}
+                                      className="flex items-center gap-1 text-green-400"
+                                    >
+                                      <span className="text-xs font-bold">
+                                        {!coverStates[item.id]
+                                          ? 'FREE'
+                                          : coverStates[item.id] === 'packing'
+                                          ? getPackingText('packing')
+                                          : getPackingText('done')}
+                                      </span>
+                                    </motion.div>
+                                  </AnimatePresence>
+                                </button>
+                              )}
 
-                                           {/* Bottom action area - fixed height for consistency */}
-                     <div className="mt-2">
-                       {/* Bottom action area - unified layout for all states */}
-                       <div className="border-t border-gray-200 bg-white -mx-4 -mb-4 px-4 py-3">
-                         {item.status === 'failed' && (
-                           <div className="flex items-center justify-between">
-                             <div className="flex items-center gap-2.5">
-                               <RotateCcw className="w-4 h-4 text-gray-600" />
-                               <span className="text-sm font-medium text-gray-900">Credits Refunded</span>
-                             </div>
-                             <div className="flex items-center gap-1.5">
-                               <Coins className="w-4 h-4 text-gray-600" />
-                               <span className="text-sm font-bold text-gray-900">{getGenerationCost(item.videoModel)}</span>
-                             </div>
-                           </div>
-                         )}
+                              {/* Video Download Button - Emotional text only, smooth transitions */}
+                              {item.videoUrl && (
+                                <button
+                                  onClick={() => handleVideoClick(item)}
+                                  disabled={downloadingVideo === item.id || videoStates[item.id] === 'packing' || (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)))}
+                                  className={`${item.coverImageUrl ? 'flex-1' : 'w-full'} h-10 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg transition-colors ${
+                                    (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)))
+                                      ? 'text-red-600 hover:bg-red-50'
+                                      : 'text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Video className="w-4 h-4 text-gray-600" />
+                                    <span>Video</span>
+                                  </div>
+                                  <AnimatePresence mode="wait" initial={false}>
+                                    <motion.div
+                                      key={
+                                        !item.downloaded
+                                          ? (videoStates[item.id] || 'cost')
+                                          : (videoStates[item.id] || 'downloaded')
+                                      }
+                                      initial={{ opacity: 0, y: 6 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -6 }}
+                                      transition={{ duration: 0.18 }}
+                                      className={`flex items-center gap-1 ${
+                                        (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)))
+                                          ? 'text-red-600'
+                                          : videoStates[item.id] === 'done'
+                                          ? 'text-green-600'
+                                          : 'text-gray-700'
+                                      }`}
+                                    >
+                                      {(() => {
+                                        const isInsufficient = (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)));
+                                        const isDownloading = videoStates[item.id] === 'packing' || videoStates[item.id] === 'done';
+                                        if (isInsufficient) {
+                                          return (
+                                            <span className="text-xs font-bold">Insufficient</span>
+                                          );
+                                        }
+                                        if (!item.downloaded) {
+                                          if (isDownloading) {
+                                            return (
+                                              <span className="text-xs font-bold">{videoStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
+                                            );
+                                          }
+                                          // Show full model cost with coins icon (30 for veo3_fast, 150 for veo3)
+                                          return (
+                                            <span className="inline-flex items-center gap-1 text-xs font-bold">
+                                              <Coins className="w-3 h-3" />
+                                              {getCreditCost(item.videoModel)}
+                                            </span>
+                                          );
+                                        }
+                                        // Downloaded state
+                                        if (isDownloading) {
+                                          return (
+                                            <span className="text-xs font-bold">{videoStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
+                                          );
+                                        }
+                                        return (
+                                          <span className="text-xs font-bold">Downloaded</span>
+                                        );
+                                      })()}
+                                    </motion.div>
+                                  </AnimatePresence>
+                                </button>
+                              )}
+                            </div>
+                          )}
 
-                         {item.status === 'completed' && item.videoUrl && (
-                           <motion.button
-                             onClick={() => downloadVideo(item.id, item.videoModel)}
-                             disabled={downloadingVideo === item.id || (!item.downloaded && (!userCredits || userCredits < getDownloadCost(item.videoModel)))}
-                             className="w-full text-left hover:bg-gray-50 rounded cursor-pointer transition-colors"
-                             whileHover={{ scale: 1.02 }}
-                             whileTap={{ scale: 0.98 }}
-                           >
-                             <AnimatePresence mode="wait">
-                               <motion.div
-                                 key={`${item.id}-${downloadStates[item.id] || 'idle'}`}
-                                 initial={{ opacity: 0, y: 5 }}
-                                 animate={{ opacity: 1, y: 0 }}
-                                 exit={{ opacity: 0, y: -5 }}
-                                 transition={{ duration: 0.2, ease: "easeInOut" }}
-                                 className="flex items-center justify-between"
-                               >
-                                 <motion.div 
-                                   className="flex items-center gap-2.5"
-                                   layout
-                                 >
-                                   <motion.div
-                                     key={`icon-${downloadStates[item.id] || 'idle'}`}
-                                     initial={{ rotate: -10, scale: 0.8 }}
-                                     animate={{ rotate: 0, scale: 1 }}
-                                     transition={{ duration: 0.3, ease: "backOut" }}
-                                   >
-                                     {getDownloadButtonContent(item).icon}
-                                   </motion.div>
-                                   <motion.span
-                                     key={`text-${downloadStates[item.id] || 'idle'}`}
-                                     initial={{ opacity: 0, x: -10 }}
-                                     animate={{ opacity: 1, x: 0 }}
-                                     transition={{ duration: 0.3, delay: 0.1 }}
-                                     className={`text-sm font-medium ${
-                                       getDownloadButtonContent(item).isInsufficientCredits 
-                                         ? 'text-red-600' 
-                                         : 'text-gray-900'
-                                     }`}
-                                   >
-                                     {getDownloadButtonContent(item).text}
-                                   </motion.span>
-                                 </motion.div>
-                                 {getDownloadButtonContent(item).showCredits && (
-                                   <motion.div
-                                     initial={{ opacity: 0, scale: 0.8 }}
-                                     animate={{ opacity: 1, scale: 1 }}
-                                     exit={{ opacity: 0, scale: 0.8 }}
-                                     transition={{ duration: 0.2 }}
-                                     className="flex items-center gap-1.5"
-                                   >
-                                     <Coins className="w-4 h-4 text-gray-600" />
-                                     <span className="text-sm font-bold text-gray-900">{getDownloadCost(item.videoModel)}</span>
-                                   </motion.div>
-                                 )}
-                               </motion.div>
-                             </AnimatePresence>
-                           </motion.button>
-                         )}
+                          {item.status === 'processing' && (
+                            <div className="flex gap-3 w-full">
+                              {/* Cover placeholder button (keeps layout parity) */}
+                              <button
+                                disabled
+                                className="h-10 flex-1 flex items-center justify-between px-3 text-sm bg-black text-white rounded-lg border border-black opacity-60 cursor-not-allowed"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <ImageIcon className="w-4 h-4 text-white" />
+                                  <span>Cover</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-gray-200">
+                                  <span className="text-xs font-bold">Designing…</span>
+                                </div>
+                              </button>
 
-                         {item.status === 'processing' && (
-                           <div className="flex items-center justify-between">
-                             <div className="flex items-center gap-2.5">
-                               <PlayCircle className="w-4 h-4 text-blue-600 animate-pulse" />
-                               <span className="text-sm font-medium text-blue-600">Processing...</span>
-                             </div>
-                             <div className="flex items-center gap-1.5">
-                               <Coins className="w-4 h-4 text-gray-400" />
-                               <span className="text-sm font-bold text-gray-400">-</span>
-                             </div>
-                           </div>
-                         )}
-                       </div>
-                     </div>
+                              {/* Video generating button with spinner */}
+                              <button
+                                disabled
+                                className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white opacity-80 cursor-wait"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin text-gray-700" />
+                                  <span>Generating…</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-gray-700">
+                                  <span className="text-xs font-bold">{item.progress || 0}%</span>
+                                </div>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}

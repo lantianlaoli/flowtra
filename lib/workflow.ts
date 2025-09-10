@@ -1,8 +1,8 @@
 import { getSupabase } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { httpRequestWithRetry } from '@/lib/httpRequest';
-import { getCreditCost, getGenerationCost, CREDIT_COSTS } from '@/lib/constants';
-import { checkCredits, deductCredits, recordCreditTransaction, getUserCredits } from '@/lib/credits';
+import { getCreditCost, CREDIT_COSTS } from '@/lib/constants';
+import { getUserCredits } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
   imageUrl: string;
@@ -40,8 +40,7 @@ export async function startWorkflowProcess({
       return { success: false, error: 'Image URL is required', message: 'Image URL is required' };
     }
 
-    // Check and deduct generation credits (40%) for authenticated users
-    let generationCreditsUsed = 0;
+  // Generation is free now; only deduct on download
     let actualModel: 'veo3' | 'veo3_fast';
     
     // Resolve auto mode to actual model
@@ -53,86 +52,23 @@ export async function startWorkflowProcess({
       actualModel = videoModel;
     }
     
-    if (userId) {
-      // Resolve auto mode to actual model based on user credits
-      if (videoModel === 'auto') {
-        // Get user credits to determine best model
-        const userCreditsResult = await getUserCredits(userId);
-        if (userCreditsResult.success && userCreditsResult.credits) {
-          const userCredits = userCreditsResult.credits.credits_remaining;
-          // Choose best model user can afford
-          if (userCredits >= CREDIT_COSTS.veo3) {
-            actualModel = 'veo3';
-          } else if (userCredits >= CREDIT_COSTS.veo3_fast) {
-            actualModel = 'veo3_fast';
-          } else {
-            return {
-              success: false,
-              error: 'Insufficient credits',
-              message: `Insufficient credits. Need at least ${CREDIT_COSTS.veo3_fast}, have ${userCredits}`
-            };
-          }
+    // For auto mode we still choose a model based on credits visibility, but we do not deduct now.
+    if (userId && videoModel === 'auto') {
+      const userCreditsResult = await getUserCredits(userId);
+      if (userCreditsResult.success && userCreditsResult.credits) {
+        const userCredits = userCreditsResult.credits.credits_remaining;
+        if (userCredits >= CREDIT_COSTS.veo3) {
+          actualModel = 'veo3';
+        } else if (userCredits >= CREDIT_COSTS.veo3_fast) {
+          actualModel = 'veo3_fast';
         } else {
-          return {
-            success: false,
-            error: 'Failed to get user credits',
-            message: 'Failed to get user credits'
-          };
+          // If the user cannot afford any model, fallback to veo3_fast for generation preview
+          actualModel = 'veo3_fast';
         }
       }
-      
-      generationCreditsUsed = getGenerationCost(actualModel);
-      console.log('💰 Credits calculation:', {
-        originalVideoModel: videoModel,
-        actualModel,
-        totalCost: getCreditCost(actualModel),
-        generationCost: generationCreditsUsed
-      });
-      
-      // Check if user has enough credits (need at least generation cost upfront)
-      console.log('🔍 Checking credits for user:', userId, 'required:', generationCreditsUsed);
-      const checkResult = await checkCredits(userId, generationCreditsUsed);
-      console.log('📊 Credits check result:', checkResult);
-      
-      if (!checkResult.success) {
-        console.error('❌ Credits check failed:', checkResult.error);
-        return { 
-          success: false, 
-          error: checkResult.error || 'Failed to check credits', 
-          message: checkResult.error || 'Failed to check credits' 
-        };
-      }
-      
-      if (!checkResult.hasEnoughCredits) {
-        console.error('❌ Insufficient credits:', {
-          required: generationCreditsUsed,
-          current: checkResult.currentCredits
-        });
-        return { 
-          success: false, 
-          error: 'Insufficient credits', 
-          message: `Insufficient credits. Need ${generationCreditsUsed}, have ${checkResult.currentCredits || 0}` 
-        };
-      }
-      
-      console.log('✅ Credits check passed, deducting generation credits...');
-      // Deduct generation credits immediately
-      const deductResult = await deductCredits(userId, generationCreditsUsed);
-      console.log('💸 Credits deduction result:', deductResult);
-      
-      if (!deductResult.success) {
-        console.error('❌ Credits deduction failed:', deductResult.error);
-        return { 
-          success: false, 
-          error: deductResult.error || 'Failed to deduct credits', 
-          message: deductResult.error || 'Failed to deduct credits' 
-        };
-      }
-      
-      console.log(`✅ Deducted ${generationCreditsUsed} generation credits from user ${userId} at workflow start. Remaining: ${deductResult.remainingCredits}`);
     }
 
-    // Create history record after successful credit deduction
+    // Create history record (no credit deduction at generation)
     let historyRecord = null;
     if (userId) {
       const supabase = getSupabase();
@@ -143,7 +79,7 @@ export async function startWorkflowProcess({
             original_image_url: imageUrl,
             video_model: actualModel, // Use resolved model, not original
             credits_used: getCreditCost(actualModel), // Total cost for reference
-            generation_credits_used: generationCreditsUsed,
+            generation_credits_used: 0,
             workflow_status: 'started',
             current_step: 'describing',
             progress_percentage: 5,
@@ -155,35 +91,10 @@ export async function startWorkflowProcess({
 
       if (error) {
         console.error('Failed to create history record:', error);
-        
-        // Refund generation credits if history creation fails
-        const refundResult = await deductCredits(userId, -generationCreditsUsed); // Negative amount adds credits back
-        if (refundResult.success) {
-          await recordCreditTransaction(
-            userId,
-            'refund',
-            generationCreditsUsed,
-            'Refund for failed workflow creation',
-            undefined,
-            true
-          );
-          console.log(`↩️ Refunded ${generationCreditsUsed} generation credits due to history creation failure`);
-        }
-        
         return { success: false, error: 'Failed to create workflow record', message: 'Failed to create workflow record' };
       }
       
       historyRecord = data;
-      
-      // Record the initial generation credit deduction transaction
-      await recordCreditTransaction(
-        userId,
-        'usage',
-        generationCreditsUsed,
-        `Video generation started - ${videoModel === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'} (40%)`,
-        historyRecord.id,
-        true // useAdminClient
-      );
     }
 
     console.log(`Starting workflow for user ${userId}, history ${historyRecord?.id}`);
@@ -262,13 +173,13 @@ export async function startWorkflowProcess({
         message: 'Workflow started successfully. Cover and video generation in progress.',
         coverTaskId: coverTaskId,
         remainingCredits: finalRemainingCredits,
-        creditsUsed: generationCreditsUsed
+        creditsUsed: 0
       };
 
     } catch (error) {
       console.error('Workflow error:', error);
       
-      // Update status to failed and refund credits
+      // Update status to failed
       if (historyRecord) {
         const supabase = getSupabase();
         await supabase
@@ -279,24 +190,6 @@ export async function startWorkflowProcess({
             last_processed_at: new Date().toISOString()
           })
           .eq('id', historyRecord.id);
-          
-        // Refund generation credits for workflow failure
-        if (userId && generationCreditsUsed > 0) {
-          const refundResult = await deductCredits(userId, -generationCreditsUsed); // Negative amount adds credits back
-          if (refundResult.success) {
-            await recordCreditTransaction(
-              userId,
-              'refund',
-              generationCreditsUsed,
-              'Refund for failed workflow',
-              historyRecord.id,
-              true
-            );
-            console.log(`↩️ Refunded ${generationCreditsUsed} generation credits due to workflow failure for user ${userId}`);
-          } else {
-            console.error(`Failed to refund generation credits for workflow failure:`, refundResult.error);
-          }
-        }
       }
 
       return {
@@ -336,7 +229,7 @@ async function updateWorkflowProgress(historyId: string | undefined, step: strin
 
 async function describeImage(imageUrl: string): Promise<string> {
   const requestBody = JSON.stringify({
-    model: process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-lite-001',
+    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4.1-mini',
     messages: [
       {
         role: 'user',
@@ -371,7 +264,7 @@ async function describeImage(imageUrl: string): Promise<string> {
         'User-Agent': 'Flowtra/1.0'
       },
       body: requestBody
-    }, 2, 10000);
+    }, 3, 30000);
 
     if (!response.ok) {
       const errorData = await response.text();
@@ -460,7 +353,7 @@ Respond ONLY with the following structured JSON:
 }`;
 
   const requestBody = JSON.stringify({
-    model: process.env.OPENROUTER_TEXT_MODEL || 'openai/gpt-4o',
+    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4.1-mini',
     messages: [
       {
         role: 'system',
@@ -526,7 +419,7 @@ Respond ONLY with the following structured JSON:
         'User-Agent': 'Flowtra/1.0'
       },
       body: requestBody
-    }, 2, 10000);
+    }, 3, 30000);
 
     if (!response.ok) {
       const errorData = await response.text();

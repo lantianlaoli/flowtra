@@ -339,7 +339,7 @@ export async function addCredits(userId: string, creditsToAdd: number, creemId?:
 
 // Record a credit transaction
 export async function recordCreditTransaction(
-  userId: string, 
+  userId: string,
   type: 'usage' | 'purchase' | 'refund',
   amount: number,
   description: string,
@@ -351,39 +351,51 @@ export async function recordCreditTransaction(
   error?: string
 }> {
   try {
-    // Use admin client if specified (e.g., for webhooks) to bypass RLS
-    const client = useAdminClient ? getSupabaseAdmin() : getSupabase()
-    
-    const { data: transaction, error } = await client
+    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // Prefer admin client when requested and available; otherwise fallback to public client
+    const usedAdmin = useAdminClient && hasServiceKey;
+    const primaryClient = usedAdmin ? getSupabaseAdmin() : getSupabase();
+
+    const payload = {
+      user_id: userId,
+      type,
+      amount: type === 'usage' ? -amount : amount,
+      description,
+      history_id: historyId || null
+    } as const;
+
+    let transaction: CreditTransaction | null = null;
+    let error: unknown;
+    const primary = await primaryClient
       .from('credit_transactions')
-      .insert({
-        user_id: userId,
-        type,
-        amount: type === 'usage' ? -amount : amount, // Make usage negative
-        description,
-        history_id: historyId || null
-      })
+      .insert(payload)
       .select()
-      .single()
+      .single();
+    transaction = (primary.data as CreditTransaction | null) ?? null;
+    error = primary.error;
+
+    // If the public client hits RLS, retry with admin if available
+    if (error && !usedAdmin && hasServiceKey) {
+      console.warn('recordCreditTransaction public client failed, retrying with admin:', error);
+      const adminClient = getSupabaseAdmin();
+      const retry = await adminClient
+        .from('credit_transactions')
+        .insert(payload)
+        .select()
+        .single();
+      transaction = (retry.data as CreditTransaction | null) ?? null;
+      error = retry.error;
+    }
 
     if (error) {
-      console.error('Failed to record transaction:', error)
-      return {
-        success: false,
-        error: 'Failed to record transaction'
-      }
+      console.error('Failed to record transaction:', error);
+      return { success: false, error: 'Failed to record transaction' };
     }
 
-    return {
-      success: true,
-      transaction
-    }
+    return { success: true, transaction: transaction ?? undefined };
   } catch (error) {
-    console.error('Record transaction error:', error)
-    return {
-      success: false,
-      error: 'Something went wrong'
-    }
+    console.error('Record transaction error:', error);
+    return { success: false, error: 'Something went wrong' };
   }
 }
 

@@ -12,14 +12,13 @@ import {
   User,
   Lock,
   Coins,
-  Clock,
   Sparkles,
-  Download,
-  Play
+  Play,
+  Banana
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import FeedbackWidget from '@/components/FeedbackWidget';
-import { CREDIT_COSTS, canAffordModel, getAutoModeSelection, getProcessingTime, getGenerationCost, getDownloadCost } from '@/lib/constants';
+import { CREDIT_COSTS, canAffordModel, getAutoModeSelection, getProcessingTime } from '@/lib/constants';
 
 interface SidebarProps {
   credits?: number;
@@ -41,7 +40,13 @@ const navigation = [
     icon: Sparkles
   },
   {
-    name: 'My Videos',
+    name: 'Generate Ad v2',
+    href: '/dashboard/generate-v2',
+    icon: Banana,
+    
+  },
+  {
+    name: 'My Ads',
     href: '/dashboard/videos',
     icon: Play
   },
@@ -52,7 +57,7 @@ const navigation = [
   }
 ];
 
-export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelChange, userEmail, userImageUrl }: SidebarProps) {
+export default function Sidebar({ credits = 0, selectedModel, onModelChange, userEmail, userImageUrl }: SidebarProps) {
   // Model options for dropdown with credit costs and processing times
   const getModelOptions = () => {
     const autoSelection = getAutoModeSelection(credits);
@@ -93,6 +98,9 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
   // Custom dropdown state
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Persisted model selection
+  const [internalModel, setInternalModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
+  const modelToUse: 'auto' | 'veo3' | 'veo3_fast' = selectedModel ?? internalModel;
   
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -106,13 +114,47 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  const selectedOption = modelOptions.find(opt => opt.value === selectedModel);
+  const selectedOption = modelOptions.find(opt => opt.value === modelToUse);
   
   const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast', affordable: boolean) => {
     if (!affordable) return; // Prevent selection of unaffordable options
     onModelChange?.(value);
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('flowtra_video_model', value);
+      }
+    } catch {}
+    setInternalModel(value);
     setIsOpen(false);
   };
+
+  // Initialize from localStorage once on mount
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem('flowtra_video_model') as 'auto' | 'veo3' | 'veo3_fast' | null;
+        if (stored === 'auto' || stored === 'veo3' || stored === 'veo3_fast') {
+          setInternalModel(stored);
+          if (onModelChange && selectedModel !== stored) {
+            onModelChange(stored);
+          }
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep internal state in sync if parent controls it
+  useEffect(() => {
+    if (selectedModel) {
+      setInternalModel(selectedModel);
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('flowtra_video_model', selectedModel);
+        }
+      } catch {}
+    }
+  }, [selectedModel]);
 
   return (
     <div className="w-64 bg-white border-r border-gray-300 h-screen flex flex-col fixed left-0 top-0">
@@ -185,7 +227,7 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
                       !option.affordable 
                         ? "cursor-not-allowed opacity-50 bg-gray-50" 
                         : "hover:bg-gray-100 cursor-pointer",
-                      selectedModel === option.value 
+                      modelToUse === option.value 
                         ? "bg-gray-100 text-gray-900" 
                         : "text-gray-700"
                     )}
@@ -207,7 +249,7 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
                         </div>
                       )}
                     </div>
-                    {selectedModel === option.value && option.affordable && (
+                    {modelToUse === option.value && option.affordable && (
                       <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
                         <Check className="h-2.5 w-2.5 text-white" />
                       </div>
@@ -217,39 +259,7 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
               </div>
             )}
           </div>
-          {selectedOption?.showCost && (
-            <div className="mt-2 flex items-center justify-center text-xs text-gray-600 bg-gray-50 rounded-md px-2 py-1.5 border border-gray-200">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-gray-500" />
-                  <span className={cn(
-                    "font-medium",
-                    selectedOption.affordable ? "text-gray-700" : "text-red-500"
-                  )}>
-                    {selectedOption.value === 'auto' 
-                      ? getGenerationCost(getAutoModeSelection(credits) || 'veo3_fast')
-                      : getGenerationCost(selectedOption.value as keyof typeof CREDIT_COSTS)}
-                  </span>
-                </div>
-                <span className="text-gray-400">•</span>
-                <div className="flex items-center gap-1">
-                  <Download className="w-3 h-3 text-gray-500" />
-                  <span className="font-medium text-gray-700">
-                    {selectedOption.value === 'auto' 
-                      ? getDownloadCost(getAutoModeSelection(credits) || 'veo3_fast')
-                      : getDownloadCost(selectedOption.value as keyof typeof CREDIT_COSTS)}
-                  </span>
-                </div>
-                <span className="text-gray-400">•</span>
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-gray-500" />
-                  <span className="font-medium text-gray-700">
-                    {selectedOption.processingTime}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Removed summary of cost/time beneath model selector per request */}
         </div>
         
         {/* Credits Display */}
@@ -283,7 +293,7 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150',
+                  'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150 relative',
                   isActive
                     ? 'bg-gray-100 text-gray-900'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -293,7 +303,12 @@ export default function Sidebar({ credits = 0, selectedModel = 'auto', onModelCh
                   'w-4 h-4 transition-colors duration-150',
                   isActive ? 'text-gray-900' : 'text-gray-500 group-hover:text-gray-700'
                 )} />
-                {item.name}
+                <span className="flex-1">{item.name}</span>
+                {('badge' in item) && (
+                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
+                    {(item as { badge: string }).badge}
+                  </span>
+                )}
               </Link>
             );
           })}
