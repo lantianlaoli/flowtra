@@ -6,6 +6,9 @@ import { Metadata } from 'next';
 import { getArticleBySlug, getAllArticles, calculateReadingTime, extractExcerpt } from '@/lib/supabase';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 
+// Revalidate individual article pages so content updates without redeploys
+export const revalidate = 60; // seconds
+
 interface BlogArticlePageProps {
   params: Promise<{ slug: string }>;
 }

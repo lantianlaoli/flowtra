@@ -3,6 +3,9 @@ import Image from 'next/image';
 import { CalendarIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { getAllArticles, calculateReadingTime, extractExcerpt } from '@/lib/supabase';
 
+// Revalidate the blog index periodically to pick up new posts
+export const revalidate = 60; // seconds
+
 function truncate(text: string, max: number) {
   const t = (text || '').replace(/\s+/g, ' ').trim();
   return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t;
