@@ -19,7 +19,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         rehypePlugins={[
           rehypeHighlight,
           rehypeSlug,
-          [rehypeAutolinkHeadings, { behavior: 'wrap' }]
+          [rehypeAutolinkHeadings, { behavior: 'wrap', properties: { className: ['heading-link'] } }]
         ]}
         components={{
           // Custom components for Notion-style rendering
@@ -97,16 +97,23 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
               {children}
             </td>
           ),
-          a: ({ children, href }) => (
-            <a
-              href={href}
-              className="text-gray-900 underline hover:text-gray-700 transition-colors"
-              target={href?.startsWith('http') ? '_blank' : '_self'}
-              rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
-            >
-              {children}
-            </a>
-          ),
+          a: ({ children, href, className }) => {
+            const cls = typeof className === 'string' ? className : '';
+            const isHeadingLink = cls.includes('heading-link');
+            const base = 'text-gray-900 hover:text-gray-700 transition-colors';
+            const tail = isHeadingLink ? 'no-underline hover:no-underline' : 'underline';
+            const linkClass = `${cls ? cls + ' ' : ''}${base} ${tail}`;
+            return (
+              <a
+                href={href}
+                className={linkClass}
+                target={href?.startsWith('http') ? '_blank' : '_self'}
+                rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
+              >
+                {children}
+              </a>
+            );
+          },
           strong: ({ children }) => (
             <strong className="font-semibold text-gray-900">
               {children}

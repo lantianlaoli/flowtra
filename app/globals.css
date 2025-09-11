@@ -313,6 +313,12 @@ body {
   transition: color 0.2s ease;
 }
 
+/* Do not underline auto-linked Markdown headings */
+.markdown-rendered a.heading-link,
+.markdown-rendered a.heading-link:hover {
+  text-decoration: none !important;
+}
+
 .markdown-rendered a:hover {
   color: #374151;
 }

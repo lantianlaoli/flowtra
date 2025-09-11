@@ -44,7 +44,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 
     return (
       <div 
-        className="relative group"
+        className="relative group w-full h-full"
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
@@ -73,9 +73,10 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           <button
             type="button"
             onClick={handleClickEnable}
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-sm hover:bg-black/80"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-sm hover:bg-black/80 whitespace-nowrap"
           >
-            Click to enable sound
+            <span className="sm:hidden">Unmute</span>
+            <span className="hidden sm:inline">Click to enable sound</span>
           </button>
         )}
         {showControls && audioEnabled && (
