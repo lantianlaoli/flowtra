@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "AI Marketing Blog - Expert E-commerce Strategies",
     description: "Professional insights on AI-powered marketing, video advertising, and e-commerce growth strategies.",
-    url: 'https://flowtra.com/blog',
+    url: 'https://www.flowtra.store/blog',
   },
   alternates: {
     canonical: '/blog',

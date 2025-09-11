@@ -8,7 +8,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Flowtra - AI-Powered E-commerce Ad Generation",
-  description: "Create professional video ads from product photos using AI. Generate Amazon, Walmart, and local store advertisements in seconds. Try free with 30 credits.",
+  description: "Transform product photos into professional video ads using AI. Generate Amazon, Walmart & local store advertisements in seconds. Start with 100 free credits - no signup required.",
   keywords: [
     "AI video ads",
     "product advertisement generator",
@@ -19,7 +19,11 @@ export const metadata: Metadata = {
     "automated marketing content",
     "AI advertisement maker",
     "retail store marketing videos",
-    "AI video ads from photos"
+    "AI video ads from photos",
+    "create Amazon product videos with AI",
+    "automated video ads for ecommerce",
+    "product photo to video converter",
+    "AI advertising tool for online stores"
   ],
   authors: [{ name: "Flowtra Team" }],
   creator: "Flowtra",
@@ -29,14 +33,14 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://flowtra.com'),
+  metadataBase: new URL('https://www.flowtra.store'),
   alternates: {
     canonical: '/',
   },
   openGraph: {
     title: "Flowtra - AI-Powered E-commerce Ad Generation",
-    description: "Create professional video ads from product photos using AI. Generate Amazon, Walmart, and local store advertisements in seconds. Try free with 30 credits.",
-    url: 'https://flowtra.com',
+    description: "Transform product photos into professional video ads using AI. Generate Amazon, Walmart & local store advertisements in seconds. Start with 100 free credits - no signup required.",
+    url: 'https://www.flowtra.store',
     siteName: 'Flowtra',
     images: [
       {
@@ -52,7 +56,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Flowtra - AI-Powered E-commerce Ad Generation',
-    description: 'Create professional video ads from product photos using AI. Generate Amazon, Walmart, and local store ads.',
+    description: 'Transform product photos into professional video ads using AI. Generate Amazon, Walmart & local store ads. Start with 100 free credits.',
     images: ['/twitter-image.jpg'],
     creator: '@flowtra',
   },
@@ -110,7 +114,7 @@ export default function RootLayout({
                 '@type': 'SoftwareApplication',
                 name: 'Flowtra - AI Ad Generator',
                 description: 'AI-powered e-commerce advertisement generation platform that creates professional video ads and cover images from product photos using advanced machine learning.',
-                url: 'https://flowtra.com',
+                url: 'https://www.flowtra.store',
                 applicationCategory: 'BusinessApplication',
                 operatingSystem: 'Web',
                 browserRequirements: 'Requires JavaScript. Requires HTML5.',
@@ -149,10 +153,10 @@ export default function RootLayout({
                 publisher: {
                   '@type': 'Organization',
                   name: 'Flowtra',
-                  url: 'https://flowtra.com',
+                  url: 'https://www.flowtra.store',
                   logo: {
                     '@type': 'ImageObject',
-                    url: 'https://flowtra.com/logo.png',
+                    url: 'https://www.flowtra.store/logo.png',
                     width: '200',
                     height: '60'
                   }
@@ -166,22 +170,22 @@ export default function RootLayout({
                   'E-commerce Marketing Automation',
                   'Advanced Analytics and Performance Tracking'
                 ],
-                screenshot: 'https://flowtra.com/app-screenshot.jpg',
+                screenshot: 'https://www.flowtra.store/app-screenshot.jpg',
                 video: {
                   '@type': 'VideoObject',
                   name: 'Flowtra Demo - AI Ad Generation',
                   description: 'See how Flowtra creates professional video advertisements from product photos using advanced AI technology',
-                  thumbnailUrl: 'https://flowtra.com/demo-thumbnail.jpg',
+                  thumbnailUrl: 'https://www.flowtra.store/demo-thumbnail.jpg',
                   uploadDate: '2024-01-15T12:00:00+00:00',
-                  contentUrl: 'https://flowtra.com/demo-video.mp4',
+                  contentUrl: 'https://www.flowtra.store/demo-video.mp4',
                   duration: 'PT45S',
-                  embedUrl: 'https://flowtra.com/demo-video-embed',
+                  embedUrl: 'https://www.flowtra.store/demo-video-embed',
                   publisher: {
                     '@type': 'Organization',
                     name: 'Flowtra',
                     logo: {
                       '@type': 'ImageObject',
-                      url: 'https://flowtra.com/logo.png'
+                      url: 'https://www.flowtra.store/logo.png'
                     }
                   }
                 }

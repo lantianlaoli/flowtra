@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Powerful AI Features for Modern E-commerce Marketing",
     description: "Advanced AI analysis, professional video generation, smart analytics, and enterprise security. Everything you need to create converting advertisements.",
-    url: 'https://flowtra.com/features',
+    url: 'https://www.flowtra.store/features',
     images: [
       {
         url: '/features-og-image.jpg',

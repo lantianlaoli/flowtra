@@ -22,7 +22,7 @@ export default function DemoVideoSchema({ videoUrl, title, description }: DemoVi
       name: 'Flowtra',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://flowtra.com/logo.png'
+        url: 'https://www.flowtra.store/logo.png'
       }
     },
     genre: ['Advertising', 'E-commerce', 'AI Technology'],

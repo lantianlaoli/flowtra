@@ -16,4 +16,4 @@ Allow: /terms
 Allow: /privacy
 
 # Sitemap location
-Sitemap: https://flowtra.com/sitemap.xml
+Sitemap: https://www.flowtra.store/sitemap.xml
