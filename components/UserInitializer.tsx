@@ -4,9 +4,11 @@ import { useUser } from '@clerk/nextjs'
 import { useEffect, useRef } from 'react'
 import { getUserCredits, initializeUserCredits } from '@/lib/credits'
 import { INITIAL_FREE_CREDITS } from '@/lib/constants'
+import { useCredits } from '@/contexts/CreditsContext'
 
 export function UserInitializer() {
   const { user, isLoaded } = useUser()
+  const { refetchCredits } = useCredits()
   const initializationRef = useRef(new Set<string>())
 
   useEffect(() => {
@@ -36,6 +38,8 @@ export function UserInitializer() {
             console.log(`✅ Credits initialized successfully for user: ${userId} with ${INITIAL_FREE_CREDITS} free credits`)
             // Mark as initialized in localStorage to prevent future attempts
             localStorage.setItem(storageKey, 'true')
+            // Refresh credits in the context to update UI immediately
+            await refetchCredits()
           } else {
             console.error('❌ Failed to initialize credits for user:', userId, createResult.error)
             // Don't mark as initialized if it failed
@@ -58,7 +62,7 @@ export function UserInitializer() {
     if (isLoaded && user?.id) {
       initializeUser(user.id)
     }
-  }, [isLoaded, user?.id])
+  }, [isLoaded, user?.id, refetchCredits])
 
   // This component renders nothing
   return null

@@ -194,8 +194,8 @@ export default function RootLayout({
           />
         </head>
         <body className="antialiased">
-          <UserInitializer />
           <CreditsProvider>
+            <UserInitializer />
             {children}
           </CreditsProvider>
           <Analytics />
