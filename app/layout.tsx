@@ -7,23 +7,27 @@ import { SpeedInsights } from '@vercel/speed-insights/react'
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Flowtra - AI-Powered E-commerce Ad Generation",
-  description: "Transform product photos into professional video ads using AI. Generate Amazon, Walmart & local store advertisements in seconds. Start with 100 free credits - no signup required.",
+  title: "Flowtra - AI Video Ads for Small Business | Under $1 Per Video",
+  description: "Create professional video ads for your small business in under 1 minute. Transform product photos into Etsy, Amazon, Walmart & social media ads. Starting under $1/video - perfect for small retailers and creators.",
   keywords: [
-    "AI video ads",
+    "Etsy video ads creator",
+    "small business video ads under $1",
+    "handmade product video marketing",
+    "craft business advertising tools",
+    "Etsy seller marketing videos",
+    "AI video ads for small business",
     "product advertisement generator",
     "Amazon product ads",
     "Walmart advertising tools",
-    "local store video ads",
-    "e-commerce video creation",
-    "automated marketing content",
-    "AI advertisement maker",
-    "retail store marketing videos",
+    "affordable AI marketing tools",
+    "video ads for handmade products",
+    "small retailer marketing videos",
     "AI video ads from photos",
-    "create Amazon product videos with AI",
-    "automated video ads for ecommerce",
+    "under 1 minute video creation",
     "product photo to video converter",
-    "AI advertising tool for online stores"
+    "cheap video ad generator",
+    "craft business video marketing",
+    "makers and creators video tools"
   ],
   authors: [{ name: "Flowtra Team" }],
   creator: "Flowtra",
@@ -38,8 +42,8 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: "Flowtra - AI-Powered E-commerce Ad Generation",
-    description: "Transform product photos into professional video ads using AI. Generate Amazon, Walmart & local store advertisements in seconds. Start with 100 free credits - no signup required.",
+    title: "Flowtra - AI Video Ads for Small Business | Under $1 Per Video",
+    description: "Create professional video ads for your small business in under 1 minute. Transform product photos into Etsy, Amazon, Walmart & social media ads. Starting under $1/video - perfect for small retailers and creators.",
     url: 'https://www.flowtra.store',
     siteName: 'Flowtra',
     images: [
@@ -47,7 +51,7 @@ export const metadata: Metadata = {
         url: '/opengraph-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Flowtra - AI-Powered E-commerce Ad Generation',
+        alt: 'Flowtra - AI Video Ads for Small Business Under $1',
       }
     ],
     locale: 'en_US',
@@ -55,8 +59,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Flowtra - AI-Powered E-commerce Ad Generation',
-    description: 'Transform product photos into professional video ads using AI. Generate Amazon, Walmart & local store ads. Start with 100 free credits.',
+    title: 'Flowtra - AI Video Ads for Small Business | Under $1 Per Video',
+    description: 'Create professional video ads for your small business in under 1 minute. Transform product photos into Etsy, Amazon, Walmart & social media ads. Under $1/video.',
     images: ['/twitter-image.jpg'],
     creator: '@flowtra',
   },
@@ -112,8 +116,8 @@ export default function RootLayout({
               __html: JSON.stringify({
                 '@context': 'https://schema.org',
                 '@type': 'SoftwareApplication',
-                name: 'Flowtra - AI Ad Generator',
-                description: 'AI-powered e-commerce advertisement generation platform that creates professional video ads and cover images from product photos using advanced machine learning.',
+                name: 'Flowtra - AI Video Ads for Small Business',
+                description: 'AI-powered video advertisement generation platform designed for small businesses, Etsy sellers, makers and creators. Create professional video ads from product photos in under 1 minute for under $1.',
                 url: 'https://www.flowtra.store',
                 applicationCategory: 'BusinessApplication',
                 operatingSystem: 'Web',
@@ -162,13 +166,13 @@ export default function RootLayout({
                   }
                 },
                 featureList: [
-                  'AI Video Generation using VEO3 Models',
-                  'Intelligent Product Image Analysis',
-                  'Automated Advertisement Creation',
-                  'Professional Cover Image Generation',
-                  'Multi-Platform Export (Amazon, Walmart)',
-                  'E-commerce Marketing Automation',
-                  'Advanced Analytics and Performance Tracking'
+                  'AI Video Generation for Small Business',
+                  'Under $1 Video Ad Creation',
+                  'Etsy, Amazon, Walmart Ad Generation',
+                  'Professional Video Ads in Under 1 Minute',
+                  'Handmade Product Video Marketing',
+                  'Small Retailer Marketing Automation',
+                  'Craft Business Video Advertisement Tools'
                 ],
                 screenshot: 'https://www.flowtra.store/app-screenshot.jpg',
                 video: {

@@ -70,11 +70,11 @@ export default function LandingPage() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
-              AI Ads from Your Product Photos
+              Professional Video Ads for <u>Small Business</u>
             </h1>
             
             <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-              Turn a single image into ready-to-use video ads for Amazon, Walmart, and local stores.
+              Turn photos into Etsy, Amazon & social ads.
             </p>
 
             {/* CTA Buttons */}
@@ -86,7 +86,7 @@ export default function LandingPage() {
                 >
                   <Sparkles className="w-5 h-5" />
                   <span className="sm:hidden">start</span>
-                  <span className="hidden sm:inline">Start Now</span>
+                  <span className="hidden sm:inline">Create My First Ad</span>
                 </button>
               ) : (
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard?upload=true">
@@ -95,7 +95,7 @@ export default function LandingPage() {
                   >
                     <Sparkles className="w-5 h-5" />
                     <span className="sm:hidden">start</span>
-                    <span className="hidden sm:inline">Start Now</span>
+                    <span className="hidden sm:inline">Create My First Ad</span>
                   </button>
                 </SignInButton>
               )}
