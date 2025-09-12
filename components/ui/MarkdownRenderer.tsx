@@ -1,14 +1,52 @@
 'use client';
 
+import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
+import { visit } from 'unist-util-visit';
+import Image from 'next/image';
+import { BlogVideoPlayer } from './BlogVideoPlayer';
+import { VideoEmbed } from './VideoEmbed';
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+}
+
+// Helper function to detect video files
+const isVideoFile = (src: string): boolean => {
+  const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.avi'];
+  const url = src.toLowerCase();
+  return videoExtensions.some(ext => url.includes(ext));
+};
+
+// Helper function to detect video platform URLs
+const isVideoEmbed = (src: string): boolean => {
+  const platforms = ['youtube.com', 'youtu.be', 'bilibili.com', 'vimeo.com'];
+  return platforms.some(platform => src.includes(platform));
+};
+
+// Rehype plugin to unwrap video images from paragraphs
+function rehypeUnwrapVideos() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (tree: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    visit(tree, 'element', (node: any, index: number | undefined, parent: any) => {
+      if (index !== undefined && node.tagName === 'p' && node.children && node.children.length === 1) {
+        const child = node.children[0];
+        if (child.tagName === 'img') {
+          const src = child.properties?.src;
+          if (src && (isVideoFile(src) || isVideoEmbed(src))) {
+            // Replace paragraph with the image directly
+            parent.children[index] = child;
+          }
+        }
+      }
+    });
+  };
 }
 
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
@@ -19,7 +57,8 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         rehypePlugins={[
           rehypeHighlight,
           rehypeSlug,
-          [rehypeAutolinkHeadings, { behavior: 'wrap', properties: { className: ['heading-link'] } }]
+          [rehypeAutolinkHeadings, { behavior: 'wrap', properties: { className: ['heading-link'] } }],
+          rehypeUnwrapVideos
         ]}
         components={{
           // Custom components for Notion-style rendering
@@ -38,11 +77,36 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
               {children}
             </h3>
           ),
-          p: ({ children }) => (
-            <p className="text-gray-700 leading-relaxed mb-4">
-              {children}
-            </p>
-          ),
+          p: ({ children }) => {
+            // Convert children to array for analysis
+            const childrenArray = React.Children.toArray(children);
+            
+            // Check if this paragraph contains only one child that will render as a block element
+            if (childrenArray.length === 1) {
+              const child = childrenArray[0];
+              if (React.isValidElement(child)) {
+                // Check if it's an image that our img component will transform to video
+                if (child.type === 'img' && (child.props as { src?: string }).src) {
+                  const src = (child.props as { src: string }).src;
+                  if (isVideoFile(src) || isVideoEmbed(src)) {
+                    // Render the img component directly without paragraph wrapper
+                    return child;
+                  }
+                }
+                // Check if it's already a video component
+                if (child.type === BlogVideoPlayer || child.type === VideoEmbed) {
+                  return child;
+                }
+              }
+            }
+
+            // Normal paragraph for all other cases
+            return (
+              <p className="text-gray-700 leading-relaxed mb-4">
+                {children}
+              </p>
+            );
+          },
           ul: ({ children }) => (
             <ul className="list-disc list-inside space-y-2 mb-4 text-gray-700">
               {children}
@@ -124,6 +188,59 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
               {children}
             </em>
           ),
+          img: ({ src, alt }) => {
+            if (!src || typeof src !== 'string') return null;
+            
+            // Check if it's a video file
+            if (isVideoFile(src)) {
+              return (
+                <BlogVideoPlayer
+                  src={src}
+                  alt={alt}
+                  className="my-4"
+                />
+              );
+            }
+            
+            // Check if it's a video platform URL
+            if (isVideoEmbed(src)) {
+              return (
+                <VideoEmbed
+                  url={src}
+                  className="my-4"
+                />
+              );
+            }
+            
+            // Regular image
+            return (
+              <Image
+                src={src}
+                alt={alt || 'Image'}
+                width={800}
+                height={600}
+                className="rounded-lg my-4 max-w-full h-auto"
+                style={{ width: 'auto', height: 'auto' }}
+              />
+            );
+          },
+          // Handle HTML video tags directly
+          video: ({ src, controls, autoPlay, loop, muted, poster }) => {
+            const videoSrc = typeof src === 'string' ? src : '';
+            const videoPoster = typeof poster === 'string' ? poster : undefined;
+            
+            return (
+              <BlogVideoPlayer
+                src={videoSrc}
+                controls={controls !== false}
+                autoplay={autoPlay === true}
+                loop={loop === true}
+                muted={muted === true}
+                poster={videoPoster}
+                className="my-4"
+              />
+            );
+          },
         }}
       >
         {content}
