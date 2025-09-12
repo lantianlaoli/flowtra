@@ -10,7 +10,7 @@ Disallow: /admin/
 
 # Allow important pages
 Allow: /
-Allow: /features
+Allow: /blog
 Allow: /pricing
 Allow: /terms
 Allow: /privacy
