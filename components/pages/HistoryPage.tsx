@@ -776,19 +776,51 @@ export default function HistoryPage() {
 
                           {item.status === 'processing' && (
                             <div className="flex gap-3 w-full">
-                              {/* Cover placeholder button (keeps layout parity) */}
-                              <button
-                                disabled
-                                className="h-10 flex-1 flex items-center justify-between px-3 text-sm bg-black text-white rounded-lg border border-black opacity-60 cursor-not-allowed"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <ImageIcon className="w-4 h-4 text-white" />
-                                  <span>Cover</span>
-                                </div>
-                                <div className="flex items-center gap-1 text-gray-200">
-                                  <span className="text-xs font-bold">Designing…</span>
-                                </div>
-                              </button>
+                              {/* Cover button - enabled if cover is ready, disabled if still generating */}
+                              {item.coverImageUrl ? (
+                                // Cover is ready - allow download
+                                <button
+                                  onClick={() => handleCoverClick(item)}
+                                  className="flex-1 px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <ImageIcon className="w-4 h-4 text-white" />
+                                    <span>Cover</span>
+                                  </div>
+                                  <AnimatePresence mode="wait" initial={false}>
+                                    <motion.div
+                                      key={coverStates[item.id] || 'free'}
+                                      initial={{ opacity: 0, y: 6 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -6 }}
+                                      transition={{ duration: 0.18 }}
+                                      className="flex items-center gap-1 text-green-400"
+                                    >
+                                      <span className="text-xs font-bold">
+                                        {!coverStates[item.id]
+                                          ? 'FREE'
+                                          : coverStates[item.id] === 'packing'
+                                          ? getPackingText('packing')
+                                          : getPackingText('done')}
+                                      </span>
+                                    </motion.div>
+                                  </AnimatePresence>
+                                </button>
+                              ) : (
+                                // Cover still generating - show disabled state
+                                <button
+                                  disabled
+                                  className="h-10 flex-1 flex items-center justify-between px-3 text-sm bg-black text-white rounded-lg border border-black opacity-60 cursor-not-allowed"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <ImageIcon className="w-4 h-4 text-white" />
+                                    <span>Cover</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-gray-200">
+                                    <span className="text-xs font-bold">Designing…</span>
+                                  </div>
+                                </button>
+                              )}
 
                               {/* Video generating button with spinner */}
                               <button
