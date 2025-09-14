@@ -3,20 +3,23 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 
 export const metadata: Metadata = {
-  title: "AI Marketing Blog - E-commerce Advertising Tips & Strategies | Flowtra",
-  description: "Learn advanced AI marketing strategies, e-commerce advertising tips, and video creation techniques. Expert insights for Amazon and Walmart sellers.",
+  title: "Small Business AI Marketing Blog | Video Ad Tips for Etsy & Amazon Sellers",
+  description: "Practical AI marketing guides for small businesses, Etsy sellers, and craft makers. Learn to create video ads under $1 and grow your handmade business.",
   keywords: [
-    "AI marketing blog",
-    "e-commerce advertising strategies", 
-    "video marketing tips",
+    "small business marketing blog",
+    "Etsy seller marketing tips",
+    "craft business advertising",
+    "handmade product video ads",
+    "small retailer AI tools",
+    "under $1 video marketing",
+    "makers and creators blog",
     "Amazon seller marketing",
-    "product photography guide",
-    "AI advertising trends",
-    "conversion optimization"
+    "video marketing tips",
+    "AI advertising for small business"
   ],
   openGraph: {
-    title: "AI Marketing Blog - Expert E-commerce Strategies",
-    description: "Professional insights on AI-powered marketing, video advertising, and e-commerce growth strategies.",
+    title: "Small Business AI Marketing Blog | Etsy & Amazon Seller Tips",
+    description: "Practical AI marketing guides for small businesses, Etsy sellers, and craft makers. Create video ads under $1.",
     url: 'https://www.flowtra.store/blog',
   },
   alternates: {
