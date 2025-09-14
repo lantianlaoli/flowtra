@@ -31,6 +31,8 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react', '@heroicons/react', 'react-icons'],
   },
   async headers() {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+
     return [
       {
         source: '/(.*)',
@@ -54,17 +56,17 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: isDevelopment ? 'no-cache' : 'public, max-age=31536000, immutable',
           },
         ],
       },
-      // Optimize static assets caching
+      // Optimize static assets caching (disable in development)
       {
         source: '/_next/static/(.*)',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: isDevelopment ? 'no-cache' : 'public, max-age=31536000, immutable',
           },
           {
             key: 'Access-Control-Allow-Origin',
@@ -72,23 +74,23 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Cache images more aggressively
+      // Cache images more aggressively (disable in development)
       {
         source: '/_next/image(.*)',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400, stale-while-revalidate=604800',
+            value: isDevelopment ? 'no-cache' : 'public, max-age=86400, stale-while-revalidate=604800',
           },
         ],
       },
-      // Cache CSS and JS files
+      // Cache CSS and JS files (disable in development)
       {
         source: '/(.*)\\.(css|js)$',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: isDevelopment ? 'no-cache' : 'public, max-age=31536000, immutable',
           },
         ],
       },
