@@ -5,60 +5,63 @@ import { SignedIn, SignedOut, useUser, SignInButton } from '@clerk/nextjs';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Zap } from 'lucide-react';
+import { CREDIT_COSTS } from '@/lib/constants';
 
 interface PricingPlan {
   name: string;
   price: number;
   credits: number;
-  veo3FastVideos: number;
-  veo3HighQualityVideos: number;
   isRecommended?: boolean;
   features: string[];
 }
 
-const pricingPlans: PricingPlan[] = [
-  {
-    name: 'Lite',
-    price: 9,
-    credits: 500,
-    veo3FastVideos: 16,
-    veo3HighQualityVideos: 3,
-    features: [
-      '500 credits',
-      'Up to 16 video downloads',
-      'Unlimited ad image downloads',
-      'V2 batch generation'
-    ]
-  },
-  {
-    name: 'Basic',
-    price: 29,
-    credits: 2000,
-    veo3FastVideos: 66,
-    veo3HighQualityVideos: 13,
-    isRecommended: true,
-    features: [
-      '2,000 credits',
-      'Up to 66 video downloads',
-      'Unlimited ad image downloads',
-      'V2 batch generation'
-    ]
-  },
-  {
-    name: 'Pro',
-    price: 49,
-    credits: 3500,
-    veo3FastVideos: 116,
-    veo3HighQualityVideos: 23,
-    features: [
-      '3,500 credits',
-      'Up to 116 video downloads',
-      'Unlimited ad image downloads',
-      'V2 batch generation',
-      'Priority processing'
-    ]
-  }
-];
+const pricingPlans: PricingPlan[] = (() => {
+  const toDownloads = (credits: number) => Math.floor(credits / CREDIT_COSTS.veo3_fast);
+  
+  return [
+    {
+      name: 'Lite',
+      price: 9,
+      credits: 500,
+      features: [
+        '500 credits',
+        `Up to ${toDownloads(500)} video downloads`,
+        'Unlimited image generation',
+        'Unlimited video generation',
+        'Image downloads are free forever',
+        'V2 batch generation'
+      ]
+    },
+    {
+      name: 'Basic',
+      price: 29,
+      credits: 2000,
+      isRecommended: true,
+      features: [
+        '2,000 credits',
+        `Up to ${toDownloads(2000)} video downloads`,
+        'Unlimited image generation',
+        'Unlimited video generation',
+        'Image downloads are free forever',
+        'V2 batch generation'
+      ]
+    },
+    {
+      name: 'Pro',
+      price: 49,
+      credits: 3500,
+      features: [
+        '3,500 credits',
+        `Up to ${toDownloads(3500)} video downloads`,
+        'Unlimited image generation',
+        'Unlimited video generation',
+        'Image downloads are free forever',
+        'V2 batch generation',
+        'Priority processing'
+      ]
+    }
+  ]
+})();
 
 export default function PricingPage() {
   useUser();
@@ -154,34 +157,32 @@ export default function PricingPage() {
 
         {/* Features Overview */}
         <div className="bg-gray-50 rounded-2xl p-12 mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">
-            What&apos;s Included
-          </h2>
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">What's Included</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-white rounded-xl p-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Video Generation</h3>
               <div className="flex items-center gap-2 mb-3">
                 <Zap className="w-5 h-5 text-blue-500" />
-                <span className="text-lg font-bold text-blue-600">AI-powered videos</span>
+                <span className="text-lg font-bold text-blue-600">Unlimited video generation</span>
               </div>
               <ul className="text-sm text-gray-600 space-y-2">
-                <li>• High-quality ad videos</li>
-                <li>• Multiple format options</li>
-                <li>• Professional output</li>
+                <li>• Generate as many videos as you need</li>
+                <li>• Professional quality and multiple formats</li>
                 <li>• Commercial use ready</li>
+                <li>• Downloads limited by your plan</li>
               </ul>
             </div>
 
             <div className="bg-white rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Additional Features</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Images</h3>
               <div className="flex items-center gap-2 mb-3">
                 <Zap className="w-5 h-5 text-purple-500" />
-                <span className="text-lg font-bold text-purple-600">Unlimited access</span>
+                <span className="text-lg font-bold text-purple-600">Unlimited image generation</span>
               </div>
               <ul className="text-sm text-gray-600 space-y-2">
-                <li>• Unlimited ad image downloads</li>
+                <li>• Image downloads are free forever</li>
                 <li>• V2 batch generation</li>
-                <li>• Cover image creation</li>
+                <li>• Cover creation</li>
                 <li>• Multiple export formats</li>
               </ul>
             </div>

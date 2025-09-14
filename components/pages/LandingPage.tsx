@@ -14,6 +14,7 @@ import DemoVideoSchema from '@/components/seo/DemoVideoSchema';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { handleCreemCheckout } from '@/lib/payment';
+import { CREDIT_COSTS } from '@/lib/constants';
 
 const FileUpload = dynamic(() => import('@/components/FileUpload'), {
   ssr: false
@@ -28,6 +29,11 @@ export default function LandingPage() {
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
   const router = useRouter();
   const { user } = useUser();
+
+  // Pricing (downloads based on veo3_fast only)
+  const liteDownloads = Math.floor(500 / CREDIT_COSTS.veo3_fast);
+  const basicDownloads = Math.floor(2000 / CREDIT_COSTS.veo3_fast);
+  const proDownloads = Math.floor(3500 / CREDIT_COSTS.veo3_fast);
 
   const handleFileUpload = () => {
     router.push('/dashboard?upload=true');
@@ -504,11 +510,19 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">~16 Veo3 Fast videos</span>
+                  <span className="text-gray-600">Up to {liteDownloads} video downloads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">~3 Veo3 High Quality videos</span>
+                  <span className="text-gray-600">Unlimited image generation</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Unlimited video generation</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Image downloads are free forever</span>
                 </li>
               </ul>
               {user ? (
@@ -545,11 +559,19 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">~66 Veo3 Fast videos</span>
+                  <span className="text-gray-600">Up to {basicDownloads} video downloads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">~13 Veo3 High Quality videos</span>
+                  <span className="text-gray-600">Unlimited image generation</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600">Unlimited video generation</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600">Image downloads are free forever</span>
                 </li>
               </ul>
               {user ? (
@@ -583,11 +605,19 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">~116 Veo3 Fast videos</span>
+                  <span className="text-gray-600">Up to {proDownloads} video downloads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">~23 Veo3 High Quality videos</span>
+                  <span className="text-gray-600">Unlimited image generation</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Unlimited video generation</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Image downloads are free forever</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
