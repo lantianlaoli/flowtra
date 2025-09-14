@@ -1,0 +1,11 @@
+# Modern browsers that support ES2020+ features
+# This reduces polyfills for Array.prototype.at, Object.hasOwn, etc.
+> 0.2%
+last 2 versions
+not dead
+not ie > 0
+not op_mini all
+Chrome >= 88
+Firefox >= 87
+Safari >= 14
+Edge >= 88

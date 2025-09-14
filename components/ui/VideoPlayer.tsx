@@ -10,16 +10,20 @@ interface VideoPlayerProps {
   loop?: boolean;
   playsInline?: boolean;
   showControls?: boolean;
+  captionsUrl?: string;
+  ariaLabel?: string;
 }
 
 const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
-  ({ 
-    src, 
-    className = '', 
-    autoPlay = true, 
-    loop = true, 
+  ({
+    src,
+    className = '',
+    autoPlay = true,
+    loop = true,
     playsInline = true,
-    showControls = false
+    showControls = false,
+    captionsUrl,
+    ariaLabel
   }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     
@@ -57,6 +61,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           playsInline={playsInline}
           preload="metadata"
           controls={false}
+          aria-label={ariaLabel || "Product demonstration video"}
           onError={(e) => console.warn('Video error:', e)}
           onLoadedMetadata={() => {
             // Respect current audio state; ensure muted only if audio not enabled
@@ -66,6 +71,15 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           }}
         >
           <source src={src} type="video/mp4" />
+          {captionsUrl && (
+            <track
+              kind="captions"
+              src={captionsUrl}
+              srcLang="en"
+              label="English captions"
+              default
+            />
+          )}
           Your browser does not support the video tag.
         </video>
         {/* Click-to-enable overlay when required by browser policy */}

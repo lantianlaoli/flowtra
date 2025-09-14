@@ -27,6 +27,9 @@ const nextConfig: NextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
+  experimental: {
+    optimizePackageImports: ['lucide-react', '@heroicons/react', 'react-icons'],
+  },
   async headers() {
     return [
       {
@@ -55,13 +58,37 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Add CORS headers for external video resources
+      // Optimize static assets caching
       {
         source: '/_next/static/(.*)',
         headers: [
           {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+          {
             key: 'Access-Control-Allow-Origin',
             value: '*',
+          },
+        ],
+      },
+      // Cache images more aggressively
+      {
+        source: '/_next/image(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
+      },
+      // Cache CSS and JS files
+      {
+        source: '/(.*)\\.(css|js)$',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },

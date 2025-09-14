@@ -2,19 +2,26 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { useUser, SignInButton } from '@clerk/nextjs';
 import { GiftIcon } from '@heroicons/react/24/outline';
 import { Sparkles, Download } from 'lucide-react';
 import { FaTiktok } from 'react-icons/fa6';
+import { useRouter } from 'next/navigation';
 import SimpleArrow from '@/components/ui/SimpleArrow';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import DemoVideoSchema from '@/components/seo/DemoVideoSchema';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import FileUpload from '@/components/FileUpload';
-import FAQ from '@/components/sections/FAQ';
-import { useRouter } from 'next/navigation';
 import { handleCreemCheckout } from '@/lib/payment';
+
+const FileUpload = dynamic(() => import('@/components/FileUpload'), {
+  ssr: false
+});
+
+const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
+  loading: () => <div className="py-12 flex justify-center"><div className="text-gray-400">Loading...</div></div>
+});
 
 export default function LandingPage() {
   const [showUpload, setShowUpload] = useState(false);
@@ -122,11 +129,13 @@ export default function LandingPage() {
             {/* Original Image - Top */}
             <div className="relative w-48 mx-auto">
               <div className="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-[3/4]">
-                <Image 
+                <Image
                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/example.png"
                   alt="AI video advertisement generator showing product photo transformation for Amazon and Walmart ads"
                   width={300}
                   height={400}
+                  sizes="(max-width: 640px) 192px, (max-width: 768px) 192px, 192px"
+                  priority
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -144,11 +153,12 @@ export default function LandingPage() {
               {/* Free Cover - Left */}
               <div className="relative">
                 <div className="bg-gray-50 rounded-lg overflow-hidden border-2 border-green-200 shadow-sm aspect-[3/4] hover:border-green-300 transition-colors">
-                  <Image 
+                  <Image
                     src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/example_cover.png"
                     alt="AI-generated product cover design - free download"
                     width={300}
                     height={400}
+                    sizes="(max-width: 640px) 145px, (max-width: 768px) 181px, 248px"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -165,6 +175,7 @@ export default function LandingPage() {
                     src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/example.mp4"
                     className="rounded-lg"
                     showControls={true}
+                    ariaLabel="AI-generated video advertisement example showing product transformation"
                   />
                 </div>
               </div>
@@ -195,6 +206,7 @@ export default function LandingPage() {
                     alt="@cheerslinkou TikTok creator profile"
                     width={48}
                     height={48}
+                    sizes="48px"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -231,6 +243,7 @@ export default function LandingPage() {
                       alt="Original product photo uploaded by TikTok creator"
                       width={400}
                       height={533}
+                      sizes="(max-width: 640px) 145px, (max-width: 768px) 186px, 250px"
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -250,6 +263,7 @@ export default function LandingPage() {
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_case_1.mp4"
                       className="rounded-xl"
                       showControls={true}
+                      ariaLabel="TikTok creator success story: product video created with Flowtra AI"
                     />
                   </div>
                 </div>
@@ -297,6 +311,7 @@ export default function LandingPage() {
                 <button
                   onClick={() => setShowUpload(false)}
                   className="text-gray-500 hover:text-gray-700 transition-colors"
+                  aria-label="Cancel file upload and close modal"
                 >
                   Cancel
                 </button>
