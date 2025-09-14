@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { FaXTwitter, FaLinkedin, FaTiktok, FaThreads } from 'react-icons/fa6';
+import { Mail } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -51,10 +52,19 @@ export default function Footer() {
             
             {/* Social Links */}
             <div className="flex items-center gap-4">
+              {/* Email */}
+              <a
+                href={`mailto:${process.env.NEXT_PUBLIC_EMAIL || 'lantianlaoli@gmail.com'}`}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                title="Send Email"
+              >
+                <Mail className="w-5 h-5" />
+              </a>
+
               {/* X (Twitter) */}
-              <a 
-                href={process.env.NEXT_PUBLIC_X || "https://x.com/lantianlaoli"} 
-                target="_blank" 
+              <a
+                href={process.env.NEXT_PUBLIC_X || "https://x.com/lantianlaoli"}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-gray-600 transition-colors"
                 title="Follow on X"

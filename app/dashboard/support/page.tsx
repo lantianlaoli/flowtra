@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ExternalLink, MessageSquare } from 'lucide-react';
+import { ExternalLink, MessageSquare, Mail } from 'lucide-react';
 import { FaXTwitter, FaLinkedin, FaTiktok, FaThreads } from 'react-icons/fa6';
 
 export default function SupportPage() {
@@ -17,6 +17,13 @@ export default function SupportPage() {
   };
 
   const contactLinks = [
+    {
+      name: 'Email',
+      url: `mailto:${process.env.NEXT_PUBLIC_EMAIL || 'lantianlaoli@gmail.com'}`,
+      icon: Mail,
+      description: 'Direct email support and inquiries',
+      color: 'text-red-600'
+    },
     {
       name: 'X (Twitter)',
       url: process.env.NEXT_PUBLIC_X || 'https://x.com/lantianlaoli',

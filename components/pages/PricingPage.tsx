@@ -25,8 +25,9 @@ const pricingPlans: PricingPlan[] = [
     veo3HighQualityVideos: 3,
     features: [
       '500 credits',
-      '~16 Veo3 Fast videos',
-      '~3 Veo3 High Quality videos'
+      'Up to 16 video downloads',
+      'Unlimited ad image downloads',
+      'V2 batch generation'
     ]
   },
   {
@@ -38,8 +39,9 @@ const pricingPlans: PricingPlan[] = [
     isRecommended: true,
     features: [
       '2,000 credits',
-      '~66 Veo3 Fast videos',
-      '~13 Veo3 High Quality videos'
+      'Up to 66 video downloads',
+      'Unlimited ad image downloads',
+      'V2 batch generation'
     ]
   },
   {
@@ -50,8 +52,9 @@ const pricingPlans: PricingPlan[] = [
     veo3HighQualityVideos: 23,
     features: [
       '3,500 credits',
-      '~116 Veo3 Fast videos',
-      '~23 Veo3 High Quality videos',
+      'Up to 116 video downloads',
+      'Unlimited ad image downloads',
+      'V2 batch generation',
       'Priority processing'
     ]
   }
@@ -149,39 +152,37 @@ export default function PricingPage() {
           ))}
         </div>
 
-        {/* Usage Examples */}
+        {/* Features Overview */}
         <div className="bg-gray-50 rounded-2xl p-12 mb-16">
           <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">
-            Credit Usage Guide
+            What&apos;s Included
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-white rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Veo3 Fast</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Video Generation</h3>
               <div className="flex items-center gap-2 mb-3">
                 <Zap className="w-5 h-5 text-blue-500" />
-                <span className="text-2xl font-bold text-blue-600">30 credits</span>
-                <span className="text-gray-600">per video</span>
+                <span className="text-lg font-bold text-blue-600">AI-powered videos</span>
               </div>
               <ul className="text-sm text-gray-600 space-y-2">
-                <li>• Quick generation (2-3 minutes)</li>
-                <li>• Good quality output</li>
-                <li>• Perfect for testing ideas</li>
-                <li>• Suitable for social media</li>
+                <li>• High-quality ad videos</li>
+                <li>• Multiple format options</li>
+                <li>• Professional output</li>
+                <li>• Commercial use ready</li>
               </ul>
             </div>
 
             <div className="bg-white rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Veo3 High Quality</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Additional Features</h3>
               <div className="flex items-center gap-2 mb-3">
                 <Zap className="w-5 h-5 text-purple-500" />
-                <span className="text-2xl font-bold text-purple-600">150 credits</span>
-                <span className="text-gray-600">per video</span>
+                <span className="text-lg font-bold text-purple-600">Unlimited access</span>
               </div>
               <ul className="text-sm text-gray-600 space-y-2">
-                <li>• Premium generation (5-8 minutes)</li>
-                <li>• Highest quality output</li>
-                <li>• Professional campaigns</li>
-                <li>• Commercial use ready</li>
+                <li>• Unlimited ad image downloads</li>
+                <li>• V2 batch generation</li>
+                <li>• Cover image creation</li>
+                <li>• Multiple export formats</li>
               </ul>
             </div>
           </div>
@@ -214,10 +215,10 @@ export default function PricingPage() {
 
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                What&apos;s the difference between Veo3 and Veo3 Fast?
+                How does video generation work?
               </h3>
               <p className="text-gray-600">
-                Veo3 Fast generates videos quickly (2-3 minutes) and costs 30 credits, while Veo3 high-quality takes longer (5-8 minutes) but produces premium results for 150 credits.
+                Our AI creates professional advertisement videos based on your requirements. Each plan includes a specific number of video downloads, plus unlimited access to ad image covers and batch generation features.
               </p>
             </div>
 

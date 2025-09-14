@@ -79,7 +79,7 @@ export default function TermsPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Contact Information</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              If you have any questions about these Terms of Service, please contact us at legal@flowtra.com.
+              If you have any questions about these Terms of Service, please contact us at lantianlaoli@gmail.com.
             </p>
           </section>
         </div>

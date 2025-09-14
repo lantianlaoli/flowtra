@@ -120,27 +120,32 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <p className="text-sm text-green-600 font-medium">Ready to go!</p>
+                  <p className="text-sm text-green-600 font-medium">Perfect! Ready to create your masterpiece</p>
                 </div>
                 <button
                   onClick={() => setSelectedFiles([])}
                   className="text-sm text-gray-600 hover:text-gray-800 underline hover:no-underline hover:text-gray-900 transition-all duration-200"
                 >
-                  Try another photo
+                  Try a different product
                 </button>
               </div>
             )}
           </div>
         ) : (
           <div>
-            <p className="text-gray-500 mb-6 text-sm">
-              {isLoading 
-                ? 'Uploading...'
-                : multiple 
-                  ? 'Drop your photos here or click to browse'
-                  : 'Drop your photo here or click to browse'
-              }
-            </p>
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {multiple ? 'Turn Your Photos Into Amazing Videos' : 'Transform Your Product Into a Masterpiece'}
+              </h3>
+              <p className="text-gray-500 text-sm">
+                {isLoading
+                  ? 'Creating magic...'
+                  : multiple
+                    ? 'Drop your product photos here and watch AI create stunning video ads in minutes'
+                    : 'Upload your product photo and let AI craft a professional video ad that converts'
+                }
+              </p>
+            </div>
             <input
               type="file"
               accept="image/*"
@@ -166,7 +171,7 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
               ) : (
                 <>
                   <Upload className="w-4 h-4" />
-                  <span>{multiple ? 'Select Photos' : 'Select Photo'}</span>
+                  <span>{multiple ? 'Start Creating Videos' : 'Start Creating Magic'}</span>
                 </>
               )}
             </label>

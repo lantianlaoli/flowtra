@@ -5,10 +5,11 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, CheckCircle, AlertCircle, PlayCircle, RotateCcw, Loader2, Play, Image as ImageIcon, Video } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, CheckCircle, AlertCircle, PlayCircle, RotateCcw, Loader2, Play, Image as ImageIcon, Video, MessageSquare } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
 interface V1HistoryItem {
   id: string;
@@ -53,6 +54,7 @@ const ITEMS_PER_PAGE = 6; // 2 rows × 3 columns = 6 items per page
 
 export default function HistoryPage() {
   const { user, isLoaded } = useUser();
+  const router = useRouter();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'completed' | 'processing' | 'failed'>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
@@ -489,13 +491,28 @@ export default function HistoryPage() {
       <div className="ml-64 bg-gray-50 min-h-screen">
         <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Play className="w-4 h-4 text-gray-700" />
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <Play className="w-4 h-4 text-gray-700" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold text-gray-900">
+                    My Ads
+                  </h1>
+                  <p className="text-gray-600 text-sm mt-1">
+                    Manage your video advertisements and track performance
+                  </p>
+                </div>
               </div>
-              <h1 className="text-2xl font-semibold text-gray-900">
-                My Ads
-              </h1>
+
+              <button
+                onClick={() => router.push('/dashboard/support')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                <MessageSquare className="w-4 h-4" />
+                Share Feedback
+              </button>
             </div>
           </div>
 

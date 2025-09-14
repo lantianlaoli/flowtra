@@ -111,7 +111,7 @@ export default function PrivacyPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">11. Contact Us</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              If you have any questions about this Privacy Policy, please contact us at privacy@flowtra.com.
+              If you have any questions about this Privacy Policy, please contact us at lantianlaoli@gmail.com.
             </p>
           </section>
         </div>
