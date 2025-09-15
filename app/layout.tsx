@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from 'next/script'
 import { ClerkProvider } from '@clerk/nextjs'
 import { UserInitializer } from '@/components/UserInitializer'
 import { CreditsProvider } from '@/contexts/CreditsContext'
@@ -192,6 +193,18 @@ export default function RootLayout({
           />
         </head>
         <body className="antialiased">
+          <Script
+            src="https://www.googletagmanager.com/gtag/js?id=G-CP7HSQFTCP"
+            strategy="afterInteractive"
+          />
+          <Script id="google-analytics" strategy="afterInteractive">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-CP7HSQFTCP');
+            `}
+          </Script>
           <CreditsProvider>
             <UserInitializer />
             {children}

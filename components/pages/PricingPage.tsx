@@ -157,7 +157,7 @@ export default function PricingPage() {
 
         {/* Features Overview */}
         <div className="bg-gray-50 rounded-2xl p-12 mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">What's Included</h2>
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">What&apos;s Included</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-white rounded-xl p-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Video Generation</h3>
