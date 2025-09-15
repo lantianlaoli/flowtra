@@ -827,14 +827,14 @@ export default function HistoryPage() {
                                 // Cover still generating - show disabled state
                                 <button
                                   disabled
-                                  className="h-10 flex-1 flex items-center justify-between px-3 text-sm bg-black text-white rounded-lg border border-black opacity-60 cursor-not-allowed"
+                                  className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
                                 >
                                   <div className="flex items-center gap-2">
-                                    <ImageIcon className="w-4 h-4 text-white" />
+                                    <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
                                     <span>Cover</span>
                                   </div>
-                                  <div className="flex items-center gap-1 text-gray-200">
-                                    <span className="text-xs font-bold">Designing…</span>
+                                  <div className="flex items-center gap-1 text-gray-700">
+                                    <span className="text-xs font-bold">Generating…</span>
                                   </div>
                                 </button>
                               )}
@@ -842,11 +842,11 @@ export default function HistoryPage() {
                               {/* Video generating button with spinner */}
                               <button
                                 disabled
-                                className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white opacity-80 cursor-wait"
+                                className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
                               >
                                 <div className="flex items-center gap-2">
-                                  <Loader2 className="w-4 h-4 animate-spin text-gray-700" />
-                                  <span>Generating…</span>
+                                  <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
+                                  <span>Video</span>
                                 </div>
                                 <div className="flex items-center gap-1 text-gray-700">
                                   <span className="text-xs font-bold">{item.progress || 0}%</span>

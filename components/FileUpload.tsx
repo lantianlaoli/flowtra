@@ -171,7 +171,7 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
               ) : (
                 <>
                   <Upload className="w-4 h-4" />
-                  <span>{multiple ? 'Start Creating Videos' : 'Start Creating Magic'}</span>
+                  <span>{multiple ? 'Upload Product Photos' : 'Upload Product Photo'}</span>
                 </>
               )}
             </label>

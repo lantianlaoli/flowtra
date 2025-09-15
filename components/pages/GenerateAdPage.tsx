@@ -226,7 +226,7 @@ export default function GenerateAdPage() {
                   value={watermarkText}
                   onChange={(e) => setWatermarkText(e.target.value)}
                   placeholder="Add watermark (optional)"
-                  maxLength={20}
+                  maxLength={100}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-base"
                 />
                 <p className="text-sm text-gray-500 mt-2">

@@ -43,7 +43,6 @@ export interface UserCredits {
   id: string
   user_id: string
   credits_remaining: number
-  creem_id?: string
   created_at: string
   updated_at: string
 }

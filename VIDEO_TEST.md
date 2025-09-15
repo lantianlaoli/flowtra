@@ -1,37 +1,37 @@
-# 博客视频支持测试
+# Blog Video Support Test
 
-这是一个测试文档，展示博客系统现在支持的各种视频格式和语法。
+This is a test document demonstrating the various video formats and syntax that the blog system now supports.
 
-## 支持的语法
+## Supported Syntax
 
-### 1. HTML5 video 标签
+### 1. HTML5 video tag
 ```html
 <video src="https://example.com/video.mp4" controls></video>
 ```
 
-### 2. 图片语法识别视频文件
+### 2. Image syntax for video files
 ```markdown
-![视频描述](https://example.com/video.mp4)
-![另一个视频](https://example.com/demo.webm)
+![Video description](https://example.com/video.mp4)
+![Another video](https://example.com/demo.webm)
 ```
 
-### 3. YouTube 视频
+### 3. YouTube videos
 ```markdown
-![YouTube视频](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
-![YouTube短链接](https://youtu.be/dQw4w9WgXcQ)
+![YouTube video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+![YouTube short link](https://youtu.be/dQw4w9WgXcQ)
 ```
 
-### 4. Bilibili 视频
+### 4. Bilibili videos
 ```markdown
-![Bilibili视频](https://www.bilibili.com/video/BV1xx411c7mu)
+![Bilibili video](https://www.bilibili.com/video/BV1xx411c7mu)
 ```
 
-### 5. Vimeo 视频
+### 5. Vimeo videos
 ```markdown
-![Vimeo视频](https://vimeo.com/123456789)
+![Vimeo video](https://vimeo.com/123456789)
 ```
 
-## 支持的视频格式
+## Supported Video Formats
 
 - MP4 (.mp4)
 - WebM (.webm)
@@ -39,22 +39,22 @@
 - MOV (.mov)
 - AVI (.avi)
 
-## 功能特性
+## Features
 
-✅ 自定义视频播放器
-✅ 响应式设计
-✅ 播放控制（播放/暂停、音量、进度条、全屏）
-✅ YouTube/Bilibili/Vimeo 自动嵌入
-✅ 加载状态显示
-✅ 错误处理
-✅ 键盘快捷键支持
-✅ 触摸设备友好
+✅ Custom video player
+✅ Responsive design
+✅ Playback controls (play/pause, volume, progress bar, fullscreen)
+✅ YouTube/Bilibili/Vimeo auto-embed
+✅ Loading state display
+✅ Error handling
+✅ Keyboard shortcut support
+✅ Touch device friendly
 
-## 使用建议
+## Usage Recommendations
 
-1. **直接视频文件**: 适合自有服务器托管的视频文件
-2. **平台嵌入**: 适合 YouTube、Bilibili 等平台的视频
-3. **自适应**: 所有视频都会自动适应容器宽度
-4. **性能优化**: 视频默认不自动播放，节省带宽
+1. **Direct video files**: Suitable for videos hosted on your own server
+2. **Platform embedding**: Suitable for videos from YouTube, Bilibili and other platforms
+3. **Responsive**: All videos automatically adapt to container width
+4. **Performance optimization**: Videos don't auto-play by default to save bandwidth
 
-测试完成！博客现在完全支持视频内容了。
+Test complete! The blog now fully supports video content.

@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         console.log(`💳 Found package: ${packageInfo.packageName} with ${packageInfo.credits} credits`)
 
         // Add credits to user account
-        const result = await addCredits(userId, packageInfo.credits, checkoutId)
+        const result = await addCredits(userId, packageInfo.credits)
 
         if (!result.success) {
           console.error('❌ Failed to add credits:', result.error)

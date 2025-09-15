@@ -251,7 +251,7 @@ export async function deductCredits(userId: string, creditsToDeduct: number): Pr
 }
 
 // Add credits to user account (for purchases)
-export async function addCredits(userId: string, creditsToAdd: number, creemId?: string): Promise<{
+export async function addCredits(userId: string, creditsToAdd: number): Promise<{
   success: boolean
   newBalance?: number
   error?: string
@@ -283,8 +283,7 @@ export async function addCredits(userId: string, creditsToAdd: number, creemId?:
       const { data: updatedCredits, error } = await supabase
         .from('user_credits')
         .update({
-          credits_remaining: newBalance,
-          creem_id: creemId || null
+          credits_remaining: newBalance
         })
         .eq('user_id', userId)
         .select()
@@ -309,8 +308,7 @@ export async function addCredits(userId: string, creditsToAdd: number, creemId?:
         .from('user_credits')
         .insert({
           user_id: userId,
-          credits_remaining: newBalance,
-          creem_id: creemId || null
+          credits_remaining: newBalance
         })
         .select()
         .single()
