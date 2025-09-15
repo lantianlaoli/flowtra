@@ -6,6 +6,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Zap } from 'lucide-react';
 import { CREDIT_COSTS } from '@/lib/constants';
+import { handleCreemCheckout } from '@/lib/payment';
 
 interface PricingPlan {
   name: string;
@@ -64,13 +65,61 @@ const pricingPlans: PricingPlan[] = (() => {
 })();
 
 export default function PricingPage() {
-  useUser();
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const { user, isLoaded } = useUser();
+  const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
 
-  const handleSelectPlan = (planName: string) => {
-    setSelectedPlan(planName);
-    // TODO: Implement payment processing
-    console.log(`Selected plan: ${planName}`);
+  const handleSelectPlan = async (planName: string) => {
+    console.log('🎯 Purchase button clicked for package:', planName);
+    console.log('👤 User loaded:', isLoaded, 'User object:', user);
+
+    // Add extra safety check for user loading state
+    if (!isLoaded) {
+      console.log('⏳ User not yet loaded, ignoring click');
+      alert('Please wait for the page to fully load');
+      return;
+    }
+
+    if (!user) {
+      console.log('❌ No user found after loading');
+      alert('Please log in before purchasing a package');
+      return;
+    }
+
+    if (!user.emailAddresses || user.emailAddresses.length === 0) {
+      console.log('❌ No email addresses found for user');
+      alert('No email address found. Please check your account settings.');
+      return;
+    }
+
+    const userEmail = user.emailAddresses[0].emailAddress;
+    console.log('📧 User email:', userEmail);
+
+    if (!userEmail) {
+      console.log('❌ Email address is empty');
+      alert('Email address is required for purchase');
+      return;
+    }
+
+    // Convert plan name to lowercase for consistency with API
+    const packageName = planName.toLowerCase() as 'lite' | 'basic' | 'pro';
+
+    try {
+      await handleCreemCheckout({
+        packageName,
+        userEmail,
+        onLoading: (isLoading) => {
+          console.log(`🔄 Loading state changed: ${isLoading} for package: ${packageName}`);
+          setLoadingPackage(isLoading ? packageName : null);
+        },
+        onError: (error) => {
+          console.log('❌ Purchase error received:', error);
+          alert(`Purchase failed: ${error}`);
+        }
+      });
+    } catch (error) {
+      console.error('❌ Unexpected error in handleSelectPlan:', error);
+      alert('An unexpected error occurred. Please try again.');
+    }
   };
 
   return (
@@ -137,19 +186,26 @@ export default function PricingPage() {
               </SignedOut>
 
               <SignedIn>
-                <button
-                  onClick={() => handleSelectPlan(plan.name)}
-                  disabled={selectedPlan === plan.name}
-                  className={`w-full py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 ${
-                    selectedPlan === plan.name
-                      ? 'bg-green-600 text-white cursor-not-allowed'
-                      : plan.isRecommended
-                      ? 'bg-gray-900 text-white hover:bg-gray-800 cursor-pointer'
-                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
-                  }`}
-                >
-                  {selectedPlan === plan.name ? 'Processing...' : 'Get Started'}
-                </button>
+                {!isLoaded ? (
+                  <button
+                    disabled
+                    className="w-full py-3 rounded-lg bg-gray-300 text-gray-500 cursor-not-allowed opacity-50"
+                  >
+                    Loading...
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleSelectPlan(plan.name)}
+                    disabled={loadingPackage === plan.name.toLowerCase()}
+                    className={`w-full py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      plan.isRecommended
+                        ? 'bg-gray-900 text-white hover:bg-gray-800'
+                        : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {loadingPackage === plan.name.toLowerCase() ? 'Processing...' : 'Get Started'}
+                  </button>
+                )}
               </SignedIn>
             </div>
           ))}

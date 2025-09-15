@@ -28,7 +28,7 @@ export default function LandingPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
   const router = useRouter();
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
 
   // Pricing (downloads based on veo3_fast only)
   const liteDownloads = Math.floor(500 / CREDIT_COSTS.veo3_fast);
@@ -40,12 +40,102 @@ export default function LandingPage() {
   };
 
   const handlePurchase = async (packageName: 'lite' | 'basic' | 'pro') => {
-    await handleCreemCheckout({
-      packageName,
-      userEmail: user!.emailAddresses[0].emailAddress,
-      onLoading: (isLoading) => setLoadingPackage(isLoading ? packageName : null),
-      onError: (error) => alert(error)
-    });
+    console.log('🎯 Purchase button clicked for package:', packageName);
+    console.log('👤 User loaded:', isLoaded, 'User object:', user);
+
+    // Add extra safety check for user loading state
+    if (!isLoaded) {
+      console.log('⏳ User not yet loaded, ignoring click');
+      alert('Please wait for the page to fully load');
+      return;
+    }
+
+    if (!user) {
+      console.log('❌ No user found after loading');
+      alert('Please log in before purchasing a package');
+      return;
+    }
+
+    if (!user.emailAddresses || user.emailAddresses.length === 0) {
+      console.log('❌ No email addresses found for user');
+      alert('No email address found. Please check your account settings.');
+      return;
+    }
+
+    const userEmail = user.emailAddresses[0].emailAddress;
+    console.log('📧 User email:', userEmail);
+
+    if (!userEmail) {
+      console.log('❌ Email address is empty');
+      alert('Email address is required for purchase');
+      return;
+    }
+
+    try {
+      await handleCreemCheckout({
+        packageName,
+        userEmail,
+        onLoading: (isLoading) => {
+          console.log(`🔄 Loading state changed: ${isLoading} for package: ${packageName}`);
+          setLoadingPackage(isLoading ? packageName : null);
+        },
+        onError: (error) => {
+          console.log('❌ Purchase error received:', error);
+          alert(`Purchase failed: ${error}`);
+        }
+      });
+    } catch (error) {
+      console.error('❌ Unexpected error in handlePurchase:', error);
+      alert('An unexpected error occurred. Please try again.');
+    }
+  };
+
+  // Create a component for pricing card buttons to handle loading states properly
+  const PricingButton = ({ packageName }: { packageName: 'lite' | 'basic' | 'pro' }) => {
+    console.log('🔄 PricingButton render - isLoaded:', isLoaded, 'user:', !!user, 'package:', packageName);
+
+    // Show loading state while user data is loading
+    if (!isLoaded) {
+      return (
+        <button
+          disabled
+          className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg cursor-not-allowed opacity-50"
+        >
+          Loading...
+        </button>
+      );
+    }
+
+    // User is loaded and logged in - show purchase button
+    if (user) {
+      const isLoading = loadingPackage === packageName;
+      const buttonClass = packageName === 'basic'
+        ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+
+      return (
+        <button
+          onClick={() => handlePurchase(packageName)}
+          disabled={isLoading}
+          className={buttonClass}
+        >
+          {isLoading ? 'Processing...' : 'Get Started'}
+        </button>
+      );
+    }
+
+    // User is loaded but not logged in - show sign in button
+    const buttonClass = packageName === 'basic'
+      ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+      : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors";
+
+    return (
+      <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+        <button className={buttonClass}>
+          Get Started
+        </button>
+      </SignInButton>
+    );
   };
 
   return (
@@ -92,7 +182,16 @@ export default function LandingPage() {
 
             {/* CTA Buttons */}
             <div className="flex flex-row items-start gap-3">
-              {user ? (
+              {/* Main CTA Button with proper loading state handling */}
+              {!isLoaded ? (
+                <button
+                  disabled
+                  className="bg-gray-300 text-gray-500 px-6 py-4 rounded-lg text-lg font-semibold cursor-not-allowed opacity-50 flex items-center gap-2 flex-1 justify-center"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  <span>Loading...</span>
+                </button>
+              ) : user ? (
                 <button
                   onClick={() => router.push('/dashboard?upload=true')}
                   className="bg-gray-900 text-white px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2 flex-1 justify-center"
@@ -281,7 +380,15 @@ export default function LandingPage() {
           {/* Call to Action */}
           <div className="text-center mt-10 md:mt-16">
             <p className="text-base sm:text-lg text-gray-600 mb-6 sm:mb-8 font-medium">Ready to transform your products?</p>
-            {user ? (
+            {!isLoaded ? (
+              <button
+                disabled
+                className="bg-gray-300 text-gray-500 px-10 py-4 rounded-xl font-semibold cursor-not-allowed opacity-50 inline-flex items-center gap-3"
+              >
+                <Sparkles className="w-5 h-5" />
+                Loading...
+              </button>
+            ) : user ? (
               <button
                 onClick={() => router.push('/dashboard?upload=true')}
                 className="bg-gray-900 text-white px-10 py-4 rounded-xl font-semibold hover:bg-gray-800 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
@@ -525,21 +632,7 @@ export default function LandingPage() {
                   <span className="text-gray-600">Image downloads are free forever</span>
                 </li>
               </ul>
-              {user ? (
-                <button 
-                  onClick={() => handlePurchase('lite')}
-                  disabled={loadingPackage === 'lite'}
-                  className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loadingPackage === 'lite' ? 'Processing...' : 'Get Started'}
-                </button>
-              ) : (
-                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors">
-                    Get Started
-                  </button>
-                </SignInButton>
-              )}
+              <PricingButton packageName="lite" />
             </div>
 
             {/* Basic Plan (Recommended) */}
@@ -574,21 +667,7 @@ export default function LandingPage() {
                   <span className="text-gray-600">Image downloads are free forever</span>
                 </li>
               </ul>
-              {user ? (
-                <button 
-                  onClick={() => handlePurchase('basic')}
-                  disabled={loadingPackage === 'basic'}
-                  className="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loadingPackage === 'basic' ? 'Processing...' : 'Get Started'}
-                </button>
-              ) : (
-                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button className="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors">
-                    Get Started
-                  </button>
-                </SignInButton>
-              )}
+              <PricingButton packageName="basic" />
             </div>
 
             {/* Pro Plan */}
@@ -624,21 +703,7 @@ export default function LandingPage() {
                   <span className="text-gray-600">Priority processing</span>
                 </li>
               </ul>
-              {user ? (
-                <button 
-                  onClick={() => handlePurchase('pro')}
-                  disabled={loadingPackage === 'pro'}
-                  className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loadingPackage === 'pro' ? 'Processing...' : 'Get Started'}
-                </button>
-              ) : (
-                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors">
-                    Get Started
-                  </button>
-                </SignInButton>
-              )}
+              <PricingButton packageName="pro" />
             </div>
           </div>
         </div>

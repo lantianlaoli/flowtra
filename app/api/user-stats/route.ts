@@ -1,33 +1,137 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
+import { getSupabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // TODO: Replace with actual database queries
-    // This is sample data to demonstrate the UI
+    console.log('📊 Fetching user stats for:', userId);
+
+    const supabase = getSupabase();
+
+    // Get current month start and end dates
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    // Initialize stats with defaults
     const stats = {
-      totalVideos: 24,
-      thisMonth: 8,
-      creditsUsed: 320,
-      successRate: 98
+      totalVideos: 0,
+      thisMonth: 0,
+      creditsUsed: 0,
+      successRate: 0
     };
 
-    return NextResponse.json({ 
-      success: true, 
-      stats 
+    // Query V1 history (user_history table)
+    const { data: historyV1, error: errorV1 } = await supabase
+      .from('user_history')
+      .select('workflow_status, created_at, credits_used, generation_credits_used')
+      .eq('user_id', userId);
+
+    if (errorV1) {
+      console.error('❌ Error querying user_history:', errorV1);
+    } else {
+      console.log('📈 V1 History records:', historyV1?.length || 0);
+    }
+
+    // Query V2 history (user_history_v2 table)
+    const { data: historyV2, error: errorV2 } = await supabase
+      .from('user_history_v2')
+      .select('instance_status, created_at, credits_cost')
+      .eq('user_id', userId);
+
+    if (errorV2) {
+      console.error('❌ Error querying user_history_v2:', errorV2);
+    } else {
+      console.log('📈 V2 History records:', historyV2?.length || 0);
+    }
+
+    // Calculate stats from V1 data
+    if (historyV1 && historyV1.length > 0) {
+      for (const record of historyV1) {
+        stats.totalVideos++;
+
+        // Check if this month
+        const recordDate = new Date(record.created_at);
+        if (recordDate >= currentMonthStart && recordDate <= currentMonthEnd) {
+          stats.thisMonth++;
+        }
+
+        // Add credits used
+        const creditsUsed = record.generation_credits_used || record.credits_used || 0;
+        stats.creditsUsed += creditsUsed;
+      }
+    }
+
+    // Calculate stats from V2 data
+    if (historyV2 && historyV2.length > 0) {
+      for (const record of historyV2) {
+        stats.totalVideos++;
+
+        // Check if this month
+        const recordDate = new Date(record.created_at);
+        if (recordDate >= currentMonthStart && recordDate <= currentMonthEnd) {
+          stats.thisMonth++;
+        }
+
+        // Add credits used
+        stats.creditsUsed += record.credits_cost || 0;
+      }
+    }
+
+    // Calculate success rate
+    let completedCount = 0;
+    let totalCount = 0;
+
+    if (historyV1) {
+      for (const record of historyV1) {
+        totalCount++;
+        if (record.workflow_status === 'completed') {
+          completedCount++;
+        }
+      }
+    }
+
+    if (historyV2) {
+      for (const record of historyV2) {
+        totalCount++;
+        if (record.instance_status === 'completed') {
+          completedCount++;
+        }
+      }
+    }
+
+    // Calculate success rate percentage
+    if (totalCount > 0) {
+      stats.successRate = Math.round((completedCount / totalCount) * 100);
+    }
+
+    console.log('✅ Calculated stats:', stats);
+
+    return NextResponse.json({
+      success: true,
+      stats
     });
-    
+
   } catch (error) {
-    console.error('Error fetching user stats:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to fetch user stats' 
-    }, { status: 500 });
+    console.error('❌ Error fetching user stats:', error);
+
+    // Return zero stats in case of error instead of fake data
+    const fallbackStats = {
+      totalVideos: 0,
+      thisMonth: 0,
+      creditsUsed: 0,
+      successRate: 0
+    };
+
+    return NextResponse.json({
+      success: true,
+      stats: fallbackStats
+    });
   }
 }
