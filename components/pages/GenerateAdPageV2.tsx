@@ -8,7 +8,7 @@ import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import FileUpload from '@/components/FileUpload';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { RotateCcw, ArrowRight, History, Play, Image as ImageIcon } from 'lucide-react';
+import { RotateCcw, ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Square, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 // Removed cost display; no need to import CREDIT_COSTS here
@@ -155,13 +155,13 @@ export default function GenerateAdPageV2() {
             </div>
 
             {/* Right Side - Configuration Area */}
-            <div className="space-y-6">
-              <h3 className="text-2xl font-semibold text-gray-900 mb-4">Configuration</h3>
+            <div className="space-y-4">
               
               {/* Elements Count Selector - segmented control */}
               <div>
-                <label className="block text-lg sm:text-xl font-semibold text-gray-900 mb-3">
-                  How many ads?
+                <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                  <Hash className="w-4 h-4" />
+                  Ads
                 </label>
                 <div
                   role="radiogroup"
@@ -197,63 +197,59 @@ export default function GenerateAdPageV2() {
               </div>
 
               {/* Watermark Configuration */}
-              <div className="space-y-4">
-                <label className="block text-lg sm:text-xl font-semibold text-gray-900">
-                  Watermark Settings
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                  <Type className="w-4 h-4" />
+                  Watermark
                 </label>
 
-                {/* Watermark Text Input */}
-                <div>
-                  <label htmlFor="watermark-text" className="block text-sm font-medium text-gray-700 mb-2">
-                    Watermark Text (optional)
-                  </label>
-                  <input
-                    id="watermark-text"
-                    type="text"
-                    value={textWatermark}
-                    onChange={(e) => setTextWatermark(e.target.value)}
-                    placeholder="Enter watermark text..."
-                    maxLength={50}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Leave empty for no watermark</p>
-                </div>
+                {/* Watermark Text Input and Location Selector - Left Right Layout */}
+                <div className="flex gap-3">
+                  {/* Left: Text Input */}
+                  <div className="flex-1">
+                    <input
+                      id="watermark-text"
+                      type="text"
+                      value={textWatermark}
+                      onChange={(e) => setTextWatermark(e.target.value)}
+                      placeholder="Enter watermark text (optional)..."
+                      maxLength={50}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
+                    />
+                  </div>
 
-                {/* Watermark Location Selector */}
-                <div>
-                  <label htmlFor="watermark-location" className="block text-sm font-medium text-gray-700 mb-2">
-                    Watermark Position
-                  </label>
-                  <select
-                    id="watermark-location"
-                    value={textWatermarkLocation}
-                    onChange={(e) => setTextWatermarkLocation(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
-                  >
-                    <option value="bottom left">Bottom Left</option>
-                    <option value="bottom right">Bottom Right</option>
-                    <option value="top left">Top Left</option>
-                    <option value="top right">Top Right</option>
-                    <option value="center bottom">Center Bottom</option>
-                  </select>
+                  {/* Right: Location Selector with Custom Dropdown */}
+                  <div className="relative w-32">
+                    <select
+                      id="watermark-location"
+                      value={textWatermarkLocation}
+                      onChange={(e) => setTextWatermarkLocation(e.target.value)}
+                      className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
+                    >
+                      <option value="bottom left">Bottom Left</option>
+                      <option value="bottom right">Bottom Right</option>
+                      <option value="top left">Top Left</option>
+                      <option value="top right">Top Right</option>
+                      <option value="center bottom">Center Bottom</option>
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                  </div>
                 </div>
               </div>
 
               {/* Image Size Configuration */}
-              <div className="space-y-4">
-                <label className="block text-lg sm:text-xl font-semibold text-gray-900">
-                  Image Size
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                  <Square className="w-4 h-4" />
+                  Size
                 </label>
 
-                <div>
-                  <label htmlFor="image-size" className="block text-sm font-medium text-gray-700 mb-2">
-                    Output Aspect Ratio
-                  </label>
+                <div className="relative">
                   <select
                     id="image-size"
                     value={imageSize}
                     onChange={(e) => setImageSize(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
+                    className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
                   >
                     <option value="auto">Auto (Native Resolution)</option>
                     <option value="1:1">Square (1:1)</option>
@@ -262,6 +258,7 @@ export default function GenerateAdPageV2() {
                     <option value="4:3">Landscape 4:3</option>
                     <option value="16:9">Landscape 16:9</option>
                   </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                 </div>
               </div>
 
