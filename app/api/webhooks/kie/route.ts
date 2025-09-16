@@ -86,11 +86,11 @@ export async function POST(request: NextRequest) {
 
 async function handleSuccessCallback(taskId: string, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
-    // Find the workflow instance with this task ID (could be cover or video task)
+    // Find the workflow instance with this cover task ID
     const { data: instances, error: findError } = await supabase
       .from('user_history_v2')
       .select('*')
-      .or(`cover_task_id.eq.${taskId},video_task_id.eq.${taskId}`);
+      .eq('cover_task_id', taskId);
 
     if (findError) {
       throw new Error(`Failed to find workflow instance: ${findError.message}`);
@@ -104,13 +104,11 @@ async function handleSuccessCallback(taskId: string, data: KieCallbackData, supa
     const instance = instances[0];
     console.log(`Found workflow instance: ${instance.id}, status: ${instance.instance_status}`);
 
-    // Determine if this is a cover or video task completion
+    // Handle cover task completion
     if (instance.cover_task_id === taskId) {
       await handleCoverCompletion(instance, data, supabase);
-    } else if (instance.video_task_id === taskId) {
-      await handleVideoCompletion(instance, data, supabase);
     } else {
-      console.log(`⚠️ TaskId ${taskId} doesn't match any task for instance ${instance.id}`);
+      console.log(`⚠️ TaskId ${taskId} doesn't match cover task for instance ${instance.id}`);
     }
 
   } catch (error) {
@@ -179,67 +177,14 @@ async function handleCoverCompletion(instance: WorkflowInstance, data: KieCallba
   }
 }
 
-async function handleVideoCompletion(instance: WorkflowInstance, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
-  try {
-    // For video completion, extract video URL from the data structure
-    let videoUrl = null;
-
-    // Try different possible structures for video completion
-    if (data.response?.resultUrls?.[0]) {
-      videoUrl = data.response.resultUrls[0];
-    } else if (data.resultUrls?.[0]) {
-      videoUrl = data.resultUrls[0];
-    } else {
-      const resultJson = JSON.parse(data.resultJson || '{}');
-      videoUrl = resultJson.resultUrls?.[0];
-    }
-
-    if (!videoUrl) {
-      throw new Error('No video URL in success callback');
-    }
-
-    console.log(`Video completed for instance ${instance.id}: ${videoUrl}`);
-
-    // Update database with video completion
-    await supabase
-      .from('user_history_v2')
-      .update({
-        video_url: videoUrl,
-        instance_status: 'completed',
-        current_step: 'completed',
-        progress_percentage: 100,
-        updated_at: new Date().toISOString(),
-        last_processed_at: new Date().toISOString()
-      })
-      .eq('id', instance.id);
-
-    console.log(`Workflow completed for instance ${instance.id}`);
-
-  } catch (error) {
-    console.error(`Error handling video completion for instance ${instance.id}:`, error);
-
-    // Mark instance as failed
-    await supabase
-      .from('user_history_v2')
-      .update({
-        instance_status: 'failed',
-        error_message: error instanceof Error ? error.message : 'Video completion processing failed',
-        updated_at: new Date().toISOString(),
-        last_processed_at: new Date().toISOString()
-      })
-      .eq('id', instance.id);
-
-    throw error;
-  }
-}
 
 async function handleFailureCallback(taskId: string, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
-    // Find the workflow instance with this task ID
+    // Find the workflow instance with this cover task ID
     const { data: instances, error: findError } = await supabase
       .from('user_history_v2')
       .select('*')
-      .or(`cover_task_id.eq.${taskId},video_task_id.eq.${taskId}`);
+      .eq('cover_task_id', taskId);
 
     if (findError) {
       throw new Error(`Failed to find workflow instance: ${findError.message}`);
@@ -314,10 +259,7 @@ Ending: ${videoPrompt.ending}`;
     includeDialogue: false
   };
 
-  // Add callback URL for video generation too
-  if (process.env.KIE_CALLBACK_URL) {
-    requestBody.callBackUrl = process.env.KIE_CALLBACK_URL;
-  }
+  // Note: Video generation uses polling mechanism, no callback URL needed
 
   console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
 
