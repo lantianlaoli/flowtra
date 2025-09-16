@@ -29,9 +29,12 @@ interface WorkflowV2State {
 }
 
 export function useWorkflowV2(
-  userId?: string, 
+  userId?: string,
   videoModel: 'veo3' | 'veo3_fast' = 'veo3_fast',
-  elementsCount: number = 2
+  elementsCount: number = 2,
+  textWatermark: string = '',
+  textWatermarkLocation: string = 'bottom left',
+  imageSize: string = 'auto'
 ) {
   const [state, setState] = useState<WorkflowV2State>({
     isLoading: false,
@@ -93,7 +96,10 @@ export function useWorkflowV2(
           imageUrl: state.uploadedFile.url,
           userId,
           videoModel,
-          elementsCount
+          elementsCount,
+          textWatermark,
+          textWatermarkLocation,
+          imageSize
         })
       });
 
@@ -134,7 +140,7 @@ export function useWorkflowV2(
       }));
       throw error;
     }
-  }, [state.uploadedFile, userId, videoModel, elementsCount]);
+  }, [state.uploadedFile, userId, videoModel, elementsCount, textWatermark, textWatermarkLocation, imageSize]);
 
   // Download content
   const downloadContent = useCallback(async (instanceId: string, contentType: 'cover' | 'video') => {

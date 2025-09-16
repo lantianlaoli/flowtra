@@ -7,6 +7,9 @@ export interface StartBatchWorkflowRequest {
   userId: string;
   videoModel: 'veo3' | 'veo3_fast';
   elementsCount?: number;
+  textWatermark?: string;
+  textWatermarkLocation?: string;
+  imageSize?: string;
 }
 
 interface AdElements {
@@ -15,6 +18,7 @@ interface AdElements {
   ad_copy?: string;
   visual_guide?: string;
   text_watermark?: string;
+  text_watermark_location?: string;
   primary_color?: string;
   secondary_color?: string;
   tertiary_color?: string;
@@ -112,7 +116,12 @@ async function describeImage(imageUrl: string): Promise<string> {
   return data.choices[0]?.message?.content || 'No description generated';
 }
 
-async function generateMultipleElements(imageUrl: string, count: number): Promise<Record<string, unknown>[]> {
+async function generateMultipleElements(
+  imageUrl: string,
+  count: number,
+  userWatermark?: string,
+  userWatermarkLocation?: string
+): Promise<Record<string, unknown>[]> {
   const systemPrompt = `### A - Ask:
 Create exactly ${count} different sets of ELEMENTS for the uploaded ad image.  
 Each set must include **all required fields** and differ in tone, mood, or creative angle.  
@@ -126,15 +135,14 @@ Each set must include **all required fields** and differ in tone, mood, or creat
   - character
   - ad_copy
   - visual_guide
-  - text_watermark
   - Primary color, Secondary color, Tertiary color
 - Ensure creative DIVERSITY between the ${count} sets:
   - One can be minimal/clean, the other bold/energetic (or premium/elegant vs. playful/dynamic).
 - If user does not specify details, apply smart defaults:
   - ad_copy → short, catchy slogan
   - visual_guide → describe placement, size, activity of character, product angle, background mood
-  - text_watermark → blank if not given
   - colors → decide based on the ad image
+- IMPORTANT: Do NOT generate text_watermark field - this will be provided separately by the user
 
 ### E - Examples:
 **good_examples:**
@@ -186,12 +194,11 @@ Each set must include **all required fields** and differ in tone, mood, or creat
                   character: { type: 'string' },
                   ad_copy: { type: 'string' },
                   visual_guide: { type: 'string' },
-                  text_watermark: { type: 'string' },
                   primary_color: { type: 'string' },
                   secondary_color: { type: 'string' },
                   tertiary_color: { type: 'string' }
                 },
-                required: ['product', 'character', 'ad_copy', 'visual_guide', 'text_watermark', 'primary_color', 'secondary_color', 'tertiary_color']
+                required: ['product', 'character', 'ad_copy', 'visual_guide', 'primary_color', 'secondary_color', 'tertiary_color']
               }
             }
           },
@@ -223,7 +230,14 @@ Each set must include **all required fields** and differ in tone, mood, or creat
   
   try {
     const parsed = JSON.parse(content);
-    return parsed.elements || [];
+    const elements = parsed.elements || [];
+
+    // Add user-provided watermark data to each element
+    return elements.map((element: Record<string, unknown>) => ({
+      ...element,
+      text_watermark: userWatermark || '',
+      text_watermark_location: userWatermarkLocation || 'bottom left'
+    }));
   } catch (parseError) {
     throw new Error(`Failed to parse generated elements: ${parseError}`);
   }
@@ -236,7 +250,7 @@ async function generateFinalCoverPrompt(
 ): Promise<string> {
   const systemPrompt = `## SYSTEM PROMPT: 🔍 Image Ad Prompt Generator Agent\n\n### A - Ask:\nCreate exactly 1 structured image ad prompt with all required fields filled.\n\nThe final prompt should be written like this:\n\n"""\nMake an image ad for this product with the following elements. The product looks exactly like what's in the reference image.\n\nproduct:\ncharacter:\nad_copy:\nvisual_guide:\ntext_watermark:\ntext_watermark_location:\nPrimary color of ad:\nSecondary color of ad:\nTertiary color of ad:\n"""\n\n### G - Guidance:\nrole: Creative ad prompt engineer\noutput_count: 1\nconstraints:\n- Always include all required fields.\n- Integrate the user's special request as faithfully as you can in the final image prompt.\n- If user input is missing, apply smart defaults:\n  - text_watermark_location → "bottom left of screen"\n  - primary_color → decide based on the image provided\n  - secondary_color → decide based on the image provided\n  - tertiary_color → decide based on the image provided\n  - font_style → decide based on the image provided\n  - ad_copy → keep short, punchy, action-oriented.\n  - visual_guide → If the request involves a human character, define camera angle/camera used. If no visual guide is given, describe placement/size of character, what they're doing with the product, style of the ad, main background color and text color.\n- CRITICAL: The product must look exactly like what's in the reference image. Do not redraw or alter logos, text, proportions, materials, or exact colors.\n\n### E - Examples:\ngood_examples:\n- character: as defined by the user\n- ad_copy: as defined by the user, or decide if not provided\n- visual_guide: as defined by the user. If detailed, expand to accommodate while respecting the color palette.\n- text_watermark: as defined by the user, leave blank if none provided\n- text_watermark_location: as defined by the user, or bottom left if none provided\n\n### N - Notation:\nformat: text string nested within an "image_prompt" parameter. Avoid using double-quotes or raw newlines.\nexample_output: |\n{\n  "image_prompt": "final prompt here"\n}`;
 
-  const userPrompt = `Your task: Create 1 image prompt as guided by your system guidelines.\n\nDescription of the reference image: ${productDescription}\n\nELEMENTS FOR THIS IMAGE:\n\nproduct: ${String(elements.product || '')}\ncharacter: ${String(elements.character || '')}\nad_copy: ${String(elements.ad_copy || '')}\nvisual_guide: ${String(elements.visual_guide || '')}\ntext_watermark: ${String(elements.text_watermark || '')}\n\nPrimary color: ${String(elements.primary_color || '')}\nSecondary color: ${String(elements.secondary_color || '')}\nTertiary color: ${String(elements.tertiary_color || '')}`;
+  const userPrompt = `Your task: Create 1 image prompt as guided by your system guidelines.\n\nDescription of the reference image: ${productDescription}\n\nELEMENTS FOR THIS IMAGE:\n\nproduct: ${String(elements.product || '')}\ncharacter: ${String(elements.character || '')}\nad_copy: ${String(elements.ad_copy || '')}\nvisual_guide: ${String(elements.visual_guide || '')}\ntext_watermark: ${String(elements.text_watermark || '')}\ntext_watermark_location: ${String(elements.text_watermark_location || 'bottom left')}\n\nPrimary color: ${String(elements.primary_color || '')}\nSecondary color: ${String(elements.secondary_color || '')}\nTertiary color: ${String(elements.tertiary_color || '')}`;
 
   const requestBody = JSON.stringify({
     model: process.env.OPENROUTER_MODEL || 'openai/gpt-4.1-mini',
@@ -292,7 +306,7 @@ async function generateFinalCoverPrompt(
   }
 }
 
-async function generateCoverWithNanoBanana(originalImageUrl: string, imagePrompt: string): Promise<string> {
+async function generateCoverWithNanoBanana(originalImageUrl: string, imagePrompt: string, imageSize = 'auto'): Promise<string> {
   // Build request payload to match KIE nano-banana-edit expectations
   const requestBody: Record<string, unknown> = {
     model: 'google/nano-banana-edit',
@@ -300,7 +314,7 @@ async function generateCoverWithNanoBanana(originalImageUrl: string, imagePrompt
       prompt: imagePrompt,
       image_urls: [originalImageUrl],
       output_format: 'png',
-      image_size: 'auto'
+      image_size: imageSize
     }
   };
 
@@ -457,7 +471,10 @@ export async function startV2Items({
   imageUrl,
   userId,
   videoModel,
-  elementsCount = 2
+  elementsCount = 2,
+  textWatermark,
+  textWatermarkLocation,
+  imageSize = 'auto'
 }: StartBatchWorkflowRequest): Promise<{ success: boolean; itemIds?: string[]; message?: string; error?: string }> {
   try {
     if (!imageUrl || !userId) {
@@ -469,13 +486,16 @@ export async function startV2Items({
     // Generation is free now; only deduct on download
 
     const description = await describeImage(imageUrl);
-    const elements = await generateMultipleElements(imageUrl, elementsCount);
+    const elements = await generateMultipleElements(imageUrl, elementsCount, textWatermark, textWatermarkLocation);
 
     const itemsPayload = elements.map((element) => ({
       user_id: userId,
       original_image_url: imageUrl,
       product_description: description,
-      elements_data: element,
+      elements_data: {
+        ...element,
+        image_size: imageSize
+      },
       video_model: videoModel,
       credits_cost: getCreditCost(videoModel),
       instance_status: 'pending' as const,
@@ -559,8 +579,11 @@ async function startCoverGenerationV2(
   // Step 3: Generate final image_prompt via OpenRouter using description + elements
   const finalImagePrompt = await generateFinalCoverPrompt(productDescription, elements);
 
+  // Extract image_size from elements (default to 'auto' if not specified)
+  const imageSize = (elements.image_size as string) || 'auto';
+
   // Generate cover with Banana using final image_prompt and original image URL
-  const taskId = await generateCoverWithNanoBanana(originalImageUrl, finalImagePrompt);
+  const taskId = await generateCoverWithNanoBanana(originalImageUrl, finalImagePrompt, imageSize);
 
   await supabase
     .from('user_history_v2')

@@ -18,6 +18,9 @@ export default function GenerateAdPageV2() {
   const { credits: userCredits, refetchCredits } = useCredits();
   const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast'>('veo3_fast');
   const [elementsCount, setElementsCount] = useState(2);
+  const [textWatermark, setTextWatermark] = useState('');
+  const [textWatermarkLocation, setTextWatermarkLocation] = useState('bottom left');
+  const [imageSize, setImageSize] = useState('auto');
   const router = useRouter();
   const [kieCreditsStatus, setKieCreditsStatus] = useState<{ sufficient: boolean; loading: boolean; currentCredits?: number; threshold?: number }>({
     sufficient: true,
@@ -40,7 +43,7 @@ export default function GenerateAdPageV2() {
     startBatchWorkflow,
     downloadContent,
     resetWorkflow
-  } = useWorkflowV2(user?.id, selectedModel, elementsCount);
+  } = useWorkflowV2(user?.id, selectedModel, elementsCount, textWatermark, textWatermarkLocation, imageSize);
 
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
     if (model === 'auto') {
@@ -193,6 +196,75 @@ export default function GenerateAdPageV2() {
                 </div>
               </div>
 
+              {/* Watermark Configuration */}
+              <div className="space-y-4">
+                <label className="block text-lg sm:text-xl font-semibold text-gray-900">
+                  Watermark Settings
+                </label>
+
+                {/* Watermark Text Input */}
+                <div>
+                  <label htmlFor="watermark-text" className="block text-sm font-medium text-gray-700 mb-2">
+                    Watermark Text (optional)
+                  </label>
+                  <input
+                    id="watermark-text"
+                    type="text"
+                    value={textWatermark}
+                    onChange={(e) => setTextWatermark(e.target.value)}
+                    placeholder="Enter watermark text..."
+                    maxLength={50}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty for no watermark</p>
+                </div>
+
+                {/* Watermark Location Selector */}
+                <div>
+                  <label htmlFor="watermark-location" className="block text-sm font-medium text-gray-700 mb-2">
+                    Watermark Position
+                  </label>
+                  <select
+                    id="watermark-location"
+                    value={textWatermarkLocation}
+                    onChange={(e) => setTextWatermarkLocation(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
+                  >
+                    <option value="bottom left">Bottom Left</option>
+                    <option value="bottom right">Bottom Right</option>
+                    <option value="top left">Top Left</option>
+                    <option value="top right">Top Right</option>
+                    <option value="center bottom">Center Bottom</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Image Size Configuration */}
+              <div className="space-y-4">
+                <label className="block text-lg sm:text-xl font-semibold text-gray-900">
+                  Image Size
+                </label>
+
+                <div>
+                  <label htmlFor="image-size" className="block text-sm font-medium text-gray-700 mb-2">
+                    Output Aspect Ratio
+                  </label>
+                  <select
+                    id="image-size"
+                    value={imageSize}
+                    onChange={(e) => setImageSize(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
+                  >
+                    <option value="auto">Auto (Native Resolution)</option>
+                    <option value="1:1">Square (1:1)</option>
+                    <option value="3:4">Portrait 3:4</option>
+                    <option value="9:16">Portrait 9:16</option>
+                    <option value="4:3">Landscape 4:3</option>
+                    <option value="16:9">Landscape 16:9</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Action Buttons moved to right side */}
               <div className="space-y-3">
                 <button
@@ -257,14 +329,14 @@ export default function GenerateAdPageV2() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => router.push('/dashboard/videos')}
-              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium cursor-pointer"
             >
               <History className="w-4 h-4" />
               View Progress
             </button>
             <button
               onClick={() => resetWorkflow()}
-              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium"
+              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium cursor-pointer"
             >
               <ArrowRight className="w-4 h-4" />
               Create Another
@@ -370,15 +442,15 @@ export default function GenerateAdPageV2() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-8">
             <button
               onClick={() => resetWorkflow()}
-              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium"
+              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium cursor-pointer"
             >
               <ArrowRight className="w-4 h-4" />
               Create Another
             </button>
-            
+
             <button
               onClick={() => router.push('/dashboard/videos')}
-              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors font-medium"
+              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors font-medium cursor-pointer"
             >
               <History className="w-4 h-4" />
               View All Results

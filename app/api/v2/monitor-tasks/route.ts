@@ -258,7 +258,7 @@ async function startVideoGeneration(
 
   console.log('Generated video prompt:', finalPrompt);
 
-  const requestBody = {
+  const requestBody: Record<string, unknown> = {
     prompt: finalPrompt,
     model: 'veo3_fast', // Default model, can be made configurable
     aspectRatio: "16:9",
@@ -268,6 +268,11 @@ async function startVideoGeneration(
     generateVoiceover: false, // No voiceover for v2
     includeDialogue: false
   };
+
+  // Add callback URL for video generation
+  if (process.env.KIE_CALLBACK_URL) {
+    requestBody.callBackUrl = process.env.KIE_CALLBACK_URL;
+  }
 
   console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
 
