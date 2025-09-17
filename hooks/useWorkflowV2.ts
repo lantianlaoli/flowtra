@@ -35,7 +35,8 @@ export function useWorkflowV2(
   elementsCount: number = 2,
   textWatermark: string = '',
   textWatermarkLocation: string = 'bottom left',
-  imageSize: string = 'auto'
+  imageSize: string = 'auto',
+  shouldGenerateVideo: boolean = true
 ) {
   const [state, setState] = useState<WorkflowV2State>({
     isLoading: false,
@@ -100,7 +101,8 @@ export function useWorkflowV2(
           elementsCount,
           textWatermark,
           textWatermarkLocation,
-          imageSize
+          imageSize,
+          generateVideo: shouldGenerateVideo
         })
       });
 
@@ -112,13 +114,16 @@ export function useWorkflowV2(
       const result = await response.json();
       const itemIds: string[] = result.itemIds || [];
       setCurrentItemIds(itemIds);
+      const creditsCost = shouldGenerateVideo ? getCreditCost(videoModel) : 0;
+
       const seeded = itemIds.map((id) => ({
         id,
         user_id: userId,
+        elements_data: { generate_video: shouldGenerateVideo },
         cover_image_size: imageSize,
         status: 'pending' as const,
         current_step: 'waiting' as const,
-        credits_cost: getCreditCost(videoModel),
+        credits_cost: creditsCost,
         downloaded: false,
         progress_percentage: 0,
         created_at: new Date().toISOString(),
@@ -142,7 +147,7 @@ export function useWorkflowV2(
       }));
       throw error;
     }
-  }, [state.uploadedFile, userId, videoModel, elementsCount, textWatermark, textWatermarkLocation, imageSize]);
+  }, [state.uploadedFile, userId, videoModel, elementsCount, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo]);
 
   // Download content
   const downloadContent = useCallback(async (instanceId: string, contentType: 'cover' | 'video') => {

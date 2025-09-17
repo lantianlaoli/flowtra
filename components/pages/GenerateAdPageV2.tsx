@@ -21,6 +21,7 @@ export default function GenerateAdPageV2() {
   const [textWatermark, setTextWatermark] = useState('');
   const [textWatermarkLocation, setTextWatermarkLocation] = useState('bottom left');
   const [imageSize, setImageSize] = useState('auto');
+  const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
   const router = useRouter();
   const [kieCreditsStatus, setKieCreditsStatus] = useState<{ sufficient: boolean; loading: boolean; currentCredits?: number; threshold?: number }>({
     sufficient: true,
@@ -43,7 +44,15 @@ export default function GenerateAdPageV2() {
     startBatchWorkflow,
     downloadContent,
     resetWorkflow
-  } = useWorkflowV2(user?.id, selectedModel, elementsCount, textWatermark, textWatermarkLocation, imageSize);
+  } = useWorkflowV2(
+    user?.id,
+    selectedModel,
+    elementsCount,
+    textWatermark,
+    textWatermarkLocation,
+    imageSize,
+    shouldGenerateVideo
+  );
 
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
     if (model === 'auto') {
@@ -307,6 +316,41 @@ export default function GenerateAdPageV2() {
                 </div>
               </div>
 
+              {/* Video Generation Option */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                  <Play className="w-4 h-4" />
+                  Video
+                </label>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShouldGenerateVideo(true)}
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
+                      shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+                    }`}
+                    aria-pressed={shouldGenerateVideo}
+                  >
+                    Generate video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShouldGenerateVideo(false)}
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
+                      !shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+                    }`}
+                    aria-pressed={!shouldGenerateVideo}
+                  >
+                    Images only
+                  </button>
+                </div>
+
+                <p className="text-sm text-gray-500">
+                  Skip video to finalize the workflow once all images are generated.
+                </p>
+              </div>
+
               {/* Action Buttons moved to right side */}
               <div className="space-y-3">
                 <button
@@ -461,19 +505,25 @@ export default function GenerateAdPageV2() {
                       <ImageIcon className="w-4 h-4" />
                       Cover
                     </button>
-                    
-                    <button
-                      onClick={() => handleDownload(instance.id, 'video')}
-                      disabled={!instance.video_url}
-                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
-                        instance.downloaded 
-                          ? 'bg-green-100 text-green-800 border border-green-300'
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
-                    >
-                      <Play className="w-4 h-4" />
-                      {instance.downloaded ? 'Downloaded' : `Video (${instance.credits_cost})`}
-                    </button>
+                    {instance.elements_data?.generate_video !== false ? (
+                      <button
+                        onClick={() => handleDownload(instance.id, 'video')}
+                        disabled={!instance.video_url}
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+                          instance.downloaded 
+                            ? 'bg-green-100 text-green-800 border border-green-300'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        <Play className="w-4 h-4" />
+                        {instance.downloaded ? 'Downloaded' : `Video (${instance.credits_cost})`}
+                      </button>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
+                        <Play className="w-4 h-4" />
+                        Video skipped
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

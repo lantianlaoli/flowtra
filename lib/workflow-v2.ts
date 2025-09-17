@@ -5,11 +5,12 @@ import { getCreditCost } from '@/lib/constants';
 export interface StartBatchWorkflowRequest {
   imageUrl: string;
   userId: string;
-  videoModel: 'veo3' | 'veo3_fast';
+  videoModel?: 'veo3' | 'veo3_fast';
   elementsCount?: number;
   textWatermark?: string;
   textWatermarkLocation?: string;
   imageSize?: string;
+  generateVideo?: boolean;
 }
 
 interface AdElements {
@@ -26,23 +27,31 @@ interface AdElements {
 
 // Removed all batch-based functions and types
 
-async function describeImage(imageUrl: string): Promise<string> {
+export type DescribeImageResult = Record<string, unknown>;
+
+async function describeImage(imageUrl: string): Promise<DescribeImageResult> {
+  const systemText = `Analyze the given image and determine if it primarily depicts a product or a character, or BOTH.
+
+- If the image is of a product, return the analysis in JSON format with the following fields:
+
+{\n  "type": "product",\n  "brand_name": "(Name of the brand shown in the image, if visible or inferable)",\n  "color_scheme": [\n    {\n      "hex": "(Hex code of each prominent color used)",\n      "name": "(Descriptive name of the color)"\n    }\n  ],\n  "font_style": "(Describe the font family or style used: serif/sans-serif, bold/thin, etc.)",\n  "visual_description": "(A full sentence or two summarizing what is seen in the image, ignoring the background)"\n}
+
+- If the image is of a character, return the analysis in JSON format with the following fields:
+
+{\n  "type": "character",\n  "outfit_style": "(Description of clothing style, accessories, or notable features)",\n  "visual_description": "(A full sentence or two summarizing what the character looks like, ignoring the background)"\n}
+
+- If it is BOTH, return both descriptions in JSON format:
+
+{\n  "type": "both",\n  "product": {\n    "brand_name": "...",\n    "color_scheme": [...],\n    "font_style": "...",\n    "visual_description": "..."\n  },\n  "character": {\n    "outfit_style": "...",\n    "visual_description": "..."\n  }\n}`;
+
   const requestBody = JSON.stringify({
     model: process.env.OPENROUTER_MODEL || 'openai/gpt-4.1-mini',
     messages: [
       {
         role: 'user',
         content: [
-          {
-            type: 'text',
-            text: 'You are reviewing a product packaging photo to establish non-negotiable visual anchors for a unified ad campaign. Extract the fixed brand cues (logo, typography, palette), product angle, lighting, and background styling. Identify any printed mascot on the packaging so future prompts can introduce a different live hero. Return JSON that follows the provided schema exactly; fill every required field and use "none" when a value is not present.'
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: imageUrl
-            }
-          }
+          { type: 'text', text: systemText },
+          { type: 'image_url', image_url: { url: imageUrl } }
         ]
       }
     ],
@@ -54,78 +63,80 @@ async function describeImage(imageUrl: string): Promise<string> {
         name: 'image_analysis',
         strict: true,
         schema: {
-          type: 'object',
-          properties: {
-            type: {
-              type: 'string',
-              enum: ['product', 'character', 'both']
-            },
-            brand_name: {
-              type: 'string',
-              description: 'Name of the brand shown in the image, if visible or inferable'
-            },
-            brand_tone: {
-              type: 'string',
-              description: 'Short description of the brand voice inferred from packaging (e.g., wholesome and joyful, minimalist premium).'
-            },
-            color_scheme: {
-              type: 'array',
-              description: 'Three core brand colors in order of dominance. Use hex values from the packaging where possible.',
-              minItems: 3,
-              items: {
-                type: 'object',
-                properties: {
-                  hex: { type: 'string' },
-                  name: { type: 'string' },
-                  role: {
-                    type: 'string',
-                    description: 'How the color is used (primary, secondary, tertiary, accent, neutral).'
+          oneOf: [
+            {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['product'] },
+                brand_name: { type: 'string' },
+                color_scheme: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      hex: { type: 'string' },
+                      name: { type: 'string' }
+                    },
+                    required: ['hex', 'name'],
+                    additionalProperties: false
                   }
                 },
-                required: ['hex', 'name', 'role']
-              }
+                font_style: { type: 'string' },
+                visual_description: { type: 'string' }
+              },
+              required: ['type', 'brand_name', 'color_scheme', 'font_style', 'visual_description'],
+              additionalProperties: false
             },
-            font_style: {
-              type: 'string',
-              description: 'Font family or typographic feel on the packaging (e.g., bold sans-serif, serif, handwritten).'
+            {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['character'] },
+                outfit_style: { type: 'string' },
+                visual_description: { type: 'string' }
+              },
+              required: ['type', 'outfit_style', 'visual_description'],
+              additionalProperties: false
             },
-            product_anchor: {
-              type: 'string',
-              description: 'Immutable packaging details that must stay identical (logo placement, key graphics, pack structure).'
-            },
-            product_angle: {
-              type: 'string',
-              description: 'Camera angle or orientation of the packaging (e.g., three-quarter front, straight-on eye level).'
-            },
-            lighting_style: {
-              type: 'string',
-              description: 'Lighting mood to replicate (e.g., soft studio, high-contrast spotlight).'
-            },
-            background_style: {
-              type: 'string',
-              description: 'Describe the background or surface treatment to reuse (e.g., mint-to-cream gradient studio backdrop).'
-            },
-            packaging_character: {
-              type: 'string',
-              description: 'Describe any mascot or character printed on the packaging. Return "none" if none is visible.'
-            },
-            visual_description: {
-              type: 'string',
-              description: 'One to two sentences summarizing the product appearance and overall vibe without inventing new contexts.'
+            {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['both'] },
+                product: {
+                  type: 'object',
+                  properties: {
+                    brand_name: { type: 'string' },
+                    color_scheme: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          hex: { type: 'string' },
+                          name: { type: 'string' }
+                        },
+                        required: ['hex', 'name'],
+                        additionalProperties: false
+                      }
+                    },
+                    font_style: { type: 'string' },
+                    visual_description: { type: 'string' }
+                  },
+                  required: ['brand_name', 'color_scheme', 'font_style', 'visual_description'],
+                  additionalProperties: false
+                },
+                character: {
+                  type: 'object',
+                  properties: {
+                    outfit_style: { type: 'string' },
+                    visual_description: { type: 'string' }
+                  },
+                  required: ['outfit_style', 'visual_description'],
+                  additionalProperties: false
+                }
+              },
+              required: ['type', 'product', 'character'],
+              additionalProperties: false
             }
-          },
-          required: [
-            'type',
-            'visual_description',
-            'brand_tone',
-            'product_anchor',
-            'product_angle',
-            'lighting_style',
-            'background_style',
-            'color_scheme',
-            'packaging_character'
-          ],
-          additionalProperties: false
+          ]
         }
       }
     }
@@ -149,65 +160,67 @@ async function describeImage(imageUrl: string): Promise<string> {
   }
 
   const data = await response.json();
-  return data.choices[0]?.message?.content || 'No description generated';
+  const content = data.choices[0]?.message?.content || '{}';
+  try {
+    return JSON.parse(content) as DescribeImageResult;
+  } catch (e) {
+    throw new Error(`Failed to parse image analysis JSON: ${e}`);
+  }
 }
 
 async function generateMultipleElements(
   imageUrl: string,
   count: number,
-  brandAnalysis: string,
   userWatermark?: string,
   userWatermarkLocation?: string
 ): Promise<Record<string, unknown>[]> {
-  const systemPrompt = `### Unified Campaign Brief
-Create ${count} creative element set${count === 1 ? '' : 's'} for one cohesive advertising campaign.
+  const systemPrompt = `### A - Ask:
+Create exactly ${count} different sets of ELEMENTS for the uploaded ad image.
+Each set must include all required fields and differ in tone, mood, or creative angle.
 
-Shared anchors to preserve in every set:
-- Treat the packaged product as the fixed hero. Never alter the logo, typography, packaging structure, or brand colors.
-- Mirror the product_angle, lighting_style, and background_style supplied in the analysis.
-- Keep product placement identical: hero pack stays in the same position and angle within the frame.
+### G - Guidance:
+role: Creative ad concept generator
 
-Allowed variation (and only here):
-- Vary the live hero described in 'character' (1–3 word descriptor without actions) and the pose/mood captured in 'visual_guide'.
-- Each character must be distinct from any packaging mascot noted in the analysis.
-- 'visual_guide' must confirm the shared studio/gradient background, consistent lighting, and identical product placement while describing how the new hero interacts with the pack.
+constraints:
+- product → Product or line name
+- character → Featured character (dog breed/appearance). If the reference image is primarily a product (e.g., dog food) with no visible character, pick a plausible, specific dog breed aligned with the brand/packaging style (e.g., "Shiba Inu", "Golden Retriever"). If the image features cats or cat-related products (e.g., a cat bed), choose specific cat breeds accordingly (e.g., "British Shorthair", "Siamese"). Vary breeds across different sets to ensure diversity.
+- ad_copy → Short, catchy slogan
+- visual_guide → Describe character’s pose, product placement, background mood
+- primary_color → Main color (from packaging/ad)
+- secondary_color → Supporting color
+- tertiary_color → Accent color
 
-Copy and palette requirements:
-- 'product' repeats the precise product or line name.
-- 'ad_copy' is one concise sentence using the same brand tone keywords from the analysis (e.g., healthy, joyful, premium). Keep voice consistent across all sets.
-- Reuse the same primary, secondary, and tertiary colors across every variant by copying the dominant trio from the analysis data.
+Return JSON only with an 'elements' array. Use snake_case keys exactly as listed above.
 
-Category awareness:
-- Select hero types that make sense for the product category (pets for pet goods, models for cosmetics, athletes for beverages, families for snacks, professionals for tech, etc.) so the rule set scales beyond pet food.
-
-Return exactly ${count} set${count === 1 ? '' : 's'} and include every required field for each set.`;
+### E - Examples:
+{
+  "elements": [
+    {
+      "product": "Happy Dog Sensible Montana",
+      "character": "short-haired hunting dog",
+      "ad_copy": "Natural energy, every day.",
+      "visual_guide": "The hunting dog sits calmly beside the pack, background is a soft green gradient, product facing forward and clearly highlighted.",
+      "primary_color": "#1A3D2F",
+      "secondary_color": "#FFFFFF",
+      "tertiary_color": "#C89B3C"
+    },
+    {
+      "product": "Happy Dog Sensible Neuseeland",
+      "character": "corgi",
+      "ad_copy": "Healthy mode, happy life.",
+      "visual_guide": "The corgi stretches playfully on a mat, product placed to the side, background is a bright green gradient with lively lighting.",
+      "primary_color": "#3E6B4D",
+      "secondary_color": "#FFD966",
+      "tertiary_color": "#FFFFFF"
+    }
+  ]
+}`;
 
   const requestBody = JSON.stringify({
     model: process.env.OPENROUTER_MODEL || 'openai/gpt-4.1-mini',
     messages: [
-      {
-        role: 'system',
-        content: systemPrompt
-      },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: `Your task: Using the uploaded product image and the structured brand analysis, create exactly ${count} unified element set${count === 1 ? '' : 's'} that obey the shared-anchor rules.`
-          },
-          {
-            type: 'text',
-            text: `BRAND_ANALYSIS_JSON:\n${brandAnalysis}`
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: imageUrl
-            }
-          }
-        ]
-      }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: [ { type: 'image_url', image_url: { url: imageUrl } } ] }
     ],
     max_tokens: 2000,
     temperature: 0.6,
@@ -278,71 +291,50 @@ Return exactly ${count} set${count === 1 ? '' : 's'} and include every required 
 }
 
 // Step 3: Combine description + one elements set to generate final cover prompt
-// Step 3: Combine description + one elements set to generate final cover prompt
+// Change: return parsed JSON object directly instead of assembling a string
+export type FinalCoverPrompt = Record<string, unknown>;
+
 async function generateFinalCoverPrompt(
-  productDescription: string,
+  productDescription: string | Record<string, unknown>,
   elements: AdElements
-): Promise<string> {
-  const systemPrompt = `## SYSTEM PROMPT: 🔍 Image Ad Prompt Generator Agent
+): Promise<FinalCoverPrompt> {
+  const systemPrompt = `### A - Ask:
+Create a structured image ad prompt with all required fields filled, based on the given description and elements.
 
-### Ask
-Create exactly one structured image ad prompt with every required field filled.
+### G - Guidance:
+role: Creative ad prompt engineer
 
-The final prompt MUST be written exactly like:
-"""
-Make an image ad for this product with the following elements. The product looks exactly like what's in the reference image.
-
-product:
-character:
-ad_copy:
-visual_guide:
-text_watermark:
-text_watermark_location:
-Primary color of ad:
-Secondary color of ad:
-Tertiary color of ad:
-"""
-
-### Role
-Creative ad prompt engineer responsible for preserving brand anchors.
-
-### Campaign Consistency Rules (CRITICAL)
-- The packaged product from the reference image is the sole visual anchor. Never alter logos, typography, packaging structure, pack copy, or brand colors.
-- Mirror the product_angle, lighting_style, and background_style from the brand analysis. Background must remain a controlled studio/gradient environment (no scenic locations or unrelated props).
-- Keep product placement identical: hero pack holds the same position and angle, with matching light direction and intensity.
-- Reuse the provided primary/secondary/tertiary colors verbatim. Do not invent or swap palette values.
-- The hero subject described must be a new live character distinct from any packaging mascot noted in the analysis, while interacting with the physical product in the same choreographed manner across the series.
-
-### Sanitization & Normalization
-- If visual_guide suggests locations, props, or camera treatments that break the shared anchor, rewrite it to the studio/gradient setup with the consistent camera angle.
-- If character text contains actions or long sentences, normalize it to a concise label (1–3 words) and move actions into visual_guide.
-- Ensure visual_guide explicitly states the consistent product placement (e.g., "product pack front-left three-quarter angle") and lighting alignment.
-- Do not mention being different from the packaging; simply describe the correct setup.
-- Always keep color fields identical to the provided elements.
-- Maintain concise, production-ready language with no extra commentary.
-
-### Guidance
+constraints:
 - Always include all required fields.
-- Align ad_copy tone with the brand_tone keywords extracted from the analysis.
-- If text_watermark_location is missing, default to "bottom left of screen".
-- visual_guide must cover hero pose, interaction with the product, camera framing, lighting, and the shared studio/gradient background.
-- CRITICAL: The product must look exactly like the reference. Do not redraw or alter logos, text, proportions, materials, or exact colors.
+- Integrate the user's provided description and elements as faithfully as possible.
+- If any input is missing, apply smart defaults:
+  - text_watermark_location → "bottom left of screen"
+  - primary_color / secondary_color / tertiary_color → derive from the provided image or elements
+  - font_style → decide based on the reference image
+  - ad_copy → short, punchy, action-oriented
+  - visual_guide → describe placement, pose, product visibility, background, and style; respect the given palette
+  - text_watermark → leave blank if none provided
 
-### Notation
-Return JSON with a single field: "image_prompt" (string). Do not include additional keys or explanations.`;
+### E - Example:
+{
+  "product": "Happy Dog Sensible Neuseeland",
+  "character": "Corgi",
+  "ad_copy": "Healthy mode, happy life.",
+  "visual_guide": "The corgi stretches playfully on a mat, product pack placed to the side, background is a bright green gradient with clean lighting, style is playful and dynamic.",
+  "text_watermark": "",
+  "text_watermark_location": "bottom left of screen",
+  "Primary color of ad": "#3E6B4D",
+  "Secondary color of ad": "#FFD966",
+  "Tertiary color of ad": "#FFFFFF"
+}`;
 
-  const userPrompt = `Your task: Create one image prompt that follows the system rules.
+  const pd = typeof productDescription === 'string' ? productDescription : JSON.stringify(productDescription);
+  const userPrompt = `Your task: Create an image prompt as guided by your system guidelines.
 
-BRAND ANALYSIS JSON (Stage 1):
-${productDescription}
+Description of the reference image: ${pd}
 
-Remember:
-- Treat product_anchor details as immovable.
-- Mirror product_angle, lighting_style, and background_style exactly.
-- packaging_character describes the on-pack mascot; the live hero you describe must be different while interacting with the product in the same way.
-- Use the brand_tone keywords to keep ad_copy voice unified.
+ELEMENTS FOR THIS IMAGE:
 
-ELEMENTS FOR THIS IMAGE (normalize if needed):
 product: ${String(elements.product || '')}
 character: ${String(elements.character || '')}
 ad_copy: ${String(elements.ad_copy || '')}
@@ -350,9 +342,9 @@ visual_guide: ${String(elements.visual_guide || '')}
 text_watermark: ${String(elements.text_watermark || '')}
 text_watermark_location: ${String(elements.text_watermark_location || 'bottom left of screen')}
 
-Primary color of ad: ${String(elements.primary_color || '')}
-Secondary color of ad: ${String(elements.secondary_color || '')}
-Tertiary color of ad: ${String(elements.tertiary_color || '')}`;
+Primary color: ${String(elements.primary_color || '')}
+Secondary color: ${String(elements.secondary_color || '')}
+Tertiary color: ${String(elements.tertiary_color || '')}`;
 
   const requestBody = JSON.stringify({
     model: process.env.OPENROUTER_MODEL || 'openai/gpt-4.1-mini',
@@ -370,9 +362,27 @@ Tertiary color of ad: ${String(elements.tertiary_color || '')}`;
         schema: {
           type: 'object',
           properties: {
-            image_prompt: { type: 'string' }
+            product: { type: 'string' },
+            character: { type: 'string' },
+            ad_copy: { type: 'string' },
+            visual_guide: { type: 'string' },
+            text_watermark: { type: 'string' },
+            text_watermark_location: { type: 'string' },
+            "Primary color of ad": { type: 'string' },
+            "Secondary color of ad": { type: 'string' },
+            "Tertiary color of ad": { type: 'string' }
           },
-          required: ['image_prompt'],
+          required: [
+            'product',
+            'character',
+            'ad_copy',
+            'visual_guide',
+            'text_watermark',
+            'text_watermark_location',
+            'Primary color of ad',
+            'Secondary color of ad',
+            'Tertiary color of ad'
+          ],
           additionalProperties: false
         }
       }
@@ -400,53 +410,82 @@ Tertiary color of ad: ${String(elements.tertiary_color || '')}`;
   const content = data.choices?.[0]?.message?.content || '';
 
   try {
-    const parsed = JSON.parse(content);
-    if (!parsed?.image_prompt) throw new Error('Missing image_prompt');
-    return String(parsed.image_prompt);
+    const parsed = JSON.parse(content) as FinalCoverPrompt;
+    return parsed;
   } catch (e) {
-    throw new Error(`Failed to parse final cover prompt: ${e}`);
+    throw new Error(`Failed to parse final cover prompt JSON: ${e}`);
   }
 }
 
 
-async function generateCoverWithNanoBanana(originalImageUrl: string, imagePrompt: string, imageSize = 'auto'): Promise<string> {
-  // Build request payload to match KIE nano-banana-edit expectations
-  const requestBody: Record<string, unknown> = {
-    model: 'google/nano-banana-edit',
-    input: {
-      prompt: imagePrompt,
-      image_urls: [originalImageUrl],
-      output_format: 'png',
-      image_size: imageSize
+async function generateCoverWithNanoBanana(originalImageUrl: string, imagePrompt: string | Record<string, unknown>, imageSize = 'auto'): Promise<string> {
+  // Helper to call KIE
+  const callKIE = async (promptPayload: unknown) => {
+    const requestBody: Record<string, unknown> = {
+      model: 'google/nano-banana-edit',
+      input: {
+        prompt: promptPayload,
+        image_urls: [originalImageUrl],
+        output_format: 'png',
+        image_size: imageSize
+      }
+    };
+
+    if (process.env.KIE_BANANA_CALLBACK_URL) {
+      requestBody.callBackUrl = process.env.KIE_BANANA_CALLBACK_URL;
     }
+
+    const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    }, 3, 30000);
+
+    const text = await response.text();
+    // Narrowly typed KIE response shape to avoid `any`.
+    let json: { code?: number; message?: string; data?: { taskId?: string } } | null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = null;
+    }
+
+    if (!response.ok) {
+      const msg = json?.message || text;
+      throw new Error(`KIE nano-banana API error: ${response.status} ${msg}`);
+    }
+
+    if (!json || json.code !== 200) {
+      const errMsg = json?.message || 'Unknown KIE error';
+      throw new Error(errMsg);
+    }
+
+    if (!json.data || !json.data.taskId) {
+      throw new Error('KIE response missing taskId');
+    }
+
+    return json.data.taskId as string;
   };
 
-  // Optionally attach callback URL if provided via env
-  if (process.env.KIE_BANANA_CALLBACK_URL) {
-    requestBody.callBackUrl = process.env.KIE_BANANA_CALLBACK_URL;
+  // First attempt: pass JSON/object as-is if provided
+  try {
+    return await callKIE(imagePrompt);
+  } catch (err) {
+    // Fallback: if prompt is object, retry with a string prompt to maximize compatibility
+    const shouldFallback = typeof imagePrompt !== 'string';
+    if (!shouldFallback) throw new Error(`Failed to generate cover with nano-banana: ${(err as Error).message}`);
+
+    // Minimal conversion: stringify structured prompt
+    const fallbackPrompt = JSON.stringify(imagePrompt);
+    try {
+      return await callKIE(fallbackPrompt);
+    } catch (err2) {
+      throw new Error(`Failed to generate cover with nano-banana: ${(err2 as Error).message}`);
+    }
   }
-
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  }, 3, 30000);
-
-  if (!response.ok) {
-    const errorData = await response.text();
-    throw new Error(`KIE nano-banana API error: ${response.status} ${errorData}`);
-  }
-
-  const data = await response.json();
-
-  if (data.code !== 200) {
-    throw new Error(data.message || 'Failed to generate cover with nano-banana');
-  }
-
-  return data.data.taskId;
 }
 
 export type VideoPromptDesign = {
@@ -465,7 +504,7 @@ export type VideoPromptDesign = {
 export async function generateVideoDesignFromCover(
   coverImageUrl: string,
   elements: Record<string, unknown> | undefined,
-  productDescription?: string
+  productDescription?: string | Record<string, unknown>
 ): Promise<VideoPromptDesign> {
   const systemPrompt = `Video Prompt Generator for Product Creatives\nRole\nYou are a seasoned creative director with deep expertise in visual storytelling, branding, and advertising. Your job is to guide the structured creation of high-quality, compelling, and brand-aligned video content for product marketing.\n\nTask\nGenerate a video prompt and return ONLY the JSON object inside video_prompt.\n\nGuidance\nAlways use the product description and creative brief as provided by the user. Include these essential details in every prompt: description, setting, camera_type, camera_movement, action, lighting, other_details, dialogue, music, ending. Scenes must be visually rich and avoid generic or vague descriptions. Adhere strictly to the brand identity and ensure the final output feels polished, cinematic, and aligned with the marketing intent.\n\nConstraints\nRespond ONLY with the JSON object of video_prompt. Do NOT include any image URLs or references to image links in the JSON.`;
 
@@ -481,7 +520,7 @@ export async function generateVideoDesignFromCover(
         content: [
           {
             type: 'text',
-            text: `Context:\nproduct_description: ${productDescription || ''}\nelements: ${JSON.stringify(elements || {})}\n\nUse the attached image input to ground the design. Return ONLY the JSON object for video_prompt.`
+            text: `Context:\nproduct_description: ${typeof productDescription === 'string' ? (productDescription || '') : JSON.stringify(productDescription || {})}\nelements: ${JSON.stringify(elements || {})}\n\nUse the attached image input to ground the design. Return ONLY the JSON object for video_prompt.`
           },
           {
             type: 'image_url',
@@ -576,16 +615,20 @@ export interface WorkflowV2Item {
 export async function startV2Items({
   imageUrl,
   userId,
-  videoModel,
+  videoModel = 'veo3_fast',
   elementsCount = 2,
   textWatermark,
   textWatermarkLocation,
-  imageSize = 'auto'
+  imageSize = 'auto',
+  generateVideo = true
 }: StartBatchWorkflowRequest): Promise<{ success: boolean; itemIds?: string[]; message?: string; error?: string }> {
   try {
     if (!imageUrl || !userId) {
       return { success: false, error: 'Image URL and User ID are required' };
     }
+
+    const shouldGenerateVideo = generateVideo !== false;
+    const resolvedVideoModel = videoModel || 'veo3_fast';
 
     const supabase = getSupabaseAdmin();
 
@@ -598,7 +641,6 @@ export async function startV2Items({
     const elements = await generateMultipleElements(
       imageUrl,
       elementsCount,
-      description,
       sanitizedWatermark || undefined,
       sanitizedWatermarkLocation || undefined
     );
@@ -609,13 +651,14 @@ export async function startV2Items({
       product_description: description,
       elements_data: {
         ...element,
-        image_size: imageSize
+        image_size: imageSize,
+        generate_video: shouldGenerateVideo
       },
       cover_image_size: imageSize,
       watermark_text: sanitizedWatermark,
       watermark_location: sanitizedWatermarkLocation,
-      video_model: videoModel,
-      credits_cost: getCreditCost(videoModel),
+      video_model: shouldGenerateVideo ? resolvedVideoModel : null,
+      credits_cost: shouldGenerateVideo ? getCreditCost(resolvedVideoModel) : 0,
       status: 'pending' as const,
       current_step: 'waiting' as const,
       progress_percentage: 0
@@ -679,7 +722,7 @@ export async function getV2ItemsStatus(ids: string[]): Promise<{ success: boolea
 async function startCoverGenerationV2(
   itemId: string,
   originalImageUrl: string,
-  productDescription: string,
+  productDescription: string | Record<string, unknown>,
   elements: Record<string, unknown>
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
@@ -697,11 +740,27 @@ async function startCoverGenerationV2(
   // Step 3: Generate final image_prompt via OpenRouter using description + elements
   const finalImagePrompt = await generateFinalCoverPrompt(productDescription, elements);
 
+  // Persist the exact image prompt to DB before sending to nano-banana for auditing
+  try {
+    await supabase
+      .from('user_history_v2')
+      .update({
+        // Persist as JSONB (object) for audit/storage
+        image_prompt: finalImagePrompt as Record<string, unknown>,
+        updated_at: new Date().toISOString(),
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', itemId);
+  } catch (e) {
+    // Non-fatal: continue even if audit field write fails
+    console.warn('Failed to persist image_prompt for V2 item', { itemId, error: e });
+  }
+
   // Extract image_size from elements (default to 'auto' if not specified)
   const imageSize = (elements.image_size as string) || 'auto';
 
   // Generate cover with Banana using final image_prompt and original image URL
-  const taskId = await generateCoverWithNanoBanana(originalImageUrl, finalImagePrompt, imageSize);
+  const taskId = await generateCoverWithNanoBanana(originalImageUrl, finalImagePrompt as Record<string, unknown>, imageSize);
 
   const updatePayload: Record<string, unknown> = {
     cover_task_id: taskId,

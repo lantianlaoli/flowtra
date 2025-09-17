@@ -20,7 +20,7 @@ interface WorkflowInstance {
   id: string;
   user_id: string;
   elements_data?: Record<string, unknown>;
-  product_description?: string;
+  product_description?: string | Record<string, unknown>;
   cover_task_id?: string;
   video_task_id?: string;
   cover_image_url?: string;
@@ -293,6 +293,41 @@ async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCall
 
     console.log(`Cover completed for instance ${instance.id}: ${coverImageUrl}`);
 
+    const derivedSize = deriveCoverImageSize(resultJson, data, instance);
+    const shouldGenerateVideo = (() => {
+      const raw = instance.elements_data as Record<string, unknown> | null | undefined;
+      if (raw && typeof raw === 'object' && 'generate_video' in raw) {
+        const flag = (raw as { generate_video?: unknown }).generate_video;
+        if (typeof flag === 'boolean') {
+          return flag;
+        }
+      }
+      return true;
+    })();
+
+    if (!shouldGenerateVideo) {
+      const updatePayload: Record<string, unknown> = {
+        cover_image_url: coverImageUrl,
+        status: 'completed',
+        current_step: 'completed',
+        progress_percentage: 100,
+        updated_at: new Date().toISOString(),
+        last_processed_at: new Date().toISOString()
+      };
+
+      if (derivedSize) {
+        updatePayload.cover_image_size = derivedSize;
+      }
+
+      await supabase
+        .from('user_history_v2')
+        .update(updatePayload)
+        .eq('id', instance.id);
+
+      console.log(`Workflow completed with images only for instance ${instance.id}`);
+      return;
+    }
+
     // Generate video design using OpenRouter with the cover image
     const videoPrompt = await generateVideoDesignFromCover(
       coverImageUrl,
@@ -317,8 +352,6 @@ async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCall
       updated_at: new Date().toISOString(),
       last_processed_at: new Date().toISOString()
     };
-
-    const derivedSize = deriveCoverImageSize(resultJson, data, instance);
     if (derivedSize) {
       updatePayload.cover_image_size = derivedSize;
     }

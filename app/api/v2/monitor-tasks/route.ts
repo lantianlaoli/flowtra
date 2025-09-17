@@ -89,7 +89,7 @@ interface InstanceRecord {
   id: string;
   user_id: string;
   elements_data?: Record<string, unknown>;
-  product_description?: string;
+  product_description?: string | Record<string, unknown>;
   cover_task_id?: string;
   video_task_id?: string;
   cover_image_url?: string;
@@ -113,45 +113,75 @@ async function processInstance(instance: InstanceRecord) {
   let currentStep = instance.current_step;
   let lastProcessedAt = instance.last_processed_at;
 
+  const shouldGenerateVideo = (() => {
+    const raw = instance.elements_data as Record<string, unknown> | null | undefined;
+    if (raw && typeof raw === 'object' && 'generate_video' in raw) {
+      const flag = (raw as { generate_video?: unknown }).generate_video;
+      if (typeof flag === 'boolean') {
+        return flag;
+      }
+    }
+    return true;
+  })();
+
   // Handle cover generation monitoring
   if (instance.status === 'generating_cover' && instance.cover_task_id && !instance.cover_image_url) {
     const coverResult = await checkNanoBananaStatus(instance.cover_task_id);
 
     if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
       console.log(`Cover completed for instance ${instance.id}`);
-      
-      // Generate video design using OpenRouter with the cover image
-      const videoPrompt = await generateVideoDesignFromCover(
-        coverResult.imageUrl,
-        instance.elements_data,
-        instance.product_description
-      );
-      
-      // Start video generation with designed prompt
-      const videoTaskId = await startVideoGeneration(instance, coverResult.imageUrl, videoPrompt);
-      
-      await supabase
-        .from('user_history_v2')
-        .update({
-          cover_image_url: coverResult.imageUrl,
-          video_task_id: videoTaskId,
-          elements_data: {
-            ...(instance.elements_data || {}),
-            video_prompt: videoPrompt
-          },
-          status: 'generating_video',
-          current_step: 'generating_video',
-          progress_percentage: 50,
-          updated_at: new Date().toISOString(),
-          last_processed_at: new Date().toISOString()
-        })
-        .eq('id', instance.id);
+      if (shouldGenerateVideo) {
+        // Generate video design using OpenRouter with the cover image
+        const videoPrompt = await generateVideoDesignFromCover(
+          coverResult.imageUrl,
+          instance.elements_data,
+          instance.product_description
+        );
         
-      console.log(`Started video generation for instance ${instance.id}, taskId: ${videoTaskId}`);
-      
-      currentStatus = 'generating_video';
-      currentStep = 'generating_video';
-      lastProcessedAt = new Date().toISOString();
+        // Start video generation with designed prompt
+        const videoTaskId = await startVideoGeneration(instance, coverResult.imageUrl, videoPrompt);
+        
+        await supabase
+          .from('user_history_v2')
+          .update({
+            cover_image_url: coverResult.imageUrl,
+            video_task_id: videoTaskId,
+            elements_data: {
+              ...(instance.elements_data || {}),
+              video_prompt: videoPrompt
+            },
+            status: 'generating_video',
+            current_step: 'generating_video',
+            progress_percentage: 50,
+            updated_at: new Date().toISOString(),
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', instance.id);
+          
+        console.log(`Started video generation for instance ${instance.id}, taskId: ${videoTaskId}`);
+        
+        currentStatus = 'generating_video';
+        currentStep = 'generating_video';
+        lastProcessedAt = new Date().toISOString();
+      } else {
+        await supabase
+          .from('user_history_v2')
+          .update({
+            cover_image_url: coverResult.imageUrl,
+            status: 'completed',
+            current_step: 'completed',
+            progress_percentage: 100,
+            updated_at: new Date().toISOString(),
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', instance.id);
+
+        console.log(`Workflow completed with images only for instance ${instance.id}`);
+
+        currentStatus = 'completed';
+        currentStep = 'completed';
+        lastProcessedAt = new Date().toISOString();
+      }
 
     } else if (coverResult.status === 'FAILED') {
       throw new Error('Cover generation failed');
