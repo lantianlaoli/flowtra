@@ -15,7 +15,7 @@ export async function POST() {
     const { data: instances, error } = await supabase
       .from('user_history_v2')
       .select('*')
-      .in('instance_status', ['generating_cover', 'generating_video'])
+      .in('status', ['generating_cover', 'generating_video'])
       .order('last_processed_at', { ascending: true })
       .limit(20); // Process max 20 instances per run
 
@@ -43,7 +43,7 @@ export async function POST() {
           await supabase
             .from('user_history_v2')
             .update({
-              instance_status: 'failed',
+              status: 'failed',
               error_message: error instanceof Error ? error.message : 'Processing failed',
               updated_at: new Date().toISOString(),
               last_processed_at: new Date().toISOString()
@@ -59,7 +59,7 @@ export async function POST() {
       const { count: completedCount } = await supabase
         .from('user_history_v2')
         .select('*', { count: 'exact', head: true })
-        .eq('instance_status', 'completed')
+        .eq('status', 'completed')
         .gte('updated_at', new Date(Date.now() - 60000).toISOString()); // Updated in last minute
 
       completed = completedCount || 0;
@@ -94,8 +94,9 @@ interface InstanceRecord {
   video_task_id?: string;
   cover_image_url?: string;
   video_url?: string;
-  instance_status: string;
+  status: string;
   current_step: string;
+  video_model?: string;
   credits_cost: number;
   downloaded: boolean;
   error_message?: string;
@@ -106,12 +107,16 @@ interface InstanceRecord {
 
 async function processInstance(instance: InstanceRecord) {
   const supabase = getSupabase();
-  console.log(`Processing instance ${instance.id}, status: ${instance.instance_status}, step: ${instance.current_step}`);
+  console.log(`Processing instance ${instance.id}, status: ${instance.status}, step: ${instance.current_step}`);
+
+  let currentStatus = instance.status;
+  let currentStep = instance.current_step;
+  let lastProcessedAt = instance.last_processed_at;
 
   // Handle cover generation monitoring
-  if (instance.instance_status === 'generating_cover' && instance.cover_task_id && !instance.cover_image_url) {
+  if (instance.status === 'generating_cover' && instance.cover_task_id && !instance.cover_image_url) {
     const coverResult = await checkNanoBananaStatus(instance.cover_task_id);
-    
+
     if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
       console.log(`Cover completed for instance ${instance.id}`);
       
@@ -134,7 +139,7 @@ async function processInstance(instance: InstanceRecord) {
             ...(instance.elements_data || {}),
             video_prompt: videoPrompt
           },
-          instance_status: 'generating_video',
+          status: 'generating_video',
           current_step: 'generating_video',
           progress_percentage: 50,
           updated_at: new Date().toISOString(),
@@ -144,6 +149,10 @@ async function processInstance(instance: InstanceRecord) {
         
       console.log(`Started video generation for instance ${instance.id}, taskId: ${videoTaskId}`);
       
+      currentStatus = 'generating_video';
+      currentStep = 'generating_video';
+      lastProcessedAt = new Date().toISOString();
+
     } else if (coverResult.status === 'FAILED') {
       throw new Error('Cover generation failed');
     }
@@ -157,11 +166,13 @@ async function processInstance(instance: InstanceRecord) {
           last_processed_at: new Date().toISOString()
         })
         .eq('id', instance.id);
+
+      lastProcessedAt = new Date().toISOString();
     }
   }
 
   // Handle video generation monitoring
-  if (instance.instance_status === 'generating_video' && instance.video_task_id && !instance.video_url) {
+  if (instance.status === 'generating_video' && instance.video_task_id && !instance.video_url) {
     const videoResult = await checkVideoStatus(instance.video_task_id);
     
     if (videoResult.status === 'SUCCESS' && videoResult.videoUrl) {
@@ -171,7 +182,7 @@ async function processInstance(instance: InstanceRecord) {
         .from('user_history_v2')
         .update({
           video_url: videoResult.videoUrl,
-          instance_status: 'completed',
+          status: 'completed',
           current_step: 'completed',
           progress_percentage: 100,
           updated_at: new Date().toISOString(),
@@ -179,6 +190,10 @@ async function processInstance(instance: InstanceRecord) {
         })
         .eq('id', instance.id);
         
+      currentStatus = 'completed';
+      currentStep = 'completed';
+      lastProcessedAt = new Date().toISOString();
+
     } else if (videoResult.status === 'FAILED') {
       throw new Error(`Video generation failed: ${videoResult.errorMessage || 'Unknown error'}`);
     }
@@ -192,16 +207,19 @@ async function processInstance(instance: InstanceRecord) {
           last_processed_at: new Date().toISOString()
         })
         .eq('id', instance.id);
-    }
 
-    // Handle timeout checks (instances not updated for too long)
-    const lastProcessed = new Date(instance.last_processed_at).getTime();
-    const now = Date.now();
-    const timeoutMinutes = instance.instance_status === 'generating_video' ? 30 : 15; // 30min for video, 15min for cover
-    
-    if (now - lastProcessed > timeoutMinutes * 60 * 1000) {
-      throw new Error(`Task timeout: no progress for ${timeoutMinutes} minutes`);
+      lastProcessedAt = new Date().toISOString();
     }
+  }
+
+  // Handle timeout checks (instances not updated for too long)
+  const lastProcessed = lastProcessedAt ? new Date(lastProcessedAt).getTime() : 0;
+  const now = Date.now();
+  const isVideoStage = currentStatus === 'generating_video' || currentStep === 'generating_video';
+  const timeoutMinutes = isVideoStage ? 30 : 15; // 30min for video, 15min for cover
+
+  if (lastProcessed && now - lastProcessed > timeoutMinutes * 60 * 1000) {
+    throw new Error(`Task timeout: no progress for ${timeoutMinutes} minutes`);
   }
 }
 
@@ -219,17 +237,27 @@ async function checkNanoBananaStatus(taskId: string): Promise<{status: string, i
 
   const data = await response.json();
   
-  if (data.code !== 200) {
-    throw new Error(data.message || 'Failed to get nano-banana status');
+  if (!data || data.code !== 200) {
+    throw new Error(data?.message || 'Failed to get nano-banana status');
   }
 
   const taskData = data.data;
+  if (!taskData) {
+    return { status: 'GENERATING' };
+  }
   
   if (taskData.state === 'success') {
-    const resultJson = JSON.parse(taskData.resultJson || '{}');
+    let resultJson: Record<string, unknown> = {};
+    try {
+      resultJson = JSON.parse(taskData.resultJson || '{}');
+    } catch {
+      resultJson = {};
+    }
+    const urls = (resultJson as { resultUrls?: string[] }).resultUrls;
+    const firstUrl = Array.isArray(urls) ? urls[0] : undefined;
     return {
       status: 'SUCCESS',
-      imageUrl: resultJson.resultUrls?.[0] || null
+      imageUrl: firstUrl
     };
   } else if (taskData.state === 'failed') {
     return { status: 'FAILED' };
@@ -258,9 +286,11 @@ async function startVideoGeneration(
 
   console.log('Generated video prompt:', finalPrompt);
 
+  const selectedModel = instance.video_model === 'veo3' ? 'veo3' : 'veo3_fast';
+
   const requestBody: Record<string, unknown> = {
     prompt: finalPrompt,
-    model: 'veo3_fast', // Default model, can be made configurable
+    model: selectedModel,
     aspectRatio: "16:9",
     imageUrls: [coverImageUrl],
     enableAudio: true,
@@ -313,16 +343,19 @@ async function checkVideoStatus(taskId: string): Promise<{status: string, videoU
 
   const data = await response.json();
   
-  if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to get video status');
+  if (!data || data.code !== 200) {
+    throw new Error(data?.msg || 'Failed to get video status');
   }
 
   const taskData = data.data;
+  if (!taskData) {
+    return { status: 'GENERATING' };
+  }
   
   if (taskData.successFlag === 1) {
     return {
       status: 'SUCCESS',
-      videoUrl: taskData.response?.resultUrls?.[0] || null
+      videoUrl: taskData.response?.resultUrls?.[0] || undefined
     };
   } else if (taskData.successFlag === 2 || taskData.successFlag === 3) {
     return {

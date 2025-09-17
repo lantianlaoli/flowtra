@@ -44,21 +44,21 @@ export async function GET(request: NextRequest) {
 
     const response = {
       success: true,
-      workflowStatus: record.workflow_status,
+      workflowStatus: record.status,
       currentStep: record.current_step,
       progress: record.progress_percentage || 0,
       data: {
         originalImageUrl: record.original_image_url,
         productDescription: record.product_description || null,
-        creativePrompts: record.creative_prompts || null,
+        creativePrompts: record.video_prompts || null,
         coverImageUrl: record.cover_image_url || null,
         videoUrl: record.video_url || null,
         coverTaskId: record.cover_task_id || null,
         videoTaskId: record.video_task_id || null,
         errorMessage: record.error_message || null,
-        creditsUsed: record.credits_used || 0,
+        creditsUsed: record.credits_cost || 0,
         videoModel: record.video_model || 'veo3_fast',
-        retryCount: record.retry_count || 0,
+        retryCount: 0,
         lastProcessedAt: record.last_processed_at,
         createdAt: record.created_at,
         updatedAt: record.updated_at
@@ -69,9 +69,9 @@ export async function GET(request: NextRequest) {
         generating_cover: 'Designing your advertisement cover...',
         generating_video: 'Producing your video advertisement...'
       },
-      isCompleted: record.workflow_status === 'completed',
-      isFailed: record.workflow_status === 'failed',
-      isProcessing: record.workflow_status === 'in_progress'
+      isCompleted: record.status === 'completed',
+      isFailed: record.status === 'failed',
+      isProcessing: record.status === 'in_progress'
     };
 
     return NextResponse.json(response);

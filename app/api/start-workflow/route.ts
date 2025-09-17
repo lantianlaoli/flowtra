@@ -11,7 +11,10 @@ export async function POST(request: NextRequest) {
       imageUrl: requestData.imageUrl,
       userId: requestData.userId,
       videoModel: requestData.videoModel,
-      watermark: requestData.watermark
+      watermark: requestData.watermark,
+      watermarkLocation: requestData.watermarkLocation,
+      imageSize: requestData.imageSize,
+      elementsCount: requestData.elementsCount
     });
     
     if (!requestData.imageUrl) {

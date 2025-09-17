@@ -25,13 +25,40 @@ interface WorkflowInstance {
   video_task_id?: string;
   cover_image_url?: string;
   video_url?: string;
-  instance_status: string;
+  status: string;
   current_step: string;
   credits_cost: number;
   downloaded: boolean;
   error_message?: string;
   video_model?: string;
 }
+
+interface V1WorkflowRecord {
+  id: string;
+  user_id: string;
+  cover_task_id?: string;
+  video_task_id?: string;
+  cover_image_url?: string;
+  video_url?: string;
+  status: string;
+  current_step: string;
+  video_prompts?: Record<string, unknown>;
+  video_model?: string;
+  last_processed_at: string;
+}
+
+type VideoPrompt = {
+  description: string;
+  setting: string;
+  camera_type: string;
+  camera_movement: string;
+  action: string;
+  lighting: string;
+  dialogue: string;
+  music: string;
+  ending: string;
+  other_details: string;
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -86,30 +113,52 @@ export async function POST(request: NextRequest) {
 
 async function handleSuccessCallback(taskId: string, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
-    // Find the workflow instance with this cover task ID
-    const { data: instances, error: findError } = await supabase
+    // Try to find the workflow instance in V2 table first
+    const { data: v2Instances, error: v2FindError } = await supabase
       .from('user_history_v2')
       .select('*')
       .eq('cover_task_id', taskId);
 
-    if (findError) {
-      throw new Error(`Failed to find workflow instance: ${findError.message}`);
+    if (v2FindError) {
+      throw new Error(`Failed to find V2 workflow instance: ${v2FindError.message}`);
     }
 
-    if (!instances || instances.length === 0) {
-      console.log(`⚠️ No workflow instance found for taskId: ${taskId}`);
+    // If found in V2, handle as V2 workflow
+    if (v2Instances && v2Instances.length > 0) {
+      const instance = v2Instances[0];
+      console.log(`Found V2 workflow instance: ${instance.id}, status: ${instance.status}`);
+
+      if (instance.cover_task_id === taskId) {
+        await handleV2CoverCompletion(instance, data, supabase);
+      } else {
+        console.log(`⚠️ TaskId ${taskId} doesn't match cover task for V2 instance ${instance.id}`);
+      }
       return;
     }
 
-    const instance = instances[0];
-    console.log(`Found workflow instance: ${instance.id}, status: ${instance.instance_status}`);
+    // If not found in V2, try V1 table
+    const { data: v1Records, error: v1FindError } = await supabase
+      .from('user_history')
+      .select('*')
+      .eq('cover_task_id', taskId);
 
-    // Handle cover task completion
-    if (instance.cover_task_id === taskId) {
-      await handleCoverCompletion(instance, data, supabase);
-    } else {
-      console.log(`⚠️ TaskId ${taskId} doesn't match cover task for instance ${instance.id}`);
+    if (v1FindError) {
+      throw new Error(`Failed to find V1 workflow record: ${v1FindError.message}`);
     }
+
+    if (v1Records && v1Records.length > 0) {
+      const record = v1Records[0];
+      console.log(`Found V1 workflow record: ${record.id}, status: ${record.status}`);
+
+      if (record.cover_task_id === taskId) {
+        await handleV1CoverCompletion(record, data, supabase);
+      } else {
+        console.log(`⚠️ TaskId ${taskId} doesn't match cover task for V1 record ${record.id}`);
+      }
+      return;
+    }
+
+    console.log(`⚠️ No workflow instance found in V1 or V2 for taskId: ${taskId}`);
 
   } catch (error) {
     console.error(`Error handling success callback for taskId ${taskId}:`, error);
@@ -117,7 +166,7 @@ async function handleSuccessCallback(taskId: string, data: KieCallbackData, supa
   }
 }
 
-async function handleCoverCompletion(instance: WorkflowInstance, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
+async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
     // Extract cover image URL from result
     const resultJson = JSON.parse(data.resultJson || '{}');
@@ -149,7 +198,7 @@ async function handleCoverCompletion(instance: WorkflowInstance, data: KieCallba
           ...(instance.elements_data || {}),
           video_prompt: videoPrompt
         },
-        instance_status: 'generating_video',
+        status: 'generating_video',
         current_step: 'generating_video',
         progress_percentage: 50,
         updated_at: new Date().toISOString(),
@@ -166,7 +215,7 @@ async function handleCoverCompletion(instance: WorkflowInstance, data: KieCallba
     await supabase
       .from('user_history_v2')
       .update({
-        instance_status: 'failed',
+        status: 'failed',
         error_message: error instanceof Error ? error.message : 'Cover completion processing failed',
         updated_at: new Date().toISOString(),
         last_processed_at: new Date().toISOString()
@@ -177,39 +226,169 @@ async function handleCoverCompletion(instance: WorkflowInstance, data: KieCallba
   }
 }
 
+async function handleV1CoverCompletion(record: V1WorkflowRecord, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
+  try {
+    // Extract cover image URL from result
+    const resultJson = JSON.parse(data.resultJson || '{}');
+    const coverImageUrl = resultJson.resultUrls?.[0];
+
+    if (!coverImageUrl) {
+      throw new Error('No cover image URL in success callback for V1');
+    }
+
+    console.log(`V1 Cover completed for record ${record.id}: ${coverImageUrl}`);
+
+    // For V1, start video generation directly without complex video design
+    const videoTaskId = await startV1VideoGeneration(record, coverImageUrl);
+
+    // Update V1 database with cover completion and video start
+    await supabase
+      .from('user_history')
+      .update({
+        cover_image_url: coverImageUrl,
+        video_task_id: videoTaskId,
+        current_step: 'generating_video',
+        progress_percentage: 85,
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', record.id);
+
+    console.log(`Started V1 video generation for record ${record.id}, taskId: ${videoTaskId}`);
+
+  } catch (error) {
+    console.error(`Error handling V1 cover completion for record ${record.id}:`, error);
+
+    // Mark V1 record as failed
+    await supabase
+      .from('user_history')
+      .update({
+        status: 'failed',
+        error_message: error instanceof Error ? error.message : 'V1 cover completion processing failed',
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', record.id);
+
+    throw error;
+  }
+}
+
+async function startV1VideoGeneration(record: V1WorkflowRecord, coverImageUrl: string): Promise<string> {
+  if (!record.video_prompts) {
+    throw new Error('No creative prompts available for V1 video generation');
+  }
+
+  const videoPrompt = record.video_prompts as VideoPrompt;
+  const fullPrompt = `${videoPrompt.description}
+
+Setting: ${videoPrompt.setting}
+Camera: ${videoPrompt.camera_type} with ${videoPrompt.camera_movement}
+Action: ${videoPrompt.action}
+Lighting: ${videoPrompt.lighting}
+Dialogue: ${videoPrompt.dialogue}
+Music: ${videoPrompt.music}
+Ending: ${videoPrompt.ending}
+Other details: ${videoPrompt.other_details}`;
+
+  console.log('Generated V1 video prompt:', fullPrompt);
+
+  const requestBody = {
+    prompt: fullPrompt,
+    model: record.video_model || 'veo3_fast',
+    aspectRatio: "16:9",
+    imageUrls: [coverImageUrl],
+    enableAudio: true,
+    audioEnabled: true,
+    generateVoiceover: true,
+    includeDialogue: true
+  };
+
+  console.log('V1 VEO API request body:', JSON.stringify(requestBody, null, 2));
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody)
+  }, 3, 30000);
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to generate V1 video: ${response.status} ${errorData}`);
+  }
+
+  const data = await response.json();
+
+  if (data.code !== 200) {
+    throw new Error(data.msg || 'Failed to generate V1 video');
+  }
+
+  return data.data.taskId;
+}
+
 
 async function handleFailureCallback(taskId: string, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
-    // Find the workflow instance with this cover task ID
-    const { data: instances, error: findError } = await supabase
+    // Try to find the workflow instance in V2 table first
+    const { data: v2Instances, error: v2FindError } = await supabase
       .from('user_history_v2')
       .select('*')
       .eq('cover_task_id', taskId);
 
-    if (findError) {
-      throw new Error(`Failed to find workflow instance: ${findError.message}`);
+    if (v2FindError) {
+      throw new Error(`Failed to find V2 workflow instance: ${v2FindError.message}`);
     }
 
-    if (!instances || instances.length === 0) {
-      console.log(`⚠️ No workflow instance found for failed taskId: ${taskId}`);
+    // If found in V2, handle as V2 workflow failure
+    if (v2Instances && v2Instances.length > 0) {
+      const instance = v2Instances[0];
+      const failureMessage = data.failMsg || data.errorMessage || 'KIE task failed';
+
+      console.log(`V2 task failed for instance ${instance.id}: ${failureMessage}`);
+
+      // Mark V2 instance as failed
+      await supabase
+        .from('user_history_v2')
+        .update({
+          status: 'failed',
+          error_message: failureMessage,
+          updated_at: new Date().toISOString(),
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', instance.id);
       return;
     }
 
-    const instance = instances[0];
-    const failureMessage = data.failMsg || data.errorMessage || 'KIE task failed';
+    // If not found in V2, try V1 table
+    const { data: v1Records, error: v1FindError } = await supabase
+      .from('user_history')
+      .select('*')
+      .eq('cover_task_id', taskId);
 
-    console.log(`Task failed for instance ${instance.id}: ${failureMessage}`);
+    if (v1FindError) {
+      throw new Error(`Failed to find V1 workflow record: ${v1FindError.message}`);
+    }
 
-    // Mark instance as failed
-    await supabase
-      .from('user_history_v2')
-      .update({
-        instance_status: 'failed',
-        error_message: failureMessage,
-        updated_at: new Date().toISOString(),
-        last_processed_at: new Date().toISOString()
-      })
-      .eq('id', instance.id);
+    if (v1Records && v1Records.length > 0) {
+      const record = v1Records[0];
+      const failureMessage = data.failMsg || data.errorMessage || 'KIE task failed';
+
+      console.log(`V1 task failed for record ${record.id}: ${failureMessage}`);
+
+      // Mark V1 record as failed
+      await supabase
+        .from('user_history')
+        .update({
+          status: 'failed',
+          error_message: failureMessage,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
+      return;
+    }
+
+    console.log(`⚠️ No workflow instance found in V1 or V2 for failed taskId: ${taskId}`);
 
   } catch (error) {
     console.error(`Error handling failure callback for taskId ${taskId}:`, error);

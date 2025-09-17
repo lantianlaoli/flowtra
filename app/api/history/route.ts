@@ -99,11 +99,11 @@ export async function GET() {
       videoUrl: item.video_url,
       downloaded: item.downloaded,
       downloadCreditsUsed: item.download_credits_used,
-      generationCreditsUsed: item.generation_credits_used,
+      generationCreditsUsed: 0,
       productDescription: item.product_description,
       videoModel: item.video_model,
-      creditsUsed: item.credits_used,
-      status: mapWorkflowStatus(item.workflow_status || item.status),
+      creditsUsed: item.credits_cost || 0,
+      status: mapWorkflowStatus(item.status),
       createdAt: item.created_at,
       progress: item.progress_percentage,
       currentStep: item.current_step,
@@ -120,7 +120,7 @@ export async function GET() {
       cover_image_url?: string | null;
       video_url?: string | null;
       error_message?: string | null;
-      instance_status: string;
+      status: string;
       current_step: string;
       credits_cost: number;
       downloaded: boolean;
@@ -147,7 +147,7 @@ export async function GET() {
         productDescription: instance.product_description || (elements.product_description as string | undefined) || (elements.product as string | undefined),
         videoModel: (instance.video_model === 'veo3' || instance.video_model === 'veo3_fast') ? instance.video_model : 'veo3_fast',
         creditsUsed: instance.credits_cost,
-        status: mapWorkflowStatus(instance.instance_status),
+        status: mapWorkflowStatus(instance.status),
         createdAt: instance.created_at,
         progress: (instance.progress_percentage as number | null) ?? 0,
         currentStep: instance.current_step,

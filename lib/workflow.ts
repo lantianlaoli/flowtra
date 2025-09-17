@@ -9,11 +9,15 @@ export interface StartWorkflowRequest {
   userId?: string;
   videoModel?: 'veo3' | 'veo3_fast' | 'auto';
   watermark?: string;
+  watermarkLocation?: string;
+  imageSize?: string;
+  elementsCount?: number;
 }
 
 export interface StartWorkflowResult {
   success: boolean;
   historyId?: string;
+  historyIds?: string[];
   message: string;
   coverTaskId?: string;
   error?: string;
@@ -22,18 +26,24 @@ export interface StartWorkflowResult {
   creditsUsed?: number;
 }
 
-export async function startWorkflowProcess({ 
-  imageUrl, 
-  userId, 
+export async function startWorkflowProcess({
+  imageUrl,
+  userId,
   videoModel = 'veo3_fast',
-  watermark 
+  watermark,
+  watermarkLocation = 'bottom left',
+  imageSize = 'auto',
+  elementsCount = 1
 }: StartWorkflowRequest): Promise<StartWorkflowResult> {
   try {
     console.log('🔍 startWorkflowProcess started with:', {
       imageUrl,
       userId,
       videoModel,
-      watermark
+      watermark,
+      watermarkLocation,
+      imageSize,
+      elementsCount
     });
 
     if (!imageUrl) {
@@ -68,129 +78,136 @@ export async function startWorkflowProcess({
       }
     }
 
-    // Create history record (no credit deduction at generation)
-    let historyRecord = null;
+    // Create history records (no credit deduction at generation)
+    let historyRecords = [];
     if (userId) {
       const supabase = getSupabase();
-              const { data, error } = await supabase
-          .from('user_history')
-          .insert({
-            user_id: userId,
-            original_image_url: imageUrl,
-            video_model: actualModel, // Use resolved model, not original
-            credits_used: getCreditCost(actualModel), // Total cost for reference
-            generation_credits_used: 0,
-            workflow_status: 'started',
-            current_step: 'describing',
-            progress_percentage: 5,
-            last_processed_at: new Date().toISOString(),
-            watermark_text: watermark
-          })
-          .select()
-          .single();
+
+      // Create multiple records for independent processing
+      const recordsToInsert = Array.from({ length: elementsCount }, () => ({
+        user_id: userId,
+        original_image_url: imageUrl,
+        video_model: actualModel,
+        credits_cost: getCreditCost(actualModel),
+        status: 'started',
+        current_step: 'describing',
+        progress_percentage: 5,
+        last_processed_at: new Date().toISOString(),
+      }));
+
+      const { data, error } = await supabase
+        .from('user_history')
+        .insert(recordsToInsert)
+        .select();
 
       if (error) {
-        console.error('Failed to create history record:', error);
-        return { success: false, error: 'Failed to create workflow record', message: 'Failed to create workflow record' };
+        console.error('Failed to create history records:', error);
+        return { success: false, error: 'Failed to create workflow records', message: 'Failed to create workflow records' };
       }
-      
-      historyRecord = data;
+
+      historyRecords = data || [];
     }
 
-    console.log(`Starting workflow for user ${userId}, history ${historyRecord?.id}`);
+    console.log(`Starting workflow for user ${userId}, ${historyRecords.length} history records created`);
 
-    // Start the complete workflow process
+    // Start the complete workflow process - handle each record
     try {
-      // Step 1: Describe the image
+      // Step 1: Describe the image (shared across all records)
       console.log('Step 1: Describing image...');
-      await updateWorkflowProgress(historyRecord?.id, 'describing', 10, 'in_progress');
-      
+
+      // Update all records to describing state
+      for (const record of historyRecords) {
+        await updateWorkflowProgress(record.id, 'describing', 10, 'in_progress');
+      }
+
       const description = await describeImage(imageUrl);
-      
-      if (historyRecord) {
-        const supabase = getSupabase();
-        await supabase
-          .from('user_history')
-          .update({
-            product_description: description,
-            current_step: 'generating_prompts',
-            progress_percentage: 25,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', historyRecord.id);
-      }
 
-      console.log(`Image described for history ${historyRecord?.id}`);
-
-      // Step 2: Generate creative prompts
+      // Step 2: Generate creative prompts for each record (different variations)
       console.log('Step 2: Generating prompts...');
-      await updateWorkflowProgress(historyRecord?.id, 'generating_prompts', 40, 'in_progress');
-      
-      const prompts = await generatePrompts(description);
-      
-      if (historyRecord) {
-        const supabase = getSupabase();
-        await supabase
-          .from('user_history')
-          .update({
-            creative_prompts: prompts.video_prompt,
-            current_step: 'generating_cover',
-            progress_percentage: 55,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', historyRecord.id);
-      }
 
-      console.log(`Prompts generated for history ${historyRecord?.id}`);
+      const promptsArray = await Promise.all(
+        historyRecords.map(async (record, index) => {
+          await updateWorkflowProgress(record.id, 'generating_prompts', 40, 'in_progress');
 
-      // Step 3: Generate cover image
-      console.log('Step 3: Generating cover...');
-      await updateWorkflowProgress(historyRecord?.id, 'generating_cover', 70, 'in_progress');
-      
-      const coverTaskId = await generateCover(imageUrl, prompts.image_prompt);
-      
-      if (historyRecord) {
-        const supabase = getSupabase();
-        await supabase
-          .from('user_history')
-          .update({
-            cover_task_id: coverTaskId,
-            current_step: 'generating_cover',
-            progress_percentage: 75,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', historyRecord.id);
-      }
+          // Generate slightly different prompts for variety
+          const prompts = await generatePrompts(description + (index > 0 ? ` - Variation ${index + 1}` : ''), watermark, watermarkLocation);
 
-      console.log(`Cover generation started for history ${historyRecord?.id}, taskId: ${coverTaskId}`);
+          // Update record with prompts
+          const supabase = getSupabase();
+          await supabase
+            .from('user_history')
+            .update({
+              product_description: description,
+              video_prompts: prompts.video_prompt,
+              current_step: 'generating_cover',
+              progress_percentage: 55,
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', record.id);
+
+          return { recordId: record.id, prompts };
+        })
+      );
+
+      console.log(`Prompts generated for ${promptsArray.length} records`);
+
+      // Step 3: Generate cover images
+      console.log('Step 3: Generating covers...');
+
+      const coverResults = await Promise.all(
+        promptsArray.map(async ({ recordId, prompts }) => {
+          await updateWorkflowProgress(recordId, 'generating_cover', 70, 'in_progress');
+
+          const coverTaskId = await generateCoverWithBanana(imageUrl, prompts.image_prompt, imageSize);
+
+          // Update record with cover task ID
+          const supabase = getSupabase();
+          await supabase
+            .from('user_history')
+            .update({
+              cover_task_id: coverTaskId,
+              current_step: 'generating_cover',
+              progress_percentage: 75,
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', recordId);
+
+          return { recordId, coverTaskId };
+        })
+      );
+
+      console.log(`Cover generation started for ${coverResults.length} records`);
 
       // Return success immediately - monitoring will handle the rest
       const finalCreditsResult = userId ? await getUserCredits(userId) : null;
       const finalRemainingCredits = finalCreditsResult?.credits?.credits_remaining;
       return {
         success: true,
-        historyId: historyRecord?.id,
-        message: 'Workflow started successfully. Cover and video generation in progress.',
-        coverTaskId: coverTaskId,
+        historyId: historyRecords[0]?.id, // Return primary record ID
+        historyIds: historyRecords.map(r => r.id), // Return all IDs for batch tracking
+        message: `Workflow started successfully. ${elementsCount} ad${elementsCount > 1 ? 's' : ''} being generated.`,
+        coverTaskId: coverResults[0]?.coverTaskId,
         remainingCredits: finalRemainingCredits,
         creditsUsed: 0
       };
 
     } catch (error) {
       console.error('Workflow error:', error);
-      
-      // Update status to failed
-      if (historyRecord) {
-        const supabase = getSupabase();
-        await supabase
-          .from('user_history')
-          .update({
-            workflow_status: 'failed',
-            error_message: error instanceof Error ? error.message : 'Unknown error occurred',
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', historyRecord.id);
-      }
+
+      // Update all records to failed
+      const supabase = getSupabase();
+      await Promise.all(
+        historyRecords.map(record =>
+          supabase
+            .from('user_history')
+            .update({
+              status: 'failed',
+              error_message: error instanceof Error ? error.message : 'Unknown error occurred',
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', record.id)
+        )
+      );
 
       return {
         success: false,
@@ -221,7 +238,7 @@ async function updateWorkflowProgress(historyId: string | undefined, step: strin
     .update({
       current_step: step,
       progress_percentage: percentage,
-      workflow_status: status,
+      status: status,
       last_processed_at: new Date().toISOString()
     })
     .eq('id', historyId);
@@ -317,7 +334,7 @@ interface GeneratedPrompts {
   video_model: string;
 }
 
-async function generatePrompts(productDescription: string): Promise<GeneratedPrompts> {
+async function generatePrompts(productDescription: string, watermark?: string, watermarkLocation?: string): Promise<GeneratedPrompts> {
   const SYSTEM_MESSAGE = `You are a seasoned creative director with deep expertise in visual storytelling, branding, and advertising. Your job is to guide the structured creation of high-quality, compelling, and brand-aligned image and video content for product marketing.
 
 Task
@@ -361,7 +378,7 @@ Respond ONLY with the following structured JSON:
       },
       {
         role: 'user',
-        content: `This is the initial creative brief:\nCreate a compelling video advertisement with voiceover and audio\n\nDescription of the product:\n${productDescription}\n\nIMPORTANT: The video must include:\n- Engaging voiceover narration or dialogue that describes the product benefits\n- Background music or sound effects that enhance the mood\n- Clear spoken content that explains why customers should choose this product\n\nMake sure the 'dialogue' field contains actual spoken words, not just \"No dialogue\" or empty content.\n\nUse the Think tool to double check your output`
+        content: `This is the initial creative brief:\nCreate a compelling video advertisement with voiceover and audio\n\nDescription of the product:\n${productDescription}\n\nWATERMARK REQUIREMENTS:\n${watermark ? `- Include text watermark: "${watermark}"\n- Watermark location: ${watermarkLocation || 'bottom left'}\n- The image_prompt should specify that the watermark text "${watermark}" appears at ${watermarkLocation || 'bottom left'} of the image` : '- No watermark needed'}\n\nIMPORTANT: The video must include:\n- Engaging voiceover narration or dialogue that describes the product benefits\n- Background music or sound effects that enhance the mood\n- Clear spoken content that explains why customers should choose this product\n\nFor the image_prompt: Make sure to include watermark specifications if provided above.\n\nMake sure the 'dialogue' field contains actual spoken words, not just \"No dialogue\" or empty content.\n\nUse the Think tool to double check your output`
       }
     ],
     max_tokens: 1500,
@@ -458,30 +475,43 @@ Respond ONLY with the following structured JSON:
   }
 }
 
-async function generateCover(originalImageUrl: string, imagePrompt: string): Promise<string> {
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/gpt4o-image/generate', {
+async function generateCoverWithBanana(originalImageUrl: string, imagePrompt: string, imageSize = 'auto'): Promise<string> {
+  // Build request payload to match KIE nano-banana-edit expectations
+  const requestBody: Record<string, unknown> = {
+    model: 'google/nano-banana-edit',
+    input: {
+      prompt: imagePrompt,
+      image_urls: [originalImageUrl],
+      output_format: 'png',
+      image_size: imageSize
+    }
+  };
+
+  // Always attach callback URL if provided via env
+  if (process.env.KIE_CALLBACK_URL) {
+    requestBody.callBackUrl = process.env.KIE_CALLBACK_URL;
+    console.log(`V1 nano-banana request with callback URL: ${process.env.KIE_CALLBACK_URL}`);
+  }
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      filesUrl: [originalImageUrl],
-      prompt: `Take the product in the image and place it in this scenario: ${imagePrompt}`,
-      size: "3:2"
-    })
-  }, 8, 30000);
+    body: JSON.stringify(requestBody)
+  }, 3, 30000);
 
   if (!response.ok) {
     const errorData = await response.text();
-    throw new Error(`Failed to generate cover: ${response.status} ${errorData}`);
+    throw new Error(`KIE nano-banana API error: ${response.status} ${errorData}`);
   }
 
   const data = await response.json();
-  
+
   if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to generate cover image');
+    throw new Error(data.message || 'Failed to generate cover with nano-banana');
   }
-  
+
   return data.data.taskId;
 }

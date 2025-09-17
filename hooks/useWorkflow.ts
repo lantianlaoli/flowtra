@@ -34,7 +34,7 @@ export interface WorkflowState {
   maxGuestUsage: number;
 }
 
-export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo3' | 'veo3_fast' = 'auto', updateCredits?: (newCredits: number) => void, refetchCredits?: () => Promise<void>) => {
+export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo3' | 'veo3_fast' = 'auto', updateCredits?: (newCredits: number) => void, refetchCredits?: () => Promise<void>, elementsCount: number = 1, imageSize: string = 'auto') => {
   // Initialize guest usage limits
   const maxGuestUsage = 1; // Guest users: 1 VEO3_fast
   const maxUserUsage = 2;   // Logged users: 2 VEO3_fast
@@ -263,7 +263,7 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
     });
   }, [selectedModel, guestUsageCount, userId, maxUserUsage, maxGuestUsage]);
 
-  const startWorkflowWithConfig = useCallback(async (watermarkConfig: { enabled: boolean; text: string }) => {
+  const startWorkflowWithConfig = useCallback(async (watermarkConfig: { enabled: boolean; text: string; location?: string }, currentElementsCount?: number, currentImageSize?: string) => {
     if (!state.data.uploadedFile?.url || !state.data.uploadedFile?.path) {
       setError('No uploaded file found');
       return;
@@ -277,8 +277,13 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
         imagePath: state.data.uploadedFile.path,
         userId: userId,
         videoModel: selectedModel,
-        watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined
+        watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined,
+        watermarkLocation: watermarkConfig.location || 'bottom left',
+        elementsCount: currentElementsCount ?? elementsCount,
+        imageSize: currentImageSize ?? imageSize
       };
+
+      console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
 
       const response = await fetch('/api/start-workflow', {
         method: 'POST',

@@ -371,9 +371,9 @@ export default function GenerateAdPageV2() {
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium text-gray-900">Variation</h4>
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                      {instance.instance_status === 'completed' ? (
+                      {instance.status === 'completed' ? (
                         <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full">Ready</span>
-                      ) : instance.instance_status === 'failed' ? (
+                      ) : instance.status === 'failed' ? (
                         <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full">Failed</span>
                       ) : (
                         <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">Processing</span>
@@ -512,12 +512,17 @@ export default function GenerateAdPageV2() {
                   <span className="text-lg">🍌</span>
                 </div>
                 <h1 className="text-2xl font-semibold text-gray-900">
-                  Create Multiple Ad Variations
+                  Create Multiple Ad Variations - V2
                 </h1>
               </div>
               <p className="text-gray-600 text-sm ml-11">
-                Generate multiple creative approaches from one photo and choose the best performer
+                For style experimentation & testing • Generate multiple creative approaches from one photo and choose the best performer
               </p>
+              <div className="ml-11 mt-2">
+                <p className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full inline-block">
+                  💡 Need 1:1 authentic reproduction → Use V1 • Want style experimentation → Use V2
+                </p>
+              </div>
             </div>
           </div>
 

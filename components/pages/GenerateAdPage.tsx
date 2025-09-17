@@ -9,9 +9,10 @@ import Sidebar from '@/components/layout/Sidebar';
 import FileUpload from '@/components/FileUpload';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
-import { RotateCcw, ArrowRight, History, Tag, Sparkles } from 'lucide-react';
+import { RotateCcw, ArrowRight, History, Sparkles, Hash, Type, Square, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { canAffordModel, CREDIT_COSTS } from '@/lib/constants';
+import { motion } from 'framer-motion';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -28,7 +29,10 @@ export default function GenerateAdPage() {
     sufficient: true,
     loading: true
   });
-  const [watermarkText, setWatermarkText] = useState('');
+  const [textWatermark, setTextWatermark] = useState('');
+  const [textWatermarkLocation, setTextWatermarkLocation] = useState('bottom left');
+  const [elementsCount, setElementsCount] = useState(1);
+  const [imageSize, setImageSize] = useState('auto');
   
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
     setSelectedModel(model);
@@ -40,7 +44,7 @@ export default function GenerateAdPage() {
     uploadFile,
     startWorkflowWithConfig,
     resetWorkflow
-  } = useWorkflow(user?.id, selectedModel, updateCredits, refetchCredits);
+  } = useWorkflow(user?.id, selectedModel, updateCredits, refetchCredits, elementsCount, imageSize);
 
   // Check KIE credits on page load
   useEffect(() => {
@@ -120,11 +124,12 @@ export default function GenerateAdPage() {
 
   const handleStartWorkflow = async () => {
     const watermarkConfig = {
-      enabled: watermarkText.trim().length > 0,
-      text: watermarkText.trim()
+      enabled: textWatermark.trim().length > 0,
+      text: textWatermark.trim(),
+      location: textWatermarkLocation
     };
-    
-    await startWorkflowWithConfig(watermarkConfig);
+
+    await startWorkflowWithConfig(watermarkConfig, elementsCount, imageSize);
   };
 
   const renderWorkflowContent = () => {
@@ -151,26 +156,133 @@ export default function GenerateAdPage() {
       );
     }
 
-    // Show watermark configuration interface after upload
+    // Show configuration interface after upload
     if (state.workflowStatus === 'uploaded_waiting_config') {
       return (
         <div className="max-w-6xl mx-auto">
-          {/* Left-Right Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Side - Image Preview and Action Buttons */}
+            {/* Left Side - Image Preview only */}
             <div className="space-y-6">
-              {/* Image Preview */}
               {state.data.uploadedFile?.url && (
                 <div className="text-center">
-                  <Image 
-                    src={state.data.uploadedFile.url} 
-                    alt="Product" 
+                  <Image
+                    src={state.data.uploadedFile.url}
+                    alt="Product"
                     width={500}
                     height={500}
-                    className="w-full h-auto rounded-lg"
+                    className="w-full h-auto max-h-[75vh] object-contain rounded-lg"
                   />
                 </div>
               )}
+            </div>
+
+            {/* Right Side - Configuration Area */}
+            <div className="space-y-4">
+
+              {/* Elements Count Selector - segmented control */}
+              <div>
+                <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                  <Hash className="w-4 h-4" />
+                  Ads
+                </label>
+                <div
+                  role="radiogroup"
+                  aria-label="How many ads?"
+                  className="relative inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm"
+                >
+                  {[1,2,3].map((val) => {
+                    const active = elementsCount === val;
+                    return (
+                      <button
+                        key={val}
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => setElementsCount(val)}
+                        className={`relative px-5 py-2.5 text-base font-semibold rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
+                          active ? 'text-white' : 'text-gray-800 hover:bg-gray-50'
+                        } ${val !== 1 ? 'ml-1' : ''}`}
+                      >
+                        {active && (
+                          <motion.div
+                            layoutId="segmentedHighlight"
+                            className="absolute inset-0 rounded-lg bg-gray-900 shadow z-0"
+                            transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                          />
+                        )}
+                        <span className="relative z-10">
+                          {val} {val === 1 ? 'ad' : 'ads'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Watermark Configuration */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                  <Type className="w-4 h-4" />
+                  Watermark
+                </label>
+
+                {/* Watermark Text Input and Location Selector */}
+                <div className="flex gap-3">
+                  {/* Left: Text Input */}
+                  <div className="flex-1">
+                    <input
+                      id="watermark-text"
+                      type="text"
+                      value={textWatermark}
+                      onChange={(e) => setTextWatermark(e.target.value)}
+                      placeholder="Enter watermark text (optional)..."
+                      maxLength={50}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
+                    />
+                  </div>
+
+                  {/* Right: Location Selector */}
+                  <div className="relative w-32">
+                    <select
+                      id="watermark-location"
+                      value={textWatermarkLocation}
+                      onChange={(e) => setTextWatermarkLocation(e.target.value)}
+                      className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
+                    >
+                      <option value="bottom left">Bottom Left</option>
+                      <option value="bottom right">Bottom Right</option>
+                      <option value="top left">Top Left</option>
+                      <option value="top right">Top Right</option>
+                      <option value="center bottom">Center Bottom</option>
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Image Size Configuration */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                  <Square className="w-4 h-4" />
+                  Size
+                </label>
+
+                <div className="relative">
+                  <select
+                    id="image-size"
+                    value={imageSize}
+                    onChange={(e) => setImageSize(e.target.value)}
+                    className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
+                  >
+                    <option value="auto">Auto (Native Resolution)</option>
+                    <option value="1:1">Square (1:1)</option>
+                    <option value="3:4">Portrait 3:4</option>
+                    <option value="9:16">Portrait 9:16</option>
+                    <option value="4:3">Landscape 4:3</option>
+                    <option value="16:9">Landscape 16:9</option>
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                </div>
+              </div>
 
               {/* Action Buttons */}
               <div className="space-y-3">
@@ -182,21 +294,18 @@ export default function GenerateAdPage() {
                   {state.isLoading ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                      <span className="animate-pulse">Creating magic...</span>
-                      {/* Animated background effect */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"></div>
+                      <span>Generating…</span>
                     </>
                   ) : (
                     <>
                       <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
-                      <span className="group-hover:scale-105 transition-transform duration-200">Create Ad</span>
+                      <span className="group-hover:scale-105 transition-transform duration-200">Generate</span>
                     </>
                   )}
                 </button>
-                
+
                 <button
                   onClick={() => {
-                    // Create a hidden file input and trigger it
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.accept = 'image/*';
@@ -213,31 +322,6 @@ export default function GenerateAdPage() {
                   <RotateCcw className="w-4 h-4" />
                   Change Photo
                 </button>
-              </div>
-            </div>
-
-            {/* Right Side - Configuration Area */}
-            <div className="space-y-6">
-              {/* Watermark Input */}
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Configuration</h3>
-                <input
-                  type="text"
-                  value={watermarkText}
-                  onChange={(e) => setWatermarkText(e.target.value)}
-                  placeholder="Add watermark (optional)"
-                  maxLength={100}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-base"
-                />
-                <p className="text-sm text-gray-500 mt-2">
-                  Make it yours with a custom watermark
-                </p>
-              </div>
-
-              {/* Future configuration options can be added here */}
-              <div className="text-center text-gray-400 py-8">
-                <Tag className="w-8 h-8 mx-auto mb-3" />
-                <p className="text-sm">More options coming soon</p>
               </div>
             </div>
           </div>
@@ -277,7 +361,7 @@ export default function GenerateAdPage() {
             </button>
             <button
               onClick={() => resetWorkflow()}
-              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium"
+              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium cursor-pointer"
             >
               <ArrowRight className="w-4 h-4" />
               Create Another
@@ -391,7 +475,7 @@ export default function GenerateAdPage() {
             </button>
             <button
               onClick={() => resetWorkflow()}
-              className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium"
+              className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium cursor-pointer"
             >
               <ArrowRight className="w-4 h-4" />
               Create Another
@@ -424,12 +508,17 @@ export default function GenerateAdPage() {
                   <Sparkles className="w-4 h-4 text-gray-700" />
                 </div>
                 <h1 className="text-2xl font-semibold text-gray-900">
-                  Create Professional Video Ads
+                  Create Professional Video Ads - V1
                 </h1>
               </div>
               <p className="text-gray-600 text-sm ml-11">
-                Transform your product photos into compelling video advertisements that drive sales
+                For authentic 1:1 product representation • Transform your product photos into compelling video advertisements
               </p>
+              <div className="ml-11 mt-2">
+                <p className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full inline-block">
+                  💡 Need 1:1 authentic reproduction → Use V1 • Want style experimentation → Use V2
+                </p>
+              </div>
             </div>
           </div>
 

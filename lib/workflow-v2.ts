@@ -456,7 +456,7 @@ export interface WorkflowV2Item {
   video_task_id?: string;
   cover_image_url?: string;
   video_url?: string;
-  instance_status: 'pending' | 'generating_cover' | 'generating_video' | 'completed' | 'failed';
+  status: 'pending' | 'generating_cover' | 'generating_video' | 'completed' | 'failed';
   current_step: 'waiting' | 'generating_cover' | 'generating_video' | 'completed';
   credits_cost: number;
   downloaded: boolean;
@@ -498,7 +498,7 @@ export async function startV2Items({
       },
       video_model: videoModel,
       credits_cost: getCreditCost(videoModel),
-      instance_status: 'pending' as const,
+      status: 'pending' as const,
       current_step: 'waiting' as const,
       progress_percentage: 0
     }));
@@ -529,7 +529,7 @@ export async function startV2Items({
         await supabase
           .from('user_history_v2')
           .update({
-            instance_status: 'failed',
+            status: 'failed',
             error_message: e instanceof Error ? e.message : 'Cover generation failed',
             updated_at: new Date().toISOString()
           })
@@ -568,7 +568,7 @@ async function startCoverGenerationV2(
   await supabase
     .from('user_history_v2')
     .update({
-      instance_status: 'generating_cover',
+      status: 'generating_cover',
       current_step: 'generating_cover',
       progress_percentage: 10,
       updated_at: new Date().toISOString(),

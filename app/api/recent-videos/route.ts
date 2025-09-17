@@ -19,7 +19,7 @@ export async function GET() {
       .from('user_history')
       .select('*')
       .eq('user_id', userId)
-      .eq('workflow_status', 'completed')
+      .eq('status', 'completed')
       .not('video_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -29,7 +29,7 @@ export async function GET() {
       .from('user_history_v2')
       .select('*')
       .eq('user_id', userId)
-      .eq('instance_status', 'completed')
+      .eq('status', 'completed')
       .not('video_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -48,11 +48,11 @@ export async function GET() {
     if (historyV1 && historyV1.length > 0) {
       const item = historyV1[0];
       let creativePrompt = null;
-      if (item.creative_prompts) {
+      if (item.video_prompts) {
         try {
-          const parsed = typeof item.creative_prompts === 'string'
-            ? JSON.parse(item.creative_prompts)
-            : item.creative_prompts;
+          const parsed = typeof item.video_prompts === 'string'
+            ? JSON.parse(item.video_prompts)
+            : item.video_prompts;
 
           creativePrompt = {
             music: parsed.music || null,
@@ -73,7 +73,7 @@ export async function GET() {
         status: 'completed' as const,
         generationTime: item.generation_time_minutes || undefined,
         modelUsed: item.video_model === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast',
-        creditsConsumed: item.generation_credits_used || item.credits_used || undefined,
+        creditsConsumed: item.download_credits_used || undefined,
         creativePrompt,
         workflowVersion: 'v1'
       });
@@ -112,7 +112,7 @@ export async function GET() {
         status: 'completed' as const,
         generationTime: undefined, // V2 doesn't track generation time in the same way
         modelUsed: item.video_model || 'VEO3',
-        creditsConsumed: item.credits_cost || undefined,
+        creditsConsumed: item.download_credits_used || undefined,
         creativePrompt,
         workflowVersion: 'v2'
       });

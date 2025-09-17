@@ -28,9 +28,10 @@ export async function GET() {
     };
 
     // Query V1 history (user_history table)
+    type V1Row = { status: string; created_at: string; download_credits_used?: number | null };
     const { data: historyV1, error: errorV1 } = await supabase
       .from('user_history')
-      .select('workflow_status, created_at, credits_used, generation_credits_used')
+      .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
     if (errorV1) {
@@ -40,9 +41,10 @@ export async function GET() {
     }
 
     // Query V2 history (user_history_v2 table)
+    type V2Row = { status: string; created_at: string; download_credits_used?: number | null };
     const { data: historyV2, error: errorV2 } = await supabase
       .from('user_history_v2')
-      .select('instance_status, created_at, credits_cost')
+      .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
     if (errorV2) {
@@ -53,7 +55,7 @@ export async function GET() {
 
     // Calculate stats from V1 data
     if (historyV1 && historyV1.length > 0) {
-      for (const record of historyV1) {
+      for (const record of historyV1 as V1Row[]) {
         stats.totalVideos++;
 
         // Check if this month
@@ -63,14 +65,14 @@ export async function GET() {
         }
 
         // Add credits used
-        const creditsUsed = record.generation_credits_used || record.credits_used || 0;
+        const creditsUsed = record.download_credits_used || 0;
         stats.creditsUsed += creditsUsed;
       }
     }
 
     // Calculate stats from V2 data
     if (historyV2 && historyV2.length > 0) {
-      for (const record of historyV2) {
+      for (const record of historyV2 as V2Row[]) {
         stats.totalVideos++;
 
         // Check if this month
@@ -79,8 +81,8 @@ export async function GET() {
           stats.thisMonth++;
         }
 
-        // Add credits used
-        stats.creditsUsed += record.credits_cost || 0;
+        // Add credits used (actual download charges)
+        stats.creditsUsed += record.download_credits_used || 0;
       }
     }
 
@@ -89,18 +91,18 @@ export async function GET() {
     let totalCount = 0;
 
     if (historyV1) {
-      for (const record of historyV1) {
+      for (const record of historyV1 as V1Row[]) {
         totalCount++;
-        if (record.workflow_status === 'completed') {
+        if (record.status === 'completed') {
           completedCount++;
         }
       }
     }
 
     if (historyV2) {
-      for (const record of historyV2) {
+      for (const record of historyV2 as V2Row[]) {
         totalCount++;
-        if (record.instance_status === 'completed') {
+        if (record.status === 'completed') {
           completedCount++;
         }
       }

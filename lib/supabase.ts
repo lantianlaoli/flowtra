@@ -65,9 +65,9 @@ export interface UserHistory {
   cover_image_url?: string
   video_url?: string
   product_description?: string
-  creative_prompts?: Record<string, unknown>
+  video_prompts?: Record<string, unknown>
   video_model: 'veo3' | 'veo3_fast'
-  credits_used: number
+  credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string
   created_at: string

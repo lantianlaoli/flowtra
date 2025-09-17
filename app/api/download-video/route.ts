@@ -46,7 +46,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     }
 
     // Check if video generation is completed
-    if (historyRecord.workflow_status !== 'completed' || !historyRecord.video_url) {
+    if (historyRecord.status !== 'completed' || !historyRecord.video_url) {
       return NextResponse.json({
         success: false,
         message: 'Video generation not completed yet'

@@ -9,7 +9,7 @@ export interface WorkflowInstanceState {
   video_task_id?: string;
   cover_image_url?: string;
   video_url?: string;
-  instance_status: 'pending' | 'generating_cover' | 'generating_video' | 'completed' | 'failed';
+  status: 'pending' | 'generating_cover' | 'generating_video' | 'completed' | 'failed';
   current_step: 'waiting' | 'generating_cover' | 'generating_video' | 'completed';
   credits_cost: number;
   downloaded: boolean;
@@ -114,7 +114,7 @@ export function useWorkflowV2(
       const seeded = itemIds.map((id) => ({
         id,
         user_id: userId,
-        instance_status: 'pending' as const,
+        status: 'pending' as const,
         current_step: 'waiting' as const,
         credits_cost: getCreditCost(videoModel),
         downloaded: false,
@@ -214,7 +214,7 @@ export function useWorkflowV2(
           video_task_id: it.video_task_id,
           cover_image_url: it.cover_image_url,
           video_url: it.video_url,
-          instance_status: it.instance_status,
+          status: it.status,
           current_step: it.current_step,
           credits_cost: it.credits_cost,
           downloaded: it.downloaded,
@@ -224,8 +224,8 @@ export function useWorkflowV2(
           updated_at: it.updated_at,
           last_processed_at: it.last_processed_at
         }));
-        const allCompleted = instances.length > 0 && instances.every(i => i.instance_status === 'completed');
-        const anyFailed = instances.some(i => i.instance_status === 'failed');
+        const allCompleted = instances.length > 0 && instances.every(i => i.status === 'completed');
+        const anyFailed = instances.some(i => i.status === 'failed');
         setState(prev => ({
           ...prev,
           instances,

@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabase } from '@/lib/supabase';
-import { recordCreditTransaction, deductCredits } from '@/lib/credits';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 export async function POST() {
@@ -14,7 +13,7 @@ export async function POST() {
     const { data: records, error } = await supabase
       .from('user_history')
       .select('*')
-      .in('workflow_status', ['started', 'in_progress'])
+      .in('status', ['started', 'in_progress'])
       .not('cover_task_id', 'is', null)
       .order('last_processed_at', { ascending: true })
       .limit(20); // Process max 20 records per run
@@ -37,49 +36,16 @@ export async function POST() {
           processed++;
         } catch (error) {
           console.error(`Error processing record ${record.id}:`, error);
-          
-          // Update retry count and handle failures
-          const newRetryCount = (record.retry_count || 0) + 1;
-          if (newRetryCount >= 5) {
-            // Mark as failed after 5 retries and refund credits
-            await supabase
-              .from('user_history')
-              .update({
-                workflow_status: 'failed',
-                error_message: error instanceof Error ? error.message : 'Max retries exceeded',
-                last_processed_at: new Date().toISOString()
-              })
-              .eq('id', record.id);
-            
-            // Refund generation credits for failed workflow
-            if (record.user_id && record.generation_credits_used > 0) {
-              const refundResult = await deductCredits(record.user_id, -record.generation_credits_used); // Negative amount adds credits back
-              if (refundResult.success) {
-                await recordCreditTransaction(
-                  record.user_id,
-                  'refund',
-                  record.generation_credits_used,
-                  'Refund for failed workflow after max retries',
-                  record.id,
-                  true // useAdminClient
-                );
-                console.log(`↩️ Refunded ${record.generation_credits_used} generation credits due to workflow failure (max retries) for user ${record.user_id}`);
-              } else {
-                console.error(`Failed to refund generation credits for failed workflow:`, refundResult.error);
-              }
-            }
-            
-            failed++;
-          } else {
-            // Increment retry count
-            await supabase
-              .from('user_history')
-              .update({
-                retry_count: newRetryCount as number,
-                last_processed_at: new Date().toISOString()
-              })
-              .eq('id', record.id);
-          }
+          // Mark record as failed for this run; retry logic removed (no persistent retry_count)
+          await supabase
+            .from('user_history')
+            .update({
+              status: 'failed',
+              error_message: error instanceof Error ? error.message : 'Processing error',
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', record.id);
+          failed++;
         }
         
         // Small delay to avoid overwhelming APIs
@@ -90,7 +56,7 @@ export async function POST() {
       const { count: completedCount } = await supabase
         .from('user_history')
         .select('*', { count: 'exact', head: true })
-        .eq('workflow_status', 'completed')
+        .eq('status', 'completed')
         .gte('updated_at', new Date(Date.now() - 60000).toISOString()); // Updated in last minute
 
       completed = completedCount || 0;
@@ -116,29 +82,39 @@ export async function POST() {
   }
 }
 
+type VideoPrompt = {
+  description: string;
+  setting: string;
+  camera_type: string;
+  camera_movement: string;
+  action: string;
+  lighting: string;
+  dialogue: string;
+  music: string;
+  ending: string;
+  other_details: string;
+};
+
 interface HistoryRecord {
   id: string;
   user_id: string;
   current_step: string;
-  workflow_status: string;
+  status: string;
   cover_task_id: string;
   video_task_id: string;
   cover_image_url: string;
   video_url: string;
-  creative_prompts: Record<string, unknown>;
+  video_prompts: VideoPrompt;
   video_model: string;
-  credits_used: number;
-  generation_credits_used: number;
+  credits_cost: number;
   download_credits_used: number;
   downloaded: boolean;
-  retry_count: number;
   last_processed_at: string;
-  watermark_text: string;
 }
 
 async function processRecord(record: HistoryRecord) {
   const supabase = getSupabase();
-  console.log(`Processing record ${record.id}, step: ${record.current_step}, status: ${record.workflow_status}`);
+  console.log(`Processing record ${record.id}, step: ${record.current_step}, status: ${record.status}`);
 
   // Handle cover generation monitoring
   if (record.current_step === 'generating_cover' && record.cover_task_id && !record.cover_image_url) {
@@ -164,21 +140,6 @@ async function processRecord(record: HistoryRecord) {
       console.log(`Started video generation for record ${record.id}, taskId: ${videoTaskId}`);
       
     } else if (coverResult.status === 'FAILED') {
-      // Refund generation credits when cover generation fails
-      if (record.user_id && record.generation_credits_used > 0) {
-        const refundResult = await deductCredits(record.user_id, -record.generation_credits_used);
-        if (refundResult.success) {
-          await recordCreditTransaction(
-            record.user_id,
-            'refund',
-            record.generation_credits_used,
-            'Refund for cover generation failure',
-            record.id,
-            true
-          );
-          console.log(`↩️ Refunded ${record.generation_credits_used} generation credits due to cover generation failure for user ${record.user_id}`);
-        }
-      }
       throw new Error('Cover generation failed');
     }
     // If still generating, do nothing and wait for next check
@@ -191,35 +152,20 @@ async function processRecord(record: HistoryRecord) {
     if (videoResult.status === 'SUCCESS' && videoResult.videoUrl) {
       console.log(`Video completed for record ${record.id}`);
       
-      // Note: Credits are already deducted at workflow start, no need to deduct again
-      console.log(`✅ Workflow completed for user ${record.user_id} - credits were deducted at start`);
+      // Note: Credits are charged on download only; nothing to deduct now
+      console.log(`✅ Workflow completed for user ${record.user_id}`);
       
       await supabase
         .from('user_history')
         .update({
           video_url: videoResult.videoUrl,
-          workflow_status: 'completed',
+          status: 'completed',
           progress_percentage: 100,
           last_processed_at: new Date().toISOString()
         })
         .eq('id', record.id);
         
     } else if (videoResult.status === 'FAILED') {
-      // Refund generation credits when video generation fails
-      if (record.user_id && record.generation_credits_used > 0) {
-        const refundResult = await deductCredits(record.user_id, -record.generation_credits_used);
-        if (refundResult.success) {
-          await recordCreditTransaction(
-            record.user_id,
-            'refund',
-            record.generation_credits_used,
-            'Refund for video generation failure',
-            record.id,
-            true
-          );
-          console.log(`↩️ Refunded ${record.generation_credits_used} generation credits due to video generation failure for user ${record.user_id}`);
-        }
-      }
       throw new Error(`Video generation failed: ${videoResult.errorMessage || 'Unknown error'}`);
     }
     // If still generating, do nothing and wait for next check
@@ -236,11 +182,11 @@ async function processRecord(record: HistoryRecord) {
 }
 
 async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string): Promise<string> {
-  if (!record.creative_prompts) {
+  if (!record.video_prompts) {
     throw new Error('No creative prompts available for video generation');
   }
 
-  const videoPrompt = record.creative_prompts;
+  const videoPrompt = record.video_prompts;
   const fullPrompt = `${videoPrompt.description} 
 
 Setting: ${videoPrompt.setting}
@@ -263,8 +209,7 @@ Other details: ${videoPrompt.other_details}`;
     enableAudio: true,
     audioEnabled: true,
     generateVoiceover: true,
-    includeDialogue: true,
-    ...(record.watermark_text && { watermark: record.watermark_text })
+    includeDialogue: true
   };
 
   console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
@@ -293,7 +238,7 @@ Other details: ${videoPrompt.other_details}`;
 }
 
 async function checkCoverStatus(taskId: string): Promise<{status: string, imageUrl?: string}> {
-  const response = await fetchWithRetry(`https://api.kie.ai/api/v1/gpt4o-image/record-info?taskId=${taskId}`, {
+  const response = await fetchWithRetry(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -301,23 +246,34 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
   }, 3, 15000);
 
   if (!response.ok) {
-    throw new Error(`Failed to check cover status: ${response.status} ${response.statusText}`);
+    throw new Error(`Failed to check nano-banana status: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();
-  
-  if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to get cover status');
+
+  if (!data || data.code !== 200) {
+    throw new Error(data.message || 'Failed to get nano-banana status');
   }
 
   const taskData = data.data;
-  
-  if (taskData.status === 'SUCCESS' && taskData.successFlag === 1) {
+  if (!taskData) {
+    return { status: 'GENERATING' };
+  }
+
+  if (taskData.state === 'success') {
+    let resultJson: Record<string, unknown> = {};
+    try {
+      resultJson = JSON.parse(taskData.resultJson || '{}');
+    } catch {
+      resultJson = {};
+    }
+    const urls = (resultJson as { resultUrls?: string[] }).resultUrls;
+    const firstUrl = Array.isArray(urls) ? urls[0] : undefined;
     return {
       status: 'SUCCESS',
-      imageUrl: taskData.response?.resultUrls?.[0] || null
+      imageUrl: firstUrl
     };
-  } else if (taskData.status === 'CREATE_TASK_FAILED' || taskData.status === 'GENERATE_FAILED') {
+  } else if (taskData.state === 'failed') {
     return { status: 'FAILED' };
   } else {
     return { status: 'GENERATING' };
@@ -338,16 +294,19 @@ async function checkVideoStatus(taskId: string): Promise<{status: string, videoU
 
   const data = await response.json();
   
-  if (data.code !== 200) {
+  if (!data || data.code !== 200) {
     throw new Error(data.msg || 'Failed to get video status');
   }
 
   const taskData = data.data;
-  
+  if (!taskData) {
+    return { status: 'GENERATING' };
+  }
+
   if (taskData.successFlag === 1) {
     return {
       status: 'SUCCESS',
-      videoUrl: taskData.response?.resultUrls?.[0] || null
+      videoUrl: taskData.response?.resultUrls?.[0] || undefined
     };
   } else if (taskData.successFlag === 2 || taskData.successFlag === 3) {
     return {
