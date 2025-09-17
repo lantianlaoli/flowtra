@@ -61,6 +61,8 @@ Each set must include **all required fields** and differ in tone, mood, or creat
   - Primary color, Secondary color, Tertiary color
 - Ensure creative DIVERSITY between the ${count} sets:
   - One can be minimal/clean, the other bold/energetic (or premium/elegant vs. playful/dynamic).
+- Characters must be living subjects or humans interacting with the product, not flat packaging graphics. If the packaging already shows a mascot, invent a different real-world subject (for pet food, use a breed that differs from the packaging artwork) who is actively engaging with the product experience.
+- Describe characters and visual guides from the perspective of the target customer using cues from the product, and avoid copying or tracing printed illustrations on the pack.
 - If user does not specify details, apply smart defaults:
   - ad_copy → short, catchy slogan
   - visual_guide → describe placement, size, activity of character, product angle, background mood
@@ -107,6 +109,7 @@ Your task: Based on the ad image I uploaded, create exactly ${count} different s
 **重要注意事项**:
 - 确保生成的多个集合在创意风格上有明显差异
 - 每个集合都必须包含所有必需字段
+- 角色必须与产品产生真实互动，不能沿用包装上的平面插画或商标人物
 - 系统会自动添加用户提供的水印信息
 
 ---
