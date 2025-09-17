@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-import { getSupabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { generateVideoDesignFromCover } from '@/lib/workflow-v2';
 
@@ -9,7 +9,7 @@ export async function POST() {
   try {
     console.log('Starting workflow task monitoring v2...');
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
     
     // Find workflow instances that need monitoring
     const { data: instances, error } = await supabase
@@ -106,7 +106,7 @@ interface InstanceRecord {
 }
 
 async function processInstance(instance: InstanceRecord) {
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
   console.log(`Processing instance ${instance.id}, status: ${instance.status}, step: ${instance.current_step}`);
 
   let currentStatus = instance.status;
