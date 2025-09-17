@@ -13,6 +13,7 @@ interface V1HistoryItem {
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
   productDescription?: string;
+  imagePrompt?: string;
   videoModel: 'veo3' | 'veo3_fast';
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
@@ -101,6 +102,7 @@ export async function GET() {
       downloadCreditsUsed: item.download_credits_used,
       generationCreditsUsed: 0,
       productDescription: item.product_description,
+      imagePrompt: item.image_prompt,
       videoModel: item.video_model,
       creditsUsed: item.credits_cost || 0,
       status: mapWorkflowStatus(item.status),

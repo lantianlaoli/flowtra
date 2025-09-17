@@ -93,6 +93,10 @@ export async function startWorkflowProcess({
         current_step: 'describing',
         progress_percentage: 5,
         last_processed_at: new Date().toISOString(),
+        image_prompt: null,
+        watermark_text: watermark || null,
+        watermark_location: watermarkLocation,
+        cover_image_size: imageSize,
       }));
 
       const { data, error } = await supabase
@@ -131,6 +135,22 @@ export async function startWorkflowProcess({
 
           // Generate slightly different prompts for variety
           const prompts = await generatePrompts(description + (index > 0 ? ` - Variation ${index + 1}` : ''), watermark, watermarkLocation);
+          const preparedImagePrompt = prepareImagePrompt(prompts.image_prompt, watermark, watermarkLocation);
+          if (preparedImagePrompt !== prompts.image_prompt) {
+            console.warn('Adjusted image prompt to enforce exact watermark text', {
+              recordId: record.id,
+              watermark,
+              originalPrompt: prompts.image_prompt,
+              preparedPrompt: preparedImagePrompt
+            });
+          } else if (watermark && !prompts.image_prompt.includes(watermark)) {
+            console.warn('Image prompt missing exact watermark text even after preparation', {
+              recordId: record.id,
+              watermark,
+              prompt: prompts.image_prompt
+            });
+          }
+          prompts.image_prompt = preparedImagePrompt;
 
           // Update record with prompts
           const supabase = getSupabaseAdmin();
@@ -139,6 +159,7 @@ export async function startWorkflowProcess({
             .update({
               product_description: description,
               video_prompts: prompts.video_prompt,
+              image_prompt: prompts.image_prompt,
               current_step: 'generating_cover',
               progress_percentage: 55,
               last_processed_at: new Date().toISOString()
@@ -378,7 +399,7 @@ Respond ONLY with the following structured JSON:
       },
       {
         role: 'user',
-        content: `This is the initial creative brief:\nCreate a compelling video advertisement with voiceover and audio\n\nDescription of the product:\n${productDescription}\n\nWATERMARK REQUIREMENTS:\n${watermark ? `- Include text watermark: "${watermark}"\n- Watermark location: ${watermarkLocation || 'bottom left'}\n- The image_prompt should specify that the watermark text "${watermark}" appears at ${watermarkLocation || 'bottom left'} of the image` : '- No watermark needed'}\n\nIMPORTANT: The video must include:\n- Engaging voiceover narration or dialogue that describes the product benefits\n- Background music or sound effects that enhance the mood\n- Clear spoken content that explains why customers should choose this product\n\nFor the image_prompt: Make sure to include watermark specifications if provided above.\n\nMake sure the 'dialogue' field contains actual spoken words, not just \"No dialogue\" or empty content.\n\nUse the Think tool to double check your output`
+        content: `This is the initial creative brief:\nCreate a compelling video advertisement with voiceover and audio\n\nDescription of the product:\n${productDescription}\n\nWATERMARK REQUIREMENTS:\n${watermark ? `- Include text watermark: "${watermark}"\n- Watermark location: ${watermarkLocation || 'bottom left'}\n- Copy the watermark text exactly as defined between the <WATERMARK_TEXT> tags below. Do not change spelling, capitalization, spacing, or character order. This is trademarked content and any alteration (including swapped or duplicated letters) is unacceptable.\n- The image_prompt must explicitly state that the exact lettering "${watermark}" appears at ${watermarkLocation || 'bottom left'} of the image.\n- Before finalizing, self-check every occurrence of the watermark text to ensure it matches "${watermark}" character-for-character.\n<WATERMARK_TEXT>${watermark}</WATERMARK_TEXT>` : '- No watermark needed'}\n\nIMPORTANT: The video must include:\n- Engaging voiceover narration or dialogue that describes the product benefits\n- Background music or sound effects that enhance the mood\n- Clear spoken content that explains why customers should choose this product\n\nFor the image_prompt: Make sure to include watermark specifications if provided above.\n\nMake sure the 'dialogue' field contains actual spoken words, not just \"No dialogue\" or empty content.\n\nIf the watermark text ever deviates from what is inside <WATERMARK_TEXT>, regenerate internally until it is an exact match.\n\nUse the Think tool to double check your output`
       }
     ],
     max_tokens: 1500,
@@ -473,6 +494,37 @@ Respond ONLY with the following structured JSON:
   } catch (parseError) {
     throw new Error(`Failed to parse generated prompts: ${parseError}`);
   }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/([.*+?^${}()|[\]\\])/g, '\$1');
+}
+
+function prepareImagePrompt(imagePrompt: string, watermark?: string, watermarkLocation?: string): string {
+  const basePrompt = (imagePrompt || '').trim();
+  if (!watermark) {
+    return basePrompt;
+  }
+
+  const enforcedLocation = watermarkLocation || 'bottom left';
+  const exactWatermark = watermark.trim();
+  const overrideClause = `OVERRIDE ANY EARLIER WATERMARK INSTRUCTIONS. The watermark text must read exactly "${exactWatermark}" at the ${enforcedLocation}. Do not alter the spelling, capitalization, spacing, or character order of "${exactWatermark}".`;
+
+  const caseInsensitiveRegex = new RegExp(escapeRegExp(exactWatermark), 'gi');
+  let sanitizedPrompt = basePrompt.replace(caseInsensitiveRegex, exactWatermark);
+
+  if (!sanitizedPrompt.includes(exactWatermark)) {
+    console.warn('Image prompt is missing exact watermark text, appending override clause', {
+      watermark: exactWatermark,
+      prompt: sanitizedPrompt
+    });
+  }
+
+  if (!sanitizedPrompt.includes(overrideClause)) {
+    sanitizedPrompt = sanitizedPrompt.length > 0 ? `${sanitizedPrompt} ${overrideClause}` : overrideClause;
+  }
+
+  return sanitizedPrompt;
 }
 
 async function generateCoverWithBanana(originalImageUrl: string, imagePrompt: string, imageSize = 'auto'): Promise<string> {

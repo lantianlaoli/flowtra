@@ -110,6 +110,11 @@ interface HistoryRecord {
   download_credits_used: number;
   downloaded: boolean;
   last_processed_at: string;
+  watermark_text?: string | null;
+  watermark_location?: string | null;
+  watermark_guard_notes?: string | null;
+  cover_image_size?: string | null;
+  image_prompt?: string | null;
 }
 
 async function processRecord(record: HistoryRecord) {

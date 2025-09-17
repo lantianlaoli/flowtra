@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, MessageSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, MessageSquare, HelpCircle } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -21,6 +21,7 @@ interface V1HistoryItem {
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
   productDescription?: string;
+  imagePrompt?: string;
   videoModel: 'veo3' | 'veo3_fast';
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
@@ -52,6 +53,7 @@ interface V2InstanceItem {
 type HistoryItem = V1HistoryItem | V2InstanceItem;
 
 const ITEMS_PER_PAGE = 6; // 2 rows × 3 columns = 6 items per page
+const FAILED_STATUS_TOOLTIP = 'The image you used has an issue. Please try another one.';
 
 export default function HistoryPage() {
   const { user, isLoaded } = useUser();
@@ -576,9 +578,24 @@ export default function HistoryPage() {
                 {currentHistory.map((item) => (
                   <div key={item.id} className="relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-all duration-200 hover:shadow-md flex flex-col">
                     <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none z-20">
-                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', getStatusBadgeClasses(item.status))}>
-                        {getStatusText(item.status)}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span
+                          className={cn(
+                            'px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 pointer-events-auto',
+                            getStatusBadgeClasses(item.status)
+                          )}
+                        >
+                          {getStatusText(item.status)}
+                          {item.status === 'failed' && (
+                            <div className="relative group">
+                              <HelpCircle className="w-4 h-4" aria-label="Failed generation details" />
+                              <div className="absolute left-0 top-full mt-2 w-48 rounded-lg bg-gray-900 text-white text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none">
+                                {FAILED_STATUS_TOOLTIP}
+                              </div>
+                            </div>
+                          )}
+                        </span>
+                      </div>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                         item.isV2 
                           ? 'bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 border border-orange-200' 

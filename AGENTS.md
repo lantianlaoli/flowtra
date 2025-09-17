@@ -1,3 +1,9 @@
+- use pnpm as default package manager
+- Communication is in Chinese, while coding and comments are in English.
+- ## Notifications
+When tasks complete, notify me using:
+powershell.exe -c "[System.Media.SystemSounds]::Beep.Play()"
+
 # Repository Guidelines
 
 ## Project Structure & Module Organization

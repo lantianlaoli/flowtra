@@ -70,6 +70,10 @@ export interface UserHistory {
   credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string
+  watermark_text?: string | null
+  watermark_location?: string | null
+  watermark_guard_notes?: string | null
+  cover_image_size?: string | null
   created_at: string
   updated_at: string
 }
