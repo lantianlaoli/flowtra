@@ -1,4 +1,4 @@
-import { getSupabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { httpRequestWithRetry } from '@/lib/httpRequest';
 import { getCreditCost, CREDIT_COSTS } from '@/lib/constants';
@@ -81,7 +81,7 @@ export async function startWorkflowProcess({
     // Create history records (no credit deduction at generation)
     let historyRecords = [];
     if (userId) {
-      const supabase = getSupabase();
+      const supabase = getSupabaseAdmin();
 
       // Create multiple records for independent processing
       const recordsToInsert = Array.from({ length: elementsCount }, () => ({
@@ -133,7 +133,7 @@ export async function startWorkflowProcess({
           const prompts = await generatePrompts(description + (index > 0 ? ` - Variation ${index + 1}` : ''), watermark, watermarkLocation);
 
           // Update record with prompts
-          const supabase = getSupabase();
+          const supabase = getSupabaseAdmin();
           await supabase
             .from('user_history')
             .update({
@@ -161,7 +161,7 @@ export async function startWorkflowProcess({
           const coverTaskId = await generateCoverWithBanana(imageUrl, prompts.image_prompt, imageSize);
 
           // Update record with cover task ID
-          const supabase = getSupabase();
+          const supabase = getSupabaseAdmin();
           await supabase
             .from('user_history')
             .update({
@@ -195,7 +195,7 @@ export async function startWorkflowProcess({
       console.error('Workflow error:', error);
 
       // Update all records to failed
-      const supabase = getSupabase();
+      const supabase = getSupabaseAdmin();
       await Promise.all(
         historyRecords.map(record =>
           supabase
@@ -231,7 +231,7 @@ export async function startWorkflowProcess({
 
 async function updateWorkflowProgress(historyId: string | undefined, step: string, percentage: number, status: string) {
   if (!historyId) return;
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
   
   await supabase
     .from('user_history')

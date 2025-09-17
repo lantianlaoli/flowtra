@@ -1,4 +1,4 @@
-import { getSupabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getCreditCost } from '@/lib/constants';
 
@@ -481,7 +481,7 @@ export async function startV2Items({
       return { success: false, error: 'Image URL and User ID are required' };
     }
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
 
     // Generation is free now; only deduct on download
 
@@ -546,7 +546,7 @@ export async function startV2Items({
 export async function getV2ItemsStatus(ids: string[]): Promise<{ success: boolean; items?: WorkflowV2Item[]; error?: string }>{
   try {
     if (!ids?.length) return { success: true, items: [] };
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('user_history_v2')
       .select('*')
@@ -564,7 +564,7 @@ async function startCoverGenerationV2(
   productDescription: string,
   elements: Record<string, unknown>
 ): Promise<void> {
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
   await supabase
     .from('user_history_v2')
     .update({
