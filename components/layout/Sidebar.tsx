@@ -16,6 +16,7 @@ import {
   Play,
   Layers
 } from 'lucide-react';
+import { LayoutGroup, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import FeedbackWidget from '@/components/FeedbackWidget';
 import { CREDIT_COSTS, canAffordModel, getAutoModeSelection, getProcessingTime } from '@/lib/constants';
@@ -285,34 +286,41 @@ export default function Sidebar({ credits = 0, selectedModel, onModelChange, use
         )}
 
         {/* Navigation */}
-        <nav className="space-y-1">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150 relative',
-                  isActive
-                    ? 'bg-gray-100 text-gray-900'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                )}
-              >
-                <item.icon className={cn(
-                  'w-4 h-4 transition-colors duration-150',
-                  isActive ? 'text-gray-900' : 'text-gray-500 group-hover:text-gray-700'
-                )} />
-                <span className="flex-1">{item.name}</span>
-                {('badge' in item) && (
-                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
-                    {(item as { badge: string }).badge}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
+        <LayoutGroup>
+          <nav className="space-y-1 relative">
+            {navigation.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    'group relative flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden',
+                    isActive ? 'text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  )}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="sidebarActive"
+                      className="absolute inset-0 rounded-lg bg-gray-900 shadow shadow-gray-900/25"
+                      transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+                    />
+                  )}
+                  <item.icon className={cn(
+                    'relative z-10 w-4 h-4 transition-colors duration-150',
+                    isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
+                  )} />
+                  <span className="relative z-10 flex-1">{item.name}</span>
+                  {('badge' in item) && (
+                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
+                      {(item as { badge: string }).badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+        </LayoutGroup>
       </div>
       
       {/* Feedback and Navigation */}

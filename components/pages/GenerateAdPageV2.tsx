@@ -8,7 +8,7 @@ import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import FileUpload from '@/components/FileUpload';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { RotateCcw, ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Square, ChevronDown, Sparkles } from 'lucide-react';
+import { RotateCcw, ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Square, ChevronDown, Layers } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 // Removed cost display; no need to import CREDIT_COSTS here
@@ -143,32 +143,34 @@ export default function GenerateAdPageV2() {
     // Show upload interface when idle
     if (state.workflowStatus === 'idle') {
       return (
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold text-gray-900">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12 items-start">
+            <div className="lg:col-span-5 space-y-4">
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="text-base font-semibold text-gray-900 mb-2.5">
                   Designed for creative exploration
                 </h2>
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  Drop in a single photo and compare multiple motion-first storylines. Each variation treats your product as the hero while experimenting with composition, copy, and color grading.
+                  Experiment with hooks, motion, and styling without reshooting. One upload gives you multiple creative directions ready for paid testing.
                 </p>
               </div>
-              <div className="space-y-3">
+              <div className="grid gap-4">
                 {v2Highlights.map((item) => (
-                  <div key={item.label} className="border border-gray-200 rounded-lg p-4 bg-gray-50/60">
-                    <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                  <div key={item.label} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
                       {item.label}
-                    </h3>
-                    <p className="text-sm text-gray-600 leading-relaxed">
+                    </p>
+                    <p className="text-sm text-gray-700 leading-relaxed">
                       {item.description}
                     </p>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-sm">
-              <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} />
+            <div className="lg:col-span-7 flex">
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3 sm:p-5 flex-1 flex">
+                <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} variant="compact" />
+              </div>
             </div>
           </div>
         </div>
@@ -179,24 +181,26 @@ export default function GenerateAdPageV2() {
     if (state.workflowStatus === 'uploaded') {
       return (
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Side - Image Preview only (fit viewport) */}
-            <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12">
+            {/* Left Side - Image Preview emphasised */}
+            <div className="lg:col-span-7">
               {state.uploadedFile?.url && (
-                <div className="text-center">
-                  <Image 
-                    src={state.uploadedFile.url} 
-                    alt="Product" 
-                    width={500}
-                    height={500}
-                    className="w-full h-auto max-h-[75vh] object-contain rounded-lg"
-                  />
+                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3 sm:p-5 flex min-h-[360px]">
+                  <div className="flex-1 flex items-center justify-center">
+                    <Image 
+                      src={state.uploadedFile.url} 
+                      alt="Product" 
+                      width={640}
+                      height={640}
+                      className="w-full h-auto object-contain rounded-xl bg-gray-100"
+                    />
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Right Side - Configuration Area */}
-            <div className="space-y-4">
+            <div className="lg:col-span-5 space-y-5">
               
               {/* Elements Count Selector - segmented control */}
               <div>
@@ -528,6 +532,8 @@ export default function GenerateAdPageV2() {
     return null;
   };
 
+  const workflowContent = renderWorkflowContent();
+
   return (
     <div className="min-h-screen bg-gray-50">
       {!isLoaded ? (
@@ -550,7 +556,7 @@ export default function GenerateAdPageV2() {
             <div className="mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-gray-700" />
+                  <Layers className="w-4 h-4 text-gray-700" />
                 </div>
                 <h1 className="text-2xl font-semibold text-gray-900">
                   Create Multiple Ad Variations
@@ -573,50 +579,61 @@ export default function GenerateAdPageV2() {
           )}
 
           {/* Main Content */}
-          <div className="relative bg-white border border-gray-200 rounded-lg p-8 overflow-hidden">
-            {renderWorkflowContent()}
+          <AnimatePresence mode="wait">
+            {workflowContent && (
+              <motion.div
+                key={state.workflowStatus}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.24, ease: [0.22, 0.61, 0.36, 1] }}
+                className="relative bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm overflow-hidden"
+              >
+                {workflowContent}
 
-            {/* Silky animated overlay while generating (from Generate click until next screen) */}
-            <AnimatePresence>
-              {state.workflowStatus === 'uploaded' && state.isLoading && (
-                <motion.div
-                  key="overlay"
-                  className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                >
-                  {/* Animated message stack */}
-                  <motion.div
-                    key={overlayIndex}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.4 }}
-                    aria-live="polite"
-                    className="text-center"
-                  >
-                    <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-0">
-                      {overlayMessages[overlayIndex % overlayMessages.length]}
-                    </p>
-                  </motion.div>
+                {/* Silky animated overlay while generating (from Generate click until next screen) */}
+                <AnimatePresence>
+                  {state.workflowStatus === 'uploaded' && state.isLoading && (
+                    <motion.div
+                      key="overlay"
+                      className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      {/* Animated message stack */}
+                      <motion.div
+                        key={overlayIndex}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.4 }}
+                        aria-live="polite"
+                        className="text-center"
+                      >
+                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-0">
+                          {overlayMessages[overlayIndex % overlayMessages.length]}
+                        </p>
+                      </motion.div>
 
-                  {/* Neutral animated dots to indicate activity without implying linear progress */}
-                  <div className="mt-6 flex items-center gap-2" aria-hidden="true">
-                    {[0,1,2].map((i) => (
-                      <motion.span
-                        key={i}
-                        className="block w-2 h-2 rounded-full bg-gray-900"
-                        initial={{ opacity: 0.3, scale: 1 }}
-                        animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.1, 1] }}
-                        transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
-                      />
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                      {/* Neutral animated dots to indicate activity without implying linear progress */}
+                      <div className="mt-6 flex items-center gap-2" aria-hidden="true">
+                        {[0,1,2].map((i) => (
+                          <motion.span
+                            key={i}
+                            className="block w-2 h-2 rounded-full bg-gray-900"
+                            initial={{ opacity: 0.3, scale: 1 }}
+                            animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.1, 1] }}
+                            transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
+                          />
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
       </>

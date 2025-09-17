@@ -5,8 +5,9 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, CheckCircle, AlertCircle, PlayCircle, RotateCcw, Loader2, Play, Image as ImageIcon, Video, MessageSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, MessageSquare } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
+import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -174,6 +175,19 @@ export default function HistoryPage() {
         return 'Failed';
       default:
         return status;
+    }
+  };
+
+  const getStatusBadgeClasses = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-700 border border-green-200';
+      case 'processing':
+        return 'bg-gray-100 text-gray-700 border border-gray-200';
+      case 'failed':
+        return 'bg-red-100 text-red-700 border border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-600 border border-gray-200';
     }
   };
 
@@ -560,7 +574,19 @@ export default function HistoryPage() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {currentHistory.map((item) => (
-                  <div key={item.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-all duration-200 hover:shadow-md flex flex-col">
+                  <div key={item.id} className="relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-all duration-200 hover:shadow-md flex flex-col">
+                    <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none z-20">
+                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', getStatusBadgeClasses(item.status))}>
+                        {getStatusText(item.status)}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        item.isV2 
+                          ? 'bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 border border-orange-200' 
+                          : 'bg-gray-100 text-gray-600 border border-gray-200'
+                      }`}>
+                        {item.isV2 ? 'Creative Mix' : 'Product Focus'}
+                      </span>
+                    </div>
                     {/* Video Preview on Hover */}
                     <div 
                       className="relative bg-white"
@@ -609,36 +635,11 @@ export default function HistoryPage() {
                       
                       {/* Enhanced metadata display */}
                       <div className="space-y-2 mb-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2 text-gray-500">
-                            <Clock className="w-4 h-4" />
-                            <span className="font-medium">{formatDate(item.createdAt)}</span>
-                            <span className="text-gray-300">•</span>
-                            <span className="text-gray-400">{formatTime(item.createdAt)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {/* Status */}
-                            <div className="flex items-center gap-1">
-                              {item.status === 'completed' ? (
-                                <CheckCircle className="w-3 h-3 text-green-600" />
-                              ) : item.status === 'processing' ? (
-                                <PlayCircle className="w-3 h-3 text-gray-600" />
-                              ) : item.status === 'failed' ? (
-                                <AlertCircle className="w-3 h-3 text-red-600" />
-                              ) : (
-                                <PlayCircle className="w-3 h-3 text-gray-500" />
-                              )}
-                              <span className="text-xs font-medium text-gray-700">{getStatusText(item.status)}</span>
-                            </div>
-                            {/* Version */}
-                            <div className={`px-2 py-1 rounded text-xs font-bold ${
-                              item.isV2 
-                                ? 'bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700' 
-                                : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {item.isV2 ? 'V2' : 'V1'}
-                            </div>
-                          </div>
+                        <div className="flex items-center text-sm text-gray-500 gap-2">
+                          <Clock className="w-4 h-4" />
+                          <span className="font-medium">{formatDate(item.createdAt)}</span>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-gray-400">{formatTime(item.createdAt)}</span>
                         </div>
                       </div>
 
