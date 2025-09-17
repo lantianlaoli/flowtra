@@ -8,6 +8,7 @@ export interface WorkflowInstanceState {
   cover_task_id?: string;
   video_task_id?: string;
   cover_image_url?: string;
+  cover_image_size?: string | null;
   video_url?: string;
   status: 'pending' | 'generating_cover' | 'generating_video' | 'completed' | 'failed';
   current_step: 'waiting' | 'generating_cover' | 'generating_video' | 'completed';
@@ -114,6 +115,7 @@ export function useWorkflowV2(
       const seeded = itemIds.map((id) => ({
         id,
         user_id: userId,
+        cover_image_size: imageSize,
         status: 'pending' as const,
         current_step: 'waiting' as const,
         credits_cost: getCreditCost(videoModel),
@@ -213,6 +215,7 @@ export function useWorkflowV2(
           cover_task_id: it.cover_task_id,
           video_task_id: it.video_task_id,
           cover_image_url: it.cover_image_url,
+          cover_image_size: it.cover_image_size,
           video_url: it.video_url,
           status: it.status,
           current_step: it.current_step,

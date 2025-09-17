@@ -24,6 +24,7 @@ interface WorkflowInstance {
   cover_task_id?: string;
   video_task_id?: string;
   cover_image_url?: string;
+  cover_image_size?: string | null;
   video_url?: string;
   status: string;
   current_step: string;
@@ -111,6 +112,119 @@ export async function POST(request: NextRequest) {
   }
 }
 
+function deriveCoverImageSize(
+  resultJson: Record<string, unknown>,
+  payload: KieCallbackData,
+  instance: WorkflowInstance
+): string | null {
+  const candidates: Array<string | null> = [];
+
+  candidates.push(normalizeImageSizeInput(resultJson['imageSize']));
+  candidates.push(normalizeImageSizeInput(resultJson['image_size']));
+  candidates.push(normalizeImageSizeInput(resultJson['size']));
+  candidates.push(normalizeImageSizeInput(resultJson['meta']));
+  candidates.push(normalizeImageSizeInput(resultJson['metadata']));
+
+  const jobParam = resultJson['jobParam'] as Record<string, unknown> | undefined;
+  candidates.push(normalizeImageSizeInput(jobParam ? jobParam['image_size'] : undefined));
+  candidates.push(normalizeImageSizeInput(jobParam ? jobParam['imageSize'] : undefined));
+
+  candidates.push(normalizeImageSizeInput(resultJson['input']));
+  candidates.push(normalizeImageSizeInput(payload.response));
+
+  const elementsImageSize = instance.elements_data && (instance.elements_data as Record<string, unknown>).image_size;
+  candidates.push(normalizeImageSizeInput(elementsImageSize));
+  candidates.push(normalizeImageSizeInput(instance.cover_image_size));
+
+  for (const value of candidates) {
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function normalizeImageSizeInput(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (typeof value === 'number') {
+    return value > 0 ? `${Math.round(value)}` : null;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 2) {
+      const [width, height] = value;
+      const normalizedWidth = normalizeDimension(width);
+      const normalizedHeight = normalizeDimension(height);
+      if (normalizedWidth && normalizedHeight) {
+        return `${normalizedWidth}x${normalizedHeight}`;
+      }
+    }
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+
+    const nestedKeys = ['imageSize', 'image_size', 'size', 'outputSize', 'output_size'];
+    for (const key of nestedKeys) {
+      const nested = normalizeImageSizeInput(obj[key]);
+      if (nested) {
+        return nested;
+      }
+    }
+
+    const widthKeys = ['width', 'Width', 'w', 'imageWidth'];
+    const heightKeys = ['height', 'Height', 'h', 'imageHeight'];
+
+    let widthCandidate: string | null = null;
+    let heightCandidate: string | null = null;
+
+    for (const key of widthKeys) {
+      const valueAtKey = obj[key];
+      const normalized = normalizeDimension(valueAtKey);
+      if (normalized) {
+        widthCandidate = normalized;
+        break;
+      }
+    }
+
+    for (const key of heightKeys) {
+      const valueAtKey = obj[key];
+      const normalized = normalizeDimension(valueAtKey);
+      if (normalized) {
+        heightCandidate = normalized;
+        break;
+      }
+    }
+
+    if (widthCandidate && heightCandidate) {
+      return `${widthCandidate}x${heightCandidate}`;
+    }
+  }
+
+  return null;
+}
+
+function normalizeDimension(value: unknown): string | null {
+  if (typeof value === 'number') {
+    return value > 0 ? `${Math.round(value)}` : null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  return null;
+}
+
 async function handleSuccessCallback(taskId: string, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
     // Try to find the workflow instance in V2 table first
@@ -169,8 +283,9 @@ async function handleSuccessCallback(taskId: string, data: KieCallbackData, supa
 async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
     // Extract cover image URL from result
-    const resultJson = JSON.parse(data.resultJson || '{}');
-    const coverImageUrl = resultJson.resultUrls?.[0];
+    const resultJson = JSON.parse(data.resultJson || '{}') as Record<string, unknown>;
+    const resultUrls = resultJson['resultUrls'];
+    const coverImageUrl = Array.isArray(resultUrls) ? resultUrls[0] : undefined;
 
     if (!coverImageUrl) {
       throw new Error('No cover image URL in success callback');
@@ -189,21 +304,28 @@ async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCall
     const videoTaskId = await startVideoGeneration(instance, coverImageUrl, videoPrompt);
 
     // Update database with cover completion and video start
+    const updatePayload: Record<string, unknown> = {
+      cover_image_url: coverImageUrl,
+      video_task_id: videoTaskId,
+      elements_data: {
+        ...(instance.elements_data || {}),
+        video_prompt: videoPrompt
+      },
+      status: 'generating_video',
+      current_step: 'generating_video',
+      progress_percentage: 50,
+      updated_at: new Date().toISOString(),
+      last_processed_at: new Date().toISOString()
+    };
+
+    const derivedSize = deriveCoverImageSize(resultJson, data, instance);
+    if (derivedSize) {
+      updatePayload.cover_image_size = derivedSize;
+    }
+
     await supabase
       .from('user_history_v2')
-      .update({
-        cover_image_url: coverImageUrl,
-        video_task_id: videoTaskId,
-        elements_data: {
-          ...(instance.elements_data || {}),
-          video_prompt: videoPrompt
-        },
-        status: 'generating_video',
-        current_step: 'generating_video',
-        progress_percentage: 50,
-        updated_at: new Date().toISOString(),
-        last_processed_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', instance.id);
 
     console.log(`Started video generation for instance ${instance.id}, taskId: ${videoTaskId}`);

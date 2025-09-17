@@ -72,7 +72,6 @@ export interface UserHistory {
   error_message?: string
   watermark_text?: string | null
   watermark_location?: string | null
-  watermark_guard_notes?: string | null
   cover_image_size?: string | null
   created_at: string
   updated_at: string

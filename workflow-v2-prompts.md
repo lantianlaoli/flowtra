@@ -1,335 +1,312 @@
-# 工作流 V2 提示词文档
+# Workflow V2 Prompt Reference
 
-## 概述
-工作流 V2 是批量多变体广告生成流程，用于从单张产品图片生成多个不同风格的广告变体。该工作流强调创意多样性，让用户能够测试不同的创意方向。
+## Overview
+Workflow V2 produces multiple advertising variants from a single uploaded product image. The pipeline sanitizes optional user watermark inputs, keeps a shared product description, and reuses structured creative data across cover and video generation. Each stage below details the expected inputs, the exact prompt payload sent to the model or service, the structured output, and how that output drives the next node.
 
-## 提示词列表
+## Flow Summary
+1. **Image Analysis** → generates a structured description that is reused by the cover- and video-prompt stages.
+2. **Creative Element Sets** → creates diverse ad element bundles; every bundle carries the sanitized watermark data.
+3. **Cover Prompt Synthesis** → merges the shared description with a specific element bundle to craft the final image prompt.
+4. **Cover Rendering (Nano-Banana)** → renders the cover image with the prompt and original reference photo.
+5. **Video Prompt Design** → uses the rendered cover, shared description, and selected element bundle to form a cinematic video brief that is then passed to the video generator.
 
-### 1. 图像分析提示词 (Image Analysis Prompt)
+## Stage 1 – Image Analysis
+### Inputs
+- `image_url`: direct URL of the uploaded product image.
 
-**功能**: 深度分析上传的图像，判断图像类型并提取品牌信息、色彩方案等关键元素。
-
-**位置**: `lib/workflow-v2.ts` - `describeImage` 函数
-
-**提示词内容**:
-```
-Analyze the given image and determine if it primarily depicts a product or a character, or BOTH. Return the analysis in the specified JSON format.
-```
-
-**输入**:
-- 图像 URL
-
-**输出**: 结构化 JSON 包含
-- `type`: 图像类型 ("product" | "character" | "both")
-- `brand_name`: 品牌名称（如果可见或可推断）
-- `color_scheme`: 色彩方案数组
-  - `hex`: 十六进制颜色代码
-  - `name`: 颜色名称
-- `font_style`: 字体风格描述
-- `visual_description`: 视觉描述（忽略背景）
-- `outfit_style`: 服装风格描述（针对角色类型）
-
-**配置参数**:
-- Model: `openai/gpt-4.1-mini`
-- Max tokens: 500
-- Temperature: 0.7
-- Response format: JSON Schema (严格模式)
-
----
-
-### 2. 多元素生成提示词 (Multiple Elements Generation)
-
-**功能**: 基于图像分析结果生成多套不同风格的广告元素，每套都有独特的创意角度。
-
-**位置**: `lib/workflow-v2.ts` - `generateMultipleElements` 函数
-
-**系统提示词模板**:
-```
-### A - Ask:
-Create exactly ${count} different sets of ELEMENTS for the uploaded ad image.
-Each set must include **all required fields** and differ in tone, mood, or creative angle.
-
-### G - Guidance:
-**role:** Creative ad concept generator
-**output_count:** ${count} sets
-**constraints:**
-- Every set must have:
-  - product
-  - character
-  - ad_copy
-  - visual_guide
-  - Primary color, Secondary color, Tertiary color
-- Ensure creative DIVERSITY between the ${count} sets:
-  - One can be minimal/clean, the other bold/energetic (or premium/elegant vs. playful/dynamic).
-- Characters must be living subjects or humans interacting with the product, not flat packaging graphics. If the packaging already shows a mascot, invent a different real-world subject (for pet food, use a breed that differs from the packaging artwork) who is actively engaging with the product experience.
-- Describe characters and visual guides from the perspective of the target customer using cues from the product, and avoid copying or tracing printed illustrations on the pack.
-- When the product packaging features a dog, assume the mascot is a medium-sized brown hunting dog. Always choose a clearly different breed (e.g., corgi, dachshund, shiba inu, french bulldog, poodle, golden retriever, husky), name it explicitly in the `character` field, and explain how it interacts with the product.
-- If user does not specify details, apply smart defaults:
-  - ad_copy → short, catchy slogan
-  - visual_guide → describe placement, size, activity of character, product angle, background mood
-  - colors → decide based on the ad image
-- IMPORTANT: Do NOT generate text_watermark field - this will be provided separately by the user
-
-### E - Examples:
-**good_examples:**
-- **Set 1:** minimal, clean, muted tones, straightforward CTA.
-- **Set 2:** bold, colorful, dynamic composition, playful character usage.
-
-### N - Notation:
-**format:** structured JSON with ${count} sets clearly separated.
-```
-
-**用户提示词模板**:
-```
-Your task: Based on the ad image I uploaded, create exactly ${count} different sets of ELEMENTS.
-```
-
-**输入**:
-- 图像 URL
-- 生成数量 (count)
-- 用户水印文本（可选）
-- 水印位置（可选）
-
-**输出**: 元素集合数组，每个包含
-- `product`: 产品描述
-- `character`: 角色描述
-- `ad_copy`: 广告文案
-- `visual_guide`: 视觉指导
-- `primary_color`: 主色调
-- `secondary_color`: 辅助色
-- `tertiary_color`: 第三色调
-- `text_watermark`: 文本水印（用户提供）
-- `text_watermark_location`: 水印位置
-
-**配置参数**:
-- Model: `openai/gpt-4.1-mini`
-- Max tokens: 1500
-- Temperature: 0.8
-- Response format: JSON Schema (严格模式)
-
-**重要注意事项**:
-- 确保生成的多个集合在创意风格上有明显差异
-- 每个集合都必须包含所有必需字段
-- 角色必须与产品产生真实互动，不能沿用包装上的平面插画或商标人物
-- 如果包装出现狗狗形象，需在 `character` 中指定一个完全不同的犬种并说明互动方式。
-- 系统会自动添加用户提供的水印信息
-
----
-
-### 3. 最终封面提示词生成 (Final Cover Prompt Generation)
-
-**功能**: 结合产品描述和选定的元素集合，生成最终的图像广告提示词。
-
-**位置**: `lib/workflow-v2.ts` - `generateFinalCoverPrompt` 函数
-
-**系统提示词**:
-```
-## SYSTEM PROMPT: 🔍 Image Ad Prompt Generator Agent
-
-### A - Ask:
-Create exactly 1 structured image ad prompt with all required fields filled.
-
-The final prompt should be written like this:
-
-"""
-Make an image ad for this product with the following elements. The product looks exactly like what's in the reference image.
-
-product:
-character:
-ad_copy:
-visual_guide:
-text_watermark:
-text_watermark_location:
-Primary color of ad:
-Secondary color of ad:
-Tertiary color of ad:
-"""
-
-### G - Guidance:
-role: Creative ad prompt engineer
-output_count: 1
-constraints:
-- Always include all required fields.
-- Integrate the user's special request as faithfully as you can in the final image prompt.
-- If user input is missing, apply smart defaults:
-  - text_watermark_location → "bottom left of screen"
-  - primary_color → decide based on the image provided
-  - secondary_color → decide based on the image provided
-  - tertiary_color → decide based on the image provided
-  - font_style → decide based on the image provided
-  - ad_copy → keep short, punchy, action-oriented.
-  - visual_guide → If the request involves a human character, define camera angle/camera used. If no visual guide is given, describe placement/size of character, what they're doing with the product, style of the ad, main background color and text color.
-- CRITICAL: The product must look exactly like what's in the reference image. Do not redraw or alter logos, text, proportions, materials, or exact colors.
-
-### E - Examples:
-good_examples:
-- character: as defined by the user
-- ad_copy: as defined by the user, or decide if not provided
-- visual_guide: as defined by the user. If detailed, expand to accommodate while respecting the color palette.
-- text_watermark: as defined by the user, leave blank if none provided
-- text_watermark_location: as defined by the user, or bottom left if none provided
-
-### N - Notation:
-format: text string nested within an "image_prompt" parameter. Avoid using double-quotes or raw newlines.
-example_output: |
-{
-  "image_prompt": "final prompt here"
-}
-```
-
-**用户提示词模板**:
-```
-Your task: Create 1 image prompt as guided by your system guidelines.
-
-Description of the reference image: ${productDescription}
-
-ELEMENTS FOR THIS IMAGE:
-
-product: ${elements.product}
-character: ${elements.character}
-ad_copy: ${elements.ad_copy}
-visual_guide: ${elements.visual_guide}
-text_watermark: ${elements.text_watermark}
-text_watermark_location: ${elements.text_watermark_location}
-
-Primary color: ${elements.primary_color}
-Secondary color: ${elements.secondary_color}
-Tertiary color: ${elements.tertiary_color}
-```
-
-**输入**:
-- 产品描述
-- 选定的广告元素集合
-
-**输出**:
-- `image_prompt`: 最终的图像生成提示词
-
-**配置参数**:
-- Model: `openai/gpt-4.1-mini`
-- Max tokens: 800
-- Temperature: 0.7
-- Response format: JSON Schema (严格模式)
-
----
-
-### 4. 封面图像生成 (Cover Image Generation with Nano-Banana)
-
-**功能**: 使用 Google 的 nano-banana-edit 模型生成最终的广告封面图像。
-
-**位置**: `lib/workflow-v2.ts` - `generateCoverWithNanoBanana` 函数
-
-**API**: KIE AI `jobs/createTask`
-
-**请求模型**: `google/nano-banana-edit`
-
-**输入参数**:
+### Prompt Payload
 ```json
 {
-  "model": "google/nano-banana-edit",
-  "input": {
-    "prompt": "${imagePrompt}",
-    "image_urls": ["${originalImageUrl}"],
-    "output_format": "png",
-    "image_size": "${imageSize}"
+  "model": "openai/gpt-4.1-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Analyze the given image and determine if it primarily depicts a product or a character, or BOTH. Return the analysis in the specified JSON format."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "<image_url>"
+          }
+        }
+      ]
+    }
+  ],
+  "max_tokens": 500,
+  "temperature": 0.7,
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "image_analysis",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string", "enum": ["product", "character", "both"] },
+          "brand_name": { "type": "string" },
+          "color_scheme": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "hex": { "type": "string" },
+                "name": { "type": "string" }
+              },
+              "required": ["hex", "name"]
+            }
+          },
+          "font_style": { "type": "string" },
+          "visual_description": { "type": "string" },
+          "outfit_style": { "type": "string" }
+        },
+        "required": ["type", "visual_description"],
+        "additionalProperties": false
+      }
+    }
   }
 }
 ```
 
-**输入**:
-- 原始图像 URL
-- 最终图像提示词
-- 图像尺寸 (默认为 'auto')
+### Output
+A JSON object containing `type`, `brand_name`, `color_scheme`, `font_style`, `visual_description`, and (when applicable) `outfit_style`.
 
-**输出**:
-- 任务 ID
+### Downstream Connections
+- The serialized JSON is stored as the shared product description and passed to Stage 3 and Stage 5.
 
-**支持的图像尺寸**:
-- `auto`: 原生分辨率
-- `1:1`: 正方形
-- `3:4`: 竖屏 3:4
-- `9:16`: 竖屏 9:16
-- `4:3`: 横屏 4:3
-- `16:9`: 横屏 16:9
+## Stage 2 – Creative Element Sets
+### Inputs
+- `image_url`: same image analyzed in Stage 1.
+- `count`: number of variants requested by the user.
+- `text_watermark` (optional): trimmed; empty strings become `null`.
+- `text_watermark_location` (optional): trimmed; defaults to `"bottom left"` whenever a watermark text is present.
 
----
-
-### 5. 视频设计生成提示词 (Video Design Generation)
-
-**功能**: 基于生成的封面图像和广告元素，创建视频生成的结构化提示词。
-
-**位置**: `lib/workflow-v2.ts` - `generateVideoDesignFromCover` 函数
-
-**系统提示词**:
+### Prompt Payload
+```json
+{
+  "model": "openai/gpt-4.1-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "### A - Ask:\nCreate exactly <count> different sets of ELEMENTS for the uploaded ad image.\nEach set must include **all required fields** and differ in tone, mood, or creative angle.\n\n### G - Guidance:\n**role:** Creative ad concept generator\n**output_count:** <count> sets\n**constraints:**\n- Every set must have:\n  - product\n  - character\n  - ad_copy\n  - visual_guide\n  - Primary color, Secondary color, Tertiary color\n- Ensure creative DIVERSITY between the <count> sets:\n  - One can be minimal/clean, the other bold/energetic (or premium/elegant vs. playful/dynamic).\n- Characters must be living subjects or humans interacting with the product, not flat packaging graphics. If the packaging already shows a mascot, invent a different real-world subject (for pet food, use a breed that differs from the packaging artwork) who is actively engaging with the product experience.\n- Describe characters and visual guides from the perspective of the target customer using cues from the product, and avoid copying or tracing printed illustrations on the pack.\n- When the product packaging features a dog, assume the mascot is a medium-sized brown hunting dog. You must choose a clearly different breed (e.g., corgi, dachshund, shiba inu, french bulldog, poodle, golden retriever, husky). Explicitly name that breed in the character field and describe how it interacts with the product. Never reuse or paraphrase the breed seen on the packaging.\n- If user does not specify details, apply smart defaults:\n  - ad_copy → short, catchy slogan\n  - visual_guide → describe placement, size, activity of character, product angle, background mood\n  - colors → decide based on the ad image\n- IMPORTANT: Do NOT generate text_watermark field - this will be provided separately by the user\n\n### E - Examples:\n**good_examples:**\n- **Set 1:** minimal, clean, muted tones, straightforward CTA.\n- **Set 2:** bold, colorful, dynamic composition, playful character usage.\n\n### N - Notation:\n**format:** structured JSON with <count> sets clearly separated."
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Your task: Based on the ad image I uploaded, create exactly <count> different sets of ELEMENTS."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "<image_url>"
+          }
+        }
+      ]
+    }
+  ],
+  "max_tokens": 1500,
+  "temperature": 0.8,
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "elements_sets",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "elements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "product": { "type": "string" },
+                "character": { "type": "string" },
+                "ad_copy": { "type": "string" },
+                "visual_guide": { "type": "string" },
+                "primary_color": { "type": "string" },
+                "secondary_color": { "type": "string" },
+                "tertiary_color": { "type": "string" }
+              },
+              "required": ["product", "character", "ad_copy", "visual_guide", "primary_color", "secondary_color", "tertiary_color"]
+            }
+          }
+        },
+        "required": ["elements"]
+      }
+    }
+  }
+}
 ```
-Video Prompt Generator for Product Creatives
-Role
-You are a seasoned creative director with deep expertise in visual storytelling, branding, and advertising. Your job is to guide the structured creation of high-quality, compelling, and brand-aligned video content for product marketing.
 
-Task
-Generate a video prompt and return ONLY the JSON object inside video_prompt.
+### Output
+An object with `elements`, where each array item is enriched post-response to include:
+- `product`, `character`, `ad_copy`, `visual_guide`, `primary_color`, `secondary_color`, `tertiary_color`.
+- `text_watermark`: sanitized user watermark text or empty string when none is provided.
+- `text_watermark_location`: sanitized location or the default `"bottom left"` when a watermark text exists.
 
-Guidance
-Always use the product description and creative brief as provided by the user. Include these essential details in every prompt: description, setting, camera_type, camera_movement, action, lighting, other_details, dialogue, music, ending. Scenes must be visually rich and avoid generic or vague descriptions. Adhere strictly to the brand identity and ensure the final output feels polished, cinematic, and aligned with the marketing intent.
+### Downstream Connections
+- Each element bundle is persisted together with the sanitized watermark fields.
+- Every inserted `user_history_v2` record receives the same description from Stage 1 and a unique element bundle from this stage.
+- The selected bundle for a record is forwarded to Stage 3 and Stage 5 for prompt construction.
 
-Constraints
-Respond ONLY with the JSON object of video_prompt. Do NOT include any image URLs or references to image links in the JSON.
+## Stage 3 – Cover Prompt Synthesis
+### Inputs
+- `product_description`: JSON string returned by Stage 1.
+- `elements`: one bundle from Stage 2.
+- `text_watermark` / `text_watermark_location`: inherited from the bundle.
+
+### Prompt Payload
+```json
+{
+  "model": "openai/gpt-4.1-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "## SYSTEM PROMPT: 🔍 Image Ad Prompt Generator Agent\n\n### A - Ask:\nCreate exactly 1 structured image ad prompt with all required fields filled.\n\nThe final prompt should be written like this:\n\n\"\"\"\nMake an image ad for this product with the following elements. The product looks exactly like what's in the reference image.\n\nproduct:\ncharacter:\nad_copy:\nvisual_guide:\ntext_watermark:\ntext_watermark_location:\nPrimary color of ad:\nSecondary color of ad:\nTertiary color of ad:\n\"\"\"\n\n### G - Guidance:\nrole: Creative ad prompt engineer\noutput_count: 1\nconstraints:\n- Always include all required fields.\n- Integrate the user's special request as faithfully as you can in the final image prompt.\n- If user input is missing, apply smart defaults:\n  - text_watermark_location → \"bottom left of screen\"\n  - primary_color → decide based on the image provided\n  - secondary_color → decide based on the image provided\n  - tertiary_color → decide based on the image provided\n  - font_style → decide based on the image provided\n  - ad_copy → keep short, punchy, action-oriented.\n  - visual_guide → If the request involves a human character, define camera angle/camera used. If no visual guide is given, describe placement/size of character, what they're doing with the product, style of the ad, main background color and text color.\n- CRITICAL: The product must look exactly like what's in the reference image. Do not redraw or alter logos, text, proportions, materials, or exact colors.\n- When the character description names a dog breed, restate that exact breed in the final prompt text and remind the model that it differs from the brown hunting dog shown on the packaging. Keep the new breed visibly interacting with the product in the pose defined by visual_guide.\n\n### E - Examples:\ngood_examples:\n- character: as defined by the user\n- ad_copy: as defined by the user, or decide if not provided\n- visual_guide: as defined by the user. If detailed, expand to accommodate while respecting the color palette.\n- text_watermark: as defined by the user, leave blank if none provided\n- text_watermark_location: as defined by the user, or bottom left if none provided\n\n### N - Notation:\nformat: text string nested within an \"image_prompt\" parameter. Avoid using double-quotes or raw newlines.\nexample_output: |\n{\n  \"image_prompt\": \"final prompt here\"\n}"
+    },
+    {
+      "role": "user",
+      "content": "Your task: Create 1 image prompt as guided by your system guidelines.\n\nDescription of the reference image: <product_description>\n\nELEMENTS FOR THIS IMAGE:\n\nproduct: <product>\ncharacter: <character>\nad_copy: <ad_copy>\nvisual_guide: <visual_guide>\ntext_watermark: <text_watermark>\ntext_watermark_location: <text_watermark_location>\n\nPrimary color: <primary_color>\nSecondary color: <secondary_color>\nTertiary color: <tertiary_color>"
+    }
+  ],
+  "max_tokens": 800,
+  "temperature": 0.7,
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "final_cover_prompt",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "image_prompt": { "type": "string" }
+        },
+        "required": ["image_prompt"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
 ```
 
-**用户提示词模板**:
+### Output
+A JSON object containing `image_prompt`.
+
+### Downstream Connections
+- The `image_prompt` feeds Stage 4 together with the original reference image and desired output size.
+- The prompt copy is also stored in the workflow record for auditing.
+
+## Stage 4 – Cover Rendering (Nano-Banana)
+### Inputs
+- `image_prompt`: output of Stage 3.
+- `original_image_url`: user-uploaded reference image.
+- `image_size`: user-selected or default value (`auto`).
+
+### Request Payload
+```json
+{
+  "model": "google/nano-banana-edit",
+  "input": {
+    "prompt": "<image_prompt>",
+    "image_urls": ["<original_image_url>"],
+    "output_format": "png",
+    "image_size": "<image_size>"
+  },
+  "callBackUrl": "<optional_webhook_url>"
+}
 ```
-Context:
-product_description: ${productDescription}
-elements: ${JSON.stringify(elements)}
 
-Use the attached image input to ground the design. Return ONLY the JSON object for video_prompt.
+### Output
+- Response code `200` and a `taskId`. The callback delivers the rendered cover image URL when the task finishes.
+
+### Downstream Connections
+- The cover image URL received via webhook updates the workflow record and becomes the visual anchor for Stage 5.
+- Once the cover is stored, the system immediately triggers Stage 5 to prepare the video brief and schedules the video generation task with that brief.
+
+## Stage 5 – Video Prompt Design
+### Inputs
+- `cover_image_url`: the rendered cover from Stage 4.
+- `elements`: the same bundle used in Stage 3.
+- `product_description`: shared description from Stage 1.
+
+### Prompt Payload
+```json
+{
+  "model": "openai/gpt-4.1-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Video Prompt Generator for Product Creatives\nRole\nYou are a seasoned creative director with deep expertise in visual storytelling, branding, and advertising. Your job is to guide the structured creation of high-quality, compelling, and brand-aligned video content for product marketing.\n\nTask\nGenerate a video prompt and return ONLY the JSON object inside video_prompt.\n\nGuidance\nAlways use the product description and creative brief as provided by the user. Include these essential details in every prompt: description, setting, camera_type, camera_movement, action, lighting, other_details, dialogue, music, ending. Scenes must be visually rich and avoid generic or vague descriptions. Adhere strictly to the brand identity and ensure the final output feels polished, cinematic, and aligned with the marketing intent.\n\nConstraints\nRespond ONLY with the JSON object of video_prompt. Do NOT include any image URLs or references to image links in the JSON."
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Context:\nproduct_description: <product_description>\nelements: <elements_json>\n\nUse the attached image input to ground the design. Return ONLY the JSON object for video_prompt."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "<cover_image_url>"
+          }
+        }
+      ]
+    }
+  ],
+  "max_tokens": 1200,
+  "temperature": 0.7,
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "video_prompt",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "setting": { "type": "string" },
+          "camera_type": { "type": "string" },
+          "camera_movement": { "type": "string" },
+          "action": { "type": "string" },
+          "lighting": { "type": "string" },
+          "other_details": { "type": "string" },
+          "dialogue": { "type": "string" },
+          "music": { "type": "string" },
+          "ending": { "type": "string" }
+        },
+        "required": ["description", "setting", "camera_type", "camera_movement", "action", "lighting", "other_details", "dialogue", "music", "ending"]
+      }
+    }
+  }
+}
 ```
 
-**输入**:
-- 封面图像 URL
-- 广告元素数据
-- 产品描述（可选）
+### Output
+A JSON object named `video_prompt` containing structured fields (`description`, `setting`, `camera_type`, `camera_movement`, `action`, `lighting`, `other_details`, `dialogue`, `music`, `ending`).
 
-**输出**: 视频提示词对象包含
-- `description`: 视频描述
-- `setting`: 场景设置
-- `camera_type`: 摄像机类型
-- `camera_movement`: 摄像机运动
-- `action`: 动作描述
-- `lighting`: 灯光效果
-- `other_details`: 其他细节
-- `dialogue`: 对话/旁白
-- `music`: 背景音乐
-- `ending`: 结尾描述
+### Downstream Connections
+- The video prompt is immediately supplied to the video generation service together with the cover image URL and selected model.
+- Completion of the video task updates the workflow record and unlocks downloads, which trigger credit deductions only when a video file is fetched.
 
-**配置参数**:
-- Model: `openai/gpt-4.1-mini`
-- Max tokens: 1200
-- Temperature: 0.7
-- Response format: JSON Schema (严格模式)
+## Watermark Handling
+- User-supplied watermark text and location are trimmed before any prompts run.
+- When only text is provided, the default location `"bottom left"` is injected.
+- Sanitized values are stored on every `user_history_v2` row and merged into the prompt payloads for Stages 2 and 3, ensuring consistency between the stored metadata, the cover render, and the final video brief.
 
-## 工作流程
+## Node Dependencies Recap
+- **Stage 1 → Stage 3 & 5:** The shared product description anchors both the final cover prompt and the video prompt.
+- **Stage 2 → Stage 3 & 5:** Each individual element bundle (including watermark data) drives the creative brief for both cover and video outputs.
+- **Stage 3 → Stage 4:** The synthesized `image_prompt` is required to kick off cover rendering.
+- **Stage 4 → Stage 5:** The final cover URL becomes the visual context for the video prompt and the downstream video generator.
+- **Stage 5 → Video Generation:** The completed video prompt launches the video task whose outcome is tracked alongside the cover assets.
 
-1. **图像分析阶段**: 深度分析图像类型、品牌信息和视觉元素
-2. **多元素生成阶段**: 创建多套不同风格的广告元素组合
-3. **批量处理阶段**: 为每套元素生成对应的最终封面提示词
-4. **图像生成阶段**: 使用 nano-banana 模型生成封面图像
-5. **视频设计阶段**: 基于封面图像生成视频提示词
-6. **结果展示**: 展示多个变体供用户选择和下载
-
-## 技术特性
-
-- **批量生成**: 支持同时生成 1-3 个广告变体
-- **创意多样性**: 确保每个变体在风格和调性上有明显差异
-- **用户定制**: 支持自定义水印文本和位置
-- **灵活尺寸**: 支持多种图像比例设置
-- **免费生成**: 生成过程免费，仅在下载时收费
-- **实时预览**: 生成完成后可预览所有变体
-
-## 相关文件
-
-- 主逻辑: `lib/workflow-v2.ts`
-- 前端组件: `components/pages/GenerateAdPageV2.tsx`
-- Hook: `hooks/useWorkflowV2.ts`
-- API 端点: `app/api/v2/start/route.ts`
-- 状态监控: `app/api/v2/monitor-tasks/route.ts`
-- 内容下载: `app/api/v2/download-content/[instanceId]/route.ts`
+## Generation Characteristics
+- Supports 1–3 parallel variants per user request.
+- Maintains strong creative diversity across variants through Stage 2 constraints.
+- Rendering and video generation are free to preview; credit deductions occur only on video download.
+- Each workflow record stores progress timestamps to enable monitoring and retries.
