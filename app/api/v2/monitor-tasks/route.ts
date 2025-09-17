@@ -299,11 +299,6 @@ async function startVideoGeneration(
     includeDialogue: false
   };
 
-  // Add callback URL for video generation
-  if (process.env.KIE_CALLBACK_URL) {
-    requestBody.callBackUrl = process.env.KIE_CALLBACK_URL;
-  }
-
   console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
