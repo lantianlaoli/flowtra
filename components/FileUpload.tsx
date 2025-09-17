@@ -7,9 +7,10 @@ interface FileUploadProps {
   onFileUpload: (files: File | File[]) => void;
   isLoading?: boolean;
   multiple?: boolean;
+  variant?: 'default' | 'compact';
 }
 
-export default function FileUpload({ onFileUpload, isLoading, multiple = false }: FileUploadProps) {
+export default function FileUpload({ onFileUpload, isLoading, multiple = false, variant = 'default' }: FileUploadProps) {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -67,21 +68,33 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
     setSelectedFiles(newFiles);
   };
 
+  const wrapperClasses = variant === 'compact'
+    ? 'w-full flex flex-col'
+    : 'w-full max-w-lg mx-auto';
+
+  const dropzoneClasses = variant === 'compact'
+    ? `border border-dashed rounded-xl p-6 sm:p-7 text-center transition-all duration-200 flex flex-col gap-5 ${
+        dragActive 
+          ? 'border-gray-700 bg-gray-100 scale-[1.01]' 
+          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+      }`
+    : `border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-200 ${
+        dragActive 
+          ? 'border-blue-400 bg-blue-50/50 scale-[1.02]' 
+          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50'
+      }`;
+
   return (
-    <div className="w-full max-w-lg mx-auto">
+    <div className={wrapperClasses}>
       <div
-        className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-200 ${
-          dragActive 
-            ? 'border-blue-400 bg-blue-50/50 scale-[1.02]' 
-            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50'
-        }`}
+        className={dropzoneClasses}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
       >
-        <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-6">
-          <Upload className="h-8 w-8 text-gray-500" />
+        <div className={variant === 'compact' ? 'w-12 h-12 bg-gray-900/5 rounded-lg flex items-center justify-center mx-auto mb-4' : 'w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-6'}>
+          <Upload className={variant === 'compact' ? 'h-6 w-6 text-gray-700' : 'h-8 w-8 text-gray-500'} />
         </div>
         
         {selectedFiles.length > 0 ? (
@@ -114,17 +127,17 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
               </div>
             ) : (
               <div className="text-center mt-4 animate-slide-in-right">
-                <div className="flex items-center justify-center gap-2 mb-3">
-                  <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <div className="w-4 h-4 bg-gray-900/80 rounded-full flex items-center justify-center">
                     <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <p className="text-sm text-green-600 font-medium">Perfect! Ready to create your masterpiece</p>
+                  <p className="text-sm text-gray-700 font-medium">Great pick — ready to generate.</p>
                 </div>
                 <button
                   onClick={() => setSelectedFiles([])}
-                  className="text-sm text-gray-600 hover:text-gray-800 underline hover:no-underline hover:text-gray-900 transition-all duration-200"
+                  className="text-sm text-gray-600 hover:text-gray-900 underline-offset-2 hover:underline transition-all duration-200"
                 >
                   Try a different product
                 </button>
@@ -133,11 +146,11 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
           </div>
         ) : (
           <div>
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <div className={variant === 'compact' ? 'mb-5' : 'mb-6'}>
+              <h3 className={variant === 'compact' ? 'text-base font-semibold text-gray-900 mb-1.5' : 'text-lg font-semibold text-gray-900 mb-2'}>
                 {multiple ? 'Turn Your Photos Into Amazing Videos' : 'Transform Your Product Into a Masterpiece'}
               </h3>
-              <p className="text-gray-500 text-sm">
+              <p className={variant === 'compact' ? 'text-gray-500 text-sm leading-relaxed' : 'text-gray-500 text-sm'}>
                 {isLoading
                   ? 'Creating magic...'
                   : multiple
@@ -160,7 +173,9 @@ export default function FileUpload({ onFileUpload, isLoading, multiple = false }
               className={`px-6 py-3 rounded-lg cursor-pointer inline-flex items-center space-x-2 font-medium transition-all ${
                 isLoading 
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gray-900 text-white hover:bg-gray-800'
+                  : variant === 'compact'
+                    ? 'bg-gray-900 text-white hover:bg-gray-800 shadow-sm hover:shadow'
+                    : 'bg-gray-900 text-white hover:bg-gray-800'
               }`}
             >
               {isLoading ? (

@@ -12,7 +12,7 @@ import InsufficientCredits from '@/components/InsufficientCredits';
 import { RotateCcw, ArrowRight, History, Sparkles, Hash, Type, Square, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { canAffordModel, CREDIT_COSTS } from '@/lib/constants';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -165,32 +165,34 @@ export default function GenerateAdPage() {
     // Show upload interface when no workflow is running
     if (state.workflowStatus === 'started') {
       return (
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold text-gray-900">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12 items-start">
+            <div className="lg:col-span-5 space-y-4">
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="text-base font-semibold text-gray-900 mb-2.5">
                   When this workflow shines
                 </h2>
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  Use this path when you need faithful, product-driven storytelling. Keep your product exactly as photographed while layering motion, pacing, and captions calibrated for paid campaigns.
+                  Reach for Professional Video Ads when you need faithful, product-driven storytelling. Flowtra keeps your product true-to-shot while crafting pacing, captions, and motion tuned for performance spend.
                 </p>
               </div>
-              <div className="space-y-3">
+              <div className="grid gap-4">
                 {v1Highlights.map((item) => (
-                  <div key={item.label} className="border border-gray-200 rounded-lg p-4 bg-gray-50/60">
-                    <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                  <div key={item.label} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
                       {item.label}
-                    </h3>
-                    <p className="text-sm text-gray-600 leading-relaxed">
+                    </p>
+                    <p className="text-sm text-gray-700 leading-relaxed">
                       {item.description}
                     </p>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-sm">
-              <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} />
+            <div className="lg:col-span-7">
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3 sm:p-5">
+                <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} variant="compact" />
+              </div>
             </div>
           </div>
         </div>
@@ -201,24 +203,26 @@ export default function GenerateAdPage() {
     if (state.workflowStatus === 'uploaded_waiting_config') {
       return (
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Side - Image Preview only */}
-            <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12">
+            {/* Left Side - Image Preview emphasised */}
+            <div className="lg:col-span-7">
               {state.data.uploadedFile?.url && (
-                <div className="text-center">
-                  <Image
-                    src={state.data.uploadedFile.url}
-                    alt="Product"
-                    width={500}
-                    height={500}
-                    className="w-full h-auto max-h-[75vh] object-contain rounded-lg"
-                  />
+                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3 sm:p-5 flex min-h-[360px]">
+                  <div className="flex-1 flex items-center justify-center">
+                    <Image
+                      src={state.data.uploadedFile.url}
+                      alt="Product"
+                      width={640}
+                      height={640}
+                      className="w-full h-auto object-contain rounded-xl bg-gray-100"
+                    />
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Right Side - Configuration Area */}
-            <div className="space-y-4">
+            <div className="lg:col-span-5 space-y-5">
 
               {/* Elements Count Selector - segmented control */}
               <div>
@@ -530,6 +534,8 @@ export default function GenerateAdPage() {
     return null;
   };
 
+  const workflowContent = renderWorkflowContent();
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar 
@@ -569,9 +575,20 @@ export default function GenerateAdPage() {
           )}
 
           {/* Main Content */}
-          <div className="bg-white border border-gray-200 rounded-lg p-8">
-            {renderWorkflowContent()}
-          </div>
+          <AnimatePresence mode="wait">
+            {workflowContent && (
+              <motion.div
+                key={state.workflowStatus}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.24, ease: [0.22, 0.61, 0.36, 1] }}
+                className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm"
+              >
+                {workflowContent}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>
