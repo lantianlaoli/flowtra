@@ -132,6 +132,21 @@ export default function GenerateAdPage() {
     await startWorkflowWithConfig(watermarkConfig, elementsCount, imageSize);
   };
 
+  const v1Highlights = [
+    {
+      label: 'Ideal for',
+      description: 'Product shots that must stay true to the original photography without stylistic changes.'
+    },
+    {
+      label: 'What you get',
+      description: 'One polished, conversion-ready video ad centered on the exact product photo you upload.'
+    },
+    {
+      label: 'Best used when',
+      description: 'You need 1:1 authenticity for PDP updates, catalog ads, or performance remarketing refreshes.'
+    }
+  ];
+
   const renderWorkflowContent = () => {
     // Check KIE credits first - if insufficient, show maintenance interface
     if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
@@ -150,8 +165,34 @@ export default function GenerateAdPage() {
     // Show upload interface when no workflow is running
     if (state.workflowStatus === 'started') {
       return (
-        <div className="max-w-4xl mx-auto">
-          <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} />
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  When this workflow shines
+                </h2>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Use this path when you need faithful, product-driven storytelling. Keep your product exactly as photographed while layering motion, pacing, and captions calibrated for paid campaigns.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {v1Highlights.map((item) => (
+                  <div key={item.label} className="border border-gray-200 rounded-lg p-4 bg-gray-50/60">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                      {item.label}
+                    </h3>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-sm">
+              <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} />
+            </div>
+          </div>
         </div>
       );
     }
@@ -354,7 +395,7 @@ export default function GenerateAdPage() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => router.push('/dashboard/videos')}
-              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium cursor-pointer"
             >
               <History className="w-4 h-4" />
               View Progress
@@ -468,7 +509,7 @@ export default function GenerateAdPage() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center animate-slide-in-right">
             <button
               onClick={() => router.push('/dashboard/videos')}
-              className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-6 py-3 rounded-lg hover:from-gray-800 hover:to-gray-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+              className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-6 py-3 rounded-lg hover:from-gray-800 hover:to-gray-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:-translate-y-1 cursor-pointer"
             >
               <History className="w-4 h-4" />
               View Results
@@ -503,21 +544,13 @@ export default function GenerateAdPage() {
         <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
             <div className="mb-6">
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                   <Sparkles className="w-4 h-4 text-gray-700" />
                 </div>
                 <h1 className="text-2xl font-semibold text-gray-900">
-                  Create Professional Video Ads - V1
+                  Create Professional Video Ads
                 </h1>
-              </div>
-              <p className="text-gray-600 text-sm ml-11">
-                For authentic 1:1 product representation • Transform your product photos into compelling video advertisements
-              </p>
-              <div className="ml-11 mt-2">
-                <p className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full inline-block">
-                  💡 Need 1:1 authentic reproduction → Use V1 • Want style experimentation → Use V2
-                </p>
               </div>
             </div>
           </div>

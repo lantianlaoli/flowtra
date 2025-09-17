@@ -8,7 +8,7 @@ import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import FileUpload from '@/components/FileUpload';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { RotateCcw, ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Square, ChevronDown } from 'lucide-react';
+import { RotateCcw, ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Square, ChevronDown, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 // Removed cost display; no need to import CREDIT_COSTS here
@@ -116,6 +116,21 @@ export default function GenerateAdPageV2() {
     return () => clearInterval(interval);
   }, [state.workflowStatus, state.isLoading, overlayMessages.length]);
 
+  const v2Highlights = [
+    {
+      label: 'Ideal for',
+      description: 'Creative testing, prospecting ads, and campaigns exploring new visual directions.'
+    },
+    {
+      label: 'What you get',
+      description: 'Multiple video variations generated from one product photo with distinct pacing and tone.'
+    },
+    {
+      label: 'Best used when',
+      description: 'You need stylistic experimentation to compare hooks, copy angles, or motion concepts before scaling spend.'
+    }
+  ];
+
   const renderWorkflowContent = () => {
     // Maintenance: insufficient KIE credits
     if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
@@ -128,8 +143,34 @@ export default function GenerateAdPageV2() {
     // Show upload interface when idle
     if (state.workflowStatus === 'idle') {
       return (
-        <div className="max-w-4xl mx-auto">
-          <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} />
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Designed for creative exploration
+                </h2>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Drop in a single photo and compare multiple motion-first storylines. Each variation treats your product as the hero while experimenting with composition, copy, and color grading.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {v2Highlights.map((item) => (
+                  <div key={item.label} className="border border-gray-200 rounded-lg p-4 bg-gray-50/60">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                      {item.label}
+                    </h3>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-sm">
+              <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} />
+            </div>
+          </div>
         </div>
       );
     }
@@ -507,21 +548,13 @@ export default function GenerateAdPageV2() {
         <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
             <div className="mb-6">
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <span className="text-lg">🍌</span>
+                  <Sparkles className="w-4 h-4 text-gray-700" />
                 </div>
                 <h1 className="text-2xl font-semibold text-gray-900">
-                  Create Multiple Ad Variations - V2
+                  Create Multiple Ad Variations
                 </h1>
-              </div>
-              <p className="text-gray-600 text-sm ml-11">
-                For style experimentation & testing • Generate multiple creative approaches from one photo and choose the best performer
-              </p>
-              <div className="ml-11 mt-2">
-                <p className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full inline-block">
-                  💡 Need 1:1 authentic reproduction → Use V1 • Want style experimentation → Use V2
-                </p>
               </div>
             </div>
           </div>

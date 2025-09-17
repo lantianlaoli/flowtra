@@ -14,7 +14,7 @@ import {
   Coins,
   Sparkles,
   Play,
-  Banana
+  Layers
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import FeedbackWidget from '@/components/FeedbackWidget';
@@ -35,14 +35,14 @@ const navigation = [
     icon: Home
   },
   {
-    name: 'Generate Ad',
+    name: 'Authentic Product Ads',
     href: '/dashboard/generate',
     icon: Sparkles
   },
   {
-    name: 'Generate Ad v2',
+    name: 'Creative Ad Variations',
     href: '/dashboard/generate-v2',
-    icon: Banana,
+    icon: Layers,
     
   },
   {
