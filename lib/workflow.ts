@@ -99,8 +99,9 @@ export async function startWorkflowProcess({
         progress_percentage: 5,
         last_processed_at: new Date().toISOString(),
         image_prompt: null,
-        watermark_text: watermark || null,
-        watermark_location: watermarkLocation,
+        // Persist watermark fields only when provided
+        watermark_text: watermark && watermark.trim().length > 0 ? watermark.trim() : null,
+        watermark_location: watermark && watermark.trim().length > 0 ? (watermarkLocation || 'bottom left') : null,
         cover_image_size: imageSize,
       }));
 

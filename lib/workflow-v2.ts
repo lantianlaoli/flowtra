@@ -289,11 +289,11 @@ Return JSON only with an 'elements' array. Use snake_case keys exactly as listed
     const parsed = JSON.parse(content);
     const elements = parsed.elements || [];
 
-    // Add user-provided watermark data to each element
+    // Add user-provided watermark data to each element only if provided
     return elements.map((element: Record<string, unknown>) => ({
       ...element,
-      text_watermark: userWatermark || '',
-      text_watermark_location: userWatermarkLocation || 'bottom left'
+      ...(userWatermark ? { text_watermark: userWatermark } : {}),
+      ...(userWatermark ? { text_watermark_location: userWatermarkLocation || 'bottom left' } : {})
     }));
   } catch (parseError) {
     throw new Error(`Failed to parse generated elements: ${parseError}`);
@@ -323,7 +323,7 @@ constraints:
   - font_style → decide based on the reference image
   - ad_copy → short, punchy, action-oriented
   - visual_guide → describe placement, pose, product visibility, background, and style; respect the given palette
-  - text_watermark → leave blank if none provided
+  - text_watermark → if none provided by user, omit any watermark entirely and DO NOT invent or add one.
 
 ### E - Example:
 {
@@ -331,8 +331,7 @@ constraints:
   "character": "Corgi",
   "ad_copy": "Healthy mode, happy life.",
   "visual_guide": "The corgi stretches playfully on a mat, product pack placed to the side, background is a bright green gradient with clean lighting, style is playful and dynamic.",
-  "text_watermark": "",
-  "text_watermark_location": "bottom left of screen",
+  // Note: If user did not provide a watermark, omit text_watermark and text_watermark_location fields entirely.
   "Primary color of ad": "#3E6B4D",
   "Secondary color of ad": "#FFD966",
   "Tertiary color of ad": "#FFFFFF"
@@ -349,8 +348,8 @@ product: ${String(elements.product || '')}
 character: ${String(elements.character || '')}
 ad_copy: ${String(elements.ad_copy || '')}
 visual_guide: ${String(elements.visual_guide || '')}
-text_watermark: ${String(elements.text_watermark || '')}
-text_watermark_location: ${String(elements.text_watermark_location || 'bottom left of screen')}
+${elements.text_watermark ? `text_watermark: ${String(elements.text_watermark)}` : ''}
+${elements.text_watermark_location ? `text_watermark_location: ${String(elements.text_watermark_location)}` : ''}
 
 Primary color: ${String(elements.primary_color || '')}
 Secondary color: ${String(elements.secondary_color || '')}
@@ -376,6 +375,7 @@ Tertiary color: ${String(elements.tertiary_color || '')}`;
             character: { type: 'string' },
             ad_copy: { type: 'string' },
             visual_guide: { type: 'string' },
+            // Watermark fields are optional; omit when not provided
             text_watermark: { type: 'string' },
             text_watermark_location: { type: 'string' },
             "Primary color of ad": { type: 'string' },
@@ -387,8 +387,6 @@ Tertiary color: ${String(elements.tertiary_color || '')}`;
             'character',
             'ad_copy',
             'visual_guide',
-            'text_watermark',
-            'text_watermark_location',
             'Primary color of ad',
             'Secondary color of ad',
             'Tertiary color of ad'

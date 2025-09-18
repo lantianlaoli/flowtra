@@ -283,7 +283,8 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
         userId: userId,
         videoModel: selectedModel,
         watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined,
-        watermarkLocation: watermarkConfig.location || 'bottom left',
+        // Do not send a location if watermark is disabled
+        watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
         generateVideo
