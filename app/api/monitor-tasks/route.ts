@@ -130,7 +130,7 @@ async function processRecord(record: HistoryRecord) {
 
       // If photo_only, complete workflow here
       if (record.photo_only === true) {
-        await supabase
+        const { error: updErr } = await supabase
           .from('user_history')
           .update({
             cover_image_url: coverResult.imageUrl,
@@ -141,12 +141,17 @@ async function processRecord(record: HistoryRecord) {
           })
           .eq('id', record.id);
 
+        if (updErr) {
+          console.error(`Failed to mark record ${record.id} as completed (photo-only):`, updErr);
+          throw new Error(`DB update failed for record ${record.id}`);
+        }
+
         console.log(`Completed image-only workflow for record ${record.id}`);
       } else {
         // Cover completed, start video generation
         const videoTaskId = await startVideoGeneration(record, coverResult.imageUrl);
 
-        await supabase
+        const { error: startErr } = await supabase
           .from('user_history')
           .update({
             cover_image_url: coverResult.imageUrl,
@@ -156,6 +161,11 @@ async function processRecord(record: HistoryRecord) {
             last_processed_at: new Date().toISOString()
           })
           .eq('id', record.id);
+
+        if (startErr) {
+          console.error(`Failed to update record ${record.id} after starting video:`, startErr);
+          throw new Error(`DB update failed for record ${record.id}`);
+        }
 
         console.log(`Started video generation for record ${record.id}, taskId: ${videoTaskId}`);
       }
@@ -176,7 +186,7 @@ async function processRecord(record: HistoryRecord) {
       // Note: Credits are charged on download only; nothing to deduct now
       console.log(`✅ Workflow completed for user ${record.user_id}`);
       
-      await supabase
+      const { error: vidUpdErr } = await supabase
         .from('user_history')
         .update({
           video_url: videoResult.videoUrl,
@@ -185,6 +195,11 @@ async function processRecord(record: HistoryRecord) {
           last_processed_at: new Date().toISOString()
         })
         .eq('id', record.id);
+
+      if (vidUpdErr) {
+        console.error(`Failed to mark record ${record.id} as completed after video:`, vidUpdErr);
+        throw new Error(`DB update failed for record ${record.id}`);
+      }
         
     } else if (videoResult.status === 'FAILED') {
       throw new Error(`Video generation failed: ${videoResult.errorMessage || 'Unknown error'}`);
