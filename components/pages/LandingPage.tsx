@@ -24,6 +24,97 @@ const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
   loading: () => <div className="py-12 flex justify-center"><div className="text-gray-400">Loading...</div></div>
 });
 
+// Inline component to capture store links as leads
+function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
+  useUser() // access hook to keep consistent auth context (not used directly)
+  const [storeUrl, setStoreUrl] = useState('')
+  const [platform, setPlatform] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async () => {
+    setError(null)
+    const url = storeUrl.trim()
+    if (!url) {
+      setError('Please paste your store URL.')
+      return
+    }
+    try {
+      // eslint-disable-next-line no-new
+      new URL(url)
+    } catch {
+      setError('Please enter a valid URL (including https://).')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/lead/store-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeUrl: url, platform: platform.trim() || undefined }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to submit')
+      }
+      setSubmitted(true)
+      setStoreUrl('')
+      setPlatform('')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Submission failed'
+      setError(msg)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="text-center mt-10 md:mt-16">
+      <p className="text-base sm:text-lg text-gray-600 mb-4 sm:mb-5 font-medium">
+        Sell on Amazon, Etsy, Shopify or Walmart?
+      </p>
+      <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-5">Share your store link</h3>
+      <div className="max-w-2xl mx-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center px-4">
+        <input
+          type="url"
+          value={storeUrl}
+          onChange={(e) => setStoreUrl(e.target.value)}
+          placeholder="Paste your store/product page URL (Amazon, Etsy, Shopify, Walmart, etc.)"
+          className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
+          inputMode="url"
+          aria-label="Store URL"
+        />
+        <input
+          type="text"
+          value={platform}
+          onChange={(e) => setPlatform(e.target.value)}
+          placeholder="Platform (optional)"
+          className="sm:w-60 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
+          aria-label="Platform (optional)"
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={!isLoaded || submitting}
+          className="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Sparkles className="w-5 h-5" />
+          {submitting ? 'Submitting...' : 'Submit Store Link'}
+        </button>
+      </div>
+      {error && (
+        <div className="text-sm text-red-600 mt-2">{error}</div>
+      )}
+      {submitted && (
+        <div className="text-sm text-green-600 mt-2">Thanks! We&apos;ll review your store and follow up.</div>
+      )}
+      <p className="text-xs text-gray-500 mt-3">
+        We&apos;ll email our recommendations and next steps. No spam.
+      </p>
+    </div>
+  )
+}
+
 export default function LandingPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
@@ -436,34 +527,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Call to Action */}
-          <div className="text-center mt-10 md:mt-16">
-            <p className="text-base sm:text-lg text-gray-600 mb-6 sm:mb-8 font-medium">Ready to transform your products?</p>
-            {!isLoaded ? (
-              <button
-                disabled
-                className="bg-gray-300 text-gray-500 px-10 py-4 rounded-xl font-semibold cursor-not-allowed opacity-50 inline-flex items-center gap-3"
-              >
-                <Sparkles className="w-5 h-5" />
-                Loading...
-              </button>
-            ) : user ? (
-              <button
-                onClick={() => router.push('/dashboard?upload=true')}
-                className="bg-gray-900 text-white px-10 py-4 rounded-xl font-semibold hover:bg-gray-800 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-              >
-                <Sparkles className="w-5 h-5" />
-                Start Creating Videos
-              </button>
-            ) : (
-              <SignInButton mode="modal" forceRedirectUrl="/dashboard?upload=true">
-                <button className="bg-gray-900 text-white px-10 py-4 rounded-xl font-semibold hover:bg-gray-800 transition-all duration-300 inline-flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
-                  <Sparkles className="w-5 h-5" />
-                  Start Creating Videos
-                </button>
-              </SignInButton>
-            )}
-          </div>
+          {/* Lead Capture: Store Link Submission */}
+          <StoreLinkCTA isLoaded={isLoaded} />
         </div>
 
         {/* Upload Modal */}
