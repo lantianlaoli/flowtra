@@ -9,7 +9,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import FileUpload from '@/components/FileUpload';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
-import { RotateCcw, ArrowRight, History, Sparkles, Hash, Type, Square, ChevronDown } from 'lucide-react';
+import { RotateCcw, ArrowRight, History, Play, Sparkles, Hash, Type, Square, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { canAffordModel, CREDIT_COSTS } from '@/lib/constants';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -33,6 +33,8 @@ export default function GenerateAdPage() {
   const [textWatermarkLocation, setTextWatermarkLocation] = useState('bottom left');
   const [elementsCount, setElementsCount] = useState(1);
   const [imageSize, setImageSize] = useState('auto');
+  const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
+  
   
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
     setSelectedModel(model);
@@ -45,6 +47,25 @@ export default function GenerateAdPage() {
     startWorkflowWithConfig,
     resetWorkflow
   } = useWorkflow(user?.id, selectedModel, updateCredits, refetchCredits, elementsCount, imageSize);
+
+  // Silky overlay messages (parity with V2)
+  const overlayMessages = [
+    'Sketching cover compositions…',
+    'Exploring multiple creative directions…',
+    'Choosing lenses, framing, and timing…',
+    'Designing camera moves and transitions…',
+    'Polishing color and lighting — almost there…'
+  ];
+  const [overlayIndex, setOverlayIndex] = useState(0);
+  useEffect(() => {
+    const showOverlay = state.workflowStatus === 'uploaded_waiting_config' && state.isLoading;
+    if (!showOverlay) return;
+    setOverlayIndex(0);
+    const interval = setInterval(() => {
+      setOverlayIndex((idx) => (idx + 1) % overlayMessages.length);
+    }, 2600);
+    return () => clearInterval(interval);
+  }, [state.workflowStatus, state.isLoading, overlayMessages.length]);
 
   // Check KIE credits on page load
   useEffect(() => {
@@ -129,7 +150,7 @@ export default function GenerateAdPage() {
       location: textWatermarkLocation
     };
 
-    await startWorkflowWithConfig(watermarkConfig, elementsCount, imageSize);
+    await startWorkflowWithConfig(watermarkConfig, elementsCount, imageSize, shouldGenerateVideo);
   };
 
   const v1Highlights = [
@@ -146,6 +167,8 @@ export default function GenerateAdPage() {
       description: 'You need 1:1 authenticity for PDP updates, catalog ads, or performance remarketing refreshes.'
     }
   ];
+
+  
 
   const renderWorkflowContent = () => {
     // Check KIE credits first - if insufficient, show maintenance interface
@@ -304,8 +327,8 @@ export default function GenerateAdPage() {
                 </div>
               </div>
 
-              {/* Image Size Configuration */}
-              <div className="space-y-3">
+            {/* Image Size Configuration */}
+            <div className="space-y-3">
                 <label className="flex items-center gap-2 text-base font-medium text-gray-900">
                   <Square className="w-4 h-4" />
                   Size
@@ -327,6 +350,41 @@ export default function GenerateAdPage() {
                   </select>
                   <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                 </div>
+              </div>
+
+              {/* Video Generation Option (match V2 layout) */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                  <Play className="w-4 h-4" />
+                  Video
+                </label>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShouldGenerateVideo(true)}
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
+                      shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+                    }`}
+                    aria-pressed={shouldGenerateVideo}
+                  >
+                    Generate video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShouldGenerateVideo(false)}
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
+                      !shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+                    }`}
+                    aria-pressed={!shouldGenerateVideo}
+                  >
+                    Images only
+                  </button>
+                </div>
+
+                <p className="text-sm text-gray-500">
+                  Skip video to finalize the workflow once all images are generated.
+                </p>
               </div>
 
               {/* Action Buttons */}
@@ -369,6 +427,8 @@ export default function GenerateAdPage() {
                 </button>
               </div>
             </div>
+
+            
           </div>
         </div>
       );
@@ -583,9 +643,48 @@ export default function GenerateAdPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.24, ease: [0.22, 0.61, 0.36, 1] }}
-                className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm"
+                className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm relative overflow-hidden"
               >
                 {workflowContent}
+
+                {/* Silky animated overlay while generating (from Generate click until next screen) */}
+                <AnimatePresence>
+                  {state.workflowStatus === 'uploaded_waiting_config' && state.isLoading && (
+                    <motion.div
+                      key="overlay"
+                      className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <motion.div
+                        key={overlayIndex}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.4 }}
+                        aria-live="polite"
+                        className="text-center"
+                      >
+                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-0">
+                          {overlayMessages[overlayIndex % overlayMessages.length]}
+                        </p>
+                      </motion.div>
+
+                      <div className="mt-6 flex items-center gap-2" aria-hidden="true">
+                        {[0,1,2].map((i) => (
+                          <motion.span
+                            key={i}
+                            className="block w-2 h-2 rounded-full bg-gray-900"
+                            initial={{ opacity: 0.3, scale: 1 }}
+                            animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.1, 1] }}
+                            transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
+                          />
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )}
           </AnimatePresence>

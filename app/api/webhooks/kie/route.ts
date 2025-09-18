@@ -26,6 +26,7 @@ interface WorkflowInstance {
   cover_image_url?: string;
   cover_image_size?: string | null;
   video_url?: string;
+  photo_only?: boolean | null;
   status: string;
   current_step: string;
   credits_cost: number;
@@ -46,6 +47,7 @@ interface V1WorkflowRecord {
   video_prompts?: Record<string, unknown>;
   video_model?: string;
   last_processed_at: string;
+  photo_only?: boolean | null;
 }
 
 type VideoPrompt = {
@@ -295,6 +297,7 @@ async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCall
 
     const derivedSize = deriveCoverImageSize(resultJson, data, instance);
     const shouldGenerateVideo = (() => {
+      if (instance.photo_only === true) return false;
       const raw = instance.elements_data as Record<string, unknown> | null | undefined;
       if (raw && typeof raw === 'object' && 'generate_video' in raw) {
         const flag = (raw as { generate_video?: unknown }).generate_video;
@@ -392,6 +395,22 @@ async function handleV1CoverCompletion(record: V1WorkflowRecord, data: KieCallba
     }
 
     console.log(`V1 Cover completed for record ${record.id}: ${coverImageUrl}`);
+
+    // If photo_only flag is set, complete without video
+    if (record.photo_only === true) {
+      await supabase
+        .from('user_history')
+        .update({
+          cover_image_url: coverImageUrl,
+          status: 'completed',
+          current_step: 'completed',
+          progress_percentage: 100,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
+      console.log(`Completed image-only V1 workflow for record ${record.id}`);
+      return;
+    }
 
     // For V1, start video generation directly without complex video design
     const videoTaskId = await startV1VideoGeneration(record, coverImageUrl);

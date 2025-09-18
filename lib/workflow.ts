@@ -12,6 +12,7 @@ export interface StartWorkflowRequest {
   watermarkLocation?: string;
   imageSize?: string;
   elementsCount?: number;
+  generateVideo?: boolean;
 }
 
 export interface StartWorkflowResult {
@@ -33,7 +34,8 @@ export async function startWorkflowProcess({
   watermark,
   watermarkLocation = 'bottom left',
   imageSize = 'auto',
-  elementsCount = 1
+  elementsCount = 1,
+  generateVideo
 }: StartWorkflowRequest): Promise<StartWorkflowResult> {
   try {
     console.log('🔍 startWorkflowProcess started with:', {
@@ -78,6 +80,8 @@ export async function startWorkflowProcess({
       }
     }
 
+    const shouldGenerateVideo = generateVideo !== false;
+
     // Create history records (no credit deduction at generation)
     let historyRecords = [];
     if (userId) {
@@ -88,6 +92,7 @@ export async function startWorkflowProcess({
         user_id: userId,
         original_image_url: imageUrl,
         video_model: actualModel,
+        photo_only: !shouldGenerateVideo,
         credits_cost: getCreditCost(actualModel),
         status: 'started',
         current_step: 'describing',

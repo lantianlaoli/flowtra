@@ -114,6 +114,7 @@ interface HistoryRecord {
   watermark_location?: string | null;
   cover_image_size?: string | null;
   image_prompt?: string | null;
+  photo_only?: boolean | null;
 }
 
 async function processRecord(record: HistoryRecord) {
@@ -126,22 +127,38 @@ async function processRecord(record: HistoryRecord) {
     
     if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
       console.log(`Cover completed for record ${record.id}`);
-      
-      // Cover completed, start video generation
-      const videoTaskId = await startVideoGeneration(record, coverResult.imageUrl);
-      
-      await supabase
-        .from('user_history')
-        .update({
-          cover_image_url: coverResult.imageUrl,
-          video_task_id: videoTaskId,
-          current_step: 'generating_video',
-          progress_percentage: 85,
-          last_processed_at: new Date().toISOString()
-        })
-        .eq('id', record.id);
-        
-      console.log(`Started video generation for record ${record.id}, taskId: ${videoTaskId}`);
+
+      // If photo_only, complete workflow here
+      if (record.photo_only === true) {
+        await supabase
+          .from('user_history')
+          .update({
+            cover_image_url: coverResult.imageUrl,
+            status: 'completed',
+            current_step: 'completed',
+            progress_percentage: 100,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', record.id);
+
+        console.log(`Completed image-only workflow for record ${record.id}`);
+      } else {
+        // Cover completed, start video generation
+        const videoTaskId = await startVideoGeneration(record, coverResult.imageUrl);
+
+        await supabase
+          .from('user_history')
+          .update({
+            cover_image_url: coverResult.imageUrl,
+            video_task_id: videoTaskId,
+            current_step: 'generating_video',
+            progress_percentage: 85,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', record.id);
+
+        console.log(`Started video generation for record ${record.id}, taskId: ${videoTaskId}`);
+      }
       
     } else if (coverResult.status === 'FAILED') {
       throw new Error('Cover generation failed');

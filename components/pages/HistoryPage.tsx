@@ -17,6 +17,7 @@ interface V1HistoryItem {
   originalImageUrl: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  photoOnly?: boolean;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
@@ -36,6 +37,7 @@ interface V2InstanceItem {
   originalImageUrl: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  photoOnly?: boolean;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
@@ -617,7 +619,7 @@ export default function HistoryPage() {
                       }}
                     >
                       <div className="aspect-[16/9] bg-white relative overflow-hidden">
-                        {item.status === 'completed' && item.videoUrl && hoveredVideo === item.id ? (
+                        {item.status === 'completed' && item.videoUrl && !item.photoOnly && hoveredVideo === item.id ? (
                           <VideoPlayer
                             src={item.videoUrl}
                             className="w-full h-full object-cover"
@@ -857,19 +859,21 @@ export default function HistoryPage() {
                                 </button>
                               )}
 
-                              {/* Video generating button with spinner */}
-                              <button
-                                disabled
-                                className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
-                                  <span>Video</span>
-                                </div>
-                                <div className="flex items-center gap-1 text-gray-700">
-                                  <span className="text-xs font-bold">{item.progress || 0}%</span>
-                                </div>
-                              </button>
+                              {/* Video generating button with spinner (hidden for photo-only) */}
+                              {!item.photoOnly && (
+                                <button
+                                  disabled
+                                  className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
+                                    <span>Video</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-gray-700">
+                                    <span className="text-xs font-bold">{item.progress || 0}%</span>
+                                  </div>
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>

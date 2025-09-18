@@ -94,6 +94,7 @@ interface InstanceRecord {
   video_task_id?: string;
   cover_image_url?: string;
   video_url?: string;
+  photo_only?: boolean | null;
   status: string;
   current_step: string;
   video_model?: string;
@@ -114,6 +115,7 @@ async function processInstance(instance: InstanceRecord) {
   let lastProcessedAt = instance.last_processed_at;
 
   const shouldGenerateVideo = (() => {
+    if (instance.photo_only === true) return false;
     const raw = instance.elements_data as Record<string, unknown> | null | undefined;
     if (raw && typeof raw === 'object' && 'generate_video' in raw) {
       const flag = (raw as { generate_video?: unknown }).generate_video;

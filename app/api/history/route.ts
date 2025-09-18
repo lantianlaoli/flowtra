@@ -9,6 +9,7 @@ interface V1HistoryItem {
   originalImageUrl: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  photoOnly?: boolean;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
@@ -28,6 +29,7 @@ interface V2InstanceItem {
   originalImageUrl?: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  photoOnly?: boolean;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
@@ -98,6 +100,7 @@ export async function GET() {
       originalImageUrl: item.original_image_url,
       coverImageUrl: item.cover_image_url,
       videoUrl: item.video_url,
+      photoOnly: !!item.photo_only,
       downloaded: item.downloaded,
       downloadCreditsUsed: item.download_credits_used,
       generationCreditsUsed: 0,
@@ -117,6 +120,7 @@ export async function GET() {
       id: string;
       user_id: string;
       elements_data?: Record<string, unknown> | null;
+      photo_only?: boolean | null;
       cover_task_id?: string | null;
       video_task_id?: string | null;
       cover_image_url?: string | null;
@@ -143,6 +147,7 @@ export async function GET() {
         originalImageUrl: instance.original_image_url || originalImageFromElements,
         coverImageUrl: instance.cover_image_url || undefined,
         videoUrl: instance.video_url || undefined,
+        photoOnly: instance.photo_only === true,
         downloaded: instance.downloaded,
         downloadCreditsUsed: 0,
         generationCreditsUsed: 0,

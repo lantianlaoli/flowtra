@@ -609,6 +609,7 @@ export interface WorkflowV2Item {
   cover_image_url?: string;
   cover_image_size?: string | null;
   video_url?: string;
+  photo_only?: boolean | null;
   watermark_text?: string | null;
   watermark_location?: string | null;
   status: 'pending' | 'generating_cover' | 'generating_video' | 'completed' | 'failed';
@@ -664,6 +665,7 @@ export async function startV2Items({
         image_size: imageSize,
         generate_video: shouldGenerateVideo
       },
+      photo_only: !shouldGenerateVideo,
       cover_image_size: imageSize,
       watermark_text: sanitizedWatermark,
       watermark_location: sanitizedWatermarkLocation,

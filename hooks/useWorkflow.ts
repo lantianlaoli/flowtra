@@ -263,7 +263,12 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
     });
   }, [selectedModel, guestUsageCount, userId, maxUserUsage, maxGuestUsage]);
 
-  const startWorkflowWithConfig = useCallback(async (watermarkConfig: { enabled: boolean; text: string; location?: string }, currentElementsCount?: number, currentImageSize?: string) => {
+  const startWorkflowWithConfig = useCallback(async (
+    watermarkConfig: { enabled: boolean; text: string; location?: string },
+    currentElementsCount?: number,
+    currentImageSize?: string,
+    generateVideo?: boolean
+  ) => {
     if (!state.data.uploadedFile?.url || !state.data.uploadedFile?.path) {
       setError('No uploaded file found');
       return;
@@ -280,7 +285,8 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
         watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined,
         watermarkLocation: watermarkConfig.location || 'bottom left',
         elementsCount: currentElementsCount ?? elementsCount,
-        imageSize: currentImageSize ?? imageSize
+        imageSize: currentImageSize ?? imageSize,
+        generateVideo
       };
 
       console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
