@@ -69,6 +69,8 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
 
   return (
     <div className="text-center mt-10 md:mt-16">
+      <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">Get free ad mockups</h3>
+      <p className="text-sm sm:text-base text-gray-600 mt-2 mb-4">Paste your store link. We&apos;ll email you sample ad visuals.</p>
       <div className="max-w-xl mx-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center px-4">
         <input
           type="url"
