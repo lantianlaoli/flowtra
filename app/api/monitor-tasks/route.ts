@@ -13,7 +13,7 @@ export async function POST() {
     const { data: records, error } = await supabase
       .from('user_history')
       .select('*')
-      .in('status', ['started', 'in_progress'])
+      .in('status', ['started', 'in_progress', 'generating_cover', 'generating_video'])
       .not('cover_task_id', 'is', null)
       .order('last_processed_at', { ascending: true })
       .limit(20); // Process max 20 records per run
@@ -273,7 +273,7 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
   const data = await response.json();
 
   if (!data || data.code !== 200) {
-    throw new Error(data.message || 'Failed to get nano-banana status');
+    throw new Error((data && (data.message || data.msg)) || 'Failed to get nano-banana status');
   }
 
   const taskData = data.data;
@@ -281,24 +281,38 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
     return { status: 'GENERATING' };
   }
 
-  if (taskData.state === 'success') {
-    let resultJson: Record<string, unknown> = {};
-    try {
-      resultJson = JSON.parse(taskData.resultJson || '{}');
-    } catch {
-      resultJson = {};
-    }
-    const urls = (resultJson as { resultUrls?: string[] }).resultUrls;
-    const firstUrl = Array.isArray(urls) ? urls[0] : undefined;
-    return {
-      status: 'SUCCESS',
-      imageUrl: firstUrl
-    };
-  } else if (taskData.state === 'failed') {
-    return { status: 'FAILED' };
-  } else {
-    return { status: 'GENERATING' };
+  // Normalize state flags and extract URL robustly
+  const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
+  const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+
+  let resultJson: Record<string, unknown> = {};
+  try {
+    resultJson = JSON.parse(taskData.resultJson || '{}');
+  } catch {
+    resultJson = {};
   }
+
+  const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
+    ? (resultJson as { resultUrls?: string[] }).resultUrls
+    : undefined;
+  const responseUrls = Array.isArray(taskData.response?.resultUrls)
+    ? (taskData.response.resultUrls as string[])
+    : undefined;
+  const flatUrls = Array.isArray(taskData.resultUrls)
+    ? (taskData.resultUrls as string[])
+    : undefined;
+  const imageUrl = (directUrls || responseUrls || flatUrls)?.[0];
+
+  const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!imageUrl && (state === undefined));
+  const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+
+  if (isSuccess) {
+    return { status: 'SUCCESS', imageUrl };
+  }
+  if (isFailed) {
+    return { status: 'FAILED' };
+  }
+  return { status: 'GENERATING' };
 }
 
 async function checkVideoStatus(taskId: string): Promise<{status: string, videoUrl?: string, errorMessage?: string}> {
