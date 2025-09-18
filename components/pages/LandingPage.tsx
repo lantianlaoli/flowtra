@@ -28,7 +28,6 @@ const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
 function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
   useUser() // access hook to keep consistent auth context (not used directly)
   const [storeUrl, setStoreUrl] = useState('')
-  const [platform, setPlatform] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,7 +51,7 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
       const res = await fetch('/api/lead/store-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeUrl: url, platform: platform.trim() || undefined }),
+        body: JSON.stringify({ storeUrl: url }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data?.success) {
@@ -60,7 +59,6 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
       }
       setSubmitted(true)
       setStoreUrl('')
-      setPlatform('')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Submission failed'
       setError(msg)
@@ -84,14 +82,6 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
           className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
           inputMode="url"
           aria-label="Store URL"
-        />
-        <input
-          type="text"
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value)}
-          placeholder="Platform (optional)"
-          className="sm:w-60 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
-          aria-label="Platform (optional)"
         />
         <button
           onClick={handleSubmit}
