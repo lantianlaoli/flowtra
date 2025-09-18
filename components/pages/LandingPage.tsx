@@ -69,16 +69,12 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
 
   return (
     <div className="text-center mt-10 md:mt-16">
-      <p className="text-base sm:text-lg text-gray-600 mb-4 sm:mb-5 font-medium">
-        Sell on Amazon, Etsy, Shopify or Walmart?
-      </p>
-      <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-5">Share your store link</h3>
-      <div className="max-w-2xl mx-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center px-4">
+      <div className="max-w-xl mx-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center px-4">
         <input
           type="url"
           value={storeUrl}
           onChange={(e) => setStoreUrl(e.target.value)}
-          placeholder="Paste your store/product page URL (Amazon, Etsy, Shopify, Walmart, etc.)"
+          placeholder="Paste your store link (Amazon/Etsy/Shopify)"
           className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
           inputMode="url"
           aria-label="Store URL"
@@ -89,18 +85,15 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
           className="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Sparkles className="w-5 h-5" />
-          {submitting ? 'Submitting...' : 'Submit Store Link'}
+          {submitting ? 'Submitting...' : 'Submit'}
         </button>
       </div>
       {error && (
         <div className="text-sm text-red-600 mt-2">{error}</div>
       )}
       {submitted && (
-        <div className="text-sm text-green-600 mt-2">Thanks! We&apos;ll review your store and follow up.</div>
+        <div className="text-sm text-green-600 mt-2">Thanks! We&apos;ll review your store.</div>
       )}
-      <p className="text-xs text-gray-500 mt-3">
-        We&apos;ll email our recommendations and next steps. No spam.
-      </p>
     </div>
   )
 }
