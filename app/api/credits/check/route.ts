@@ -7,6 +7,17 @@ import { getUserCredits } from '@/lib/credits'
 export async function GET() {
   // Ensure this route is dynamic and not statically evaluated at build time
   try {
+    // Safe dev fallback when Supabase env is not configured
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({
+        success: true,
+        credits: 0,
+        hasCredits: false,
+        userId: null,
+        note: 'Dev fallback: Supabase env not configured'
+      })
+    }
+
     const { userId } = await auth()
     
     if (!userId) {
@@ -49,6 +60,20 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Safe dev fallback when Supabase env is not configured
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const { requiredCredits } = await request.json()
+      const currentCredits = 0
+      return NextResponse.json({
+        success: true,
+        hasEnoughCredits: currentCredits >= (requiredCredits || 0),
+        currentCredits,
+        requiredCredits: requiredCredits || 0,
+        shortfall: Math.max(0, (requiredCredits || 0) - currentCredits),
+        note: 'Dev fallback: Supabase env not configured'
+      })
+    }
+
     const { userId } = await auth()
     
     if (!userId) {

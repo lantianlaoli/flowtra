@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useUser, SignInButton } from '@clerk/nextjs';
@@ -29,6 +29,7 @@ export default function LandingPage() {
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
   const router = useRouter();
   const { user, isLoaded } = useUser();
+  const [userCount, setUserCount] = useState<number | null>(null);
 
   // Pricing (downloads based on veo3_fast only)
   const liteDownloads = Math.floor(500 / CREDIT_COSTS.veo3_fast);
@@ -38,6 +39,24 @@ export default function LandingPage() {
   const handleFileUpload = () => {
     router.push('/dashboard?upload=true');
   };
+
+  // Fetch real registered user count (public metric)
+  // Use effect to avoid side effects during render
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/public/metrics/user-count', { cache: 'no-store' });
+        const data = await res.json();
+        if (!cancelled && data?.success) {
+          setUserCount(typeof data.count === 'number' ? data.count : 0);
+        }
+      } catch (_) {
+        if (!cancelled) setUserCount(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handlePurchase = async (packageName: 'lite' | 'basic' | 'pro') => {
     console.log('🎯 Purchase button clicked for package:', packageName);
@@ -227,6 +246,43 @@ export default function LandingPage() {
               </a>
             </div>
 
+            {/* Social Proof under CTA - compact, one-line pill */}
+            <div className="pt-3" aria-label="Social proof">
+              <div
+                className="inline-flex min-w-[240px] items-center gap-3 rounded-2xl px-4 py-2
+                           bg-black/5 dark:bg-white/5 ring-1 ring-inset ring-black/10 dark:ring-white/10
+                           transition-colors hover:ring-black/20 dark:hover:ring-white/20"
+              >
+                {/* Avatars group */}
+                <div className="flex -space-x-2">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="inline-block w-7 h-7 rounded-full ring-2 ring-white/80 dark:ring-zinc-900/80 overflow-hidden">
+                      <Image
+                        src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_${i}.${i === 1 ? 'jpg' : 'png'}`}
+                        alt={`User avatar ${i}`}
+                        width={28}
+                        height={28}
+                        sizes="28px"
+                        className="w-full h-full object-cover"
+                        unoptimized
+                      />
+                    </div>
+                  ))}
+                </div>
+                {/* Single-line copy for harmony with avatars */}
+                <span
+                  className="text-sm font-semibold text-black whitespace-nowrap"
+                  title={(userCount !== null ? userCount.toLocaleString('en-US') : 'Thousands') + ' small business owners trust Flowtra'}
+                >
+                  {`Trusted by `}
+                  <span className="font-bold tabular-nums">
+                    {userCount !== null ? userCount.toLocaleString('en-US') : 'Thousands'}
+                  </span>
+                  {` small business owners`}
+                </span>
+              </div>
+            </div>
+
           </div>
 
           {/* Right Demo - Multi-Output Layout */}
@@ -242,6 +298,7 @@ export default function LandingPage() {
                   sizes="(max-width: 640px) 192px, (max-width: 768px) 192px, 192px"
                   priority
                   className="w-full h-full object-cover"
+                  unoptimized
                 />
               </div>
             </div>
@@ -265,6 +322,7 @@ export default function LandingPage() {
                     height={400}
                     sizes="(max-width: 640px) 145px, (max-width: 768px) 181px, 248px"
                     className="w-full h-full object-cover"
+                    unoptimized
                   />
                 </div>
                 <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1">
@@ -313,6 +371,7 @@ export default function LandingPage() {
                     height={48}
                     sizes="48px"
                     className="w-full h-full object-cover"
+                    unoptimized
                   />
                 </div>
                 <div>
