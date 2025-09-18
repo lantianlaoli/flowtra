@@ -181,37 +181,47 @@ Each set must include all required fields and differ in tone, mood, or creative 
 ### G - Guidance:
 role: Creative ad concept generator
 
+definition:
+- character → Must be a specific, product-linked identity: a concrete person, IP/character name, or a specific animal/breed that is clearly relevant to the product category or brand. Never output abstract, generic, or non-specific entities (e.g., "Abstract Shapes", "Robot Character", "Generic Mascot").
+
+selection_rules:
+- If a recognizable brand or franchise is visible/inferable, prefer iconic characters/IPs from that brand’s ecosystem.
+- If the image is primarily gaming (console/handheld/controller/game), choose classic game characters/IPs tied to the platform or popular titles (e.g., "Mario", "Pikachu", "Link", "Sonic", "Kratos").
+- If the image is a pet-related product (dog/cat), choose a specific breed aligned with the brand/packaging style (e.g., "Shiba Inu", "Golden Retriever", "British Shorthair", "Siamese"). Vary breeds across sets.
+- If the image is toys/anime/collectibles, pick named characters from the relevant franchise (e.g., "Doraemon", "Hello Kitty", "Luffy").
+- If no IP is appropriate, create a concrete, non-generic persona strongly tied to the product context (e.g., "Italian pizzaiolo in white chef jacket", "marathon runner wearing racing bib #21"). Avoid vague categories.
+
 constraints:
 - product → Product or line name
-- character → Featured character (dog breed/appearance). If the reference image is primarily a product (e.g., dog food) with no visible character, pick a plausible, specific dog breed aligned with the brand/packaging style (e.g., "Shiba Inu", "Golden Retriever"). If the image features cats or cat-related products (e.g., a cat bed), choose specific cat breeds accordingly (e.g., "British Shorthair", "Siamese"). Vary breeds across different sets to ensure diversity.
+- character → As defined above; must be specific and product-linked
 - ad_copy → Short, catchy slogan
-- visual_guide → Describe character’s pose, product placement, background mood
+- visual_guide → Describe the character’s pose/action, product placement/visibility, background mood, and style cues consistent with the brand/category
 - primary_color → Main color (from packaging/ad)
 - secondary_color → Supporting color
 - tertiary_color → Accent color
 
 Return JSON only with an 'elements' array. Use snake_case keys exactly as listed above.
 
-### E - Examples:
+### E - Examples (for a gaming console image):
 {
   "elements": [
     {
-      "product": "Happy Dog Sensible Montana",
-      "character": "short-haired hunting dog",
-      "ad_copy": "Natural energy, every day.",
-      "visual_guide": "The hunting dog sits calmly beside the pack, background is a soft green gradient, product facing forward and clearly highlighted.",
-      "primary_color": "#1A3D2F",
-      "secondary_color": "#FFFFFF",
-      "tertiary_color": "#C89B3C"
+      "product": "Nintendo Switch (OLED Model)",
+      "character": "Mario",
+      "ad_copy": "Play the icons. Anywhere.",
+      "visual_guide": "Mario jumps with a cheerful pose next to the docked console; product front-facing and well-lit; background uses bright red accents with subtle motion streaks to imply speed.",
+      "primary_color": "#E60012",
+      "secondary_color": "#000000",
+      "tertiary_color": "#FFFFFF"
     },
     {
-      "product": "Happy Dog Sensible Neuseeland",
-      "character": "corgi",
-      "ad_copy": "Healthy mode, happy life.",
-      "visual_guide": "The corgi stretches playfully on a mat, product placed to the side, background is a bright green gradient with lively lighting.",
-      "primary_color": "#3E6B4D",
-      "secondary_color": "#FFD966",
-      "tertiary_color": "#FFFFFF"
+      "product": "Nintendo Switch (OLED Model)",
+      "character": "Link",
+      "ad_copy": "Adventure unlocked.",
+      "visual_guide": "Link stands heroically beside the handheld console; product angled to show screen; background features soft green-blue gradient with light particles for fantasy atmosphere.",
+      "primary_color": "#1A5E3B",
+      "secondary_color": "#2C3E50",
+      "tertiary_color": "#F1C40F"
     }
   ]
 }`;
