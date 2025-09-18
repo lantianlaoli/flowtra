@@ -284,10 +284,14 @@ async function handleSuccessCallback(taskId: string, data: KieCallbackData, supa
 
 async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
-    // Extract cover image URL from result
+    // Extract cover image URL from result (support multiple payload shapes)
     const resultJson = JSON.parse(data.resultJson || '{}') as Record<string, unknown>;
-    const resultUrls = resultJson['resultUrls'];
-    const coverImageUrl = Array.isArray(resultUrls) ? resultUrls[0] : undefined;
+    const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
+      ? (resultJson as { resultUrls?: string[] }).resultUrls
+      : undefined;
+    const responseUrls = Array.isArray(data.response?.resultUrls) ? data.response?.resultUrls : undefined;
+    const flatUrls = Array.isArray(data.resultUrls) ? data.resultUrls : undefined;
+    const coverImageUrl = (directUrls || responseUrls || flatUrls)?.[0];
 
     if (!coverImageUrl) {
       throw new Error('No cover image URL in success callback');
@@ -386,9 +390,14 @@ async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCall
 
 async function handleV1CoverCompletion(record: V1WorkflowRecord, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
-    // Extract cover image URL from result
-    const resultJson = JSON.parse(data.resultJson || '{}');
-    const coverImageUrl = resultJson.resultUrls?.[0];
+    // Extract cover image URL from result (support multiple payload shapes)
+    const resultJson = JSON.parse(data.resultJson || '{}') as Record<string, unknown>;
+    const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
+      ? (resultJson as { resultUrls?: string[] }).resultUrls
+      : undefined;
+    const responseUrls = Array.isArray(data.response?.resultUrls) ? data.response?.resultUrls : undefined;
+    const flatUrls = Array.isArray(data.resultUrls) ? data.resultUrls : undefined;
+    const coverImageUrl = (directUrls || responseUrls || flatUrls)?.[0];
 
     if (!coverImageUrl) {
       throw new Error('No cover image URL in success callback for V1');
