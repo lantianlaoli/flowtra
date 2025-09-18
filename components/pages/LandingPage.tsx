@@ -76,6 +76,7 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
           type="url"
           value={storeUrl}
           onChange={(e) => setStoreUrl(e.target.value)}
+          placeholder="Store link (e.g. https://www.amazon.com/your-store)"
           className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
           inputMode="url"
           aria-label="Store URL"
