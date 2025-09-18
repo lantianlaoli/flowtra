@@ -74,7 +74,6 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
           type="url"
           value={storeUrl}
           onChange={(e) => setStoreUrl(e.target.value)}
-          placeholder="Paste your store link (Amazon/Etsy/Shopify)"
           className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
           inputMode="url"
           aria-label="Store URL"
