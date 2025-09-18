@@ -1,6 +1,8 @@
 'use server'
 
 import { getSupabase, getSupabaseAdmin, UserCredits } from '@/lib/supabase'
+import { sendNewUserNotification } from '@/lib/resend'
+import { clerkClient } from '@clerk/nextjs/server'
 
 interface CreditTransaction {
   id: string;
@@ -110,6 +112,18 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
         undefined,
         true // Use admin client
       )
+
+      // Fire-and-forget: notify admin about first login for this new user
+      try {
+        // clerkClient can be a function returning a ClerkClient in this runtime
+        const client = typeof clerkClient === 'function' ? await clerkClient() : clerkClient
+        const user = await client.users.getUser(userId)
+        const primaryEmail = user.emailAddresses?.[0]?.emailAddress
+        const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || null
+        await sendNewUserNotification({ userId, email: primaryEmail ?? null, name: fullName })
+      } catch (notifyError) {
+        console.warn('sendNewUserNotification failed or skipped:', notifyError)
+      }
     } else {
       console.log(`👤 User ${userId} already has credits, no initialization needed`)
     }
