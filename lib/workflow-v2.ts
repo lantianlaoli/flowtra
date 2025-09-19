@@ -7,6 +7,8 @@ export interface StartBatchWorkflowRequest {
   userId: string;
   videoModel?: 'veo3' | 'veo3_fast';
   elementsCount?: number;
+  // Optional user-provided ad copy to override generated ad_copy
+  adCopy?: string;
   textWatermark?: string;
   textWatermarkLocation?: string;
   imageSize?: string;
@@ -172,7 +174,8 @@ async function generateMultipleElements(
   imageUrl: string,
   count: number,
   userWatermark?: string,
-  userWatermarkLocation?: string
+  userWatermarkLocation?: string,
+  adCopyOverride?: string
 ): Promise<Record<string, unknown>[]> {
   const systemPrompt = `### A - Ask:
 Create exactly ${count} different sets of ELEMENTS for the uploaded ad image.
@@ -292,6 +295,8 @@ Return JSON only with an 'elements' array. Use snake_case keys exactly as listed
     // Add user-provided watermark data to each element only if provided
     return elements.map((element: Record<string, unknown>) => ({
       ...element,
+      // If user provided an ad copy, override the generated one for consistency
+      ...(adCopyOverride ? { ad_copy: adCopyOverride } : {}),
       ...(userWatermark ? { text_watermark: userWatermark } : {}),
       ...(userWatermark ? { text_watermark_location: userWatermarkLocation || 'bottom left' } : {})
     }));
@@ -626,6 +631,7 @@ export async function startV2Items({
   userId,
   videoModel = 'veo3_fast',
   elementsCount = 2,
+  adCopy,
   textWatermark,
   textWatermarkLocation,
   imageSize = 'auto',
@@ -651,7 +657,8 @@ export async function startV2Items({
       imageUrl,
       elementsCount,
       sanitizedWatermark || undefined,
-      sanitizedWatermarkLocation || undefined
+      sanitizedWatermarkLocation || undefined,
+      adCopy?.trim() ? adCopy.trim() : undefined
     );
 
     const itemsPayload = elements.map((element) => ({

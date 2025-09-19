@@ -33,6 +33,7 @@ export function useWorkflowV2(
   userId?: string,
   videoModel: 'veo3' | 'veo3_fast' = 'veo3_fast',
   elementsCount: number = 2,
+  adCopy: string = '',
   textWatermark: string = '',
   textWatermarkLocation: string = 'bottom left',
   imageSize: string = 'auto',
@@ -99,6 +100,7 @@ export function useWorkflowV2(
           userId,
           videoModel,
           elementsCount,
+          adCopy,
           textWatermark,
           textWatermarkLocation,
           imageSize,
@@ -147,7 +149,7 @@ export function useWorkflowV2(
       }));
       throw error;
     }
-  }, [state.uploadedFile, userId, videoModel, elementsCount, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo]);
+  }, [state.uploadedFile, userId, videoModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo]);
 
   // Download content
   const downloadContent = useCallback(async (instanceId: string, contentType: 'cover' | 'video') => {

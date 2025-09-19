@@ -18,6 +18,7 @@ export default function GenerateAdPageV2() {
   const { credits: userCredits, refetchCredits } = useCredits();
   const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast'>('veo3_fast');
   const [elementsCount, setElementsCount] = useState(2);
+  const [adCopy, setAdCopy] = useState('');
   const [textWatermark, setTextWatermark] = useState('');
   const [textWatermarkLocation, setTextWatermarkLocation] = useState('bottom left');
   const [imageSize, setImageSize] = useState('auto');
@@ -48,6 +49,7 @@ export default function GenerateAdPageV2() {
     user?.id,
     selectedModel,
     elementsCount,
+    adCopy,
     textWatermark,
     textWatermarkLocation,
     imageSize,
@@ -248,6 +250,24 @@ export default function GenerateAdPageV2() {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Ad Copy Configuration */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                  <Type className="w-4 h-4" />
+                  Ad Copy
+                </label>
+                <input
+                  id="ad-copy-text"
+                  type="text"
+                  value={adCopy}
+                  onChange={(e) => setAdCopy(e.target.value)}
+                  placeholder="Enter ad copy (optional)..."
+                  maxLength={120}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
+                />
+                <p className="text-xs text-gray-500">If provided, all variations will use this ad copy.</p>
               </div>
 
               {/* Watermark Configuration */}
