@@ -444,8 +444,8 @@ async function generateCoverWithNanoBanana(originalImageUrl: string, imagePrompt
       }
     };
 
-    if (process.env.KIE_BANANA_CALLBACK_URL) {
-      requestBody.callBackUrl = process.env.KIE_BANANA_CALLBACK_URL;
+    if (process.env.KIE_ADS_IMAGE_CALLBACK_URL) {
+      requestBody.callBackUrl = process.env.KIE_ADS_IMAGE_CALLBACK_URL;
     }
 
     const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {

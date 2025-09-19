@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { 
+import {
   ChevronDown,
   Check,
   Plus,
@@ -14,7 +14,8 @@ import {
   Coins,
   Sparkles,
   Play,
-  Layers
+  Layers,
+  Image as ImageIcon
 } from 'lucide-react';
 import { LayoutGroup, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -44,7 +45,12 @@ const navigation = [
     name: 'Creative Ad Variations',
     href: '/dashboard/generate-v2',
     icon: Layers,
-    
+
+  },
+  {
+    name: 'YouTube Thumbnail',
+    href: '/dashboard/youtube-thumbnail',
+    icon: ImageIcon
   },
   {
     name: 'My Ads',
