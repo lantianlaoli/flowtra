@@ -156,14 +156,14 @@ export async function POST(request: NextRequest) {
           }
 
           try {
-            // Download and save thumbnail
-            const savedThumbnailUrl = await downloadAndSaveThumbnail(thumbnailUrl, recordToUpdate.id, supabase);
+            // Store thumbnail URL directly from KIE (no need to download/upload)
+            console.log(`💾 Storing thumbnail ${i + 1} URL directly: ${thumbnailUrl}`);
 
             // Update record
             const { error: updateError } = await supabase
               .from('thumbnail_history')
               .update({
-                thumbnail_url: savedThumbnailUrl,
+                thumbnail_url: thumbnailUrl,
                 status: 'completed',
                 processed_by: 'polling',
                 updated_at: new Date().toISOString()
@@ -246,40 +246,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function downloadAndSaveThumbnail(thumbnailUrl: string, recordId: string, supabase: ReturnType<typeof getSupabase>): Promise<string> {
-  try {
-    console.log(`Downloading thumbnail from: ${thumbnailUrl}`);
-
-    const response = await fetch(thumbnailUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to download thumbnail: ${response.status}`);
-    }
-
-    const imageBuffer = await response.arrayBuffer();
-    const imageFile = new Uint8Array(imageBuffer);
-
-    const fileName = `thumbnail_${recordId}_${Date.now()}.png`;
-
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('images')
-      .upload(`thumbnails/${fileName}`, imageFile, {
-        contentType: 'image/png',
-        upsert: false
-      });
-
-    if (uploadError) {
-      throw new Error(`Failed to upload thumbnail: ${uploadError.message}`);
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('images')
-      .getPublicUrl(`thumbnails/${fileName}`);
-
-    console.log(`Thumbnail saved to: ${publicUrl}`);
-    return publicUrl;
-
-  } catch (error) {
-    console.error('Error downloading and saving thumbnail:', error);
-    throw error;
-  }
-}

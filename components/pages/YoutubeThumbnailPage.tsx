@@ -440,11 +440,11 @@ The colors of the text's background panel, the overall thumbnail background, and
                 {/* Actions */}
                 <div className="mt-8 flex justify-center">
                   <button
-                    onClick={() => window.location.href = '/dashboard'}
+                    onClick={() => window.location.href = '/dashboard/videos'}
                     className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-all duration-200 hover:border-gray-300 cursor-pointer"
                   >
                     <Download className="w-5 h-5" />
-                    Satisfied? Click to Download All Your Creations
+                    Satisfied? Click to View All Your Creations
                   </button>
                 </div>
               </>
