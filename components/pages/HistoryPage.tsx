@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, MessageSquare, HelpCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, MessageSquare, HelpCircle, Download } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -52,16 +52,36 @@ interface V2InstanceItem {
   elementsData?: Record<string, unknown>;
 }
 
-type HistoryItem = V1HistoryItem | V2InstanceItem;
+interface YoutubeThumbnailItem {
+  id: string;
+  title: string;
+  identity_image_url: string;
+  thumbnail_url?: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  credits_cost: number;
+  downloaded: boolean;
+  created_at: string;
+  createdAt: string;
+  error_message?: string;
+  isYoutubeThumbnail: true;
+}
+
+type HistoryItem = V1HistoryItem | V2InstanceItem | YoutubeThumbnailItem;
 
 const ITEMS_PER_PAGE = 6; // 2 rows × 3 columns = 6 items per page
 const FAILED_STATUS_TOOLTIP = 'The image you used has an issue. Please try another one.';
+
+// Helper functions
+const isYoutubeThumbnail = (item: HistoryItem): item is YoutubeThumbnailItem => {
+  return 'isYoutubeThumbnail' in item && item.isYoutubeThumbnail === true;
+};
 
 export default function HistoryPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'completed' | 'processing' | 'failed'>('all');
+  const [contentFilter, setContentFilter] = useState<'all' | 'video-ads' | 'youtube-thumbnails'>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
   const [downloadingVideo, setDownloadingVideo] = useState<string | null>(null);
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
@@ -72,6 +92,8 @@ export default function HistoryPage() {
   const [coverStates, setCoverStates] = useState<Record<string, 'packing' | 'done' | null>>({});
   // Video UI transient state: 'packing' -> 'done' -> cleared
   const [videoStates, setVideoStates] = useState<Record<string, 'packing' | 'done' | null>>({});
+  // YouTube thumbnail UI transient state: 'packing' -> 'done' -> cleared
+  const [youtubeThumbnailStates, setYoutubeThumbnailStates] = useState<Record<string, 'packing' | 'done' | null>>({});
 
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
     setSelectedModel(model);
@@ -87,17 +109,39 @@ export default function HistoryPage() {
   useEffect(() => {
     const fetchHistory = async () => {
       if (!user?.id) return;
-      
+
       try {
-        const response = await fetch('/api/history');
-        const result = await response.json();
-        
-        if (result.success) {
-          setHistory(result.history);
-        } else {
-          console.error('Failed to fetch history:', result.error);
-          setHistory([]);
+        // Fetch regular video ads
+        const videoResponse = await fetch('/api/history');
+        const videoResult = await videoResponse.json();
+
+        // Fetch YouTube thumbnails
+        const thumbnailResponse = await fetch('/api/youtube-thumbnail/history');
+        const thumbnailResult = await thumbnailResponse.json();
+
+        let combinedHistory: HistoryItem[] = [];
+
+        if (videoResult.success) {
+          combinedHistory = [...combinedHistory, ...videoResult.history];
         }
+
+        if (thumbnailResult.success) {
+          const thumbnailItems = thumbnailResult.history.map((item: YoutubeThumbnailItem) => ({
+            ...item,
+            createdAt: item.created_at,
+            isYoutubeThumbnail: true
+          }));
+          combinedHistory = [...combinedHistory, ...thumbnailItems];
+        }
+
+        // Sort by creation date
+        combinedHistory.sort((a, b) => {
+          const aDate = isYoutubeThumbnail(a) ? a.created_at : a.createdAt;
+          const bDate = isYoutubeThumbnail(b) ? b.created_at : b.createdAt;
+          return new Date(bDate).getTime() - new Date(aDate).getTime();
+        });
+
+        setHistory(combinedHistory);
       } catch (error) {
         console.error('Error fetching history:', error);
         setHistory([]);
@@ -116,10 +160,39 @@ export default function HistoryPage() {
     let isCancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch('/api/history');
-        const json = await res.json();
-        if (!isCancelled && json?.success && Array.isArray(json.history)) {
-          setHistory(json.history);
+        // Fetch both video ads and YouTube thumbnails
+        const [videoResponse, thumbnailResponse] = await Promise.all([
+          fetch('/api/history'),
+          fetch('/api/youtube-thumbnail/history')
+        ]);
+
+        const videoResult = await videoResponse.json();
+        const thumbnailResult = await thumbnailResponse.json();
+
+        if (!isCancelled) {
+          let combinedHistory: HistoryItem[] = [];
+
+          if (videoResult.success) {
+            combinedHistory = [...combinedHistory, ...videoResult.history];
+          }
+
+          if (thumbnailResult.success) {
+            const thumbnailItems = thumbnailResult.history.map((item: YoutubeThumbnailItem) => ({
+              ...item,
+              createdAt: item.created_at,
+              isYoutubeThumbnail: true
+            }));
+            combinedHistory = [...combinedHistory, ...thumbnailItems];
+          }
+
+          // Sort by creation date
+          combinedHistory.sort((a, b) => {
+            const aDate = isYoutubeThumbnail(a) ? a.created_at : a.createdAt;
+            const bDate = isYoutubeThumbnail(b) ? b.created_at : b.createdAt;
+            return new Date(bDate).getTime() - new Date(aDate).getTime();
+          });
+
+          setHistory(combinedHistory);
         }
       } catch (err) {
         console.warn('Polling history failed:', err);
@@ -138,7 +211,7 @@ export default function HistoryPage() {
   // Reset to first page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter]);
+  }, [filter, contentFilter]);
 
   // Loading state
   if (!isLoaded) {
@@ -156,7 +229,17 @@ export default function HistoryPage() {
 
   const filteredHistory = history.filter(item => {
     // Status filter
-    return filter === 'all' || item.status === filter;
+    const statusMatch = filter === 'all' || item.status === filter;
+
+    // Content type filter
+    let contentMatch = true;
+    if (contentFilter === 'video-ads') {
+      contentMatch = !isYoutubeThumbnail(item);
+    } else if (contentFilter === 'youtube-thumbnails') {
+      contentMatch = isYoutubeThumbnail(item);
+    }
+
+    return statusMatch && contentMatch;
   });
 
   // Pagination
@@ -236,6 +319,8 @@ export default function HistoryPage() {
     const item = history.find(h => h.id === historyId);
     const isFirstDownload = !item?.downloaded;
     const downloadCost = getCreditCost(videoModel);
+
+    if (!item || isYoutubeThumbnail(item)) return; // Skip for YouTube thumbnails
     
     if (isFirstDownload && userCredits < downloadCost) {
       alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
@@ -281,7 +366,7 @@ export default function HistoryPage() {
           // Update history
           setHistory(prevHistory =>
             prevHistory.map(item =>
-              item.id === historyId
+              item.id === historyId && !isYoutubeThumbnail(item)
                 ? {
                     ...item,
                     downloaded: true,
@@ -323,12 +408,62 @@ export default function HistoryPage() {
   const getPackingText = (stage: 'packing' | 'done') =>
     stage === 'packing' ? 'Packing…' : 'Ready!';
 
+  // YouTube thumbnail download function
+  const handleYoutubeThumbnailDownload = async (thumbnailId: string) => {
+    try {
+      const response = await fetch(`/api/youtube-thumbnail/download/${thumbnailId}`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Download the file
+        const link = document.createElement('a');
+        link.href = data.downloadUrl;
+        link.download = `thumbnail-${thumbnailId}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        await refetchCredits();
+        // Update history to mark as downloaded
+        setHistory(prevHistory =>
+          prevHistory.map(item =>
+            item.id === thumbnailId && isYoutubeThumbnail(item)
+              ? { ...item, downloaded: true }
+              : item
+          )
+        );
+      } else {
+        const error = await response.json();
+        alert(error.message || 'Download failed');
+      }
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Download failed, please retry');
+    }
+  };
+
+  // YouTube thumbnail download handler with animations
+  const handleYoutubeThumbnailClick = async (item: YoutubeThumbnailItem) => {
+    const id = item.id;
+    setYoutubeThumbnailStates(prev => ({ ...prev, [id]: 'packing' }));
+    try {
+      await handleYoutubeThumbnailDownload(item.id);
+      setYoutubeThumbnailStates(prev => ({ ...prev, [id]: 'done' }));
+    } finally {
+      setTimeout(() => {
+        setYoutubeThumbnailStates(prev => ({ ...prev, [id]: null }));
+      }, 1200);
+    }
+  };
+
   // V1 cover download function (free) — show phrase only, no video download state
   const downloadV1Cover = async (historyId: string) => {
     if (!user?.id) return;
 
     const item = history.find(h => h.id === historyId);
-    if (!item || !item.coverImageUrl) return;
+    if (!item || isYoutubeThumbnail(item) || !('coverImageUrl' in item) || !item.coverImageUrl) return;
 
     try {
       // Fetch as blob to force background download without navigation
@@ -424,7 +559,7 @@ export default function HistoryPage() {
         if (contentType === 'video' && result.creditsUsed > 0) {
           setHistory(prevHistory =>
             prevHistory.map(item => 
-              item.id === instanceId && item.isV2
+              item.id === instanceId && 'isV2' in item && item.isV2
                 ? { ...item, downloaded: true }
                 : item
             )
@@ -454,10 +589,12 @@ export default function HistoryPage() {
 
   // Unified handler to show emotional phrase on Cover click then trigger download
   const handleCoverClick = async (item: HistoryItem) => {
+    if (isYoutubeThumbnail(item)) return;
+
     const id = item.id;
     setCoverStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (item.isV2) {
+      if ('isV2' in item && item.isV2) {
         await downloadV2Content(item.id, 'cover', item.videoModel);
       } else {
         await downloadV1Cover(item.id);
@@ -474,12 +611,14 @@ export default function HistoryPage() {
 
   // Unified handler to show emotional text on Video click then trigger download
   const handleVideoClick = async (item: HistoryItem) => {
+    if (isYoutubeThumbnail(item)) return;
+
     const id = item.id;
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (item.isV2) {
+      if ('isV2' in item && item.isV2) {
         await downloadV2Content(item.id, 'video', item.videoModel);
-      } else {
+      } else if ('videoModel' in item) {
         await downloadVideo(item.id, item.videoModel);
       }
       setVideoStates(prev => ({ ...prev, [id]: 'done' }));
@@ -536,7 +675,30 @@ export default function HistoryPage() {
 
           {/* Filter Tabs */}
           <div className="mb-6">
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {/* Content Type Filter */}
+                <div className="bg-gray-50 p-1 rounded-lg inline-flex">
+                  {([
+                    { value: 'all', label: 'All Content' },
+                    { value: 'video-ads', label: 'Video Ads' },
+                    { value: 'youtube-thumbnails', label: 'YouTube Thumbnails' }
+                  ] as const).map((type) => (
+                    <button
+                      key={type.value}
+                      onClick={() => setContentFilter(type.value)}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
+                        contentFilter === type.value
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex items-center gap-3">
                 {/* Status Filter */}
                 <div className="bg-gray-50 p-1 rounded-lg inline-flex">
@@ -599,18 +761,25 @@ export default function HistoryPage() {
                         </span>
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                        item.isV2 
-                          ? 'bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 border border-orange-200' 
+                        isYoutubeThumbnail(item)
+                          ? 'bg-red-100 text-red-700 border border-red-200'
+                          : ('isV2' in item && item.isV2)
+                          ? 'bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 border border-orange-200'
                           : 'bg-gray-100 text-gray-600 border border-gray-200'
                       }`}>
-                        {item.isV2 ? 'Creative Mix' : 'Product Focus'}
+                        {isYoutubeThumbnail(item)
+                          ? 'YouTube Thumbnail'
+                          : ('isV2' in item && item.isV2)
+                          ? 'Creative Mix'
+                          : 'Product Focus'
+                        }
                       </span>
                     </div>
                     {/* Video Preview on Hover */}
                     <div 
                       className="relative bg-white"
                       onMouseEnter={() => {
-                        if (item.status === 'completed' && item.videoUrl) {
+                        if (item.status === 'completed' && !isYoutubeThumbnail(item) && item.videoUrl) {
                           setHoveredVideo(item.id);
                         }
                       }}
@@ -619,31 +788,53 @@ export default function HistoryPage() {
                       }}
                     >
                       <div className="aspect-[16/9] bg-white relative overflow-hidden">
-                        {item.status === 'completed' && item.videoUrl && !item.photoOnly && hoveredVideo === item.id ? (
-                          <VideoPlayer
-                            src={item.videoUrl}
-                            className="w-full h-full object-cover"
-                            autoPlay={true}
-                            loop={true}
-                            playsInline={true}
-                            showControls={false}
-                          />
-                        ) : item.coverImageUrl ? (
-                          <Image
-                            src={item.coverImageUrl}
-                            alt="Generated cover"
-                            width={400}
-                            height={300}
-                            className="w-full h-full object-cover"
-                          />
+                        {isYoutubeThumbnail(item) ? (
+                          // YouTube Thumbnail display
+                          item.thumbnail_url ? (
+                            <Image
+                              src={item.thumbnail_url}
+                              alt={item.title}
+                              width={400}
+                              height={300}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Image
+                              src={item.identity_image_url}
+                              alt={item.title}
+                              width={400}
+                              height={300}
+                              className="w-full h-full object-cover"
+                            />
+                          )
                         ) : (
-                          <Image
-                            src={item.originalImageUrl}
-                            alt="Original product"
-                            width={400}
-                            height={300}
-                            className="w-full h-full object-cover"
-                          />
+                          // Regular video ad display
+                          item.status === 'completed' && 'videoUrl' in item && item.videoUrl && 'photoOnly' in item && !item.photoOnly && hoveredVideo === item.id ? (
+                            <VideoPlayer
+                              src={item.videoUrl}
+                              className="w-full h-full object-cover"
+                              autoPlay={true}
+                              loop={true}
+                              playsInline={true}
+                              showControls={false}
+                            />
+                          ) : item.coverImageUrl ? (
+                            <Image
+                              src={item.coverImageUrl}
+                              alt="Generated cover"
+                              width={400}
+                              height={300}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Image
+                              src={item.originalImageUrl}
+                              alt="Original product"
+                              width={400}
+                              height={300}
+                              className="w-full h-full object-cover"
+                            />
+                          )
                         )}
                       </div>
                       
@@ -656,9 +847,13 @@ export default function HistoryPage() {
                       <div className="space-y-2 mb-2">
                         <div className="flex items-center text-sm text-gray-500 gap-2">
                           <Clock className="w-4 h-4" />
-                          <span className="font-medium">{formatDate(item.createdAt)}</span>
+                          <span className="font-medium">
+                            {formatDate(isYoutubeThumbnail(item) ? item.created_at : item.createdAt)}
+                          </span>
                           <span className="text-gray-300">•</span>
-                          <span className="text-gray-400">{formatTime(item.createdAt)}</span>
+                          <span className="text-gray-400">
+                            {formatTime(isYoutubeThumbnail(item) ? item.created_at : item.createdAt)}
+                          </span>
                         </div>
                       </div>
 
@@ -673,10 +868,10 @@ export default function HistoryPage() {
                           {item.status === 'failed' && (
                             <div className="flex gap-3 w-full">
                               {/* Cover Download Button (Left side) */}
-                              {item.coverImageUrl && (
+                              {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl && (
                                 <button
-                                  onClick={() => item.isV2 ? 
-                                    downloadV2Content(item.id, 'cover', item.videoModel) : 
+                                  onClick={() => ('isV2' in item && item.isV2) ?
+                                    downloadV2Content(item.id, 'cover', item.videoModel) :
                                     downloadV1Cover(item.id)
                                   }
                                   className="h-10 flex-1 flex items-center justify-between px-3 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
@@ -692,7 +887,7 @@ export default function HistoryPage() {
                               )}
                               
                               {/* No charge info (Right side) */}
-                              <div className={`${item.coverImageUrl ? 'flex-1' : 'w-full'} flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg`}>
+                              <div className={`${(!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl) ? 'flex-1' : 'w-full'} flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg`}>
                                 <div className="flex items-center gap-2.5">
                                   <RotateCcw className="w-4 h-4 text-gray-600" />
                                   <span className="font-medium text-gray-900">No charge</span>
@@ -707,74 +902,44 @@ export default function HistoryPage() {
 
                           {item.status === 'completed' && (
                             <div className="flex gap-3 w-full">
-                              {/* Cover Download Button (Free) - Both V1 and V2 */}
-                              {item.coverImageUrl && (
+                              {isYoutubeThumbnail(item) ? (
+                                // YouTube Thumbnail Download Button with left-right layout
                                 <button
-                                  onClick={() => handleCoverClick(item)}
-                                  className="flex-1 px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <ImageIcon className="w-4 h-4 text-white" />
-                                    <span>Cover</span>
-                                  </div>
-                                  <AnimatePresence mode="wait" initial={false}>
-                                    <motion.div
-                                      key={coverStates[item.id] || 'free'}
-                                      initial={{ opacity: 0, y: 6 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      exit={{ opacity: 0, y: -6 }}
-                                      transition={{ duration: 0.18 }}
-                                      className="flex items-center gap-1 text-green-400"
-                                    >
-                                      <span className="text-xs font-bold">
-                                        {!coverStates[item.id]
-                                          ? 'FREE'
-                                          : coverStates[item.id] === 'packing'
-                                          ? getPackingText('packing')
-                                          : getPackingText('done')}
-                                      </span>
-                                    </motion.div>
-                                  </AnimatePresence>
-                                </button>
-                              )}
-
-                              {/* Video Download Button - Emotional text only, smooth transitions */}
-                              {item.videoUrl && (
-                                <button
-                                  onClick={() => handleVideoClick(item)}
-                                  disabled={downloadingVideo === item.id || videoStates[item.id] === 'packing' || (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)))}
-                                  className={`${item.coverImageUrl ? 'flex-1' : 'w-full'} h-10 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg transition-colors ${
-                                    (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)))
+                                  onClick={() => handleYoutubeThumbnailClick(item)}
+                                  disabled={item.downloaded || youtubeThumbnailStates[item.id] === 'packing' || (!item.downloaded && (!userCredits || userCredits < item.credits_cost))}
+                                  className={`w-full h-10 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg transition-colors ${
+                                    (!item.downloaded && (!userCredits || userCredits < item.credits_cost))
                                       ? 'text-red-600 hover:bg-red-50'
                                       : 'text-gray-700 hover:bg-gray-50'
                                   }`}
                                 >
                                   <div className="flex items-center gap-2">
-                                    <Video className="w-4 h-4 text-gray-600" />
-                                    <span>Video</span>
+                                    <Download className="w-4 h-4 text-gray-600" />
+                                    <span>Thumbnail</span>
                                   </div>
                                   <AnimatePresence mode="wait" initial={false}>
                                     <motion.div
                                       key={
                                         !item.downloaded
-                                          ? (videoStates[item.id] || 'cost')
-                                          : (videoStates[item.id] || 'downloaded')
+                                          ? (youtubeThumbnailStates[item.id] || 'cost')
+                                          : (youtubeThumbnailStates[item.id] || 'downloaded')
                                       }
                                       initial={{ opacity: 0, y: 6 }}
                                       animate={{ opacity: 1, y: 0 }}
                                       exit={{ opacity: 0, y: -6 }}
                                       transition={{ duration: 0.18 }}
                                       className={`flex items-center gap-1 ${
-                                        (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)))
+                                        (!item.downloaded && (!userCredits || userCredits < item.credits_cost))
                                           ? 'text-red-600'
-                                          : videoStates[item.id] === 'done'
+                                          : youtubeThumbnailStates[item.id] === 'done'
                                           ? 'text-green-600'
                                           : 'text-gray-700'
                                       }`}
                                     >
                                       {(() => {
-                                        const isInsufficient = (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)));
-                                        const isDownloading = videoStates[item.id] === 'packing' || videoStates[item.id] === 'done';
+                                        const isInsufficient = (!item.downloaded && (!userCredits || userCredits < item.credits_cost));
+                                        const isDownloading = youtubeThumbnailStates[item.id] === 'packing' || youtubeThumbnailStates[item.id] === 'done';
+
                                         if (isInsufficient) {
                                           return (
                                             <span className="text-xs font-bold">Insufficient</span>
@@ -783,21 +948,21 @@ export default function HistoryPage() {
                                         if (!item.downloaded) {
                                           if (isDownloading) {
                                             return (
-                                              <span className="text-xs font-bold">{videoStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
+                                              <span className="text-xs font-bold">{youtubeThumbnailStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
                                             );
                                           }
-                                          // Show full model cost with coins icon (30 for veo3_fast, 150 for veo3)
+                                          // Show credits cost with coins icon
                                           return (
                                             <span className="inline-flex items-center gap-1 text-xs font-bold">
                                               <Coins className="w-3 h-3" />
-                                              {getCreditCost(item.videoModel)}
+                                              {item.credits_cost}
                                             </span>
                                           );
                                         }
                                         // Downloaded state
                                         if (isDownloading) {
                                           return (
-                                            <span className="text-xs font-bold">{videoStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
+                                            <span className="text-xs font-bold">{youtubeThumbnailStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
                                           );
                                         }
                                         return (
@@ -807,6 +972,111 @@ export default function HistoryPage() {
                                     </motion.div>
                                   </AnimatePresence>
                                 </button>
+                              ) : (
+                                <>
+                                  {/* Cover Download Button (Free) - Both V1 and V2 */}
+                                  {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl && (
+                                    <button
+                                      onClick={() => handleCoverClick(item)}
+                                      className="flex-1 px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <ImageIcon className="w-4 h-4 text-white" />
+                                        <span>Cover</span>
+                                      </div>
+                                      <AnimatePresence mode="wait" initial={false}>
+                                        <motion.div
+                                          key={coverStates[item.id] || 'free'}
+                                          initial={{ opacity: 0, y: 6 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          exit={{ opacity: 0, y: -6 }}
+                                          transition={{ duration: 0.18 }}
+                                          className="flex items-center gap-1 text-green-400"
+                                        >
+                                          <span className="text-xs font-bold">
+                                            {!coverStates[item.id]
+                                              ? 'FREE'
+                                              : coverStates[item.id] === 'packing'
+                                              ? getPackingText('packing')
+                                              : getPackingText('done')}
+                                          </span>
+                                        </motion.div>
+                                      </AnimatePresence>
+                                    </button>
+                                  )}
+
+                                  {/* Video Download Button - Emotional text only, smooth transitions */}
+                                  {!isYoutubeThumbnail(item) && 'videoUrl' in item && item.videoUrl && (
+                                    <button
+                                      onClick={() => handleVideoClick(item)}
+                                      disabled={downloadingVideo === item.id || videoStates[item.id] === 'packing' || (!item.downloaded && ('videoModel' in item) && (!userCredits || userCredits < getCreditCost(item.videoModel)))}
+                                      className={`${(!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl) ? 'flex-1' : 'w-full'} h-10 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg transition-colors ${
+                                        (!item.downloaded && ('videoModel' in item) && (!userCredits || userCredits < getCreditCost(item.videoModel)))
+                                          ? 'text-red-600 hover:bg-red-50'
+                                          : 'text-gray-700 hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Video className="w-4 h-4 text-gray-600" />
+                                        <span>Video</span>
+                                      </div>
+                                      <AnimatePresence mode="wait" initial={false}>
+                                        <motion.div
+                                          key={
+                                            !item.downloaded
+                                              ? (videoStates[item.id] || 'cost')
+                                              : (videoStates[item.id] || 'downloaded')
+                                          }
+                                          initial={{ opacity: 0, y: 6 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          exit={{ opacity: 0, y: -6 }}
+                                          transition={{ duration: 0.18 }}
+                                          className={`flex items-center gap-1 ${
+                                            (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)))
+                                              ? 'text-red-600'
+                                              : videoStates[item.id] === 'done'
+                                              ? 'text-green-600'
+                                              : 'text-gray-700'
+                                          }`}
+                                        >
+                                          {(() => {
+                                            const hasVideoModel = 'videoModel' in item;
+                                            const isInsufficient = (!item.downloaded && hasVideoModel && (!userCredits || userCredits < getCreditCost(item.videoModel)));
+                                            const isDownloading = videoStates[item.id] === 'packing' || videoStates[item.id] === 'done';
+                                            if (isInsufficient) {
+                                              return (
+                                                <span className="text-xs font-bold">Insufficient</span>
+                                              );
+                                            }
+                                            if (!item.downloaded) {
+                                              if (isDownloading) {
+                                                return (
+                                                  <span className="text-xs font-bold">{videoStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
+                                                );
+                                              }
+                                              // Show full model cost with coins icon (30 for veo3_fast, 150 for veo3)
+                                              return (
+                                                <span className="inline-flex items-center gap-1 text-xs font-bold">
+                                                  <Coins className="w-3 h-3" />
+                                                  {getCreditCost(item.videoModel)}
+                                                </span>
+                                              );
+                                            }
+                                            // Downloaded state
+                                            if (isDownloading) {
+                                              return (
+                                                <span className="text-xs font-bold">{videoStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
+                                              );
+                                            }
+                                            return (
+                                              <span className="text-xs font-bold">Downloaded</span>
+                                            );
+                                          })()}
+                                        </motion.div>
+                                      </AnimatePresence>
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}
@@ -814,7 +1084,7 @@ export default function HistoryPage() {
                           {item.status === 'processing' && (
                             <div className="flex gap-3 w-full">
                               {/* Cover button - enabled if cover is ready, disabled if still generating */}
-                              {item.coverImageUrl ? (
+                              {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl ? (
                                 // Cover is ready - allow download
                                 <button
                                   onClick={() => handleCoverClick(item)}
@@ -860,7 +1130,7 @@ export default function HistoryPage() {
                               )}
 
                               {/* Video generating button with spinner (hidden for photo-only) */}
-                              {!item.photoOnly && (
+                              {!isYoutubeThumbnail(item) && 'photoOnly' in item && !item.photoOnly && (
                                 <button
                                   disabled
                                   className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
@@ -870,7 +1140,7 @@ export default function HistoryPage() {
                                     <span>Video</span>
                                   </div>
                                   <div className="flex items-center gap-1 text-gray-700">
-                                    <span className="text-xs font-bold">{item.progress || 0}%</span>
+                                    <span className="text-xs font-bold">{!isYoutubeThumbnail(item) ? (item.progress || 0) : 0}%</span>
                                   </div>
                                 </button>
                               )}

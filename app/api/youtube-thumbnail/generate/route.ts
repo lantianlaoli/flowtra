@@ -11,82 +11,102 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const identityImage = formData.get('identityImage') as File;
-    const title = formData.get('title') as string;
-    const prompt = formData.get('prompt') as string;
+    const { identityImageUrl, title, prompt, imageCount = 1 } = await request.json();
 
-    if (!identityImage || !title || !prompt) {
+    if (!identityImageUrl || !title || !prompt) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Validate imageCount
+    if (imageCount < 1 || imageCount > 3) {
+      return NextResponse.json({ message: 'Image count must be between 1 and 3' }, { status: 400 });
     }
 
     const supabase = getSupabase();
 
-    // Check user credits
+    // Check user credits (cost increases with image count)
+    const totalCreditsCost = THUMBNAIL_CREDIT_COST * imageCount;
     const { data: userCredits, error: creditsError } = await supabase
       .from('user_credits')
       .select('credits_remaining')
       .eq('user_id', userId)
       .single();
 
-    if (creditsError || !userCredits || userCredits.credits_remaining < THUMBNAIL_CREDIT_COST) {
-      return NextResponse.json({ message: 'Insufficient credits' }, { status: 400 });
+    if (creditsError || !userCredits || userCredits.credits_remaining < totalCreditsCost) {
+      return NextResponse.json({
+        message: `Insufficient credits! Generating ${imageCount} thumbnail${imageCount > 1 ? 's' : ''} requires ${totalCreditsCost} credits`
+      }, { status: 400 });
     }
-
-    // Upload identity image to Supabase storage
-    const imageBuffer = await identityImage.arrayBuffer();
-    const imageFile = new Uint8Array(imageBuffer);
-    const fileName = `${userId}_${Date.now()}_${identityImage.name}`;
-
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('images')
-      .upload(`identity/${fileName}`, imageFile, {
-        contentType: identityImage.type,
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError);
-      return NextResponse.json({ message: 'Failed to upload image' }, { status: 500 });
-    }
-
-    // Get public URL for the uploaded image
-    const { data: { publicUrl } } = supabase.storage
-      .from('images')
-      .getPublicUrl(`identity/${fileName}`);
 
     // Prepare KIE API request
+    const enhancedPrompt = imageCount > 1
+      ? `Generate ${imageCount} different variations. ${prompt.replace('"${title}"', `"${title}"`)}`
+      : `${prompt.replace('"${title}"', `"${title}"`)}`;
+
     const kieRequestBody = {
       model: "bytedance/seedream-v4-edit",
       callBackUrl: process.env.KIE_YOUTUBE_THUMBNAIL_CALLBACK_URL,
       input: {
-        prompt: `${prompt.replace('"${title}"', `"${title}"`)}`,
-        image_urls: [publicUrl],
+        prompt: enhancedPrompt,
+        image_urls: [identityImageUrl],
         image_size: "landscape_16_9",
-        max_images: 1
+        max_images: imageCount
       }
     };
 
     console.log('KIE API request:', JSON.stringify(kieRequestBody, null, 2));
 
-    // Call KIE API
-    const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      },
-      body: JSON.stringify(kieRequestBody)
-    });
+    // Call KIE API with retry mechanism
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds
+    let kieResult;
 
-    if (!kieResponse.ok) {
-      const errorText = await kieResponse.text();
-      console.error('KIE API error:', errorText);
-      return NextResponse.json({ message: 'Failed to start generation' }, { status: 500 });
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`KIE API attempt ${attempt}/${maxRetries}`);
+
+        const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+          },
+          body: JSON.stringify(kieRequestBody),
+          signal: AbortSignal.timeout(30000) // 30 second timeout
+        });
+
+        if (!kieResponse.ok) {
+          const errorText = await kieResponse.text();
+          console.error(`KIE API error (attempt ${attempt}):`, errorText);
+
+          if (attempt === maxRetries) {
+            return NextResponse.json({
+              message: `Failed to start generation after ${maxRetries} attempts`
+            }, { status: 500 });
+          }
+
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+          continue;
+        }
+
+        kieResult = await kieResponse.json();
+        console.log('KIE API response:', kieResult);
+        break; // Success, exit retry loop
+
+      } catch (error) {
+        console.error(`KIE API request failed (attempt ${attempt}):`, error);
+
+        if (attempt === maxRetries) {
+          return NextResponse.json({
+            message: `Failed to connect to generation service after ${maxRetries} attempts. Please try again later.`
+          }, { status: 500 });
+        }
+
+        // Wait before retrying, with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+      }
     }
-
-    const kieResult = await kieResponse.json();
-    console.log('KIE API response:', kieResult);
 
     if (kieResult.code !== 200) {
       return NextResponse.json({ message: kieResult.message || 'Generation failed' }, { status: 500 });
@@ -100,7 +120,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: userId,
         task_id: taskId,
-        identity_image_url: publicUrl,
+        identity_image_url: identityImageUrl,
         title: title,
         status: 'processing',
         credits_cost: THUMBNAIL_CREDIT_COST
@@ -114,7 +134,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       taskId: taskId,
-      message: 'Thumbnail generation started'
+      imageCount: imageCount,
+      totalCreditsCost: totalCreditsCost,
+      message: `Thumbnail generation started (${imageCount} image${imageCount > 1 ? 's' : ''})`
     });
 
   } catch (error) {

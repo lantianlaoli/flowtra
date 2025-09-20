@@ -93,6 +93,15 @@ body {
   }
 }
 
+@keyframes gradient-x {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
 @keyframes float {
   0%, 100% {
     transform: translateY(0px);
@@ -153,6 +162,14 @@ body {
 /* Animation utility classes */
 .animate-shimmer {
   animation: shimmer 2s infinite;
+}
+
+.animate-gradient-x {
+  animation: gradient-x 3s ease infinite;
+}
+
+.bg-size-200 {
+  background-size: 200% 200%;
 }
 
 .animate-float {

@@ -47,36 +47,41 @@ export async function POST(
       .eq('user_id', userId)
       .single();
 
-    if (creditsError || !userCredits || userCredits.credits_remaining < THUMBNAIL_CREDIT_COST) {
-      return NextResponse.json({ message: 'Insufficient credits' }, { status: 400 });
-    }
+    // Only deduct credits if the record has a credits_cost > 0
+    const creditCost = record.credits_cost || 0;
 
-    // Deduct credits
-    const { error: deductError } = await supabase
-      .from('user_credits')
-      .update({
-        credits_remaining: userCredits.credits_remaining - THUMBNAIL_CREDIT_COST,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', userId);
+    if (creditCost > 0) {
+      if (creditsError || !userCredits || userCredits.credits_remaining < creditCost) {
+        return NextResponse.json({ message: `Insufficient credits. Need ${creditCost} credits.` }, { status: 400 });
+      }
 
-    if (deductError) {
-      console.error('Failed to deduct credits:', deductError);
-      return NextResponse.json({ message: 'Failed to deduct credits' }, { status: 500 });
-    }
+      // Deduct credits
+      const { error: deductError } = await supabase
+        .from('user_credits')
+        .update({
+          credits_remaining: userCredits.credits_remaining - creditCost,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
 
-    // Record credit transaction
-    const { error: transactionError } = await supabase
-      .from('credit_transactions')
-      .insert({
-        user_id: userId,
-        amount: -THUMBNAIL_CREDIT_COST,
-        type: 'usage',
-        description: `Downloaded thumbnail: ${record.title}`
-      });
+      if (deductError) {
+        console.error('Failed to deduct credits:', deductError);
+        return NextResponse.json({ message: 'Failed to deduct credits' }, { status: 500 });
+      }
 
-    if (transactionError) {
-      console.error('Failed to record transaction:', transactionError);
+      // Record credit transaction
+      const { error: transactionError } = await supabase
+        .from('credit_transactions')
+        .insert({
+          user_id: userId,
+          amount: -creditCost,
+          type: 'usage',
+          description: `Downloaded thumbnail: ${record.title}`
+        });
+
+      if (transactionError) {
+        console.error('Failed to record transaction:', transactionError);
+      }
     }
 
     // Mark as downloaded
@@ -92,10 +97,14 @@ export async function POST(
       console.error('Failed to update download status:', updateError);
     }
 
+    const finalCreditsRemaining = creditCost > 0 && userCredits
+      ? userCredits.credits_remaining - creditCost
+      : userCredits?.credits_remaining || 0;
+
     return NextResponse.json({
       success: true,
       downloadUrl: record.thumbnail_url,
-      creditsRemaining: userCredits.credits_remaining - THUMBNAIL_CREDIT_COST
+      creditsRemaining: finalCreditsRemaining
     });
 
   } catch (error) {

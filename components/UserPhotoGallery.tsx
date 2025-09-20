@@ -1,0 +1,226 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Upload, X, CheckCircle, Loader2, Plus, ImageIcon } from 'lucide-react';
+import Image from 'next/image';
+import { UserPhoto } from '@/lib/supabase';
+
+interface UserPhotoGalleryProps {
+  onPhotoSelect: (photoUrl: string) => void;
+  selectedPhotoUrl?: string;
+}
+
+export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: UserPhotoGalleryProps) {
+  const [photos, setPhotos] = useState<UserPhoto[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Load user photos on component mount
+  useEffect(() => {
+    loadUserPhotos();
+  }, []);
+
+  const loadUserPhotos = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/youtube-thumbnail/user-photos');
+      if (response.ok) {
+        const data = await response.json();
+        setPhotos(data.photos || []);
+      } else {
+        console.error('Failed to load user photos');
+      }
+    } catch (error) {
+      console.error('Error loading user photos:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please select an image file');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('Image must be smaller than 5MB');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/youtube-thumbnail/user-photos', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Refresh the photos list
+        await loadUserPhotos();
+        // Auto-select the newly uploaded photo
+        onPhotoSelect(data.imageUrl);
+      } else {
+        const error = await response.json();
+        setUploadError(error.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadError('Upload failed, please try again');
+    } finally {
+      setIsUploading(false);
+      // Reset the input
+      event.target.value = '';
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: string) => {
+    if (!confirm('Are you sure you want to delete this photo?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/youtube-thumbnail/user-photos?photoId=${photoId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        // Remove from local state
+        setPhotos(photos.filter(photo => photo.id !== photoId));
+        // If this was the selected photo, clear selection
+        const deletedPhoto = photos.find(photo => photo.id === photoId);
+        if (deletedPhoto && selectedPhotoUrl === deletedPhoto.photo_url) {
+          onPhotoSelect('');
+        }
+      } else {
+        console.error('Failed to delete photo');
+      }
+    } catch (error) {
+      console.error('Error deleting photo:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <ImageIcon className="w-5 h-5 text-gray-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Your Photos</h2>
+          </div>
+        </div>
+        <div className="p-6 flex items-center justify-center min-h-[200px]">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+      <div className="p-6 border-b border-gray-200">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="w-5 h-5 text-gray-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Personal Photos</h2>
+        </div>
+      </div>
+
+      <div className="p-6">
+        {/* Upload Error */}
+        {uploadError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {uploadError}
+          </div>
+        )}
+
+        {/* Photo Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* Existing Photos */}
+          {photos.map((photo) => (
+            <div key={photo.id} className="relative group">
+              <div
+                className={`
+                  relative w-full aspect-square rounded-lg overflow-hidden border-2 cursor-pointer
+                  transition-all duration-200
+                  ${selectedPhotoUrl === photo.photo_url
+                    ? 'border-gray-900 shadow-md ring-2 ring-gray-200'
+                    : 'border-gray-200 hover:border-gray-300'
+                  }
+                `}
+                onClick={() => onPhotoSelect(photo.photo_url)}
+              >
+                <Image
+                  src={photo.photo_url}
+                  alt={photo.file_name}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                />
+              </div>
+
+              {/* Delete Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeletePhoto(photo.id);
+                }}
+                className="
+                  absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full
+                  flex items-center justify-center opacity-0 group-hover:opacity-100
+                  transition-opacity duration-200 hover:bg-red-600
+                "
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+
+          {/* Upload New Photo Card */}
+          <div className="relative">
+            <label
+              className={`
+                block w-full aspect-square border-2 border-dashed border-gray-300 rounded-lg
+                hover:border-gray-400 transition-colors cursor-pointer
+                ${isUploading ? 'opacity-50 pointer-events-none' : ''}
+              `}
+            >
+              <div className="flex flex-col items-center justify-center h-full p-4">
+                {isUploading ? (
+                  <Loader2 className="w-8 h-8 text-gray-400 animate-spin mb-2" />
+                ) : (
+                  <Plus className="w-8 h-8 text-gray-400 mb-2" />
+                )}
+                {isUploading && (
+                  <span className="text-sm text-gray-500 text-center">
+                    Uploading...
+                  </span>
+                )}
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={isUploading}
+              />
+            </label>
+          </div>
+        </div>
+
+
+      </div>
+    </div>
+  );
+}

@@ -77,6 +77,17 @@ export interface UserHistory {
   updated_at: string
 }
 
+// Database types for user_photos table
+export interface UserPhoto {
+  id: string
+  user_id: string
+  photo_url: string
+  file_name: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -89,6 +100,11 @@ export type Database = {
         Row: UserHistory
         Insert: Omit<UserHistory, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<UserHistory, 'id' | 'created_at' | 'updated_at'>>
+      }
+      user_photos: {
+        Row: UserPhoto
+        Insert: Omit<UserPhoto, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<UserPhoto, 'id' | 'created_at' | 'updated_at'>>
       }
     }
     Views: {
@@ -115,6 +131,35 @@ export const uploadImageToStorage = async (file: File, filename?: string) => {
   const fileExt = file.name.split('.').pop()
   const fileName = filename || `${Math.random().toString(36).substring(2)}.${fileExt}`
   const filePath = `covers/${fileName}`
+
+  const supabase = getSupabase()
+  const { data, error } = await supabase.storage
+    .from('images')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    })
+
+  if (error) {
+    throw error
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('images')
+    .getPublicUrl(filePath)
+
+  return {
+    path: data.path,
+    publicUrl,
+    fullUrl: publicUrl
+  }
+}
+
+// Upload identity image for YouTube thumbnail generation
+export const uploadIdentityImageToStorage = async (file: File, userId: string) => {
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${userId}_${Date.now()}_${file.name}`
+  const filePath = `identity/${fileName}`
 
   const supabase = getSupabase()
   const { data, error } = await supabase.storage
@@ -192,10 +237,107 @@ export function extractExcerpt(content: string, maxLength: number = 160): string
     .replace(/>\s/g, '') // Remove blockquotes
     .replace(/\n/g, ' ') // Replace newlines with spaces
     .trim()
-  
+
   if (plainText.length <= maxLength) {
     return plainText
   }
-  
+
   return plainText.substring(0, maxLength).replace(/\s+\S*$/, '') + '...'
+}
+
+// User photo management functions
+export const uploadUserPhotoToStorage = async (file: File, userId: string) => {
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${userId}_${Date.now()}_${file.name}`
+  const filePath = `user-photos/${fileName}`
+
+  const supabase = getSupabase()
+
+  // Upload to storage
+  const { data, error } = await supabase.storage
+    .from('images')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    })
+
+  if (error) {
+    throw error
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('images')
+    .getPublicUrl(filePath)
+
+  // Save to database
+  const { data: photoRecord, error: dbError } = await supabase
+    .from('user_photos')
+    .insert({
+      user_id: userId,
+      photo_url: publicUrl,
+      file_name: fileName,
+      is_active: true
+    })
+    .select()
+    .single()
+
+  if (dbError) {
+    // If database insert fails, cleanup the uploaded file
+    await supabase.storage.from('images').remove([filePath])
+    throw dbError
+  }
+
+  return {
+    path: data.path,
+    publicUrl,
+    fullUrl: publicUrl,
+    photoRecord
+  }
+}
+
+export const getUserPhotos = async (userId: string): Promise<UserPhoto[]> => {
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('user_photos')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+
+  return data || []
+}
+
+export const deleteUserPhoto = async (photoId: string, userId: string): Promise<void> => {
+  const supabase = getSupabase()
+
+  // First get the photo record to find the file path
+  const { data: photo, error: fetchError } = await supabase
+    .from('user_photos')
+    .select('*')
+    .eq('id', photoId)
+    .eq('user_id', userId)
+    .single()
+
+  if (fetchError || !photo) {
+    throw new Error('Photo not found or unauthorized')
+  }
+
+  // Mark as inactive in database (soft delete)
+  const { error: updateError } = await supabase
+    .from('user_photos')
+    .update({ is_active: false })
+    .eq('id', photoId)
+    .eq('user_id', userId)
+
+  if (updateError) {
+    throw updateError
+  }
+
+  // Optionally delete from storage (uncomment if you want hard delete)
+  // const filePath = `user-photos/${photo.file_name}`
+  // await supabase.storage.from('images').remove([filePath])
 }
