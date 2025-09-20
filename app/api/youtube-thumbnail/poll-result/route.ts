@@ -61,16 +61,26 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Task not found' }, { status: 404 });
         }
 
-        // Check if task is already processed by webhook
-        const webhookProcessed = records.some(r => r.processed_by === 'webhook');
-        if (webhookProcessed) {
-          console.log(`Task ${taskId} already processed by webhook, skipping polling`);
-          const completedCount = records.filter(r => r.status === 'completed').length;
-          return NextResponse.json({
-            success: true,
-            message: 'Task already processed by webhook',
-            resultsCount: completedCount
-          });
+        // Check if task is already fully processed by webhook
+        const webhookProcessedRecords = records.filter(r => r.processed_by === 'webhook');
+        const webhookCompletedCount = webhookProcessedRecords.filter(r => r.status === 'completed').length;
+        const totalExpectedCount = thumbnailUrls.length;
+
+        if (webhookProcessedRecords.length > 0) {
+          console.log(`Task ${taskId}: Found ${webhookProcessedRecords.length} webhook-processed records, ${webhookCompletedCount} completed`);
+
+          // If webhook has fully processed all expected thumbnails, skip polling
+          if (webhookCompletedCount === totalExpectedCount) {
+            console.log(`Task ${taskId} fully completed by webhook (${webhookCompletedCount}/${totalExpectedCount}), skipping polling`);
+            return NextResponse.json({
+              success: true,
+              message: 'Task fully completed by webhook',
+              resultsCount: webhookCompletedCount
+            });
+          }
+
+          // If webhook processed some but not all, or some failed, continue with polling for remaining
+          console.log(`Task ${taskId} partially processed by webhook, continuing polling for remaining thumbnails`);
         }
 
         // Check if task is already completed
@@ -124,17 +134,24 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Process results with available records
+        // Process results with available records, skipping webhook-processed ones
         console.log(`Processing ${thumbnailUrls.length} thumbnails with ${recordsToProcess.length} records`);
 
+        let processedCount = 0;
         for (let i = 0; i < thumbnailUrls.length && i < recordsToProcess.length; i++) {
           const thumbnailUrl = thumbnailUrls[i];
           const recordToUpdate = recordsToProcess[i];
           console.log(`Processing thumbnail ${i + 1}/${thumbnailUrls.length}: ${thumbnailUrl}`);
 
-          // Skip if record is already completed
+          // Skip if record is already completed or processed by webhook
           if (recordToUpdate.status === 'completed' && recordToUpdate.thumbnail_url) {
             console.log(`Record ${recordToUpdate.id} already completed, skipping`);
+            continue;
+          }
+
+          // Skip if already processed by webhook (even if not completed, to avoid conflicts)
+          if (recordToUpdate.processed_by === 'webhook') {
+            console.log(`Record ${recordToUpdate.id} already processed by webhook, skipping`);
             continue;
           }
 
@@ -157,6 +174,7 @@ export async function POST(request: NextRequest) {
               console.error(`Failed to update record ${recordToUpdate.id}:`, updateError);
             } else {
               console.log(`Successfully processed thumbnail ${i + 1}`);
+              processedCount++;
             }
 
           } catch (error) {
@@ -175,10 +193,13 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        console.log(`Polling completed: processed ${processedCount} new thumbnails`);
+
         return NextResponse.json({
           success: true,
-          message: `Successfully processed ${thumbnailUrls.length} thumbnails`,
-          resultsCount: thumbnailUrls.length
+          message: `Successfully processed ${processedCount} thumbnails via polling`,
+          resultsCount: thumbnailUrls.length,
+          newlyProcessed: processedCount
         });
 
         }

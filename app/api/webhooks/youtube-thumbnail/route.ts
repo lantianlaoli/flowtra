@@ -119,50 +119,54 @@ async function handleSuccessCallback(taskId: string, data: ThumbnailCallbackData
     // Handle multiple thumbnails - for each URL, create a separate record
     console.log(`📄 About to process ${thumbnailUrls.length} thumbnails`);
 
+    let successCount = 0;
+    let failCount = 0;
+
     for (let i = 0; i < thumbnailUrls.length; i++) {
       const thumbnailUrl = thumbnailUrls[i];
       console.log(`📄 Processing thumbnail ${i + 1}/${thumbnailUrls.length}: ${thumbnailUrl}`);
 
       let recordToUpdate;
 
-      if (i === 0) {
-        // Use the existing record for the first thumbnail
-        console.log(`📄 Using existing record for first thumbnail: ${record.id}`);
-        recordToUpdate = record;
-      } else {
-        // Create new records for additional thumbnails with same task_id
-        console.log(`📄 Creating new record for thumbnail ${i + 1}`);
-        const insertData = {
-          user_id: record.user_id,
-          task_id: taskId, // Use same task_id for all thumbnails
-          identity_image_url: record.identity_image_url,
-          title: record.title,
-          status: 'processing',
-          credits_cost: 5, // Each thumbnail has individual cost
-          processed_by: 'webhook' // Mark as webhook processed
-        };
-        console.log(`📄 Insert data:`, insertData);
+      try {
+        if (i === 0) {
+          // Use the existing record for the first thumbnail
+          console.log(`📄 Using existing record for first thumbnail: ${record.id}`);
+          recordToUpdate = record;
+        } else {
+          // Create new records for additional thumbnails with same task_id
+          console.log(`📄 Creating new record for thumbnail ${i + 1}`);
+          const insertData = {
+            user_id: record.user_id,
+            task_id: taskId, // Use same task_id for all thumbnails
+            identity_image_url: record.identity_image_url,
+            title: record.title,
+            status: 'processing',
+            credits_cost: 5, // Each thumbnail has individual cost
+            processed_by: 'webhook' // Mark as webhook processed
+          };
+          console.log(`📄 Insert data:`, insertData);
 
-        const { data: newRecord, error: insertError } = await supabase
-          .from('thumbnail_history')
-          .insert(insertData)
-          .select()
-          .single();
+          const { data: newRecord, error: insertError } = await supabase
+            .from('thumbnail_history')
+            .insert(insertData)
+            .select()
+            .single();
 
-        if (insertError) {
-          console.error(`❌ Failed to create record for thumbnail ${i + 1}:`, insertError);
-          continue;
+          if (insertError) {
+            console.error(`❌ Failed to create record for thumbnail ${i + 1}:`, insertError);
+            failCount++;
+            continue;
+          }
+
+          console.log(`✅ Successfully created new record:`, newRecord);
+          recordToUpdate = newRecord;
         }
 
-        console.log(`✅ Successfully created new record:`, newRecord);
-        recordToUpdate = newRecord;
-      }
-
-      try {
-        console.log(`Processing thumbnail ${i + 1} of ${thumbnailUrls.length}: ${thumbnailUrl}`);
-
         // Download and save the thumbnail to Supabase storage
+        console.log(`📥 Downloading thumbnail ${i + 1} from: ${thumbnailUrl}`);
         const savedThumbnailUrl = await downloadAndSaveThumbnail(thumbnailUrl, recordToUpdate.id, supabase);
+        console.log(`💾 Saved thumbnail ${i + 1} to: ${savedThumbnailUrl}`);
 
         // Update the record with the thumbnail URL and completed status
         const { error: updateError } = await supabase
@@ -176,27 +180,48 @@ async function handleSuccessCallback(taskId: string, data: ThumbnailCallbackData
           .eq('id', recordToUpdate.id);
 
         if (updateError) {
-          console.error(`Failed to update thumbnail record ${recordToUpdate.id}:`, updateError);
-          continue;
+          console.error(`❌ Failed to update thumbnail record ${recordToUpdate.id}:`, updateError);
+          failCount++;
+
+          // Mark as failed
+          await supabase
+            .from('thumbnail_history')
+            .update({
+              status: 'failed',
+              error_message: `Database update failed: ${updateError.message}`,
+              processed_by: 'webhook',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', recordToUpdate.id);
+        } else {
+          console.log(`✅ Successfully processed thumbnail ${i + 1}: ${savedThumbnailUrl}`);
+          successCount++;
         }
 
-        console.log(`Successfully processed thumbnail ${i + 1}: ${savedThumbnailUrl}`);
-
       } catch (thumbnailError) {
-        console.error(`Error processing thumbnail ${i + 1} for record ${recordToUpdate.id}:`, thumbnailError);
+        console.error(`❌ Error processing thumbnail ${i + 1} for record ${recordToUpdate?.id}:`, thumbnailError);
+        failCount++;
 
-        // Mark this specific record as failed
-        await supabase
-          .from('thumbnail_history')
-          .update({
-            status: 'failed',
-            error_message: thumbnailError instanceof Error ? thumbnailError.message : 'Thumbnail processing failed',
-            processed_by: 'webhook',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', recordToUpdate.id);
+        // Mark this specific record as failed if we have a record
+        if (recordToUpdate) {
+          try {
+            await supabase
+              .from('thumbnail_history')
+              .update({
+                status: 'failed',
+                error_message: thumbnailError instanceof Error ? thumbnailError.message : 'Thumbnail processing failed',
+                processed_by: 'webhook',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', recordToUpdate.id);
+          } catch (updateError) {
+            console.error(`❌ Failed to mark record as failed:`, updateError);
+          }
+        }
       }
     }
+
+    console.log(`🎯 Webhook processing summary: ${successCount} success, ${failCount} failed out of ${thumbnailUrls.length} total`);
 
     console.log(`Completed processing all ${thumbnailUrls.length} thumbnails for taskId ${taskId}`);
 
