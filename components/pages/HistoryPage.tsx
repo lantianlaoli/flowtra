@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
+import RetryImage from '@/components/ui/RetryImage';
 import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, MessageSquare, HelpCircle, Download } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -417,13 +418,26 @@ export default function HistoryPage() {
 
       if (response.ok) {
         const data = await response.json();
+
+        // Fetch as blob to force background download without navigation
+        const res = await fetch(data.downloadUrl, { mode: 'cors' });
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const contentType = blob.type || 'image/png';
+        const ext = contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' :
+                   contentType.includes('webp') ? 'webp' : 'png';
+
         // Download the file
         const link = document.createElement('a');
-        link.href = data.downloadUrl;
-        link.download = `thumbnail-${thumbnailId}.png`;
+        link.href = url;
+        link.download = `thumbnail-${thumbnailId}.${ext}`;
+        link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+
+        // Clean up blob URL
+        URL.revokeObjectURL(url);
 
         await refetchCredits();
         // Update history to mark as downloaded
@@ -791,20 +805,24 @@ export default function HistoryPage() {
                         {isYoutubeThumbnail(item) ? (
                           // YouTube Thumbnail display
                           item.thumbnail_url ? (
-                            <Image
+                            <RetryImage
                               src={item.thumbnail_url}
                               alt={item.title}
                               width={400}
                               height={300}
                               className="w-full h-full object-cover"
+                              maxRetries={8}
+                              retryDelay={1500}
                             />
                           ) : (
-                            <Image
+                            <RetryImage
                               src={item.identity_image_url}
                               alt={item.title}
                               width={400}
                               height={300}
                               className="w-full h-full object-cover"
+                              maxRetries={8}
+                              retryDelay={1500}
                             />
                           )
                         ) : (

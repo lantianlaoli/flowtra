@@ -7,7 +7,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import UserPhotoGallery from '@/components/UserPhotoGallery';
 import { Zap, Loader2, Download, Youtube, Settings, Type, Hash, Play } from 'lucide-react';
 import { THUMBNAIL_CREDIT_COST } from '@/lib/constants';
-import Image from 'next/image';
+import RetryImage from '@/components/ui/RetryImage';
 
 interface ThumbnailRecord {
   id: string;
@@ -420,12 +420,14 @@ The colors of the text's background panel, the overall thumbnail background, and
                       {/* Thumbnail Image */}
                       <div className="relative aspect-video bg-gray-100">
                         {thumbnail.thumbnailUrl ? (
-                          <Image
+                          <RetryImage
                             src={thumbnail.thumbnailUrl}
                             alt={thumbnail.title}
                             fill
                             className="object-cover"
                             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                            maxRetries={8}
+                            retryDelay={1500}
                           />
                         ) : (
                           <div className="flex items-center justify-center h-full">
