@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, X, CheckCircle, Loader2, Plus, ImageIcon } from 'lucide-react';
+import { X, Loader2, Plus, ImageIcon } from 'lucide-react';
 import Image from 'next/image';
 import { UserPhoto } from '@/lib/supabase';
 
@@ -44,41 +44,94 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      setUploadError('Please select an image file');
+      setUploadError('Please select an image file (JPG, PNG, WebP, etc.)');
       return;
     }
 
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('Image must be smaller than 5MB');
+    // Validate file size (8MB max - increased limit)
+    const maxSize = 8 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setUploadError(`Image must be smaller than 8MB (current: ${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+      return;
+    }
+
+    // Validate image format more specifically
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      setUploadError(`Unsupported image format. Please use JPG, PNG, WebP, or GIF`);
       return;
     }
 
     setIsUploading(true);
     setUploadError(null);
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+    const uploadWithRetry = async (retryCount = 0): Promise<void> => {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
 
-      const response = await fetch('/api/youtube-thumbnail/user-photos', {
-        method: 'POST',
-        body: formData
-      });
+        // Add timeout to the request
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      if (response.ok) {
-        const data = await response.json();
-        // Refresh the photos list
-        await loadUserPhotos();
-        // Auto-select the newly uploaded photo
-        onPhotoSelect(data.imageUrl);
-      } else {
-        const error = await response.json();
-        setUploadError(error.error || 'Upload failed');
+        const response = await fetch('/api/youtube-thumbnail/user-photos', {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          // Refresh the photos list
+          await loadUserPhotos();
+          // Auto-select the newly uploaded photo
+          onPhotoSelect(data.imageUrl);
+          return;
+        } else {
+          // Try to parse error response
+          let errorMessage = 'Upload failed';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.details || `Server error (${response.status})`;
+          } catch {
+            errorMessage = `Upload failed with status ${response.status}`;
+          }
+
+          // Retry on server errors (5xx) up to 2 times
+          if (response.status >= 500 && retryCount < 2) {
+            console.log(`Upload failed with ${response.status}, retrying... (${retryCount + 1}/2)`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Progressive delay
+            return uploadWithRetry(retryCount + 1);
+          }
+
+          throw new Error(errorMessage);
+        }
+      } catch (error: unknown) {
+        // Retry on network errors up to 2 times
+        const errorObj = error as Error;
+        if (errorObj.name === 'AbortError') {
+          throw new Error('Upload timed out. Please try again with a smaller image.');
+        }
+
+        if ((errorObj.name === 'TypeError' || errorObj.message?.includes('fetch')) && retryCount < 2) {
+          console.log(`Network error, retrying... (${retryCount + 1}/2)`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          return uploadWithRetry(retryCount + 1);
+        }
+
+        throw error;
       }
-    } catch (error) {
+    };
+
+    try {
+      await uploadWithRetry();
+    } catch (error: unknown) {
       console.error('Upload error:', error);
-      setUploadError('Upload failed, please try again');
+      const errorObj = error as Error;
+      const errorMessage = errorObj.message || 'Upload failed, please try again';
+      setUploadError(errorMessage);
     } finally {
       setIsUploading(false);
       // Reset the input

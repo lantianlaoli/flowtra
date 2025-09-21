@@ -247,13 +247,16 @@ export function extractExcerpt(content: string, maxLength: number = 160): string
 
 // User photo management functions
 export const uploadUserPhotoToStorage = async (file: File, userId: string) => {
+  console.log(`[uploadUserPhotoToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes)`);
+
   const fileExt = file.name.split('.').pop()
-  const fileName = `${userId}_${Date.now()}_${file.name}`
+  const fileName = `${userId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
   const filePath = `user-photos/${fileName}`
 
   const supabase = getSupabase()
 
   // Upload to storage
+  console.log(`[uploadUserPhotoToStorage] Uploading to storage path: ${filePath}`);
   const { data, error } = await supabase.storage
     .from('images')
     .upload(filePath, file, {
@@ -262,14 +265,25 @@ export const uploadUserPhotoToStorage = async (file: File, userId: string) => {
     })
 
   if (error) {
-    throw error
+    console.error(`[uploadUserPhotoToStorage] Storage upload error for user ${userId}:`, {
+      error: error.message,
+      filePath,
+      fileSize: file.size,
+      fileType: file.type
+    });
+    throw new Error(`Storage upload failed: ${error.message}`);
   }
+
+  console.log(`[uploadUserPhotoToStorage] Storage upload successful for user ${userId}, path: ${data.path}`);
 
   const { data: { publicUrl } } = supabase.storage
     .from('images')
     .getPublicUrl(filePath)
 
+  console.log(`[uploadUserPhotoToStorage] Generated public URL for user ${userId}: ${publicUrl}`);
+
   // Save to database
+  console.log(`[uploadUserPhotoToStorage] Saving to database for user ${userId}`);
   const { data: photoRecord, error: dbError } = await supabase
     .from('user_photos')
     .insert({
@@ -282,10 +296,25 @@ export const uploadUserPhotoToStorage = async (file: File, userId: string) => {
     .single()
 
   if (dbError) {
+    console.error(`[uploadUserPhotoToStorage] Database insert error for user ${userId}:`, {
+      error: dbError.message,
+      code: dbError.code,
+      filePath
+    });
+
     // If database insert fails, cleanup the uploaded file
-    await supabase.storage.from('images').remove([filePath])
-    throw dbError
+    console.log(`[uploadUserPhotoToStorage] Cleaning up uploaded file due to database error: ${filePath}`);
+    try {
+      await supabase.storage.from('images').remove([filePath])
+      console.log(`[uploadUserPhotoToStorage] Cleanup successful for file: ${filePath}`);
+    } catch (cleanupError) {
+      console.error(`[uploadUserPhotoToStorage] Cleanup failed for file ${filePath}:`, cleanupError);
+    }
+
+    throw new Error(`Database insert failed: ${dbError.message}`);
   }
+
+  console.log(`[uploadUserPhotoToStorage] Complete success for user ${userId}, record ID: ${photoRecord?.id}`);
 
   return {
     path: data.path,
