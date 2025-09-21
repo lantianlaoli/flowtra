@@ -13,7 +13,7 @@ interface ThumbnailRecord {
   id: string;
   title: string;
   thumbnailUrl?: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'loading' | 'completed' | 'failed';
   downloaded: boolean;
   createdAt: string;
 }
@@ -110,7 +110,7 @@ The colors of the text's background panel, the overall thumbnail background, and
 
     const interval = setInterval(async () => {
       try {
-        // First try to poll KIE API for results
+        // Poll KIE API for progress
         const pollResponse = await fetch('/api/youtube-thumbnail/poll-result', {
           method: 'POST',
           headers: {
@@ -123,66 +123,89 @@ The colors of the text's background panel, the overall thumbnail background, and
           const pollData = await pollResponse.json();
           console.log('Poll result:', pollData);
 
-          if (pollData.success && pollData.resultsCount) {
-            console.log(`KIE polling found ${pollData.resultsCount} results, stopping polling...`);
 
-            // Stop polling immediately since results were processed
+          if (pollData.status === 'completed') {
+            console.log(`KIE polling found completed results`);
+
+            // Stop polling and check database for results
             clearTimersAndResetState();
-
-            // Reset state immediately
             setIsGenerating(false);
             setButtonMessage('Generate Thumbnail');
 
-            // Wait a moment for database to update, then check status
+            // Check database for results
             setTimeout(async () => {
               try {
                 const response = await fetch(`/api/youtube-thumbnail/status/${taskId}`);
                 if (response.ok) {
                   const data = await response.json();
                   if (data.status === 'completed') {
-                    setGeneratedThumbnails(data.results || []);
+                    // Update loading placeholders with actual results
+                    setGeneratedThumbnails(prev => {
+                      const results = data.results || [];
+                      return prev.map((placeholder, index) => {
+                        if (placeholder.status === 'loading' && results[index]) {
+                          return {
+                            ...results[index],
+                            id: placeholder.id, // Keep original placeholder id
+                            title: placeholder.title
+                          };
+                        }
+                        return placeholder;
+                      });
+                    });
                     await refetchCredits();
                   }
                 }
               } catch (error) {
                 console.error('Error checking final status:', error);
-                // State is already reset above
               }
             }, 1000);
 
-            return; // Skip the regular status check below
+            return;
+          } else if (pollData.status === 'failed') {
+            // Generation failed
+            setIsGenerating(false);
+            clearTimersAndResetState();
+            setButtonMessage('Generate Thumbnail');
+            alert('Thumbnail generation failed. Please try again.');
+            return;
           }
         }
 
-        // Then check database status
+        // Also check database status for any updates
         const response = await fetch(`/api/youtube-thumbnail/status/${taskId}`);
         if (response.ok) {
           const data = await response.json();
 
           if (data.status === 'completed') {
-            // Generation completed
+            // Generation completed via callback
             setIsGenerating(false);
-            setGeneratedThumbnails(data.results || []);
 
-            // Stop cycling and show completed message
+            // Update loading placeholders with actual results
+            setGeneratedThumbnails(prev => {
+              const results = data.results || [];
+              return prev.map((placeholder, index) => {
+                if (placeholder.status === 'loading' && results[index]) {
+                  return {
+                    ...results[index],
+                    id: placeholder.id, // Keep original placeholder id
+                    title: placeholder.title
+                  };
+                }
+                return placeholder;
+              });
+            });
+
             clearTimersAndResetState();
-
-            // Reset button to original state
             setButtonMessage('Generate Thumbnail');
-
-            // Refresh credits
             await refetchCredits();
-
           } else if (data.status === 'failed') {
             // Generation failed
             setIsGenerating(false);
-
             clearTimersAndResetState();
-
             setButtonMessage('Generate Thumbnail');
             alert('Thumbnail generation failed. Please try again.');
           }
-          // Continue polling if still processing
         }
       } catch (error) {
         console.error('Polling error:', error);
@@ -210,9 +233,18 @@ The colors of the text's background panel, the overall thumbnail background, and
     // Clear any existing timers
     clearTimersAndResetState();
 
-    // Reset state
+    // Reset state and create loading placeholders
     setIsGenerating(true);
-    setGeneratedThumbnails([]);
+
+    // Create loading placeholders for immediate visual feedback
+    const loadingThumbnails: ThumbnailRecord[] = Array.from({length: imageCount}, (_, index) => ({
+      id: `loading-${Date.now()}-${index}`,
+      title: title.trim(),
+      status: 'loading' as const,
+      downloaded: false,
+      createdAt: new Date().toISOString()
+    }));
+    setGeneratedThumbnails(loadingThumbnails);
 
     // Start message cycling
     messageCycleIntervalRef.current = startMessageCycling();
@@ -369,36 +401,39 @@ The colors of the text's background panel, the overall thumbnail background, and
                   </div>
 
                   {/* Generate Button */}
-                  <button
-                    onClick={handleGenerate}
-                    disabled={!canAffordGeneration || isGenerating || !selectedPhotoUrl || !title.trim()}
-                    className={`
-                      w-full flex items-center justify-center gap-3 px-6 py-3.5 rounded-lg
-                      text-sm font-medium transition-all duration-200 ease-out
-                      border border-transparent
-                      ${isGenerating
-                        ? 'bg-gray-700 text-white cursor-wait'
-                        : !canAffordGeneration || !selectedPhotoUrl || !title.trim()
-                        ? 'bg-gray-900 text-white opacity-40 cursor-not-allowed'
-                        : 'bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-950 cursor-pointer'
-                      }
-                      focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2
-                    `}
-                  >
-                    {/* Simple icon transition */}
-                    <div className="flex items-center justify-center w-4 h-4">
-                      {isGenerating ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Zap className="w-4 h-4" />
-                      )}
-                    </div>
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleGenerate}
+                      disabled={!canAffordGeneration || isGenerating || !selectedPhotoUrl || !title.trim()}
+                      className={`
+                        w-full flex items-center justify-center gap-3 px-6 py-3.5 rounded-lg
+                        text-sm font-medium transition-all duration-200 ease-out
+                        border border-transparent
+                        ${isGenerating
+                          ? 'bg-gray-700 text-white cursor-wait'
+                          : !canAffordGeneration || !selectedPhotoUrl || !title.trim()
+                          ? 'bg-gray-900 text-white opacity-40 cursor-not-allowed'
+                          : 'bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-950 cursor-pointer'
+                        }
+                        focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2
+                      `}
+                    >
+                      {/* Simple icon transition */}
+                      <div className="flex items-center justify-center w-4 h-4">
+                        {isGenerating ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Zap className="w-4 h-4" />
+                        )}
+                      </div>
 
-                    {/* Clean text transition */}
-                    <span className="transition-opacity duration-150">
-                      {buttonMessage}
-                    </span>
-                  </button>
+                      {/* Clean text transition */}
+                      <span className="transition-opacity duration-150">
+                        {buttonMessage}
+                      </span>
+                    </button>
+
+                  </div>
 
 
                 </div>
@@ -429,6 +464,17 @@ The colors of the text's background panel, the overall thumbnail background, and
                             maxRetries={8}
                             retryDelay={1500}
                           />
+                        ) : thumbnail.status === 'loading' ? (
+                          // Enhanced loading state with skeleton effect
+                          <div className="w-full h-full relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-pulse"></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="flex flex-col items-center gap-2">
+                                <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+                                <span className="text-xs text-gray-500 font-medium">Generating...</span>
+                              </div>
+                            </div>
+                          </div>
                         ) : (
                           <div className="flex items-center justify-center h-full">
                             <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />

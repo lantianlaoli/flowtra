@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@clerk/nextjs/server';
-import { getSupabase } from '@/lib/supabase';
-import { THUMBNAIL_CREDIT_COST } from '@/lib/constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,7 +33,6 @@ export async function POST(request: NextRequest) {
     const kieResult = await kieResponse.json();
     console.log('KIE poll result:', JSON.stringify(kieResult, null, 2));
 
-    const supabase = getSupabase();
 
     // Check if task is completed
     if (kieResult.code === 200 && kieResult.data) {
@@ -48,186 +45,47 @@ export async function POST(request: NextRequest) {
         const thumbnailUrls = resultData.resultUrls;
 
         if (thumbnailUrls && thumbnailUrls.length > 0) {
-        console.log(`Task ${taskId} is finished with ${thumbnailUrls.length} results`);
+          console.log(`Task ${taskId} is finished with ${thumbnailUrls.length} results`);
 
-        // Get existing records
-        const { data: records, error: findError } = await supabase
-          .from('thumbnail_history')
-          .select('*')
-          .eq('task_id', taskId)
-          .eq('user_id', userId);
-
-        if (findError || !records || records.length === 0) {
-          return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-        }
-
-        // Check if task is already fully processed by webhook
-        const webhookProcessedRecords = records.filter(r => r.processed_by === 'webhook');
-        const webhookCompletedCount = webhookProcessedRecords.filter(r => r.status === 'completed').length;
-        const totalExpectedCount = thumbnailUrls.length;
-
-        if (webhookProcessedRecords.length > 0) {
-          console.log(`Task ${taskId}: Found ${webhookProcessedRecords.length} webhook-processed records, ${webhookCompletedCount} completed`);
-
-          // If webhook has fully processed all expected thumbnails, skip polling
-          if (webhookCompletedCount === totalExpectedCount) {
-            console.log(`Task ${taskId} fully completed by webhook (${webhookCompletedCount}/${totalExpectedCount}), skipping polling`);
-            return NextResponse.json({
-              success: true,
-              message: 'Task fully completed by webhook',
-              resultsCount: webhookCompletedCount
-            });
-          }
-
-          // If webhook processed some but not all, or some failed, continue with polling for remaining
-          console.log(`Task ${taskId} partially processed by webhook, continuing polling for remaining thumbnails`);
-        }
-
-        // Check if task is already completed
-        const completedRecords = records.filter(r => r.status === 'completed');
-        if (completedRecords.length === thumbnailUrls.length) {
-          console.log(`Task ${taskId} already completed with ${completedRecords.length} thumbnails`);
           return NextResponse.json({
             success: true,
-            message: 'Task already completed',
-            resultsCount: completedRecords.length
+            status: 'completed',
+            message: 'Task completed successfully',
+            resultsCount: thumbnailUrls.length,
+            progress: 100
           });
         }
-
-        console.log(`Found ${records.length} existing records, ${completedRecords.length} completed`);
-        const existingRecord = records[0];
-
-        // If we need more records than exist, create them first
-        const recordsNeeded = thumbnailUrls.length;
-        const recordsToProcess = [...records];
-
-        // Create additional records if needed
-        if (records.length < recordsNeeded) {
-          const recordsToCreate = recordsNeeded - records.length;
-          console.log(`Creating ${recordsToCreate} additional records for multiple thumbnails`);
-
-          for (let i = 0; i < recordsToCreate; i++) {
-            try {
-              const { data: newRecord, error: insertError } = await supabase
-                .from('thumbnail_history')
-                .insert({
-                  user_id: existingRecord.user_id,
-                  task_id: taskId,
-                  identity_image_url: existingRecord.identity_image_url,
-                  title: existingRecord.title,
-                  status: 'processing',
-                  credits_cost: THUMBNAIL_CREDIT_COST, // Each thumbnail has individual credit cost
-                  processed_by: 'polling' // Mark as polling processed
-                })
-                .select()
-                .single();
-
-              if (insertError) {
-                console.error(`Failed to create additional record ${i + 1}:`, insertError);
-                continue;
-              }
-
-              recordsToProcess.push(newRecord);
-            } catch (error) {
-              console.error(`Error creating additional record ${i + 1}:`, error);
-            }
-          }
-        }
-
-        // Process results with available records, skipping webhook-processed ones
-        console.log(`Processing ${thumbnailUrls.length} thumbnails with ${recordsToProcess.length} records`);
-
-        let processedCount = 0;
-        for (let i = 0; i < thumbnailUrls.length && i < recordsToProcess.length; i++) {
-          const thumbnailUrl = thumbnailUrls[i];
-          const recordToUpdate = recordsToProcess[i];
-          console.log(`Processing thumbnail ${i + 1}/${thumbnailUrls.length}: ${thumbnailUrl}`);
-
-          // Skip if record is already completed or processed by webhook
-          if (recordToUpdate.status === 'completed' && recordToUpdate.thumbnail_url) {
-            console.log(`Record ${recordToUpdate.id} already completed, skipping`);
-            continue;
-          }
-
-          // Skip if already processed by webhook (even if not completed, to avoid conflicts)
-          if (recordToUpdate.processed_by === 'webhook') {
-            console.log(`Record ${recordToUpdate.id} already processed by webhook, skipping`);
-            continue;
-          }
-
-          try {
-            // Store thumbnail URL directly from KIE (no need to download/upload)
-            console.log(`💾 Storing thumbnail ${i + 1} URL directly: ${thumbnailUrl}`);
-
-            // Update record
-            const { error: updateError } = await supabase
-              .from('thumbnail_history')
-              .update({
-                thumbnail_url: thumbnailUrl,
-                status: 'completed',
-                processed_by: 'polling',
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', recordToUpdate.id);
-
-            if (updateError) {
-              console.error(`Failed to update record ${recordToUpdate.id}:`, updateError);
-            } else {
-              console.log(`Successfully processed thumbnail ${i + 1}`);
-              processedCount++;
-            }
-
-          } catch (error) {
-            console.error(`Error processing thumbnail ${i + 1}:`, error);
-
-            // Mark as failed
-            await supabase
-              .from('thumbnail_history')
-              .update({
-                status: 'failed',
-                error_message: error instanceof Error ? error.message : 'Processing failed',
-                processed_by: 'polling',
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', recordToUpdate.id);
-          }
-        }
-
-        console.log(`Polling completed: processed ${processedCount} new thumbnails`);
-
-        return NextResponse.json({
-          success: true,
-          message: `Successfully processed ${processedCount} thumbnails via polling`,
-          resultsCount: thumbnailUrls.length,
-          newlyProcessed: processedCount
-        });
-
-        }
       } else if (taskData.state === 'failed') {
-        // Mark task as failed
-        await supabase
-          .from('thumbnail_history')
-          .update({
-            status: 'failed',
-            error_message: taskData.failMsg || 'Task failed',
-            processed_by: 'polling',
-            updated_at: new Date().toISOString()
-          })
-          .eq('task_id', taskId)
-          .eq('user_id', userId);
-
         return NextResponse.json({
           success: false,
+          status: 'failed',
           message: 'Task failed',
-          error: taskData.failMsg
+          error: taskData.failMsg || 'Task failed',
+          progress: 0
         });
 
       } else {
-        // Still processing
+        // Still processing - calculate progress based on state
+        let progress = 0;
+        switch (taskData.state) {
+          case 'queuing':
+            progress = 10;
+            break;
+          case 'running':
+            progress = 50;
+            break;
+          case 'uploading':
+            progress = 80;
+            break;
+          default:
+            progress = 30;
+        }
+
         return NextResponse.json({
           success: true,
           status: 'processing',
-          message: `Task status: ${taskData.state}`
+          message: `Task status: ${taskData.state}`,
+          progress
         });
       }
     } else {

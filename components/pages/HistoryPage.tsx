@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
@@ -81,6 +81,8 @@ export default function HistoryPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<'all' | 'completed' | 'processing' | 'failed'>('all');
   const [contentFilter, setContentFilter] = useState<'all' | 'video-ads' | 'youtube-thumbnails'>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
@@ -100,6 +102,54 @@ export default function HistoryPage() {
     setSelectedModel(model);
   };
 
+  // Memoized filtered history for better performance
+  const filteredHistory = useMemo(() => {
+    return history.filter(item => {
+      // Status filter
+      const statusMatch = filter === 'all' || item.status === filter;
+
+      // Content type filter
+      let contentMatch = true;
+      if (contentFilter === 'video-ads') {
+        contentMatch = !isYoutubeThumbnail(item);
+      } else if (contentFilter === 'youtube-thumbnails') {
+        contentMatch = isYoutubeThumbnail(item);
+      }
+
+      return statusMatch && contentMatch;
+    });
+  }, [history, filter, contentFilter]);
+
+  // Memoized pagination calculations
+  const { totalPages, currentHistory } = useMemo(() => {
+    const total = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const current = filteredHistory.slice(startIndex, endIndex);
+
+    return {
+      totalPages: total,
+      currentHistory: current
+    };
+  }, [filteredHistory, currentPage]);
+
+  // Memoized goToPage function
+  const goToPage = useCallback((page: number) => {
+    const newPage = Math.max(1, Math.min(page, totalPages));
+    setCurrentPage(newPage);
+
+    // Show new items progressively when page changes
+    const startIndex = (newPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const pageItems = filteredHistory.slice(startIndex, endIndex);
+
+    pageItems.forEach((item, index) => {
+      setTimeout(() => {
+        setVisibleItems(prev => new Set([...prev, item.id]));
+      }, index * 100);
+    });
+  }, [totalPages, filteredHistory]);
+
   // Redirect if not authenticated
   useEffect(() => {
     if (isLoaded && !user) {
@@ -111,14 +161,18 @@ export default function HistoryPage() {
     const fetchHistory = async () => {
       if (!user?.id) return;
 
+      setIsLoading(true);
       try {
-        // Fetch regular video ads
-        const videoResponse = await fetch('/api/history');
-        const videoResult = await videoResponse.json();
+        // Fetch both APIs in parallel
+        const [videoResponse, thumbnailResponse] = await Promise.all([
+          fetch('/api/history'),
+          fetch('/api/youtube-thumbnail/history')
+        ]);
 
-        // Fetch YouTube thumbnails
-        const thumbnailResponse = await fetch('/api/youtube-thumbnail/history');
-        const thumbnailResult = await thumbnailResponse.json();
+        const [videoResult, thumbnailResult] = await Promise.all([
+          videoResponse.json(),
+          thumbnailResponse.json()
+        ]);
 
         let combinedHistory: HistoryItem[] = [];
 
@@ -143,13 +197,28 @@ export default function HistoryPage() {
         });
 
         setHistory(combinedHistory);
+
+        // Reset visible items when data changes
+        setVisibleItems(new Set());
+
+        // Progressively show items with staggered animation
+        if (combinedHistory.length > 0) {
+          combinedHistory.slice(0, Math.min(currentPage * ITEMS_PER_PAGE, combinedHistory.length)).forEach((item, index) => {
+            setTimeout(() => {
+              setVisibleItems(prev => new Set([...prev, item.id]));
+            }, index * 100); // 100ms delay between each item
+          });
+        }
       } catch (error) {
         console.error('Error fetching history:', error);
         setHistory([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Poll for processing updates while there are in-progress items
@@ -223,31 +292,6 @@ export default function HistoryPage() {
     );
   }
 
-  // Not authenticated
-  if (!user) {
-    return null;
-  }
-
-  const filteredHistory = history.filter(item => {
-    // Status filter
-    const statusMatch = filter === 'all' || item.status === filter;
-
-    // Content type filter
-    let contentMatch = true;
-    if (contentFilter === 'video-ads') {
-      contentMatch = !isYoutubeThumbnail(item);
-    } else if (contentFilter === 'youtube-thumbnails') {
-      contentMatch = isYoutubeThumbnail(item);
-    }
-
-    return statusMatch && contentMatch;
-  });
-
-  // Pagination
-  const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const currentHistory = filteredHistory.slice(startIndex, endIndex);
   
 
 
@@ -643,10 +687,6 @@ export default function HistoryPage() {
     }
   };
 
-  const goToPage = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
-  };
-
   // Note: Cover button is always free and uses static icon in the UI.
 
   return (
@@ -735,7 +775,23 @@ export default function HistoryPage() {
           </div>
 
           {/* Projects Grid */}
-          {filteredHistory.length === 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="bg-white rounded-lg border border-gray-200 overflow-hidden animate-pulse">
+                  <div className="aspect-video bg-gray-200"></div>
+                  <div className="p-4">
+                    <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-3/4 mb-3"></div>
+                    <div className="flex items-center justify-between">
+                      <div className="h-6 bg-gray-200 rounded w-16"></div>
+                      <div className="h-8 bg-gray-200 rounded w-20"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredHistory.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <FileVideo className="w-6 h-6 text-gray-400" />
@@ -754,7 +810,16 @@ export default function HistoryPage() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {currentHistory.map((item) => (
-                  <div key={item.id} className="relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-all duration-200 hover:shadow-md flex flex-col">
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{
+                      opacity: visibleItems.has(item.id) ? 1 : 0,
+                      y: visibleItems.has(item.id) ? 0 : 20
+                    }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                    className="relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-all duration-200 hover:shadow-md flex flex-col"
+                  >
                     <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none z-20">
                       <div className="flex items-center gap-1">
                         <span
@@ -1167,7 +1232,7 @@ export default function HistoryPage() {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
 

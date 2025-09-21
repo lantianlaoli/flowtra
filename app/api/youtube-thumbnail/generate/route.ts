@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabase();
 
-    // Check user credits (cost increases with image count)
+    // Check user credits (cost increases with image count) - but don't deduct yet
     const totalCreditsCost = THUMBNAIL_CREDIT_COST * imageCount;
     const { data: userCredits, error: creditsError } = await supabase
       .from('user_credits')
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     const taskId = kieResult.data.taskId;
 
-    // Create record in database
+    // Create record in database - no credits deducted at generation time
     const { error: insertError } = await supabase
       .from('thumbnail_history')
       .insert({
@@ -123,7 +123,8 @@ export async function POST(request: NextRequest) {
         identity_image_url: identityImageUrl,
         title: title,
         status: 'processing',
-        credits_cost: THUMBNAIL_CREDIT_COST
+        credits_cost: THUMBNAIL_CREDIT_COST, // Store cost for later use during download
+        downloaded: false // Not downloaded yet
       });
 
     if (insertError) {
