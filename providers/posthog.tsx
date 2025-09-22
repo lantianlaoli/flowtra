@@ -8,11 +8,38 @@ import { PostHogProvider } from 'posthog-js/react'
 
 export function PHProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
+    const sessionReplayEnabled = process.env.NEXT_PUBLIC_POSTHOG_SESSION_REPLAY_ENABLED === 'true'
+    const sampleRate = parseFloat(process.env.NEXT_PUBLIC_POSTHOG_SESSION_REPLAY_SAMPLE_RATE || '0.1')
+
     posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
       api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
       person_profiles: 'identified_only',
       capture_pageview: false,
       capture_pageleave: true,
+      session_recording: sessionReplayEnabled ? {
+        recordCrossOriginIframes: false,
+        maskAllInputs: true,
+        maskAllText: false,
+        maskInputOptions: {
+          password: true,
+          email: true,
+        },
+        maskTextSelector: '.ph-mask-text, .sensitive-info',
+        maskInputSelector: '.ph-mask-input, .sensitive-input',
+      } as any : undefined,
+      loaded: (posthog) => {
+        if (process.env.NODE_ENV === 'development') {
+          posthog.debug()
+        }
+
+        if (sessionReplayEnabled) {
+          posthog.startSessionRecording()
+
+          if (Math.random() > sampleRate) {
+            posthog.stopSessionRecording()
+          }
+        }
+      }
     })
   }, [])
 
