@@ -157,7 +157,6 @@ export const uploadImageToStorage = async (file: File, filename?: string) => {
 
 // Upload identity image for YouTube thumbnail generation
 export const uploadIdentityImageToStorage = async (file: File, userId: string) => {
-  const fileExt = file.name.split('.').pop()
   const fileName = `${userId}_${Date.now()}_${file.name}`
   const filePath = `identity/${fileName}`
 
@@ -249,7 +248,6 @@ export function extractExcerpt(content: string, maxLength: number = 160): string
 export const uploadUserPhotoToStorage = async (file: File, userId: string) => {
   console.log(`[uploadUserPhotoToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes)`);
 
-  const fileExt = file.name.split('.').pop()
   const fileName = `${userId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
   const filePath = `user-photos/${fileName}`
 

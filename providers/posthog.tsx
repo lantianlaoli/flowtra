@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname, useSearchParams } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { useUser } from '@clerk/nextjs'
 import posthog from 'posthog-js'
 import { PostHogProvider } from 'posthog-js/react'
@@ -19,7 +19,7 @@ export function PHProvider({ children }: { children: React.ReactNode }) {
   return <PostHogProvider client={posthog}>{children}</PostHogProvider>
 }
 
-export function PostHogPageView() {
+function PostHogPageViewInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { user } = useUser()
@@ -47,4 +47,12 @@ export function PostHogPageView() {
   }, [user])
 
   return <></>
+}
+
+export function PostHogPageView() {
+  return (
+    <Suspense fallback={null}>
+      <PostHogPageViewInner />
+    </Suspense>
+  )
 }
