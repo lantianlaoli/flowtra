@@ -5,6 +5,7 @@ import { UserInitializer } from '@/components/UserInitializer'
 import { CreditsProvider } from '@/contexts/CreditsContext'
 import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
+import { PHProvider, PostHogPageView } from '@/providers/posthog'
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -205,10 +206,13 @@ export default function RootLayout({
               gtag('config', 'G-CP7HSQFTCP');
             `}
           </Script>
-          <CreditsProvider>
-            <UserInitializer />
-            {children}
-          </CreditsProvider>
+          <PHProvider>
+            <CreditsProvider>
+              <UserInitializer />
+              <PostHogPageView />
+              {children}
+            </CreditsProvider>
+          </PHProvider>
           <Analytics />
           <SpeedInsights />
         </body>
