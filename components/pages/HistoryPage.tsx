@@ -558,7 +558,7 @@ export default function HistoryPage() {
     }
 
     try {
-      const response = await fetch(`/api/v2/download-content/${instanceId}`, {
+      const response = await fetch(`/api/multi-variant-ads/${instanceId}/download`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -693,7 +693,7 @@ export default function HistoryPage() {
         userImageUrl={user?.imageUrl}
       />
       
-      <div className="ml-64 bg-gray-50 min-h-screen">
+      <div className="ml-72 bg-gray-50 min-h-screen">
         <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">

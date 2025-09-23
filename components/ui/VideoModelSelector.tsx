@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check, Lock, Coins } from 'lucide-react';
+import { ChevronDown, Check, Lock, Coins, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CREDIT_COSTS, canAffordModel, getAutoModeSelection, getProcessingTime } from '@/lib/constants';
 
@@ -11,6 +11,8 @@ interface VideoModelSelectorProps {
   onModelChange: (model: 'auto' | 'veo3' | 'veo3_fast') => void;
   label?: string;
   className?: string;
+  showIcon?: boolean;
+  hideCredits?: boolean;
 }
 
 export default function VideoModelSelector({
@@ -18,10 +20,13 @@ export default function VideoModelSelector({
   selectedModel,
   onModelChange,
   label = 'Video Model',
-  className
+  className,
+  showIcon = false,
+  hideCredits = false
 }: VideoModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const optionsRef = useRef<HTMLDivElement>(null);
 
   // Model options for dropdown with credit costs and processing times
   const getModelOptions = () => {
@@ -34,7 +39,8 @@ export default function VideoModelSelector({
         cost: autoSelection ? CREDIT_COSTS[autoSelection] : CREDIT_COSTS.veo3_fast,
         processingTime: autoSelection ? getProcessingTime(autoSelection) : '2-3 min',
         affordable: canAffordModel(credits, 'auto'),
-        showCost: !!autoSelection
+        showCost: !!autoSelection && !hideCredits,
+        features: 'Smart selection'
       },
       {
         value: 'veo3',
@@ -43,7 +49,8 @@ export default function VideoModelSelector({
         cost: CREDIT_COSTS.veo3,
         processingTime: getProcessingTime('veo3'),
         affordable: canAffordModel(credits, 'veo3'),
-        showCost: true
+        showCost: !hideCredits,
+        features: 'Premium quality'
       },
       {
         value: 'veo3_fast',
@@ -52,7 +59,8 @@ export default function VideoModelSelector({
         cost: CREDIT_COSTS.veo3_fast,
         processingTime: getProcessingTime('veo3_fast'),
         affordable: canAffordModel(credits, 'veo3_fast'),
-        showCost: true
+        showCost: !hideCredits,
+        features: 'Fast processing'
       }
     ];
   };
@@ -71,6 +79,29 @@ export default function VideoModelSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Adjust dropdown position to prevent overflow
+  useEffect(() => {
+    if (isOpen && optionsRef.current) {
+      const options = optionsRef.current;
+      const rect = options.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      // Reset positioning
+      options.style.top = '';
+      options.style.bottom = '';
+      options.style.marginTop = '';
+      options.style.marginBottom = '';
+      
+      // If dropdown would overflow bottom, position it above
+      if (rect.bottom > viewportHeight && rect.top > rect.height) {
+        options.style.top = 'auto';
+        options.style.bottom = '100%';
+        options.style.marginTop = '0';
+        options.style.marginBottom = '0.25rem';
+      }
+    }
+  }, [isOpen]);
+
   const selectedOption = modelOptions.find(opt => opt.value === selectedModel);
 
   const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast', affordable: boolean) => {
@@ -86,7 +117,8 @@ export default function VideoModelSelector({
 
   return (
     <div className={cn("space-y-3", className)} ref={dropdownRef}>
-      <label className="block text-sm font-medium text-gray-900">
+      <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+        {showIcon && <Video className="w-4 h-4" />}
         {label}
       </label>
       <div className="relative">
@@ -103,7 +135,10 @@ export default function VideoModelSelector({
 
         {/* Custom Dropdown Options */}
         {isOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md overflow-hidden z-50">
+          <div 
+            ref={optionsRef}
+            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto"
+          >
             {modelOptions.map((option) => (
               <button
                 key={option.value}
@@ -121,7 +156,15 @@ export default function VideoModelSelector({
               >
                 <div className="flex items-center justify-between flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{option.label}</span>
+                    <div>
+                      <span className="font-medium">{option.label}</span>
+                      {option.features && !hideCredits && (
+                        <div className="text-xs text-gray-500">{option.features}</div>
+                      )}
+                      {hideCredits && option.features && (
+                        <div className="text-xs text-gray-500">{option.features}</div>
+                      )}
+                    </div>
                     {!option.affordable && (
                       <Lock className="w-3 h-3 text-gray-400" />
                     )}

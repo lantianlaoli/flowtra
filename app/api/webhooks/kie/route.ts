@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { generateVideoDesignFromCover } from '@/lib/workflow-v2';
+import { generateVideoDesignFromCover } from '@/lib/multi-variant-ads-workflow';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 interface KieCallbackData {
@@ -338,8 +338,8 @@ async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCall
     // Generate video design using OpenRouter with the cover image
     const videoPrompt = await generateVideoDesignFromCover(
       coverImageUrl,
-      instance.elements_data,
-      instance.product_description
+      instance.elements_data || {},
+      instance.id
     );
 
     // Start video generation with designed prompt

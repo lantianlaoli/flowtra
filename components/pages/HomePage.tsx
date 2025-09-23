@@ -114,7 +114,7 @@ export default function HomePage() {
         userImageUrl={user?.imageUrl}
       />
       
-      <div className="ml-64 bg-gray-50 min-h-screen">
+      <div className="ml-72 bg-gray-50 min-h-screen">
         <div className="p-8 max-w-7xl mx-auto">
           {/* Header Section */}
           <div className="mb-8">
@@ -323,7 +323,7 @@ export default function HomePage() {
                     Let AI help you craft your first professional advertisement video that converts viewers into customers.
                   </p>
                   <Link
-                    href="/dashboard/generate"
+                    href="/dashboard/standard-ads"
                     className="inline-flex items-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-xl hover:bg-gray-800 transition-colors font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-1"
                   >
                     <Zap className="w-5 h-5" />

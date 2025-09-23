@@ -313,7 +313,7 @@ The colors of the text's background panel, the overall thumbnail background, and
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="ml-64 bg-gray-50 min-h-screen">
+      <div className="ml-72 bg-gray-50 min-h-screen">
         <div className="p-8 max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-6">

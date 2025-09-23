@@ -57,8 +57,8 @@ export interface Article {
   created_at: string
 }
 
-// Database types for user_history table
-export interface UserHistory {
+// Database types for single_video_projects table
+export interface SingleVideoProject {
   id: string
   user_id: string
   original_image_url: string
@@ -75,6 +75,36 @@ export interface UserHistory {
   cover_image_size?: string | null
   created_at: string
   updated_at: string
+}
+
+// Database types for multi_variant_projects table
+export interface MultiVariantProject {
+  id: string
+  user_id: string
+  elements_data?: Record<string, unknown>
+  cover_task_id?: string
+  video_task_id?: string
+  cover_image_url?: string
+  video_url?: string
+  status: 'pending' | 'generating_cover' | 'generating_video' | 'completed' | 'failed'
+  current_step: 'waiting' | 'generating_cover' | 'generating_video' | 'completed'
+  credits_cost: number
+  downloaded: boolean
+  error_message?: string
+  created_at: string
+  updated_at: string
+  last_processed_at?: string
+  progress_percentage?: number
+  original_image_url?: string
+  product_description?: Record<string, unknown>
+  video_model?: string
+  download_credits_used: number
+  watermark_text?: string
+  watermark_location?: string
+  cover_image_size?: string
+  image_prompt?: Record<string, unknown>
+  photo_only: boolean
+  project_type?: string
 }
 
 // Database types for user_photos table
@@ -96,10 +126,15 @@ export type Database = {
         Insert: Omit<UserCredits, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<UserCredits, 'id' | 'created_at' | 'updated_at'>>
       }
-      user_history: {
-        Row: UserHistory
-        Insert: Omit<UserHistory, 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Omit<UserHistory, 'id' | 'created_at' | 'updated_at'>>
+      single_video_projects: {
+        Row: SingleVideoProject
+        Insert: Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>>
+      }
+      multi_variant_projects: {
+        Row: MultiVariantProject
+        Insert: Omit<MultiVariantProject, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<MultiVariantProject, 'id' | 'created_at' | 'updated_at'>>
       }
       user_photos: {
         Row: UserPhoto

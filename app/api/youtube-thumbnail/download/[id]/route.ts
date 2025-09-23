@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@clerk/nextjs/server';
 import { getSupabase } from '@/lib/supabase';
-import { THUMBNAIL_CREDIT_COST } from '@/lib/constants';
+// import { THUMBNAIL_CREDIT_COST } from '@/lib/constants';
 
 export async function POST(
   request: NextRequest,

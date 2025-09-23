@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { IMAGE_CREDIT_COSTS, canAffordImageModel, getAutoImageModeSelection, getImageProcessingTime } from '@/lib/constants';
 
@@ -11,6 +11,7 @@ interface ImageModelSelectorProps {
   onModelChange: (model: 'auto' | 'nano_banana' | 'seedream') => void;
   label?: string;
   className?: string;
+  showIcon?: boolean;
 }
 
 export default function ImageModelSelector({
@@ -18,10 +19,12 @@ export default function ImageModelSelector({
   selectedModel,
   onModelChange,
   label = 'Image Model',
-  className
+  className,
+  showIcon = false
 }: ImageModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const optionsRef = useRef<HTMLDivElement>(null);
 
   // Model options for dropdown with credit costs and processing times
   const getModelOptions = () => {
@@ -34,7 +37,8 @@ export default function ImageModelSelector({
         cost: IMAGE_CREDIT_COSTS[autoSelection],
         processingTime: getImageProcessingTime(autoSelection),
         affordable: canAffordImageModel(credits || 0, 'auto'),
-        showCost: false // Don't show cost for auto since it's free
+        showCost: false, // Don't show cost for auto since it's free
+        features: 'Smart selection'
       },
       {
         value: 'nano_banana',
@@ -43,7 +47,8 @@ export default function ImageModelSelector({
         cost: IMAGE_CREDIT_COSTS.nano_banana,
         processingTime: getImageProcessingTime('nano_banana'),
         affordable: canAffordImageModel(credits || 0, 'nano_banana'),
-        showCost: false // Free
+        showCost: false, // Free
+        features: 'Fast generation'
       },
       {
         value: 'seedream',
@@ -52,7 +57,8 @@ export default function ImageModelSelector({
         cost: IMAGE_CREDIT_COSTS.seedream,
         processingTime: getImageProcessingTime('seedream'),
         affordable: canAffordImageModel(credits || 0, 'seedream'),
-        showCost: false // Free
+        showCost: false, // Free
+        features: 'High quality'
       }
     ];
   };
@@ -71,6 +77,29 @@ export default function ImageModelSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Adjust dropdown position to prevent overflow
+  useEffect(() => {
+    if (isOpen && optionsRef.current) {
+      const options = optionsRef.current;
+      const rect = options.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      // Reset positioning
+      options.style.top = '';
+      options.style.bottom = '';
+      options.style.marginTop = '';
+      options.style.marginBottom = '';
+      
+      // If dropdown would overflow bottom, position it above
+      if (rect.bottom > viewportHeight && rect.top > rect.height) {
+        options.style.top = 'auto';
+        options.style.bottom = '100%';
+        options.style.marginTop = '0';
+        options.style.marginBottom = '0.25rem';
+      }
+    }
+  }, [isOpen]);
+
   const selectedOption = modelOptions.find(opt => opt.value === selectedModel);
 
   const handleOptionSelect = (value: 'auto' | 'nano_banana' | 'seedream', affordable: boolean) => {
@@ -86,7 +115,8 @@ export default function ImageModelSelector({
 
   return (
     <div className={cn("space-y-3", className)} ref={dropdownRef}>
-      <label className="block text-sm font-medium text-gray-900">
+      <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+        {showIcon && <ImageIcon className="w-4 h-4" />}
         {label}
       </label>
       <div className="relative">
@@ -103,7 +133,10 @@ export default function ImageModelSelector({
 
         {/* Custom Dropdown Options */}
         {isOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md overflow-hidden z-50">
+          <div 
+            ref={optionsRef}
+            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto"
+          >
             {modelOptions.map((option) => (
               <button
                 key={option.value}
@@ -123,17 +156,9 @@ export default function ImageModelSelector({
                   <div className="flex items-center gap-2">
                     <div>
                       <span className="font-medium">{option.label}</span>
-                      {option.description && (
-                        <div className="text-xs text-gray-500">{option.description}</div>
+                      {option.features && (
+                        <div className="text-xs text-gray-500">{option.features}</div>
                       )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-xs font-medium text-green-600">
-                      Free
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {option.processingTime}
                     </div>
                   </div>
                 </div>

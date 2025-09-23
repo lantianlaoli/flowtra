@@ -32,7 +32,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     // Get the history record
     const supabase = getSupabase();
     const { data: historyRecord, error: historyError } = await supabase
-      .from('user_history')
+      .from('single_video_projects')
       .select('*')
       .eq('id', historyId)
       .eq('user_id', userId)
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
 
       // Update the history record to mark as downloaded
       const { error: updateError } = await supabase
-        .from('user_history')
+        .from('single_video_projects')
         .update({
           downloaded: true,
           download_credits_used: downloadCost,

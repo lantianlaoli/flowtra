@@ -127,7 +127,7 @@ export default function LandingPage() {
         if (!cancelled && data?.success) {
           setUserCount(typeof data.count === 'number' ? data.count : 0);
         }
-      } catch (_) {
+      } catch {
         if (!cancelled) setUserCount(null);
       }
     })();

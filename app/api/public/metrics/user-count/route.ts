@@ -13,7 +13,7 @@ export async function GET() {
     // If you later want to fetch real metrics, add try/catch here.
     // For now, always return fallback quickly to avoid blocking UI.
     return NextResponse.json({ success: true, count: fallback })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: true, count: 19 })
   }
 }

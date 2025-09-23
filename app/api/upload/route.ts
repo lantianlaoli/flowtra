@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const uploadResult = await uploadImageToStorage(file);
 
     // Only upload the file, don't start workflow yet
-    // The workflow will be started later via /api/start-workflow with watermark config
+    // The workflow will be started later via the appropriate ads API with watermark config
     console.log('File uploaded successfully, waiting for user configuration...');
 
     return NextResponse.json({

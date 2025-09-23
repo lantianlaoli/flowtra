@@ -27,28 +27,28 @@ export async function GET() {
       successRate: 0
     };
 
-    // Query V1 history (user_history table)
+    // Query V1 history (single_video_projects table)
     type V1Row = { status: string; created_at: string; download_credits_used?: number | null };
     const { data: historyV1, error: errorV1 } = await supabase
-      .from('user_history')
+      .from('single_video_projects')
       .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
     if (errorV1) {
-      console.error('❌ Error querying user_history:', errorV1);
+      console.error('❌ Error querying single_video_projects:', errorV1);
     } else {
       console.log('📈 V1 History records:', historyV1?.length || 0);
     }
 
-    // Query V2 history (user_history_v2 table)
+    // Query V2 history (multi_variant_projects table)
     type V2Row = { status: string; created_at: string; download_credits_used?: number | null };
     const { data: historyV2, error: errorV2 } = await supabase
-      .from('user_history_v2')
+      .from('multi_variant_projects')
       .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
     if (errorV2) {
-      console.error('❌ Error querying user_history_v2:', errorV2);
+      console.error('❌ Error querying multi_variant_projects:', errorV2);
     } else {
       console.log('📈 V2 History records:', historyV2?.length || 0);
     }

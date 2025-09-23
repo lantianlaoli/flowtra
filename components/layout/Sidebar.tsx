@@ -11,7 +11,8 @@ import {
   Sparkles,
   Play,
   Layers,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Video
 } from 'lucide-react';
 import { LayoutGroup, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -30,14 +31,19 @@ const navigation = [
     icon: Home
   },
   {
-    name: 'Single Video Generator',
-    href: '/dashboard/single-video-generator',
+    name: 'Standard Ads',
+    href: '/dashboard/standard-ads',
     icon: Sparkles
   },
   {
-    name: 'Multi-Variant Generator',
-    href: '/dashboard/multi-variant-generator',
+    name: 'Multi-Variant Ads',
+    href: '/dashboard/multi-variant-ads',
     icon: Layers
+  },
+  {
+    name: 'Character Ads',
+    href: '/dashboard/character-ads',
+    icon: Video
   },
   {
     name: 'YouTube Thumbnail',
@@ -60,7 +66,7 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
   const pathname = usePathname();
 
   return (
-    <div className="w-64 bg-white border-r border-gray-300 h-screen flex flex-col fixed left-0 top-0">
+    <div className="w-72 bg-white border-r border-gray-300 h-screen flex flex-col fixed left-0 top-0">
       <div className="p-6 flex-1">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-3 mb-8 group">
@@ -147,7 +153,7 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
                     'relative z-10 w-4 h-4 transition-colors duration-150',
                     isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
                   )} />
-                  <span className="relative z-10 flex-1">{item.name}</span>
+                  <span className="relative z-10 flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{item.name}</span>
                   {('badge' in item) && (
                     <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
                       {(item as { badge: string }).badge}

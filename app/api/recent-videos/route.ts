@@ -14,9 +14,9 @@ export async function GET() {
 
     const supabase = getSupabase();
 
-    // Fetch latest completed video from V1 workflow (user_history)
+    // Fetch latest completed video from V1 workflow (single_video_projects)
     const { data: historyV1, error: errorV1 } = await supabase
-      .from('user_history')
+      .from('single_video_projects')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'completed')
@@ -24,9 +24,9 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(1);
 
-    // Fetch latest completed video from V2 workflow (user_history_v2)
+    // Fetch latest completed video from V2 workflow (multi_variant_projects)
     const { data: historyV2, error: errorV2 } = await supabase
-      .from('user_history_v2')
+      .from('multi_variant_projects')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'completed')
