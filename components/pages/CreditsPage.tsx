@@ -19,11 +19,6 @@ export default function CreditsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
-  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
-
-  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
-    setSelectedModel(model);
-  };
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -84,10 +79,8 @@ export default function CreditsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar 
+      <Sidebar
         credits={userCredits}
-        selectedModel={selectedModel}
-        onModelChange={handleModelChange}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />

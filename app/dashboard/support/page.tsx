@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -10,11 +9,6 @@ import { FaXTwitter, FaLinkedin, FaTiktok, FaThreads } from 'react-icons/fa6';
 export default function SupportPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
-  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
-
-  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
-    setSelectedModel(model);
-  };
 
   const contactLinks = [
     {
@@ -67,11 +61,10 @@ export default function SupportPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar 
+      <Sidebar
         credits={userCredits}
-        selectedModel={selectedModel}
-        onModelChange={handleModelChange}
         userEmail={user?.primaryEmailAddress?.emailAddress}
+        userImageUrl={user?.imageUrl}
       />
       
       <div className="ml-64 bg-gray-50 min-h-screen">

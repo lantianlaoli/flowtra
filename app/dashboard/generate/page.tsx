@@ -1,5 +1,5 @@
-import GenerateAdPage from '@/components/pages/GenerateAdPage';
+import SingleVideoGeneratorPage from '@/components/pages/SingleVideoGeneratorPage';
 
 export default function Generate() {
-  return <GenerateAdPage />;
+  return <SingleVideoGeneratorPage />;
 }

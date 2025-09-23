@@ -89,7 +89,6 @@ export default function HistoryPage() {
   const [downloadingVideo, setDownloadingVideo] = useState<string | null>(null);
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
   const [, setDownloadStates] = useState<Record<string, 'idle' | 'processing' | 'success'>>({});
   // Cover UI transient state: 'packing' -> 'done' -> cleared
   const [coverStates, setCoverStates] = useState<Record<string, 'packing' | 'done' | null>>({});
@@ -98,9 +97,6 @@ export default function HistoryPage() {
   // YouTube thumbnail UI transient state: 'packing' -> 'done' -> cleared
   const [youtubeThumbnailStates, setYoutubeThumbnailStates] = useState<Record<string, 'packing' | 'done' | null>>({});
 
-  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
-    setSelectedModel(model);
-  };
 
   // Memoized filtered history for better performance
   const filteredHistory = useMemo(() => {
@@ -691,10 +687,8 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar 
+      <Sidebar
         credits={userCredits}
-        selectedModel={selectedModel}
-        onModelChange={handleModelChange}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />

@@ -34,6 +34,21 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', '@heroicons/react', 'react-icons'],
   },
+  async redirects() {
+    return [
+      // Redirect old routes to new standard naming
+      {
+        source: '/dashboard/generate',
+        destination: '/dashboard/single-video-generator',
+        permanent: false,
+      },
+      {
+        source: '/dashboard/generate-v2',
+        destination: '/dashboard/multi-variant-generator',
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     const isDevelopment = process.env.NODE_ENV === 'development';
 

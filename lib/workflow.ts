@@ -1,13 +1,14 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { httpRequestWithRetry } from '@/lib/httpRequest';
-import { getCreditCost, CREDIT_COSTS } from '@/lib/constants';
+import { getCreditCost, CREDIT_COSTS, IMAGE_MODELS, getActualImageModel } from '@/lib/constants';
 import { getUserCredits } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
   imageUrl: string;
   userId?: string;
   videoModel?: 'veo3' | 'veo3_fast' | 'auto';
+  imageModel?: 'nano_banana' | 'seedream' | 'auto';
   watermark?: string;
   watermarkLocation?: string;
   imageSize?: string;
@@ -31,6 +32,7 @@ export async function startWorkflowProcess({
   imageUrl,
   userId,
   videoModel = 'veo3_fast',
+  imageModel = 'auto',
   watermark,
   watermarkLocation = 'bottom left',
   imageSize = 'auto',
@@ -42,6 +44,7 @@ export async function startWorkflowProcess({
       imageUrl,
       userId,
       videoModel,
+      imageModel,
       watermark,
       watermarkLocation,
       imageSize,
@@ -106,7 +109,7 @@ export async function startWorkflowProcess({
       }));
 
       const { data, error } = await supabase
-        .from('user_history')
+        .from('single_video_projects')
         .insert(recordsToInsert)
         .select();
 
@@ -161,7 +164,7 @@ export async function startWorkflowProcess({
           // Update record with prompts
           const supabase = getSupabaseAdmin();
           await supabase
-            .from('user_history')
+            .from('single_video_projects')
             .update({
               product_description: description,
               video_prompts: prompts.video_prompt,
@@ -185,12 +188,12 @@ export async function startWorkflowProcess({
         promptsArray.map(async ({ recordId, prompts }) => {
           await updateWorkflowProgress(recordId, 'generating_cover', 70, 'in_progress');
 
-          const coverTaskId = await generateCoverWithBanana(imageUrl, prompts.image_prompt, imageSize);
+          const coverTaskId = await generateCoverWithBanana(imageUrl, prompts.image_prompt, imageSize, imageModel);
 
           // Update record with cover task ID
           const supabase = getSupabaseAdmin();
           await supabase
-            .from('user_history')
+            .from('single_video_projects')
             .update({
               cover_task_id: coverTaskId,
               current_step: 'generating_cover',
@@ -226,7 +229,7 @@ export async function startWorkflowProcess({
       await Promise.all(
         historyRecords.map(record =>
           supabase
-            .from('user_history')
+            .from('single_video_projects')
             .update({
               status: 'failed',
               error_message: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -261,7 +264,7 @@ async function updateWorkflowProgress(historyId: string | undefined, step: strin
   const supabase = getSupabaseAdmin();
   
   await supabase
-    .from('user_history')
+    .from('single_video_projects')
     .update({
       current_step: step,
       progress_percentage: percentage,
@@ -533,10 +536,14 @@ function prepareImagePrompt(imagePrompt: string, watermark?: string, watermarkLo
   return sanitizedPrompt;
 }
 
-async function generateCoverWithBanana(originalImageUrl: string, imagePrompt: string, imageSize = 'auto'): Promise<string> {
-  // Build request payload to match KIE nano-banana-edit expectations
+async function generateCoverWithBanana(originalImageUrl: string, imagePrompt: string, imageSize = 'auto', imageModel: 'nano_banana' | 'seedream' | 'auto' = 'auto'): Promise<string> {
+  // Get the actual model to use
+  const actualModel = getActualImageModel(imageModel);
+  const modelEndpoint = IMAGE_MODELS[actualModel];
+
+  // Build request payload to match KIE expectations
   const requestBody: Record<string, unknown> = {
-    model: 'google/nano-banana-edit',
+    model: modelEndpoint,
     input: {
       prompt: imagePrompt,
       image_urls: [originalImageUrl],

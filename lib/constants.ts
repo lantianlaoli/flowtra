@@ -2,12 +2,31 @@
 export const CREDIT_COSTS = {
   'veo3_fast': 30,    // Veo3 Fast: 30 credits per video
   'veo3': 150,        // Veo3 High Quality: 150 credits per video
+  'download': 18,     // Download cost (60% of veo3_fast)
+} as const
+
+// Image models for cover generation
+export const IMAGE_MODELS = {
+  'nano_banana': 'google/nano-banana-edit',
+  'seedream': 'bytedance/seedream-v4-edit'
+} as const
+
+// Credit costs for different image models (all free)
+export const IMAGE_CREDIT_COSTS = {
+  'nano_banana': 0,    // Nano Banana: Free, fast generation
+  'seedream': 0,       // Seedream 4.0: Free, high quality generation
 } as const
 
 // Processing times for different video models
 export const MODEL_PROCESSING_TIMES = {
   'veo3_fast': '2-3 min',    // Veo3 Fast: 2-3 minutes processing time
   'veo3': '5-8 min',         // Veo3 High Quality: 5-8 minutes processing time
+} as const
+
+// Processing times for different image models
+export const IMAGE_PROCESSING_TIMES = {
+  'nano_banana': '1-2 min',    // Nano Banana: 1-2 minutes processing time
+  'seedream': '2-4 min',       // Seedream 4.0: 2-4 minutes processing time
 } as const
 
 // Package definitions based on price.md
@@ -91,13 +110,23 @@ export function getProcessingTime(model: keyof typeof MODEL_PROCESSING_TIMES): s
   return MODEL_PROCESSING_TIMES[model]
 }
 
-// Auto mode intelligent model selection based on user credits
+// Get processing time for image model
+export function getImageProcessingTime(model: keyof typeof IMAGE_PROCESSING_TIMES): string {
+  return IMAGE_PROCESSING_TIMES[model]
+}
+
+// Get credit cost for image model
+export function getImageCreditCost(model: keyof typeof IMAGE_CREDIT_COSTS): number {
+  return IMAGE_CREDIT_COSTS[model]
+}
+
+// Auto mode intelligent model selection based on user credits (prioritize fastest)
 export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' | null {
-  // Try from most expensive to cheapest
-  if (userCredits >= CREDIT_COSTS.veo3) {
-    return 'veo3'
-  } else if (userCredits >= CREDIT_COSTS.veo3_fast) {
+  // Prioritize fastest model first
+  if (userCredits >= CREDIT_COSTS.veo3_fast) {
     return 'veo3_fast'
+  } else if (userCredits >= CREDIT_COSTS.veo3) {
+    return 'veo3'
   } else {
     return null // Insufficient credits for any model
   }
@@ -117,6 +146,27 @@ export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast', use
     return getAutoModeSelection(userCredits)
   }
   return canAffordModel(userCredits, selectedModel) ? selectedModel : null
+}
+
+// Auto mode intelligent image model selection (prioritize fastest)
+export function getAutoImageModeSelection(): 'nano_banana' | 'seedream' {
+  // Always return fastest since all are free
+  return 'nano_banana'
+}
+
+// Check if user has sufficient credits for an image model (always true since free)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function canAffordImageModel(_userCredits: number, _model: 'auto' | 'nano_banana' | 'seedream'): boolean {
+  // All image models are free, so always affordable
+  return true
+}
+
+// Get the actual image model that will be used (resolves auto to specific model)
+export function getActualImageModel(selectedModel: 'auto' | 'nano_banana' | 'seedream'): 'nano_banana' | 'seedream' {
+  if (selectedModel === 'auto') {
+    return getAutoImageModeSelection()
+  }
+  return selectedModel
 }
 
 // Map product_id to credits and package info

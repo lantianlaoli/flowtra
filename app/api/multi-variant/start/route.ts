@@ -26,6 +26,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Video model is required when generating video' }, { status: 400 });
     }
 
+    console.log('🚀 Multi-variant workflow request received:', {
+      imageUrl,
+      userId,
+      videoModel,
+      imageModel,
+      elementsCount,
+      generateVideo: shouldGenerateVideo
+    });
+
     const result = await startV2Items({
       imageUrl,
       userId,
@@ -38,11 +47,15 @@ export async function POST(request: NextRequest) {
       imageSize,
       generateVideo
     });
+
     if (!result.success) {
-      return NextResponse.json({ error: result.error || 'Failed to start V2 items' }, { status: 500 });
+      console.error('❌ Multi-variant workflow failed:', result.error);
+      return NextResponse.json({ error: result.error || 'Failed to start multi-variant items' }, { status: 500 });
     }
+
     return NextResponse.json({ success: true, itemIds: result.itemIds });
   } catch (e) {
+    console.error('💥 Multi-variant API error:', e);
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unknown error' }, { status: 500 });
   }
 }

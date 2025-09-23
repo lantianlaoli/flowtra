@@ -231,7 +231,7 @@ async function handleSuccessCallback(taskId: string, data: KieCallbackData, supa
   try {
     // Try to find the workflow instance in V2 table first
     const { data: v2Instances, error: v2FindError } = await supabase
-      .from('user_history_v2')
+      .from('multi_variant_projects')
       .select('*')
       .eq('cover_task_id', taskId);
 
@@ -254,7 +254,7 @@ async function handleSuccessCallback(taskId: string, data: KieCallbackData, supa
 
     // If not found in V2, try V1 table
     const { data: v1Records, error: v1FindError } = await supabase
-      .from('user_history')
+      .from('single_video_projects')
       .select('*')
       .eq('cover_task_id', taskId);
 
@@ -327,7 +327,7 @@ async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCall
       }
 
       await supabase
-        .from('user_history_v2')
+        .from('multi_variant_projects')
         .update(updatePayload)
         .eq('id', instance.id);
 
@@ -364,7 +364,7 @@ async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCall
     }
 
     await supabase
-      .from('user_history_v2')
+      .from('multi_variant_projects')
       .update(updatePayload)
       .eq('id', instance.id);
 
@@ -375,7 +375,7 @@ async function handleV2CoverCompletion(instance: WorkflowInstance, data: KieCall
 
     // Mark instance as failed
     await supabase
-      .from('user_history_v2')
+      .from('multi_variant_projects')
       .update({
         status: 'failed',
         error_message: error instanceof Error ? error.message : 'Cover completion processing failed',
@@ -408,7 +408,7 @@ async function handleV1CoverCompletion(record: V1WorkflowRecord, data: KieCallba
     // If photo_only flag is set, complete without video
     if (record.photo_only === true) {
       await supabase
-        .from('user_history')
+        .from('single_video_projects')
         .update({
           cover_image_url: coverImageUrl,
           status: 'completed',
@@ -426,7 +426,7 @@ async function handleV1CoverCompletion(record: V1WorkflowRecord, data: KieCallba
 
     // Update V1 database with cover completion and video start
     await supabase
-      .from('user_history')
+      .from('single_video_projects')
       .update({
         cover_image_url: coverImageUrl,
         video_task_id: videoTaskId,
@@ -443,7 +443,7 @@ async function handleV1CoverCompletion(record: V1WorkflowRecord, data: KieCallba
 
     // Mark V1 record as failed
     await supabase
-      .from('user_history')
+      .from('single_video_projects')
       .update({
         status: 'failed',
         error_message: error instanceof Error ? error.message : 'V1 cover completion processing failed',
@@ -515,7 +515,7 @@ async function handleFailureCallback(taskId: string, data: KieCallbackData, supa
   try {
     // Try to find the workflow instance in V2 table first
     const { data: v2Instances, error: v2FindError } = await supabase
-      .from('user_history_v2')
+      .from('multi_variant_projects')
       .select('*')
       .eq('cover_task_id', taskId);
 
@@ -532,7 +532,7 @@ async function handleFailureCallback(taskId: string, data: KieCallbackData, supa
 
       // Mark V2 instance as failed
       await supabase
-        .from('user_history_v2')
+        .from('multi_variant_projects')
         .update({
           status: 'failed',
           error_message: failureMessage,
@@ -545,7 +545,7 @@ async function handleFailureCallback(taskId: string, data: KieCallbackData, supa
 
     // If not found in V2, try V1 table
     const { data: v1Records, error: v1FindError } = await supabase
-      .from('user_history')
+      .from('single_video_projects')
       .select('*')
       .eq('cover_task_id', taskId);
 
@@ -561,7 +561,7 @@ async function handleFailureCallback(taskId: string, data: KieCallbackData, supa
 
       // Mark V1 record as failed
       await supabase
-        .from('user_history')
+        .from('single_video_projects')
         .update({
           status: 'failed',
           error_message: failureMessage,

@@ -1,11 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getCreditCost } from '@/lib/constants';
+import { getCreditCost, IMAGE_MODELS } from '@/lib/constants';
 
 export interface StartBatchWorkflowRequest {
   imageUrl: string;
   userId: string;
   videoModel?: 'veo3' | 'veo3_fast';
+  imageModel?: 'nano_banana' | 'seedream';
   elementsCount?: number;
   // Optional user-provided ad copy to override generated ad_copy
   adCopy?: string;
@@ -431,11 +432,12 @@ Tertiary color: ${String(elements.tertiary_color || '')}`;
 }
 
 
-async function generateCoverWithNanoBanana(originalImageUrl: string, imagePrompt: string | Record<string, unknown>, imageSize = 'auto'): Promise<string> {
+async function generateCoverWithNanoBanana(originalImageUrl: string, imagePrompt: string | Record<string, unknown>, imageSize = 'auto', imageModel: 'nano_banana' | 'seedream' = 'nano_banana'): Promise<string> {
   // Helper to call KIE
   const callKIE = async (promptPayload: unknown) => {
+    const modelEndpoint = IMAGE_MODELS[imageModel];
     const requestBody: Record<string, unknown> = {
-      model: 'google/nano-banana-edit',
+      model: modelEndpoint,
       input: {
         prompt: promptPayload,
         image_urls: [originalImageUrl],
@@ -630,6 +632,7 @@ export async function startV2Items({
   imageUrl,
   userId,
   videoModel = 'veo3_fast',
+  imageModel = 'nano_banana',
   elementsCount = 2,
   adCopy,
   textWatermark,
@@ -682,7 +685,7 @@ export async function startV2Items({
     }));
 
     const { data: created, error } = await supabase
-      .from('user_history_v2')
+      .from('multi_variant_projects')
       .insert(itemsPayload)
       .select();
 
@@ -701,11 +704,12 @@ export async function startV2Items({
           item.id,
           imageUrl,
           description,
-          (item as CreatedRow).elements_data as Record<string, unknown>
+          (item as CreatedRow).elements_data as Record<string, unknown>,
+          imageModel
         );
       } catch (e) {
         await supabase
-          .from('user_history_v2')
+          .from('multi_variant_projects')
           .update({
             status: 'failed',
             error_message: e instanceof Error ? e.message : 'Cover generation failed',
@@ -726,7 +730,7 @@ export async function getV2ItemsStatus(ids: string[]): Promise<{ success: boolea
     if (!ids?.length) return { success: true, items: [] };
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
-      .from('user_history_v2')
+      .from('multi_variant_projects')
       .select('*')
       .in('id', ids);
     if (error) return { success: false, error: error.message };
@@ -740,11 +744,12 @@ async function startCoverGenerationV2(
   itemId: string,
   originalImageUrl: string,
   productDescription: string | Record<string, unknown>,
-  elements: Record<string, unknown>
+  elements: Record<string, unknown>,
+  imageModel: 'nano_banana' | 'seedream' = 'nano_banana'
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
   await supabase
-    .from('user_history_v2')
+    .from('multi_variant_projects')
     .update({
       status: 'generating_cover',
       current_step: 'generating_cover',
@@ -760,7 +765,7 @@ async function startCoverGenerationV2(
   // Persist the exact image prompt to DB before sending to nano-banana for auditing
   try {
     await supabase
-      .from('user_history_v2')
+      .from('multi_variant_projects')
       .update({
         // Persist as JSONB (object) for audit/storage
         image_prompt: finalImagePrompt as Record<string, unknown>,
@@ -777,7 +782,7 @@ async function startCoverGenerationV2(
   const imageSize = (elements.image_size as string) || 'auto';
 
   // Generate cover with Banana using final image_prompt and original image URL
-  const taskId = await generateCoverWithNanoBanana(originalImageUrl, finalImagePrompt as Record<string, unknown>, imageSize);
+  const taskId = await generateCoverWithNanoBanana(originalImageUrl, finalImagePrompt as Record<string, unknown>, imageSize, imageModel);
 
   const updatePayload: Record<string, unknown> = {
     cover_task_id: taskId,
@@ -790,7 +795,7 @@ async function startCoverGenerationV2(
   }
 
   await supabase
-    .from('user_history_v2')
+    .from('multi_variant_projects')
     .update(updatePayload)
     .eq('id', itemId);
 }

@@ -29,9 +29,10 @@ interface WorkflowV2State {
   workflowStatus: 'idle' | 'uploaded' | 'processing' | 'completed' | 'failed';
 }
 
-export function useWorkflowV2(
+export function useMultiVariantWorkflow(
   userId?: string,
   videoModel: 'veo3' | 'veo3_fast' = 'veo3_fast',
+  imageModel: 'nano_banana' | 'seedream' = 'nano_banana',
   elementsCount: number = 2,
   adCopy: string = '',
   textWatermark: string = '',
@@ -92,13 +93,14 @@ export function useWorkflowV2(
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const response = await fetch('/api/v2/start', {
+      const response = await fetch('/api/multi-variant/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageUrl: state.uploadedFile.url,
           userId,
           videoModel,
+          imageModel,
           elementsCount,
           adCopy,
           textWatermark,
@@ -154,7 +156,7 @@ export function useWorkflowV2(
   // Download content
   const downloadContent = useCallback(async (instanceId: string, contentType: 'cover' | 'video') => {
     try {
-      const response = await fetch(`/api/v2/download-content/${instanceId}`, {
+      const response = await fetch(`/api/multi-variant/download-content/${instanceId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contentType })
@@ -211,7 +213,7 @@ export function useWorkflowV2(
   const fetchItemsStatus = useCallback(async (ids: string[]) => {
     try {
       if (!ids.length) return null;
-      const response = await fetch(`/api/v2/items-status?ids=${encodeURIComponent(ids.join(','))}`);
+      const response = await fetch(`/api/multi-variant/items-status?ids=${encodeURIComponent(ids.join(','))}`);
       if (!response.ok) throw new Error('Failed to fetch items status');
       const result = await response.json();
       if (result.success) {

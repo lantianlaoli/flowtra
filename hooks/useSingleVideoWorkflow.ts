@@ -34,7 +34,7 @@ export interface WorkflowState {
   maxGuestUsage: number;
 }
 
-export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo3' | 'veo3_fast' = 'auto', updateCredits?: (newCredits: number) => void, refetchCredits?: () => Promise<void>, elementsCount: number = 1, imageSize: string = 'auto') => {
+export const useSingleVideoWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo3' | 'veo3_fast' = 'auto', selectedImageModel: 'auto' | 'nano_banana' | 'seedream' = 'auto', updateCredits?: (newCredits: number) => void, refetchCredits?: () => Promise<void>, elementsCount: number = 1, imageSize: string = 'auto') => {
   // Initialize guest usage limits
   const maxGuestUsage = 1; // Guest users: 1 VEO3_fast
   const maxUserUsage = 2;   // Logged users: 2 VEO3_fast
@@ -172,7 +172,7 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
     
     const poll = async () => {
       try {
-        const response = await fetch(`/api/workflow-status?historyId=${historyId}`);
+        const response = await fetch(`/api/single-video/workflow-status?historyId=${historyId}`);
         if (!response.ok) {
           console.error('Failed to fetch workflow status:', response.status);
           return;
@@ -282,6 +282,7 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
         imagePath: state.data.uploadedFile.path,
         userId: userId,
         videoModel: selectedModel,
+        imageModel: selectedImageModel,
         watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined,
         // Do not send a location if watermark is disabled
         watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
@@ -292,7 +293,7 @@ export const useWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo
 
       console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
 
-      const response = await fetch('/api/start-workflow', {
+      const response = await fetch('/api/single-video/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
