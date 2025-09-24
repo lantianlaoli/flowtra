@@ -118,6 +118,29 @@ export interface UserPhoto {
   updated_at: string
 }
 
+// Database types for user_products table
+export interface UserProduct {
+  id: string
+  user_id: string
+  product_name: string
+  description?: string
+  created_at: string
+  updated_at: string
+  user_product_photos?: UserProductPhoto[]
+}
+
+// Database types for user_product_photos table
+export interface UserProductPhoto {
+  id: string
+  product_id: string
+  user_id: string
+  photo_url: string
+  file_name: string
+  is_primary: boolean
+  created_at: string
+  updated_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -402,4 +425,44 @@ export const deleteUserPhoto = async (photoId: string, userId: string): Promise<
   // Optionally delete from storage (uncomment if you want hard delete)
   // const filePath = `user-photos/${photo.file_name}`
   // await supabase.storage.from('images').remove([filePath])
+}
+
+// Upload product photo to storage in the correct product folder
+export const uploadProductPhotoToStorage = async (file: File, userId: string) => {
+  console.log(`[uploadProductPhotoToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes)`);
+  const fileName = `${userId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+  const filePath = `product/${fileName}`
+  const supabase = getSupabase()
+
+  // Upload to storage
+  console.log(`[uploadProductPhotoToStorage] Uploading to storage path: ${filePath}`);
+  const { data, error } = await supabase.storage
+    .from('images')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    })
+
+  if (error) {
+    console.error(`[uploadProductPhotoToStorage] Storage upload error for user ${userId}:`, {
+      error: error.message,
+      filePath,
+      fileName: file.name
+    });
+    throw new Error(`Storage upload failed: ${error.message}`);
+  }
+
+  console.log(`[uploadProductPhotoToStorage] Storage upload successful for user ${userId}, path: ${data.path}`);
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('images')
+    .getPublicUrl(filePath)
+
+  console.log(`[uploadProductPhotoToStorage] Generated public URL for user ${userId}: ${publicUrl}`);
+
+  return {
+    path: data.path,
+    publicUrl,
+    fullUrl: publicUrl
+  }
 }

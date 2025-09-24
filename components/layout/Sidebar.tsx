@@ -12,7 +12,8 @@ import {
   Play,
   Layers,
   Image as ImageIcon,
-  Video
+  Video,
+  Package
 } from 'lucide-react';
 import { LayoutGroup, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -54,6 +55,11 @@ const navigation = [
     name: 'My Ads',
     href: '/dashboard/videos',
     icon: Play
+  },
+  {
+    name: 'My Products',
+    href: '/dashboard/products',
+    icon: Package
   },
   {
     name: 'Account',

@@ -2,16 +2,17 @@
 
 import { motion } from 'framer-motion';
 
-interface VideoDurationSelectorProps {
-  value: 8 | 16 | 24;
-  onChange: (duration: 8 | 16 | 24) => void;
+interface AdsCountSelectorProps {
+  value: 1 | 2 | 3 | 4;
+  onChange: (count: 1 | 2 | 3 | 4) => void;
 }
 
-export default function VideoDurationSelector({ value, onChange }: VideoDurationSelectorProps) {
+export default function AdsCountSelector({ value, onChange }: AdsCountSelectorProps) {
   const options = [
-    { value: 8 as const, label: '8s' },
-    { value: 16 as const, label: '16s' },
-    { value: 24 as const, label: '24s' },
+    { value: 1 as const, label: '1 Ad' },
+    { value: 2 as const, label: '2 Ads' },
+    { value: 3 as const, label: '3 Ads' },
+    { value: 4 as const, label: '4 Ads' },
   ];
 
   return (
@@ -39,7 +40,7 @@ export default function VideoDurationSelector({ value, onChange }: VideoDuration
           {value === option.value && (
             <motion.div
               className="absolute inset-0 bg-gray-900 rounded-md"
-              layoutId="durationActiveBackground"
+              layoutId="activeBackground"
               initial={false}
               transition={{
                 type: 'spring',

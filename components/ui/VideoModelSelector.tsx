@@ -137,7 +137,7 @@ export default function VideoModelSelector({
         {isOpen && (
           <div 
             ref={optionsRef}
-            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto"
+            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-48 overflow-y-auto"
           >
             {modelOptions.map((option) => (
               <button

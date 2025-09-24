@@ -2,25 +2,28 @@
 
 import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import MultiFileUpload from '@/components/MultiFileUpload';
+import UserPhotoGallery from '@/components/UserPhotoGallery';
 import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
-import { ArrowRight, Play, Clock, Users, Package } from 'lucide-react';
-// import { AnimatePresence, motion } from 'framer-motion';
+import ProductSelector from '@/components/ProductSelector';
+import ProductManager from '@/components/ProductManager';
+import { ArrowRight, Play, Clock, Video, Settings, Package } from 'lucide-react';
+import { UserProduct } from '@/lib/supabase';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function CharacterAdsPage() {
   const { user, isLoaded } = useUser();
-  const { credits: userCredits } = useCredits();
 
   // Form state
   const [personImages, setPersonImages] = useState<File[]>([]);
-  const [productImages, setProductImages] = useState<File[]>([]);
+  const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
   const [videoDuration, setVideoDuration] = useState<8 | 16 | 24>(8);
   const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
+  const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
+  const [showProductManager, setShowProductManager] = useState(false);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -30,7 +33,6 @@ interface CharacterAdsProject {
   status: string;
   progress_percentage: number;
   video_duration_seconds: number;
-  credits_cost: number;
   has_analysis_result: boolean;
   has_generated_prompts: boolean;
   generated_image_url?: string;
@@ -44,7 +46,7 @@ interface CharacterAdsProject {
 
   const [currentProject, setCurrentProject] = useState<CharacterAdsProject | null>(null);
 
-  const canStartGeneration = personImages.length > 0 && productImages.length > 0;
+  const canStartGeneration = (personImages.length > 0 || selectedPersonPhotoUrl) && selectedProduct;
 
   // Polling function to check project status
   const pollProjectStatus = async (projectId: string) => {
@@ -139,14 +141,6 @@ interface CharacterAdsProject {
     }
   };
 
-  // Calculate estimated credits cost
-  const getCreditsEstimate = () => {
-    const imageCredits = 1; // 1 for Scene 0 image generation
-    const videoScenes = videoDuration / 8; // 8s per scene
-    const videoCredits = videoScenes * (selectedVideoModel === 'veo3' ? 15 : 10); // Estimated costs
-    return imageCredits + videoCredits;
-  };
-
   const handleStartGeneration = async () => {
     if (!canStartGeneration || !user?.id) return;
 
@@ -155,12 +149,20 @@ interface CharacterAdsProject {
     try {
       // Upload images first
       const formData = new FormData();
-      personImages.forEach((file, index) => {
-        formData.append(`person_image_${index}`, file);
-      });
-      productImages.forEach((file, index) => {
-        formData.append(`product_image_${index}`, file);
-      });
+      
+      // Handle person images - either uploaded files or selected photo URL
+      if (selectedPersonPhotoUrl) {
+        formData.append('selected_person_photo_url', selectedPersonPhotoUrl);
+      } else {
+        personImages.forEach((file, index) => {
+          formData.append(`person_image_${index}`, file);
+        });
+      }
+      
+      // Use selected product instead of uploaded images
+      if (selectedProduct) {
+        formData.append('selected_product_id', selectedProduct.id);
+      }
       formData.append('video_duration_seconds', videoDuration.toString());
       formData.append('image_model', selectedImageModel);
       formData.append('video_model', selectedVideoModel);
@@ -196,275 +198,345 @@ interface CharacterAdsProject {
   return (
     <div className="flex">
       <Sidebar
-        credits={userCredits}
         userEmail={user?.emailAddresses?.[0]?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="flex-1 ml-72 bg-gray-50 min-h-screen">
-        <div className="max-w-4xl mx-auto p-8">
+      <div className="flex-1 ml-72 bg-white min-h-screen">
+        <div className="max-w-5xl mx-auto p-8">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Long Video Ads
-            </h1>
-            <p className="text-gray-600 text-lg">
-              Create engaging 8-24 second UGC-style video advertisements using AI. Upload person and product photos to generate complete ad campaigns.
+          <div className="mb-10">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center">
+                <Video className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Character Spokesperson Ads
+              </h1>
+            </div>
+            <p className="text-gray-600 text-lg leading-relaxed max-w-3xl">
+              Create engaging video advertisements with AI-powered virtual spokespersons showcasing your products.
             </p>
           </div>
 
-          {!currentProject ? (
-            <div className="space-y-8">
-              {/* Upload Section */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Person Images */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Users className="w-5 h-5 text-gray-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Person Photos</h3>
-                  </div>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Upload photos of the person who will appear in your ad
-                  </p>
-                  <MultiFileUpload
-                    onFilesSelected={setPersonImages}
-                    accept="image/*"
-                    multiple={true}
-                    maxFiles={5}
-                    label="Upload Person Images"
-                    description="PNG, JPG up to 10MB each"
-                  />
-                  {personImages.length > 0 && (
-                    <p className="text-sm text-green-600 mt-2">
-                      {personImages.length} image(s) selected
-                    </p>
-                  )}
+          <AnimatePresence mode="wait">
+            {showProductManager ? (
+              <motion.div
+                key="product-manager"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="mb-6">
+                  <button
+                    onClick={() => setShowProductManager(false)}
+                    className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    ← Back to Character Ads
+                  </button>
                 </div>
-
-                {/* Product Images */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Package className="w-5 h-5 text-gray-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Product Photos</h3>
+                <ProductManager />
+              </motion.div>
+            ) : !currentProject ? (
+              <motion.div
+                key="configuration"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+              >
+                {/* Left Column - Photos and Product Management */}
+                <div className="space-y-6">
+                  {/* Personal Photos */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <UserPhotoGallery
+                      onPhotoSelect={setSelectedPersonPhotoUrl}
+                      selectedPhotoUrl={selectedPersonPhotoUrl}
+                    />
                   </div>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Upload photos of the product to be advertised
-                  </p>
-                  <MultiFileUpload
-                    onFilesSelected={setProductImages}
-                    accept="image/*"
-                    multiple={true}
-                    maxFiles={5}
-                    label="Upload Product Images"
-                    description="PNG, JPG up to 10MB each"
-                  />
-                  {productImages.length > 0 && (
-                    <p className="text-sm text-green-600 mt-2">
-                      {productImages.length} image(s) selected
-                    </p>
-                  )}
-                </div>
-              </div>
 
-              {/* Configuration Section */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-6">Configuration</h3>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Video Duration */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Clock className="w-4 h-4 text-gray-600" />
-                      <label className="text-sm font-medium text-gray-900">
-                        Video Duration
-                      </label>
+                  {/* Product Selection */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-gray-700" />
+                        <h3 className="text-lg font-semibold text-gray-900">Product Photos</h3>
+                      </div>
                     </div>
-                    <VideoDurationSelector
-                      value={videoDuration}
-                      onChange={setVideoDuration}
-                    />
-                  </div>
+                    <div className="p-6 space-y-4">
+                      <ProductSelector
+                        selectedProduct={selectedProduct}
+                        onProductSelect={setSelectedProduct}
+                        onManageProducts={() => setShowProductManager(true)}
+                      />
 
-                  {/* Image Model */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-3">
-                      Image Model
-                    </label>
-                    <ImageModelSelector
-                      selectedModel={selectedImageModel}
-                      onModelChange={setSelectedImageModel}
-                      credits={userCredits || 0}
-                    />
-                  </div>
-
-                  {/* Video Model */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-900 mb-3">
-                      Video Model
-                    </label>
-                    <VideoModelSelector
-                      selectedModel={selectedVideoModel}
-                      onModelChange={setSelectedVideoModel}
-                      credits={userCredits || 0}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Credits & Generate */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Estimated Cost
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      {videoDuration}s video = {videoDuration / 8} scene(s) + 1 image
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-gray-900">
-                      ~{getCreditsEstimate()} credits
                     </div>
-                    <p className="text-sm text-gray-600">
-                      Your balance: {userCredits?.toLocaleString() || 0}
-                    </p>
                   </div>
+
                 </div>
 
-                <button
-                  onClick={handleStartGeneration}
-                  disabled={!canStartGeneration || isGenerating}
-                  className="w-full mt-6 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 text-white font-medium py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4" />
-                      Generate Long Video Ad
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Generation Progress */
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Generating Your Long Video Ad
-              </h2>
+                {/* Right Column - Configuration and Generate */}
+                <div className="space-y-6">
+                  {/* Configuration Card */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-gray-700" />
+                        <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
+                      </div>
+                    </div>
+                    <div className="p-6 space-y-6">
 
-              {/* Progress Bar */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">
-                    {currentProject.current_step?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                  </span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {currentProject.progress_percentage || 0}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${currentProject.progress_percentage || 0}%` }}
-                  />
-                </div>
-              </div>
+                      {/* Video Duration */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Clock className="w-4 h-4 text-gray-600" />
+                          <label className="text-sm font-medium text-gray-700">
+                            Video Duration
+                          </label>
+                        </div>
+                        <VideoDurationSelector
+                          value={videoDuration}
+                          onChange={setVideoDuration}
+                        />
+                      </div>
 
-              {/* Status Details */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Project Details</h4>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    <li>Duration: {currentProject.video_duration_seconds}s</li>
-                    <li>Scenes: {currentProject.video_duration_seconds / 8} video + 1 image</li>
-                    <li>Status: {currentProject.status}</li>
-                    <li>Credits: {currentProject.credits_cost}</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Progress</h4>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    <li className={currentProject.has_analysis_result ? 'text-green-600' : 'text-gray-400'}>
-                      ✓ Image Analysis {currentProject.has_analysis_result ? 'Complete' : 'Pending'}
-                    </li>
-                    <li className={currentProject.has_generated_prompts ? 'text-green-600' : 'text-gray-400'}>
-                      ✓ Prompts {currentProject.has_generated_prompts ? 'Generated' : 'Pending'}
-                    </li>
-                    <li className={currentProject.generated_image_url ? 'text-green-600' : 'text-gray-400'}>
-                      ✓ Image {currentProject.generated_image_url ? 'Generated' : 'Pending'}
-                    </li>
-                    <li className={currentProject.generated_video_count > 0 ? 'text-green-600' : 'text-gray-400'}>
-                      ✓ Videos ({currentProject.generated_video_count || 0}/{currentProject.video_duration_seconds / 8})
-                    </li>
-                    <li className={currentProject.merged_video_url ? 'text-green-600' : 'text-gray-400'}>
-                      ✓ Final Video {currentProject.merged_video_url ? 'Ready' : 'Processing'}
-                    </li>
-                  </ul>
-                </div>
-              </div>
+                      {/* Model Selection - Image and Video in one row */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                        <div className="relative">
+                          <ImageModelSelector
+                            credits={9999}
+                            selectedModel={selectedImageModel}
+                            onModelChange={setSelectedImageModel}
+                            showIcon={true}
+                          />
+                        </div>
+                        <div className="relative">
+                          <VideoModelSelector
+                            credits={9999}
+                            selectedModel={selectedVideoModel}
+                            onModelChange={setSelectedVideoModel}
+                            hideCredits={true}
+                            showIcon={true}
+                          />
+                        </div>
+                      </div>
 
-              {/* Results */}
-              {currentProject.merged_video_url && (
-                <div className="border-t pt-6">
-                  <h4 className="font-medium text-gray-900 mb-4">Your Video is Ready!</h4>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <video
-                      src={currentProject.merged_video_url}
-                      controls
-                      className="w-full max-w-md mx-auto rounded-lg"
-                      preload="metadata"
-                    />
-                    <div className="mt-4 flex gap-2">
-                      <a
-                        href={currentProject.merged_video_url}
-                        download
-                        className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    </div>
+                  </div>
+
+                  {/* Generate Button */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="p-6">
+                      <motion.button
+                        onClick={handleStartGeneration}
+                        disabled={!canStartGeneration || isGenerating}
+                        className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-xl hover:bg-gray-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-base font-semibold group shadow-lg disabled:shadow-none"
+                        whileHover={{ scale: canStartGeneration && !isGenerating ? 1.02 : 1 }}
+                        whileTap={{ scale: canStartGeneration && !isGenerating ? 0.98 : 1 }}
                       >
-                        Download Video
-                      </a>
-                      <button
+                        {isGenerating ? (
+                          <>
+                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                            <span>Generating Ad…</span>
+                          </>
+                        ) : (
+                          <>
+                            <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform duration-200" />
+                            <span>Generate Ad</span>
+                            <span className="ml-2 text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">Free</span>
+                          </>
+                        )}
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              /* Generation Progress - Notion Style */
+              <motion.div
+                key="generation"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
+              >
+                <div className="p-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                    Generating Your Character Spokesperson Ad
+                  </h2>
+                  <p className="text-gray-600 mb-8">
+                    Creating your AI-powered virtual spokesperson advertisement.
+                  </p>
+
+                  {/* Progress Bar - Notion Style */}
+                  <div className="mb-8">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-base font-medium text-gray-700">
+                        {currentProject.current_step?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      </span>
+                      <span className="text-base font-bold text-gray-900">
+                        {currentProject.progress_percentage || 0}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <motion.div
+                        className="bg-gradient-to-r from-gray-800 to-gray-900 h-3 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${currentProject.progress_percentage || 0}%` }}
+                        transition={{ duration: 0.5, ease: 'easeOut' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Status Details - Notion Style Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Settings className="w-4 h-4" />
+                        Project Details
+                      </h4>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Duration:</span>
+                          <span className="font-medium text-gray-900">{currentProject.video_duration_seconds}s</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Scenes:</span>
+                          <span className="font-medium text-gray-900">{currentProject.video_duration_seconds / 8} video + 1 image</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Status:</span>
+                          <span className="font-medium text-gray-900 capitalize">{currentProject.status}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Play className="w-4 h-4" />
+                        Progress Checklist
+                      </h4>
+                      <div className="space-y-3 text-sm">
+                        <div className={`flex items-center gap-2 ${currentProject.has_analysis_result ? 'text-green-600' : 'text-gray-400'}`}>
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentProject.has_analysis_result ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                            {currentProject.has_analysis_result && <span className="text-white text-xs">✓</span>}
+                          </div>
+                          <span>Image Analysis</span>
+                        </div>
+                        <div className={`flex items-center gap-2 ${currentProject.has_generated_prompts ? 'text-green-600' : 'text-gray-400'}`}>
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentProject.has_generated_prompts ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                            {currentProject.has_generated_prompts && <span className="text-white text-xs">✓</span>}
+                          </div>
+                          <span>Prompts Generated</span>
+                        </div>
+                        <div className={`flex items-center gap-2 ${currentProject.generated_image_url ? 'text-green-600' : 'text-gray-400'}`}>
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentProject.generated_image_url ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                            {currentProject.generated_image_url && <span className="text-white text-xs">✓</span>}
+                          </div>
+                          <span>Image Generated</span>
+                        </div>
+                        <div className={`flex items-center gap-2 ${currentProject.generated_video_count > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentProject.generated_video_count > 0 ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                            {currentProject.generated_video_count > 0 && <span className="text-white text-xs">✓</span>}
+                          </div>
+                          <span>Videos ({currentProject.generated_video_count || 0}/{currentProject.video_duration_seconds / 8})</span>
+                        </div>
+                        <div className={`flex items-center gap-2 ${currentProject.merged_video_url ? 'text-green-600' : 'text-gray-400'}`}>
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${currentProject.merged_video_url ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                            {currentProject.merged_video_url && <span className="text-white text-xs">✓</span>}
+                          </div>
+                          <span>Final Video</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Results - Notion Style Success State */}
+                  {currentProject.merged_video_url && (
+                    <motion.div
+                      className="bg-green-50 border-2 border-green-200 rounded-2xl p-8 text-center"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.5, delay: 0.2 }}
+                    >
+                      <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Play className="w-8 h-8 text-white" />
+                      </div>
+                      <h4 className="text-2xl font-bold text-gray-900 mb-2">
+                        Your Ad is Ready!
+                      </h4>
+                      <p className="text-gray-600 mb-8">
+                        High-quality character spokesperson advertisement generated successfully.
+                      </p>
+                      <div className="max-w-2xl mx-auto mb-8">
+                        <video
+                          src={currentProject.merged_video_url}
+                          controls
+                          className="w-full rounded-xl shadow-lg"
+                          preload="metadata"
+                        />
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                        <motion.a
+                          href={currentProject.merged_video_url}
+                          download
+                          className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors shadow-lg"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          Download Video
+                        </motion.a>
+                        <motion.button
+                          onClick={() => {
+                            setCurrentProject(null);
+                            setPersonImages([]);
+                            setSelectedPersonPhotoUrl('');
+                            setSelectedProduct(null);
+                          }}
+                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-8 rounded-xl transition-colors"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          Create Another
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Error Display - Notion Style */}
+                  {currentProject.status === 'failed' && currentProject.error_message && (
+                    <motion.div
+                      className="bg-red-50 border-2 border-red-200 rounded-2xl p-8 text-center"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.5 }}
+                    >
+                      <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <span className="text-white text-2xl">⚠</span>
+                      </div>
+                      <h4 className="text-2xl font-bold text-red-900 mb-2">Generation Failed</h4>
+                      <p className="text-red-700 mb-6 max-w-md mx-auto">{currentProject.error_message}</p>
+                      <motion.button
                         onClick={() => {
                           setCurrentProject(null);
                           setPersonImages([]);
-                          setProductImages([]);
+                          setSelectedPersonPhotoUrl('');
+                          setSelectedProduct(null);
                         }}
-                        className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                        className="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors shadow-lg"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                       >
-                        Create Another
-                      </button>
-                    </div>
-                  </div>
+                        Start Over
+                      </motion.button>
+                    </motion.div>
+                  )}
                 </div>
-              )}
-
-              {/* Error Display */}
-              {currentProject.status === 'failed' && currentProject.error_message && (
-                <div className="border-t pt-6">
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <h4 className="font-medium text-red-900 mb-2">Generation Failed</h4>
-                    <p className="text-sm text-red-700">{currentProject.error_message}</p>
-                    <button
-                      onClick={() => {
-                        setCurrentProject(null);
-                        setPersonImages([]);
-                        setProductImages([]);
-                      }}
-                      className="mt-3 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                    >
-                      Start Over
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>
