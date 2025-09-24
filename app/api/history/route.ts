@@ -74,7 +74,7 @@ export async function GET() {
 
     // Fetch V1 data (single_video_projects)
     const { data: v1History, error: v1Error } = await supabase
-      .from('single_video_projects')
+      .from('standard_ads_projects')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
@@ -85,7 +85,7 @@ export async function GET() {
 
     // Fetch V2 data (independent instances stored in multi_variant_projects)
     const { data: v2Items, error: v2Error } = await supabase
-      .from('multi_variant_projects')
+      .from('multi_variant_ads_projects')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });

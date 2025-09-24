@@ -44,6 +44,9 @@ importers:
       posthog-js:
         specifier: ^1.267.0
         version: 1.267.0
+      prettier:
+        specifier: ^3.6.2
+        version: 3.6.2
       react:
         specifier: ^19.0.0
         version: 19.1.1

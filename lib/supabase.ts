@@ -126,12 +126,12 @@ export type Database = {
         Insert: Omit<UserCredits, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<UserCredits, 'id' | 'created_at' | 'updated_at'>>
       }
-      single_video_projects: {
+      standard_ads_projects: {
         Row: SingleVideoProject
         Insert: Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>>
       }
-      multi_variant_projects: {
+      multi_variant_ads_projects: {
         Row: MultiVariantProject
         Insert: Omit<MultiVariantProject, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<MultiVariantProject, 'id' | 'created_at' | 'updated_at'>>

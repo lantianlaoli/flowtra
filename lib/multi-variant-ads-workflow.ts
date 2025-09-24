@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { getActualImageModel, IMAGE_MODELS } from '@/lib/constants';
 
 export interface StartV2Request {
   imageUrl: string;
@@ -11,7 +12,7 @@ export interface StartV2Request {
   textWatermarkLocation?: string;
   generateVideo?: boolean;
   videoModel: 'veo3' | 'veo3_fast';
-  imageModel?: string;
+  imageModel?: 'auto' | 'nano_banana' | 'seedream';
   watermark?: {
     text: string;
     location: string;
@@ -127,15 +128,25 @@ async function startMultiVariantWorkflow(projectId: string, request: StartV2Requ
 }
 
 async function generateMultiVariantCover(request: StartV2Request): Promise<string> {
+  // Get the actual image model to use
+  const actualImageModel = getActualImageModel(request.imageModel || 'auto');
+  const kieModelName = IMAGE_MODELS[actualImageModel];
+
+  // Generate prompt based on elements data and context
+  const prompt = generatePromptFromElements(request.elementsData, request.adCopy);
+
   const requestBody = {
-    imageUrls: [request.imageUrl],
-    elementsData: request.elementsData,
-    watermarkText: request.watermark?.text || "",
-    watermarkLocation: request.watermark?.location || "",
-    size: request.imageSize || "1024x1024"
+    model: kieModelName,
+    callBackUrl: `${process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/webhooks/multi-variant-ads`,
+    input: {
+      prompt: prompt,
+      image_urls: [request.imageUrl],
+      output_format: "png",
+      image_size: mapImageSize(request.imageSize || 'auto')
+    }
   };
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/nanoBanana', {
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -155,6 +166,34 @@ async function generateMultiVariantCover(request: StartV2Request): Promise<strin
   }
 
   return data.data.taskId;
+}
+
+// Helper function to generate prompt from elements data
+function generatePromptFromElements(elementsData: Record<string, unknown>, adCopy?: string): string {
+  // Extract relevant information from elements data
+  const basePrompt = "Create a professional advertisement image showcasing the product";
+
+  if (adCopy) {
+    return `${basePrompt}. ${adCopy}. Style: modern, clean, professional advertising.`;
+  }
+
+  // Fallback prompt
+  return `${basePrompt}. Style: modern, clean, professional advertising with high-quality visual appeal.`;
+}
+
+// Helper function to map image size to KIE API format
+function mapImageSize(size: string): string {
+  const sizeMap: Record<string, string> = {
+    'auto': 'auto',
+    '1024x1024': '1:1',
+    '1080x1080': '1:1',
+    '1200x630': '16:9',
+    'square': '1:1',
+    'landscape': '16:9',
+    'portrait': '9:16'
+  };
+
+  return sizeMap[size] || 'auto';
 }
 
 export async function getV2ItemsStatus(ids: string[]): Promise<{success: boolean; items?: Record<string, unknown>[]; error?: string}> {

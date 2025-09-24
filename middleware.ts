@@ -8,7 +8,17 @@ const isProtectedRoute = createRouteMatcher([
   '/api/upload(.*)'
 ])
 
+// Define routes that should NOT be protected (no authentication required)
+const isPublicRoute = createRouteMatcher([
+  '/api/webhooks(.*)'
+])
+
 export default clerkMiddleware(async (auth, req) => {
+  // Skip authentication for webhook routes
+  if (isPublicRoute(req)) {
+    return
+  }
+
   if (isProtectedRoute(req)) {
     await auth.protect()
   }

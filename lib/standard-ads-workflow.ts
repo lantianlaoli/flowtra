@@ -1,11 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { getActualImageModel, IMAGE_MODELS } from '@/lib/constants';
 
 export interface StartWorkflowRequest {
   imageUrl: string;
   userId: string;
-  videoModel: 'veo3' | 'veo3_fast';
-  imageModel?: string;
+  videoModel: 'auto' | 'veo3' | 'veo3_fast';
+  imageModel?: 'auto' | 'nano_banana' | 'seedream';
   watermark?: {
     text: string;
     location: string;
@@ -27,13 +28,16 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
   try {
     const supabase = getSupabaseAdmin();
 
+    // Convert 'auto' videoModel to a specific model
+    const actualVideoModel: 'veo3' | 'veo3_fast' = request.videoModel === 'auto' ? 'veo3_fast' : request.videoModel;
+
     // Create project record in standard_ads_projects table
     const { data: project, error: insertError } = await supabase
       .from('standard_ads_projects')
       .insert({
         user_id: request.userId,
         original_image_url: request.imageUrl,
-        video_model: request.videoModel,
+        video_model: actualVideoModel,
         status: 'processing',
         current_step: 'describing',
         progress_percentage: 10,
@@ -223,15 +227,22 @@ Return as JSON format.`
 }
 
 async function generateCover(imageUrl: string, prompts: Record<string, unknown>, request: StartWorkflowRequest): Promise<string> {
+  // Get the actual image model to use
+  const actualImageModel = getActualImageModel(request.imageModel || 'auto');
+  const kieModelName = IMAGE_MODELS[actualImageModel];
+
   const requestBody = {
-    imageUrls: [imageUrl],
-    prompt: prompts.description || "Professional product advertisement image",
-    watermarkText: request.watermark?.text || "",
-    watermarkLocation: request.watermark?.location || request.watermarkLocation || "",
-    size: request.imageSize || "1024x1024"
+    model: kieModelName,
+    callBackUrl: `${process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/webhooks/standard-ads`,
+    input: {
+      prompt: prompts.description || "Professional product advertisement image",
+      image_urls: [imageUrl],
+      output_format: "png",
+      image_size: request.imageSize === 'auto' ? 'auto' : (request.imageSize || 'auto')
+    }
   };
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/nanoBanana', {
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,

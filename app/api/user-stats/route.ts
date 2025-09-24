@@ -30,12 +30,12 @@ export async function GET() {
     // Query V1 history (single_video_projects table)
     type V1Row = { status: string; created_at: string; download_credits_used?: number | null };
     const { data: historyV1, error: errorV1 } = await supabase
-      .from('single_video_projects')
+      .from('standard_ads_projects')
       .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
     if (errorV1) {
-      console.error('❌ Error querying single_video_projects:', errorV1);
+      console.error('❌ Error querying standard_ads_projects:', errorV1);
     } else {
       console.log('📈 V1 History records:', historyV1?.length || 0);
     }
@@ -43,12 +43,12 @@ export async function GET() {
     // Query V2 history (multi_variant_projects table)
     type V2Row = { status: string; created_at: string; download_credits_used?: number | null };
     const { data: historyV2, error: errorV2 } = await supabase
-      .from('multi_variant_projects')
+      .from('multi_variant_ads_projects')
       .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
     if (errorV2) {
-      console.error('❌ Error querying multi_variant_projects:', errorV2);
+      console.error('❌ Error querying multi_variant_ads_projects:', errorV2);
     } else {
       console.log('📈 V2 History records:', historyV2?.length || 0);
     }

@@ -172,7 +172,7 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
     
     const poll = async () => {
       try {
-        const response = await fetch(`/api/standard-ads/workflow-status?historyId=${historyId}`);
+        const response = await fetch(`/api/standard-ads/${historyId}/status`);
         if (!response.ok) {
           console.error('Failed to fetch workflow status:', response.status);
           return;
@@ -293,7 +293,7 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
 
       console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
 
-      const response = await fetch('/api/standard-ads/start', {
+      const response = await fetch('/api/standard-ads/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

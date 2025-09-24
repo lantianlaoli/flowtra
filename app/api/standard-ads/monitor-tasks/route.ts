@@ -13,7 +13,7 @@ export async function POST() {
     const { data: records, error } = await supabase
       .from('standard_ads_projects')
       .select('*')
-      .in('status', ['started', 'in_progress', 'generating_cover', 'generating_video'])
+      .in('status', ['started', 'in_progress', 'processing', 'generating_cover', 'generating_video'])
       .not('cover_task_id', 'is', null)
       .order('last_processed_at', { ascending: true })
       .limit(20); // Process max 20 records per run
