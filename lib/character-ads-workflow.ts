@@ -351,12 +351,12 @@ async function checkFalTaskStatus(taskId: string): Promise<{
     if (result.status === 'COMPLETED') {
       return {
         status: result.status,
-        result_url: (result as any).data?.video?.url
+        result_url: (result as Record<string, unknown>).data?.video?.url
       };
     } else {
       return {
         status: result.status,
-        error: (result as any).error
+        error: (result as Record<string, unknown>).error
       };
     }
   } catch (error) {
