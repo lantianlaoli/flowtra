@@ -7,6 +7,22 @@ export async function POST(request: NextRequest) {
   try {
     const requestData: StartWorkflowRequest = await request.json();
 
+    // 确保photoOnly字段正确设置为shouldGenerateVideo的反值
+    // 如果界面选择了image only，则shouldGenerateVideo应为false，photoOnly应为true
+    requestData.photoOnly = requestData.shouldGenerateVideo === undefined ? false : !requestData.shouldGenerateVideo;
+    
+    // 日志显示photoOnly与用户选择不一致，可能是shouldGenerateVideo传递有问题
+    // 如果用户在界面选择了"image only"，确保photoOnly为true
+    if (requestData.shouldGenerateVideo === false) {
+      requestData.photoOnly = true;
+    }
+    
+    // 修复模型选择问题：确保当选择了nano_banana时不会显示为auto
+    if (requestData.imageModel === 'auto') {
+      // 默认使用nano_banana作为auto的实际模型
+      requestData.imageModel = 'nano_banana';
+    }
+
     console.log('🚀 Standard ads workflow request received:', {
       imageUrl: requestData.imageUrl,
       userId: requestData.userId,
@@ -15,7 +31,8 @@ export async function POST(request: NextRequest) {
       watermark: requestData.watermark,
       watermarkLocation: requestData.watermarkLocation,
       imageSize: requestData.imageSize,
-      elementsCount: requestData.elementsCount
+      elementsCount: requestData.elementsCount,
+      photoOnly: requestData.photoOnly
     });
 
     if (!requestData.imageUrl) {

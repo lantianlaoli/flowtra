@@ -15,6 +15,7 @@ export interface StartWorkflowRequest {
   imageSize?: string;
   elementsCount?: number;
   photoOnly?: boolean;
+  shouldGenerateVideo?: boolean;
 }
 
 interface WorkflowResult {

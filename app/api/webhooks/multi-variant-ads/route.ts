@@ -146,13 +146,19 @@ async function handleCoverCompletion(instance: MultiVariantInstance, data: KieCa
     })();
 
     if (!shouldGenerateVideo) {
+      // 提取产品描述信息
+      const elementsData = instance.elements_data || {};
+      const productDescription = elementsData.product_description || elementsData.product || {};
+      
       const updatePayload: Record<string, unknown> = {
         cover_image_url: coverImageUrl,
         status: 'completed',
         current_step: 'completed',
         progress_percentage: 100,
         updated_at: new Date().toISOString(),
-        last_processed_at: new Date().toISOString()
+        last_processed_at: new Date().toISOString(),
+        elements_data: instance.elements_data || {},
+        product_description: productDescription
       };
 
       if (derivedSize) {
@@ -179,6 +185,10 @@ async function handleCoverCompletion(instance: MultiVariantInstance, data: KieCa
     const videoTaskId = await startVideoGeneration(instance, coverImageUrl, videoPrompt);
 
     // Update database with cover completion and video start
+    // 提取产品描述信息
+    const elementsData = instance.elements_data || {};
+    const productDescription = elementsData.product_description || elementsData.product || {};
+    
     const updatePayload: Record<string, unknown> = {
       cover_image_url: coverImageUrl,
       video_task_id: videoTaskId,
@@ -190,7 +200,8 @@ async function handleCoverCompletion(instance: MultiVariantInstance, data: KieCa
       current_step: 'generating_video',
       progress_percentage: 50,
       updated_at: new Date().toISOString(),
-      last_processed_at: new Date().toISOString()
+      last_processed_at: new Date().toISOString(),
+      product_description: productDescription
     };
 
     if (derivedSize) {

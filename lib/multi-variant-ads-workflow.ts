@@ -2,10 +2,9 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getActualImageModel, IMAGE_MODELS } from '@/lib/constants';
 
-export interface StartV2Request {
+export interface MultiVariantAdsRequest {
   imageUrl: string;
   userId: string;
-  elementsData: Record<string, unknown>;
   elementsCount?: number;
   adCopy?: string;
   textWatermark?: string;
@@ -19,121 +18,647 @@ export interface StartV2Request {
   };
   imageSize?: string;
   photoOnly?: boolean;
+  coverImageSize?: string;
+  elementsData?: Record<string, unknown>;
 }
 
-interface V2Result {
+interface MultiVariantResult {
   success: boolean;
-  instanceId?: string;
-  itemIds?: string[];
+  projectIds?: string[];
   error?: string;
-  details?: string;
 }
 
-export async function startV2Items(request: StartV2Request): Promise<V2Result> {
+export async function startMultiVariantItems(request: MultiVariantAdsRequest): Promise<MultiVariantResult> {
+  const supabase = getSupabaseAdmin();
+
   try {
-    const supabase = getSupabaseAdmin();
+    const elementsCount = request.elementsCount || 2;
+    const projectIds: string[] = [];
 
-    // Create project record in multi_variant_ads_projects table
-    const { data: project, error: insertError } = await supabase
-      .from('multi_variant_ads_projects')
-      .insert({
-        user_id: request.userId,
-        original_image_url: request.imageUrl,
-        elements_data: request.elementsData,
-        video_model: request.videoModel,
-        status: 'pending',
-        current_step: 'waiting',
-        progress_percentage: 0,
-        credits_cost: request.photoOnly ? 5 : 10,
-        watermark_text: request.watermark?.text,
-        watermark_location: request.watermark?.location,
-        cover_image_size: request.imageSize,
-        photo_only: request.photoOnly || false,
-        project_type: 'multi_variant'
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('Database insert error:', insertError);
-      return {
-        success: false,
-        error: 'Failed to create project record',
-        details: insertError.message
-      };
-    }
-
-    // Start the workflow
-    try {
-      await startMultiVariantWorkflow(project.id, request);
-    } catch (workflowError) {
-      console.error('Workflow start error:', workflowError);
-      await supabase
+    // Create multiple project records based on elementsCount
+    for (let i = 0; i < elementsCount; i++) {
+      const { data: project, error } = await supabase
         .from('multi_variant_ads_projects')
-        .update({
-          status: 'failed',
-          error_message: workflowError instanceof Error ? workflowError.message : 'Workflow start failed'
+        .insert({
+          user_id: request.userId,
+          original_image_url: request.imageUrl,
+          status: 'analyzing_images',
+          current_step: 'analyzing_images',
+          progress_percentage: 0,
+          video_model: request.videoModel || 'veo3',
+          watermark_text: request.textWatermark || request.watermark?.text,
+          watermark_location: request.textWatermarkLocation || request.watermark?.location,
+          photo_only: request.photoOnly || false,
+          cover_image_size: request.coverImageSize || '1024x1024',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
-        .eq('id', project.id);
+        .select()
+        .single();
 
-      return {
-        success: false,
-        error: 'Failed to start workflow',
-        details: workflowError instanceof Error ? workflowError.message : 'Unknown error'
-      };
+      if (error) {
+        console.error(`Failed to create multi-variant project ${i + 1}:`, error);
+        return { success: false, error: error.message };
+      }
+
+      projectIds.push(project.id);
     }
+
+    // Start optimized workflow that processes all projects together// 启动优化的工作流，一次性处理所有项目
+    startOptimizedMultiVariantWorkflow(projectIds, request).catch((error: Error) => {
+      console.error('Optimized workflow failed:', error);
+    });
 
     return {
       success: true,
-      instanceId: project.id,
-      itemIds: [project.id]
+      projectIds
     };
-
   } catch (error) {
-    console.error('StartV2Items error:', error);
+    console.error('StartMultiVariantItems error:', error);
     return {
       success: false,
-      error: 'Failed to start workflow',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
 
-async function startMultiVariantWorkflow(projectId: string, request: StartV2Request): Promise<void> {
+// 步骤1: 分析图像
+async function analyzeImage(imageUrl: string): Promise<Record<string, unknown>> {
+  console.log('🔍 Analyzing image...');
+  
+  const systemText = `Analyze the given image and determine if it primarily depicts a product or a character, or BOTH.`;
+
+  // 定义严格的JSON Schema结构
+  const jsonSchema = {
+    name: "image_analysis",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        type: {
+          type: "string",
+          enum: ["product", "character", "both"],
+          description: "The type of content in the image: product, character, or both"
+        },
+        product: {
+          type: "object",
+          description: "Product details (required if type is 'product' or 'both')",
+          properties: {
+            brand_name: {
+              type: "string",
+              description: "Name of the brand shown in the image, if visible or inferable"
+            },
+            color_scheme: {
+              type: "array",
+              description: "List of prominent colors used in the product",
+              items: {
+                type: "object",
+                properties: {
+                  hex: {
+                    type: "string",
+                    description: "Hex code of the color (e.g., #FF5733)"
+                  },
+                  name: {
+                    type: "string",
+                    description: "Descriptive name of the color (e.g., 'Vibrant Red')"
+                  }
+                },
+                required: ["hex", "name"]
+              }
+            },
+            font_style: {
+              type: "string",
+              description: "Description of the font family or style used (serif/sans-serif, bold/thin, etc.)"
+            },
+            visual_description: {
+              type: "string",
+              description: "A full sentence or two summarizing what is seen in the product, ignoring the background"
+            }
+          },
+          required: ["brand_name", "color_scheme", "visual_description"]
+        },
+        character: {
+          type: "object",
+          description: "Character details (required if type is 'character' or 'both')",
+          properties: {
+            outfit_style: {
+              type: "string",
+              description: "Description of clothing style, accessories, or notable features"
+            },
+            visual_description: {
+              type: "string",
+              description: "A full sentence or two summarizing what the character looks like, ignoring the background"
+            }
+          },
+          required: ["outfit_style", "visual_description"]
+        }
+      },
+      required: ["type"],
+      additionalProperties: false,
+      allOf: [
+        {
+          if: {
+            properties: { type: { enum: ["product"] } }
+          },
+          then: {
+            required: ["product"]
+          }
+        },
+        {
+          if: {
+            properties: { type: { enum: ["character"] } }
+          },
+          then: {
+            required: ["character"]
+          }
+        },
+        {
+          if: {
+            properties: { type: { enum: ["both"] } }
+          },
+          then: {
+            required: ["product", "character"]
+          }
+        }
+      ]
+    }
+  };
+
+  const requestBody = JSON.stringify({
+    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `You are an image analysis expert. Analyze the image to determine if it shows a product, character, or both. Provide detailed information about what you see.`
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: systemText },
+          { type: 'image_url', image_url: { url: imageUrl } }
+        ]
+      }
+    ],
+    max_tokens: 700,
+    temperature: 0.2,
+    response_format: {
+      type: "json_schema",
+      json_schema: jsonSchema
+    }
+  });
+
+  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'X-Title': 'Flowtra'
+    },
+    body: requestBody
+  }, 3, 30000);
+
+  if (!response.ok) {
+    throw new Error(`Image analysis failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+
+  try {
+    // 移除可能的 Markdown 代码块包装
+    let cleanContent = content;
+    if (content.includes('```json')) {
+      cleanContent = content.replace(/```json\s*/, '').replace(/\s*```$/, '');
+    } else if (content.includes('```')) {
+      cleanContent = content.replace(/```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    return JSON.parse(cleanContent);
+  } catch (error) {
+    console.error('Failed to parse analysis result:', content);
+    console.error('Parse error:', error);
+    throw new Error('Failed to parse image analysis result');
+  }
+}
+
+// 步骤2: 生成多个元素
+async function generateMultipleElements(imageAnalysis: Record<string, unknown>, elementsCount: number = 2, userAdCopy?: string): Promise<Record<string, unknown>> {
+  console.log('🧩 Generating multiple elements...');
+  
+  // 如果用户提供了adCopy，在提示词中说明要使用用户提供的adCopy
+  const adCopyInstruction = userAdCopy 
+    ? `- ad_copy → Use this exact ad copy for all variants: "${userAdCopy}"`
+    : `- ad_copy → Short, catchy slogan`;
+  
+  const systemPrompt = `### A - Ask:
+Create exactly ${elementsCount} different sets of ELEMENTS for the uploaded ad image.  
+Each set must include **all required fields** and differ in tone, mood, or creative angle.  
+
+### G - Guidance:
+**role:** Creative ad concept generator  
+**output_count:** ${elementsCount} sets  
+
+**constraints:**  
+- product → Product or line name  
+- character → Target user/consumer who would use this product (e.g., for jewelry: "young professional woman", for pet food: "golden retriever", for skincare: "woman in her 30s", for sports gear: "athletic young man")  
+${adCopyInstruction}
+- visual_guide → Describe character's pose, product placement, background mood  
+- Primary color → Main color (from packaging/ad)  
+- Secondary color → Supporting color  
+- Tertiary color → Accent color  
+
+### E - Examples:
+{
+  "elements": [
+    {
+      "product": "Happy Dog Sensible Montana",
+      "character": "Short-haired hunting dog",
+      "ad_copy": ${userAdCopy ? `"${userAdCopy}"` : `"Natural energy, every day."`},
+      "visual_guide": "The hunting dog sits calmly beside the pack, background is a soft green gradient, product facing forward and clearly highlighted.",
+      "Primary color": "#1A3D2F",
+      "Secondary color": "#FFFFFF",
+      "Tertiary color": "#C89B3C"
+    },
+    {
+      "product": "Elegant Pearl Necklace",
+      "character": "Professional woman in her late 20s",
+      "ad_copy": ${userAdCopy ? `"${userAdCopy}"` : `"Timeless elegance, everyday confidence."`},
+      "visual_guide": "The woman gently touches the necklace while smiling, product prominently displayed on her neck, background is a soft neutral tone with warm lighting.",
+      "Primary color": "#F8F6F0",
+      "Secondary color": "#D4AF37",
+      "Tertiary color": "#2C2C2C"
+    }
+  ]
+}`;
+
+  const userPrompt = `Description of the reference image: ${JSON.stringify(imageAnalysis, null, 2)}
+
+Generate ${elementsCount} sets of elements for this image.`;
+
+  const requestBody = JSON.stringify({
+    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    max_tokens: 1000,
+    temperature: 0.7,
+    response_format: { 
+      type: "json_schema",
+      schema: {
+        type: "object",
+        required: ["elements"],
+        properties: {
+          elements: {
+            type: "array",
+            minItems: elementsCount,
+            maxItems: elementsCount,
+            items: {
+              type: "object",
+              required: ["product", "character", "ad_copy", "visual_guide", "Primary color", "Secondary color", "Tertiary color"],
+              properties: {
+                product: {
+                  type: "string",
+                  description: "Product or line name"
+                },
+                character: {
+                  type: "string",
+                  description: "Featured character (dog breed/appearance)"
+                },
+                ad_copy: {
+                  type: "string",
+                  description: "Short, catchy slogan"
+                },
+                visual_guide: {
+                  type: "string",
+                  description: "Describe character's pose, product placement, background mood"
+                },
+                "Primary color": {
+                  type: "string",
+                  pattern: "^#[0-9A-Fa-f]{6}$",
+                  description: "Main color (from packaging/ad) in hex format"
+                },
+                "Secondary color": {
+                  type: "string",
+                  pattern: "^#[0-9A-Fa-f]{6}$",
+                  description: "Supporting color in hex format"
+                },
+                "Tertiary color": {
+                  type: "string",
+                  pattern: "^#[0-9A-Fa-f]{6}$",
+                  description: "Accent color in hex format"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'X-Title': 'Flowtra'
+    },
+    body: requestBody
+  }, 3, 30000);
+
+  if (!response.ok) {
+    throw new Error(`Elements generation failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+
+  console.log('Elements generation response:', JSON.stringify(data, null, 2));
+  console.log('Elements content to parse:', content);
+
+  try {
+    // Remove markdown code block wrapper if present
+    let cleanContent = content;
+    if (content.startsWith('```json') && content.endsWith('```')) {
+      cleanContent = content.slice(7, -3).trim();
+    } else if (content.startsWith('```') && content.endsWith('```')) {
+      cleanContent = content.slice(3, -3).trim();
+    }
+    
+    const parsed = JSON.parse(cleanContent);
+    console.log('Successfully parsed elements:', JSON.stringify(parsed, null, 2));
+    return parsed;
+  } catch (error) {
+    console.error('Failed to parse elements result:', content);
+    console.error('Parse error:', error);
+    throw new Error('Failed to parse generated elements');
+  }
+}
+
+// 步骤3: 生成封面提示词
+async function generateCoverPrompt(
+  imageAnalysis: Record<string, unknown>, 
+  elements: Record<string, unknown>,
+  textWatermark?: string,
+  textWatermarkLocation?: string
+): Promise<Record<string, unknown>> {
+  console.log('📝 Generating cover prompt...');
+  
+  // 从elements中获取第一组元素（默认使用第一组）
+  const firstElement = (elements.elements as Array<Record<string, unknown>>)[0];
+  
+  const systemPrompt = `## SYSTEM PROMPT: 🔍 Image Ad Prompt Generator Agent
+
+### A - Ask:
+Create exactly 1 structured image ad prompt with all required fields filled.
+
+The final prompt should be written like this:
+
+"""
+Make an image ad for this product with the following elements. The product looks exactly like what's in the reference image.
+
+product:
+character:
+ad_copy:
+visual_guide:
+text_watermark:
+text_watermark_location:
+Primary color of ad:
+Secondary color of ad:
+Tertiary color of ad:
+"""
+
+### G - Guidance:
+**role:** Creative ad prompt engineer
+**output_count:** 1
+**constraints:**
+- Always include all required fields.
+- Integrate the user's special request as faithfully as you can in the final image prompt.
+- **CRITICAL: If ad_copy is provided by the user, you MUST use it EXACTLY as given. DO NOT modify, rephrase, or replace user-provided ad_copy under any circumstances.**
+- If user input is missing, apply smart defaults:
+  - **text_watermark_location** → "bottom left of screen"
+  - **primary_color** → "decide based on the image provided"
+  - **secondary_color** → "decide based on the image provided"
+  - **tertiary_color** → "decide based on the image provided"
+  - **font_style** → "decide based on the image provided"
+  - **ad_copy** → ONLY generate if not provided by user. Keep short, punchy, action-oriented.
+  - **visual_guide** → (as defined by the user). If the user's special request is detailed, expand this portion to accommodate their request. Make sure the color palette that is provided is respected even in this portion. If the request involves a human character, define the camera angle and camera used. If no visual guide is given, describe placement of the character and how big they are relative to the image; describe what they're doing with the product; describe the style of the ad, describe the main color of the background and the main color of the text.)
+  - **text_watermark** → (as defined by the user, leave blank if none provided)
+  - **text_watermark_location** → (as defined by the user, or bottom left if none provided)
+
+### N - Notation:
+**format:** text string nested within an "image_prompt" parameter. Avoid using double-quotes or new line breaks.
+**example_output:** |
+{
+  "image_prompt": "final prompt here"
+}`;
+
+  const userPrompt = `Your task: Create 1 image prompt as guided by your system guidelines.
+
+Description of the reference image: ${JSON.stringify(imageAnalysis, null, 2)}
+
+ELEMENTS FOR THIS IMAGE:
+
+product: ${firstElement.product}
+character: ${firstElement.character}
+ad copy: ${firstElement.ad_copy} [USER PROVIDED - USE EXACTLY AS GIVEN]
+visual_guide: ${firstElement.visual_guide}
+text_watermark: ${textWatermark || ''}
+text_watermark_location: ${textWatermarkLocation || 'bottom left'}
+
+Primary color: ${firstElement['Primary color']}
+Secondary color: ${firstElement['Secondary color']}
+Tertiary color: ${firstElement['Tertiary color']}
+
+IMPORTANT: The ad_copy "${firstElement.ad_copy}" was provided by the user and must be used EXACTLY as written in the final prompt. Do not modify, rephrase, or replace it.`;
+
+  const requestBody = JSON.stringify({
+    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    max_tokens: 1000,
+    temperature: 0.5,
+    response_format: { 
+      type: "json_schema",
+      schema: {
+        type: "object",
+        required: ["image_prompt"],
+        properties: {
+          image_prompt: {
+            type: "string",
+            description: "The complete image prompt text that includes all required elements"
+          }
+        }
+      }
+    }
+  });
+
+  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'X-Title': 'Flowtra'
+    },
+    body: requestBody
+  }, 3, 30000);
+
+  if (!response.ok) {
+    throw new Error(`Cover prompt generation failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+
+  try {
+    // 移除可能的 Markdown 代码块包装
+    let cleanContent = content;
+    if (content.includes('```json')) {
+      cleanContent = content.replace(/```json\s*/, '').replace(/\s*```$/, '');
+    } else if (content.includes('```')) {
+      cleanContent = content.replace(/```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    return JSON.parse(cleanContent);
+  } catch (error) {
+    console.error('Failed to parse cover prompt result:', content);
+    console.error('Parse error:', error);
+    throw new Error('Failed to parse generated cover prompt');
+  }
+}
+
+async function startOptimizedMultiVariantWorkflow(projectIds: string[], request: MultiVariantAdsRequest): Promise<void> {
   const supabase = getSupabaseAdmin();
 
   try {
-    // Start cover generation immediately for multi-variant
-    console.log('🎨 Starting multi-variant cover generation...');
-    const coverTaskId = await generateMultiVariantCover(request);
-
-    // Update project with cover task ID
+    // 步骤1: 分析图像（只执行一次）
+    console.log('🔍 Starting image analysis...');
+    const imageAnalysis = await analyzeImage(request.imageUrl);
+    
+    // 更新所有项目的状态
     await supabase
       .from('multi_variant_ads_projects')
       .update({
-        cover_task_id: coverTaskId,
-        status: 'generating_cover',
-        current_step: 'generating_cover',
-        progress_percentage: 30,
+        product_description: imageAnalysis,
+        status: 'generating_elements',
+        current_step: 'generating_elements',
+        progress_percentage: 10,
         last_processed_at: new Date().toISOString()
       })
-      .eq('id', projectId);
+      .in('id', projectIds);
+    
+    // 步骤2: 生成多个元素（只执行一次）
+    console.log('🧩 Generating multiple elements...');
+    const elementsData = await generateMultipleElements(imageAnalysis, projectIds.length, request.adCopy);
+    
+    // 更新所有项目的状态
+    await supabase
+      .from('multi_variant_ads_projects')
+      .update({
+        elements_data: elementsData,
+        status: 'generating_cover_prompt',
+        current_step: 'generating_cover_prompt',
+        progress_percentage: 20,
+        last_processed_at: new Date().toISOString()
+      })
+      .in('id', projectIds);
+    
+    // 步骤3: 为每个项目生成不同的封面提示词和封面
+    const elements = (elementsData as Record<string, unknown>)?.elements as Record<string, unknown>[] || [];
+    
+    for (let i = 0; i < projectIds.length; i++) {
+      const projectId = projectIds[i];
+      const element = elements[i] || elements[0]; // 如果元素不够，使用第一个元素
+      
+      try {
+        // 为当前项目生成封面提示词
+        console.log(`📝 Generating cover prompt for project ${i + 1}...`);
+        const coverPrompt = await generateCoverPrompt(
+          imageAnalysis, 
+          { elements: [element] }, // 只传递当前项目的元素
+          request.textWatermark || request.watermark?.text,
+          request.textWatermarkLocation || request.watermark?.location
+        );
+        
+        // 更新当前项目的状态，存储单个元素而不是所有元素
+        await supabase
+          .from('multi_variant_ads_projects')
+          .update({
+            elements_data: element, // 只存储当前项目对应的单个元素
+            image_prompt: coverPrompt,
+            status: 'generating_cover',
+            current_step: 'generating_cover',
+            progress_percentage: 30,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', projectId);
+        
+        // 生成封面图像
+        console.log(`🎨 Starting cover generation for project ${i + 1}...`);
+        const coverTaskId = await generateMultiVariantCover({
+          ...request,
+          elementsData: coverPrompt // coverPrompt包含image_prompt字段，generatePromptFromElements会优先使用它
+        });
 
-    console.log('✅ Multi-variant workflow started successfully');
+        // 更新项目状态
+        await supabase
+          .from('multi_variant_ads_projects')
+          .update({
+            cover_task_id: coverTaskId,
+            status: 'generating_cover',
+            current_step: 'generating_cover',
+            progress_percentage: 40,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', projectId);
+
+      } catch (error) {
+        console.error(`Error processing project ${projectId}:`, error);
+        // 更新项目状态为错误
+        await supabase
+          .from('multi_variant_ads_projects')
+          .update({
+            status: 'error',
+            error_message: error instanceof Error ? error.message : 'Unknown error',
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', projectId);
+      }
+    }
+
+    console.log('✅ Optimized multi-variant workflow started successfully');
 
   } catch (error) {
-    console.error('Multi-variant workflow error:', error);
+    console.error('Optimized multi-variant workflow error:', error);
+    
+    // 更新所有项目状态为错误
+    await supabase
+      .from('multi_variant_ads_projects')
+      .update({
+        status: 'error',
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        last_processed_at: new Date().toISOString()
+      })
+      .in('id', projectIds);
+    
     throw error;
   }
 }
 
-async function generateMultiVariantCover(request: StartV2Request): Promise<string> {
+
+
+async function generateMultiVariantCover(request: MultiVariantAdsRequest): Promise<string> {
   // Get the actual image model to use
   const actualImageModel = getActualImageModel(request.imageModel || 'auto');
   const kieModelName = IMAGE_MODELS[actualImageModel];
 
   // Generate prompt based on elements data and context
-  const prompt = generatePromptFromElements(request.elementsData, request.adCopy);
+  const prompt = generatePromptFromElements(request.elementsData || {}, request.adCopy);
 
   const requestBody = {
     model: kieModelName,
@@ -170,14 +695,53 @@ async function generateMultiVariantCover(request: StartV2Request): Promise<strin
 
 // Helper function to generate prompt from elements data
 function generatePromptFromElements(elementsData: Record<string, unknown>, adCopy?: string): string {
-  // Extract relevant information from elements data
-  const basePrompt = "Create a professional advertisement image showcasing the product";
+  // Check if elementsData contains image_prompt (from generateCoverPrompt)
+  if (elementsData.image_prompt && typeof elementsData.image_prompt === 'string') {
+    return elementsData.image_prompt;
+  }
 
-  if (adCopy) {
-    return `${basePrompt}. ${adCopy}. Style: modern, clean, professional advertising.`;
+  // If elementsData is a single element object, extract its properties
+  if (elementsData.product || elementsData.character || elementsData.ad_copy) {
+    const product = elementsData.product || 'the product';
+    const character = elementsData.character || 'target audience';
+    const elementAdCopy = elementsData.ad_copy || adCopy || '';
+    const visualGuide = elementsData.visual_guide || '';
+    const primaryColor = elementsData['Primary color'] || '';
+    const secondaryColor = elementsData['Secondary color'] || '';
+    const tertiaryColor = elementsData['Tertiary color'] || '';
+
+    let prompt = `Create a professional advertisement image showcasing ${product}. `;
+    
+    if (character) {
+      prompt += `Target audience: ${character}. `;
+    }
+    
+    if (elementAdCopy) {
+      prompt += `Ad copy: "${elementAdCopy}". `;
+    }
+    
+    if (visualGuide) {
+      prompt += `Visual guide: ${visualGuide}. `;
+    }
+    
+    if (primaryColor || secondaryColor || tertiaryColor) {
+      prompt += `Color scheme: `;
+      if (primaryColor) prompt += `Primary color ${primaryColor}`;
+      if (secondaryColor) prompt += `, Secondary color ${secondaryColor}`;
+      if (tertiaryColor) prompt += `, Tertiary color ${tertiaryColor}`;
+      prompt += `. `;
+    }
+    
+    prompt += `Style: modern, clean, professional advertising with high-quality visual appeal.`;
+    
+    return prompt;
   }
 
   // Fallback prompt
+  const basePrompt = "Create a professional advertisement image showcasing the product";
+  if (adCopy) {
+    return `${basePrompt}. ${adCopy}. Style: modern, clean, professional advertising.`;
+  }
   return `${basePrompt}. Style: modern, clean, professional advertising with high-quality visual appeal.`;
 }
 
@@ -196,10 +760,10 @@ function mapImageSize(size: string): string {
   return sizeMap[size] || 'auto';
 }
 
-export async function getV2ItemsStatus(ids: string[]): Promise<{success: boolean; items?: Record<string, unknown>[]; error?: string}> {
+export async function getMultiVariantItemsStatus(ids: string[]): Promise<{success: boolean; items?: Record<string, unknown>[]; error?: string}> {
   try {
     const supabase = getSupabaseAdmin();
-
+    
     const { data: projects, error } = await supabase
       .from('multi_variant_ads_projects')
       .select('*')
@@ -289,8 +853,18 @@ Return as JSON format.`
   const content = data.choices[0].message.content;
 
   try {
-    return JSON.parse(content);
-  } catch {
+    // 移除可能的 Markdown 代码块包装
+    let cleanContent = content;
+    if (content.includes('```json')) {
+      cleanContent = content.replace(/```json\s*/, '').replace(/\s*```$/, '');
+    } else if (content.includes('```')) {
+      cleanContent = content.replace(/```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    return JSON.parse(cleanContent);
+  } catch (error) {
+    console.error('Failed to parse video design result:', content);
+    console.error('Parse error:', error);
     // If JSON parsing fails, create a structured response
     return {
       description: "Professional product advertisement showcase",

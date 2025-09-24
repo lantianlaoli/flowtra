@@ -288,7 +288,7 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
         watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
-        generateVideo
+        shouldGenerateVideo: generateVideo
       };
 
       console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
