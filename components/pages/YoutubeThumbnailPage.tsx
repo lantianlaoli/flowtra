@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import UserPhotoGallery from '@/components/UserPhotoGallery';
+import MaintenanceMessage from '@/components/MaintenanceMessage';
 import { Zap, Loader2, Download, Youtube, Settings, Type, Hash, Play } from 'lucide-react';
 import { THUMBNAIL_CREDIT_COST } from '@/lib/constants';
 import RetryImage from '@/components/ui/RetryImage';
@@ -16,6 +17,13 @@ interface ThumbnailRecord {
   status: 'pending' | 'processing' | 'loading' | 'completed' | 'failed';
   downloaded: boolean;
   createdAt: string;
+}
+
+interface KieCreditsStatus {
+  sufficient: boolean;
+  loading: boolean;
+  currentCredits?: number;
+  threshold?: number;
 }
 
 // Emotional generate button messages
@@ -40,10 +48,41 @@ export default function YoutubeThumbnailPage() {
   const [buttonMessage, setButtonMessage] = useState('Generate Thumbnail');
   const [generatedThumbnails, setGeneratedThumbnails] = useState<ThumbnailRecord[]>([]);
 
+  // KIE credits state
+  const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
+    sufficient: true,
+    loading: true
+  });
+
   const messageIndexRef = useRef(0);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messageCycleIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check KIE credits on page load
+  useEffect(() => {
+    const checkKieCredits = async () => {
+      try {
+        const response = await fetch('/api/check-kie-credits');
+        const result = await response.json();
+        
+        setKieCreditsStatus({
+          sufficient: result.success && result.sufficient,
+          loading: false,
+          currentCredits: result.currentCredits,
+          threshold: result.threshold
+        });
+      } catch (error) {
+        console.error('Failed to check KIE credits:', error);
+        setKieCreditsStatus({
+          sufficient: false,
+          loading: false
+        });
+      }
+    };
+
+    checkKieCredits();
+  }, []);
 
   // System prompt for YouTube thumbnail generation
   const systemPrompt = `A dynamic, flat-design YouTube thumbnail with a clear left-right composition. The left side is dominated by large, bold, horizontally arranged text, occupying approximately 70% of the thumbnail's total width. This text displays the video title: "${title}" in a readable horizontal layout. This text has its own solid color background panel.
@@ -325,18 +364,25 @@ The colors of the text's background panel, the overall thumbnail background, and
             </div>
           </div>
 
-          {/* Main Content - Left/Right Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
-            {/* Left Side - Photo Gallery (40%) */}
-            <div className="lg:col-span-2 order-2 lg:order-1">
-              <UserPhotoGallery
-                onPhotoSelect={setSelectedPhotoUrl}
-                selectedPhotoUrl={selectedPhotoUrl}
-              />
+          {/* Check KIE credits first - if insufficient, show maintenance interface */}
+          {!kieCreditsStatus.loading && !kieCreditsStatus.sufficient ? (
+            <div className="max-w-xl mx-auto">
+              <MaintenanceMessage />
             </div>
+          ) : (
+            <>
+              {/* Main Content - Left/Right Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
+                {/* Left Side - Photo Gallery (40%) */}
+                <div className="lg:col-span-2 order-2 lg:order-1">
+                  <UserPhotoGallery
+                    onPhotoSelect={setSelectedPhotoUrl}
+                    selectedPhotoUrl={selectedPhotoUrl}
+                  />
+                </div>
 
-            {/* Right Side - Configuration (60%) */}
-            <div className="lg:col-span-3 order-1 lg:order-2">
+                {/* Right Side - Configuration (60%) */}
+                <div className="lg:col-span-3 order-1 lg:order-2">
               <div className="bg-white rounded-lg border border-gray-200 shadow-sm h-fit">
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex items-center gap-2">
@@ -513,6 +559,8 @@ The colors of the text's background panel, the overall thumbnail background, and
           </div>
 
           {/* Note: Thumbnail History moved to dashboard/videos */}
+            </>
+          )}
         </div>
       </div>
     </div>

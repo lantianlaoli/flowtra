@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@clerk/nextjs/server';
 import { getSupabase } from '@/lib/supabase';
 import { THUMBNAIL_CREDIT_COST } from '@/lib/constants';
+import { validateKieCredits } from '@/lib/kie-credits-check';
 
 export async function POST(request: NextRequest) {
   try {
+    // Check KIE credits before processing
+    const kieValidation = await validateKieCredits();
+    if (kieValidation) {
+      return kieValidation;
+    }
+
     const { userId } = getAuth(request);
 
     if (!userId) {

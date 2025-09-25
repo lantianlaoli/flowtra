@@ -551,9 +551,14 @@ async function checkFalTaskStatus(taskId: string, retryCount = 0): Promise<{
     });
 
     if (result.status === 'COMPLETED') {
+      // Get the actual result data
+      const actualResult = await fal.queue.result("fal-ai/ffmpeg-api/merge-videos", {
+        requestId: taskId
+      });
+      
       return {
         status: result.status,
-        result_url: ((result as unknown as Record<string, unknown>).data as Record<string, { url?: string }>)?.video?.url
+        result_url: (((actualResult as Record<string, unknown>)?.data as Record<string, unknown>)?.video as Record<string, unknown>)?.url as string
       };
     } else {
       return {

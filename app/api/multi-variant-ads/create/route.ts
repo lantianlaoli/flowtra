@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateKieCredits } from '@/lib/kie-credits-check';
+import { startMultiVariantItems } from '@/lib/multi-variant-ads-workflow';
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-import { startMultiVariantItems } from '@/lib/multi-variant-ads-workflow';
 
 export async function POST(request: NextRequest) {
   try {
+    // Check KIE credits before processing
+    const kieValidation = await validateKieCredits();
+    if (kieValidation) {
+      return kieValidation;
+    }
+
     const requestData = await request.json();
     const {
       imageUrl,

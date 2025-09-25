@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
 import { CREDIT_COSTS, getActualModel, getActualImageModel } from '@/lib/constants';
+import { validateKieCredits } from '@/lib/kie-credits-check';
 
 export async function POST(request: NextRequest) {
   try {
     console.log('Character ads create API called');
+    
+    // Check KIE credits before processing
+    const kieValidation = await validateKieCredits();
+    if (kieValidation) {
+      return kieValidation;
+    }
     const formData = await request.formData();
     console.log('FormData entries:', Array.from(formData.entries()).map(([key, value]) => [key, value instanceof File ? `File: ${value.name}` : value]));
 

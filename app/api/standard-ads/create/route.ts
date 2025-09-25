@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { startWorkflowProcess, StartWorkflowRequest } from '@/lib/standard-ads-workflow';
+import { validateKieCredits } from '@/lib/kie-credits-check';
 
 export async function POST(request: NextRequest) {
   try {
+    // Check KIE credits before processing
+    const kieValidation = await validateKieCredits();
+    if (kieValidation) {
+      return kieValidation;
+    }
     const requestData: StartWorkflowRequest = await request.json();
 
     // 确保photoOnly字段正确设置为shouldGenerateVideo的反值

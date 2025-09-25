@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -10,10 +10,18 @@ import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import ProductSelector from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
+import MaintenanceMessage from '@/components/MaintenanceMessage';
 import { ArrowRight, Clock, Video, Settings, Package, History } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+
+interface KieCreditsStatus {
+  sufficient: boolean;
+  loading: boolean;
+  currentCredits?: number;
+  threshold?: number;
+}
 
 export default function CharacterAdsPage() {
   const { user, isLoaded } = useUser();
@@ -34,8 +42,38 @@ export default function CharacterAdsPage() {
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
   const [projectId, setProjectId] = useState<string | null>(null);
 
+  // KIE credits state
+  const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
+    sufficient: true,
+    loading: true
+  });
+
   const canStartGeneration = (personImages.length > 0 || selectedPersonPhotoUrl) && selectedProduct;
 
+  // Check KIE credits on page load
+  useEffect(() => {
+    const checkKieCredits = async () => {
+      try {
+        const response = await fetch('/api/check-kie-credits');
+        const result = await response.json();
+        
+        setKieCreditsStatus({
+          sufficient: result.success && result.sufficient,
+          loading: false,
+          currentCredits: result.currentCredits,
+          threshold: result.threshold
+        });
+      } catch (error) {
+        console.error('Failed to check KIE credits:', error);
+        setKieCreditsStatus({
+          sufficient: false,
+          loading: false
+        });
+      }
+    };
+
+    checkKieCredits();
+  }, []);
 
   const handleStartGeneration = async () => {
     if (!canStartGeneration || !user?.id) return;
@@ -123,7 +161,19 @@ export default function CharacterAdsPage() {
           </div>
 
           <AnimatePresence mode="wait">
-            {showProductManager ? (
+            {/* Check KIE credits first - if insufficient, show maintenance interface */}
+            {!kieCreditsStatus.loading && !kieCreditsStatus.sufficient ? (
+              <motion.div
+                key="maintenance"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="max-w-xl mx-auto"
+              >
+                <MaintenanceMessage />
+              </motion.div>
+            ) : showProductManager ? (
               <motion.div
                 key="product-manager"
                 initial={{ opacity: 0, y: 20 }}
