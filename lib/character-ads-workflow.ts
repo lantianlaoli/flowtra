@@ -524,13 +524,15 @@ async function mergeVideosWithFal(videoUrls: string[]): Promise<{ taskId: string
   }
 }
 
-// Check fal.ai task status
-async function checkFalTaskStatus(taskId: string): Promise<{
+// Check fal.ai task status with retry mechanism
+async function checkFalTaskStatus(taskId: string, retryCount = 0): Promise<{
   status: string;
   result_url?: string;
   error?: string;
 }> {
   const { fal } = await import("@fal-ai/client");
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 2000; // 2 seconds
 
   fal.config({
     credentials: process.env.FAL_KEY
@@ -553,7 +555,32 @@ async function checkFalTaskStatus(taskId: string): Promise<{
       };
     }
   } catch (error) {
-    console.error('fal.ai status check error:', error);
+    console.error(`fal.ai status check error (attempt ${retryCount + 1}):`, error);
+    
+    // Check if it's a network-related error and we haven't exceeded max retries
+    const isNetworkError = error instanceof Error && (
+      error.message.includes('fetch failed') ||
+      error.message.includes('EAI_AGAIN') ||
+      error.message.includes('ENOTFOUND') ||
+      error.message.includes('ECONNRESET') ||
+      error.message.includes('timeout')
+    );
+
+    if (isNetworkError && retryCount < MAX_RETRIES) {
+      console.log(`Network error detected, retrying in ${RETRY_DELAY}ms... (${retryCount + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      return checkFalTaskStatus(taskId, retryCount + 1);
+    }
+
+    // If it's a network error and we've exhausted retries, return a special status
+    if (isNetworkError) {
+      console.warn(`Network error persists after ${MAX_RETRIES} retries, marking as network_error`);
+      return {
+        status: 'NETWORK_ERROR',
+        error: `Network connectivity issue: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+
     throw new Error(`Status check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -973,6 +1000,13 @@ export async function processCharacterAdsProject(
           return {
             project: updatedProject,
             message: 'Video merging completed successfully'
+          };
+        } else if (status.status === 'NETWORK_ERROR') {
+          // Network error - continue monitoring without failing the project
+          console.warn(`Network error checking merge status for project ${project.id}, will retry later`);
+          return {
+            project,
+            message: 'Network connectivity issue, retrying merge status check...'
           };
         } else if (status.status === 'FAILED' || status.error) {
           throw new Error(status.error || 'Video merging failed');

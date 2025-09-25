@@ -25,8 +25,8 @@ fal.config({
 
 // Video URLs from the failed record
 const videoUrls = [
-  "https://tempfile.aiquickdraw.com/p/171ed18e096971fea6e64ddbba07218d_1758803867.mp4",
-  "https://tempfile.aiquickdraw.com/p/6b2901a26aa60a4469e3544489582625_1758803897.mp4"
+  "https://tempfile.aiquickdraw.com/p/32ac1f1c183e9c0306771ec21f02a7e4_1758806507.mp4",
+  "https://tempfile.aiquickdraw.com/p/f6590f58e01a477113bb6432f9416556_1758806482.mp4"
 ];
 
 console.log('Starting fal.ai video merge test...');
