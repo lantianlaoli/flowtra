@@ -166,6 +166,16 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
           })
           .eq('id', project.id);
 
+        // Update Scene 0 (image scene)
+        await supabase
+          .from('character_ads_scenes')
+          .update({
+            generated_url: imageResult.imageUrl,
+            status: 'completed'
+          })
+          .eq('project_id', project.id)
+          .eq('scene_number', 0);
+
         // Trigger next step - video generation
         try {
           const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';

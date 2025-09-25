@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { IMAGE_MODELS } from '@/lib/constants';
 
 interface CharacterAdsProject {
   id: string;
@@ -28,51 +29,41 @@ interface ProcessResult {
   nextStep?: string;
 }
 
-// Import existing image analysis function from Multi-Variant workflow
-async function analyzeImages(imageUrls: string[]): Promise<Record<string, unknown>> {
-  // Use the first available image for analysis (person or product)
-  const primaryImageUrl = imageUrls[0];
+// Analyze both person and product images for Character Ads workflow
+async function analyzeImages(personImageUrls: string[], productImageUrls: string[]): Promise<Record<string, unknown>> {
+  // Use the first person image and first product image for analysis
+  const personImageUrl = personImageUrls[0];
+  const productImageUrl = productImageUrls[0];
 
-  const systemText = `Analyze the given image and determine if it primarily depicts a product or a character, or BOTH.
+  const systemText = `You will be provided with TWO images for analysis:
+1. The FIRST image shows a person/character
+2. The SECOND image shows a product
 
-- If the image is of a product, return the analysis in JSON format with the following fields:
-
-{
-  "type": "product",
-  "brand_name": "(Name of the brand shown in the image, if visible or inferable)",
-  "color_scheme": [
-    {
-      "hex": "(Hex code of each prominent color used)",
-      "name": "(Descriptive name of the color)"
-    }
-  ],
-  "font_style": "(Describe the font family or style used: serif/sans-serif, bold/thin, etc.)",
-  "visual_description": "(A full sentence or two summarizing what is seen in the image, ignoring the background)"
-}
-
-- If the image is of a character, return the analysis in JSON format with the following fields:
+Analyze BOTH images separately and return a combined analysis in the following JSON format:
 
 {
   "type": "character",
-  "outfit_style": "(Description of clothing style, accessories, or notable features)",
-  "visual_description": "(A full sentence or two summarizing what the character looks like, ignoring the background)"
+  "character": {
+    "outfit_style": "(Description of the person's clothing style, accessories, or notable features from the first image)",
+    "visual_description": "(A full sentence or two summarizing what the character/person looks like, ignoring the background)"
+  },
+  "product": {
+    "brand_name": "(Name of the brand shown in the product image, if visible or inferable)",
+    "color_scheme": [
+      {
+        "hex": "(Hex code of each prominent color used in the product)",
+        "name": "(Descriptive name of the color)"
+      }
+    ],
+    "font_style": "(Describe any font family or style used on the product: serif/sans-serif, bold/thin, etc. Use 'N/A' if no text visible)",
+    "visual_description": "(A full sentence or two summarizing what is seen in the product image, ignoring the background)"
+  }
 }
 
-- If it is BOTH, return both descriptions in JSON format:
-
-{
-  "type": "both",
-  "product": {
-    "brand_name": "...",
-    "color_scheme": [...],
-    "font_style": "...",
-    "visual_description": "..."
-  },
-  "character": {
-    "outfit_style": "...",
-    "visual_description": "..."
-  }
-}`;
+Important:
+- Always analyze the character from the FIRST image and the product from the SECOND image
+- Always use "type": "character" since this is for character spokesperson ads
+- Provide detailed descriptions that will help generate realistic video prompts featuring the character with the product`;
 
   const requestBody = JSON.stringify({
     model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
@@ -81,7 +72,8 @@ async function analyzeImages(imageUrls: string[]): Promise<Record<string, unknow
         role: 'user',
         content: [
           { type: 'text', text: systemText },
-          { type: 'image_url', image_url: { url: primaryImageUrl } }
+          { type: 'image_url', image_url: { url: personImageUrl } },
+          { type: 'image_url', image_url: { url: productImageUrl } }
         ]
       }
     ],
@@ -108,9 +100,17 @@ async function analyzeImages(imageUrls: string[]): Promise<Record<string, unknow
   const content = data.choices?.[0]?.message?.content;
 
   try {
-    return JSON.parse(content);
-  } catch {
+    // Clean up markdown code blocks if present
+    const cleanedContent = content
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+
+    console.log('Cleaned content for parsing:', cleanedContent);
+    return JSON.parse(cleanedContent);
+  } catch (error) {
     console.error('Failed to parse analysis result:', content);
+    console.error('Parse error:', error);
     throw new Error('Failed to parse image analysis result');
   }
 }
@@ -118,6 +118,17 @@ async function analyzeImages(imageUrls: string[]): Promise<Record<string, unknow
 // Generate prompts based on analysis and long_ads.md specifications
 async function generatePrompts(analysisResult: Record<string, unknown>, videoDurationSeconds: number): Promise<Record<string, unknown>> {
   const videoScenes = videoDurationSeconds / 8; // Each scene is 8 seconds
+
+  // Extract character information to determine appropriate voice type
+  const characterInfo = (analysisResult as { character?: { visual_description?: string } })?.character?.visual_description || '';
+  const isCharacterMale = characterInfo.toLowerCase().includes('man') || 
+                         characterInfo.toLowerCase().includes('male') || 
+                         characterInfo.toLowerCase().includes('boy') ||
+                         characterInfo.toLowerCase().includes('guy');
+  
+  const voiceType = isCharacterMale ? 
+    'Australian accent, deep male voice' : 
+    'Australian accent, deep female voice';
 
   const systemPrompt = `
 UGC Image + Video Prompt Generator 🎥🖼️
@@ -135,16 +146,19 @@ For Scene 0 (image prompt):
 - At the beginning, use this prefix: "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible"
 - Use casual, amateur iPhone selfie style
 - UGC, unfiltered, realistic
+- IMPORTANT: Keep the character consistent with the reference image analysis
 
 For Scene 1+ (video prompts):
 - Each scene is 8 seconds long
 - Include dialogue with casual, spontaneous tone (under 150 characters)
 - Describe accent and voice style consistently
 - Prefix video prompts with: "dialogue, the character in the video says:"
-- Use Australian accent, deep female voice
+- Use ${voiceType}
 - Camera movement: fixed
 - Avoid mentioning copyrighted characters
 - Don't refer back to previous scenes
+- CRITICAL: Maintain character consistency - the same person from the reference image should appear in all scenes
+- CRITICAL: Maintain product consistency - focus on the same product throughout all scenes
 
 Return in JSON format:
 {
@@ -209,10 +223,42 @@ Generate prompts for ${videoScenes} video scenes (8 seconds each) plus 1 image s
   const content = data.choices?.[0]?.message?.content;
 
   try {
-    return JSON.parse(content);
-  } catch {
+    // Clean up markdown code blocks if present
+    const cleanedContent = content
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+
+    console.log('Cleaned prompts content for parsing:', cleanedContent);
+    return JSON.parse(cleanedContent);
+  } catch (error) {
     console.error('Failed to parse prompts result:', content);
+    console.error('Prompts parse error:', error);
     throw new Error('Failed to parse generated prompts');
+  }
+}
+
+// Helper function to get correct parameters for different image models
+function getImageModelParameters(model: string): Record<string, unknown> {
+  if (model === IMAGE_MODELS.nano_banana) {
+    // Nano Banana parameters (google/nano-banana-edit)
+    return {
+      image_size: "1:1",  // Square format, equivalent to square_hd
+      output_format: "png"
+    };
+  } else if (model === IMAGE_MODELS.seedream) {
+    // Seedream V4 parameters (bytedance/seedream-v4-edit)
+    return {
+      image_size: "square_hd",
+      image_resolution: "1K",
+      max_images: 1
+    };
+  } else {
+    // Default to Nano Banana format for unknown models
+    return {
+      image_size: "1:1",
+      output_format: "png"
+    };
   }
 }
 
@@ -222,17 +268,25 @@ async function generateImageWithKIE(
   imageModel: string,
   referenceImages: string[]
 ): Promise<{ taskId: string }> {
+  // Get the correct parameters for this model
+  const modelParams = getImageModelParameters(imageModel);
+
   const payload = {
     model: imageModel,
-    prompt: JSON.stringify(prompt),
-    reference_images: referenceImages,
+    input: {
+      prompt: JSON.stringify(prompt),
+      image_urls: referenceImages,
+      ...modelParams  // Spread the model-specific parameters
+    },
     // Add callback URL if configured for faster webhook notifications
     ...(process.env.KIE_CHARACTER_ADS_CALLBACK_URL && {
-      callback_url: process.env.KIE_CHARACTER_ADS_CALLBACK_URL
+      callBackUrl: process.env.KIE_CHARACTER_ADS_CALLBACK_URL
     })
   };
 
-  const response = await fetch(`${process.env.KIE_API_BASE_URL}/image/generate`, {
+  console.log('KIE API request payload:', JSON.stringify(payload, null, 2));
+
+  const response = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -241,12 +295,23 @@ async function generateImageWithKIE(
     body: JSON.stringify(payload)
   });
 
+  console.log('KIE API response status:', response.status, response.statusText);
+
   if (!response.ok) {
-    throw new Error(`KIE image generation failed: ${response.statusText}`);
+    const errorText = await response.text();
+    console.error('KIE API error response:', errorText);
+    throw new Error(`KIE image generation failed: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
   const data = await response.json();
-  return { taskId: data.task_id };
+  console.log('KIE API response data:', JSON.stringify(data, null, 2));
+
+  if (data.code !== 200) {
+    console.error('KIE API returned error code:', data.code, 'message:', data.msg);
+    throw new Error(`KIE image generation failed: ${data.msg}`);
+  }
+
+  return { taskId: data.data.taskId };
 }
 
 async function generateVideoWithKIE(
@@ -254,47 +319,175 @@ async function generateVideoWithKIE(
   videoModel: string,
   referenceImageUrl: string
 ): Promise<{ taskId: string }> {
-  const payload = {
-    model: videoModel,
+  // VEO API uses a different structure
+  const requestBody = {
+    model: videoModel, // e.g., 'veo3_fast' or 'veo3'
     prompt: JSON.stringify(prompt),
-    reference_image: referenceImageUrl,
-    duration_seconds: 8, // Each video scene is 8 seconds
-    // Additional KIE-specific parameters
+    referenceImage: referenceImageUrl,
+    durationSeconds: 8,
+    audioEnabled: false,
+    includeDialogue: false
   };
 
-  const response = await fetch(`${process.env.KIE_API_BASE_URL}/video/generate`, {
+  const response = await fetch('https://api.kie.ai/api/v1/veo/generate', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(requestBody)
   });
 
   if (!response.ok) {
-    throw new Error(`KIE video generation failed: ${response.statusText}`);
+    const errorData = await response.text();
+    throw new Error(`KIE video generation failed: ${response.status} ${response.statusText} - ${errorData}`);
   }
 
   const data = await response.json();
-  return { taskId: data.task_id };
+
+  if (data.code !== 200) {
+    throw new Error(`KIE video generation failed: ${data.message || 'Unknown error'}`);
+  }
+
+  return { taskId: data.data.taskId };
 }
 
-async function checkKIETaskStatus(taskId: string): Promise<{
+async function checkKIEImageTaskStatus(taskId: string): Promise<{
   status: string;
   result_url?: string;
   error?: string;
 }> {
-  const response = await fetch(`${process.env.KIE_API_BASE_URL}/task/${taskId}`, {
+  const response = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     }
   });
 
   if (!response.ok) {
-    throw new Error(`KIE task status check failed: ${response.statusText}`);
+    throw new Error(`KIE image task status check failed: ${response.statusText}`);
   }
 
-  return await response.json();
+  const data = await response.json();
+
+  if (data.code !== 200) {
+    throw new Error(`KIE image task status check failed: ${data.msg}`);
+  }
+
+  const taskData = data.data;
+  if (!taskData) {
+    return { status: 'processing' };
+  }
+
+  // Normalize state flags and extract URL robustly (same logic as other features)
+  const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
+  const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+
+  let resultJson: Record<string, unknown> = {};
+  try {
+    resultJson = JSON.parse(taskData.resultJson || '{}');
+  } catch {
+    resultJson = {};
+  }
+
+  const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
+    ? (resultJson as { resultUrls?: string[] }).resultUrls
+    : undefined;
+  const responseUrls = Array.isArray(taskData.response?.resultUrls)
+    ? (taskData.response.resultUrls as string[])
+    : undefined;
+  const flatUrls = Array.isArray(taskData.resultUrls)
+    ? (taskData.resultUrls as string[])
+    : undefined;
+  const result_url = (directUrls || responseUrls || flatUrls)?.[0];
+
+  const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!result_url && (state === undefined));
+  const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+
+  if (isSuccess) {
+    return { 
+      status: 'completed', 
+      result_url,
+      error: undefined
+    };
+  }
+  if (isFailed) {
+    return { 
+      status: 'failed', 
+      result_url: undefined,
+      error: taskData.failMsg || taskData.errorMessage || 'Image generation failed'
+    };
+  }
+
+  // Still processing
+  return { status: 'processing' };
+}
+
+async function checkKIEVideoTaskStatus(taskId: string): Promise<{
+  status: string;
+  result_url?: string;
+  error?: string;
+}> {
+  const response = await fetch(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
+    headers: {
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`KIE video task status check failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  if (data.code !== 200) {
+    throw new Error(`KIE video task status check failed: ${data.msg || 'Unknown error'}`);
+  }
+
+  const taskData = data.data;
+  if (!taskData) {
+    return { status: 'processing' };
+  }
+
+  // Use the same robust logic as other features - prioritize successFlag
+  const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+  const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
+
+  // Extract video URL from multiple possible locations
+  let result_url: string | undefined;
+  if (taskData.outputUrl) {
+    result_url = taskData.outputUrl;
+  } else if (taskData.response?.resultUrls?.[0]) {
+    result_url = taskData.response.resultUrls[0];
+  }
+
+  if (successFlag === 1) {
+    return {
+      status: 'completed',
+      result_url,
+      error: undefined
+    };
+  } else if (successFlag === 2 || successFlag === 3) {
+    return {
+      status: 'failed',
+      result_url: undefined,
+      error: taskData.errorMessage || taskData.failureReason || 'Video generation failed'
+    };
+  } else if (state === 'success') {
+    return {
+      status: 'completed',
+      result_url,
+      error: undefined
+    };
+  } else if (state === 'failed') {
+    return {
+      status: 'failed',
+      result_url: undefined,
+      error: taskData.errorMessage || taskData.failureReason || 'Video generation failed'
+    };
+  } else {
+    // Still processing (waiting, running, or other states)
+    return { status: 'processing' };
+  }
 }
 
 // fal.ai video merging integration
@@ -311,7 +504,7 @@ async function mergeVideosWithFal(videoUrls: string[]): Promise<{ taskId: string
       input: {
         video_urls: videoUrls,
         target_fps: 30,
-        resolution: 1920 // HD resolution for better quality
+        resolution: "landscape_16_9" // HD landscape resolution for better quality
       },
       logs: true,
       onQueueUpdate: (update) => {
@@ -377,9 +570,8 @@ export async function processCharacterAdsProject(
         // Step 1: Analyze uploaded images
         console.log('Starting image analysis for project:', project.id);
 
-        // Combine person and product images for analysis
-        const allImageUrls = [...project.person_image_urls, ...project.product_image_urls];
-        const analysisResult = await analyzeImages(allImageUrls);
+        // Analyze person and product images separately
+        const analysisResult = await analyzeImages(project.person_image_urls, project.product_image_urls);
 
         // Update project with analysis results
         const { data: updatedProject, error } = await supabase
@@ -482,9 +674,12 @@ export async function processCharacterAdsProject(
         const imagePrompt = (project.generated_prompts?.scenes as Array<{prompt: unknown}>)?.[0]?.prompt;
         const referenceImages = [...project.person_image_urls, ...project.product_image_urls];
 
+        // Map short model name to full KIE model name
+        const fullModelName = IMAGE_MODELS[project.image_model as keyof typeof IMAGE_MODELS] || project.image_model;
+
         const { taskId } = await generateImageWithKIE(
           imagePrompt as Record<string, unknown>,
-          project.image_model,
+          fullModelName,
           referenceImages
         );
 
@@ -526,7 +721,7 @@ export async function processCharacterAdsProject(
           throw new Error('Image task ID not found');
         }
 
-        const status = await checkKIETaskStatus(project.kie_image_task_id);
+        const status = await checkKIEImageTaskStatus(project.kie_image_task_id);
 
         if (status.status === 'completed' && status.result_url) {
           // Image generation completed
@@ -638,7 +833,7 @@ export async function processCharacterAdsProject(
 
         for (let i = 0; i < project.kie_video_task_ids.length; i++) {
           const taskId = project.kie_video_task_ids[i];
-          const status = await checkKIETaskStatus(taskId);
+          const status = await checkKIEVideoTaskStatus(taskId);
 
           if (status.status === 'completed' && status.result_url) {
             videoUrls.push(status.result_url);
@@ -661,27 +856,52 @@ export async function processCharacterAdsProject(
         }
 
         if (allCompleted) {
-          // All videos completed, start merging
-          const { data: updatedProject, error } = await supabase
-            .from('character_ads_projects')
-            .update({
-              generated_video_urls: videoUrls,
-              status: 'merging_videos',
-              current_step: 'merging_videos',
-              progress_percentage: 85,
-              last_processed_at: new Date().toISOString()
-            })
-            .eq('id', project.id)
-            .select()
-            .single();
+          // Check if we need to merge videos (only for duration > 8 seconds)
+          if (project.video_duration_seconds === 8) {
+            // For 8-second videos, use the single generated video directly
+            const { data: updatedProject, error } = await supabase
+              .from('character_ads_projects')
+              .update({
+                generated_video_urls: videoUrls,
+                merged_video_url: videoUrls[0], // Use the single video directly
+                status: 'completed',
+                current_step: 'completed',
+                progress_percentage: 100,
+                last_processed_at: new Date().toISOString()
+              })
+              .eq('id', project.id)
+              .select()
+              .single();
 
-          if (error) throw error;
+            if (error) throw error;
 
-          return {
-            project: updatedProject,
-            message: 'All videos generated, starting merge',
-            nextStep: 'merge_videos'
-          };
+            return {
+              project: updatedProject,
+              message: 'Video generation completed (no merge needed for 8s)'
+            };
+          } else {
+            // For longer videos, proceed with merging
+            const { data: updatedProject, error } = await supabase
+              .from('character_ads_projects')
+              .update({
+                generated_video_urls: videoUrls,
+                status: 'merging_videos',
+                current_step: 'merging_videos',
+                progress_percentage: 85,
+                last_processed_at: new Date().toISOString()
+              })
+              .eq('id', project.id)
+              .select()
+              .single();
+
+            if (error) throw error;
+
+            return {
+              project: updatedProject,
+              message: 'All videos generated, starting merge',
+              nextStep: 'merge_videos'
+            };
+          }
         }
 
         // Still processing

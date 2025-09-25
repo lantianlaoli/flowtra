@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
+import { CREDIT_COSTS, getActualModel, getActualImageModel } from '@/lib/constants';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('Character ads create API called');
     const formData = await request.formData();
+    console.log('FormData entries:', Array.from(formData.entries()).map(([key, value]) => [key, value instanceof File ? `File: ${value.name}` : value]));
 
     // Extract form data
     const userId = formData.get('user_id') as string;
     const videoDurationSeconds = parseInt(formData.get('video_duration_seconds') as string);
     const imageModel = formData.get('image_model') as string;
     const videoModel = formData.get('video_model') as string;
+    const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
+    const selectedProductId = formData.get('selected_product_id') as string;
+
+    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, videoModel, selectedPersonPhotoUrl, selectedProductId });
 
     if (!userId || !videoDurationSeconds || !imageModel || !videoModel) {
       return NextResponse.json(
@@ -27,50 +34,91 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate models
-    if (!['nano_banana', 'seedream'].includes(imageModel)) {
+    // Validate models - handle 'auto' values
+    const validImageModels = ['auto', 'nano_banana', 'seedream'];
+    const validVideoModels = ['auto', 'veo3', 'veo3_fast'];
+
+    if (!validImageModels.includes(imageModel)) {
       return NextResponse.json(
         { error: 'Invalid image model' },
         { status: 400 }
       );
     }
 
-    if (!['veo3', 'veo3_fast'].includes(videoModel)) {
+    if (!validVideoModels.includes(videoModel)) {
       return NextResponse.json(
         { error: 'Invalid video model' },
         { status: 400 }
       );
     }
 
-    // Extract and upload person images
+    // Handle person images - either uploaded files or selected photo URL
     const personImageUrls: string[] = [];
     const personFiles: File[] = [];
 
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith('person_image_') && value instanceof File) {
-        personFiles.push(value);
+    if (selectedPersonPhotoUrl) {
+      personImageUrls.push(selectedPersonPhotoUrl);
+    } else {
+      for (const [key, value] of formData.entries()) {
+        if (key.startsWith('person_image_') && value instanceof File) {
+          personFiles.push(value);
+        }
       }
     }
 
-    // Extract and upload product images
+    // Handle product images - either from selected product or uploaded files
     const productImageUrls: string[] = [];
     const productFiles: File[] = [];
 
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith('product_image_') && value instanceof File) {
-        productFiles.push(value);
+    if (selectedProductId) {
+      // Get product images from database via user_product_photos table
+      const supabase = getSupabaseAdmin();
+      const { data: productPhotos, error: productError } = await supabase
+        .from('user_product_photos')
+        .select('photo_url')
+        .eq('product_id', selectedProductId)
+        .eq('user_id', userId);
+
+      if (productError) {
+        console.error('Error fetching product photos:', productError);
+        return NextResponse.json(
+          { error: 'Failed to fetch product photos' },
+          { status: 400 }
+        );
+      }
+
+      if (!productPhotos || productPhotos.length === 0) {
+        return NextResponse.json(
+          { error: 'No photos found for selected product' },
+          { status: 400 }
+        );
+      }
+
+      productImageUrls.push(...productPhotos.map(photo => photo.photo_url));
+    } else {
+      for (const [key, value] of formData.entries()) {
+        if (key.startsWith('product_image_') && value instanceof File) {
+          productFiles.push(value);
+        }
       }
     }
 
     // Validate that we have images
-    if (personFiles.length === 0 || productFiles.length === 0) {
+    if (personImageUrls.length === 0 && personFiles.length === 0) {
       return NextResponse.json(
-        { error: 'At least one person image and one product image are required' },
+        { error: 'At least one person image is required' },
         { status: 400 }
       );
     }
 
-    // Upload person images to Supabase
+    if (productImageUrls.length === 0 && productFiles.length === 0) {
+      return NextResponse.json(
+        { error: 'At least one product image is required' },
+        { status: 400 }
+      );
+    }
+
+    // Upload person images to Supabase if we have files
     for (let i = 0; i < personFiles.length; i++) {
       const file = personFiles[i];
       const fileName = `character-ads/person/${userId}/${Date.now()}_${i}_${file.name}`;
@@ -78,7 +126,7 @@ export async function POST(request: NextRequest) {
       personImageUrls.push(uploadResult.publicUrl);
     }
 
-    // Upload product images to Supabase
+    // Upload product images to Supabase if we have files
     for (let i = 0; i < productFiles.length; i++) {
       const file = productFiles[i];
       const fileName = `character-ads/product/${userId}/${Date.now()}_${i}_${file.name}`;
@@ -86,10 +134,14 @@ export async function POST(request: NextRequest) {
       productImageUrls.push(uploadResult.publicUrl);
     }
 
-    // Calculate credits cost
-    const imageCredits = 1; // Scene 0 image generation
+    // Convert 'auto' values to actual models using constants
+    const actualImageModel = getActualImageModel(imageModel as 'auto' | 'nano_banana' | 'seedream');
+    const actualVideoModel = getActualModel(videoModel as 'auto' | 'veo3' | 'veo3_fast', 1000); // Assume sufficient credits for model selection
+
+    // Calculate credits cost using constants
+    const imageCredits = 0; // Image generation is free according to constants
     const videoScenes = videoDurationSeconds / 8;
-    const videoCreditsPerScene = videoModel === 'veo3' ? 15 : 10; // Estimate based on model
+    const videoCreditsPerScene = actualVideoModel ? CREDIT_COSTS[actualVideoModel] : CREDIT_COSTS.veo3_fast;
     const totalCredits = imageCredits + (videoScenes * videoCreditsPerScene);
 
     // Create project in database
@@ -101,8 +153,8 @@ export async function POST(request: NextRequest) {
         person_image_urls: personImageUrls,
         product_image_urls: productImageUrls,
         video_duration_seconds: videoDurationSeconds,
-        image_model: imageModel,
-        video_model: videoModel,
+        image_model: actualImageModel,
+        video_model: actualVideoModel,
         credits_cost: totalCredits,
         status: 'pending',
         current_step: 'analyzing_images',
@@ -134,18 +186,25 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
-      project: {
-        id: project.id,
-        status: project.status,
-        current_step: project.current_step,
-        progress_percentage: project.progress_percentage,
-        video_duration_seconds: project.video_duration_seconds,
-        credits_cost: project.credits_cost,
-        person_image_count: personImageUrls.length,
-        product_image_count: productImageUrls.length,
-        created_at: project.created_at
-      }
+      id: project.id,
+      status: project.status,
+      current_step: project.current_step,
+      progress_percentage: project.progress_percentage,
+      video_duration_seconds: project.video_duration_seconds,
+      credits_cost: project.credits_cost,
+      // Add computed fields that frontend expects
+      has_analysis_result: false,
+      has_generated_prompts: false,
+      generated_image_url: null,
+      generated_video_count: 0,
+      kie_image_task_id: null,
+      kie_video_task_ids: null,
+      fal_merge_task_id: null,
+      merged_video_url: null,
+      error_message: null,
+      person_image_count: personImageUrls.length,
+      product_image_count: productImageUrls.length,
+      created_at: project.created_at
     });
 
   } catch (error) {

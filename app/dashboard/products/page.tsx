@@ -1,12 +1,14 @@
 'use client';
 
 import { useUser } from '@clerk/nextjs';
+import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import ProductManager from '@/components/ProductManager';
 import { Package } from 'lucide-react';
 
 export default function ProductsPage() {
   const { user, isLoaded } = useUser();
+  const { credits: userCredits } = useCredits();
 
   if (!isLoaded) {
     return <div className="flex">Loading...</div>;
@@ -15,6 +17,7 @@ export default function ProductsPage() {
   return (
     <div className="flex">
       <Sidebar
+        credits={userCredits}
         userEmail={user?.emailAddresses?.[0]?.emailAddress}
         userImageUrl={user?.imageUrl}
       />

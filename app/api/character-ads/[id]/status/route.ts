@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -13,17 +13,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
 
-    const supabase = getSupabase();
-    let query = supabase
+    const supabase = getSupabaseAdmin();
+    const { data: project, error } = await supabase
       .from('character_ads_projects')
       .select('*')
-      .eq('id', id);
-
-    if (userId) {
-      query = query.eq('user_id', userId);
-    }
-
-    const { data: project, error } = await query.single();
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
 
     if (error) {
       console.error('Error fetching character ads project status:', error);
@@ -39,6 +35,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         { status: 404 }
       );
     }
+
+    // Get scenes for this project to calculate additional fields
+    const { data: scenes } = await supabase
+      .from('character_ads_scenes')
+      .select('*')
+      .eq('project_id', id)
+      .order('scene_number');
+
+    // Calculate computed fields
+    const has_analysis_result = !!project.image_analysis_result;
+    const has_generated_prompts = !!project.generated_prompts;
+    const generated_video_count = scenes?.filter(scene =>
+      scene.scene_type === 'video' && scene.status === 'completed'
+    ).length || 0;
 
     const response = {
       success: true,
@@ -61,7 +71,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         error_message: project.error_message,
         last_processed_at: project.last_processed_at,
         created_at: project.created_at,
-        updated_at: project.updated_at
+        updated_at: project.updated_at,
+        // Add computed fields that frontend expects
+        has_analysis_result,
+        has_generated_prompts,
+        generated_video_count,
+        kie_image_task_id: project.kie_image_task_id,
+        kie_video_task_ids: project.kie_video_task_ids,
+        fal_merge_task_id: project.fal_merge_task_id
       },
       stepMessages: {
         analyzing_images: 'Analyzing uploaded images with AI...',

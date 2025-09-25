@@ -13,7 +13,7 @@ import VideoPlayer from '@/components/ui/VideoPlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 
-interface V1HistoryItem {
+interface StandardAdsItem {
   id: string;
   originalImageUrl: string;
   coverImageUrl?: string;
@@ -30,12 +30,12 @@ interface V1HistoryItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  isV2?: false;
+  adType: 'standard';
 }
 
-interface V2InstanceItem {
+interface MultiVariantAdsItem {
   id: string;
-  originalImageUrl: string;
+  originalImageUrl?: string;
   coverImageUrl?: string;
   videoUrl?: string;
   photoOnly?: boolean;
@@ -49,7 +49,7 @@ interface V2InstanceItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  isV2: true;
+  adType: 'multi-variant';
   elementsData?: Record<string, unknown>;
 }
 
@@ -67,7 +67,25 @@ interface YoutubeThumbnailItem {
   isYoutubeThumbnail: true;
 }
 
-type HistoryItem = V1HistoryItem | V2InstanceItem | YoutubeThumbnailItem;
+interface CharacterAdsItem {
+  id: string;
+  originalImageUrl?: string;
+  coverImageUrl?: string;
+  videoUrl?: string;
+  downloaded?: boolean;
+  downloadCreditsUsed?: number;
+  generationCreditsUsed?: number;
+  videoModel: 'veo3' | 'veo3_fast';
+  creditsUsed: number;
+  status: 'processing' | 'completed' | 'failed';
+  createdAt: string;
+  progress?: number;
+  currentStep?: string;
+  adType: 'character';
+  videoDurationSeconds?: number;
+}
+
+type HistoryItem = StandardAdsItem | MultiVariantAdsItem | YoutubeThumbnailItem | CharacterAdsItem;
 
 const ITEMS_PER_PAGE = 6; // 2 rows × 3 columns = 6 items per page
 const FAILED_STATUS_TOOLTIP = 'The image you used has an issue. Please try another one.';
@@ -75,6 +93,18 @@ const FAILED_STATUS_TOOLTIP = 'The image you used has an issue. Please try anoth
 // Helper functions
 const isYoutubeThumbnail = (item: HistoryItem): item is YoutubeThumbnailItem => {
   return 'isYoutubeThumbnail' in item && item.isYoutubeThumbnail === true;
+};
+
+const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
+  return 'adType' in item && item.adType === 'character';
+};
+
+const isStandardAds = (item: HistoryItem): item is StandardAdsItem => {
+  return 'adType' in item && item.adType === 'standard';
+};
+
+const isMultiVariantAds = (item: HistoryItem): item is MultiVariantAdsItem => {
+  return 'adType' in item && item.adType === 'multi-variant';
 };
 
 export default function HistoryPage() {
@@ -353,16 +383,23 @@ export default function HistoryPage() {
 
   // Removed unused getStepMessage helper to satisfy lint
 
-  // V1 download function
+  // Download function for videos (supports V1, V2, and Character Ads)
   const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast') => {
     if (!user?.id || !userCredits) return;
 
     const item = history.find(h => h.id === historyId);
     const isFirstDownload = !item?.downloaded;
-    const downloadCost = getCreditCost(videoModel);
 
     if (!item || isYoutubeThumbnail(item)) return; // Skip for YouTube thumbnails
-    
+
+    // Calculate download cost based on video duration for Character Ads
+    let downloadCost = getCreditCost(videoModel);
+    if (isCharacterAds(item) && item.videoDurationSeconds) {
+      // For Character Ads: cost = (duration / 8) * base_cost_per_8s
+      const baseCostPer8s = getCreditCost(videoModel);
+      downloadCost = Math.round((item.videoDurationSeconds / 8) * baseCostPer8s);
+    }
+
     if (isFirstDownload && userCredits < downloadCost) {
       alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
       return;
@@ -373,7 +410,10 @@ export default function HistoryPage() {
     setDownloadingVideo(historyId);
 
     try {
-      const response = await fetch('/api/download-video', {
+      // Use different API endpoint for Character Ads
+      const apiEndpoint = isCharacterAds(item) ? '/api/character-ads/download' : '/api/download-video';
+
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -381,6 +421,7 @@ export default function HistoryPage() {
         body: JSON.stringify({
           historyId,
           userId: user.id,
+          ...(isCharacterAds(item) && { videoDurationSeconds: item.videoDurationSeconds })
         }),
       });
 
@@ -512,8 +553,8 @@ export default function HistoryPage() {
     }
   };
 
-  // V1 cover download function (free) — show phrase only, no video download state
-  const downloadV1Cover = async (historyId: string) => {
+  // Standard ads cover download function (free) — show phrase only, no video download state
+  const downloadStandardAdsCover = async (historyId: string) => {
     if (!user?.id) return;
 
     const item = history.find(h => h.id === historyId);
@@ -541,8 +582,37 @@ export default function HistoryPage() {
     }
   };
 
-  // V2 download function
-  const downloadV2Content = async (instanceId: string, contentType: 'cover' | 'video', videoModel: 'veo3' | 'veo3_fast') => {
+  // Character ads cover download function (free) — similar to standard ads
+  const downloadCharacterAdsCover = async (historyId: string) => {
+    if (!user?.id) return;
+
+    const item = history.find(h => h.id === historyId);
+    if (!item || isYoutubeThumbnail(item) || !isCharacterAds(item) || !item.coverImageUrl) return;
+
+    try {
+      // Fetch as blob to force background download without navigation
+      const res = await fetch(item.coverImageUrl, { mode: 'cors' });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const contentType = blob.type || 'image/jpeg';
+      const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `character-cover-${historyId}.${ext}`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Download failed');
+    }
+  };
+
+  // Multi-variant ads download function
+  const downloadMultiVariantAdsContent = async (instanceId: string, contentType: 'cover' | 'video', videoModel: 'veo3' | 'veo3_fast') => {
     if (!user?.id) return;
 
     const downloadCost = getCreditCost(videoModel);
@@ -613,7 +683,7 @@ export default function HistoryPage() {
         if (contentType === 'video' && result.creditsUsed > 0) {
           setHistory(prevHistory =>
             prevHistory.map(item => 
-              item.id === instanceId && 'isV2' in item && item.isV2
+              item.id === instanceId && isMultiVariantAds(item)
                 ? { ...item, downloaded: true }
                 : item
             )
@@ -648,10 +718,12 @@ export default function HistoryPage() {
     const id = item.id;
     setCoverStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if ('isV2' in item && item.isV2) {
-        await downloadV2Content(item.id, 'cover', item.videoModel);
-      } else {
-        await downloadV1Cover(item.id);
+      if (isMultiVariantAds(item)) {
+        await downloadMultiVariantAdsContent(item.id, 'cover', item.videoModel);
+      } else if (isStandardAds(item)) {
+        await downloadStandardAdsCover(item.id);
+      } else if (isCharacterAds(item)) {
+        await downloadCharacterAdsCover(item.id);
       }
       // Mark as done to show a pleasant finish message
       setCoverStates(prev => ({ ...prev, [id]: 'done' }));
@@ -670,9 +742,9 @@ export default function HistoryPage() {
     const id = item.id;
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if ('isV2' in item && item.isV2) {
-        await downloadV2Content(item.id, 'video', item.videoModel);
-      } else if ('videoModel' in item) {
+      if (isMultiVariantAds(item)) {
+        await downloadMultiVariantAdsContent(item.id, 'video', item.videoModel);
+      } else if (isStandardAds(item) || isCharacterAds(item)) {
         await downloadVideo(item.id, item.videoModel);
       }
       setVideoStates(prev => ({ ...prev, [id]: 'done' }));
@@ -836,13 +908,17 @@ export default function HistoryPage() {
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                         isYoutubeThumbnail(item)
                           ? 'bg-red-100 text-red-700 border border-red-200'
-                          : ('isV2' in item && item.isV2)
+                          : isCharacterAds(item)
+                          ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                          : isMultiVariantAds(item)
                           ? 'bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 border border-orange-200'
                           : 'bg-gray-100 text-gray-600 border border-gray-200'
                       }`}>
                         {isYoutubeThumbnail(item)
                           ? 'YouTube Thumbnail'
-                          : ('isV2' in item && item.isV2)
+                          : isCharacterAds(item)
+                          ? 'Character Spokesperson'
+                          : isMultiVariantAds(item)
                           ? 'Creative Mix'
                           : 'Product Focus'
                         }
@@ -886,14 +962,16 @@ export default function HistoryPage() {
                           )
                         ) : (
                           // Regular video ad display
-                          item.status === 'completed' && 'videoUrl' in item && item.videoUrl && 'photoOnly' in item && !item.photoOnly && hoveredVideo === item.id ? (
+                          item.status === 'completed' && 'videoUrl' in item && item.videoUrl &&
+                          (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) &&
+                          hoveredVideo === item.id ? (
                             <VideoPlayer
                               src={item.videoUrl}
                               className="w-full h-full object-cover"
                               autoPlay={true}
                               loop={true}
                               playsInline={true}
-                              showControls={false}
+                              showControls={true}
                             />
                           ) : item.coverImageUrl ? (
                             <Image
@@ -905,7 +983,7 @@ export default function HistoryPage() {
                             />
                           ) : (
                             <Image
-                              src={item.originalImageUrl}
+                              src={item.originalImageUrl || '/placeholder-image.png'}
                               alt="Original product"
                               width={400}
                               height={300}
@@ -947,9 +1025,9 @@ export default function HistoryPage() {
                               {/* Cover Download Button (Left side) */}
                               {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl && (
                                 <button
-                                  onClick={() => ('isV2' in item && item.isV2) ?
-                                    downloadV2Content(item.id, 'cover', item.videoModel) :
-                                    downloadV1Cover(item.id)
+                                  onClick={() => isMultiVariantAds(item) ?
+                                    downloadMultiVariantAdsContent(item.id, 'cover', item.videoModel) :
+                                    downloadStandardAdsCover(item.id)
                                   }
                                   className="h-10 flex-1 flex items-center justify-between px-3 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
                                 >
@@ -1207,7 +1285,8 @@ export default function HistoryPage() {
                               )}
 
                               {/* Video generating button with spinner (hidden for photo-only) */}
-                              {!isYoutubeThumbnail(item) && 'photoOnly' in item && !item.photoOnly && (
+                              {!isYoutubeThumbnail(item) &&
+                               (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) && (
                                 <button
                                   disabled
                                   className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"

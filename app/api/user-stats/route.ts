@@ -27,35 +27,35 @@ export async function GET() {
       successRate: 0
     };
 
-    // Query V1 history (single_video_projects table)
-    type V1Row = { status: string; created_at: string; download_credits_used?: number | null };
-    const { data: historyV1, error: errorV1 } = await supabase
+    // Query Standard Ads projects
+    type StandardAdsRow = { status: string; created_at: string; download_credits_used?: number | null };
+    const { data: standardAdsHistory, error: errorStandard } = await supabase
       .from('standard_ads_projects')
       .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
-    if (errorV1) {
-      console.error('❌ Error querying standard_ads_projects:', errorV1);
+    if (errorStandard) {
+      console.error('❌ Error querying standard_ads_projects:', errorStandard);
     } else {
-      console.log('📈 V1 History records:', historyV1?.length || 0);
+      console.log('📈 Standard Ads records:', standardAdsHistory?.length || 0);
     }
 
-    // Query V2 history (multi_variant_projects table)
-    type V2Row = { status: string; created_at: string; download_credits_used?: number | null };
-    const { data: historyV2, error: errorV2 } = await supabase
+    // Query Multi-Variant Ads projects
+    type MultiVariantAdsRow = { status: string; created_at: string; download_credits_used?: number | null };
+    const { data: multiVariantAdsHistory, error: errorMultiVariant } = await supabase
       .from('multi_variant_ads_projects')
       .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
-    if (errorV2) {
-      console.error('❌ Error querying multi_variant_ads_projects:', errorV2);
+    if (errorMultiVariant) {
+      console.error('❌ Error querying multi_variant_ads_projects:', errorMultiVariant);
     } else {
-      console.log('📈 V2 History records:', historyV2?.length || 0);
+      console.log('📈 Multi-Variant Ads records:', multiVariantAdsHistory?.length || 0);
     }
 
-    // Calculate stats from V1 data
-    if (historyV1 && historyV1.length > 0) {
-      for (const record of historyV1 as V1Row[]) {
+    // Calculate stats from Standard Ads data
+    if (standardAdsHistory && standardAdsHistory.length > 0) {
+      for (const record of standardAdsHistory as StandardAdsRow[]) {
         stats.totalVideos++;
 
         // Check if this month
@@ -70,9 +70,9 @@ export async function GET() {
       }
     }
 
-    // Calculate stats from V2 data
-    if (historyV2 && historyV2.length > 0) {
-      for (const record of historyV2 as V2Row[]) {
+    // Calculate stats from Multi-Variant Ads data
+    if (multiVariantAdsHistory && multiVariantAdsHistory.length > 0) {
+      for (const record of multiVariantAdsHistory as MultiVariantAdsRow[]) {
         stats.totalVideos++;
 
         // Check if this month
@@ -90,8 +90,8 @@ export async function GET() {
     let completedCount = 0;
     let totalCount = 0;
 
-    if (historyV1) {
-      for (const record of historyV1 as V1Row[]) {
+    if (standardAdsHistory) {
+      for (const record of standardAdsHistory as StandardAdsRow[]) {
         totalCount++;
         if (record.status === 'completed') {
           completedCount++;
@@ -99,8 +99,8 @@ export async function GET() {
       }
     }
 
-    if (historyV2) {
-      for (const record of historyV2 as V2Row[]) {
+    if (multiVariantAdsHistory) {
+      for (const record of multiVariantAdsHistory as MultiVariantAdsRow[]) {
         totalCount++;
         if (record.status === 'completed') {
           completedCount++;
