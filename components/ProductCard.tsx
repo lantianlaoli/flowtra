@@ -225,24 +225,27 @@ export default function ProductCard({
           )}
         </div>
 
-        {photos.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-lg flex items-center justify-center">
-              <Plus className="w-6 h-6 text-gray-400" />
+        {photos.length === 0 && !selectable && (
+          <div className="grid grid-cols-3 gap-2">
+            <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <Plus className="w-6 h-6 text-gray-400 group-hover:text-gray-600" />
+            </label>
+          </div>
+        )}
+        
+        {photos.length === 0 && selectable && (
+          <div className="text-center py-6 text-gray-400">
+            <div className="w-10 h-10 mx-auto mb-2 bg-gray-100 rounded-lg flex items-center justify-center">
+              <Plus className="w-5 h-5 text-gray-400" />
             </div>
-            <p className="text-sm">No photos yet</p>
-            {!selectable && (
-              <label className="mt-2 text-sm text-gray-900 hover:underline cursor-pointer inline-block">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                Add photos
-              </label>
-            )}
+            <p className="text-xs">No photos</p>
           </div>
         )}
       </div>

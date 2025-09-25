@@ -95,10 +95,16 @@ export default function CreateProductModal({
         formData.append('file', uploadedImage);
         formData.append('is_primary', 'true');
 
-        await fetch(`/api/user-products/${newProduct.id}/photos`, {
+        const photoResponse = await fetch(`/api/user-products/${newProduct.id}/photos`, {
           method: 'POST',
           body: formData
         });
+
+        if (photoResponse.ok) {
+          const photoData = await photoResponse.json();
+          // Update the product with the uploaded photo
+          newProduct.user_product_photos = [photoData.photo];
+        }
       }
 
       onProductCreated(newProduct);
