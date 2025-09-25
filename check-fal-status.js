@@ -22,7 +22,7 @@ fal.config({
   credentials: process.env.FAL_KEY
 });
 
-const taskId = "d841da15-438e-43d0-8694-f02c8f7d6b71";
+const taskId = 'd841da15-438e-43d0-8694-f02c8f7d6b71'; // 真实失败记录的task_id
 
 console.log('Checking FAL task status for:', taskId);
 

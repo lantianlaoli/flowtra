@@ -30,6 +30,14 @@ export async function POST() {
     }
 
     console.log(`Found ${projects?.length || 0} character ads projects to monitor`);
+    console.log('Projects details:', projects?.map(p => ({
+      id: p.id,
+      status: p.status,
+      current_step: p.current_step,
+      fal_merge_task_id: p.fal_merge_task_id,
+      merged_video_url: p.merged_video_url,
+      last_processed_at: p.last_processed_at
+    })));
 
     let processed = 0;
     let completed = 0;
@@ -37,8 +45,12 @@ export async function POST() {
 
     if (Array.isArray(projects) && projects.length > 0) {
       for (const project of projects) {
+        console.log(`Processing project ${project.id} (status: ${project.status}, step: ${project.current_step})`);
+
         try {
+          console.log(`About to call processCharacterAdsProjectStep for project ${project.id}`);
           await processCharacterAdsProjectStep(project);
+          console.log(`Successfully processed project ${project.id}`);
           processed++;
         } catch (error) {
           console.error(`Error processing project ${project.id}:`, error);
@@ -267,10 +279,22 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
   // If we determined a next step, process it
   if (nextStep) {
     console.log(`Triggering step '${nextStep}' for project ${project.id}`);
+    console.log(`Project details before processing:`, {
+      status: project.status,
+      current_step: project.current_step,
+      fal_merge_task_id: project.fal_merge_task_id,
+      merged_video_url: project.merged_video_url
+    });
 
     const result = await processCharacterAdsProject(project, nextStep);
 
     console.log(`Step '${nextStep}' completed for project ${project.id}:`, result.message);
+    console.log(`Result details:`, {
+      project_status: result.project?.status,
+      project_current_step: result.project?.current_step,
+      project_merged_video_url: result.project?.merged_video_url,
+      nextStep: result.nextStep
+    });
 
     // If the step completed successfully and there's a next step, we'll catch it in the next monitoring cycle
     if (result.nextStep) {

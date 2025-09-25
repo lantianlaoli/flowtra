@@ -319,15 +319,22 @@ async function generateVideoWithKIE(
   videoModel: string,
   referenceImageUrl: string
 ): Promise<{ taskId: string }> {
-  // VEO API uses a different structure
+  // Convert prompt object to string for veo3 API
+  const finalPrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
+  
+  // Use correct veo3 API structure
   const requestBody = {
+    prompt: finalPrompt,
     model: videoModel, // e.g., 'veo3_fast' or 'veo3'
-    prompt: JSON.stringify(prompt),
-    referenceImage: referenceImageUrl,
-    durationSeconds: 8,
-    audioEnabled: false,
+    aspectRatio: "16:9",
+    imageUrls: [referenceImageUrl], // Correct parameter name and format
+    enableAudio: true,
+    audioEnabled: true,
+    generateVoiceover: false,
     includeDialogue: false
   };
+
+  console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
 
   const response = await fetch('https://api.kie.ai/api/v1/veo/generate', {
     method: 'POST',
