@@ -1209,11 +1209,11 @@ export default function HistoryPage() {
                                                   <span className="text-xs font-bold">{videoStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
                                                 );
                                               }
-                                              // Show full model cost with coins icon (30 for veo3_fast, 150 for veo3)
+                                              // Show credits based on ad type
                                               return (
                                                 <span className="inline-flex items-center gap-1 text-xs font-bold">
                                                   <Coins className="w-3 h-3" />
-                                                  {getCreditCost(item.videoModel)}
+                                                  {isCharacterAds(item) ? item.creditsUsed : getCreditCost(item.videoModel)}
                                                 </span>
                                               );
                                             }
