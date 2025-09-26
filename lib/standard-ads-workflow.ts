@@ -247,22 +247,40 @@ Requirements:
 - Only enhance lighting, background, or add subtle marketing elements
 - The product must remain visually identical to the original`;
 
+  // Add watermark information if provided
+  const watermarkText = request.watermark?.text;
+  const watermarkLocation = request.watermark?.location || request.watermarkLocation;
+  
+  if (watermarkText) {
+    prompt += `\n\nWatermark Requirements:
+- Add text watermark: "${watermarkText}"
+- Watermark location: ${watermarkLocation || 'bottom left'}
+- Make the watermark visible but not overpowering
+- Use appropriate font size and opacity for the watermark`;
+  }
+
   // Ensure prompt doesn't exceed KIE API's 5000 character limit
   const MAX_PROMPT_LENGTH = 5000;
   if (prompt.length > MAX_PROMPT_LENGTH) {
-    // Truncate the description part while keeping the critical instructions
+    // Truncate the description part while keeping the critical instructions and watermark
     const criticalInstructions = `IMPORTANT: Use the provided product image as the EXACT BASE. Maintain the original product's exact visual appearance, shape, design, colors, textures, and all distinctive features. DO NOT change the product itself.
 
 Based on the provided product image, create an enhanced advertising version that keeps the EXACT SAME product while only improving the presentation for marketing purposes.`;
 
-    const remainingLength = MAX_PROMPT_LENGTH - criticalInstructions.length - 100; // Reserve space for requirements
+    const watermarkSection = watermarkText ? `\n\nWatermark Requirements:
+- Add text watermark: "${watermarkText}"
+- Watermark location: ${watermarkLocation || 'bottom left'}
+- Make the watermark visible but not overpowering
+- Use appropriate font size and opacity for the watermark` : '';
+
+    const remainingLength = MAX_PROMPT_LENGTH - criticalInstructions.length - watermarkSection.length - 100; // Reserve space for requirements
     const truncatedDescription = baseDescription.length > remainingLength
       ? baseDescription.substring(0, remainingLength - 3) + "..."
       : baseDescription;
 
     prompt = `${criticalInstructions} ${truncatedDescription}
 
-Requirements: Keep exact product appearance, only enhance presentation.`;
+Requirements: Keep exact product appearance, only enhance presentation.${watermarkSection}`;
   }
 
   const requestBody = {
