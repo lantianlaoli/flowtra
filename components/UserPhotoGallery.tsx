@@ -10,6 +10,31 @@ interface UserPhotoGalleryProps {
   selectedPhotoUrl?: string;
 }
 
+interface DefaultPhoto {
+  id: string;
+  photo_url: string;
+  file_name: string;
+}
+
+// Default photos that are always available
+const DEFAULT_PHOTOS: DefaultPhoto[] = [
+  {
+    id: 'default-male',
+    photo_url: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/user_default_male.png',
+    file_name: 'Default Male'
+  },
+  {
+    id: 'default-female',
+    photo_url: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/user_default_female.png',
+    file_name: 'Default Female'
+  },
+  {
+    id: 'default-founder',
+    photo_url: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/user_default_founder.png',
+    file_name: 'Default Founder'
+  }
+];
+
 export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: UserPhotoGalleryProps) {
   const [photos, setPhotos] = useState<UserPhoto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -200,15 +225,40 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
 
         {/* Photo Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* Default Photos */}
+          {DEFAULT_PHOTOS.map((photo) => (
+            <div key={photo.id} className="relative group">
+              <div
+                className={`
+                  relative w-full aspect-square rounded-lg overflow-hidden border-4 cursor-pointer
+                  transition-all duration-200
+                  ${selectedPhotoUrl === photo.photo_url
+                    ? 'border-blue-500 shadow-lg ring-4 ring-blue-200'
+                    : 'border-gray-200 hover:border-gray-300'
+                  }
+                `}
+                onClick={() => onPhotoSelect(photo.photo_url)}
+              >
+                <Image
+                  src={photo.photo_url}
+                  alt={photo.file_name}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                />
+              </div>
+            </div>
+          ))}
+
           {/* Existing Photos */}
           {photos.map((photo) => (
             <div key={photo.id} className="relative group">
               <div
                 className={`
-                  relative w-full aspect-square rounded-lg overflow-hidden border-2 cursor-pointer
+                  relative w-full aspect-square rounded-lg overflow-hidden border-4 cursor-pointer
                   transition-all duration-200
                   ${selectedPhotoUrl === photo.photo_url
-                    ? 'border-gray-900 shadow-md ring-2 ring-gray-200'
+                    ? 'border-blue-500 shadow-lg ring-4 ring-blue-200'
                     : 'border-gray-200 hover:border-gray-300'
                   }
                 `}
