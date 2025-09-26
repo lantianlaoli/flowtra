@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { IMAGE_MODELS } from '@/lib/constants';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 interface CharacterAdsProject {
   id: string;
@@ -240,23 +241,24 @@ Generate prompts for ${videoScenes} video scenes (8 seconds each) plus 1 image s
 
 // Helper function to get correct parameters for different image models
 function getImageModelParameters(model: string): Record<string, unknown> {
-  if (model === IMAGE_MODELS.nano_banana) {
+  // Handle both short names and full model names
+  if (model === IMAGE_MODELS.nano_banana || model === 'nano_banana' || model.includes('nano-banana')) {
     // Nano Banana parameters (google/nano-banana-edit)
     return {
-      image_size: "1:1",  // Square format, equivalent to square_hd
+      image_size: "16:9",  // Landscape 16:9 format
       output_format: "png"
     };
-  } else if (model === IMAGE_MODELS.seedream) {
+  } else if (model === IMAGE_MODELS.seedream || model === 'seedream' || model.includes('seedream')) {
     // Seedream V4 parameters (bytedance/seedream-v4-edit)
     return {
-      image_size: "square_hd",
+      image_size: "landscape_16_9",
       image_resolution: "1K",
       max_images: 1
     };
   } else {
     // Default to Nano Banana format for unknown models
     return {
-      image_size: "1:1",
+      image_size: "16:9",
       output_format: "png"
     };
   }
@@ -270,6 +272,10 @@ async function generateImageWithKIE(
 ): Promise<{ taskId: string }> {
   // Get the correct parameters for this model
   const modelParams = getImageModelParameters(imageModel);
+
+  // Debug logging for image model parameters
+  console.log('Character Ads - Image model:', imageModel);
+  console.log('Character Ads - Model params:', JSON.stringify(modelParams, null, 2));
 
   const payload = {
     model: imageModel,
@@ -286,7 +292,7 @@ async function generateImageWithKIE(
 
   console.log('KIE API request payload:', JSON.stringify(payload, null, 2));
 
-  const response = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -336,7 +342,7 @@ async function generateVideoWithKIE(
 
   console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
 
-  const response = await fetch('https://api.kie.ai/api/v1/veo/generate', {
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -364,7 +370,7 @@ async function checkKIEImageTaskStatus(taskId: string): Promise<{
   result_url?: string;
   error?: string;
 }> {
-  const response = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+  const response = await fetchWithRetry(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     }
@@ -434,7 +440,7 @@ async function checkKIEVideoTaskStatus(taskId: string): Promise<{
   result_url?: string;
   error?: string;
 }> {
-  const response = await fetch(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
+  const response = await fetchWithRetry(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     }

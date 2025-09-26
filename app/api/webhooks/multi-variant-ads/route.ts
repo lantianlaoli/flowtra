@@ -146,7 +146,7 @@ async function handleCoverCompletion(instance: MultiVariantInstance, data: KieCa
     })();
 
     if (!shouldGenerateVideo) {
-      // 提取产品描述信息
+      // Extract product description information
       const elementsData = instance.elements_data || {};
       const productDescription = elementsData.product_description || elementsData.product || {};
       
@@ -185,7 +185,7 @@ async function handleCoverCompletion(instance: MultiVariantInstance, data: KieCa
     const videoTaskId = await startVideoGeneration(instance, coverImageUrl, videoPrompt);
 
     // Update database with cover completion and video start
-    // 提取产品描述信息
+    // Extract product description information
     const elementsData = instance.elements_data || {};
     const productDescription = elementsData.product_description || elementsData.product || {};
     

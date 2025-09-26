@@ -2,6 +2,7 @@
  * KIE Credits Check Utility
  * Provides server-side KIE credits validation for API endpoints
  */
+import { fetchWithRetry } from './fetchWithRetry';
 
 interface KieCreditsResponse {
   sufficient: boolean;
@@ -27,7 +28,7 @@ export async function checkKieCredits(): Promise<KieCreditsResponse> {
       };
     }
 
-    const response = await fetch('https://api.kie.ai/api/v1/user/credits', {
+    const response = await fetchWithRetry('https://api.kie.ai/api/v1/chat/credit', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${kieApiKey}`,
@@ -53,7 +54,7 @@ export async function checkKieCredits(): Promise<KieCreditsResponse> {
       };
     }
 
-    const currentCredits = data.data?.credits || 0;
+    const currentCredits = data.data || 0;
     const sufficient = currentCredits >= threshold;
 
     console.log(`KIE Credits Check: ${currentCredits}/${threshold} (sufficient: ${sufficient})`);

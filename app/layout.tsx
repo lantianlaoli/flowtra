@@ -87,6 +87,11 @@ export const metadata: Metadata = {
       { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
     ]
   },
+  other: {
+    'msapplication-TileColor': '#ffffff',
+    'msapplication-TileImage': '/ms-icon-150x150.png',
+    'msapplication-config': '/browserconfig.xml',
+  },
   manifest: '/site.webmanifest',
   category: 'technology',
 };

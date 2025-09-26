@@ -13,19 +13,19 @@ export async function POST(request: NextRequest) {
     }
     const requestData: StartWorkflowRequest = await request.json();
 
-    // 确保photoOnly字段正确设置为shouldGenerateVideo的反值
-    // 如果界面选择了image only，则shouldGenerateVideo应为false，photoOnly应为true
+    // Ensure photoOnly field is correctly set as inverse of shouldGenerateVideo
+    // If interface selected image only, then shouldGenerateVideo should be false, photoOnly should be true
     requestData.photoOnly = requestData.shouldGenerateVideo === undefined ? false : !requestData.shouldGenerateVideo;
     
-    // 日志显示photoOnly与用户选择不一致，可能是shouldGenerateVideo传递有问题
-    // 如果用户在界面选择了"image only"，确保photoOnly为true
+    // Log shows photoOnly inconsistent with user choice, may be shouldGenerateVideo passing issue
+    // If user selected "image only" in interface, ensure photoOnly is true
     if (requestData.shouldGenerateVideo === false) {
       requestData.photoOnly = true;
     }
     
-    // 修复模型选择问题：确保当选择了nano_banana时不会显示为auto
+    // Fix model selection issue: ensure nano_banana selection doesn't show as auto
     if (requestData.imageModel === 'auto') {
-      // 默认使用nano_banana作为auto的实际模型
+      // Default to use nano_banana as the actual model for auto
       requestData.imageModel = 'nano_banana';
     }
 

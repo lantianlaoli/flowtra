@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       generateVideo
     } = requestData;
 
-    // 添加调试日志，显示请求数据
+    // Add debug log showing request data
     console.log('🚀 Multi-variant ads workflow request received:', {
       imageUrl,
       userId,
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       textWatermarkLocation,
       imageSize,
       generateVideo,
-      photoOnly: !generateVideo // 设置photoOnly为generateVideo的反值
+      photoOnly: !generateVideo // Set photoOnly as the inverse of generateVideo
     });
     
     console.log('📊 startMultiVariantItems result:', result);

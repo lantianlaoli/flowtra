@@ -64,7 +64,7 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
       projectIds.push(project.id);
     }
 
-    // Start optimized workflow that processes all projects together// 启动优化的工作流，一次性处理所有项目
+    // Start optimized workflow that processes all projects together
     startOptimizedMultiVariantWorkflow(projectIds, request).catch((error: Error) => {
       console.error('Optimized workflow failed:', error);
     });
@@ -82,13 +82,13 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
   }
 }
 
-// 步骤1: 分析图像
+// Step 1: Analyze image
 async function analyzeImage(imageUrl: string): Promise<Record<string, unknown>> {
   console.log('🔍 Analyzing image...');
   
   const systemText = `Analyze the given image and determine if it primarily depicts a product or a character, or BOTH.`;
 
-  // 定义严格的JSON Schema结构
+  // Define strict JSON Schema structure
   const jsonSchema = {
     name: "image_analysis",
     strict: true,
@@ -226,7 +226,7 @@ async function analyzeImage(imageUrl: string): Promise<Record<string, unknown>> 
   const content = data.choices?.[0]?.message?.content;
 
   try {
-    // 移除可能的 Markdown 代码块包装
+    // Remove possible Markdown code block wrapper
     let cleanContent = content;
     if (content.includes('```json')) {
       cleanContent = content.replace(/```json\s*/, '').replace(/\s*```$/, '');
@@ -242,11 +242,11 @@ async function analyzeImage(imageUrl: string): Promise<Record<string, unknown>> 
   }
 }
 
-// 步骤2: 生成多个元素
+// Step 2: Generate multiple elements
 async function generateMultipleElements(imageAnalysis: Record<string, unknown>, elementsCount: number = 2, userAdCopy?: string): Promise<Record<string, unknown>> {
   console.log('🧩 Generating multiple elements...');
   
-  // 如果用户提供了adCopy，在提示词中说明要使用用户提供的adCopy
+  // If user provided adCopy, specify in prompt to use the provided adCopy
   const adCopyInstruction = userAdCopy 
     ? `- ad_copy → Use this exact ad copy for all variants: "${userAdCopy}"`
     : `- ad_copy → Short, catchy slogan`;
@@ -397,7 +397,7 @@ Generate ${elementsCount} sets of elements for this image.`;
   }
 }
 
-// 步骤3: 生成封面提示词
+// Step 3: Generate cover prompts
 async function generateCoverPrompt(
   imageAnalysis: Record<string, unknown>, 
   elements: Record<string, unknown>,
@@ -406,7 +406,7 @@ async function generateCoverPrompt(
 ): Promise<Record<string, unknown>> {
   console.log('📝 Generating cover prompt...');
   
-  // 从elements中获取第一组元素（默认使用第一组）
+  // Get first element group from elements (use first group by default)
   const firstElement = (elements.elements as Array<Record<string, unknown>>)[0];
   
   const systemPrompt = `## SYSTEM PROMPT: 🔍 Image Ad Prompt Generator Agent
@@ -516,7 +516,7 @@ IMPORTANT: The ad_copy "${firstElement.ad_copy}" was provided by the user and mu
   const content = data.choices?.[0]?.message?.content;
 
   try {
-    // 移除可能的 Markdown 代码块包装
+    // Remove possible Markdown code block wrapper
     let cleanContent = content;
     if (content.includes('```json')) {
       cleanContent = content.replace(/```json\s*/, '').replace(/\s*```$/, '');
@@ -536,11 +536,11 @@ async function startOptimizedMultiVariantWorkflow(projectIds: string[], request:
   const supabase = getSupabaseAdmin();
 
   try {
-    // 步骤1: 分析图像（只执行一次）
+    // Step 1: Analyze image (execute only once)
     console.log('🔍 Starting image analysis...');
     const imageAnalysis = await analyzeImage(request.imageUrl);
     
-    // 更新所有项目的状态
+    // Update status for all projects
     await supabase
       .from('multi_variant_ads_projects')
       .update({
@@ -552,11 +552,11 @@ async function startOptimizedMultiVariantWorkflow(projectIds: string[], request:
       })
       .in('id', projectIds);
     
-    // 步骤2: 生成多个元素（只执行一次）
+    // Step 2: Generate multiple elements（只执行一次）
     console.log('🧩 Generating multiple elements...');
     const elementsData = await generateMultipleElements(imageAnalysis, projectIds.length, request.adCopy);
     
-    // 更新所有项目的状态
+    // Update status for all projects
     await supabase
       .from('multi_variant_ads_projects')
       .update({
@@ -568,28 +568,28 @@ async function startOptimizedMultiVariantWorkflow(projectIds: string[], request:
       })
       .in('id', projectIds);
     
-    // 步骤3: 为每个项目生成不同的封面提示词和封面
+    // Step 3: Generate different cover prompts and covers for each project
     const elements = (elementsData as Record<string, unknown>)?.elements as Record<string, unknown>[] || [];
     
     for (let i = 0; i < projectIds.length; i++) {
       const projectId = projectIds[i];
-      const element = elements[i] || elements[0]; // 如果元素不够，使用第一个元素
+      const element = elements[i] || elements[0]; // If not enough elements, use first element
       
       try {
-        // 为当前项目生成封面提示词
+        // Generate cover prompt for current project
         console.log(`📝 Generating cover prompt for project ${i + 1}...`);
         const coverPrompt = await generateCoverPrompt(
           imageAnalysis, 
-          { elements: [element] }, // 只传递当前项目的元素
+          { elements: [element] }, // Only pass elements for current project
           request.textWatermark || request.watermark?.text,
           request.textWatermarkLocation || request.watermark?.location
         );
         
-        // 更新当前项目的状态，存储单个元素而不是所有元素
+        // Update current project status, store single element instead of all elements
         await supabase
           .from('multi_variant_ads_projects')
           .update({
-            elements_data: element, // 只存储当前项目对应的单个元素
+            elements_data: element, // Only store single element for current project
             image_prompt: coverPrompt,
             status: 'generating_cover',
             current_step: 'generating_cover',
@@ -598,14 +598,14 @@ async function startOptimizedMultiVariantWorkflow(projectIds: string[], request:
           })
           .eq('id', projectId);
         
-        // 生成封面图像
+        // Generate cover image
         console.log(`🎨 Starting cover generation for project ${i + 1}...`);
         const coverTaskId = await generateMultiVariantCover({
           ...request,
-          elementsData: coverPrompt // coverPrompt包含image_prompt字段，generatePromptFromElements会优先使用它
+          elementsData: coverPrompt // coverPrompt contains image_prompt field, generatePromptFromElements will use it preferentially
         });
 
-        // 更新项目状态
+        // Update project status
         await supabase
           .from('multi_variant_ads_projects')
           .update({
@@ -619,7 +619,7 @@ async function startOptimizedMultiVariantWorkflow(projectIds: string[], request:
 
       } catch (error) {
         console.error(`Error processing project ${projectId}:`, error);
-        // 更新项目状态为错误
+        // Update project status为错误
         await supabase
           .from('multi_variant_ads_projects')
           .update({
@@ -636,7 +636,7 @@ async function startOptimizedMultiVariantWorkflow(projectIds: string[], request:
   } catch (error) {
     console.error('Optimized multi-variant workflow error:', error);
     
-    // 更新所有项目状态为错误
+    // Update all project statuses to error
     await supabase
       .from('multi_variant_ads_projects')
       .update({
@@ -853,7 +853,7 @@ Return as JSON format.`
   const content = data.choices[0].message.content;
 
   try {
-    // 移除可能的 Markdown 代码块包装
+    // Remove possible Markdown code block wrapper
     let cleanContent = content;
     if (content.includes('```json')) {
       cleanContent = content.replace(/```json\s*/, '').replace(/\s*```$/, '');

@@ -106,11 +106,11 @@ Each set must include **all required fields** and differ in tone, mood, or creat
 ```jsx
 Your task: Create 1 image prompt as guided by your system guidelines.
 
-Description of the reference image: {{ 来自1. describe image的结果 }}
+Description of the reference image: {{ Result from 1. describe image }}
 
 ELEMENTS FOR THIS IMAGE:
 
-product: {{ 来自2. generate multiple elements的结果 }}
+product: {{ Result from 2. generate multiple elements }}
 character: {{  }}
 ad copy: {{  }}
 visual_guide: {{  }}

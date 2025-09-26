@@ -40,6 +40,7 @@ export default function CharacterAdsPage() {
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [projectId, setProjectId] = useState<string | null>(null);
 
   // KIE credits state

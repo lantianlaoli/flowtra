@@ -118,37 +118,14 @@ export async function GET() {
     }
 
     // Fetch Character Ads data
-    console.log('Querying character_ads_projects for user:', userId);
-    
-    // Check Supabase auth status
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    console.log('Supabase auth status:', { 
-      user: authData?.user?.id, 
-      error: authError,
-      isAuthenticated: !!authData?.user 
-    });
-    
     const { data: characterAdsItems, error: characterAdsError } = await supabase
       .from('character_ads_projects')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-    
-    console.log('Character Ads query result:', { 
-      data: characterAdsItems, 
-      error: characterAdsError,
-      dataLength: characterAdsItems?.length 
-    });
 
     if (characterAdsError) {
       console.error('Failed to fetch Character Ads history:', characterAdsError);
-    } else {
-      console.log('Character Ads query successful for user:', userId);
-    }
-
-    console.log('Character Ads raw data:', characterAdsItems?.length || 0, 'items');
-    if (characterAdsItems && characterAdsItems.length > 0) {
-      console.log('First Character Ads item:', JSON.stringify(characterAdsItems[0], null, 2));
     }
 
     // Transform Standard Ads data
@@ -220,39 +197,34 @@ export async function GET() {
       };
     });
 
-    // Transform Character Ads data - show processing and completed items
+    // Transform Character Ads data - show all items (processing, completed, and failed)
     const transformedCharacterAdsHistory: CharacterAdsItem[] = (characterAdsItems || [])
-      .filter(item => {
-        // Show processing items (including generating_videos status)
+      .map(item => {
         const mappedStatus = mapWorkflowStatus(item.status);
-        if (mappedStatus === 'processing') return true;
 
-        // For completed items, check video availability
+        // For completed items, ensure we have the correct video URL
+        let videoUrl: string | undefined;
         if (mappedStatus === 'completed') {
-          // For 8-second videos, check if we have either merged_video_url or a single generated video
+          // For 8-second videos, prefer single generated video or merged video
           if (item.video_duration_seconds === 8) {
-            return item.merged_video_url || (item.generated_video_urls && item.generated_video_urls.length === 1);
+            videoUrl = item.merged_video_url || (item.generated_video_urls?.[0]);
+          } else {
+            // For longer videos, use merged video
+            videoUrl = item.merged_video_url;
           }
-
-          // For longer videos, require merged_video_url
-          return item.merged_video_url;
         }
 
-        // Don't show failed items
-        return false;
-      })
-      .map(item => {
         return {
           id: item.id,
           originalImageUrl: item.person_image_urls?.[0], // Use first person image as thumbnail
           coverImageUrl: item.generated_image_url, // Map generated image to cover for preview
-          videoUrl: item.merged_video_url || (item.video_duration_seconds === 8 && item.generated_video_urls?.[0]) || undefined, // Show merged video or single 8s video
+          videoUrl, // Show video only for completed items
           downloaded: item.downloaded || false,
           downloadCreditsUsed: item.download_credits_used || 0,
           generationCreditsUsed: 0, // Generation is free, credits only used on download
           videoModel: item.video_model,
           creditsUsed: item.credits_cost || 0,
-          status: mapWorkflowStatus(item.status),
+          status: mappedStatus,
           createdAt: item.created_at,
           progress: item.progress_percentage,
           currentStep: item.current_step,
@@ -261,17 +233,12 @@ export async function GET() {
         };
       });
 
-    console.log('Character Ads transformed data:', transformedCharacterAdsHistory.length, 'items');
-
     // Combine and sort by creation date
     const combinedHistory: HistoryItem[] = [
-      ...transformedStandardAdsHistory, 
-      ...transformedMultiVariantAdsHistory, 
+      ...transformedStandardAdsHistory,
+      ...transformedMultiVariantAdsHistory,
       ...transformedCharacterAdsHistory
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    console.log('Combined history:', combinedHistory.length, 'items');
-    console.log('Character Ads in combined:', combinedHistory.filter(item => item.adType === 'character').length, 'items');
 
     return NextResponse.json({
       success: true,
