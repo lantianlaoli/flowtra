@@ -232,14 +232,37 @@ async function generateCover(imageUrl: string, prompts: Record<string, unknown>,
   const actualImageModel = getActualImageModel(request.imageModel || 'auto');
   const kieModelName = IMAGE_MODELS[actualImageModel];
 
+  // Build prompt that preserves original product appearance
+  const baseDescription = prompts.description as string || "Professional product advertisement";
+
+  // Create a prompt that explicitly instructs to maintain original product appearance
+  let prompt = `IMPORTANT: Use the provided product image as the EXACT BASE. Maintain the original product's exact visual appearance, shape, design, colors, textures, and all distinctive features. DO NOT change the product itself.
+
+Based on the provided product image, create an enhanced advertising version that keeps the EXACT SAME product while only improving the presentation for marketing purposes. ${baseDescription}
+
+Requirements:
+- Keep the original product's exact shape, size, and proportions
+- Maintain all original colors, textures, and materials
+- Preserve all distinctive design features and details
+- Only enhance lighting, background, or add subtle marketing elements
+- The product must remain visually identical to the original`;
+
   // Ensure prompt doesn't exceed KIE API's 5000 character limit
   const MAX_PROMPT_LENGTH = 5000;
-  let prompt = prompts.description as string || "Professional product advertisement image";
   if (prompt.length > MAX_PROMPT_LENGTH) {
-    // Truncate while preserving word boundaries
-    const truncated = prompt.substring(0, MAX_PROMPT_LENGTH - 3);
-    const lastSpaceIndex = truncated.lastIndexOf(' ');
-    prompt = (lastSpaceIndex > MAX_PROMPT_LENGTH * 0.8 ? truncated.substring(0, lastSpaceIndex) : truncated) + "...";
+    // Truncate the description part while keeping the critical instructions
+    const criticalInstructions = `IMPORTANT: Use the provided product image as the EXACT BASE. Maintain the original product's exact visual appearance, shape, design, colors, textures, and all distinctive features. DO NOT change the product itself.
+
+Based on the provided product image, create an enhanced advertising version that keeps the EXACT SAME product while only improving the presentation for marketing purposes.`;
+
+    const remainingLength = MAX_PROMPT_LENGTH - criticalInstructions.length - 100; // Reserve space for requirements
+    const truncatedDescription = baseDescription.length > remainingLength
+      ? baseDescription.substring(0, remainingLength - 3) + "..."
+      : baseDescription;
+
+    prompt = `${criticalInstructions} ${truncatedDescription}
+
+Requirements: Keep exact product appearance, only enhance presentation.`;
   }
 
   const requestBody = {

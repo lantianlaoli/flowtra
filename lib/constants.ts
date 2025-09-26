@@ -213,7 +213,7 @@ export const INITIAL_FREE_CREDITS = 100
 export const KIE_CREDIT_THRESHOLD = (() => {
   const raw = process.env.KIE_CREDIT_THRESHOLD;
   const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 600;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 300;
 })();
 
 

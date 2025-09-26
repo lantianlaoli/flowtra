@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
       // Calculate download cost based on video duration and model
       const baseCostPer8s = getCreditCost(project.video_model as 'veo3' | 'veo3_fast');
-      const downloadCost = Math.round((videoDurationSeconds || project.video_duration_seconds || 8) / 8 * baseCostPer8s * 0.6);
+      const downloadCost = Math.round((videoDurationSeconds || project.video_duration_seconds || 8) / 8 * baseCostPer8s);
 
       // Check if user has enough credits
       if (userCredits.credits_remaining < downloadCost) {

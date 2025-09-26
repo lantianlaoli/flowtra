@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { KIE_CREDIT_THRESHOLD } from '@/lib/constants';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 export async function GET() {
   try {
@@ -14,14 +15,14 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    // Call KIE API to check credits
-    const response = await fetch('https://api.kie.ai/api/v1/chat/credit', {
+    // Call KIE API to check credits with high retry count
+    const response = await fetchWithRetry('https://api.kie.ai/api/v1/chat/credit', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
         'Content-Type': 'application/json'
       }
-    });
+    }, 10, 30000);
 
     if (!response.ok) {
       console.error('KIE API request failed:', response.status, response.statusText);
