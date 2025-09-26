@@ -247,9 +247,9 @@ Requirements:
 - Only enhance lighting, background, or add subtle marketing elements
 - The product must remain visually identical to the original`;
 
-  // Add watermark information if provided
-  const watermarkText = request.watermark?.text;
-  const watermarkLocation = request.watermark?.location || request.watermarkLocation;
+  // Extract watermark information from request
+  const watermarkText = request.watermark;
+  const watermarkLocation = request.watermarkLocation;
   
   if (watermarkText) {
     prompt += `\n\nWatermark Requirements:
