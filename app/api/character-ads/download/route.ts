@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCreditCost } from '@/lib/constants';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,12 +29,30 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (projectError || !project) {
+      console.error('Character ads project not found:', { historyId, userId, error: projectError });
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Check if project is completed and has merged video
-    if (project.status !== 'completed' || !project.merged_video_url) {
-      return NextResponse.json({ error: 'Video not ready for download' }, { status: 400 });
+
+    // Check if project has downloadable video
+    // For 8-second videos, accept single generated video; for others, require merged video
+    let videoUrl = project.merged_video_url;
+    if (!videoUrl && project.video_duration_seconds === 8 && project.generated_video_urls?.length > 0) {
+      videoUrl = project.generated_video_urls[0];
+    }
+
+    if (project.status !== 'completed' || !videoUrl) {
+      console.error('Video not ready for download:', {
+        status: project.status,
+        hasVideoUrl: !!videoUrl,
+        mergedVideoUrl: project.merged_video_url,
+        generatedVideos: project.generated_video_urls?.length || 0
+      });
+      return NextResponse.json({
+        error: 'Video not ready for download',
+        status: project.status,
+        hasVideo: !!videoUrl
+      }, { status: 400 });
     }
 
     // Check if this is the first download
@@ -41,33 +60,33 @@ export async function POST(request: NextRequest) {
 
     if (isFirstDownload) {
       // Get user credits
-      const { data: userProfile, error: creditsError } = await supabase
-        .from('user_profiles')
-        .select('credits')
+      const { data: userCredits, error: creditsError } = await supabase
+        .from('user_credits')
+        .select('credits_remaining')
         .eq('user_id', userId)
         .single();
 
-      if (creditsError || !userProfile) {
+      if (creditsError || !userCredits) {
         return NextResponse.json({ error: 'Failed to get user credits' }, { status: 500 });
       }
 
       // Calculate download cost based on video duration and model
       const baseCostPer8s = getCreditCost(project.video_model as 'veo3' | 'veo3_fast');
-      const downloadCost = Math.round((videoDurationSeconds || project.video_duration_seconds || 8) / 8 * baseCostPer8s);
+      const downloadCost = Math.round((videoDurationSeconds || project.video_duration_seconds || 8) / 8 * baseCostPer8s * 0.6);
 
       // Check if user has enough credits
-      if (userProfile.credits < downloadCost) {
+      if (userCredits.credits_remaining < downloadCost) {
         return NextResponse.json({
           error: 'Insufficient credits',
           required: downloadCost,
-          available: userProfile.credits
+          available: userCredits.credits_remaining
         }, { status: 402 });
       }
 
       // Deduct credits
       const { error: deductError } = await supabase
-        .from('user_profiles')
-        .update({ credits: userProfile.credits - downloadCost })
+        .from('user_credits')
+        .update({ credits_remaining: userCredits.credits_remaining - downloadCost })
         .eq('user_id', userId);
 
       if (deductError) {
@@ -90,13 +109,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Download the video file
-    const videoUrl = project.merged_video_url;
+    // videoUrl is already determined above based on video duration and available videos
 
     try {
-      const videoResponse = await fetch(videoUrl);
+      const videoResponse = await fetchWithRetry(videoUrl, {}, 3, 30000); // 3 retries, 30s timeout
 
       if (!videoResponse.ok) {
-        throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
+        throw new Error(`Failed to fetch video: ${videoResponse.status} ${videoResponse.statusText}`);
       }
 
       const videoBuffer = await videoResponse.arrayBuffer();
