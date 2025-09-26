@@ -678,7 +678,7 @@ async function generateMultiVariantCover(request: MultiVariantAdsRequest): Promi
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody)
-  }, 3, 30000);
+  }, 5, 30000);
 
   if (!response.ok) {
     throw new Error(`Cover generation failed: ${response.status}`);

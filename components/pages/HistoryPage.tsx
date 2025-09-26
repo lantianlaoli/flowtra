@@ -88,7 +88,6 @@ interface CharacterAdsItem {
 type HistoryItem = StandardAdsItem | MultiVariantAdsItem | YoutubeThumbnailItem | CharacterAdsItem;
 
 const ITEMS_PER_PAGE = 6; // 2 rows × 3 columns = 6 items per page
-const FAILED_STATUS_TOOLTIP = 'The image you used has an issue. Please try another one.';
 
 // Helper functions
 const isYoutubeThumbnail = (item: HistoryItem): item is YoutubeThumbnailItem => {
@@ -898,8 +897,22 @@ export default function HistoryPage() {
                           {item.status === 'failed' && (
                             <div className="relative group">
                               <HelpCircle className="w-4 h-4" aria-label="Failed generation details" />
-                              <div className="absolute left-0 top-full mt-2 w-48 rounded-lg bg-gray-900 text-white text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none">
-                                {FAILED_STATUS_TOOLTIP}
+                              <div className="absolute left-0 top-full mt-2 w-64 rounded-lg bg-gray-900 text-white text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto z-50">
+                                <div className="font-medium mb-2">Generation Failed</div>
+                                <div className="space-y-1 mb-3">
+                                  <p>Sorry, there was an issue during generation.</p>
+                                  <p className="text-yellow-300">• We&apos;ll refund your credits</p>
+                                  <p className="text-blue-300">• Please try with a different image</p>
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push('/dashboard/support');
+                                  }}
+                                  className="w-full text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-center transition-colors"
+                                >
+                                  Contact Support →
+                                </button>
                               </div>
                             </div>
                           )}

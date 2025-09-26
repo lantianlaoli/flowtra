@@ -229,7 +229,7 @@ Other details: ${videoPrompt.other_details}`;
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody)
-  }, 3, 30000);
+  }, 5, 30000);
 
   if (!response.ok) {
     const errorData = await response.text();

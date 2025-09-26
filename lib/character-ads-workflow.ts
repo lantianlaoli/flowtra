@@ -299,7 +299,7 @@ async function generateImageWithKIE(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload)
-  });
+  }, 5, 30000);
 
   console.log('KIE API response status:', response.status, response.statusText);
 
@@ -349,7 +349,7 @@ async function generateVideoWithKIE(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody)
-  });
+  }, 5, 30000);
 
   if (!response.ok) {
     const errorData = await response.text();
@@ -374,7 +374,7 @@ async function checkKIEImageTaskStatus(taskId: string): Promise<{
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     }
-  });
+  }, 5, 30000);
 
   if (!response.ok) {
     throw new Error(`KIE image task status check failed: ${response.statusText}`);
@@ -444,7 +444,7 @@ async function checkKIEVideoTaskStatus(taskId: string): Promise<{
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     }
-  });
+  }, 5, 30000);
 
   if (!response.ok) {
     throw new Error(`KIE video task status check failed: ${response.statusText}`);

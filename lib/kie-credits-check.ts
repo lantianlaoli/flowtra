@@ -34,7 +34,7 @@ export async function checkKieCredits(): Promise<KieCreditsResponse> {
         'Authorization': `Bearer ${kieApiKey}`,
         'Content-Type': 'application/json',
       },
-    });
+    }, 5, 30000);
 
     if (!response.ok) {
       console.error('Failed to fetch KIE credits:', response.status, response.statusText);

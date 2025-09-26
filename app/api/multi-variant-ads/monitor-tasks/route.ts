@@ -274,7 +274,7 @@ async function checkNanoBananaStatus(taskId: string): Promise<{status: string, i
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     },
-  }, 3, 15000);
+  }, 5, 15000);
 
   if (!response.ok) {
     throw new Error(`Failed to check nano-banana status: ${response.status} ${response.statusText}`);
@@ -386,7 +386,7 @@ async function checkVideoStatus(taskId: string): Promise<{status: string, videoU
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     },
-  }, 3, 15000);
+  }, 5, 15000);
 
   if (!response.ok) {
     throw new Error(`Failed to check video status: ${response.status} ${response.statusText}`);

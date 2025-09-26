@@ -232,11 +232,21 @@ async function generateCover(imageUrl: string, prompts: Record<string, unknown>,
   const actualImageModel = getActualImageModel(request.imageModel || 'auto');
   const kieModelName = IMAGE_MODELS[actualImageModel];
 
+  // Ensure prompt doesn't exceed KIE API's 5000 character limit
+  const MAX_PROMPT_LENGTH = 5000;
+  let prompt = prompts.description as string || "Professional product advertisement image";
+  if (prompt.length > MAX_PROMPT_LENGTH) {
+    // Truncate while preserving word boundaries
+    const truncated = prompt.substring(0, MAX_PROMPT_LENGTH - 3);
+    const lastSpaceIndex = truncated.lastIndexOf(' ');
+    prompt = (lastSpaceIndex > MAX_PROMPT_LENGTH * 0.8 ? truncated.substring(0, lastSpaceIndex) : truncated) + "...";
+  }
+
   const requestBody = {
     model: kieModelName,
     callBackUrl: `${process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/webhooks/standard-ads`,
     input: {
-      prompt: prompts.description || "Professional product advertisement image",
+      prompt: prompt,
       image_urls: [imageUrl],
       output_format: "png",
       image_size: request.imageSize === 'auto' ? 'auto' : (request.imageSize || 'auto')
@@ -250,7 +260,7 @@ async function generateCover(imageUrl: string, prompts: Record<string, unknown>,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody)
-  }, 3, 30000);
+  }, 5, 30000);
 
   if (!response.ok) {
     throw new Error(`Cover generation failed: ${response.status}`);

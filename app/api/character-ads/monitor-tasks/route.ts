@@ -319,7 +319,7 @@ async function checkKieImageStatus(taskId: string): Promise<{status: string, ima
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
     },
-  }, 3, 15000);
+  }, 5, 15000);
 
   if (!response.ok) {
     throw new Error(`Failed to check KIE image status: ${response.status} ${response.statusText}`);
