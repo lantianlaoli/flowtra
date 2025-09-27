@@ -109,6 +109,7 @@ interface CharacterAdsProject {
   video_duration_seconds: number;
   image_model: string;
   video_model: string;
+  accent: string;
   status: string;
   current_step: string;
   progress_percentage: number;

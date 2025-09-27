@@ -639,15 +639,15 @@ export default function StandardAdsPage() {
   const workflowContent = renderWorkflowContent();
 
   return (
-    <div className="h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 flex">
       <Sidebar
         credits={userCredits}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
-      
-      <div className="ml-72 bg-gray-50 flex-1 flex flex-col">
-        <div className="p-8 max-w-7xl mx-auto w-full flex-1 overflow-hidden flex flex-col">
+
+      <div className="ml-72 bg-gray-50 min-h-screen">
+        <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
             <div className="mb-6">
               <div className="flex items-center gap-3">
@@ -683,11 +683,9 @@ export default function StandardAdsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.24, ease: [0.22, 0.61, 0.36, 1] }}
-                className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm relative overflow-visible flex-1 flex flex-col"
+                className="relative bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm overflow-hidden"
               >
-                <div className="flex-1">
-                  {workflowContent}
-                </div>
+                {workflowContent}
 
                 {/* Silky animated overlay while generating (from Generate click until next screen) */}
                 <AnimatePresence>

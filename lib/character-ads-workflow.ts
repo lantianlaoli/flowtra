@@ -2,6 +2,23 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { IMAGE_MODELS } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
+// Helper function to generate voice type based on accent and gender
+function generateVoiceType(accent: string, isMale: boolean): string {
+  const accentMap: Record<string, string> = {
+    'australian': 'Australian',
+    'american': 'American',
+    'british': 'British',
+    'canadian': 'Canadian',
+    'irish': 'Irish',
+    'south_african': 'South African'
+  };
+
+  const accentName = accentMap[accent] || 'Australian';
+  const voiceGender = isMale ? 'deep male voice' : 'deep female voice';
+
+  return `${accentName} accent, ${voiceGender}`;
+}
+
 interface CharacterAdsProject {
   id: string;
   user_id: string;
@@ -10,6 +27,7 @@ interface CharacterAdsProject {
   video_duration_seconds: number;
   image_model: string;
   video_model: string;
+  accent: string;
   status: string;
   current_step: string;
   progress_percentage: number;
@@ -117,19 +135,17 @@ Important:
 }
 
 // Generate prompts based on analysis and long_ads.md specifications
-async function generatePrompts(analysisResult: Record<string, unknown>, videoDurationSeconds: number): Promise<Record<string, unknown>> {
+async function generatePrompts(analysisResult: Record<string, unknown>, videoDurationSeconds: number, accent: string): Promise<Record<string, unknown>> {
   const videoScenes = videoDurationSeconds / 8; // Each scene is 8 seconds
 
   // Extract character information to determine appropriate voice type
   const characterInfo = (analysisResult as { character?: { visual_description?: string } })?.character?.visual_description || '';
-  const isCharacterMale = characterInfo.toLowerCase().includes('man') || 
-                         characterInfo.toLowerCase().includes('male') || 
+  const isCharacterMale = characterInfo.toLowerCase().includes('man') ||
+                         characterInfo.toLowerCase().includes('male') ||
                          characterInfo.toLowerCase().includes('boy') ||
                          characterInfo.toLowerCase().includes('guy');
-  
-  const voiceType = isCharacterMale ? 
-    'Australian accent, deep male voice' : 
-    'Australian accent, deep female voice';
+
+  const voiceType = generateVoiceType(accent, isCharacterMale);
 
   const systemPrompt = `
 UGC Image + Video Prompt Generator 🎥🖼️
@@ -179,7 +195,7 @@ Return in JSON format:
       "scene": 1,
       "prompt": {
         "video_prompt": "dialogue, the character in the video says: [casual dialogue]",
-        "voice_type": "Australian accent, deep female voice",
+        "voice_type": "${voiceType}",
         "emotion": "chill, upbeat",
         "setting": "[casual environment]",
         "camera": "amateur iPhone selfie video",
@@ -651,7 +667,8 @@ export async function processCharacterAdsProject(
 
         const prompts = await generatePrompts(
           project.image_analysis_result,
-          project.video_duration_seconds
+          project.video_duration_seconds,
+          project.accent
         );
 
         // Create scene records

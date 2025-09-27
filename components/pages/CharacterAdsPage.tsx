@@ -8,6 +8,7 @@ import UserPhotoGallery from '@/components/UserPhotoGallery';
 import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
+import AccentSelector, { AccentType } from '@/components/ui/AccentSelector';
 import ProductSelector from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
@@ -34,6 +35,7 @@ export default function CharacterAdsPage() {
   const [videoDuration, setVideoDuration] = useState<8 | 16 | 24>(8);
   const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
+  const [selectedAccent, setSelectedAccent] = useState<AccentType>('australian');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
 
@@ -101,6 +103,7 @@ export default function CharacterAdsPage() {
       formData.append('video_duration_seconds', videoDuration.toString());
       formData.append('image_model', selectedImageModel);
       formData.append('video_model', selectedVideoModel);
+      formData.append('accent', selectedAccent);
       formData.append('user_id', user.id);
 
       const response = await fetch('/api/character-ads/create', {
@@ -130,6 +133,7 @@ export default function CharacterAdsPage() {
     setPersonImages([]);
     setSelectedPersonPhotoUrl('');
     setSelectedProduct(null);
+    setSelectedAccent('australian');
   };
 
   if (!isLoaded) {
@@ -276,6 +280,15 @@ export default function CharacterAdsPage() {
                             showIcon={true}
                           />
                         </div>
+                      </div>
+
+                      {/* Voice Accent Selection */}
+                      <div>
+                        <AccentSelector
+                          selectedAccent={selectedAccent}
+                          onAccentChange={setSelectedAccent}
+                          showIcon={true}
+                        />
                       </div>
 
                     </div>

@@ -102,3 +102,19 @@ Next.js image optimization is configured for:
 - **Data**: Supabase client, React hooks for API calls
 - **AI**: FAL AI client, custom fetch utilities with retry logic
 - **Analytics**: Vercel Analytics, PostHog for user tracking
+
+## Prompt Management Requirements
+
+When modifying any AI prompts in the codebase:
+1. **Synchronize Documentation**: Must update corresponding documentation in `prompts/` folder
+2. **Document Changes**: Record version and reason for prompt modifications
+3. **Maintain Consistency**: Ensure documentation stays consistent with actual prompts used in code
+4. **Test Thoroughly**: Validate updated prompts before deployment
+5. **Review Impact**: Consider effects on existing workflows and user experience
+
+### Prompt Documentation Structure
+- `prompts/README.md` - Overview of all workflows
+- `prompts/standard-ads-workflow.md` - Standard Ads complete workflow
+- `prompts/multi-variant-ads-workflow.md` - Multi-Variant Ads complete workflow
+- `prompts/character-ads-workflow.md` - Character Ads complete workflow
+- `prompts/youtube-thumbnail-workflow.md` - YouTube Thumbnail complete workflow

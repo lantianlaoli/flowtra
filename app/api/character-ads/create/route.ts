@@ -21,12 +21,13 @@ export async function POST(request: NextRequest) {
     const videoDurationSeconds = parseInt(formData.get('video_duration_seconds') as string);
     const imageModel = formData.get('image_model') as string;
     const videoModel = formData.get('video_model') as string;
+    const accent = formData.get('accent') as string;
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const selectedProductId = formData.get('selected_product_id') as string;
 
-    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, videoModel, selectedPersonPhotoUrl, selectedProductId });
+    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, videoModel, accent, selectedPersonPhotoUrl, selectedProductId });
 
-    if (!userId || !videoDurationSeconds || !imageModel || !videoModel) {
+    if (!userId || !videoDurationSeconds || !imageModel || !videoModel || !accent) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -41,9 +42,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate models - handle 'auto' values
+    // Validate models and accent
     const validImageModels = ['auto', 'nano_banana', 'seedream'];
     const validVideoModels = ['auto', 'veo3', 'veo3_fast'];
+    const validAccents = ['australian', 'american', 'british', 'canadian', 'irish', 'south_african'];
 
     if (!validImageModels.includes(imageModel)) {
       return NextResponse.json(
@@ -55,6 +57,13 @@ export async function POST(request: NextRequest) {
     if (!validVideoModels.includes(videoModel)) {
       return NextResponse.json(
         { error: 'Invalid video model' },
+        { status: 400 }
+      );
+    }
+
+    if (!validAccents.includes(accent)) {
+      return NextResponse.json(
+        { error: 'Invalid accent' },
         { status: 400 }
       );
     }
@@ -162,6 +171,7 @@ export async function POST(request: NextRequest) {
         video_duration_seconds: videoDurationSeconds,
         image_model: actualImageModel,
         video_model: actualVideoModel,
+        accent: accent,
         credits_cost: totalCredits,
         status: 'pending',
         current_step: 'analyzing_images',
