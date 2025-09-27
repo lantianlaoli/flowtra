@@ -3,7 +3,8 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getActualImageModel, IMAGE_MODELS } from '@/lib/constants';
 
 export interface MultiVariantAdsRequest {
-  imageUrl: string;
+  imageUrl?: string;
+  selectedProductId?: string;
   userId: string;
   elementsCount?: number;
   adCopy?: string;
@@ -32,6 +33,47 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
   const supabase = getSupabaseAdmin();
 
   try {
+    // Handle product selection - get the image URL from the selected product
+    let imageUrl = request.imageUrl;
+    if (request.selectedProductId && !imageUrl) {
+      const { data: product, error: productError } = await supabase
+        .from('user_products')
+        .select(`
+          *,
+          user_product_photos (*)
+        `)
+        .eq('id', request.selectedProductId)
+        .single();
+
+      if (productError || !product) {
+        return {
+          success: false,
+          error: 'Product not found'
+        };
+      }
+
+      // Get the primary photo or the first available photo
+      const primaryPhoto = product.user_product_photos?.find((photo: { is_primary: boolean }) => photo.is_primary);
+      const fallbackPhoto = product.user_product_photos?.[0];
+      const selectedPhoto = primaryPhoto || fallbackPhoto;
+
+      if (!selectedPhoto) {
+        return {
+          success: false,
+          error: 'No product photos found'
+        };
+      }
+
+      imageUrl = selectedPhoto.photo_url;
+    }
+
+    if (!imageUrl) {
+      return {
+        success: false,
+        error: 'Either imageUrl or selectedProductId with photos is required'
+      };
+    }
+
     const elementsCount = request.elementsCount || 2;
     const projectIds: string[] = [];
 
@@ -41,7 +83,8 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
         .from('multi_variant_ads_projects')
         .insert({
           user_id: request.userId,
-          original_image_url: request.imageUrl,
+          original_image_url: imageUrl,
+          selected_product_id: request.selectedProductId,
           status: 'analyzing_images',
           current_step: 'analyzing_images',
           progress_percentage: 0,
@@ -65,7 +108,8 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
     }
 
     // Start optimized workflow that processes all projects together
-    startOptimizedMultiVariantWorkflow(projectIds, request).catch((error: Error) => {
+    // Pass the resolved imageUrl to the workflow
+    startOptimizedMultiVariantWorkflow(projectIds, { ...request, imageUrl }).catch((error: Error) => {
       console.error('Optimized workflow failed:', error);
     });
 
@@ -532,7 +576,7 @@ IMPORTANT: The ad_copy "${firstElement.ad_copy}" was provided by the user and mu
   }
 }
 
-async function startOptimizedMultiVariantWorkflow(projectIds: string[], request: MultiVariantAdsRequest): Promise<void> {
+async function startOptimizedMultiVariantWorkflow(projectIds: string[], request: MultiVariantAdsRequest & { imageUrl: string }): Promise<void> {
   const supabase = getSupabaseAdmin();
 
   try {
@@ -662,7 +706,9 @@ async function generateMultiVariantCover(request: MultiVariantAdsRequest): Promi
 
   const requestBody = {
     model: kieModelName,
-    callBackUrl: `${process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/webhooks/multi-variant-ads`,
+    ...(process.env.KIE_MULTI_VARIANT_ADS_CALLBACK_URL && {
+      callBackUrl: process.env.KIE_MULTI_VARIANT_ADS_CALLBACK_URL
+    }),
     input: {
       prompt: prompt,
       image_urls: [request.imageUrl],

@@ -3,7 +3,8 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getActualImageModel, IMAGE_MODELS } from '@/lib/constants';
 
 export interface StartWorkflowRequest {
-  imageUrl: string;
+  imageUrl?: string;
+  selectedProductId?: string;
   userId: string;
   videoModel: 'auto' | 'veo3' | 'veo3_fast';
   imageModel?: 'auto' | 'nano_banana' | 'seedream';
@@ -29,6 +30,50 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
   try {
     const supabase = getSupabaseAdmin();
 
+    // Handle product selection - get the image URL from the selected product
+    let imageUrl = request.imageUrl;
+    if (request.selectedProductId && !imageUrl) {
+      const { data: product, error: productError } = await supabase
+        .from('user_products')
+        .select(`
+          *,
+          user_product_photos (*)
+        `)
+        .eq('id', request.selectedProductId)
+        .single();
+
+      if (productError || !product) {
+        return {
+          success: false,
+          error: 'Product not found',
+          details: productError?.message || 'Selected product does not exist'
+        };
+      }
+
+      // Get the primary photo or the first available photo
+      const primaryPhoto = product.user_product_photos?.find((photo: { is_primary: boolean }) => photo.is_primary);
+      const fallbackPhoto = product.user_product_photos?.[0];
+      const selectedPhoto = primaryPhoto || fallbackPhoto;
+
+      if (!selectedPhoto) {
+        return {
+          success: false,
+          error: 'No product photos found',
+          details: 'The selected product has no photos available'
+        };
+      }
+
+      imageUrl = selectedPhoto.photo_url;
+    }
+
+    if (!imageUrl) {
+      return {
+        success: false,
+        error: 'Image source required',
+        details: 'Either imageUrl or selectedProductId with photos is required'
+      };
+    }
+
     // Convert 'auto' videoModel to a specific model
     const actualVideoModel: 'veo3' | 'veo3_fast' = request.videoModel === 'auto' ? 'veo3_fast' : request.videoModel;
 
@@ -37,7 +82,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       .from('standard_ads_projects')
       .insert({
         user_id: request.userId,
-        original_image_url: request.imageUrl,
+        original_image_url: imageUrl,
+        selected_product_id: request.selectedProductId,
         video_model: actualVideoModel,
         status: 'processing',
         current_step: 'describing',
@@ -63,7 +109,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     // Start the AI workflow by calling image description
     try {
-      await startAIWorkflow(project.id, request);
+      await startAIWorkflow(project.id, { ...request, imageUrl });
     } catch (workflowError) {
       console.error('Workflow start error:', workflowError);
       // Update project status to failed
@@ -97,7 +143,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
   }
 }
 
-async function startAIWorkflow(projectId: string, request: StartWorkflowRequest): Promise<void> {
+async function startAIWorkflow(projectId: string, request: StartWorkflowRequest & { imageUrl: string }): Promise<void> {
   const supabase = getSupabaseAdmin();
 
   try {
@@ -285,7 +331,9 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
 
   const requestBody = {
     model: kieModelName,
-    callBackUrl: `${process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/webhooks/standard-ads`,
+    ...(process.env.KIE_STANDARD_ADS_CALLBACK_URL && {
+      callBackUrl: process.env.KIE_STANDARD_ADS_CALLBACK_URL
+    }),
     input: {
       prompt: prompt,
       image_urls: [imageUrl],

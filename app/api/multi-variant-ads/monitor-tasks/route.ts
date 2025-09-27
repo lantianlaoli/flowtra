@@ -114,8 +114,8 @@ async function processInstance(instance: InstanceRecord) {
   let currentStep = instance.current_step;
   let lastProcessedAt = instance.last_processed_at;
 
-  // Check if callback URL is empty - if so, actively poll for image progress
-  const hasCallback = !!process.env.KIE_MULTI_VARIANT_ADS_CALLBACK_URL;
+  // Always poll for image progress to handle stuck tasks
+  // const hasCallback = !!process.env.KIE_MULTI_VARIANT_ADS_CALLBACK_URL;
 
   const shouldGenerateVideo = (() => {
     if (instance.photo_only === true) return false;
@@ -131,88 +131,79 @@ async function processInstance(instance: InstanceRecord) {
 
   // Handle cover generation monitoring
   if (instance.status === 'generating_cover' && instance.cover_task_id && !instance.cover_image_url) {
-    // Only check status if no callback URL is configured
-    if (!hasCallback) {
-      const coverResult = await checkNanoBananaStatus(instance.cover_task_id);
+    // Always check status to handle stuck tasks, regardless of callback configuration
+    const coverResult = await checkNanoBananaStatus(instance.cover_task_id);
 
-      if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
-        console.log(`Cover completed for instance ${instance.id}`);
-        if (shouldGenerateVideo) {
-          // Generate video design using OpenRouter with the cover image
-          const videoPrompt = await generateVideoDesignFromCover(
-            coverResult.imageUrl,
-            instance.elements_data || {},
-            instance.id
-          );
+    if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
+      console.log(`Cover completed for instance ${instance.id}`);
+      if (shouldGenerateVideo) {
+        // Generate video design using OpenRouter with the cover image
+        const videoPrompt = await generateVideoDesignFromCover(
+          coverResult.imageUrl,
+          instance.elements_data || {},
+          instance.id
+        );
 
-          // Start video generation with designed prompt
-          const videoTaskId = await startVideoGeneration(instance, coverResult.imageUrl, videoPrompt);
+        // Start video generation with designed prompt
+        const videoTaskId = await startVideoGeneration(instance, coverResult.imageUrl, videoPrompt);
 
-          await supabase
-            .from('multi_variant_ads_projects')
-            .update({
-              cover_image_url: coverResult.imageUrl,
-              video_task_id: videoTaskId,
-              elements_data: {
-                ...(instance.elements_data || {}),
-                video_prompt: videoPrompt
-              },
-              status: 'generating_video',
-              current_step: 'generating_video',
-              progress_percentage: 50,
-              updated_at: new Date().toISOString(),
-              last_processed_at: new Date().toISOString()
-            })
-            .eq('id', instance.id);
-
-          console.log(`Started video generation for instance ${instance.id}, taskId: ${videoTaskId}`);
-
-          currentStatus = 'generating_video';
-          currentStep = 'generating_video';
-          lastProcessedAt = new Date().toISOString();
-        } else {
-          await supabase
-            .from('multi_variant_ads_projects')
-            .update({
-              cover_image_url: coverResult.imageUrl,
-              status: 'completed',
-              current_step: 'completed',
-              progress_percentage: 100,
-              updated_at: new Date().toISOString(),
-              last_processed_at: new Date().toISOString()
-            })
-            .eq('id', instance.id);
-
-          console.log(`Workflow completed with images only for instance ${instance.id}`);
-
-          currentStatus = 'completed';
-          currentStep = 'completed';
-          lastProcessedAt = new Date().toISOString();
-        }
-
-      } else if (coverResult.status === 'FAILED') {
-        throw new Error('Cover generation failed');
-      }
-      // If still generating, update progress
-      else if (coverResult.status === 'GENERATING') {
         await supabase
           .from('multi_variant_ads_projects')
           .update({
-            progress_percentage: 25,
+            cover_image_url: coverResult.imageUrl,
+            video_task_id: videoTaskId,
+            elements_data: {
+              ...(instance.elements_data || {}),
+              video_prompt: videoPrompt
+            },
+            status: 'generating_video',
+            current_step: 'generating_video',
+            progress_percentage: 50,
             updated_at: new Date().toISOString(),
             last_processed_at: new Date().toISOString()
           })
           .eq('id', instance.id);
 
+        console.log(`Started video generation for instance ${instance.id}, taskId: ${videoTaskId}`);
+
+        currentStatus = 'generating_video';
+        currentStep = 'generating_video';
+        lastProcessedAt = new Date().toISOString();
+      } else {
+        await supabase
+          .from('multi_variant_ads_projects')
+          .update({
+            cover_image_url: coverResult.imageUrl,
+            status: 'completed',
+            current_step: 'completed',
+            progress_percentage: 100,
+            updated_at: new Date().toISOString(),
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', instance.id);
+
+        console.log(`Workflow completed with images only for instance ${instance.id}`);
+
+        currentStatus = 'completed';
+        currentStep = 'completed';
         lastProcessedAt = new Date().toISOString();
       }
+
+    } else if (coverResult.status === 'FAILED') {
+      throw new Error('Cover generation failed');
     }
-    // If callback URL exists, just update last_processed_at
-    else {
+    // If still generating, update progress
+    else if (coverResult.status === 'GENERATING') {
       await supabase
         .from('multi_variant_ads_projects')
-        .update({ last_processed_at: new Date().toISOString() })
+        .update({
+          progress_percentage: 25,
+          updated_at: new Date().toISOString(),
+          last_processed_at: new Date().toISOString()
+        })
         .eq('id', instance.id);
+
+      lastProcessedAt = new Date().toISOString();
     }
   }
 
