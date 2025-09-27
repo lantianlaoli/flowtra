@@ -42,6 +42,7 @@ interface UserData {
   lastName?: string;
   username?: string;
   imageUrl?: string;
+  isDeleted?: boolean;
 }
 
 export default function ShowcaseSection({ workflowType, className = '' }: ShowcaseSectionProps) {
@@ -53,16 +54,25 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
       try {
         setLoading(true);
         
-        // Fetch data from the real API
-        const response = await fetch(`/api/${workflowType}/history?limit=6`);
+        // Use different API endpoints based on workflow type
+        // For character-ads and multi-variant-ads, use global showcase API to show latest examples from all users
+        // For other types, use user-specific history API
+        const apiEndpoint = (workflowType === 'character-ads' || workflowType === 'multi-variant-ads')
+          ? `/api/${workflowType}/showcase?limit=2`
+          : `/api/${workflowType}/history?limit=6`;
+        
+        const response = await fetch(apiEndpoint);
         if (response.ok) {
           const result = await response.json();
           const projects = result.data || result.history || [];
           
-          // Filter for completed items with cover images
-          const completedItems = projects.filter((item: ProjectItem) => 
-            item.status === 'completed' && item.cover_image_url
-          );
+          // For character-ads and multi-variant-ads showcase APIs, data is already filtered
+          // For other APIs, filter for completed items with cover images
+          const completedItems = (workflowType === 'character-ads' || workflowType === 'multi-variant-ads')
+            ? projects 
+            : projects.filter((item: ProjectItem) => 
+                item.status === 'completed' && item.cover_image_url
+              );
           
           // Get unique user IDs to fetch user information
            const userIds = [...new Set(completedItems.map((item: ProjectItem) => item.user_id))] as string[];
@@ -73,6 +83,17 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
               const userResponse = await fetch(`/api/users/${userId}`);
               if (userResponse.ok) {
                 const userData: UserData = await userResponse.json();
+                
+                // Handle deleted users with more friendly display
+                if (userData.isDeleted) {
+                  return {
+                    id: userId,
+                    name: userData.firstName || 'Former User',
+                    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.firstName || 'Former User')}&background=666666&color=fff`
+                  };
+                }
+                
+                // Handle regular users
                 return {
                   id: userId,
                   name: userData.firstName && userData.lastName 
@@ -80,6 +101,8 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
                     : userData.firstName || userData.username || 'Anonymous User',
                   avatar: userData.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.firstName || 'User')}&background=000000&color=fff`
                 };
+              } else {
+                console.warn(`Failed to fetch user ${userId}: ${userResponse.status}`);
               }
             } catch (error) {
               console.error(`Failed to fetch user ${userId}:`, error);
@@ -95,7 +118,9 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
           const userMap = new Map(userInfos.map(user => [user.id, user]));
           
           // Combine project data with user information
-          const showcaseData = completedItems.slice(0, 2).map((item: ProjectItem) => {
+          // For character-ads and multi-variant-ads, API already limits to 2 items; for others, slice to 2
+          const itemsToShow = (workflowType === 'character-ads' || workflowType === 'multi-variant-ads') ? completedItems : completedItems.slice(0, 2);
+          const showcaseData = itemsToShow.map((item: ProjectItem) => {
             const baseItem = {
               id: item.id,
               original_image_url: item.original_image_url,
@@ -245,7 +270,7 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
                     <VideoPlayer
                       src={item.video_url}
                       className="w-full h-full object-cover"
-                      autoPlay={false}
+                      autoPlay={true}
                       loop={true}
                       showControls={false}
                       ariaLabel="Generated video advertisement"

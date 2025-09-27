@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react'
 import { usePostHog } from 'posthog-js/react'
-import { useUser } from '@clerk/nextjs'
 
 export default function GlobalError({
   error,
@@ -12,7 +11,6 @@ export default function GlobalError({
   reset: () => void
 }) {
   const posthog = usePostHog()
-  const { user } = useUser()
 
   useEffect(() => {
     // Capture the error to PostHog
@@ -20,7 +18,7 @@ export default function GlobalError({
       posthog.captureException(error, {
         $exception_level: 'error',
         $exception_source: 'global_error_boundary',
-        user_id: user?.id,
+        // Remove user_id since we can't safely access user in global error boundary
         digest: error.digest,
         environment: process.env.NODE_ENV,
       })
@@ -28,7 +26,7 @@ export default function GlobalError({
 
     // Log error to console for development
     console.error('Global error caught:', error)
-  }, [error, posthog, user])
+  }, [error, posthog])
 
   return (
     <html>
