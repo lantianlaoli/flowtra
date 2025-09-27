@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       .from('character_ads_projects')
       .select('*')
       .eq('user_id', userId)
+      .eq('status', 'completed') // Only show completed projects for showcase
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -43,9 +44,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch history' }, { status: 500 });
     }
 
+    // Transform data to match ShowcaseSection expected format
+    const transformedProjects = (projects || [])
+      .filter(project => project.generated_image_url && project.person_image_urls?.[0]) // Only include projects with both images
+      .map(project => ({
+        id: project.id,
+        original_image_url: project.person_image_urls[0], // Use first person image as original
+        cover_image_url: project.generated_image_url, // Use generated image as cover
+        product_image_urls: project.product_image_urls, // Include product images
+        generated_video_urls: project.generated_video_urls, // Include video URLs
+        merged_video_url: project.merged_video_url, // Include merged video URL
+        user_id: project.user_id,
+        status: project.status,
+        created_at: project.created_at
+      }));
+
     return NextResponse.json({
       success: true,
-      data: projects || [],
+      data: transformedProjects,
+      history: transformedProjects, // Also provide as 'history' for compatibility
       pagination: {
         total: totalCount || 0,
         page,

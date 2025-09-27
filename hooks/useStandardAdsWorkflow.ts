@@ -263,6 +263,79 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
     });
   }, [selectedModel, guestUsageCount, userId, maxUserUsage, maxGuestUsage]);
 
+  const startWorkflowWithSelectedProduct = useCallback(async (
+    selectedProductId: string,
+    watermarkConfig: { enabled: boolean; text: string; location?: string },
+    currentElementsCount?: number,
+    currentImageSize?: string,
+    generateVideo?: boolean
+  ) => {
+    try {
+      setLoading(true);
+
+      const requestData = {
+        selectedProductId,
+        userId: userId,
+        videoModel: selectedModel,
+        imageModel: selectedImageModel,
+        watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined,
+        watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
+        elementsCount: currentElementsCount ?? elementsCount,
+        imageSize: currentImageSize ?? imageSize,
+        shouldGenerateVideo: generateVideo
+      };
+
+      console.log('🔍 useWorkflow startWorkflowWithSelectedProduct requestData:', requestData);
+
+      const response = await fetch('/api/standard-ads/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to start workflow');
+      }
+
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        historyId: result.historyId,
+        workflowStatus: 'workflow_initiated',
+        data: {
+          ...prev.data,
+          watermark: watermarkConfig
+        }
+      }));
+
+      // Update credits immediately after successful workflow start
+      if (result.remainingCredits !== undefined && updateCredits && userId) {
+        console.log(`🔄 Updating credits in sidebar: ${result.remainingCredits} remaining after using ${result.creditsUsed}`);
+        updateCredits(result.remainingCredits);
+      }
+
+      // Start polling if we got a historyId (with delay to allow UI to show success state)
+      if (result.historyId) {
+        setTimeout(() => {
+          pollWorkflowStatus(result.historyId);
+        }, 1000); // Wait 1 second before starting to poll
+      }
+
+    } catch (error: any) {
+      // Refetch credits in case of error (credits might have been refunded)
+      if (userId && refetchCredits) {
+        console.log('🔄 Refetching credits due to workflow start error');
+        refetchCredits();
+      }
+
+      setError(error.message || 'Failed to start workflow');
+    }
+  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
+
   const startWorkflowWithConfig = useCallback(async (
     watermarkConfig: { enabled: boolean; text: string; location?: string },
     currentElementsCount?: number,
@@ -346,6 +419,7 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
     state,
     uploadFile,
     startWorkflowWithConfig,
+    startWorkflowWithSelectedProduct,
     resetWorkflow,
     pollWorkflowStatus
   };

@@ -86,6 +86,73 @@ export function useMultiVariantAdsWorkflow(
     }
   }, []);
 
+  // Start workflow with selected product
+  const startBatchWorkflowWithProduct = useCallback(async (selectedProductId: string) => {
+    if (!userId) return;
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      const response = await fetch('/api/multi-variant-ads/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selectedProductId,
+          userId,
+          videoModel,
+          imageModel,
+          elementsCount,
+          adCopy,
+          textWatermark,
+          textWatermarkLocation,
+          imageSize,
+          generateVideo: shouldGenerateVideo
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start workflow');
+      }
+
+      const result = await response.json();
+      const itemIds: string[] = result.itemIds || [];
+      setCurrentItemIds(itemIds);
+      const creditsCost = shouldGenerateVideo ? getCreditCost(videoModel) : 0;
+
+      const seeded = itemIds.map((id) => ({
+        id,
+        user_id: userId,
+        elements_data: { generate_video: shouldGenerateVideo },
+        cover_image_size: imageSize,
+        status: 'pending' as const,
+        current_step: 'waiting' as const,
+        credits_cost: creditsCost,
+        downloaded: false,
+        progress_percentage: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_processed_at: new Date().toISOString()
+      } as WorkflowInstanceState));
+      setState(prev => ({ ...prev, instances: seeded }));
+
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        workflowStatus: 'processing'
+      }));
+
+      return result;
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to start workflow'
+      }));
+      throw error;
+    }
+  }, [userId, videoModel, imageModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo]);
+
   // Start V2 items (no DB batch)
   const startBatchWorkflow = useCallback(async () => {
     if (!state.uploadedFile || !userId) return;
@@ -267,6 +334,7 @@ export function useMultiVariantAdsWorkflow(
     state,
     uploadFile,
     startBatchWorkflow,
+    startBatchWorkflowWithProduct,
     downloadContent,
     resetWorkflow,
     fetchBatchStatus: async () => null

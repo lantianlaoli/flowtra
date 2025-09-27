@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
 
     console.log('🚀 Standard ads workflow request received:', {
       imageUrl: requestData.imageUrl,
+      selectedProductId: requestData.selectedProductId,
       userId: requestData.userId,
       videoModel: requestData.videoModel,
       imageModel: requestData.imageModel,
@@ -41,8 +42,8 @@ export async function POST(request: NextRequest) {
       photoOnly: requestData.photoOnly
     });
 
-    if (!requestData.imageUrl) {
-      return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
+    if (!requestData.imageUrl && !requestData.selectedProductId) {
+      return NextResponse.json({ error: 'Either imageUrl or selectedProductId is required' }, { status: 400 });
     }
 
     console.log('📋 Calling startWorkflowProcess...');

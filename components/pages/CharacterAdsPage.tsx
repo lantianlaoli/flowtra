@@ -16,6 +16,7 @@ import { ArrowRight, Clock, Video, Settings, Package, History } from 'lucide-rea
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import ShowcaseSection from '@/components/ui/ShowcaseSection';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -396,6 +397,11 @@ export default function CharacterAdsPage() {
               </motion.div>
             ) : null}
           </AnimatePresence>
+
+          {/* Showcase Section */}
+          <div className="mt-16">
+            <ShowcaseSection workflowType="character-ads" />
+          </div>
         </div>
       </div>
     </div>

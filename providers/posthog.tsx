@@ -16,6 +16,8 @@ export function PHProvider({ children }: { children: React.ReactNode }) {
       person_profiles: 'identified_only',
       capture_pageview: false,
       capture_pageleave: true,
+      capture_heatmaps: true,
+      capture_dead_clicks: true,
       session_recording: sessionReplayEnabled ? {
         recordCrossOriginIframes: false,
         maskAllInputs: true,
@@ -39,6 +41,26 @@ export function PHProvider({ children }: { children: React.ReactNode }) {
             posthog.stopSessionRecording()
           }
         }
+
+        // Set up global error handler for unhandled errors
+        window.addEventListener('error', (event) => {
+          posthog.captureException(event.error, {
+            $exception_level: 'error',
+            $exception_source: 'window_error',
+            filename: event.filename,
+            lineno: event.lineno,
+            colno: event.colno,
+          })
+        })
+
+        // Set up global handler for unhandled promise rejections
+        window.addEventListener('unhandledrejection', (event) => {
+          const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason))
+          posthog.captureException(error, {
+            $exception_level: 'error',
+            $exception_source: 'unhandled_rejection',
+          })
+        })
       }
     })
   }, [])

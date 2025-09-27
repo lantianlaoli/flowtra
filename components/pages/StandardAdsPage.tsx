@@ -6,16 +6,19 @@ import { useStandardAdsWorkflow } from '@/hooks/useStandardAdsWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import FileUpload from '@/components/FileUpload';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
-import { RotateCcw, ArrowRight, History, Play, Sparkles, Hash, Type, ChevronDown } from 'lucide-react';
+import { ArrowRight, History, Play, TrendingUp, Hash, Type, ChevronDown, Package } from 'lucide-react';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
+import ProductSelector from '@/components/ProductSelector';
+import ProductManager from '@/components/ProductManager';
+import ShowcaseSection from '@/components/ui/ShowcaseSection';
 import { useRouter } from 'next/navigation';
 import { canAffordModel, CREDIT_COSTS } from '@/lib/constants';
 import { AnimatePresence, motion } from 'framer-motion';
+import { UserProduct } from '@/lib/supabase';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -38,6 +41,8 @@ export default function StandardAdsPage() {
   const [elementsCount, setElementsCount] = useState(1);
   const [imageSize, setImageSize] = useState('auto');
   const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
+  const [showProductManager, setShowProductManager] = useState(false);
   
   
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
@@ -51,8 +56,8 @@ export default function StandardAdsPage() {
   
   const {
     state,
-    uploadFile,
     startWorkflowWithConfig,
+    startWorkflowWithSelectedProduct,
     resetWorkflow
   } = useStandardAdsWorkflow(user?.id, selectedModel, selectedImageModel, updateCredits, refetchCredits, elementsCount, imageSize);
 
@@ -141,15 +146,6 @@ export default function StandardAdsPage() {
     );
   }
 
-  const handleFileUpload = async (files: File | File[]) => {
-    // Handle both single file and multiple files
-    const fileArray = Array.isArray(files) ? files : [files];
-    
-    // For now, process the first file (extend later for batch processing)
-    if (fileArray.length > 0) {
-      await uploadFile(fileArray[0]);
-    }
-  };
 
   const handleStartWorkflow = async () => {
     const watermarkConfig = {
@@ -158,21 +154,32 @@ export default function StandardAdsPage() {
       location: textWatermarkLocation
     };
 
-    await startWorkflowWithConfig(watermarkConfig, elementsCount, imageSize, shouldGenerateVideo);
+    // Use selected product for workflow
+    if (selectedProduct) {
+      await startWorkflowWithSelectedProduct(selectedProduct.id, watermarkConfig, elementsCount, imageSize, shouldGenerateVideo);
+    } else {
+      await startWorkflowWithConfig(watermarkConfig, elementsCount, imageSize, shouldGenerateVideo);
+    }
   };
 
-  const v1Highlights = [
+  const handleResetWorkflow = () => {
+    resetWorkflow();
+    setSelectedProduct(null);
+    setShowProductManager(false);
+  };
+
+  const features = [
     {
-      label: 'Ideal for',
-      description: 'Product shots that must stay true to the original photography without stylistic changes.'
+      title: 'Authentic Product Focus',
+      description: 'Maintains product integrity while creating compelling video narratives'
     },
     {
-      label: 'What you get',
-      description: 'One polished, conversion-ready video ad centered on the exact product photo you upload.'
+      title: 'Performance Optimized',
+      description: 'AI-crafted pacing, captions, and motion designed for conversion'
     },
     {
-      label: 'Best used when',
-      description: 'You need 1:1 authenticity for PDP updates, catalog ads, or performance remarketing refreshes.'
+      title: 'Professional Quality',
+      description: 'Studio-grade results without the studio-grade budget'
     }
   ];
 
@@ -193,38 +200,230 @@ export default function StandardAdsPage() {
       return <InsufficientCredits currentCredits={userCredits} requiredCredits={CREDIT_COSTS.veo3_fast} />;
     }
     
-    // Show upload interface when no workflow is running
+    // Show main interface when no workflow is running
     if (state.workflowStatus === 'started') {
+      // Product Manager interface
+      if (showProductManager) {
+        return (
+          <div className="max-w-6xl mx-auto">
+            <div className="mb-6">
+              <button
+                onClick={() => setShowProductManager(false)}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                ← Back to Professional Video Ads
+              </button>
+            </div>
+            <ProductManager />
+          </div>
+        );
+      }
+
       return (
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto space-y-8">
           <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12 items-start">
-            <div className="lg:col-span-5 space-y-4">
-              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h2 className="text-base font-semibold text-gray-900 mb-2.5">
-                  When this workflow shines
+            {/* Left Column - Description, Features, and Product Selection */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Feature Introduction */}
+              <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                  Professional Video Ads
                 </h2>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Reach for Professional Video Ads when you need faithful, product-driven storytelling. Flowtra keeps your product true-to-shot while crafting pacing, captions, and motion tuned for performance spend.
+                <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                  Create conversion-ready video advertisements that maintain product authenticity while leveraging AI-powered storytelling and motion design.
                 </p>
+                <div className="space-y-3">
+                  {features.map((feature, index) => (
+                    <div key={index} className="flex items-start gap-3">
+                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900">{feature.title}</h4>
+                        <p className="text-xs text-gray-600">{feature.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid gap-4">
-                {v1Highlights.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                      {item.label}
-                    </p>
-                    <p className="text-sm text-gray-700 leading-relaxed">
-                      {item.description}
-                    </p>
-                  </div>
-                ))}
+
+              {/* Product Selection */}
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-lg font-semibold text-gray-900">Select Product</h3>
+                </div>
+                <ProductSelector
+                  selectedProduct={selectedProduct}
+                  onProductSelect={setSelectedProduct}
+                  onManageProducts={() => setShowProductManager(true)}
+                />
               </div>
             </div>
+
+            {/* Right Column - Configuration */}
             <div className="lg:col-span-7">
-              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3 sm:p-5">
-                <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} variant="compact" />
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-6">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
+                </div>
+
+                {/* Product Preview - Show when product is selected */}
+                {selectedProduct && (
+                  <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                    {selectedProduct.user_product_photos?.find(p => p.is_primary) && (
+                      <Image
+                        src={selectedProduct.user_product_photos.find(p => p.is_primary)?.photo_url || selectedProduct.user_product_photos[0]?.photo_url || ''}
+                        alt="Selected product"
+                        width={60}
+                        height={60}
+                        className="rounded-lg object-cover"
+                      />
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-900">{selectedProduct.product_name}</p>
+                      <p className="text-sm text-gray-600">Selected product</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Configuration Options */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Elements Count */}
+                  <div>
+                    <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                      <Hash className="w-4 h-4" />
+                      Ads
+                    </label>
+                    <div className="relative inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm">
+                      {[1,2,3].map((val) => {
+                        const active = elementsCount === val;
+                        return (
+                          <button
+                            key={val}
+                            onClick={() => setElementsCount(val)}
+                            className={`relative px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
+                              active ? 'bg-gray-900 text-white' : 'text-gray-800 hover:bg-gray-50'
+                            } ${val !== 1 ? 'ml-1' : ''}`}
+                          >
+                            {val}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Video Generation Toggle */}
+                  <div>
+                    <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                      <Play className="w-4 h-4" />
+                      Generate Video
+                    </label>
+                    <button
+                      onClick={() => setShouldGenerateVideo(!shouldGenerateVideo)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 ${
+                        shouldGenerateVideo ? 'bg-gray-900' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          shouldGenerateVideo ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Watermark Configuration */}
+                <div>
+                  <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                    <Type className="w-4 h-4" />
+                    Watermark
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
+                  </label>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={textWatermark}
+                      onChange={(e) => setTextWatermark(e.target.value)}
+                      placeholder="Enter brand name or watermark text..."
+                      maxLength={50}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                    />
+                    <select
+                      value={textWatermarkLocation}
+                      onChange={(e) => setTextWatermarkLocation(e.target.value)}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                    >
+                      <option value="bottom left">Bottom Left</option>
+                      <option value="bottom right">Bottom Right</option>
+                      <option value="top left">Top Left</option>
+                      <option value="top right">Top Right</option>
+                      <option value="center bottom">Center Bottom</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Size Configuration */}
+                <SizeSelector
+                  selectedSize={imageSize}
+                  onSizeChange={setImageSize}
+                  showIcon={true}
+                />
+
+                {/* Model Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ImageModelSelector
+                    credits={userCredits || 0}
+                    selectedModel={selectedImageModel}
+                    onModelChange={handleImageModelChange}
+                    showIcon={true}
+                  />
+                  {shouldGenerateVideo && (
+                    <VideoModelSelector
+                      credits={userCredits || 0}
+                      selectedModel={selectedModel}
+                      onModelChange={handleModelChange}
+                      showIcon={true}
+                      hideCredits={true}
+                    />
+                  )}
+                </div>
+
+                {/* Generate Button */}
+                <button
+                  onClick={handleStartWorkflow}
+                  disabled={state.isLoading || !selectedProduct}
+                  className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  {state.isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                      <span>Generating…</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="w-5 h-5" />
+                      <span>Generate</span>
+                      <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Free</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
+          </div>
+
+          {/* Showcase Section - Bottom with different background */}
+          <div className="bg-gray-50 rounded-2xl p-8 mt-12">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">See how entrepreneurs create viral ads with AI</h3>
+            </div>
+            <ShowcaseSection
+              workflowType="standard-ads"
+              className="max-w-4xl mx-auto"
+            />
           </div>
         </div>
       );
@@ -237,22 +436,9 @@ export default function StandardAdsPage() {
           <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12 h-full">
             {/* Left Side - Image Preview emphasised */}
             <div className="lg:col-span-6 flex flex-col h-full">
+              {/* Show uploaded file image */}
               {state.data.uploadedFile?.url && (
-                <div
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = (e) => {
-                      const file = (e.target as HTMLInputElement).files?.[0];
-                      if (file) {
-                        handleFileUpload(file);
-                      }
-                    };
-                    input.click();
-                  }}
-                  className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white shadow-lg p-2 sm:p-3 flex relative overflow-hidden cursor-pointer group hover:shadow-xl transition-all duration-300 flex-1"
-                >
+                <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white shadow-lg p-2 sm:p-3 flex relative overflow-hidden flex-1">
                   {/* Subtle background pattern */}
                   <div className="absolute inset-0 opacity-5">
                     <div className="absolute inset-0" style={{
@@ -271,14 +457,6 @@ export default function StandardAdsPage() {
                       />
                       {/* Subtle glow effect */}
                       <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-transparent via-transparent to-white/10 pointer-events-none"></div>
-
-                      {/* Hover overlay for change photo */}
-                      <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                        <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg text-gray-900 font-medium text-sm flex items-center gap-2 shadow-lg">
-                          <RotateCcw className="w-4 h-4" />
-                          Click to change photo
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -507,7 +685,7 @@ export default function StandardAdsPage() {
               View Progress
             </button>
             <button
-              onClick={() => resetWorkflow()}
+              onClick={handleResetWorkflow}
               className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium cursor-pointer"
             >
               <ArrowRight className="w-4 h-4" />
@@ -568,7 +746,7 @@ export default function StandardAdsPage() {
           {state.workflowStatus === 'failed' && (
             <div className="pt-4 animate-slide-in-right">
               <button
-                onClick={() => window.location.reload()}
+                onClick={handleResetWorkflow}
                 className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 font-medium"
               >
                 Try Again
@@ -606,7 +784,7 @@ export default function StandardAdsPage() {
             </p>
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 animate-slide-in-left">
               <div className="flex items-center gap-2 text-green-700">
-                <Sparkles className="w-4 h-4" />
+                <TrendingUp className="w-4 h-4" />
                 <span className="font-medium">Ready to download and share!</span>
               </div>
             </div>
@@ -621,7 +799,7 @@ export default function StandardAdsPage() {
               View Results
             </button>
             <button
-              onClick={() => resetWorkflow()}
+              onClick={handleResetWorkflow}
               className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium cursor-pointer"
             >
               <ArrowRight className="w-4 h-4" />
@@ -652,7 +830,7 @@ export default function StandardAdsPage() {
             <div className="mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-gray-700" />
+                  <TrendingUp className="w-4 h-4 text-gray-700" />
                 </div>
                 <h1 className="text-2xl font-semibold text-gray-900">
                   Create Professional Video Ads

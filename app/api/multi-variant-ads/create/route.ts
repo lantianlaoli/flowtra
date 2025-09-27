@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
     const requestData = await request.json();
     const {
       imageUrl,
+      selectedProductId,
       userId,
       elementsData,
       videoModel,
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
     // Add debug log showing request data
     console.log('🚀 Multi-variant ads workflow request received:', {
       imageUrl,
+      selectedProductId,
       userId,
       videoModel,
       imageModel,
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
       elementsData: elementsData ? '(provided)' : '(not provided)'
     });
 
-    if (!imageUrl) return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
+    if (!imageUrl && !selectedProductId) return NextResponse.json({ error: 'Either imageUrl or selectedProductId is required' }, { status: 400 });
     if (!userId) return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
 
     const shouldGenerateVideo = generateVideo !== false;
@@ -55,6 +57,7 @@ export async function POST(request: NextRequest) {
     console.log('📋 Calling startMultiVariantItems...');
     const result = await startMultiVariantItems({
       imageUrl,
+      selectedProductId,
       userId,
       elementsData,
       videoModel,

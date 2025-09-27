@@ -6,14 +6,17 @@ import { useMultiVariantAdsWorkflow } from '@/hooks/useMultiVariantAdsWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import FileUpload from '@/components/FileUpload';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { RotateCcw, ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Crop, ChevronDown, Layers } from 'lucide-react';
+import { ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Crop, ChevronDown, Layers, Package, TrendingUp } from 'lucide-react';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
+import ProductSelector from '@/components/ProductSelector';
+import ProductManager from '@/components/ProductManager';
+import ShowcaseSection from '@/components/ui/ShowcaseSection';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { getActualModel, getActualImageModel } from '@/lib/constants';
+import { UserProduct } from '@/lib/supabase';
 
 export default function MultiVariantAdsPage() {
   const { user, isLoaded } = useUser();
@@ -26,6 +29,8 @@ export default function MultiVariantAdsPage() {
   const [textWatermarkLocation, setTextWatermarkLocation] = useState('bottom left');
   const [imageSize, setImageSize] = useState('auto');
   const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
+  const [showProductManager, setShowProductManager] = useState(false);
   const router = useRouter();
   const [kieCreditsStatus, setKieCreditsStatus] = useState<{ sufficient: boolean; loading: boolean; currentCredits?: number; threshold?: number }>({
     sufficient: true,
@@ -48,8 +53,8 @@ export default function MultiVariantAdsPage() {
 
   const {
     state,
-    uploadFile,
     startBatchWorkflow,
+    startBatchWorkflowWithProduct,
     downloadContent,
     resetWorkflow
   } = useMultiVariantAdsWorkflow(
@@ -74,20 +79,24 @@ export default function MultiVariantAdsPage() {
 
   // Note: keep hooks above; render loading UI later to avoid conditional hooks
 
-  const handleFileUpload = async (files: File | File[]) => {
-    const fileArray = Array.isArray(files) ? files : [files];
-    
-    if (fileArray.length > 0) {
-      await uploadFile(fileArray[0]);
-    }
-  };
 
   const handleStartWorkflow = async () => {
     try {
-      await startBatchWorkflow();
+      // Use product workflow if product is selected
+      if (selectedProduct) {
+        await startBatchWorkflowWithProduct(selectedProduct.id);
+      } else {
+        await startBatchWorkflow();
+      }
     } catch (error) {
       console.error('Failed to start workflow:', error);
     }
+  };
+
+  const handleResetWorkflow = () => {
+    resetWorkflow();
+    setSelectedProduct(null);
+    setShowProductManager(false);
   };
 
   const handleDownload = async (instanceId: string, contentType: 'cover' | 'video') => {
@@ -135,18 +144,18 @@ export default function MultiVariantAdsPage() {
     return () => clearInterval(interval);
   }, [state.workflowStatus, state.isLoading, overlayMessages.length]);
 
-  const v2Highlights = [
+  const features = [
     {
-      label: 'Ideal for',
-      description: 'Creative testing, prospecting ads, and campaigns exploring new visual directions.'
+      title: 'Creative Variations',
+      description: 'Generate multiple distinct creative approaches from a single product'
     },
     {
-      label: 'What you get',
-      description: 'Multiple video variations generated from one product photo with distinct pacing and tone.'
+      title: 'A/B Testing Ready',
+      description: 'Compare hooks, styles, and motion concepts to find winning combinations'
     },
     {
-      label: 'Best used when',
-      description: 'You need stylistic experimentation to compare hooks, copy angles, or motion concepts before scaling spend.'
+      title: 'Scale Optimized',
+      description: 'Test creative directions before committing to larger ad spend'
     }
   ];
 
@@ -159,38 +168,261 @@ export default function MultiVariantAdsPage() {
         </div>
       );
     }
-    // Show upload interface when idle
+    // Show main interface when idle
     if (state.workflowStatus === 'idle') {
+      // Product Manager interface
+      if (showProductManager) {
+        return (
+          <div className="max-w-6xl mx-auto">
+            <div className="mb-6">
+              <button
+                onClick={() => setShowProductManager(false)}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                ← Back to Multiple Ad Variations
+              </button>
+            </div>
+            <ProductManager />
+          </div>
+        );
+      }
+
       return (
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto space-y-8">
           <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12 items-start">
-            <div className="lg:col-span-5 space-y-4">
-              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h2 className="text-base font-semibold text-gray-900 mb-2.5">
-                  Designed for creative exploration
+            {/* Left Column - Description, Features, and Product Selection */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Feature Introduction */}
+              <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                  Multiple Ad Variations
                 </h2>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Experiment with hooks, motion, and styling without reshooting. One upload gives you multiple creative directions ready for paid testing.
+                <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                  Generate multiple creative variations from a single product to test different hooks, styles, and approaches for optimal campaign performance.
                 </p>
+                <div className="space-y-3">
+                  {features.map((feature, index) => (
+                    <div key={index} className="flex items-start gap-3">
+                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900">{feature.title}</h4>
+                        <p className="text-xs text-gray-600">{feature.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid gap-4">
-                {v2Highlights.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                      {item.label}
-                    </p>
-                    <p className="text-sm text-gray-700 leading-relaxed">
-                      {item.description}
-                    </p>
+
+              {/* Product Selection */}
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-lg font-semibold text-gray-900">Select Product</h3>
+                </div>
+                <ProductSelector
+                  selectedProduct={selectedProduct}
+                  onProductSelect={setSelectedProduct}
+                  onManageProducts={() => setShowProductManager(true)}
+                />
+              </div>
+            </div>
+
+            {/* Right Column - Configuration */}
+            <div className="lg:col-span-7">
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-6">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
+                </div>
+
+                {/* Product Preview - Show when product is selected */}
+                {selectedProduct && (
+                  <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                    {selectedProduct.user_product_photos?.find(p => p.is_primary) && (
+                      <Image
+                        src={selectedProduct.user_product_photos.find(p => p.is_primary)?.photo_url || selectedProduct.user_product_photos[0]?.photo_url || ''}
+                        alt="Selected product"
+                        width={60}
+                        height={60}
+                        className="rounded-lg object-cover"
+                      />
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-900">{selectedProduct.product_name}</p>
+                      <p className="text-sm text-gray-600">Selected product</p>
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {/* Configuration Options */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Elements Count */}
+                  <div>
+                    <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                      <Hash className="w-4 h-4" />
+                      Variations
+                    </label>
+                    <div className="relative inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm">
+                      {[1,2,3].map((val) => {
+                        const active = elementsCount === val;
+                        return (
+                          <button
+                            key={val}
+                            onClick={() => setElementsCount(val)}
+                            className={`relative px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
+                              active ? 'bg-gray-900 text-white' : 'text-gray-800 hover:bg-gray-50'
+                            } ${val !== 1 ? 'ml-1' : ''}`}
+                          >
+                            {val}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Video Generation Toggle */}
+                  <div>
+                    <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                      <Play className="w-4 h-4" />
+                      Generate Video
+                    </label>
+                    <button
+                      onClick={() => setShouldGenerateVideo(!shouldGenerateVideo)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 ${
+                        shouldGenerateVideo ? 'bg-gray-900' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          shouldGenerateVideo ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Ad Copy Configuration */}
+                <div>
+                  <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                    <Type className="w-4 h-4" />
+                    Ad Copy
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={adCopy}
+                    onChange={(e) => setAdCopy(e.target.value)}
+                    placeholder="Enter ad copy (optional)..."
+                    maxLength={120}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">If provided, all variations will use this ad copy.</p>
+                </div>
+
+                {/* Watermark Configuration */}
+                <div>
+                  <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                    <Type className="w-4 h-4" />
+                    Watermark
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
+                  </label>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={textWatermark}
+                      onChange={(e) => setTextWatermark(e.target.value)}
+                      placeholder="Enter brand name or watermark text..."
+                      maxLength={50}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                    />
+                    <select
+                      value={textWatermarkLocation}
+                      onChange={(e) => setTextWatermarkLocation(e.target.value)}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                    >
+                      <option value="bottom left">Bottom Left</option>
+                      <option value="bottom right">Bottom Right</option>
+                      <option value="top left">Top Left</option>
+                      <option value="top right">Top Right</option>
+                      <option value="center bottom">Center Bottom</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Size Configuration */}
+                <div>
+                  <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
+                    <Crop className="w-4 h-4" />
+                    Size
+                  </label>
+                  <select
+                    value={imageSize}
+                    onChange={(e) => setImageSize(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                  >
+                    <option value="auto">Auto (Native Resolution)</option>
+                    <option value="1:1">Square (1:1)</option>
+                    <option value="3:4">Portrait 3:4</option>
+                    <option value="9:16">Portrait 9:16</option>
+                    <option value="4:3">Landscape 4:3</option>
+                    <option value="16:9">Landscape 16:9</option>
+                  </select>
+                </div>
+
+                {/* Model Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ImageModelSelector
+                    credits={userCredits || 0}
+                    selectedModel={selectedImageModel}
+                    onModelChange={handleImageModelChange}
+                    showIcon={true}
+                  />
+                  {shouldGenerateVideo && (
+                    <VideoModelSelector
+                      credits={userCredits || 0}
+                      selectedModel={selectedModel}
+                      onModelChange={handleModelChange}
+                      showIcon={true}
+                      hideCredits={true}
+                    />
+                  )}
+                </div>
+
+                {/* Generate Button */}
+                <button
+                  onClick={handleStartWorkflow}
+                  disabled={state.isLoading || !selectedProduct}
+                  className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  {state.isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                      <span>Generating…</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="w-5 h-5" />
+                      <span>Generate</span>
+                      <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Free</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
-            <div className="lg:col-span-7 flex">
-              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3 sm:p-5 flex-1 flex">
-                <FileUpload onFileUpload={handleFileUpload} isLoading={state.isLoading} multiple={false} variant="compact" />
+          </div>
+
+          {/* Showcase Section - Bottom with different background */}
+          <div className="bg-gray-50 rounded-2xl p-8 mt-12">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-white" />
               </div>
+              <h3 className="text-lg font-semibold text-gray-900">See how entrepreneurs create viral ads with AI</h3>
             </div>
+            <ShowcaseSection
+              workflowType="multi-variant-ads"
+              className="max-w-4xl mx-auto"
+            />
           </div>
         </div>
       );
@@ -203,6 +435,7 @@ export default function MultiVariantAdsPage() {
           <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12">
             {/* Left Side - Image Preview emphasised */}
             <div className="lg:col-span-7">
+              {/* Show uploaded file image */}
               {state.uploadedFile?.url && (
                 <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white shadow-lg p-3 sm:p-5 flex min-h-[360px] relative overflow-hidden">
                   {/* Subtle background pattern */}
@@ -451,24 +684,6 @@ export default function MultiVariantAdsPage() {
                   )}
                 </button>
 
-                <button
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = (e) => {
-                      const file = (e.target as HTMLInputElement).files?.[0];
-                      if (file) {
-                        handleFileUpload(file);
-                      }
-                    };
-                    input.click();
-                  }}
-                  className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors font-medium"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Change Photo
-                </button>
               </div>
             </div>
           </div>
@@ -500,7 +715,7 @@ export default function MultiVariantAdsPage() {
               View Progress
             </button>
             <button
-              onClick={() => resetWorkflow()}
+              onClick={handleResetWorkflow}
               className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium cursor-pointer"
             >
               <ArrowRight className="w-4 h-4" />
@@ -612,7 +827,7 @@ export default function MultiVariantAdsPage() {
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-8">
             <button
-              onClick={() => resetWorkflow()}
+              onClick={handleResetWorkflow}
               className="flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium cursor-pointer"
             >
               <ArrowRight className="w-4 h-4" />
@@ -649,7 +864,7 @@ export default function MultiVariantAdsPage() {
           </div>
           
           <button
-            onClick={() => resetWorkflow()}
+            onClick={handleResetWorkflow}
             className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 font-medium"
           >
             Try Again
