@@ -149,15 +149,15 @@ export default function CharacterAdsPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="flex-1 ml-72 bg-white min-h-screen">
-        <div className="max-w-5xl mx-auto p-8">
+      <div className="ml-72 bg-gray-50 min-h-screen">
+        <div className="p-8 max-w-7xl mx-auto">
           {/* Header */}
-          <div className="mb-10">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center">
-                <Video className="w-5 h-5 text-white" />
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <Video className="w-4 h-4 text-gray-700" />
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-2xl font-semibold text-gray-900">
                 Character Spokesperson Ads
               </h1>
             </div>

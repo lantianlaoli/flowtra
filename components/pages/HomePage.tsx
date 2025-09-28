@@ -119,8 +119,10 @@ export default function HomePage() {
           {/* Header Section */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
-              <Hand className="w-7 h-7 text-gray-600" />
-              <h1 className="text-3xl font-bold text-gray-900">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <Hand className="w-4 h-4 text-gray-700" />
+              </div>
+              <h1 className="text-2xl font-semibold text-gray-900">
                 Hello, {getUserName()}
               </h1>
             </div>

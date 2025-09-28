@@ -302,15 +302,15 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
     );
   }
 
-  // Default layout for other workflow types
+  // Default layout for other workflow types - Notion style optimized
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${className}`}>
+    <div className={`grid grid-cols-1 lg:grid-cols-2 gap-4 ${className}`}>
       {showcaseItems.map((item) => (
-        <div key={item.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:bg-gray-50 transition-all duration-200 relative">
-          {/* User info in top-left corner */}
-          <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-sm rounded-md p-2 shadow-sm border border-gray-200">
+        <div key={item.id} className="group bg-white border border-gray-200/60 rounded-lg overflow-hidden hover:border-gray-300 hover:shadow-sm transition-all duration-200 relative">
+          {/* User info optimized */}
+          <div className="absolute top-3 left-3 z-10 bg-white/95 backdrop-blur-sm rounded-md px-3 py-1.5 shadow-sm border border-gray-200/50">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 relative rounded-full overflow-hidden bg-gray-100">
+              <div className="w-5 h-5 relative rounded-full overflow-hidden bg-gray-100">
                 <Image
                   src={item.user.avatar || '/default-avatar.png'}
                   alt={item.user.name || 'User'}
@@ -321,28 +321,28 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
               <span className="text-xs font-medium text-gray-700">{item.user.name || 'Anonymous'}</span>
             </div>
           </div>
-          
-          {/* Large before/after images */}
-          <div className="grid grid-cols-2 gap-4 h-72">
-            <div className="relative rounded-md overflow-hidden bg-gray-100">
+
+          {/* Enlarged before/after images with reduced spacing */}
+          <div className="grid grid-cols-2 gap-3 p-3 h-80">
+            <div className="relative rounded-md overflow-hidden bg-gray-50">
               <Image
                 src={item.original_image_url}
                 alt="Original"
                 fill
                 className="object-cover"
               />
-              <div className="absolute bottom-3 left-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
+              <div className="absolute bottom-2 left-2 bg-black/75 text-white text-xs px-2 py-1 rounded-sm font-medium">
                 Before
               </div>
             </div>
-            <div className="relative rounded-md overflow-hidden bg-gray-100">
+            <div className="relative rounded-md overflow-hidden bg-gray-50">
               <Image
                 src={item.cover_image_url}
                 alt="Generated"
                 fill
                 className="object-cover"
               />
-              <div className="absolute bottom-3 left-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
+              <div className="absolute bottom-2 left-2 bg-black/75 text-white text-xs px-2 py-1 rounded-sm font-medium">
                 After
               </div>
             </div>

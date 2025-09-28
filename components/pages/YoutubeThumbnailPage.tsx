@@ -355,10 +355,10 @@ The colors of the text's background panel, the overall thumbnail background, and
       <div className="ml-72 bg-gray-50 min-h-screen">
         <div className="p-8 max-w-7xl mx-auto">
           {/* Header */}
-          <div className="mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <Youtube className="w-6 h-6 text-red-600" />
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <Youtube className="w-4 h-4 text-gray-700" />
               </div>
               <h1 className="text-2xl font-semibold text-gray-900">YouTube Thumbnail Generator</h1>
             </div>

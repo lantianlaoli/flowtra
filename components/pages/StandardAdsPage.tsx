@@ -9,6 +9,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
 import { ArrowRight, History, Play, TrendingUp, Hash, Type, ChevronDown, Package } from 'lucide-react';
+import GenerationConfirmation from '@/components/ui/GenerationConfirmation';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
@@ -61,24 +62,6 @@ export default function StandardAdsPage() {
     resetWorkflow
   } = useStandardAdsWorkflow(user?.id, selectedModel, selectedImageModel, updateCredits, refetchCredits, elementsCount, imageSize);
 
-  // Silky overlay messages (parity with V2)
-  const overlayMessages = [
-    'Sketching cover compositions…',
-    'Exploring multiple creative directions…',
-    'Choosing lenses, framing, and timing…',
-    'Designing camera moves and transitions…',
-    'Polishing color and lighting — almost there…'
-  ];
-  const [overlayIndex, setOverlayIndex] = useState(0);
-  useEffect(() => {
-    const showOverlay = state.workflowStatus === 'uploaded_waiting_config' && state.isLoading;
-    if (!showOverlay) return;
-    setOverlayIndex(0);
-    const interval = setInterval(() => {
-      setOverlayIndex((idx) => (idx + 1) % overlayMessages.length);
-    }, 2600);
-    return () => clearInterval(interval);
-  }, [state.workflowStatus, state.isLoading, overlayMessages.length]);
 
   // Check KIE credits on page load
   useEffect(() => {
@@ -105,37 +88,6 @@ export default function StandardAdsPage() {
     checkKieCredits();
   }, []);
 
-  const getHumanizedStepMessage = (step: string | null) => {
-    if (step === 'describing') {
-      return `Getting to know your product...`;
-    }
-    if (step === 'generating_prompts') {
-      return `Crafting your ad concept...`;
-    }
-    if (step === 'generating_cover') {
-      return `Designing your visuals...`;
-    }
-    if (step === 'generating_video') {
-      return `Bringing it all together...`;
-    }
-    return `Processing...`;
-  };
-
-  const getStepDisplayName = (step: string | null) => {
-    if (step === 'describing') {
-      return 'Understanding Product';
-    }
-    if (step === 'generating_prompts') {
-      return 'Creating Concept';
-    }
-    if (step === 'generating_cover') {
-      return 'Designing Visuals';
-    }
-    if (step === 'generating_video') {
-      return 'Finalizing Ad';
-    }
-    return 'Processing';
-  };
 
   // Loading state
   if (!isLoaded) {
@@ -412,17 +364,24 @@ export default function StandardAdsPage() {
             </div>
           </div>
 
-          {/* Showcase Section - Bottom with different background */}
-          <div className="bg-gray-50 rounded-2xl p-8 mt-12">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-white" />
+          {/* Showcase Section - Notion style design */}
+          <div className="border border-gray-100/80 bg-white/60 backdrop-blur-sm rounded-xl p-6 mt-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-6 h-6 bg-gray-900 rounded-md flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-white" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">See how entrepreneurs create viral ads with AI</h3>
+              <div className="flex flex-col">
+                <h3 className="text-xl font-medium text-gray-900 tracking-tight">
+                  See how entrepreneurs create viral ads with AI
+                </h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Real examples from our community
+                </p>
+              </div>
             </div>
             <ShowcaseSection
               workflowType="standard-ads"
-              className="max-w-4xl mx-auto"
+              className="max-w-5xl mx-auto"
             />
           </div>
         </div>
@@ -657,105 +616,45 @@ export default function StandardAdsPage() {
     // Show workflow initiated success state
     if (state.workflowStatus === 'workflow_initiated') {
       return (
-        <div className="max-w-2xl mx-auto text-center space-y-6">
-          {/* Success indicator */}
-          <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto">
-            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+        <GenerationConfirmation
+          title="Your content is being generated!"
+          description="The generation process is now running in the background."
+          estimatedTime="Usually takes 3-5 minutes"
+          onCreateAnother={handleResetWorkflow}
+        />
+      );
+    }
+
+    // For processing workflow, only show failed state
+    if (state.workflowStatus === 'failed') {
+      return (
+        <div className="max-w-xl mx-auto text-center space-y-6">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+            <span className="text-2xl text-red-600">✗</span>
           </div>
-          
-          {/* Content */}
+
           <div className="space-y-4">
-            <h3 className="text-xl font-medium text-gray-900">
-              Ad Creation Started
+            <h3 className="text-xl font-semibold text-gray-900">
+              Oops! Something went wrong
             </h3>
-            <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
-              Your ad is being created. The process is now running in the background.
+            <p className="text-gray-600 text-base">
+              We encountered an issue: {state.error || state.data.errorMessage || 'Unknown error occurred'}
             </p>
           </div>
-          
-          {/* Action buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => router.push('/dashboard/videos')}
-              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium cursor-pointer"
-            >
-              <History className="w-4 h-4" />
-              View Progress
-            </button>
+
+          <div className="pt-4">
             <button
               onClick={handleResetWorkflow}
-              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium cursor-pointer"
+              className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 font-medium"
             >
-              <ArrowRight className="w-4 h-4" />
-              Create Another
+              Try Again
             </button>
           </div>
         </div>
       );
     }
 
-    // For processing workflow, show progress page
-    if (state.workflowStatus === 'in_progress' || state.workflowStatus === 'failed') {
-      return (
-        <div className="max-w-xl mx-auto text-center space-y-6 animate-bounce-in">
-          <div className="relative">
-            {state.workflowStatus === 'failed' ? (
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto animate-pulse-glow">
-                <span className="text-2xl text-red-600">✗</span>
-              </div>
-            ) : (
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto animate-float">
-                <div className="relative">
-                  <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <div className="absolute inset-0 w-8 h-8 border-4 border-transparent border-r-white rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="space-y-4">
-            <h3 className="text-xl font-semibold text-gray-900 animate-slide-in-left">
-              {state.workflowStatus === 'failed' ? 'Oops! Something went wrong' : 'Creating your masterpiece...'}
-            </h3>
-            <p className="text-gray-600 text-base animate-slide-in-right">
-              {state.workflowStatus === 'failed' 
-                ? `We encountered an issue: ${state.error || state.data.errorMessage || 'Unknown error occurred'}`
-                : getHumanizedStepMessage(state.currentStep)
-              }
-            </p>
-            {state.workflowStatus === 'in_progress' && (
-              <div className="space-y-3 animate-slide-in-left">
-                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                  <div 
-                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-700 ease-out relative overflow-hidden" 
-                    style={{ width: `${state.progress}%` }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-sm text-gray-600">
-                  <span className="font-medium">{getStepDisplayName(state.currentStep)}</span>
-                  <span className="font-bold text-blue-600">{state.progress}%</span>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {state.workflowStatus === 'failed' && (
-            <div className="pt-4 animate-slide-in-right">
-              <button
-                onClick={handleResetWorkflow}
-                className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 font-medium"
-              >
-                Try Again
-              </button>
-            </div>
-          )}
-        </div>
-      );
-    }
+    // Hide in_progress state - users don't need to wait on page
 
     // For completed workflow, show success page
     if (state.workflowStatus === 'completed') {
@@ -827,15 +726,13 @@ export default function StandardAdsPage() {
       <div className="ml-72 bg-gray-50 min-h-screen">
         <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
-            <div className="mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4 text-gray-700" />
-                </div>
-                <h1 className="text-2xl font-semibold text-gray-900">
-                  Create Professional Video Ads
-                </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-gray-700" />
               </div>
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Create Professional Video Ads
+              </h1>
             </div>
           </div>
 
@@ -864,45 +761,6 @@ export default function StandardAdsPage() {
                 className="relative bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm overflow-hidden"
               >
                 {workflowContent}
-
-                {/* Silky animated overlay while generating (from Generate click until next screen) */}
-                <AnimatePresence>
-                  {state.workflowStatus === 'uploaded_waiting_config' && state.isLoading && (
-                    <motion.div
-                      key="overlay"
-                      className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                    >
-                      <motion.div
-                        key={overlayIndex}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.4 }}
-                        aria-live="polite"
-                        className="text-center"
-                      >
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-0">
-                          {overlayMessages[overlayIndex % overlayMessages.length]}
-                        </p>
-                      </motion.div>
-
-                      <div className="mt-6 flex items-center gap-2" aria-hidden="true">
-                        {[0,1,2].map((i) => (
-                          <motion.span
-                            key={i}
-                            className="block w-2 h-2 rounded-full bg-gray-900"
-                            initial={{ opacity: 0.3, scale: 1 }}
-                            animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.1, 1] }}
-                            transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
-                          />
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </motion.div>
             )}
           </AnimatePresence>

@@ -25,12 +25,12 @@ export default function ProductsPage() {
       <div className="flex-1 ml-72 bg-white min-h-screen">
         <div className="max-w-7xl mx-auto p-8">
           {/* Header */}
-          <div className="mb-10">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center">
-                <Package className="w-5 h-5 text-white" />
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <Package className="w-4 h-4 text-gray-700" />
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-2xl font-semibold text-gray-900">
                 My Products
               </h1>
             </div>

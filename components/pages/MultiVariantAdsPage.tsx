@@ -8,6 +8,7 @@ import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import { ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Crop, ChevronDown, Layers, Package, TrendingUp } from 'lucide-react';
+import GenerationConfirmation from '@/components/ui/GenerationConfirmation';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import ProductSelector from '@/components/ProductSelector';
@@ -37,15 +38,6 @@ export default function MultiVariantAdsPage() {
     loading: true
   });
 
-  // Silky overlay messages for generation flow
-  const overlayMessages = [
-    'Sketching cover compositions…',
-    'Exploring multiple creative directions…',
-    'Choosing lenses, framing, and timing…',
-    'Designing camera moves and transitions…',
-    'Polishing color and lighting — almost there…'
-  ];
-  const [overlayIndex, setOverlayIndex] = useState(0);
   
   // Get the actual models to use for the workflow
   const actualModel = getActualModel(selectedModel, userCredits || 0) || 'veo3_fast';
@@ -131,18 +123,6 @@ export default function MultiVariantAdsPage() {
 
   // Removed unused getProgressPercentage helper to satisfy lint
 
-  // Cycle overlay messages while generating in 'uploaded' state
-  useEffect(() => {
-    const showOverlay = state.workflowStatus === 'uploaded' && state.isLoading;
-    if (!showOverlay) return;
-
-    setOverlayIndex(0);
-    const interval = setInterval(() => {
-      setOverlayIndex((idx) => (idx + 1) % overlayMessages.length);
-    }, 2600);
-
-    return () => clearInterval(interval);
-  }, [state.workflowStatus, state.isLoading, overlayMessages.length]);
 
   const features = [
     {
@@ -411,17 +391,24 @@ export default function MultiVariantAdsPage() {
             </div>
           </div>
 
-          {/* Showcase Section - Bottom with different background */}
-          <div className="bg-gray-50 rounded-2xl p-8 mt-12">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-white" />
+          {/* Showcase Section - Notion style design */}
+          <div className="border border-gray-100/80 bg-white/60 backdrop-blur-sm rounded-xl p-6 mt-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-6 h-6 bg-gray-900 rounded-md flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-white" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">See how entrepreneurs create viral ads with AI</h3>
+              <div className="flex flex-col">
+                <h3 className="text-xl font-medium text-gray-900 tracking-tight">
+                  See how entrepreneurs create viral ads with AI
+                </h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Real examples from our community
+                </p>
+              </div>
             </div>
             <ShowcaseSection
               workflowType="multi-variant-ads"
-              className="max-w-4xl mx-auto"
+              className="max-w-5xl mx-auto"
             />
           </div>
         </div>
@@ -694,35 +681,12 @@ export default function MultiVariantAdsPage() {
     // Show simple started state (Notion style) instead of progress page
     if (state.workflowStatus === 'processing') {
       return (
-        <div className="max-w-2xl mx-auto text-center space-y-6">
-          <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto">
-            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <div className="space-y-4">
-            <h3 className="text-xl font-medium text-gray-900">Ad Creation Started</h3>
-            <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
-              Your ads are being generated in the background. You can view progress in My Ads.
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => router.push('/dashboard/videos')}
-              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium cursor-pointer"
-            >
-              <History className="w-4 h-4" />
-              View Progress
-            </button>
-            <button
-              onClick={handleResetWorkflow}
-              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium cursor-pointer"
-            >
-              <ArrowRight className="w-4 h-4" />
-              Create Another
-            </button>
-          </div>
-        </div>
+        <GenerationConfirmation
+          title="Your ad variations are being generated!"
+          description="Multiple creative approaches are being created in the background."
+          estimatedTime="Usually takes 3-5 minutes"
+          onCreateAnother={handleResetWorkflow}
+        />
       );
     }
 
@@ -932,47 +896,6 @@ export default function MultiVariantAdsPage() {
                 className="relative bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm overflow-hidden"
               >
                 {workflowContent}
-
-                {/* Silky animated overlay while generating (from Generate click until next screen) */}
-                <AnimatePresence>
-                  {state.workflowStatus === 'uploaded' && state.isLoading && (
-                    <motion.div
-                      key="overlay"
-                      className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                    >
-                      {/* Animated message stack */}
-                      <motion.div
-                        key={overlayIndex}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.4 }}
-                        aria-live="polite"
-                        className="text-center"
-                      >
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-0">
-                          {overlayMessages[overlayIndex % overlayMessages.length]}
-                        </p>
-                      </motion.div>
-
-                      {/* Neutral animated dots to indicate activity without implying linear progress */}
-                      <div className="mt-6 flex items-center gap-2" aria-hidden="true">
-                        {[0,1,2].map((i) => (
-                          <motion.span
-                            key={i}
-                            className="block w-2 h-2 rounded-full bg-gray-900"
-                            initial={{ opacity: 0.3, scale: 1 }}
-                            animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.1, 1] }}
-                            transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
-                          />
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </motion.div>
             )}
           </AnimatePresence>
