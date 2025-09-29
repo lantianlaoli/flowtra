@@ -5,10 +5,9 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useUser, SignInButton } from '@clerk/nextjs';
 import { GiftIcon } from '@heroicons/react/24/outline';
-import { Sparkles, Download } from 'lucide-react';
+import { Sparkles, Download, Smartphone, User } from 'lucide-react';
 import { FaTiktok } from 'react-icons/fa6';
 import { useRouter } from 'next/navigation';
-import SimpleArrow from '@/components/ui/SimpleArrow';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import DemoVideoSchema from '@/components/seo/DemoVideoSchema';
 import Header from '@/components/layout/Header';
@@ -107,6 +106,39 @@ export default function LandingPage() {
   const { user, isLoaded } = useUser();
   const [userCount, setUserCount] = useState<number | null>(null);
 
+  // Success Stories (no longer needs state management)
+
+  // Success cases data
+  const successCases = [
+    {
+      id: 'standard-ads',
+      user: '@cheerslinkou',
+      avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_1.jpg',
+      quote: 'Flowtra helped me turn my product photo into a professional ad video that perfectly showcases the details and quality.',
+      tiktokUrl: 'https://www.tiktok.com/@cheerslinkou/video/7543405624797990150',
+      tiktokText: 'See the Result',
+      layout: 'two-column',
+      content: {
+        productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_standard_product_1.jpg',
+        videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_standard_case_1.mp4'
+      }
+    },
+    {
+      id: 'character-ads',
+      user: '@cheerslinkou',
+      avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_1.jpg',
+      quote: 'Amazing! Flowtra combined character with the product to create a personalized video ad that feels authentic and engaging.',
+      tiktokUrl: 'https://www.tiktok.com/@cheerslinkou/video/7554347579723517195?lang=en',
+      tiktokText: 'See the Magic',
+      layout: 'three-column',
+      content: {
+        characterImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_character_human_case_1.png',
+        productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_character_product_case_1.jpg',
+        videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_character_video_case_1.mp4'
+      }
+    }
+  ];
+
   // Pricing (downloads based on veo3_fast only)
   const liteDownloads = Math.floor(500 / CREDIT_COSTS.veo3_fast);
   const basicDownloads = Math.floor(2000 / CREDIT_COSTS.veo3_fast);
@@ -133,6 +165,8 @@ export default function LandingPage() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+
 
   const handlePurchase = async (packageName: 'lite' | 'basic' | 'pro') => {
     console.log('🎯 Purchase button clicked for package:', packageName);
@@ -264,15 +298,15 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200">
               <GiftIcon className="w-4 h-4" />
               100 Free Credits
-              <span className="text-gray-500">Try 3 VEO3 Fast Video</span>
+              <span className="text-gray-500">Unlimited image & video generation</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
-              Professional Video Ads for <u>Small Business</u>
+              Professional Ads for <u>Small Business</u>
             </h1>
             
             <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-              Turn photos into Etsy, Amazon & social ads.
+              Turn photos into <span className="inline-block bg-[#F56400] text-white px-2 py-1 rounded-md font-semibold">Etsy</span>, <span className="inline-block bg-[#95BF47] text-white px-2 py-1 rounded-md font-semibold">Shopify</span> & social ads.
             </p>
 
             {/* CTA Buttons */}
@@ -424,7 +458,7 @@ export default function LandingPage() {
 
         {/* User Success Stories Section */}
         <div className="py-12 md:py-20">
-          <div className="text-center mb-8 md:mb-16">
+          <div className="text-center mb-8 md:mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3 sm:mb-6">
               Real Success Stories
             </h2>
@@ -433,77 +467,117 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="space-y-10 md:space-y-16 max-w-6xl mx-auto">
-            {/* TikTok Creator Success Story */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 md:p-8">
-              {/* User Identity Header + TikTok link aligned */}
-              <div className="flex items-center justify-between gap-4 mb-4 md:mb-6">
-                <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-200">
-                  <Image
-                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_1.jpg"
-                    alt="@cheerslinkou TikTok creator profile"
-                    width={48}
-                    height={48}
-                    sizes="48px"
-                    className="w-full h-full object-cover"
-                    unoptimized
-                  />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">@cheerslinkou</h3>
-                </div>
-                </div>
-                <a 
-                  href="https://www.tiktok.com/@cheerslinkou/video/7543405624797990150"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="View on TikTok"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors"
-                >
-                  <FaTiktok className="w-3.5 h-3.5" />
-                  TikTok
-                </a>
-              </div>
+          {/* Side-by-Side TikTok Style Cards */}
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
 
-              {/* User Quote */}
-              <div className="mb-4 md:mb-6">
-                <blockquote className="text-base sm:text-lg text-gray-700 font-medium leading-relaxed">
-                  &ldquo;Flowtra helped me turn my product photo into an engaging TikTok video that perfectly showcases the details and quality.&rdquo;
-                </blockquote>
-              </div>
+              {/* Standard Ads Case */}
+              <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8">
+                {/* Header */}
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-200">
+                      <Image
+                        src={successCases[0].avatar}
+                        alt={`${successCases[0].user} TikTok creator profile`}
+                        width={48}
+                        height={48}
+                        sizes="48px"
+                        className="w-full h-full object-cover"
+                        unoptimized
+                      />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{successCases[0].user}</h3>
+                      <div className="flex items-center gap-1.5 text-blue-600">
+                        <Smartphone className="w-4 h-4" />
+                        <span className="text-sm font-medium">Standard Ads</span>
+                      </div>
+                    </div>
+                  </div>
+                  <a
+                    href={successCases[0].tiktokUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`${successCases[0].tiktokText} on TikTok`}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                  >
+                    <FaTiktok className="w-4 h-4" />
+                    {successCases[0].tiktokText}
+                  </a>
+                </div>
 
-              {/* Content Showcase */}
-              <div className="grid grid-cols-[1fr_auto_1fr] gap-3 sm:gap-6 lg:gap-10 items-center">
-                {/* Original Product Photo */}
-                <div className="relative">
-                  <div className="aspect-[3/4] bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
-                    <Image
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_product_1.jpg"
-                      alt="Original product photo uploaded by TikTok creator"
-                      width={400}
-                      height={533}
-                      sizes="(max-width: 640px) 145px, (max-width: 768px) 186px, 250px"
-                      className="w-full h-full object-cover"
+                {/* Quote */}
+                <div className="mb-6">
+                  <blockquote className="text-lg text-gray-700 font-medium leading-relaxed">
+                    &ldquo;{successCases[0].quote}&rdquo;
+                  </blockquote>
+                </div>
+
+                {/* TikTok Style Video */}
+                <div className="relative mx-auto max-w-[240px]">
+                  <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
+                    <VideoPlayer
+                      src={successCases[0].content.videoUrl}
+                      className="rounded-2xl"
+                      showControls={true}
+                      ariaLabel="Standard Ads success story: video created with Flowtra AI"
                     />
                   </div>
                 </div>
-                
-                {/* Arrow */}
-                <div className="flex justify-center">
-                  <div className="bg-gray-900 rounded-full p-2 sm:p-2.5 lg:p-3 shadow-sm">
-                    <SimpleArrow className="w-4 h-4 sm:w-5 sm:h-5 lg:w-5 lg:h-5 text-white" direction="right" />
+              </div>
+
+              {/* Character Ads Case */}
+              <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8">
+                {/* Header */}
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-200">
+                      <Image
+                        src={successCases[1].avatar}
+                        alt={`${successCases[1].user} TikTok creator profile`}
+                        width={48}
+                        height={48}
+                        sizes="48px"
+                        className="w-full h-full object-cover"
+                        unoptimized
+                      />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{successCases[1].user}</h3>
+                      <div className="flex items-center gap-1.5 text-purple-600">
+                        <User className="w-4 h-4" />
+                        <span className="text-sm font-medium">Character Ads</span>
+                      </div>
+                    </div>
                   </div>
+                  <a
+                    href={successCases[1].tiktokUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`${successCases[1].tiktokText} on TikTok`}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                  >
+                    <FaTiktok className="w-4 h-4" />
+                    {successCases[1].tiktokText}
+                  </a>
                 </div>
-                
-                {/* Generated TikTok Video */}
-                <div className="relative">
-                  <div className="aspect-[3/4] bg-gray-900 rounded-xl border border-gray-200 overflow-hidden">
+
+                {/* Quote */}
+                <div className="mb-6">
+                  <blockquote className="text-lg text-gray-700 font-medium leading-relaxed">
+                    &ldquo;{successCases[1].quote}&rdquo;
+                  </blockquote>
+                </div>
+
+                {/* TikTok Style Video */}
+                <div className="relative mx-auto max-w-[240px]">
+                  <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
                     <VideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_case_1.mp4"
-                      className="rounded-xl"
+                      src={successCases[1].content.videoUrl}
+                      className="rounded-2xl"
                       showControls={true}
-                      ariaLabel="TikTok creator success story: product video created with Flowtra AI"
+                      ariaLabel="Character Ads success story: personalized video created with character and product"
                     />
                   </div>
                 </div>
