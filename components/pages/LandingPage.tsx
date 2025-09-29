@@ -83,7 +83,7 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
         <button
           onClick={handleSubmit}
           disabled={!isLoaded || submitting}
-          className="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           <Sparkles className="w-5 h-5" />
           {submitting ? 'Submitting...' : 'Submit'}
@@ -114,12 +114,12 @@ export default function LandingPage() {
       id: 'standard-ads',
       user: '@cheerslinkou',
       avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_1.jpg',
-      quote: 'Flowtra helped me turn my product photo into a professional ad video that perfectly showcases the details and quality.',
+      quote: 'Flowtra turned my product photo into a professional ad video that showcases quality perfectly.',
       tiktokUrl: 'https://www.tiktok.com/@cheerslinkou/video/7543405624797990150',
       tiktokText: 'See the Result',
-      layout: 'two-column',
+      layout: 'input-to-output',
       content: {
-        productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_standard_product_1.jpg',
+        inputImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_standard_product_1.jpg',
         videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_standard_case_1.mp4'
       }
     },
@@ -130,7 +130,7 @@ export default function LandingPage() {
       quote: 'Amazing! Flowtra combined character with the product to create a personalized video ad that feels authentic and engaging.',
       tiktokUrl: 'https://www.tiktok.com/@cheerslinkou/video/7554347579723517195?lang=en',
       tiktokText: 'See the Magic',
-      layout: 'three-column',
+      layout: 'multi-input-to-output',
       content: {
         characterImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_character_human_case_1.png',
         productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_character_product_case_1.jpg',
@@ -239,8 +239,8 @@ export default function LandingPage() {
     if (user) {
       const isLoading = loadingPackage === packageName;
       const buttonClass = packageName === 'basic'
-        ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+        ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
 
       return (
         <button
@@ -255,8 +255,8 @@ export default function LandingPage() {
 
     // User is loaded but not logged in - show sign in button
     const buttonClass = packageName === 'basic'
-      ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-      : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors";
+      ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
+      : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer";
 
     return (
       <SignInButton mode="modal" forceRedirectUrl="/dashboard">
@@ -289,7 +289,7 @@ export default function LandingPage() {
       <Header />
 
       {/* Hero Section */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Hero Section - Left/Right Layout */}
         <div className="grid lg:grid-cols-5 items-center py-10 sm:py-12 lg:py-16 gap-6 sm:gap-8 lg:gap-12">
           {/* Left Content */}
@@ -323,7 +323,7 @@ export default function LandingPage() {
               ) : user ? (
                 <button
                   onClick={() => router.push('/dashboard?upload=true')}
-                  className="bg-gray-900 text-white px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2 flex-1 justify-center"
+                  className="bg-gray-900 text-white px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2 flex-1 justify-center cursor-pointer"
                 >
                   <Sparkles className="w-5 h-5" />
                   <span className="sm:hidden">start</span>
@@ -332,7 +332,7 @@ export default function LandingPage() {
               ) : (
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard?upload=true">
                   <button
-                    className="bg-gray-900 text-white px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2 flex-1 justify-center"
+                    className="bg-gray-900 text-white px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2 flex-1 justify-center cursor-pointer"
                   >
                     <Sparkles className="w-5 h-5" />
                     <span className="sm:hidden">start</span>
@@ -346,7 +346,7 @@ export default function LandingPage() {
                 href="https://www.youtube.com/watch?v=AvrnifkIx7Q"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="border border-gray-300 text-gray-700 px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-colors flex items-center gap-2 flex-1 justify-center"
+                className="border border-gray-300 text-gray-700 px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-colors flex items-center gap-2 flex-1 justify-center cursor-pointer"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z"/>
@@ -457,7 +457,7 @@ export default function LandingPage() {
         </div>
 
         {/* User Success Stories Section */}
-        <div className="py-12 md:py-20">
+        <div className="pt-12 md:pt-20 pb-6 md:pb-10">
           <div className="text-center mb-8 md:mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3 sm:mb-6">
               Real Success Stories
@@ -468,8 +468,8 @@ export default function LandingPage() {
           </div>
 
           {/* Side-by-Side TikTok Style Cards */}
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+          <div className="max-w-[100rem] mx-auto px-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[5fr_7fr] gap-6 lg:gap-8">
 
               {/* Standard Ads Case */}
               <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8">
@@ -500,7 +500,7 @@ export default function LandingPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     title={`${successCases[0].tiktokText} on TikTok`}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer"
                   >
                     <FaTiktok className="w-4 h-4" />
                     {successCases[0].tiktokText}
@@ -509,22 +509,63 @@ export default function LandingPage() {
 
                 {/* Quote */}
                 <div className="mb-6">
-                  <blockquote className="text-lg text-gray-700 font-medium leading-relaxed">
+                  <blockquote className="text-lg text-gray-700 font-medium leading-relaxed max-w-md mx-auto" style={{lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
                     &ldquo;{successCases[0].quote}&rdquo;
                   </blockquote>
                 </div>
 
-                {/* TikTok Style Video */}
-                <div className="relative mx-auto max-w-[240px]">
-                  <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
-                    <VideoPlayer
-                      src={successCases[0].content.videoUrl}
-                      className="rounded-2xl"
-                      showControls={true}
-                      ariaLabel="Standard Ads success story: video created with Flowtra AI"
-                    />
+                {/* Before & After Showcase */}
+                {successCases[0].layout === 'input-to-output' ? (
+                  <div className="relative max-w-2xl mx-auto">
+                    <div className="flex items-center justify-center gap-6">
+                      {/* Original Product Image */}
+                      <div className="flex flex-col items-center">
+                        <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[200px] h-[267px]">
+                          <Image
+                            src={successCases[0].content.inputImage!}
+                            alt="Original product photo"
+                            width={200}
+                            height={267}
+                            sizes="200px"
+                            className="w-full h-full object-cover"
+                            unoptimized
+                          />
+                        </div>
+                      </div>
+
+                      {/* Generated Video */}
+                      <div className="flex flex-col items-center">
+                        <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[200px] h-[267px]">
+                          <VideoPlayer
+                            src={successCases[0].content.videoUrl}
+                            className="rounded-2xl"
+                            ariaLabel="Standard Ads success story: video created with Flowtra AI"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Arrow Indicator */}
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -mt-4">
+                      <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
+                        <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="relative mx-auto max-w-[240px]">
+                    <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
+                      <VideoPlayer
+                        src={successCases[0].content.videoUrl}
+                        className="rounded-2xl"
+                        showControls={true}
+                        ariaLabel="Standard Ads success story: video created with Flowtra AI"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Character Ads Case */}
@@ -556,7 +597,7 @@ export default function LandingPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     title={`${successCases[1].tiktokText} on TikTok`}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer"
                   >
                     <FaTiktok className="w-4 h-4" />
                     {successCases[1].tiktokText}
@@ -570,17 +611,82 @@ export default function LandingPage() {
                   </blockquote>
                 </div>
 
-                {/* TikTok Style Video */}
-                <div className="relative mx-auto max-w-[240px]">
-                  <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
-                    <VideoPlayer
-                      src={successCases[1].content.videoUrl}
-                      className="rounded-2xl"
-                      showControls={true}
-                      ariaLabel="Character Ads success story: personalized video created with character and product"
-                    />
+                {/* Multi-Input Showcase - Updated */}
+                {successCases[1].layout === 'multi-input-to-output' ? (
+                  <div className="w-full mx-auto max-w-7xl">
+                    <div className="flex items-center justify-center gap-8">
+                      {/* Character Image */}
+                      <div className="flex flex-col items-center">
+                        <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[200px] h-[267px]">
+                          <Image
+                            src={successCases[1].content.characterImage!}
+                            alt="Character photo"
+                            width={200}
+                            height={267}
+                            sizes="200px"
+                            className="w-full h-full object-cover"
+                            unoptimized
+                          />
+                        </div>
+                      </div>
+
+                      {/* Plus Sign */}
+                      <div className="flex items-center justify-center">
+                        <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
+                          <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Product Image */}
+                      <div className="flex flex-col items-center">
+                        <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[200px] h-[267px]">
+                          <Image
+                            src={successCases[1].content.productImage!}
+                            alt="Product photo"
+                            width={200}
+                            height={267}
+                            sizes="200px"
+                            className="w-full h-full object-cover"
+                            unoptimized
+                          />
+                        </div>
+                      </div>
+
+                      {/* Arrow */}
+                      <div className="flex items-center justify-center">
+                        <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
+                          <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Generated Video */}
+                      <div className="flex flex-col items-center">
+                        <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[200px] h-[267px]">
+                          <VideoPlayer
+                            src={successCases[1].content.videoUrl}
+                            className="rounded-2xl"
+                            ariaLabel="Character Ads success story: personalized video created with character and product"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="relative mx-auto max-w-[240px]">
+                    <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
+                      <VideoPlayer
+                        src={successCases[1].content.videoUrl}
+                        className="rounded-2xl"
+                        showControls={true}
+                        ariaLabel="Character Ads success story: personalized video created with character and product"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>

@@ -140,10 +140,27 @@ async function generatePrompts(analysisResult: Record<string, unknown>, videoDur
 
   // Extract character information to determine appropriate voice type
   const characterInfo = (analysisResult as { character?: { visual_description?: string } })?.character?.visual_description || '';
-  const isCharacterMale = characterInfo.toLowerCase().includes('man') ||
-                         characterInfo.toLowerCase().includes('male') ||
-                         characterInfo.toLowerCase().includes('boy') ||
-                         characterInfo.toLowerCase().includes('guy');
+
+  // Check for female indicators first (to avoid "woman" being caught by "man" check)
+  const isCharacterFemale =
+    characterInfo.toLowerCase().includes('woman') ||
+    characterInfo.toLowerCase().includes('female') ||
+    characterInfo.toLowerCase().includes('girl') ||
+    characterInfo.toLowerCase().includes('lady') ||
+    characterInfo.toLowerCase().includes(' she ') ||
+    characterInfo.toLowerCase().includes(' her ');
+
+  // Check for male indicators with word boundaries to avoid false positives
+  const isCharacterMale = !isCharacterFemale && (
+    characterInfo.toLowerCase().includes(' man ') ||
+    characterInfo.toLowerCase().includes('businessman') ||
+    characterInfo.toLowerCase().includes('gentleman') ||
+    characterInfo.toLowerCase().includes(' male ') ||
+    characterInfo.toLowerCase().includes(' boy ') ||
+    characterInfo.toLowerCase().includes(' guy ') ||
+    characterInfo.toLowerCase().includes(' he ') ||
+    characterInfo.toLowerCase().includes(' his ')
+  );
 
   const voiceType = generateVoiceType(accent, isCharacterMale);
 
