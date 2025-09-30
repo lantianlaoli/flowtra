@@ -15,15 +15,15 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar
         credits={userCredits}
         userEmail={user?.emailAddresses?.[0]?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="flex-1 ml-72 bg-white min-h-screen">
-        <div className="max-w-7xl mx-auto p-8">
+      <div className="ml-72 bg-gray-50 min-h-screen">
+        <div className="p-8 max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
@@ -34,9 +34,6 @@ export default function ProductsPage() {
                 My Products
               </h1>
             </div>
-            <p className="text-gray-600 text-lg leading-relaxed max-w-3xl">
-              Manage your product library for quick selection in advertisements. Upload product photos and organize them for efficient use across all ad campaigns.
-            </p>
           </div>
 
           {/* Product Manager */}

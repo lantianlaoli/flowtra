@@ -716,7 +716,7 @@ export default function StandardAdsPage() {
   const workflowContent = renderWorkflowContent();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar
         credits={userCredits}
         userEmail={user?.primaryEmailAddress?.emailAddress}

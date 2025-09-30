@@ -142,7 +142,7 @@ export default function CharacterAdsPage() {
   }
 
   return (
-    <div className="flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar
         credits={userCredits}
         userEmail={user?.emailAddresses?.[0]?.emailAddress}
@@ -161,9 +161,6 @@ export default function CharacterAdsPage() {
                 Character Spokesperson Ads
               </h1>
             </div>
-            <p className="text-gray-600 text-lg leading-relaxed max-w-3xl">
-              Create engaging video advertisements with AI-powered virtual spokespersons showcasing your products.
-            </p>
           </div>
 
           <AnimatePresence mode="wait">

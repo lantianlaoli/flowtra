@@ -187,12 +187,12 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
   // Render character-ads specific layout
   if (workflowType === 'character-ads') {
     return (
-      <div className={`space-y-8 ${className}`}>
+      <div className={`space-y-6 ${className}`}>
         {showcaseItems.map((item) => (
-          <div key={item.id} className="bg-gray-50 rounded-lg border border-gray-200 p-8 hover:bg-gray-100 transition-all duration-200 relative">
+          <div key={item.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 hover:shadow-sm transition-all duration-200 relative">
             {/* User info */}
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-8 h-8 relative rounded-full overflow-hidden bg-gray-200">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-7 h-7 relative rounded-full overflow-hidden bg-gray-200">
                 <Image
                   src={item.user.avatar || '/default-avatar.png'}
                   alt={item.user.name || 'User'}
@@ -202,98 +202,64 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
               </div>
               <span className="text-sm font-medium text-gray-900">{item.user.name || 'Anonymous'}</span>
             </div>
-            
-            {/* Process flow: Person + Product → Video */}
-            <div className="flex items-center justify-center gap-8 lg:gap-12">
+
+            {/* Process flow: Person + Product → Video - Minimal Layout */}
+            <div className="flex items-center justify-center gap-4 lg:gap-6">
               {/* Person Image */}
-              <div className="flex flex-col items-center">
-                <div className="relative w-32 h-32 lg:w-36 lg:h-36 rounded-md overflow-hidden bg-white shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
-                  {item.person_image_url && (
-                    <Image
-                      src={item.person_image_url}
-                      alt="Person"
-                      fill
-                      className="object-cover"
-                    />
-                  )}
-                  <div className="absolute top-2 right-2 bg-black text-white text-xs px-2 py-1 rounded font-medium">
-                    1
-                  </div>
-                </div>
-                <div className="mt-3 text-center">
-                  <p className="text-sm font-medium text-gray-900">Person</p>
-                </div>
+              <div className="relative w-40 h-52 lg:w-48 lg:h-64 rounded-lg overflow-hidden bg-white shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
+                {item.person_image_url && (
+                  <Image
+                    src={item.person_image_url}
+                    alt="Person"
+                    fill
+                    className="object-cover"
+                  />
+                )}
               </div>
-              
+
               {/* Plus Icon */}
-              <div className="flex flex-col items-center">
-                <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                  +
-                </div>
-                <p className="text-xs text-gray-500 mt-2 font-medium">Combine</p>
+              <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center text-white font-medium text-xs">
+                +
               </div>
-              
+
               {/* Product Image */}
-              <div className="flex flex-col items-center">
-                <div className="relative w-32 h-32 lg:w-36 lg:h-36 rounded-md overflow-hidden bg-white shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
-                  {item.product_image_url && (
-                    <Image
-                      src={item.product_image_url}
-                      alt="Product"
-                      fill
-                      className="object-cover"
-                    />
-                  )}
-                  <div className="absolute top-2 right-2 bg-black text-white text-xs px-2 py-1 rounded font-medium">
-                    2
-                  </div>
-                </div>
-                <div className="mt-3 text-center">
-                  <p className="text-sm font-medium text-gray-900">Product</p>
-                </div>
+              <div className="relative w-40 h-52 lg:w-48 lg:h-64 rounded-lg overflow-hidden bg-white shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
+                {item.product_image_url && (
+                  <Image
+                    src={item.product_image_url}
+                    alt="Product"
+                    fill
+                    className="object-cover"
+                  />
+                )}
               </div>
-              
+
               {/* Arrow */}
-              <div className="flex flex-col items-center">
-                <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-white">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-                <p className="text-xs text-gray-500 mt-2 font-medium">Generate</p>
+              <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center text-white">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
-              
+
               {/* Generated Video */}
-              <div className="flex flex-col items-center">
-                <div className="relative w-32 h-32 lg:w-36 lg:h-36 rounded-md overflow-hidden bg-white shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
-                  {item.video_url ? (
-                    <VideoPlayer
-                      src={item.video_url}
-                      className="w-full h-full object-cover"
-                      autoPlay={true}
-                      loop={true}
-                      showControls={false}
-                      ariaLabel="Generated video advertisement"
-                    />
-                  ) : item.cover_image_url ? (
-                    <Image
-                      src={item.cover_image_url}
-                      alt="Generated Result"
-                      fill
-                      className="object-cover"
-                    />
-                  ) : null}
-                  
-                  <div className="absolute top-2 right-2 bg-black text-white text-xs px-2 py-1 rounded font-medium z-10">
-                    3
-                  </div>
-                </div>
-                <div className="mt-3 text-center">
-                  <p className="text-sm font-medium text-gray-900">Video</p>
-                  {item.video_url && (
-                    <p className="text-xs text-gray-600 mt-1 font-medium">Hover to play</p>
-                  )}
-                </div>
+              <div className="relative w-40 h-52 lg:w-48 lg:h-64 rounded-lg overflow-hidden bg-white shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
+                {item.video_url ? (
+                  <VideoPlayer
+                    src={item.video_url}
+                    className="w-full h-full object-cover"
+                    autoPlay={true}
+                    loop={true}
+                    showControls={false}
+                    ariaLabel="Generated video advertisement"
+                  />
+                ) : item.cover_image_url ? (
+                  <Image
+                    src={item.cover_image_url}
+                    alt="Generated Result"
+                    fill
+                    className="object-cover"
+                  />
+                ) : null}
               </div>
             </div>
           </div>

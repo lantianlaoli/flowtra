@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import RetryImage from '@/components/ui/RetryImage';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, MessageSquare, HelpCircle, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, HelpCircle, Download } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -774,18 +774,6 @@ export default function HistoryPage() {
               <h1 className="text-2xl font-semibold text-gray-900">
                 My Ads
               </h1>
-            </div>
-            <div className="flex items-center justify-between mb-6">
-              <p className="text-gray-600 text-sm">
-                Manage your video advertisements and track performance
-              </p>
-              <button
-                onClick={() => router.push('/dashboard/support')}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 text-sm font-medium text-gray-700 hover:text-gray-900"
-              >
-                <MessageSquare className="w-4 h-4" />
-                Share Feedback
-              </button>
             </div>
           </div>
 

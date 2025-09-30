@@ -88,7 +88,7 @@ export default function CreditsPage() {
       <div className="ml-72 bg-gray-50 min-h-screen">
         <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
-            <div className="flex items-center gap-3 mb-6">
+            <div className="flex items-center gap-3 mb-2">
               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                 <User className="w-4 h-4 text-gray-700" />
               </div>

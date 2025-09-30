@@ -596,7 +596,7 @@ async function startOptimizedMultiVariantWorkflow(projectIds: string[], request:
       })
       .in('id', projectIds);
     
-    // Step 2: Generate multiple elements（只执行一次）
+    // Step 2: Generate multiple elements (execute only once)
     console.log('🧩 Generating multiple elements...');
     const elementsData = await generateMultipleElements(imageAnalysis, projectIds.length, request.adCopy);
     
@@ -663,7 +663,7 @@ async function startOptimizedMultiVariantWorkflow(projectIds: string[], request:
 
       } catch (error) {
         console.error(`Error processing project ${projectId}:`, error);
-        // Update project status为错误
+        // Update project status to error
         await supabase
           .from('multi_variant_ads_projects')
           .update({

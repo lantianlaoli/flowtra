@@ -50,30 +50,30 @@ export default function GlobalError({
                 </svg>
               </div>
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                出现了意外错误
+                Unexpected Error
               </h2>
               <p className="text-gray-600 mb-4">
-                抱歉，应用遇到了一个问题。我们已经记录了这个错误，正在努力修复。
+                Sorry, the application encountered a problem. We have logged this error and are working on a fix.
               </p>
               <div className="space-y-3">
                 <button
                   onClick={reset}
                   className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
-                  重试
+                  Retry
                 </button>
                 <button
                   onClick={() => window.location.href = '/'}
                   className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
                 >
-                  返回首页
+                  Back to Home
                 </button>
               </div>
             </div>
             {process.env.NODE_ENV === 'development' && (
               <details className="mt-4 text-left">
                 <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
-                  显示错误详情 (开发模式)
+                  Show Error Details (Development Mode)
                 </summary>
                 <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto text-gray-800">
                   {error.stack}
