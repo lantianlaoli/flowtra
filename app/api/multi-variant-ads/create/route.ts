@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
       textWatermark,
       textWatermarkLocation,
       imageSize,
-      generateVideo
+      generateVideo,
+      videoAspectRatio
     } = requestData;
 
     // Add debug log showing request data
@@ -68,6 +69,7 @@ export async function POST(request: NextRequest) {
       textWatermarkLocation,
       imageSize,
       generateVideo,
+      videoAspectRatio,
       photoOnly: !generateVideo // Set photoOnly as the inverse of generateVideo
     });
     

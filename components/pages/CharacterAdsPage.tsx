@@ -9,6 +9,7 @@ import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import AccentSelector, { AccentType } from '@/components/ui/AccentSelector';
+import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ProductSelector from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
@@ -36,6 +37,7 @@ export default function CharacterAdsPage() {
   const [videoDuration, setVideoDuration] = useState<8 | 16 | 24>(8);
   const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
+  const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [selectedAccent, setSelectedAccent] = useState<AccentType>('australian');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
@@ -104,6 +106,7 @@ export default function CharacterAdsPage() {
       formData.append('video_duration_seconds', videoDuration.toString());
       formData.append('image_model', selectedImageModel);
       formData.append('video_model', selectedVideoModel);
+      formData.append('video_aspect_ratio', videoAspectRatio);
       formData.append('accent', selectedAccent);
       formData.append('user_id', user.id);
 
@@ -278,6 +281,15 @@ export default function CharacterAdsPage() {
                             showIcon={true}
                           />
                         </div>
+                      </div>
+
+                      {/* Video Aspect Ratio */}
+                      <div>
+                        <VideoAspectRatioSelector
+                          selectedAspectRatio={videoAspectRatio}
+                          onAspectRatioChange={setVideoAspectRatio}
+                          showIcon={true}
+                        />
                       </div>
 
                       {/* Voice Accent Selection */}

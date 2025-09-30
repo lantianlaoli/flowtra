@@ -106,6 +106,7 @@ interface HistoryRecord {
   video_url: string;
   video_prompts: VideoPrompt;
   video_model: string;
+  video_aspect_ratio?: string;
   credits_cost: number;
   download_credits_used: number;
   downloaded: boolean;

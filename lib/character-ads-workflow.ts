@@ -27,6 +27,7 @@ interface CharacterAdsProject {
   video_duration_seconds: number;
   image_model: string;
   video_model: string;
+  video_aspect_ratio?: string;
   accent: string;
   status: string;
   current_step: string;
@@ -865,7 +866,7 @@ export async function processCharacterAdsProject(
             videoPrompt as Record<string, unknown>,
             project.video_model,
             project.generated_image_url, // Use generated image as reference
-            project.video_aspect_ratio
+            project.video_aspect_ratio as '16:9' | '9:16' | undefined
           );
 
           videoTaskIds.push(taskId);

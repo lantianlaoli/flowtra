@@ -98,6 +98,7 @@ interface InstanceRecord {
   status: string;
   current_step: string;
   video_model?: string;
+  video_aspect_ratio?: string;
   credits_cost: number;
   downloaded: boolean;
   error_message?: string;

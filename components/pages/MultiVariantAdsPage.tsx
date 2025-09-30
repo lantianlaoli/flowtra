@@ -11,6 +11,7 @@ import { ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Crop, Chevro
 import GenerationConfirmation from '@/components/ui/GenerationConfirmation';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
+import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ProductSelector from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import ShowcaseSection from '@/components/ui/ShowcaseSection';
@@ -24,6 +25,7 @@ export default function MultiVariantAdsPage() {
   const { credits: userCredits, refetchCredits } = useCredits();
   const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
+  const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [elementsCount, setElementsCount] = useState(2);
   const [adCopy, setAdCopy] = useState('');
   const [textWatermark, setTextWatermark] = useState('');
@@ -58,7 +60,8 @@ export default function MultiVariantAdsPage() {
     textWatermark,
     textWatermarkLocation,
     imageSize,
-    shouldGenerateVideo
+    shouldGenerateVideo,
+    videoAspectRatio
   );
 
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
@@ -368,6 +371,15 @@ export default function MultiVariantAdsPage() {
                   )}
                 </div>
 
+                {/* Video Aspect Ratio */}
+                {shouldGenerateVideo && (
+                  <VideoAspectRatioSelector
+                    selectedAspectRatio={videoAspectRatio}
+                    onAspectRatioChange={setVideoAspectRatio}
+                    showIcon={true}
+                  />
+                )}
+
                 {/* Generate Button */}
                 <button
                   onClick={handleStartWorkflow}
@@ -649,6 +661,15 @@ export default function MultiVariantAdsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Video Aspect Ratio */}
+              {shouldGenerateVideo && (
+                <VideoAspectRatioSelector
+                  selectedAspectRatio={videoAspectRatio}
+                  onAspectRatioChange={setVideoAspectRatio}
+                  showIcon={true}
+                />
+              )}
 
               {/* Action Buttons moved to right side */}
               <div className="space-y-3">

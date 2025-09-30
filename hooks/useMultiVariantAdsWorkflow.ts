@@ -38,7 +38,8 @@ export function useMultiVariantAdsWorkflow(
   textWatermark: string = '',
   textWatermarkLocation: string = 'bottom left',
   imageSize: string = 'auto',
-  shouldGenerateVideo: boolean = true
+  shouldGenerateVideo: boolean = true,
+  videoAspectRatio: '16:9' | '9:16' = '16:9'
 ) {
   const [state, setState] = useState<WorkflowV2State>({
     isLoading: false,
@@ -106,7 +107,8 @@ export function useMultiVariantAdsWorkflow(
           textWatermark,
           textWatermarkLocation,
           imageSize,
-          generateVideo: shouldGenerateVideo
+          generateVideo: shouldGenerateVideo,
+          videoAspectRatio
         })
       });
 
@@ -151,7 +153,7 @@ export function useMultiVariantAdsWorkflow(
       }));
       throw error;
     }
-  }, [userId, videoModel, imageModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo]);
+  }, [userId, videoModel, imageModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo, videoAspectRatio]);
 
   // Start V2 items (no DB batch)
   const startBatchWorkflow = useCallback(async () => {
@@ -173,7 +175,8 @@ export function useMultiVariantAdsWorkflow(
           textWatermark,
           textWatermarkLocation,
           imageSize,
-          generateVideo: shouldGenerateVideo
+          generateVideo: shouldGenerateVideo,
+          videoAspectRatio
         })
       });
 
