@@ -15,6 +15,10 @@ const faqData: FAQItem[] = [
     answer: "Our AI analyzes your product photos using advanced computer vision technology. It identifies key features, generates compelling marketing copy, creates engaging visuals, and produces professional video advertisements optimized for Amazon and Walmart marketplace requirements. The entire process takes just seconds and requires no video editing skills."
   },
   {
+    question: "Can I use Flowtra for digital products like courses, templates, and ebooks?",
+    answer: "Absolutely! Flowtra works perfectly for creators selling digital products on platforms like Gumroad, Stan, Payhip, and Beacons. Turn product screenshots, course previews, or template mockups into engaging video ads for social media marketing. Many digital creators use our AI to promote their courses, Notion templates, design assets, and ebooks."
+  },
+  {
     question: "How long does it take to create a professional video advertisement from a product photo?",
     answer: "Most video advertisements are generated within 30-60 seconds using our VEO3 Fast model. For higher quality videos using VEO3, processing takes 2-5 minutes. This is significantly faster than traditional video production which can take days or weeks."
   },

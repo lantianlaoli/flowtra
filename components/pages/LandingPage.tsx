@@ -306,7 +306,7 @@ export default function LandingPage() {
             </h1>
             
             <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-              Turn photos into <span className="inline-block bg-[#F56400] text-white px-2 py-1 rounded-md font-semibold">Etsy</span>, <span className="inline-block bg-[#95BF47] text-white px-2 py-1 rounded-md font-semibold">Shopify</span> & social ads.
+              Turn photos into ads for <span className="inline-block bg-[#F56400] text-white px-2 py-1 rounded-md font-semibold">Etsy</span>, <span className="inline-block bg-[#95BF47] text-white px-2 py-1 rounded-md font-semibold">Shopify</span>, <span className="inline-block bg-[#FF90E8] text-white px-2 py-1 rounded-md font-semibold">Gumroad</span>, <span className="inline-block bg-[#6C5CE7] text-white px-2 py-1 rounded-md font-semibold">Stan</span> & social media.
             </p>
 
             {/* CTA Buttons */}
@@ -763,7 +763,7 @@ export default function LandingPage() {
                     </tr>
                     <tr className="odd:bg-white even:bg-gray-50">
                       <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Platforms / Integrations</td>
-                      <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">Amazon, Walmart, TikTok, Instagram, Local screens</td>
+                      <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">Amazon, Walmart, Gumroad, Stan, Payhip, TikTok, Instagram, Local screens</td>
                       <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Any (manual delivery)</td>
                       <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Requires custom integrations</td>
                     </tr>
@@ -787,7 +787,7 @@ export default function LandingPage() {
                     </tr>
                     <tr className="odd:bg-white even:bg-gray-50">
                       <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Best For</td>
-                      <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">E-commerce sellers</td>
+                      <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">E-commerce sellers & digital creators</td>
                       <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Established brands</td>
                       <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Dev teams</td>
                     </tr>
@@ -819,7 +819,7 @@ export default function LandingPage() {
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
                     <div className="text-gray-500">Platforms</div>
-                    <div className="text-gray-900">Amazon, Walmart, TikTok, Instagram, Local screens</div>
+                    <div className="text-gray-900">Amazon, Walmart, Gumroad, Stan, Payhip, TikTok, Instagram, Local screens</div>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
                     <div className="text-gray-500">Learning</div>
@@ -835,7 +835,7 @@ export default function LandingPage() {
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
                     <div className="text-gray-500">Best For</div>
-                    <div className="text-gray-900">E-commerce sellers</div>
+                    <div className="text-gray-900">E-commerce sellers & digital creators</div>
                   </div>
                 </div>
               </div>
@@ -888,7 +888,7 @@ export default function LandingPage() {
         <div className="py-12">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Simple Pricing</h2>
-            <p className="text-base text-gray-600">Choose the plan that fits your needs</p>
+            <p className="text-base text-gray-600">Perfect for physical products on Etsy/Amazon and digital products on Gumroad/Stan/Payhip</p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
