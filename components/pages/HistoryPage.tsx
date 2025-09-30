@@ -1235,13 +1235,13 @@ export default function HistoryPage() {
                           )}
 
                           {item.status === 'processing' && (
-                            <div className="flex gap-3 w-full">
+                            <div className="flex flex-col gap-2 w-full">
                               {/* Cover button - enabled if cover is ready, disabled if still generating */}
                               {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl ? (
                                 // Cover is ready - allow download
                                 <button
                                   onClick={() => handleCoverClick(item)}
-                                  className="flex-1 px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
+                                  className="w-full px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
                                 >
                                   <div className="flex items-center gap-2">
                                     <ImageIcon className="w-4 h-4 text-white" />
@@ -1270,7 +1270,7 @@ export default function HistoryPage() {
                                 // Cover still generating - show disabled state
                                 <button
                                   disabled
-                                  className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
+                                  className="w-full py-2.5 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
                                 >
                                   <div className="flex items-center gap-2">
                                     <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
@@ -1287,7 +1287,7 @@ export default function HistoryPage() {
                                (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) && (
                                 <button
                                   disabled
-                                  className="h-10 flex-1 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
+                                  className="w-full py-2.5 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
                                 >
                                   <div className="flex items-center gap-2">
                                     <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
