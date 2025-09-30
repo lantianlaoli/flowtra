@@ -887,8 +887,8 @@ export default function LandingPage() {
         {/* Pricing Section */}
         <div className="py-12">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Simple Pricing</h2>
-            <p className="text-base text-gray-600">Perfect for physical products on Etsy/Amazon and digital products on Gumroad/Stan/Payhip</p>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Pay Once, Use Forever</h2>
+            <p className="text-base text-gray-600">One-time purchase. No subscriptions. Perfect for physical products on Etsy/Amazon and digital products on Gumroad/Stan/Payhip</p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
@@ -902,23 +902,27 @@ export default function LandingPage() {
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">500 credits</span>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">500</span> credits</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Up to {liteDownloads} video downloads</span>
+                  <span className="text-gray-600">Up to <span className="font-bold text-gray-900">{liteDownloads}</span> video downloads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Unlimited image generation</span>
+                  <span className="text-gray-600">Unlimited image & video generation</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Unlimited video generation</span>
+                  <span className="text-gray-600">Free image downloads forever</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Image downloads are free forever</span>
+                  <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Character Ads, YouTube Thumbnail</span>
                 </li>
               </ul>
               <PricingButton packageName="lite" />
@@ -937,23 +941,27 @@ export default function LandingPage() {
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">2,000 credits</span>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">2,000</span> credits</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Up to {basicDownloads} video downloads</span>
+                  <span className="text-gray-600">Up to <span className="font-bold text-gray-900">{basicDownloads}</span> video downloads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Unlimited image generation</span>
+                  <span className="text-gray-600">Unlimited image & video generation</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Unlimited video generation</span>
+                  <span className="text-gray-600">Free image downloads forever</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Image downloads are free forever</span>
+                  <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600">Character Ads, YouTube Thumbnail</span>
                 </li>
               </ul>
               <PricingButton packageName="basic" />
@@ -969,23 +977,27 @@ export default function LandingPage() {
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">3,500 credits</span>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">3,500</span> credits</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Up to {proDownloads} video downloads</span>
+                  <span className="text-gray-600">Up to <span className="font-bold text-gray-900">{proDownloads}</span> video downloads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Unlimited image generation</span>
+                  <span className="text-gray-600">Unlimited image & video generation</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Unlimited video generation</span>
+                  <span className="text-gray-600">Free image downloads forever</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Image downloads are free forever</span>
+                  <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Character Ads, YouTube Thumbnail</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
