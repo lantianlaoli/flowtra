@@ -826,7 +826,7 @@ export default function HistoryPage() {
 
           {/* Projects Grid */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {Array.from({ length: 6 }).map((_, index) => (
                 <div key={index} className="bg-white rounded-lg border border-gray-200 overflow-hidden animate-pulse">
                   <div className="aspect-[3/4] bg-gray-200"></div>
@@ -858,7 +858,7 @@ export default function HistoryPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {currentHistory.map((item) => (
                   <motion.div
                     key={item.id}
