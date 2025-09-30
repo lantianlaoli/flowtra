@@ -1017,17 +1017,17 @@ export default function HistoryPage() {
 
                       {/* Bottom action area - pinned to bottom for alignment */}
                       <div className="mt-auto">
-                        <div className="border-t border-gray-200 bg-white -mx-4 -mb-4 px-4 py-3 min-h-[64px] flex items-center">
+                        <div className="border-t border-gray-200 bg-white -mx-4 -mb-4 px-4 py-3 flex items-center">
                           {item.status === 'failed' && (
-                            <div className="flex gap-3 w-full">
-                              {/* Cover Download Button (Left side) */}
+                            <div className="flex flex-col gap-2 w-full">
+                              {/* Cover Download Button */}
                               {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl && (
                                 <button
                                   onClick={() => isMultiVariantAds(item) ?
                                     downloadMultiVariantAdsContent(item.id, 'cover', item.videoModel) :
                                     downloadStandardAdsCover(item.id)
                                   }
-                                  className="h-10 flex-1 flex items-center justify-between px-3 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
                                 >
                                   <div className="flex items-center gap-2">
                                     <ImageIcon className="w-4 h-4 text-white" />
@@ -1038,9 +1038,9 @@ export default function HistoryPage() {
                                   </div>
                                 </button>
                               )}
-                              
-                              {/* No charge info (Right side) */}
-                              <div className={`${(!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl) ? 'flex-1' : 'w-full'} flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg`}>
+
+                              {/* No charge info */}
+                              <div className="w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg">
                                 <div className="flex items-center gap-2.5">
                                   <RotateCcw className="w-4 h-4 text-gray-600" />
                                   <span className="font-medium text-gray-900">No charge</span>
@@ -1054,13 +1054,13 @@ export default function HistoryPage() {
                           )}
 
                           {item.status === 'completed' && (
-                            <div className="flex gap-3 w-full">
+                            <div className="flex flex-col gap-2 w-full">
                               {isYoutubeThumbnail(item) ? (
                                 // YouTube Thumbnail Download Button with left-right layout
                                 <button
                                   onClick={() => handleYoutubeThumbnailClick(item)}
                                   disabled={item.downloaded || youtubeThumbnailStates[item.id] === 'packing' || (!item.downloaded && (!userCredits || userCredits < item.credits_cost))}
-                                  className={`w-full h-10 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg transition-colors ${
+                                  className={`w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg transition-colors ${
                                     (!item.downloaded && (!userCredits || userCredits < item.credits_cost))
                                       ? 'text-red-600 hover:bg-red-50'
                                       : 'text-gray-700 hover:bg-gray-50'
@@ -1131,7 +1131,7 @@ export default function HistoryPage() {
                                   {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl && (
                                     <button
                                       onClick={() => handleCoverClick(item)}
-                                      className="flex-1 px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
+                                      className="w-full px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
                                     >
                                       <div className="flex items-center gap-2">
                                         <ImageIcon className="w-4 h-4 text-white" />
@@ -1163,7 +1163,7 @@ export default function HistoryPage() {
                                     <button
                                       onClick={() => handleVideoClick(item)}
                                       disabled={downloadingVideo === item.id || videoStates[item.id] === 'packing' || (!item.downloaded && ('videoModel' in item) && (!userCredits || userCredits < getCreditCost(item.videoModel)))}
-                                      className={`${(!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl) ? 'flex-1' : 'w-full'} h-10 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg transition-colors ${
+                                      className={`w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg transition-colors ${
                                         (!item.downloaded && ('videoModel' in item) && (!userCredits || userCredits < getCreditCost(item.videoModel)))
                                           ? 'text-red-600 hover:bg-red-50'
                                           : 'text-gray-700 hover:bg-gray-50'
