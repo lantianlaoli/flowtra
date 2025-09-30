@@ -21,6 +21,7 @@ export interface MultiVariantAdsRequest {
   photoOnly?: boolean;
   coverImageSize?: string;
   elementsData?: Record<string, unknown>;
+  videoAspectRatio?: '16:9' | '9:16';
 }
 
 interface MultiVariantResult {
@@ -89,6 +90,7 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
           current_step: 'analyzing_images',
           progress_percentage: 0,
           video_model: request.videoModel || 'veo3',
+          video_aspect_ratio: request.videoAspectRatio || '16:9',
           watermark_text: request.textWatermark || request.watermark?.text,
           watermark_location: request.textWatermarkLocation || request.watermark?.location,
           photo_only: request.photoOnly || false,

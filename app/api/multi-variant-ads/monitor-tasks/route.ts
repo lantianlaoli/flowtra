@@ -338,7 +338,7 @@ Ending: ${videoPrompt.ending}`;
   const requestBody: Record<string, unknown> = {
     prompt: finalPrompt,
     model: selectedModel,
-    aspectRatio: "16:9",
+    aspectRatio: instance.video_aspect_ratio || "16:9",
     imageUrls: [coverImageUrl],
     enableAudio: true,
     audioEnabled: true,

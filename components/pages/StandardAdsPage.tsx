@@ -11,6 +11,7 @@ import InsufficientCredits from '@/components/InsufficientCredits';
 import { ArrowRight, History, Play, TrendingUp, Hash, Type, ChevronDown, Package } from 'lucide-react';
 import GenerationConfirmation from '@/components/ui/GenerationConfirmation';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
+import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
 import ProductSelector from '@/components/ProductSelector';
@@ -33,6 +34,7 @@ export default function StandardAdsPage() {
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
   const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
+  const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
     sufficient: true,
     loading: true
@@ -580,6 +582,16 @@ export default function StandardAdsPage() {
                       Video generation disabled
                     </div>
                   </div>
+                )}
+
+                {/* Video Aspect Ratio Selection - only show when video generation is enabled */}
+                {shouldGenerateVideo && (
+                  <VideoAspectRatioSelector
+                    selectedAspectRatio={videoAspectRatio}
+                    onAspectRatioChange={setVideoAspectRatio}
+                    showIcon={true}
+                    className="col-span-1"
+                  />
                 )}
               </div>
 

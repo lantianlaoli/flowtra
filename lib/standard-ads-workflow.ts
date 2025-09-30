@@ -17,6 +17,7 @@ export interface StartWorkflowRequest {
   elementsCount?: number;
   photoOnly?: boolean;
   shouldGenerateVideo?: boolean;
+  videoAspectRatio?: '16:9' | '9:16';
 }
 
 interface WorkflowResult {
@@ -85,6 +86,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         original_image_url: imageUrl,
         selected_product_id: request.selectedProductId,
         video_model: actualVideoModel,
+        video_aspect_ratio: request.videoAspectRatio || '16:9',
         status: 'processing',
         current_step: 'describing',
         progress_percentage: 10,

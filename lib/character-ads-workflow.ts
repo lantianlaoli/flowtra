@@ -356,16 +356,17 @@ async function generateImageWithKIE(
 async function generateVideoWithKIE(
   prompt: Record<string, unknown>,
   videoModel: string,
-  referenceImageUrl: string
+  referenceImageUrl: string,
+  videoAspectRatio?: '16:9' | '9:16'
 ): Promise<{ taskId: string }> {
   // Convert prompt object to string for veo3 API
   const finalPrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
-  
+
   // Use correct veo3 API structure
   const requestBody = {
     prompt: finalPrompt,
     model: videoModel, // e.g., 'veo3_fast' or 'veo3'
-    aspectRatio: "16:9",
+    aspectRatio: videoAspectRatio || "16:9",
     imageUrls: [referenceImageUrl], // Correct parameter name and format
     enableAudio: true,
     audioEnabled: true,
@@ -863,7 +864,8 @@ export async function processCharacterAdsProject(
           const { taskId } = await generateVideoWithKIE(
             videoPrompt as Record<string, unknown>,
             project.video_model,
-            project.generated_image_url // Use generated image as reference
+            project.generated_image_url, // Use generated image as reference
+            project.video_aspect_ratio
           );
 
           videoTaskIds.push(taskId);

@@ -252,7 +252,7 @@ Other details: ${videoPrompt.other_details}`;
   const requestBody = {
     prompt: fullPrompt,
     model: record.video_model || 'veo3_fast',
-    aspectRatio: "16:9",
+    aspectRatio: record.video_aspect_ratio || "16:9",
     imageUrls: [coverImageUrl],
     enableAudio: true,
     audioEnabled: true,

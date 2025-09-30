@@ -22,10 +22,11 @@ export async function POST(request: NextRequest) {
     const imageModel = formData.get('image_model') as string;
     const videoModel = formData.get('video_model') as string;
     const accent = formData.get('accent') as string;
+    const videoAspectRatio = (formData.get('video_aspect_ratio') as '16:9' | '9:16') || '16:9';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const selectedProductId = formData.get('selected_product_id') as string;
 
-    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, videoModel, accent, selectedPersonPhotoUrl, selectedProductId });
+    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, videoModel, accent, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId });
 
     if (!userId || !videoDurationSeconds || !imageModel || !videoModel || !accent) {
       return NextResponse.json(
@@ -171,6 +172,7 @@ export async function POST(request: NextRequest) {
         video_duration_seconds: videoDurationSeconds,
         image_model: actualImageModel,
         video_model: actualVideoModel,
+        video_aspect_ratio: videoAspectRatio,
         accent: accent,
         credits_cost: totalCredits,
         status: 'pending',
