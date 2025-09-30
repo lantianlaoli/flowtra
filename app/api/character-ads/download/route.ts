@@ -93,6 +93,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to deduct credits' }, { status: 500 });
       }
 
+      // Record credit transaction
+      const modelDisplay = project.video_model === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast';
+      const durationDisplay = `${project.video_duration_seconds}s`;
+      const { error: transactionError } = await supabase
+        .from('credit_transactions')
+        .insert({
+          user_id: userId,
+          amount: -downloadCost,
+          type: 'usage',
+          description: `Video download - character ads (${modelDisplay}, ${durationDisplay})`
+        });
+
+      if (transactionError) {
+        console.error('Failed to record transaction:', transactionError);
+        // Don't fail the download, just log the error
+      }
+
       // Mark project as downloaded
       const { error: updateError } = await supabase
         .from('character_ads_projects')
