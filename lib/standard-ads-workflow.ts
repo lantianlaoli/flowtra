@@ -152,28 +152,42 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     // Step 1: Describe the image
     console.log('🔍 Starting image description...');
     const description = await describeImage(request.imageUrl);
+    console.log('📝 Image description received:', description?.substring(0, 100) + '...');
 
     // Step 2: Generate creative prompts
     console.log('✨ Generating creative prompts...');
     const prompts = await generateCreativePrompts(description);
+    console.log('🎯 Creative prompts generated:', Object.keys(prompts).join(', '));
 
     // Step 3: Start cover generation
     console.log('🎨 Starting cover generation...');
     const coverTaskId = await generateCover(request.imageUrl, prompts, request);
+    console.log('🆔 Cover task ID:', coverTaskId);
 
     // Update project with cover task ID and prompts
-    await supabase
-      .from('standard_ads_projects')
-      .update({
-        cover_task_id: coverTaskId,
-        video_prompts: prompts,
-        product_description: { description },
-        current_step: 'generating_cover',
-        progress_percentage: 30,
-        last_processed_at: new Date().toISOString()
-      })
-      .eq('id', projectId);
+    // Note: product_description is JSONB in DB, store as object
+    const updateData = {
+      cover_task_id: coverTaskId,
+      video_prompts: prompts,
+      product_description: { description },
+      current_step: 'generating_cover' as const,
+      progress_percentage: 30,
+      last_processed_at: new Date().toISOString()
+    };
+    console.log('💾 Updating project with data:', { ...updateData, product_description: { description: description?.substring(0, 50) + '...' } });
 
+    const { data: updateResult, error: updateError } = await supabase
+      .from('standard_ads_projects')
+      .update(updateData)
+      .eq('id', projectId)
+      .select();
+
+    if (updateError) {
+      console.error('❌ Database update error:', updateError);
+      throw updateError;
+    }
+
+    console.log('✅ Database updated successfully:', updateResult);
     console.log('✅ AI workflow started successfully');
 
   } catch (error) {

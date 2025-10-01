@@ -57,14 +57,14 @@ export interface Article {
   created_at: string
 }
 
-// Database types for single_video_projects table
+// Database types for single_video_projects table (now standard_ads_projects)
 export interface SingleVideoProject {
   id: string
   user_id: string
   original_image_url: string
   cover_image_url?: string
   video_url?: string
-  product_description?: string
+  product_description?: Record<string, unknown> // JSONB field containing { description: string }
   video_prompts?: Record<string, unknown>
   video_model: 'veo3' | 'veo3_fast'
   credits_cost: number
