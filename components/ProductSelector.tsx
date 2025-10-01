@@ -1,14 +1,20 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Package, Plus } from 'lucide-react';
+import { ChevronDown, Package, Plus, Upload } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 
+export interface TemporaryProduct extends Omit<UserProduct, 'id'> {
+  id: string;
+  isTemporary: true;
+  uploadedFiles: File[];
+}
+
 interface ProductSelectorProps {
-  selectedProduct: UserProduct | null;
-  onProductSelect: (product: UserProduct | null) => void;
+  selectedProduct: UserProduct | TemporaryProduct | null;
+  onProductSelect: (product: UserProduct | TemporaryProduct | null) => void;
   onManageProducts: () => void;
 }
 
@@ -21,6 +27,7 @@ export default function ProductSelector({
   const [products, setProducts] = useState<UserProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProducts();
@@ -52,6 +59,48 @@ export default function ProductSelector({
     }
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    // Create temporary product object
+    const filesArray = Array.from(files);
+    const tempPhotoUrls = filesArray.map(file => URL.createObjectURL(file));
+
+    const temporaryProduct: TemporaryProduct = {
+      id: `temp-${Date.now()}`,
+      isTemporary: true,
+      uploadedFiles: filesArray,
+      product_name: 'Uploaded Images',
+      description: `${filesArray.length} image${filesArray.length > 1 ? 's' : ''} uploaded`,
+      user_id: '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      user_product_photos: tempPhotoUrls.map((url, index) => ({
+        id: `temp-photo-${index}`,
+        product_id: `temp-${Date.now()}`,
+        user_id: '',
+        photo_url: url,
+        file_name: `temp-${index}`,
+        is_primary: index === 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }))
+    };
+
+    onProductSelect(temporaryProduct);
+    setIsOpen(false);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
+    return product !== null && 'isTemporary' in product && product.isTemporary === true;
+  };
+
   const selectedPhotos = selectedProduct?.user_product_photos || [];
   const primaryPhoto = selectedPhotos.find(photo => photo.is_primary) || selectedPhotos[0];
 
@@ -60,6 +109,16 @@ export default function ProductSelector({
       <label className="block text-sm font-medium text-gray-700 mb-2">
         Select Product
       </label>
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileUpload}
+        className="hidden"
+      />
 
       {/* Selector Button */}
       <button
@@ -86,7 +145,12 @@ export default function ProductSelector({
                 </div>
               )}
               <div className="text-left">
-                <div className="font-medium text-gray-900">{selectedProduct.product_name}</div>
+                <div className="font-medium text-gray-900">
+                  {selectedProduct.product_name}
+                  {isTemporaryProduct(selectedProduct) && (
+                    <span className="ml-2 text-xs text-blue-600">(Temporary)</span>
+                  )}
+                </div>
                 <div className="text-xs text-gray-500">
                   {selectedPhotos.length} {selectedPhotos.length === 1 ? 'photo' : 'photos'}
                 </div>
@@ -112,6 +176,22 @@ export default function ProductSelector({
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.15 }}
           >
+            {/* Upload Images Button */}
+            <button
+              onClick={() => {
+                fileInputRef.current?.click();
+                setIsOpen(false);
+              }}
+              className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-100 text-blue-600 font-medium transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
+                  <Upload className="w-4 h-4 text-blue-600" />
+                </div>
+                <span>Upload Images Directly</span>
+              </div>
+            </button>
+
             {/* Clear Selection */}
             {selectedProduct && (
               <button

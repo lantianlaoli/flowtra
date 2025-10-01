@@ -10,7 +10,7 @@ import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import AccentSelector, { AccentType } from '@/components/ui/AccentSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
-import ProductSelector from '@/components/ProductSelector';
+import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import { ArrowRight, Clock, Video, Settings, Package, History } from 'lucide-react';
@@ -39,7 +39,7 @@ export default function CharacterAdsPage() {
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [selectedAccent, setSelectedAccent] = useState<AccentType>('australian');
-  const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
 
   // Generation state
@@ -81,15 +81,44 @@ export default function CharacterAdsPage() {
     checkKieCredits();
   }, []);
 
+  const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
+    return product !== null && 'isTemporary' in product && product.isTemporary === true;
+  };
+
   const handleStartGeneration = async () => {
     if (!canStartGeneration || !user?.id) return;
 
     setIsGenerating(true);
 
     try {
+      // Upload temporary product images to Supabase first if needed
+      let productId = selectedProduct?.id;
+
+      if (selectedProduct && isTemporaryProduct(selectedProduct)) {
+        // Upload temporary images first
+        const uploadFormData = new FormData();
+        selectedProduct.uploadedFiles.forEach((file, index) => {
+          uploadFormData.append(`file_${index}`, file);
+        });
+
+        const uploadResponse = await fetch('/api/upload-temp-images', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        const uploadResult = await uploadResponse.json();
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error || 'Failed to upload product images');
+        }
+
+        // For character ads, we'll pass the first image URL directly
+        // Instead of using product_id, we'll use a temporary product URL
+        productId = `temp:${uploadResult.imageUrls[0]}`;
+      }
+
       // Upload images first
       const formData = new FormData();
-      
+
       // Handle person images - either uploaded files or selected photo URL
       if (selectedPersonPhotoUrl) {
         formData.append('selected_person_photo_url', selectedPersonPhotoUrl);
@@ -98,10 +127,10 @@ export default function CharacterAdsPage() {
           formData.append(`person_image_${index}`, file);
         });
       }
-      
-      // Use selected product instead of uploaded images
-      if (selectedProduct) {
-        formData.append('selected_product_id', selectedProduct.id);
+
+      // Use selected product or temporary product URL
+      if (productId) {
+        formData.append('selected_product_id', productId);
       }
       formData.append('video_duration_seconds', videoDuration.toString());
       formData.append('image_model', selectedImageModel);

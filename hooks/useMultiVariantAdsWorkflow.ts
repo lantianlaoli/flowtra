@@ -333,11 +333,98 @@ export function useMultiVariantAdsWorkflow(
     return () => clearInterval(interval);
   }, [currentItemIds, state.workflowStatus, fetchItemsStatus]);
 
+  const startBatchWorkflowWithTemporaryImages = useCallback(async (imageFiles: File[]) => {
+    if (!userId) return;
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      // Upload images to Supabase first
+      const formData = new FormData();
+      imageFiles.forEach((file, index) => {
+        formData.append(`file_${index}`, file);
+      });
+
+      const uploadResponse = await fetch('/api/upload-temp-images', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const uploadResult = await uploadResponse.json();
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Failed to upload images');
+      }
+
+      const primaryImageUrl = uploadResult.imageUrls[0];
+
+      // Start workflow with uploaded image URL
+      const response = await fetch('/api/multi-variant-ads/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: primaryImageUrl,
+          userId,
+          videoModel,
+          imageModel,
+          elementsCount,
+          adCopy,
+          textWatermark,
+          textWatermarkLocation,
+          imageSize,
+          generateVideo: shouldGenerateVideo,
+          videoAspectRatio
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start workflow');
+      }
+
+      const result = await response.json();
+      const itemIds: string[] = result.itemIds || [];
+      setCurrentItemIds(itemIds);
+      const creditsCost = shouldGenerateVideo ? getCreditCost(videoModel) : 0;
+
+      const seeded = itemIds.map((id) => ({
+        id,
+        user_id: userId,
+        elements_data: { generate_video: shouldGenerateVideo },
+        cover_image_size: imageSize,
+        status: 'pending' as const,
+        current_step: 'waiting' as const,
+        credits_cost: creditsCost,
+        downloaded: false,
+        progress_percentage: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_processed_at: new Date().toISOString()
+      } as WorkflowInstanceState));
+      setState(prev => ({ ...prev, instances: seeded }));
+
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        workflowStatus: 'processing'
+      }));
+
+      return result;
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to start workflow with temporary images'
+      }));
+      throw error;
+    }
+  }, [userId, videoModel, imageModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo, videoAspectRatio]);
+
   return {
     state,
     uploadFile,
     startBatchWorkflow,
     startBatchWorkflowWithProduct,
+    startBatchWorkflowWithTemporaryImages,
     downloadContent,
     resetWorkflow,
     fetchBatchStatus: async () => null

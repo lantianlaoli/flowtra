@@ -12,7 +12,7 @@ import GenerationConfirmation from '@/components/ui/GenerationConfirmation';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
-import ProductSelector from '@/components/ProductSelector';
+import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import ShowcaseSection from '@/components/ui/ShowcaseSection';
 import { useRouter } from 'next/navigation';
@@ -32,7 +32,7 @@ export default function MultiVariantAdsPage() {
   const [textWatermarkLocation, setTextWatermarkLocation] = useState('bottom left');
   const [imageSize, setImageSize] = useState('auto');
   const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
   const router = useRouter();
   const [kieCreditsStatus, setKieCreditsStatus] = useState<{ sufficient: boolean; loading: boolean; currentCredits?: number; threshold?: number }>({
@@ -49,6 +49,7 @@ export default function MultiVariantAdsPage() {
     state,
     startBatchWorkflow,
     startBatchWorkflowWithProduct,
+    startBatchWorkflowWithTemporaryImages,
     downloadContent,
     resetWorkflow
   } = useMultiVariantAdsWorkflow(
@@ -75,10 +76,17 @@ export default function MultiVariantAdsPage() {
   // Note: keep hooks above; render loading UI later to avoid conditional hooks
 
 
+  const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
+    return product !== null && 'isTemporary' in product && product.isTemporary === true;
+  };
+
   const handleStartWorkflow = async () => {
     try {
-      // Use product workflow if product is selected
-      if (selectedProduct) {
+      // Handle temporary product (direct upload)
+      if (selectedProduct && isTemporaryProduct(selectedProduct)) {
+        await startBatchWorkflowWithTemporaryImages(selectedProduct.uploadedFiles);
+      } else if (selectedProduct) {
+        // Use product workflow if product is selected
         await startBatchWorkflowWithProduct(selectedProduct.id);
       } else {
         await startBatchWorkflow();

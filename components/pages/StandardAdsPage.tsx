@@ -14,7 +14,7 @@ import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
-import ProductSelector from '@/components/ProductSelector';
+import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import ShowcaseSection from '@/components/ui/ShowcaseSection';
 import { useRouter } from 'next/navigation';
@@ -44,7 +44,7 @@ export default function StandardAdsPage() {
   const [elementsCount, setElementsCount] = useState(1);
   const [imageSize, setImageSize] = useState('auto');
   const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
   
   
@@ -61,6 +61,7 @@ export default function StandardAdsPage() {
     state,
     startWorkflowWithConfig,
     startWorkflowWithSelectedProduct,
+    startWorkflowWithTemporaryImages,
     resetWorkflow
   } = useStandardAdsWorkflow(user?.id, selectedModel, selectedImageModel, updateCredits, refetchCredits, elementsCount, imageSize);
 
@@ -101,6 +102,10 @@ export default function StandardAdsPage() {
   }
 
 
+  const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
+    return product !== null && 'isTemporary' in product && product.isTemporary === true;
+  };
+
   const handleStartWorkflow = async () => {
     const watermarkConfig = {
       enabled: textWatermark.trim().length > 0,
@@ -108,8 +113,17 @@ export default function StandardAdsPage() {
       location: textWatermarkLocation
     };
 
-    // Use selected product for workflow
-    if (selectedProduct) {
+    // Handle temporary product (direct upload)
+    if (selectedProduct && isTemporaryProduct(selectedProduct)) {
+      await startWorkflowWithTemporaryImages(
+        selectedProduct.uploadedFiles,
+        watermarkConfig,
+        elementsCount,
+        imageSize,
+        shouldGenerateVideo
+      );
+    } else if (selectedProduct) {
+      // Use selected product for workflow
       await startWorkflowWithSelectedProduct(selectedProduct.id, watermarkConfig, elementsCount, imageSize, shouldGenerateVideo);
     } else {
       await startWorkflowWithConfig(watermarkConfig, elementsCount, imageSize, shouldGenerateVideo);
