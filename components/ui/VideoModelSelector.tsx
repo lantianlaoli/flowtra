@@ -147,7 +147,7 @@ export default function VideoModelSelector({
                 <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">Beta</span>
               )}
             </div>
-            {selectedOption?.features && !hideCredits && (
+            {selectedOption?.features && (
               <div className="text-xs text-gray-500 truncate">{selectedOption.features}</div>
             )}
           </div>
