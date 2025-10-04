@@ -2,9 +2,24 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Globe, ChevronDown, Check } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-export type AccentType = 'australian' | 'american' | 'british' | 'canadian' | 'irish' | 'south_african';
+export type AccentType =
+  | 'american'
+  | 'canadian'
+  | 'british'
+  | 'irish'
+  | 'scottish'
+  | 'australian'
+  | 'new_zealand'
+  | 'indian'
+  | 'singaporean'
+  | 'filipino'
+  | 'south_african'
+  | 'nigerian'
+  | 'kenyan'
+  | 'latin_american';
 
 interface AccentOption {
   value: AccentType;
@@ -22,42 +37,20 @@ interface AccentSelectorProps {
 }
 
 const accentOptions: AccentOption[] = [
-  {
-    value: 'australian',
-    label: 'Australian',
-    description: 'Warm, friendly Australian accent',
-    flag: '🇦🇺'
-  },
-  {
-    value: 'american',
-    label: 'American',
-    description: 'Clear, professional American accent',
-    flag: '🇺🇸'
-  },
-  {
-    value: 'british',
-    label: 'British',
-    description: 'Sophisticated British accent',
-    flag: '🇬🇧'
-  },
-  {
-    value: 'canadian',
-    label: 'Canadian',
-    description: 'Friendly, approachable Canadian accent',
-    flag: '🇨🇦'
-  },
-  {
-    value: 'irish',
-    label: 'Irish',
-    description: 'Charming, melodic Irish accent',
-    flag: '🇮🇪'
-  },
-  {
-    value: 'south_african',
-    label: 'South African',
-    description: 'Distinctive South African accent',
-    flag: '🇿🇦'
-  }
+  { value: 'american', label: 'American', description: 'Clear, professional American accent', flag: '🇺🇸' },
+  { value: 'canadian', label: 'Canadian', description: 'Friendly, approachable Canadian accent', flag: '🇨🇦' },
+  { value: 'british', label: 'British', description: 'Sophisticated British accent', flag: '🇬🇧' },
+  { value: 'irish', label: 'Irish', description: 'Charming, melodic Irish accent', flag: '🇮🇪' },
+  { value: 'scottish', label: 'Scottish', description: 'Distinct Scottish accent', flag: '🏴' },
+  { value: 'australian', label: 'Australian', description: 'Warm, friendly Australian accent', flag: '🇦🇺' },
+  { value: 'new_zealand', label: 'New Zealand', description: 'Distinct Kiwi accent', flag: '🇳🇿' },
+  { value: 'indian', label: 'Indian', description: 'Neutral Indian English accent', flag: '🇮🇳' },
+  { value: 'singaporean', label: 'Singaporean', description: 'Singapore English accent', flag: '🇸🇬' },
+  { value: 'filipino', label: 'Filipino', description: 'Philippine English accent', flag: '🇵🇭' },
+  { value: 'south_african', label: 'South African', description: 'Distinctive South African accent', flag: '🇿🇦' },
+  { value: 'nigerian', label: 'Nigerian', description: 'Nigerian English accent', flag: '🇳🇬' },
+  { value: 'kenyan', label: 'Kenyan', description: 'Kenyan English accent', flag: '🇰🇪' },
+  { value: 'latin_american', label: 'Latin American', description: 'Latin American English accent', flag: '🌎' }
 ];
 
 export default function AccentSelector({
@@ -136,9 +129,14 @@ export default function AccentSelector({
         </button>
 
         {/* Custom Dropdown Options */}
+        <AnimatePresence>
         {isOpen && (
-          <div
+          <motion.div
             ref={optionsRef}
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md overflow-hidden z-50 shadow-lg"
           >
             {accentOptions.map((option) => (
@@ -166,8 +164,9 @@ export default function AccentSelector({
                 </div>
               </button>
             ))}
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
     </div>
   );

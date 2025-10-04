@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface VideoDurationSelectorProps {
   value: 8 | 10 | 16 | 20 | 24 | 30;
@@ -26,6 +26,7 @@ export default function VideoDurationSelector({ value, onChange, hideSora2Durati
 
   return (
     <div className="flex gap-0 bg-gray-100 rounded-lg p-1">
+      <AnimatePresence initial={false}>
       {options.map((option) => (
         <motion.button
           key={option.value}
@@ -64,6 +65,7 @@ export default function VideoDurationSelector({ value, onChange, hideSora2Durati
           </span>
         </motion.button>
       ))}
+      </AnimatePresence>
     </div>
   );
 }

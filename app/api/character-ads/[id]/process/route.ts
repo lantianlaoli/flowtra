@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { step } = await request.json();
+    const { step, customDialogue } = await request.json();
     const { id: projectId } = await params;
 
     if (!projectId || !step) {
@@ -34,7 +34,7 @@ export async function POST(
     }
 
     // Process the workflow step
-    const result = await processCharacterAdsProject(project, step);
+    const result = await processCharacterAdsProject(project, step, { customDialogue });
 
     return NextResponse.json({
       success: true,

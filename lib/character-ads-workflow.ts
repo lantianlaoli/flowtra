@@ -6,15 +6,23 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 // Helper function to generate voice type based on accent and gender
 function generateVoiceType(accent: string, isMale: boolean): string {
   const accentMap: Record<string, string> = {
-    'australian': 'Australian',
-    'american': 'American',
-    'british': 'British',
-    'canadian': 'Canadian',
-    'irish': 'Irish',
-    'south_african': 'South African'
+    american: 'American',
+    canadian: 'Canadian',
+    british: 'British',
+    irish: 'Irish',
+    scottish: 'Scottish',
+    australian: 'Australian',
+    new_zealand: 'New Zealand',
+    indian: 'Indian',
+    singaporean: 'Singaporean',
+    filipino: 'Filipino',
+    south_african: 'South African',
+    nigerian: 'Nigerian',
+    kenyan: 'Kenyan',
+    latin_american: 'Latin American'
   };
 
-  const accentName = accentMap[accent] || 'Australian';
+  const accentName = accentMap[accent] || 'American';
   const voiceGender = isMale ? 'deep male voice' : 'deep female voice';
 
   return `${accentName} accent, ${voiceGender}`;
@@ -141,6 +149,7 @@ Important:
 async function generatePrompts(analysisResult: Record<string, unknown>, videoDurationSeconds: number, accent: string, videoModel: 'veo3' | 'veo3_fast' | 'sora2'): Promise<Record<string, unknown>> {
   const unitSeconds = videoModel === 'sora2' ? 10 : 8;
   const videoScenes = videoDurationSeconds / unitSeconds; // Scene length depends on model
+  const userDialogue = (analysisResult as { user_dialogue?: string })?.user_dialogue || '';
 
   // Extract character information to determine appropriate voice type
   const characterInfo = (analysisResult as { character?: { visual_description?: string } })?.character?.visual_description || '';
@@ -215,7 +224,7 @@ Return in JSON format:
     {
       "scene": 1,
       "prompt": {
-        "video_prompt": "dialogue, the character in the video says: [casual dialogue]",
+        "video_prompt": "dialogue, the character in the video says: ${userDialogue ? userDialogue.replace(/"/g, '\\"') : '[casual dialogue]'}",
         "voice_type": "${voiceType}",
         "emotion": "chill, upbeat",
         "setting": "[casual environment]",
@@ -746,7 +755,8 @@ async function checkFalTaskStatus(taskId: string, retryCount = 0): Promise<{
 
 export async function processCharacterAdsProject(
   project: CharacterAdsProject,
-  step: string
+  step: string,
+  options?: { customDialogue?: string }
 ): Promise<ProcessResult> {
   const supabase = getSupabaseAdmin();
 
@@ -758,6 +768,9 @@ export async function processCharacterAdsProject(
 
         // Analyze person and product images separately
         const analysisResult = await analyzeImages(project.person_image_urls, project.product_image_urls);
+        if (options?.customDialogue) {
+          (analysisResult as Record<string, unknown>)['user_dialogue'] = options.customDialogue;
+        }
 
         // Update project with analysis results
         const { data: updatedProject, error } = await supabase

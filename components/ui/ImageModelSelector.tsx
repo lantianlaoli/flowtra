@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { IMAGE_CREDIT_COSTS, canAffordImageModel, getAutoImageModeSelection, getImageProcessingTime } from '@/lib/constants';
@@ -133,9 +134,14 @@ export default function ImageModelSelector({
         </button>
 
         {/* Custom Dropdown Options */}
+        <AnimatePresence>
         {isOpen && (
-          <div 
+          <motion.div 
             ref={optionsRef}
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-48 overflow-y-auto"
           >
             {modelOptions.map((option) => (
@@ -170,8 +176,9 @@ export default function ImageModelSelector({
                 )}
               </button>
             ))}
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
     </div>
   );

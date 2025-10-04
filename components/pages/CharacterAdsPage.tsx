@@ -40,7 +40,8 @@ export default function CharacterAdsPage() {
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('seedream');
   const [imageSize, setImageSize] = useState<string>('auto');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
-  const [selectedAccent, setSelectedAccent] = useState<AccentType>('australian');
+  const [selectedAccent, setSelectedAccent] = useState<AccentType>('american');
+  const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
 
@@ -140,6 +141,9 @@ export default function CharacterAdsPage() {
       formData.append('video_model', selectedVideoModel);
       formData.append('video_aspect_ratio', videoAspectRatio);
       formData.append('accent', selectedAccent);
+      if (customDialogue && customDialogue.trim()) {
+        formData.append('custom_dialogue', customDialogue.trim());
+      }
       formData.append('user_id', user.id);
 
       const response = await fetch('/api/character-ads/create', {
@@ -349,6 +353,22 @@ export default function CharacterAdsPage() {
                           onAccentChange={setSelectedAccent}
                           showIcon={true}
                         />
+                      </div>
+
+                      {/* Custom Dialogue (Optional) */}
+                      <div>
+                        <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-2">
+                          Custom Dialogue (optional)
+                        </label>
+                        <textarea
+                          value={customDialogue}
+                          onChange={(e) => setCustomDialogue(e.target.value)}
+                          placeholder="What should the character say? Keep it natural and under 150 characters."
+                          maxLength={200}
+                          rows={3}
+                          className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
+                        />
+                        <div className="mt-1 text-xs text-gray-500">Optional. Used in the first video scene if provided.</div>
                       </div>
 
                     </div>

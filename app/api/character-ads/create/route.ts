@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     const imageSize = formData.get('image_size') as string;
     const videoModel = formData.get('video_model') as string;
     const accent = formData.get('accent') as string;
+    const customDialogue = (formData.get('custom_dialogue') as string) || '';
     const videoAspectRatio = (formData.get('video_aspect_ratio') as '16:9' | '9:16') || '16:9';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const selectedProductId = formData.get('selected_product_id') as string;
@@ -47,7 +48,11 @@ export async function POST(request: NextRequest) {
     // Validate models and accent
     const validImageModels = ['auto', 'nano_banana', 'seedream'];
     const validVideoModels = ['auto', 'veo3', 'veo3_fast', 'sora2'];
-    const validAccents = ['australian', 'american', 'british', 'canadian', 'irish', 'south_african'];
+    const validAccents = [
+      'american', 'canadian', 'british', 'irish', 'scottish',
+      'australian', 'new_zealand', 'indian', 'singaporean', 'filipino',
+      'south_african', 'nigerian', 'kenyan', 'latin_american'
+    ];
 
     if (!validImageModels.includes(imageModel)) {
       return NextResponse.json(
@@ -236,7 +241,7 @@ export async function POST(request: NextRequest) {
       await fetch(`${request.nextUrl.origin}/api/character-ads/${project.id}/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step: 'analyze_images' })
+        body: JSON.stringify({ step: 'analyze_images', customDialogue })
       });
     } catch (error) {
       console.error('Failed to trigger workflow:', error);
