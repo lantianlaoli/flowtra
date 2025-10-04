@@ -140,7 +140,17 @@ export default function VideoModelSelector({
           onClick={() => setIsOpen(!isOpen)}
           className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-md transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
-          <span className="font-medium">{selectedOption?.label}</span>
+          <div className="min-w-0">
+            <div className="font-medium truncate">
+              {selectedOption?.label}
+              {selectedOption?.value === 'sora2' && (
+                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">Beta</span>
+              )}
+            </div>
+            {selectedOption?.features && !hideCredits && (
+              <div className="text-xs text-gray-500 truncate">{selectedOption.features}</div>
+            )}
+          </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
             <ChevronDown className="h-3 w-3 text-gray-600" />
           </div>

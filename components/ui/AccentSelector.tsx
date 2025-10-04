@@ -137,7 +137,7 @@ export default function AccentSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md overflow-hidden z-50 shadow-lg"
+            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md z-50 shadow-lg max-h-60 overflow-y-auto"
           >
             {accentOptions.map((option) => (
               <button

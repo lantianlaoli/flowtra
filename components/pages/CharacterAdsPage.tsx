@@ -325,25 +325,25 @@ export default function CharacterAdsPage() {
                         </div>
                       </div>
 
-                      {/* Image Size Selection */}
-                      <div>
-                        <SizeSelector
-                          selectedSize={imageSize}
-                          onSizeChange={setImageSize}
-                          imageModel={selectedImageModel === 'auto' ? 'seedream' : selectedImageModel}
-                          videoAspectRatio={videoAspectRatio}
-                          showIcon={true}
-                        />
-                      </div>
-
-                      {/* Video Aspect Ratio */}
-                      <div>
-                        <VideoAspectRatioSelector
-                          selectedAspectRatio={videoAspectRatio}
-                          onAspectRatioChange={setVideoAspectRatio}
-                          videoModel={selectedVideoModel}
-                          showIcon={true}
-                        />
+                      {/* Formats - Image size & Video aspect ratio in one row */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <SizeSelector
+                            selectedSize={imageSize}
+                            onSizeChange={setImageSize}
+                            imageModel={selectedImageModel === 'auto' ? 'seedream' : selectedImageModel}
+                            videoAspectRatio={videoAspectRatio}
+                            showIcon={true}
+                          />
+                        </div>
+                        <div>
+                          <VideoAspectRatioSelector
+                            selectedAspectRatio={videoAspectRatio}
+                            onAspectRatioChange={setVideoAspectRatio}
+                            videoModel={selectedVideoModel}
+                            showIcon={true}
+                          />
+                        </div>
                       </div>
 
                       {/* Voice Accent Selection */}
