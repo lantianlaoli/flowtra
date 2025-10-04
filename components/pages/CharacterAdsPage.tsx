@@ -291,14 +291,8 @@ export default function CharacterAdsPage() {
                         <VideoDurationSelector
                           value={videoDuration}
                           onChange={(d) => {
+                            // Do not auto-switch video model; keep user's selection (including 'auto')
                             setVideoDuration(d);
-                            // Enforce model constraint: 10/20/30 -> sora2 only
-                            const isSora2Duration = d === 10 || d === 20 || d === 30;
-                            if (isSora2Duration && selectedVideoModel !== 'sora2') {
-                              setSelectedVideoModel('sora2');
-                            } else if (!isSora2Duration && selectedVideoModel === 'sora2') {
-                              setSelectedVideoModel('auto');
-                            }
                           }}
                         />
                       </div>
@@ -317,20 +311,7 @@ export default function CharacterAdsPage() {
                           <VideoModelSelector
                             credits={9999}
                             selectedModel={selectedVideoModel}
-                            onModelChange={(m) => {
-                              const isSora2Duration = videoDuration === 10 || videoDuration === 20 || videoDuration === 30;
-                              if (isSora2Duration) {
-                                // Only sora2 allowed for 10/20/30
-                                setSelectedVideoModel('sora2');
-                                return;
-                              }
-                              if (!isSora2Duration && m === 'sora2') {
-                                // Disallow sora2 for 8/16/24
-                                setSelectedVideoModel('auto');
-                                return;
-                              }
-                              setSelectedVideoModel(m);
-                            }}
+                            onModelChange={(m) => setSelectedVideoModel(m)}
                             hideCredits={true}
                             showIcon={true}
                             disabledModels={(videoDuration === 10 || videoDuration === 20 || videoDuration === 30)
