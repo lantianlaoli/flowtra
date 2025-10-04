@@ -117,4 +117,4 @@ When modifying any AI prompts in the codebase:
 - `prompts/standard-ads-workflow.md` - Standard Ads complete workflow
 - `prompts/multi-variant-ads-workflow.md` - Multi-Variant Ads complete workflow
 - `prompts/character-ads-workflow.md` - Character Ads complete workflow
-- `prompts/youtube-thumbnail-workflow.md` - YouTube Thumbnail complete workflow
+<!-- YouTube Thumbnail workflow removed -->

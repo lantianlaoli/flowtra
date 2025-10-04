@@ -53,19 +53,6 @@ interface MultiVariantAdsItem {
   elementsData?: Record<string, unknown>;
 }
 
-interface YoutubeThumbnailItem {
-  id: string;
-  title: string;
-  identity_image_url: string;
-  thumbnail_url?: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  credits_cost: number;
-  downloaded: boolean;
-  created_at: string;
-  createdAt: string;
-  error_message?: string;
-  isYoutubeThumbnail: true;
-}
 
 interface CharacterAdsItem {
   id: string;
@@ -85,14 +72,11 @@ interface CharacterAdsItem {
   videoDurationSeconds?: number;
 }
 
-type HistoryItem = StandardAdsItem | MultiVariantAdsItem | YoutubeThumbnailItem | CharacterAdsItem;
+type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem;
 
 const ITEMS_PER_PAGE = 6; // 2 rows × 3 columns = 6 items per page
 
 // Helper functions
-const isYoutubeThumbnail = (item: HistoryItem): item is YoutubeThumbnailItem => {
-  return 'isYoutubeThumbnail' in item && item.isYoutubeThumbnail === true;
-};
 
 const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
   return 'adType' in item && item.adType === 'character';
@@ -113,18 +97,23 @@ export default function HistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<'all' | 'completed' | 'processing' | 'failed'>('all');
-  const [contentFilter, setContentFilter] = useState<'all' | 'video-ads' | 'youtube-thumbnails'>('all');
+  // Content filter simplified: only video ads types remain
+  const [contentFilter, setContentFilter] = useState<'all' | 'video-ads'>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
   const [downloadingVideo, setDownloadingVideo] = useState<string | null>(null);
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [, setDownloadStates] = useState<Record<string, 'idle' | 'processing' | 'success'>>({});
+  // Deprecated YouTube thumbnail helpers (kept to satisfy type system after feature removal)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const youtubeThumbnailStates: Record<string, 'packing' | 'done' | null> = {};
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleYoutubeThumbnailClick = (_item: unknown) => {};
   // Cover UI transient state: 'packing' -> 'done' -> cleared
   const [coverStates, setCoverStates] = useState<Record<string, 'packing' | 'done' | null>>({});
   // Video UI transient state: 'packing' -> 'done' -> cleared
   const [videoStates, setVideoStates] = useState<Record<string, 'packing' | 'done' | null>>({});
-  // YouTube thumbnail UI transient state: 'packing' -> 'done' -> cleared
-  const [youtubeThumbnailStates, setYoutubeThumbnailStates] = useState<Record<string, 'packing' | 'done' | null>>({});
+  // Removed YouTube thumbnail transient state
 
 
   // Memoized filtered history for better performance
@@ -132,15 +121,8 @@ export default function HistoryPage() {
     return history.filter(item => {
       // Status filter
       const statusMatch = filter === 'all' || item.status === filter;
-
-      // Content type filter
-      let contentMatch = true;
-      if (contentFilter === 'video-ads') {
-        contentMatch = !isYoutubeThumbnail(item);
-      } else if (contentFilter === 'youtube-thumbnails') {
-        contentMatch = isYoutubeThumbnail(item);
-      }
-
+      // Only video ads are present now
+      const contentMatch = contentFilter === 'all' || contentFilter === 'video-ads';
       return statusMatch && contentMatch;
     });
   }, [history, filter, contentFilter]);
@@ -188,36 +170,15 @@ export default function HistoryPage() {
 
       setIsLoading(true);
       try {
-        // Fetch both APIs in parallel
-        const [videoResponse, thumbnailResponse] = await Promise.all([
-          fetch('/api/history'),
-          fetch('/api/youtube-thumbnail/history')
-        ]);
+        const videoResponse = await fetch('/api/history');
+        const videoResult = await videoResponse.json();
 
-        const [videoResult, thumbnailResult] = await Promise.all([
-          videoResponse.json(),
-          thumbnailResponse.json()
-        ]);
-
-        let combinedHistory: HistoryItem[] = [];
-
-        if (videoResult.success) {
-          combinedHistory = [...combinedHistory, ...videoResult.history];
-        }
-
-        if (thumbnailResult.success) {
-          const thumbnailItems = thumbnailResult.history.map((item: YoutubeThumbnailItem) => ({
-            ...item,
-            createdAt: item.created_at,
-            isYoutubeThumbnail: true
-          }));
-          combinedHistory = [...combinedHistory, ...thumbnailItems];
-        }
+        const combinedHistory: HistoryItem[] = videoResult.success ? videoResult.history : [];
 
         // Sort by creation date
         combinedHistory.sort((a, b) => {
-          const aDate = isYoutubeThumbnail(a) ? a.created_at : a.createdAt;
-          const bDate = isYoutubeThumbnail(b) ? b.created_at : b.createdAt;
+          const aDate = a.createdAt;
+          const bDate = b.createdAt;
           return new Date(bDate).getTime() - new Date(aDate).getTime();
         });
 
@@ -255,35 +216,16 @@ export default function HistoryPage() {
     let isCancelled = false;
     const poll = async () => {
       try {
-        // Fetch both video ads and YouTube thumbnails
-        const [videoResponse, thumbnailResponse] = await Promise.all([
-          fetch('/api/history'),
-          fetch('/api/youtube-thumbnail/history')
-        ]);
-
+        const videoResponse = await fetch('/api/history');
         const videoResult = await videoResponse.json();
-        const thumbnailResult = await thumbnailResponse.json();
 
         if (!isCancelled) {
-          let combinedHistory: HistoryItem[] = [];
-
-          if (videoResult.success) {
-            combinedHistory = [...combinedHistory, ...videoResult.history];
-          }
-
-          if (thumbnailResult.success) {
-            const thumbnailItems = thumbnailResult.history.map((item: YoutubeThumbnailItem) => ({
-              ...item,
-              createdAt: item.created_at,
-              isYoutubeThumbnail: true
-            }));
-            combinedHistory = [...combinedHistory, ...thumbnailItems];
-          }
+          const combinedHistory: HistoryItem[] = videoResult.success ? videoResult.history : [];
 
           // Sort by creation date
           combinedHistory.sort((a, b) => {
-            const aDate = isYoutubeThumbnail(a) ? a.created_at : a.createdAt;
-            const bDate = isYoutubeThumbnail(b) ? b.created_at : b.createdAt;
+            const aDate = a.createdAt;
+            const bDate = b.createdAt;
             return new Date(bDate).getTime() - new Date(aDate).getTime();
           });
 
@@ -389,7 +331,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     const item = history.find(h => h.id === historyId);
     const isFirstDownload = !item?.downloaded;
 
-    if (!item || isYoutubeThumbnail(item)) return; // Skip for YouTube thumbnails
+    if (!item) return;
 
     // Calculate download cost based on video duration for Character Ads
     let downloadCost = getCreditCost(videoModel);
@@ -448,7 +390,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
           // Update history
           setHistory(prevHistory =>
             prevHistory.map(item =>
-              item.id === historyId && !isYoutubeThumbnail(item)
+              item.id === historyId
                 ? {
                     ...item,
                     downloaded: true,
@@ -490,75 +432,14 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
   const getPackingText = (stage: 'packing' | 'done') =>
     stage === 'packing' ? 'Packing…' : 'Ready!';
 
-  // YouTube thumbnail download function
-  const handleYoutubeThumbnailDownload = async (thumbnailId: string) => {
-    try {
-      const response = await fetch(`/api/youtube-thumbnail/download/${thumbnailId}`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        // Fetch as blob to force background download without navigation
-        const res = await fetch(data.downloadUrl, { mode: 'cors' });
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const contentType = blob.type || 'image/png';
-        const ext = contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' :
-                   contentType.includes('webp') ? 'webp' : 'png';
-
-        // Download the file
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `thumbnail-${thumbnailId}.${ext}`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        // Clean up blob URL
-        URL.revokeObjectURL(url);
-
-        await refetchCredits();
-        // Update history to mark as downloaded
-        setHistory(prevHistory =>
-          prevHistory.map(item =>
-            item.id === thumbnailId && isYoutubeThumbnail(item)
-              ? { ...item, downloaded: true }
-              : item
-          )
-        );
-      } else {
-        const error = await response.json();
-        alert(error.message || 'Download failed');
-      }
-    } catch (error) {
-      console.error('Download failed:', error);
-      alert('Download failed, please retry');
-    }
-  };
-
-  // YouTube thumbnail download handler with animations
-  const handleYoutubeThumbnailClick = async (item: YoutubeThumbnailItem) => {
-    const id = item.id;
-    setYoutubeThumbnailStates(prev => ({ ...prev, [id]: 'packing' }));
-    try {
-      await handleYoutubeThumbnailDownload(item.id);
-      setYoutubeThumbnailStates(prev => ({ ...prev, [id]: 'done' }));
-    } finally {
-      setTimeout(() => {
-        setYoutubeThumbnailStates(prev => ({ ...prev, [id]: null }));
-      }, 1200);
-    }
-  };
+  // Removed YouTube thumbnail download handlers
 
   // Standard ads cover download function (free) — show phrase only, no video download state
   const downloadStandardAdsCover = async (historyId: string) => {
     if (!user?.id) return;
 
     const item = history.find(h => h.id === historyId);
-    if (!item || isYoutubeThumbnail(item) || !('coverImageUrl' in item) || !item.coverImageUrl) return;
+    if (!item || !('coverImageUrl' in item) || !item.coverImageUrl) return;
 
     try {
       // Fetch as blob to force background download without navigation
@@ -587,7 +468,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     if (!user?.id) return;
 
     const item = history.find(h => h.id === historyId);
-    if (!item || isYoutubeThumbnail(item) || !isCharacterAds(item) || !item.coverImageUrl) return;
+    if (!item || !isCharacterAds(item) || !item.coverImageUrl) return;
 
     try {
       // Fetch as blob to force background download without navigation
@@ -713,7 +594,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
 
   // Unified handler to show emotional phrase on Cover click then trigger download
   const handleCoverClick = async (item: HistoryItem) => {
-    if (isYoutubeThumbnail(item)) return;
+    // only for ads content
 
     const id = item.id;
     setCoverStates(prev => ({ ...prev, [id]: 'packing' }));
@@ -737,7 +618,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
 
   // Unified handler to show emotional text on Video click then trigger download
   const handleVideoClick = async (item: HistoryItem) => {
-    if (isYoutubeThumbnail(item)) return;
+    // only for ads content
 
     const id = item.id;
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
@@ -786,8 +667,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                 <div className="bg-gray-50 p-1 rounded-lg inline-flex">
                   {([
                     { value: 'all', label: 'All Content' },
-                    { value: 'video-ads', label: 'Video Ads' },
-                    { value: 'youtube-thumbnails', label: 'YouTube Thumbnails' }
+                    { value: 'video-ads', label: 'Video Ads' }
                   ] as const).map((type) => (
                     <button
                       key={type.value}
@@ -907,17 +787,13 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         </span>
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                        isYoutubeThumbnail(item)
-                          ? 'bg-red-100 text-red-700 border border-red-200'
-                          : isCharacterAds(item)
+                        isCharacterAds(item)
                           ? 'bg-purple-100 text-purple-700 border border-purple-200'
                           : isMultiVariantAds(item)
                           ? 'bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 border border-orange-200'
                           : 'bg-gray-100 text-gray-600 border border-gray-200'
                       }`}>
-                        {isYoutubeThumbnail(item)
-                          ? 'YouTube Thumbnail'
-                          : isCharacterAds(item)
+                        {isCharacterAds(item)
                           ? 'Character Spokesperson'
                           : isMultiVariantAds(item)
                           ? 'Creative Mix'
@@ -929,7 +805,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                     <div 
                       className="relative bg-white"
                       onMouseEnter={() => {
-                        if (item.status === 'completed' && !isYoutubeThumbnail(item) && item.videoUrl) {
+                        if (item.status === 'completed' && item.videoUrl) {
                           setHoveredVideo(item.id);
                         }
                       }}
@@ -938,30 +814,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                       }}
                     >
                       <div className="aspect-[3/4] bg-white relative overflow-hidden">
-                        {isYoutubeThumbnail(item) ? (
-                          // YouTube Thumbnail display
-                          item.thumbnail_url ? (
-                            <RetryImage
-                              src={item.thumbnail_url}
-                              alt={item.title}
-                              width={400}
-                              height={300}
-                              className="w-full h-full object-cover"
-                              maxRetries={8}
-                              retryDelay={1500}
-                            />
-                          ) : (
-                            <RetryImage
-                              src={item.identity_image_url}
-                              alt={item.title}
-                              width={400}
-                              height={300}
-                              className="w-full h-full object-cover"
-                              maxRetries={8}
-                              retryDelay={1500}
-                            />
-                          )
-                        ) : (
+                        {
                           // Regular video ad display
                           item.status === 'completed' && 'videoUrl' in item && item.videoUrl &&
                           (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) &&
@@ -991,7 +844,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                               className="w-full h-full object-cover"
                             />
                           )
-                        )}
+                        }
                       </div>
                       
                     </div>
@@ -1004,11 +857,11 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         <div className="flex items-center text-sm text-gray-500 gap-2">
                           <Clock className="w-4 h-4" />
                           <span className="font-medium">
-                            {formatDate(isYoutubeThumbnail(item) ? item.created_at : item.createdAt)}
+                            {formatDate(item.createdAt)}
                           </span>
                           <span className="text-gray-300">•</span>
                           <span className="text-gray-400">
-                            {formatTime(isYoutubeThumbnail(item) ? item.created_at : item.createdAt)}
+                            {formatTime(item.createdAt)}
                           </span>
                         </div>
                       </div>
@@ -1024,7 +877,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           {item.status === 'failed' && (
                             <div className="flex flex-col gap-2 w-full">
                               {/* Cover Download Button */}
-                              {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl && (
+                              {'coverImageUrl' in item && item.coverImageUrl && (
                                 <button
                                   onClick={() => isMultiVariantAds(item) ?
                                     downloadMultiVariantAdsContent(item.id, 'cover', item.videoModel) :
@@ -1057,251 +910,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           )}
 
                           {item.status === 'completed' && (
-                            <div className="flex flex-col gap-2 w-full">
-                              {isYoutubeThumbnail(item) ? (
-                                // YouTube Thumbnail Download Button with left-right layout
-                                <button
-                                  onClick={() => handleYoutubeThumbnailClick(item)}
-                                  disabled={item.downloaded || youtubeThumbnailStates[item.id] === 'packing' || (!item.downloaded && (!userCredits || userCredits < item.credits_cost))}
-                                  className={`w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg transition-colors ${
-                                    (!item.downloaded && (!userCredits || userCredits < item.credits_cost))
-                                      ? 'text-red-600 hover:bg-red-50'
-                                      : 'text-gray-700 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Download className="w-4 h-4 text-gray-600" />
-                                    <span>Thumbnail</span>
-                                  </div>
-                                  <AnimatePresence mode="wait" initial={false}>
-                                    <motion.div
-                                      key={
-                                        !item.downloaded
-                                          ? (youtubeThumbnailStates[item.id] || 'cost')
-                                          : (youtubeThumbnailStates[item.id] || 'downloaded')
-                                      }
-                                      initial={{ opacity: 0, y: 6 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      exit={{ opacity: 0, y: -6 }}
-                                      transition={{ duration: 0.18 }}
-                                      className={`flex items-center gap-1 ${
-                                        (!item.downloaded && (!userCredits || userCredits < item.credits_cost))
-                                          ? 'text-red-600'
-                                          : youtubeThumbnailStates[item.id] === 'done'
-                                          ? 'text-green-600'
-                                          : 'text-gray-700'
-                                      }`}
-                                    >
-                                      {(() => {
-                                        const isInsufficient = (!item.downloaded && (!userCredits || userCredits < item.credits_cost));
-                                        const isDownloading = youtubeThumbnailStates[item.id] === 'packing' || youtubeThumbnailStates[item.id] === 'done';
-
-                                        if (isInsufficient) {
-                                          return (
-                                            <span className="text-xs font-bold">Insufficient</span>
-                                          );
-                                        }
-                                        if (!item.downloaded) {
-                                          if (isDownloading) {
-                                            return (
-                                              <span className="text-xs font-bold">{youtubeThumbnailStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
-                                            );
-                                          }
-                                          // Show credits cost with coins icon
-                                          return (
-                                            <span className="inline-flex items-center gap-1 text-xs font-bold">
-                                              <Coins className="w-3 h-3" />
-                                              {item.credits_cost}
-                                            </span>
-                                          );
-                                        }
-                                        // Downloaded state
-                                        if (isDownloading) {
-                                          return (
-                                            <span className="text-xs font-bold">{youtubeThumbnailStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
-                                          );
-                                        }
-                                        return (
-                                          <span className="text-xs font-bold">Downloaded</span>
-                                        );
-                                      })()}
-                                    </motion.div>
-                                  </AnimatePresence>
-                                </button>
-                              ) : (
-                                <>
-                                  {/* Cover Download Button (Free) - Both V1 and V2 */}
-                                  {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl && (
-                                    <button
-                                      onClick={() => handleCoverClick(item)}
-                                      className="w-full px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <ImageIcon className="w-4 h-4 text-white" />
-                                        <span>Cover</span>
-                                      </div>
-                                      <AnimatePresence mode="wait" initial={false}>
-                                        <motion.div
-                                          key={coverStates[item.id] || 'free'}
-                                          initial={{ opacity: 0, y: 6 }}
-                                          animate={{ opacity: 1, y: 0 }}
-                                          exit={{ opacity: 0, y: -6 }}
-                                          transition={{ duration: 0.18 }}
-                                          className="flex items-center gap-1 text-green-400"
-                                        >
-                                          <span className="text-xs font-bold">
-                                            {!coverStates[item.id]
-                                              ? 'FREE'
-                                              : coverStates[item.id] === 'packing'
-                                              ? getPackingText('packing')
-                                              : getPackingText('done')}
-                                          </span>
-                                        </motion.div>
-                                      </AnimatePresence>
-                                    </button>
-                                  )}
-
-                                  {/* Video Download Button - Emotional text only, smooth transitions */}
-                                  {!isYoutubeThumbnail(item) && 'videoUrl' in item && item.videoUrl && (
-                                    <button
-                                      onClick={() => handleVideoClick(item)}
-                                      disabled={downloadingVideo === item.id || videoStates[item.id] === 'packing' || (!item.downloaded && ('videoModel' in item) && (!userCredits || userCredits < getCreditCost(item.videoModel)))}
-                                      className={`w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg transition-colors ${
-                                        (!item.downloaded && ('videoModel' in item) && (!userCredits || userCredits < getCreditCost(item.videoModel)))
-                                          ? 'text-red-600 hover:bg-red-50'
-                                          : 'text-gray-700 hover:bg-gray-50'
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <Video className="w-4 h-4 text-gray-600" />
-                                        <span>Video</span>
-                                      </div>
-                                      <AnimatePresence mode="wait" initial={false}>
-                                        <motion.div
-                                          key={
-                                            !item.downloaded
-                                              ? (videoStates[item.id] || 'cost')
-                                              : (videoStates[item.id] || 'downloaded')
-                                          }
-                                          initial={{ opacity: 0, y: 6 }}
-                                          animate={{ opacity: 1, y: 0 }}
-                                          exit={{ opacity: 0, y: -6 }}
-                                          transition={{ duration: 0.18 }}
-                                          className={`flex items-center gap-1 ${
-                                            (!item.downloaded && (!userCredits || userCredits < getCreditCost(item.videoModel)))
-                                              ? 'text-red-600'
-                                              : videoStates[item.id] === 'done'
-                                              ? 'text-green-600'
-                                              : 'text-gray-700'
-                                          }`}
-                                        >
-                                          {(() => {
-                                            const hasVideoModel = 'videoModel' in item;
-                                            const isInsufficient = (!item.downloaded && hasVideoModel && (!userCredits || userCredits < getCreditCost(item.videoModel)));
-                                            const isDownloading = videoStates[item.id] === 'packing' || videoStates[item.id] === 'done';
-                                            if (isInsufficient) {
-                                              return (
-                                                <span className="text-xs font-bold">Insufficient</span>
-                                              );
-                                            }
-                                            if (!item.downloaded) {
-                                              if (isDownloading) {
-                                                return (
-                                                  <span className="text-xs font-bold">{videoStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
-                                                );
-                                              }
-                                              // Show credits based on ad type
-                                              return (
-                                                <span className="inline-flex items-center gap-1 text-xs font-bold">
-                                                  <Coins className="w-3 h-3" />
-                                                  {isCharacterAds(item) ? item.creditsUsed : getCreditCost(item.videoModel)}
-                                                </span>
-                                              );
-                                            }
-                                            // Downloaded state
-                                            if (isDownloading) {
-                                              return (
-                                                <span className="text-xs font-bold">{videoStates[item.id] === 'packing' ? getPackingText('packing') : getPackingText('done')}</span>
-                                              );
-                                            }
-                                            return (
-                                              <span className="text-xs font-bold">Downloaded</span>
-                                            );
-                                          })()}
-                                        </motion.div>
-                                      </AnimatePresence>
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          )}
-
-                          {item.status === 'processing' && (
-                            <div className="flex flex-col gap-2 w-full">
-                              {/* Cover button - enabled if cover is ready, disabled if still generating */}
-                              {!isYoutubeThumbnail(item) && 'coverImageUrl' in item && item.coverImageUrl ? (
-                                // Cover is ready - allow download
-                                <button
-                                  onClick={() => handleCoverClick(item)}
-                                  className="w-full px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black flex items-center justify-between"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <ImageIcon className="w-4 h-4 text-white" />
-                                    <span>Cover</span>
-                                  </div>
-                                  <AnimatePresence mode="wait" initial={false}>
-                                    <motion.div
-                                      key={coverStates[item.id] || 'free'}
-                                      initial={{ opacity: 0, y: 6 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      exit={{ opacity: 0, y: -6 }}
-                                      transition={{ duration: 0.18 }}
-                                      className="flex items-center gap-1 text-green-400"
-                                    >
-                                      <span className="text-xs font-bold">
-                                        {!coverStates[item.id]
-                                          ? 'FREE'
-                                          : coverStates[item.id] === 'packing'
-                                          ? getPackingText('packing')
-                                          : getPackingText('done')}
-                                      </span>
-                                    </motion.div>
-                                  </AnimatePresence>
-                                </button>
-                              ) : (
-                                // Cover still generating - show disabled state
-                                <button
-                                  disabled
-                                  className="w-full py-2.5 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
-                                    <span>Cover</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 text-gray-700">
-                                    <span className="text-xs font-bold">Generating…</span>
-                                  </div>
-                                </button>
-                              )}
-
-                              {/* Video generating button with spinner (hidden for photo-only) */}
-                              {!isYoutubeThumbnail(item) &&
-                               (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) && (
-                                <button
-                                  disabled
-                                  className="w-full py-2.5 flex items-center justify-between px-3 text-sm border border-gray-300 rounded-lg text-gray-700 cursor-not-allowed"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
-                                    <span>Video</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 text-gray-700">
-                                    <span className="text-xs font-bold">{!isYoutubeThumbnail(item) ? (item.progress || 0) : 0}%</span>
-                                  </div>
-                                </button>
-                              )}
-                            </div>
+                            <div className="flex flex-col gap-2 w-full"></div>
                           )}
                         </div>
                       </div>

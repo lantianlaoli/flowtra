@@ -922,7 +922,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Character Ads, YouTube Thumbnail</span>
+                  <span className="text-gray-600">Character Ads</span>
                 </li>
               </ul>
               <PricingButton packageName="lite" />
@@ -961,7 +961,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Character Ads, YouTube Thumbnail</span>
+                  <span className="text-gray-600">Character Ads</span>
                 </li>
               </ul>
               <PricingButton packageName="basic" />
@@ -997,7 +997,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Character Ads, YouTube Thumbnail</span>
+                  <span className="text-gray-600">Character Ads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>

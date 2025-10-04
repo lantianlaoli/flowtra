@@ -24,7 +24,8 @@ export async function GET() {
       totalVideos: 0,
       thisMonth: 0,
       creditsUsed: 0,
-      successRate: 0
+      successRate: 0,
+      hoursSaved: 0,
     };
 
     // Query Standard Ads projects
@@ -51,6 +52,19 @@ export async function GET() {
       console.error('❌ Error querying multi_variant_ads_projects:', errorMultiVariant);
     } else {
       console.log('📈 Multi-Variant Ads records:', multiVariantAdsHistory?.length || 0);
+    }
+
+    // Query Character Ads projects
+    type CharacterAdsRow = { status: string; created_at: string; download_credits_used?: number | null };
+    const { data: characterAdsHistory, error: errorCharacter } = await supabase
+      .from('character_ads_projects')
+      .select('status, created_at, download_credits_used')
+      .eq('user_id', userId);
+
+    if (errorCharacter) {
+      console.error('❌ Error querying character_ads_projects:', errorCharacter);
+    } else {
+      console.log('📈 Character Ads records:', characterAdsHistory?.length || 0);
     }
 
     // Calculate stats from Standard Ads data
@@ -86,6 +100,22 @@ export async function GET() {
       }
     }
 
+    // Calculate stats from Character Ads data
+    if (characterAdsHistory && characterAdsHistory.length > 0) {
+      for (const record of characterAdsHistory as CharacterAdsRow[]) {
+        stats.totalVideos++;
+
+        // Check if this month
+        const recordDate = new Date(record.created_at);
+        if (recordDate >= currentMonthStart && recordDate <= currentMonthEnd) {
+          stats.thisMonth++;
+        }
+
+        // Add credits used (actual download charges)
+        stats.creditsUsed += record.download_credits_used || 0;
+      }
+    }
+
     // Calculate success rate
     let completedCount = 0;
     let totalCount = 0;
@@ -108,10 +138,23 @@ export async function GET() {
       }
     }
 
+    if (characterAdsHistory) {
+      for (const record of characterAdsHistory as CharacterAdsRow[]) {
+        totalCount++;
+        if (record.status === 'completed') {
+          completedCount++;
+        }
+      }
+    }
+
     // Calculate success rate percentage
     if (totalCount > 0) {
       stats.successRate = Math.round((completedCount / totalCount) * 100);
     }
+
+    // Hours Saved = completed videos * baseline hours per video (2h)
+    const HOURS_PER_VIDEO = 2;
+    stats.hoursSaved = completedCount * HOURS_PER_VIDEO;
 
     console.log('✅ Calculated stats:', stats);
 
@@ -128,7 +171,8 @@ export async function GET() {
       totalVideos: 0,
       thisMonth: 0,
       creditsUsed: 0,
-      successRate: 0
+      successRate: 0,
+      hoursSaved: 0,
     };
 
     return NextResponse.json({

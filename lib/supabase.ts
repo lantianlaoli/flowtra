@@ -213,33 +213,7 @@ export const uploadImageToStorage = async (file: File, filename?: string) => {
   }
 }
 
-// Upload identity image for YouTube thumbnail generation
-export const uploadIdentityImageToStorage = async (file: File, userId: string) => {
-  const fileName = `${userId}_${Date.now()}_${file.name}`
-  const filePath = `identity/${fileName}`
-
-  const supabase = getSupabase()
-  const { data, error } = await supabase.storage
-    .from('images')
-    .upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: false
-    })
-
-  if (error) {
-    throw error
-  }
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('images')
-    .getPublicUrl(filePath)
-
-  return {
-    path: data.path,
-    publicUrl,
-    fullUrl: publicUrl
-  }
-}
+// (Removed) uploadIdentityImageToStorage – deprecated with YouTube Thumbnail removal
 
 // Article management functions
 export async function getAllArticles(): Promise<Article[]> {

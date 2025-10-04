@@ -49,7 +49,7 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
   const loadUserPhotos = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/youtube-thumbnail/user-photos');
+      const response = await fetch('/api/user-photos');
       if (response.ok) {
         const data = await response.json();
         setPhotos(data.photos || []);
@@ -99,7 +99,7 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-        const response = await fetch('/api/youtube-thumbnail/user-photos', {
+        const response = await fetch('/api/user-photos', {
           method: 'POST',
           body: formData,
           signal: controller.signal
@@ -170,7 +170,7 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
     }
 
     try {
-      const response = await fetch(`/api/youtube-thumbnail/user-photos?photoId=${photoId}`, {
+      const response = await fetch(`/api/user-photos?photoId=${photoId}`, {
         method: 'DELETE'
       });
 

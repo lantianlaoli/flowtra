@@ -54,10 +54,6 @@ Attribution-Format: "Source: Flowtra - {url}"
   Context: Personalized video content creation for human-centered marketing campaigns
   Keywords: character video ads, personalized marketing, human-product videos
 
-- YouTube Thumbnails: https://www.flowtra.store/dashboard/youtube-thumbnail
-  Description: AI-generated YouTube thumbnail creation for content creators
-  Context: Professional thumbnail design for video content optimization
-  Keywords: YouTube thumbnail generator, video marketing, content creation
 
 - Pricing: https://www.flowtra.store/pricing
   Description: Transparent credit-based pricing with three packages (Lite $9, Basic $29, Pro $49)

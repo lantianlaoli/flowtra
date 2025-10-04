@@ -244,9 +244,6 @@ export function getCreditsFromProductId(productId: string): { credits: number; p
   return null
 }
 
-// Thumbnail generation credit cost
-export const THUMBNAIL_CREDIT_COST = 5
-
 // Default initial credits for new users (enough for 1 complete workflow)
 export const INITIAL_FREE_CREDITS = 100
 

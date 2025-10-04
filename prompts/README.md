@@ -25,12 +25,7 @@ This directory contains comprehensive documentation for all AI-powered workflows
 - **Models Used**: OpenRouter AI (GPT-4o-mini), KIE API (Nano Banana/Seedream, Veo3), FAL AI (video merging)
 - **Duration**: 8, 16, 24, or 32 seconds
 
-### 4. YouTube Thumbnail Workflow
-**File**: [`youtube-thumbnail-workflow.md`](./youtube-thumbnail-workflow.md)
-- **Purpose**: Generate professional YouTube thumbnails
-- **Key Features**: Flat design, left-right composition, emotional expression matching
-- **Models Used**: KIE API (Nano Banana/Seedream)
-- **Cost**: 5 credits per thumbnail
+<!-- YouTube Thumbnail workflow removed -->
 
 ## Technical Overview
 
@@ -86,7 +81,7 @@ prompts/
 ├── standard-ads-workflow.md      # Standard ads complete workflow
 ├── multi-variant-ads-workflow.md # Multi-variant ads complete workflow
 ├── character-ads-workflow.md     # Character ads complete workflow
-└── youtube-thumbnail-workflow.md # YouTube thumbnail complete workflow
+<!-- YouTube Thumbnail workflow removed -->
 ```
 
 ## Support

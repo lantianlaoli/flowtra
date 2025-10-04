@@ -47,11 +47,6 @@ const navigation = [
     icon: Video
   },
   {
-    name: 'YouTube Thumbnail',
-    href: '/dashboard/youtube-thumbnail',
-    icon: ImageIcon
-  },
-  {
     name: 'My Ads',
     href: '/dashboard/videos',
     icon: Play

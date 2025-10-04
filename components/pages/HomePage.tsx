@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
-import { BarChart3, Zap, TrendingUp, Clock, Hand, Award, Brain, Target, Calendar, Volume2, Music, Film, MapPin } from 'lucide-react';
+import { Zap, TrendingUp, Hand, Volume2, VolumeX, Image as ImageIcon, Layers, Video as VideoIcon, BarChart3, Clock } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
-import VideoPlayer from '@/components/ui/VideoPlayer';
+import { useRef, useMemo, useCallback } from 'react';
 
 interface RecentVideo {
   id: string;
@@ -33,7 +32,7 @@ export default function HomePage() {
     totalVideos: 0,
     thisMonth: 0,
     creditsUsed: 0,
-    successRate: 98
+    hoursSaved: 0,
   });
 
   // Fetch recent videos and stats
@@ -88,23 +87,6 @@ export default function HomePage() {
   };
 
 
-
-  const formatRelativeTime = (dateString: string) => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-    
-    if (diffInDays === 0) return 'today';
-    if (diffInDays === 1) return '1 day ago';
-    if (diffInDays < 7) return `${diffInDays} days ago`;
-    if (diffInDays < 30) {
-      const weeks = Math.floor(diffInDays / 7);
-      return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
-    }
-    const months = Math.floor(diffInDays / 30);
-    return months === 1 ? '1 month ago' : `${months} months ago`;
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -166,176 +148,257 @@ export default function HomePage() {
               </div>
             </div>
 
+            {/* Hours Saved */}
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Clock className="w-4 h-4 text-gray-600" />
                 </div>
                 <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-2xl font-bold text-gray-900">{stats.successRate}%</span>
-                  <span className="text-sm font-medium text-gray-600 truncate">Success Rate</span>
+                  <span className="text-2xl font-bold text-gray-900">{stats.hoursSaved}</span>
+                  <span className="text-sm font-medium text-gray-600 truncate">Hours Saved</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Latest Masterpiece Section */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-8">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Award className="w-6 h-6 text-gray-700" />
-                  <h2 className="text-xl font-semibold text-gray-900">Latest Masterpiece</h2>
-                </div>
-                {recentVideos.length > 0 && recentVideos[0].status === 'completed' && (
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
-                    {recentVideos[0].generationTime && (
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        <span>{recentVideos[0].generationTime}min</span>
-                      </div>
+          {/* Discover Section - Pure media masonry grid */}
+          <DiscoverSection />
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Discover Section --- //
+type DiscoverType = 'all' | 'standard' | 'multi-variant' | 'character';
+
+interface DiscoverItem {
+  id: string;
+  type: Exclude<DiscoverType, 'all'>;
+  coverImageUrl: string;
+  videoUrl?: string;
+  createdAt?: string;
+}
+
+function DiscoverSection() {
+  const [filter, setFilter] = useState<DiscoverType>('all');
+  const [items, setItems] = useState<DiscoverItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [audibleId, setAudibleId] = useState<string | null>(null);
+  const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return items;
+    return items.filter(i => i.type === filter);
+  }, [items, filter]);
+
+  const setVideoRef = useCallback((id: string, el: HTMLVideoElement | null) => {
+    videoRefs.current[id] = el;
+  }, []);
+
+  // IntersectionObserver: play/pause based on viewport
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
+    observerRef.current = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const el = entry.target as HTMLVideoElement;
+        if (!el) return;
+        if (entry.isIntersecting) {
+          // Begin silent autoplay
+          el.muted = audibleId !== el.dataset.id; // ensure muted unless this is audible one
+          el.play().catch(() => {});
+        } else {
+          el.pause();
+        }
+      });
+    }, { threshold: 0.25 });
+
+    // Observe all current videos
+    Object.entries(videoRefs.current).forEach(([id, el]) => {
+      if (el) {
+        el.dataset.id = id;
+        observerRef.current?.observe(el);
+      }
+    });
+
+    return () => observerRef.current?.disconnect();
+  }, [filtered, audibleId]);
+
+  // Fetch real data
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch('/api/discover?limit=48');
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed');
+        setItems(data.items || []);
+      } catch (e: unknown) {
+        const err = e as Error;
+        setError(err?.message || 'Failed to load');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  // Hover handlers: exclusive audio on one card
+  const handleMouseEnter = (id: string) => {
+    setAudibleId(id);
+    Object.entries(videoRefs.current).forEach(([vid, el]) => {
+      if (!el) return;
+      if (vid === id) {
+        // Try to unmute; if blocked, stays muted until user clicks volume
+        el.muted = false;
+        el.volume = 1;
+        el.play().catch(() => {});
+      } else {
+        el.muted = true;
+      }
+    });
+  };
+
+  const fadeOutAndMute = (el: HTMLVideoElement) => {
+    const start = el.volume;
+    const duration = 200; // 200ms fade out
+    const startTs = performance.now();
+    const step = (ts: number) => {
+      const p = Math.min(1, (ts - startTs) / duration);
+      const v = start * (1 - p);
+      el.volume = v;
+      if (p < 1) requestAnimationFrame(step);
+      else {
+        el.muted = true;
+        el.volume = 1; // reset for next unmute
+      }
+    };
+    requestAnimationFrame(step);
+  };
+
+  const handleMouseLeave = (id: string) => {
+    if (audibleId === id) setAudibleId(null);
+    const el = videoRefs.current[id];
+    if (el) fadeOutAndMute(el);
+  };
+
+  const toggleVolumeClick = (id: string) => {
+    const el = videoRefs.current[id];
+    if (!el) return;
+    const willUnmute = el.muted;
+    if (willUnmute) {
+      // make this the only audible video
+      setAudibleId(id);
+      Object.entries(videoRefs.current).forEach(([vid, v]) => {
+        if (!v) return;
+        if (vid === id) {
+          v.muted = false;
+          v.volume = 1;
+          v.play().catch(() => {});
+        } else {
+          v.muted = true;
+        }
+      });
+    } else {
+      fadeOutAndMute(el);
+      setAudibleId(null);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+      {/* Icon-only type filter */}
+      <div className="p-3 border-b border-gray-200">
+        <div className="flex items-center gap-2">
+          {(
+            [
+              { k: 'all', icon: ImageIcon, label: 'All' },
+              { k: 'standard', icon: ImageIcon, label: 'Standard' },
+              { k: 'multi-variant', icon: Layers, label: 'Multi-Variant' },
+              { k: 'character', icon: VideoIcon, label: 'Character' },
+            ] as const
+          ).map(({ k, icon: Icon, label }) => (
+            <button
+              key={k}
+              aria-label={label}
+              onClick={() => setFilter(k as DiscoverType)}
+              className={`h-8 px-2.5 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                filter === k ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span className="text-xs font-medium">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Masonry grid */}
+      <div className="p-4">
+        {loading && (
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-48 bg-gray-100 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        )}
+        {!loading && error && (
+          <div className="text-center text-sm text-gray-500 py-8">Failed to load</div>
+        )}
+        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 [column-fill:_balance]"></div>
+        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
+          {filtered.map((item) => (
+            <div key={item.id} className="mb-4 break-inside-avoid">
+              <div
+                className="group relative w-full rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-sm hover:shadow-md transition-all duration-200"
+                onMouseEnter={() => item.videoUrl && handleMouseEnter(item.id)}
+                onMouseLeave={() => item.videoUrl && handleMouseLeave(item.id)}
+              >
+                {/* Cover image */}
+                <img
+                  src={item.coverImageUrl}
+                  alt="ad"
+                  loading="lazy"
+                  className="w-full h-auto block"
+                />
+
+                {/* Auto-playing video overlay (if present) */}
+                {item.videoUrl && (
+                  <video
+                    ref={(el) => setVideoRef(item.id, el)}
+                    src={item.videoUrl}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    playsInline
+                    muted
+                    loop
+                    preload="metadata"
+                    // Allow click-through except on volume btn
+                    style={{ pointerEvents: 'none' }}
+                  />
+                )}
+
+                {/* Volume button: show on hover (desktop) and always on mobile */}
+                {item.videoUrl && (
+                  <button
+                    aria-label="toggle-sound"
+                    onClick={(e) => { e.stopPropagation(); toggleVolumeClick(item.id); }}
+                    className="absolute top-2 right-2 p-2 rounded-full bg-black/50 text-white opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  >
+                    {audibleId === item.id ? (
+                      <Volume2 className="w-4 h-4" />
+                    ) : (
+                      <VolumeX className="w-4 h-4" />
                     )}
-                    {recentVideos[0].modelUsed && (
-                      <div className="flex items-center gap-1">
-                        <Target className="w-4 h-4" />
-                        <span>{recentVideos[0].modelUsed.replace(' Fast', '').replace(' High Quality', ' HQ')}</span>
-                      </div>
-                    )}
-                    {recentVideos[0].creditsConsumed && (
-                      <div className="flex items-center gap-1">
-                        <Zap className="w-4 h-4" />
-                        <span>{recentVideos[0].creditsConsumed}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>{formatRelativeTime(recentVideos[0].createdAt)}</span>
-                    </div>
-                  </div>
+                  </button>
                 )}
               </div>
             </div>
-            
-            <div className="p-6">
-              {recentVideos.length > 0 && recentVideos[0].status === 'completed' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                  {/* Left Side - Large Video Preview */}
-                  <div className="lg:col-span-3">
-                    <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 relative group">
-                      <VideoPlayer 
-                        src={recentVideos[0].videoUrl!} 
-                        className="w-full h-full object-cover"
-                        showControls={true}
-                        autoPlay={true}
-                        loop={true}
-                      />
-                      <div className="absolute top-4 right-4 bg-black/50 rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Volume2 className="w-5 h-5 text-white" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Side - Creative Elements Panel */}
-                  <div className="lg:col-span-2 flex flex-col h-full">
-                    <div className="bg-gray-50 rounded-lg p-4 flex-1">
-                      <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wide mb-4">Creative Elements</h3>
-                      
-                      {recentVideos[0].creativePrompt ? (
-                        <div className="space-y-4 h-full">
-                          {/* Music */}
-                          {recentVideos[0].creativePrompt.music && (
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <div className="flex items-start gap-3">
-                                <Music className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
-                                <div className="min-w-0 flex-1">
-                                  <h4 className="font-medium text-gray-900 text-sm mb-1">Music</h4>
-                                  <p className="text-sm text-gray-700 line-clamp-2">
-                                    {recentVideos[0].creativePrompt.music}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Action */}
-                          {recentVideos[0].creativePrompt.action && (
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <div className="flex items-start gap-3">
-                                <Film className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
-                                <div className="min-w-0 flex-1">
-                                  <h4 className="font-medium text-gray-900 text-sm mb-1">Action</h4>
-                                  <p className="text-sm text-gray-700 line-clamp-2">
-                                    {recentVideos[0].creativePrompt.action}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Ending */}
-                          {recentVideos[0].creativePrompt.ending && (
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <div className="flex items-start gap-3">
-                                <Target className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
-                                <div className="min-w-0 flex-1">
-                                  <h4 className="font-medium text-gray-900 text-sm mb-1">Ending</h4>
-                                  <p className="text-sm text-gray-700 line-clamp-2">
-                                    {recentVideos[0].creativePrompt.ending}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Setting */}
-                          {recentVideos[0].creativePrompt.setting && (
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <div className="flex items-start gap-3">
-                                <MapPin className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
-                                <div className="min-w-0 flex-1">
-                                  <h4 className="font-medium text-gray-900 text-sm mb-1">Setting</h4>
-                                  <p className="text-sm text-gray-700 line-clamp-2">
-                                    {recentVideos[0].creativePrompt.setting}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center h-32 text-gray-500">
-                          <div className="text-center">
-                            <Brain className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                            <p className="text-sm">Creative elements will appear here</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-16">
-                  <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Award className="w-10 h-10 text-gray-400" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                    Ready to Create Your First Masterpiece?
-                  </h3>
-                  <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                    Let AI help you craft your first professional advertisement video that converts viewers into customers.
-                  </p>
-                  <Link
-                    href="/dashboard/standard-ads"
-                    className="inline-flex items-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-xl hover:bg-gray-800 transition-colors font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-                  >
-                    <Zap className="w-5 h-5" />
-                    Start Creating
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-
+          ))}
         </div>
       </div>
     </div>
