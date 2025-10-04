@@ -78,7 +78,7 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
 #### image_urls
 - **Type**: `array`
 - **Required**: Yes
-- **Description**: List of URLs of input images for editing,up to 5 images.
+- **Description**: List of URLs of input images for editing,up to 10 images.
 - **Max File Size**: 10MB
 - **Accepted File Types**: image/jpeg, image/png, image/webp
 - **Multiple Files**: Yes
@@ -93,19 +93,6 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
   - `jpeg`: JPEG
 - **Default Value**: `"png"`
 
-#### image_size
-- **Type**: `string`
-- **Required**: No
-- **Description**: Auto (default) is native resolution, while any other aspect ratio invokes an external reframe api and costs extra credits.
-- **Options**:
-  - `auto`: Auto
-  - `1:1`: Square
-  - `3:4`: Portrait 3:4
-  - `9:16`: Portrait 9:16
-  - `4:3`: Landscape 4:3
-  - `16:9`: Landscape 16:9
-- **Default Value**: `"auto"`
-
 ### Request Example
 
 ```json
@@ -114,8 +101,7 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
   "input": {
     "prompt": "turn this photo into a character figure. Behind it, place a box with the character’s image printed on it, and a computer showing the Blender modeling process on its screen. In front of the box, add a round plastic base with the character figure standing on it. set the scene indoors if possible",
     "image_urls": ["https://file.aiquickdraw.com/custom-page/akr/section-images/1756223420389w8xa2jfe.png"],
-    "output_format": "png",
-    "image_size": "auto"
+    "output_format": "png"
   }
 }
 ```
@@ -162,7 +148,7 @@ GET https://api.kie.ai/api/v1/jobs/recordInfo?taskId=281e5b0********************
     "taskId": "281e5b0*********************f39b9",
     "model": "google/nano-banana-edit",
     "state": "waiting",
-    "param": "{\"model\":\"google/nano-banana-edit\",\"input\":{\"prompt\":\"turn this photo into a character figure. Behind it, place a box with the character’s image printed on it, and a computer showing the Blender modeling process on its screen. In front of the box, add a round plastic base with the character figure standing on it. set the scene indoors if possible\",\"image_urls\":[\"https://file.aiquickdraw.com/custom-page/akr/section-images/1756223420389w8xa2jfe.png\"],\"output_format\":\"png\",\"image_size\":\"auto\"}}",
+    "param": "{\"model\":\"google/nano-banana-edit\",\"input\":{\"prompt\":\"turn this photo into a character figure. Behind it, place a box with the character’s image printed on it, and a computer showing the Blender modeling process on its screen. In front of the box, add a round plastic base with the character figure standing on it. set the scene indoors if possible\",\"image_urls\":[\"https://file.aiquickdraw.com/custom-page/akr/section-images/1756223420389w8xa2jfe.png\"],\"output_format\":\"png\"}}",
     "resultJson": "{\"resultUrls\":[\"https://file.aiquickdraw.com/custom-page/akr/section-images/1756260298615p09gs2nz.webp\"]}",
     "failCode": null,
     "failMsg": null,

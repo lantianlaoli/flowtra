@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
 import { CREDIT_COSTS, getActualModel, getActualImageModel } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
+import { recordCharacterAdsEvent } from '@/lib/character-ads-tracking';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,13 +21,14 @@ export async function POST(request: NextRequest) {
     const userId = formData.get('user_id') as string;
     const videoDurationSeconds = parseInt(formData.get('video_duration_seconds') as string);
     const imageModel = formData.get('image_model') as string;
+    const imageSize = formData.get('image_size') as string;
     const videoModel = formData.get('video_model') as string;
     const accent = formData.get('accent') as string;
     const videoAspectRatio = (formData.get('video_aspect_ratio') as '16:9' | '9:16') || '16:9';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const selectedProductId = formData.get('selected_product_id') as string;
 
-    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, videoModel, accent, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId });
+    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, imageSize, videoModel, accent, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId });
 
     if (!userId || !videoDurationSeconds || !imageModel || !videoModel || !accent) {
       return NextResponse.json(
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Validate models and accent
     const validImageModels = ['auto', 'nano_banana', 'seedream'];
-    const validVideoModels = ['auto', 'veo3', 'veo3_fast'];
+    const validVideoModels = ['auto', 'veo3', 'veo3_fast', 'sora2'];
     const validAccents = ['australian', 'american', 'british', 'canadian', 'irish', 'south_african'];
 
     if (!validImageModels.includes(imageModel)) {
@@ -62,6 +64,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Sora2 model is now supported directly
+    if (videoModel === 'sora2') {
+      console.log('🚀 Using Sora2 model - premium video generation');
+    }
+
     if (!validAccents.includes(accent)) {
       return NextResponse.json(
         { error: 'Invalid accent' },
@@ -74,7 +81,10 @@ export async function POST(request: NextRequest) {
     const personFiles: File[] = [];
 
     if (selectedPersonPhotoUrl) {
-      personImageUrls.push(selectedPersonPhotoUrl);
+      // Clean up the URL by removing backticks and extra spaces
+      const cleanUrl = selectedPersonPhotoUrl.replace(/`/g, '').trim();
+      console.log('Using selected person photo URL:', cleanUrl);
+      personImageUrls.push(cleanUrl);
     } else {
       for (const [key, value] of formData.entries()) {
         if (key.startsWith('person_image_') && value instanceof File) {
@@ -88,30 +98,38 @@ export async function POST(request: NextRequest) {
     const productFiles: File[] = [];
 
     if (selectedProductId) {
-      // Get product images from database via user_product_photos table
-      const supabase = getSupabaseAdmin();
-      const { data: productPhotos, error: productError } = await supabase
-        .from('user_product_photos')
-        .select('photo_url')
-        .eq('product_id', selectedProductId)
-        .eq('user_id', userId);
+      // Check if it's a temporary product (starts with "temp:")
+      if (selectedProductId.startsWith('temp:')) {
+        // Extract URL from temp format: "temp: URL"
+        const tempUrl = selectedProductId.replace(/^temp:\s*`?([^`]+)`?$/, '$1').trim();
+        console.log('Using temporary product URL:', tempUrl);
+        productImageUrls.push(tempUrl);
+      } else {
+        // Get product images from database via user_product_photos table
+        const supabase = getSupabaseAdmin();
+        const { data: productPhotos, error: productError } = await supabase
+          .from('user_product_photos')
+          .select('photo_url')
+          .eq('product_id', selectedProductId)
+          .eq('user_id', userId);
 
-      if (productError) {
-        console.error('Error fetching product photos:', productError);
-        return NextResponse.json(
-          { error: 'Failed to fetch product photos' },
-          { status: 400 }
-        );
+        if (productError) {
+          console.error('Error fetching product photos:', productError);
+          return NextResponse.json(
+            { error: 'Failed to fetch product photos' },
+            { status: 400 }
+          );
+        }
+
+        if (!productPhotos || productPhotos.length === 0) {
+          return NextResponse.json(
+            { error: 'No photos found for selected product' },
+            { status: 400 }
+          );
+        }
+
+        productImageUrls.push(...productPhotos.map(photo => photo.photo_url));
       }
-
-      if (!productPhotos || productPhotos.length === 0) {
-        return NextResponse.json(
-          { error: 'No photos found for selected product' },
-          { status: 400 }
-        );
-      }
-
-      productImageUrls.push(...productPhotos.map(photo => photo.photo_url));
     } else {
       for (const [key, value] of formData.entries()) {
         if (key.startsWith('product_image_') && value instanceof File) {
@@ -153,12 +171,16 @@ export async function POST(request: NextRequest) {
 
     // Convert 'auto' values to actual models using constants
     const actualImageModel = getActualImageModel(imageModel as 'auto' | 'nano_banana' | 'seedream');
-    const actualVideoModel = getActualModel(videoModel as 'auto' | 'veo3' | 'veo3_fast', 1000); // Assume sufficient credits for model selection
-
-    // Calculate credits cost using constants
+    const actualVideoModel = getActualModel(videoModel as 'auto' | 'veo3' | 'veo3_fast' | 'sora2', 1000); // Assume sufficient credits for model selection
+    const resolvedVideoModel = (actualVideoModel
+      ?? (videoModel === 'auto'
+        ? 'veo3_fast'
+        : (videoModel as 'veo3' | 'veo3_fast' | 'sora2')));
+    
+    // Calculate credits cost using constants (use actual model for cost calculation)
     const imageCredits = 0; // Image generation is free according to constants
     const videoScenes = videoDurationSeconds / 8;
-    const videoCreditsPerScene = actualVideoModel ? CREDIT_COSTS[actualVideoModel] : CREDIT_COSTS.veo3_fast;
+    const videoCreditsPerScene = CREDIT_COSTS[resolvedVideoModel];
     const totalCredits = imageCredits + (videoScenes * videoCreditsPerScene);
 
     // Create project in database
@@ -171,7 +193,8 @@ export async function POST(request: NextRequest) {
         product_image_urls: productImageUrls,
         video_duration_seconds: videoDurationSeconds,
         image_model: actualImageModel,
-        video_model: actualVideoModel,
+        // image_size: imageSize, // Temporarily commented out until DB migration is applied
+        video_model: resolvedVideoModel,
         video_aspect_ratio: videoAspectRatio,
         accent: accent,
         credits_cost: totalCredits,
@@ -189,6 +212,19 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    await recordCharacterAdsEvent({
+      projectId: project.id,
+      userId: project.user_id,
+      status: project.status,
+      currentStep: project.current_step,
+      progressPercentage: project.progress_percentage,
+      message: 'Character spokesperson ad project created',
+      metadata: {
+        source: 'api',
+        action: 'create'
+      }
+    });
 
     // Start the workflow by triggering image analysis
     // This will be handled by a separate background process or webhook

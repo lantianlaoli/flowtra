@@ -7,8 +7,8 @@ import { CREDIT_COSTS, canAffordModel, getAutoModeSelection, getProcessingTime }
 
 interface VideoModelSelectorProps {
   credits: number;
-  selectedModel: 'auto' | 'veo3' | 'veo3_fast';
-  onModelChange: (model: 'auto' | 'veo3' | 'veo3_fast') => void;
+  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2';
+  onModelChange: (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2') => void;
   label?: string;
   className?: string;
   showIcon?: boolean;
@@ -61,6 +61,16 @@ export default function VideoModelSelector({
         affordable: canAffordModel(credits, 'veo3_fast'),
         showCost: !hideCredits,
         features: 'Fast processing'
+      },
+      {
+        value: 'sora2',
+        label: 'Sora2',
+        description: '',
+        cost: CREDIT_COSTS.sora2,
+        processingTime: getProcessingTime('sora2'),
+        affordable: canAffordModel(credits, 'sora2'),
+        showCost: !hideCredits,
+        features: 'Ultra premium'
       }
     ];
   };
@@ -104,7 +114,7 @@ export default function VideoModelSelector({
 
   const selectedOption = modelOptions.find(opt => opt.value === selectedModel);
 
-  const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast', affordable: boolean) => {
+  const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast' | 'sora2', affordable: boolean) => {
     if (!affordable) return; // Prevent selection of unaffordable options
     onModelChange(value);
     try {
@@ -142,7 +152,7 @@ export default function VideoModelSelector({
             {modelOptions.map((option) => (
               <button
                 key={option.value}
-                onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast', option.affordable)}
+                onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2', option.affordable)}
                 disabled={!option.affordable}
                 className={cn(
                   "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between",

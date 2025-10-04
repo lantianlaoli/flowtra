@@ -2,6 +2,7 @@
 export const CREDIT_COSTS = {
   'veo3_fast': 30,    // Veo3 Fast: 30 credits per video
   'veo3': 150,        // Veo3 High Quality: 150 credits per video
+  'sora2': 200,       // Sora2: 200 credits per video (premium model)
   'download': 18,     // Download cost (60% of veo3_fast)
 } as const
 
@@ -9,6 +10,30 @@ export const CREDIT_COSTS = {
 export const IMAGE_MODELS = {
   'nano_banana': 'google/nano-banana-edit',
   'seedream': 'bytedance/seedream-v4-edit'
+} as const
+
+// Image size options for different models
+export const IMAGE_SIZE_OPTIONS = {
+  'nano_banana': ['auto'], // Banana only supports auto (no size parameter)
+  'seedream': [
+    'auto',
+    'square',
+    'square_hd', 
+    'portrait_4_3',
+    'portrait_3_2',
+    'portrait_16_9',
+    'landscape_4_3',
+    'landscape_3_2', 
+    'landscape_16_9',
+    'landscape_21_9'
+  ]
+} as const
+
+// Video aspect ratio options for different models
+export const VIDEO_ASPECT_RATIO_OPTIONS = {
+  'veo3': ['16:9', '9:16'],
+  'veo3_fast': ['16:9', '9:16'],
+  'sora2': ['16:9', '9:16'] // Sora2 supports both portrait and landscape
 } as const
 
 // Credit costs for different image models (all free)
@@ -21,6 +46,7 @@ export const IMAGE_CREDIT_COSTS = {
 export const MODEL_PROCESSING_TIMES = {
   'veo3_fast': '2-3 min',    // Veo3 Fast: 2-3 minutes processing time
   'veo3': '5-8 min',         // Veo3 High Quality: 5-8 minutes processing time
+  'sora2': '8-12 min',       // Sora2: 8-12 minutes processing time (premium quality)
 } as const
 
 // Processing times for different image models
@@ -121,19 +147,21 @@ export function getImageCreditCost(model: keyof typeof IMAGE_CREDIT_COSTS): numb
 }
 
 // Auto mode intelligent model selection based on user credits (prioritize fastest)
-export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' | null {
+export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | null {
   // Prioritize fastest model first
   if (userCredits >= CREDIT_COSTS.veo3_fast) {
     return 'veo3_fast'
   } else if (userCredits >= CREDIT_COSTS.veo3) {
     return 'veo3'
+  } else if (userCredits >= CREDIT_COSTS.sora2) {
+    return 'sora2'
   } else {
     return null // Insufficient credits for any model
   }
 }
 
 // Check if user has sufficient credits for a model
-export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 'veo3_fast'): boolean {
+export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2'): boolean {
   if (model === 'auto') {
     return userCredits >= CREDIT_COSTS.veo3_fast // Auto requires at least the cheapest model
   }
@@ -141,17 +169,17 @@ export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 've
 }
 
 // Get the actual model that will be used (resolves auto to specific model)
-export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast', userCredits: number): 'veo3' | 'veo3_fast' | null {
+export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2', userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | null {
   if (selectedModel === 'auto') {
     return getAutoModeSelection(userCredits)
   }
   return canAffordModel(userCredits, selectedModel) ? selectedModel : null
 }
 
-// Auto mode intelligent image model selection (prioritize fastest)
+// Auto mode intelligent image model selection (prioritize seedream for better aspect ratio support)
 export function getAutoImageModeSelection(): 'nano_banana' | 'seedream' {
-  // Always return fastest since all are free
-  return 'nano_banana'
+  // Return seedream as default since it supports more aspect ratios (16:9, 9:16)
+  return 'seedream'
 }
 
 // Check if user has sufficient credits for an image model (always true since free)
@@ -221,6 +249,32 @@ export const KIE_CREDIT_THRESHOLD = (() => {
 // - Image description: 1-2 credits (OpenRouter API)
 // - Prompt generation: 1-2 credits (OpenRouter API) 
 // - Cover generation: ~10-15 credits (Kie.ai GPT4O-Image)
-// - Video generation: 30 credits (Veo3 Fast) or 150 credits (Veo3)
+// - Video generation: 30 credits (Veo3 Fast) or 150 credits (Veo3) or 200 credits (Sora2)
 // Total for complete workflow with Veo3 Fast: ~45-50 credits
 // With 100 free credits, users can complete 2 full workflows
+
+// Get image size options for a specific model
+export function getImageSizeOptions(model: 'nano_banana' | 'seedream'): readonly string[] {
+  return IMAGE_SIZE_OPTIONS[model]
+}
+
+// Get video aspect ratio options for a specific model
+export function getVideoAspectRatioOptions(model: 'veo3' | 'veo3_fast' | 'sora2'): readonly string[] {
+  return VIDEO_ASPECT_RATIO_OPTIONS[model]
+}
+
+// Get auto image size based on video aspect ratio for seedream
+export function getAutoImageSize(videoAspectRatio: '16:9' | '9:16', imageModel: 'nano_banana' | 'seedream'): string {
+  if (imageModel === 'nano_banana') {
+    return 'auto' // Banana only supports auto
+  }
+  
+  // For seedream, map video aspect ratio to image size
+  if (videoAspectRatio === '16:9') {
+    return 'landscape_16_9'
+  } else if (videoAspectRatio === '9:16') {
+    return 'portrait_16_9'
+  }
+  
+  return 'auto' // fallback
+}

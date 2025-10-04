@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { IMAGE_MODELS } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { recordCharacterAdsEvent } from '@/lib/character-ads-tracking';
 
 // Helper function to generate voice type based on accent and gender
 function generateVoiceType(accent: string, isMale: boolean): string {
@@ -26,6 +27,7 @@ interface CharacterAdsProject {
   product_image_urls: string[];
   video_duration_seconds: number;
   image_model: string;
+  image_size?: string;
   video_model: string;
   video_aspect_ratio?: string;
   accent: string;
@@ -274,25 +276,35 @@ Generate prompts for ${videoScenes} video scenes (8 seconds each) plus 1 image s
 }
 
 // Helper function to get correct parameters for different image models
-function getImageModelParameters(model: string): Record<string, unknown> {
+function getImageModelParameters(model: string, customImageSize?: string, videoAspectRatio?: string): Record<string, unknown> {
   // Handle both short names and full model names
   if (model === IMAGE_MODELS.nano_banana || model === 'nano_banana' || model.includes('nano-banana')) {
     // Nano Banana parameters (google/nano-banana-edit)
+    // Note: Nano Banana doesn't support size parameter, so we ignore customImageSize
     return {
-      image_size: "16:9",  // Landscape 16:9 format
       output_format: "png"
     };
   } else if (model === IMAGE_MODELS.seedream || model === 'seedream' || model.includes('seedream')) {
     // Seedream V4 parameters (bytedance/seedream-v4-edit)
+    let imageSize = customImageSize;
+    
+    // If no custom size or auto, determine based on video aspect ratio
+    if (!imageSize || imageSize === 'auto') {
+      if (videoAspectRatio === '9:16') {
+        imageSize = 'portrait_16_9';
+      } else {
+        imageSize = 'landscape_16_9'; // Default for 16:9 or unknown
+      }
+    }
+    
     return {
-      image_size: "landscape_16_9",
+      image_size: imageSize,
       image_resolution: "1K",
       max_images: 1
     };
   } else {
     // Default to Nano Banana format for unknown models
     return {
-      image_size: "16:9",
       output_format: "png"
     };
   }
@@ -302,10 +314,12 @@ function getImageModelParameters(model: string): Record<string, unknown> {
 async function generateImageWithKIE(
   prompt: Record<string, unknown>,
   imageModel: string,
-  referenceImages: string[]
+  referenceImages: string[],
+  customImageSize?: string,
+  videoAspectRatio?: string
 ): Promise<{ taskId: string }> {
   // Get the correct parameters for this model
-  const modelParams = getImageModelParameters(imageModel);
+  const modelParams = getImageModelParameters(imageModel, customImageSize, videoAspectRatio);
 
   // Debug logging for image model parameters
   console.log('Character Ads - Image model:', imageModel);
@@ -360,24 +374,43 @@ async function generateVideoWithKIE(
   referenceImageUrl: string,
   videoAspectRatio?: '16:9' | '9:16'
 ): Promise<{ taskId: string }> {
-  // Convert prompt object to string for veo3 API
+  // Convert prompt object to string for API
   const finalPrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
 
-  // Use correct veo3 API structure
-  const requestBody = {
-    prompt: finalPrompt,
-    model: videoModel, // e.g., 'veo3_fast' or 'veo3'
-    aspectRatio: videoAspectRatio || "16:9",
-    imageUrls: [referenceImageUrl], // Correct parameter name and format
-    enableAudio: true,
-    audioEnabled: true,
-    generateVoiceover: false,
-    includeDialogue: false
-  };
+  let requestBody: Record<string, unknown>;
+  let apiEndpoint: string;
 
-  console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
+  if (videoModel === 'sora2') {
+    // Sora2 API structure
+    requestBody = {
+      model: 'sora-2-image-to-video',
+      input: {
+        prompt: finalPrompt,
+        image_urls: [referenceImageUrl],
+        aspect_ratio: videoAspectRatio === '9:16' ? 'portrait' : 'landscape',
+        quality: 'standard'
+      }
+    };
+    apiEndpoint = 'https://api.kie.ai/api/v1/jobs/createTask';
+  } else {
+    // VEO3 API structure (veo3_fast, veo3)
+    requestBody = {
+      prompt: finalPrompt,
+      model: videoModel, // e.g., 'veo3_fast' or 'veo3'
+      aspectRatio: videoAspectRatio || "16:9",
+      imageUrls: [referenceImageUrl], // Correct parameter name and format
+      enableAudio: true,
+      audioEnabled: true,
+      generateVoiceover: false,
+      includeDialogue: false
+    };
+    apiEndpoint = 'https://api.kie.ai/api/v1/veo/generate';
+  }
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
+  console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
+  console.log('Video API endpoint:', apiEndpoint);
+
+  const response = await fetchWithRetry(apiEndpoint, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -493,8 +526,78 @@ async function checkKIEVideoTaskStatus(taskId: string): Promise<{
 
   const taskData = data.data;
   if (!taskData) {
-    return { status: 'processing' };
+  return { status: 'processing' };
+}
+
+// Model-aware video task status checker
+// - For 'sora2', query the generic jobs endpoint (same as image tasks)
+// - For VEO models, fall back to the existing VEO status endpoint
+async function checkKIEVideoTaskStatusByModel(taskId: string, videoModel: string): Promise<{
+  status: string;
+  result_url?: string;
+  error?: string;
+}> {
+  try {
+    if (videoModel === 'sora2') {
+      // Sora2 tasks are created via jobs/createTask and polled via jobs/recordInfo
+      const response = await fetchWithRetry(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+        headers: {
+          'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+        }
+      }, 5, 30000);
+
+      if (!response.ok) {
+        throw new Error(`KIE Sora2 task status check failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.code !== 200) {
+        throw new Error(`KIE Sora2 task status check failed: ${data.msg || 'Unknown error'}`);
+      }
+
+      const taskData = data.data;
+      if (!taskData) return { status: 'processing' };
+
+      // Reuse robust extraction logic similar to image status
+      const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
+      const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+
+      let resultJson: Record<string, unknown> = {};
+      try {
+        resultJson = JSON.parse(taskData.resultJson || '{}');
+      } catch {
+        resultJson = {};
+      }
+
+      const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
+        ? (resultJson as { resultUrls?: string[] }).resultUrls
+        : undefined;
+      const responseUrls = Array.isArray(taskData.response?.resultUrls)
+        ? (taskData.response.resultUrls as string[])
+        : undefined;
+      const flatUrls = Array.isArray(taskData.resultUrls)
+        ? (taskData.resultUrls as string[])
+        : undefined;
+      const result_url = (directUrls || responseUrls || flatUrls)?.[0];
+
+      const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!result_url && (state === undefined));
+      const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+
+      if (isSuccess) return { status: 'completed', result_url };
+      if (isFailed) return { status: 'failed', error: taskData.failMsg || taskData.errorMessage || 'Video generation failed' };
+      return { status: 'processing' };
+    }
+
+    // Default path for VEO models
+    return await checkKIEVideoTaskStatus(taskId);
+  } catch (err) {
+    return {
+      status: 'failed',
+      error: err instanceof Error ? err.message : 'Unknown error'
+    };
   }
+}
 
   // Use the same robust logic as other features - prioritize successFlag
   const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
@@ -669,6 +772,19 @@ export async function processCharacterAdsProject(
 
         if (error) throw error;
 
+        await recordCharacterAdsEvent({
+          projectId: updatedProject.id,
+          userId: updatedProject.user_id ?? project.user_id,
+          status: updatedProject.status,
+          currentStep: updatedProject.current_step,
+          progressPercentage: updatedProject.progress_percentage,
+          message: 'Image analysis completed successfully',
+          metadata: {
+            source: 'workflow',
+            step: 'analyze_images'
+          }
+        });
+
         return {
           project: updatedProject,
           message: 'Image analysis completed successfully',
@@ -737,6 +853,19 @@ export async function processCharacterAdsProject(
 
         if (error) throw error;
 
+        await recordCharacterAdsEvent({
+          projectId: updatedProject.id,
+          userId: updatedProject.user_id ?? project.user_id,
+          status: updatedProject.status,
+          currentStep: updatedProject.current_step,
+          progressPercentage: updatedProject.progress_percentage,
+          message: 'Prompts generated successfully',
+          metadata: {
+            source: 'workflow',
+            step: 'generate_prompts'
+          }
+        });
+
         return {
           project: updatedProject,
           message: 'Prompts generated successfully',
@@ -757,11 +886,19 @@ export async function processCharacterAdsProject(
 
         // Map short model name to full KIE model name
         const fullModelName = IMAGE_MODELS[project.image_model as keyof typeof IMAGE_MODELS] || project.image_model;
+        
+        // Legacy projects may have stored sora2 as veo3_fast with an error_message flag
+        const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
+        const actualVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
+        
+        console.log(`🎬 Video model detection: stored=${project.video_model}, resolved=${actualVideoModel}, legacyFlag=${project.error_message}`);
 
         const { taskId } = await generateImageWithKIE(
           imagePrompt as Record<string, unknown>,
           fullModelName,
-          referenceImages
+          referenceImages,
+          project.image_size,
+          project.video_aspect_ratio
         );
 
         // Update project and scene
@@ -778,6 +915,19 @@ export async function processCharacterAdsProject(
           .single();
 
         if (error) throw error;
+
+        await recordCharacterAdsEvent({
+          projectId: updatedProject.id,
+          userId: updatedProject.user_id ?? project.user_id,
+          status: updatedProject.status,
+          currentStep: updatedProject.current_step,
+          progressPercentage: updatedProject.progress_percentage,
+          message: 'Image generation started',
+          metadata: {
+            source: 'workflow',
+            step: 'generate_image'
+          }
+        });
 
         // Update scene 0
         await supabase
@@ -831,6 +981,19 @@ export async function processCharacterAdsProject(
             .eq('project_id', project.id)
             .eq('scene_number', 0);
 
+          await recordCharacterAdsEvent({
+            projectId: updatedProject.id,
+            userId: updatedProject.user_id ?? project.user_id,
+            status: updatedProject.status,
+            currentStep: updatedProject.current_step,
+            progressPercentage: updatedProject.progress_percentage,
+            message: 'Image generation completed',
+            metadata: {
+              source: 'workflow',
+              step: 'check_image_status'
+            }
+          });
+
           return {
             project: updatedProject,
             message: 'Image generation completed',
@@ -855,6 +1018,12 @@ export async function processCharacterAdsProject(
           throw new Error('Generated image not found - required for video generation');
         }
 
+        // Legacy projects may have stored sora2 as veo3_fast with an error_message flag
+        const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
+        const actualVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
+        
+        console.log(`🎬 Video generation - stored model: ${project.video_model}, resolved model: ${actualVideoModel}`);
+
         const videoScenes = project.video_duration_seconds / 8;
         const videoTaskIds = [];
 
@@ -864,7 +1033,7 @@ export async function processCharacterAdsProject(
 
           const { taskId } = await generateVideoWithKIE(
             videoPrompt as Record<string, unknown>,
-            project.video_model,
+            actualVideoModel, // Use actual video model (sora2 if detected)
             project.generated_image_url, // Use generated image as reference
             project.video_aspect_ratio as '16:9' | '9:16' | undefined
           );
@@ -897,6 +1066,19 @@ export async function processCharacterAdsProject(
 
         if (error) throw error;
 
+        await recordCharacterAdsEvent({
+          projectId: updatedProject.id,
+          userId: updatedProject.user_id ?? project.user_id,
+          status: updatedProject.status,
+          currentStep: updatedProject.current_step,
+          progressPercentage: updatedProject.progress_percentage,
+          message: 'Video generation started for all scenes',
+          metadata: {
+            source: 'workflow',
+            step: 'generate_videos'
+          }
+        });
+
         return {
           project: updatedProject,
           message: 'Video generation started for all scenes',
@@ -913,9 +1095,14 @@ export async function processCharacterAdsProject(
         const videoUrls = [];
         let allCompleted = true;
 
+        // Resolve actual video model (handle legacy sora2 storage)
+        const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
+        const actualVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
+        console.log(`🎬 Checking video status - stored model: ${project.video_model}, resolved model: ${actualVideoModel}`);
+
         for (let i = 0; i < project.kie_video_task_ids.length; i++) {
           const taskId = project.kie_video_task_ids[i];
-          const status = await checkKIEVideoTaskStatus(taskId);
+          const status = await checkKIEVideoTaskStatusByModel(taskId, actualVideoModel);
 
           if (status.status === 'completed' && status.result_url) {
             videoUrls.push(status.result_url);
@@ -957,6 +1144,19 @@ export async function processCharacterAdsProject(
 
             if (error) throw error;
 
+            await recordCharacterAdsEvent({
+              projectId: updatedProject.id,
+              userId: updatedProject.user_id ?? project.user_id,
+              status: updatedProject.status,
+              currentStep: updatedProject.current_step,
+              progressPercentage: updatedProject.progress_percentage,
+              message: 'Video generation completed (no merge needed for 8s)',
+              metadata: {
+                source: 'workflow',
+                step: 'check_videos_status'
+              }
+            });
+
             return {
               project: updatedProject,
               message: 'Video generation completed (no merge needed for 8s)'
@@ -977,6 +1177,19 @@ export async function processCharacterAdsProject(
               .single();
 
             if (error) throw error;
+
+            await recordCharacterAdsEvent({
+              projectId: updatedProject.id,
+              userId: updatedProject.user_id ?? project.user_id,
+              status: updatedProject.status,
+              currentStep: updatedProject.current_step,
+              progressPercentage: updatedProject.progress_percentage,
+              message: 'All videos generated, starting merge',
+              metadata: {
+                source: 'workflow',
+                step: 'check_videos_status'
+              }
+            });
 
             return {
               project: updatedProject,
@@ -1018,6 +1231,19 @@ export async function processCharacterAdsProject(
 
         if (error) throw error;
 
+        await recordCharacterAdsEvent({
+          projectId: updatedProject.id,
+          userId: updatedProject.user_id ?? project.user_id,
+          status: updatedProject.status,
+          currentStep: updatedProject.current_step,
+          progressPercentage: updatedProject.progress_percentage,
+          message: 'Video merging started',
+          metadata: {
+            source: 'workflow',
+            step: 'merge_videos'
+          }
+        });
+
         return {
           project: updatedProject,
           message: 'Video merging started',
@@ -1051,6 +1277,19 @@ export async function processCharacterAdsProject(
             .single();
 
           if (error) throw error;
+
+          await recordCharacterAdsEvent({
+            projectId: updatedProject.id,
+            userId: updatedProject.user_id ?? project.user_id,
+            status: updatedProject.status,
+            currentStep: updatedProject.current_step,
+            progressPercentage: updatedProject.progress_percentage,
+            message: 'Video merging completed successfully',
+            metadata: {
+              source: 'workflow',
+              step: 'check_merge_status'
+            }
+          });
 
           return {
             project: updatedProject,
@@ -1091,6 +1330,20 @@ export async function processCharacterAdsProject(
         last_processed_at: new Date().toISOString()
       })
       .eq('id', project.id);
+
+    await recordCharacterAdsEvent({
+      projectId: project.id,
+      userId: project.user_id,
+      status: 'failed',
+      currentStep: project.current_step,
+      progressPercentage: project.progress_percentage,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      metadata: {
+        source: 'workflow',
+        step,
+        event: 'error'
+      }
+    });
 
     throw error;
   }

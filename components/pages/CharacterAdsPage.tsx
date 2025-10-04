@@ -8,6 +8,7 @@ import UserPhotoGallery from '@/components/UserPhotoGallery';
 import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
+import SizeSelector from '@/components/ui/SizeSelector';
 import AccentSelector, { AccentType } from '@/components/ui/AccentSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
@@ -35,8 +36,9 @@ export default function CharacterAdsPage() {
   const [personImages, setPersonImages] = useState<File[]>([]);
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
   const [videoDuration, setVideoDuration] = useState<8 | 16 | 24>(8);
-  const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
-  const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
+  const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>('auto');
+  const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('seedream');
+  const [imageSize, setImageSize] = useState<string>('auto');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [selectedAccent, setSelectedAccent] = useState<AccentType>('australian');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
@@ -134,6 +136,7 @@ export default function CharacterAdsPage() {
       }
       formData.append('video_duration_seconds', videoDuration.toString());
       formData.append('image_model', selectedImageModel);
+      formData.append('image_size', imageSize);
       formData.append('video_model', selectedVideoModel);
       formData.append('video_aspect_ratio', videoAspectRatio);
       formData.append('accent', selectedAccent);
@@ -312,11 +315,23 @@ export default function CharacterAdsPage() {
                         </div>
                       </div>
 
+                      {/* Image Size Selection */}
+                      <div>
+                        <SizeSelector
+                          selectedSize={imageSize}
+                          onSizeChange={setImageSize}
+                          imageModel={selectedImageModel === 'auto' ? 'seedream' : selectedImageModel}
+                          videoAspectRatio={videoAspectRatio}
+                          showIcon={true}
+                        />
+                      </div>
+
                       {/* Video Aspect Ratio */}
                       <div>
                         <VideoAspectRatioSelector
                           selectedAspectRatio={videoAspectRatio}
                           onAspectRatioChange={setVideoAspectRatio}
+                          videoModel={selectedVideoModel}
                           showIcon={true}
                         />
                       </div>

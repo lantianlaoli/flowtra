@@ -52,7 +52,7 @@ interface CharacterAdsItem {
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
-  videoModel: 'veo3' | 'veo3_fast';
+  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;
@@ -201,6 +201,8 @@ export async function GET() {
     const transformedCharacterAdsHistory: CharacterAdsItem[] = (characterAdsItems || [])
       .map(item => {
         const mappedStatus = mapWorkflowStatus(item.status);
+        const storedVideoModel = item.video_model as 'veo3' | 'veo3_fast' | 'sora2';
+        const resolvedVideoModel = item.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
 
         // For completed items, ensure we have the correct video URL
         let videoUrl: string | undefined;
@@ -222,7 +224,7 @@ export async function GET() {
           downloaded: item.downloaded || false,
           downloadCreditsUsed: item.download_credits_used || 0,
           generationCreditsUsed: 0, // Generation is free, credits only used on download
-          videoModel: item.video_model,
+          videoModel: resolvedVideoModel,
           creditsUsed: item.credits_cost || 0,
           status: mappedStatus,
           createdAt: item.created_at,

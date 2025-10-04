@@ -12,6 +12,7 @@ interface ImageModelSelectorProps {
   label?: string;
   className?: string;
   showIcon?: boolean;
+  defaultModel?: 'auto' | 'nano_banana' | 'seedream';
 }
 
 export default function ImageModelSelector({

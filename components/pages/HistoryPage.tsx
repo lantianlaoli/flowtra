@@ -75,7 +75,7 @@ interface CharacterAdsItem {
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
-  videoModel: 'veo3' | 'veo3_fast';
+  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;
@@ -383,7 +383,7 @@ export default function HistoryPage() {
   // Removed unused getStepMessage helper to satisfy lint
 
   // Download function for videos (supports V1, V2, and Character Ads)
-  const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast') => {
+const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast' | 'sora2') => {
     if (!user?.id || !userCredits) return;
 
     const item = history.find(h => h.id === historyId);

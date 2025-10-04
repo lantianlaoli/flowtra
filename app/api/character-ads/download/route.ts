@@ -71,7 +71,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Calculate download cost based on video duration and model
-      const baseCostPer8s = getCreditCost(project.video_model as 'veo3' | 'veo3_fast');
+      const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
+      const resolvedVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
+      const baseCostPer8s = getCreditCost(resolvedVideoModel);
       const downloadCost = Math.round((videoDurationSeconds || project.video_duration_seconds || 8) / 8 * baseCostPer8s);
 
       // Check if user has enough credits
@@ -94,7 +96,11 @@ export async function POST(request: NextRequest) {
       }
 
       // Record credit transaction
-      const modelDisplay = project.video_model === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast';
+      const modelDisplay = resolvedVideoModel === 'veo3'
+        ? 'VEO3 High Quality'
+        : resolvedVideoModel === 'sora2'
+          ? 'Sora2 Premium'
+          : 'VEO3 Fast';
       const durationDisplay = `${project.video_duration_seconds}s`;
       const { error: transactionError } = await supabase
         .from('credit_transactions')

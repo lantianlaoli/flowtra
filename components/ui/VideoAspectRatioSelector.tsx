@@ -3,10 +3,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check, Monitor, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getVideoAspectRatioOptions } from '@/lib/constants';
 
 interface VideoAspectRatioSelectorProps {
   selectedAspectRatio: '16:9' | '9:16';
   onAspectRatioChange: (aspectRatio: '16:9' | '9:16') => void;
+  videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2';
   label?: string;
   className?: string;
   showIcon?: boolean;
@@ -15,6 +17,7 @@ interface VideoAspectRatioSelectorProps {
 export default function VideoAspectRatioSelector({
   selectedAspectRatio,
   onAspectRatioChange,
+  videoModel = 'auto',
   label = 'Video Format',
   className,
   showIcon = false
@@ -23,8 +26,21 @@ export default function VideoAspectRatioSelector({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
 
-  // Aspect ratio options with detailed platform descriptions
-  const aspectRatioOptions = [
+  // Get available aspect ratios based on video model
+  const getAvailableAspectRatios = () => {
+    // For auto mode, show all options (will be resolved later)
+    if (videoModel === 'auto') {
+      return ['16:9', '9:16'];
+    }
+    
+    // Get options from constants based on actual model
+    return getVideoAspectRatioOptions(videoModel);
+  };
+
+  const availableRatios = getAvailableAspectRatios();
+
+  // All aspect ratio options with detailed platform descriptions
+  const allAspectRatioOptions = [
     {
       value: '16:9' as const,
       label: 'Landscape',
@@ -44,6 +60,11 @@ export default function VideoAspectRatioSelector({
       note: 'Optimized for mobile viewing'
     }
   ];
+
+  // Filter options based on available ratios for the selected model
+  const aspectRatioOptions = allAspectRatioOptions.filter(option => 
+    availableRatios.includes(option.value)
+  );
 
   // Close dropdown when clicking outside
   useEffect(() => {

@@ -3,10 +3,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check, Crop, Square, Smartphone, Monitor, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getImageSizeOptions, getAutoImageSize } from '@/lib/constants';
 
 interface SizeSelectorProps {
   selectedSize: string;
   onSizeChange: (size: string) => void;
+  imageModel?: 'nano_banana' | 'seedream';
+  videoAspectRatio?: '16:9' | '9:16';
   label?: string;
   className?: string;
   showIcon?: boolean;
@@ -15,6 +18,8 @@ interface SizeSelectorProps {
 export default function SizeSelector({
   selectedSize,
   onSizeChange,
+  imageModel = 'seedream',
+  videoAspectRatio = '16:9',
   label = 'Image Format',
   className,
   showIcon = false
@@ -23,19 +28,45 @@ export default function SizeSelector({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
 
-  // Size options with user-facing scenario descriptions
-  const sizeOptions = [
+  // Get available size options based on image model
+  const getAvailableSizes = () => {
+    if (!imageModel) return ['auto'];
+    return getImageSizeOptions(imageModel);
+  };
+
+  const availableSizes = getAvailableSizes();
+
+  // Get auto size description based on current settings
+  const getAutoDescription = () => {
+    if (imageModel === 'nano_banana') {
+      return 'Preserves original dimensions';
+    }
+    
+    if (imageModel === 'seedream' && videoAspectRatio) {
+      const autoSize = getAutoImageSize(videoAspectRatio, imageModel);
+      if (autoSize === 'landscape_16_9') {
+        return 'Matches video format (16:9)';
+      } else if (autoSize === 'portrait_16_9') {
+        return 'Matches video format (9:16)';
+      }
+    }
+    
+    return 'Smart size selection';
+  };
+
+  // All size options with user-facing scenario descriptions
+  const allSizeOptions = [
     {
       value: 'auto',
-      label: 'Native',
-      subtitle: 'Auto',
-      description: 'Preserves original dimensions',
-      platforms: 'Product photos, e-commerce listings',
+      label: 'Auto',
+      subtitle: 'Smart',
+      description: getAutoDescription(),
+      platforms: imageModel === 'nano_banana' ? 'Original dimensions' : 'Matches video format',
       icon: Square,
       ratio: null
     },
     {
-      value: '1:1',
+      value: 'square',
       label: 'Square',
       subtitle: '1:1',
       description: 'Perfect square format',
@@ -44,7 +75,16 @@ export default function SizeSelector({
       ratio: '1:1'
     },
     {
-      value: '3:4',
+      value: 'square_hd',
+      label: 'Square HD',
+      subtitle: '1:1 HD',
+      description: 'High quality square',
+      platforms: 'Premium Instagram posts',
+      icon: Square,
+      ratio: '1:1'
+    },
+    {
+      value: 'portrait_4_3',
       label: 'Portrait',
       subtitle: '3:4',
       description: 'Vertical content format',
@@ -53,7 +93,16 @@ export default function SizeSelector({
       ratio: '3:4'
     },
     {
-      value: '9:16',
+      value: 'portrait_3_2',
+      label: 'Portrait',
+      subtitle: '2:3',
+      description: 'Classic portrait format',
+      platforms: 'Print media, professional photos',
+      icon: Smartphone,
+      ratio: '2:3'
+    },
+    {
+      value: 'portrait_16_9',
       label: 'Vertical',
       subtitle: '9:16',
       description: 'Mobile-first vertical',
@@ -62,7 +111,7 @@ export default function SizeSelector({
       ratio: '9:16'
     },
     {
-      value: '4:3',
+      value: 'landscape_4_3',
       label: 'Standard',
       subtitle: '4:3',
       description: 'Traditional display format',
@@ -71,15 +120,38 @@ export default function SizeSelector({
       ratio: '4:3'
     },
     {
-      value: '16:9',
+      value: 'landscape_3_2',
+      label: 'Classic',
+      subtitle: '3:2',
+      description: 'Classic landscape format',
+      platforms: 'Photography, print media',
+      icon: Monitor,
+      ratio: '3:2'
+    },
+    {
+      value: 'landscape_16_9',
       label: 'Widescreen',
       subtitle: '16:9',
       description: 'Cinematic widescreen',
       platforms: 'YouTube covers, banner ads',
       icon: Video,
       ratio: '16:9'
+    },
+    {
+      value: 'landscape_21_9',
+      label: 'Ultra Wide',
+      subtitle: '21:9',
+      description: 'Ultra-wide cinematic',
+      platforms: 'Banner ads, hero images',
+      icon: Video,
+      ratio: '21:9'
     }
   ];
+
+  // Filter options based on available sizes for the selected model
+  const sizeOptions = allSizeOptions.filter(option => 
+    availableSizes.includes(option.value)
+  );
 
   // Close dropdown when clicking outside
   useEffect(() => {
