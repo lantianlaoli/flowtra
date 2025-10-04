@@ -529,6 +529,50 @@ async function checkKIEVideoTaskStatus(taskId: string): Promise<{
   return { status: 'processing' };
 }
 
+ 
+
+  // Use the same robust logic as other features - prioritize successFlag
+  const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+  const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
+
+  // Extract video URL from multiple possible locations
+  let result_url: string | undefined;
+  if (taskData.outputUrl) {
+    result_url = taskData.outputUrl;
+  } else if (taskData.response?.resultUrls?.[0]) {
+    result_url = taskData.response.resultUrls[0];
+  }
+
+  if (successFlag === 1) {
+    return {
+      status: 'completed',
+      result_url,
+      error: undefined
+    };
+  } else if (successFlag === 2 || successFlag === 3) {
+    return {
+      status: 'failed',
+      result_url: undefined,
+      error: taskData.errorMessage || taskData.failureReason || 'Video generation failed'
+    };
+  } else if (state === 'success') {
+    return {
+      status: 'completed',
+      result_url,
+      error: undefined
+    };
+  } else if (state === 'failed') {
+    return {
+      status: 'failed',
+      result_url: undefined,
+      error: taskData.errorMessage || taskData.failureReason || 'Video generation failed'
+    };
+  } else {
+    // Still processing (waiting, running, or other states)
+    return { status: 'processing' };
+  }
+}
+
 // Model-aware video task status checker
 // - For 'sora2', query the generic jobs endpoint (same as image tasks)
 // - For VEO models, fall back to the existing VEO status endpoint
@@ -596,48 +640,6 @@ async function checkKIEVideoTaskStatusByModel(taskId: string, videoModel: string
       status: 'failed',
       error: err instanceof Error ? err.message : 'Unknown error'
     };
-  }
-}
-
-  // Use the same robust logic as other features - prioritize successFlag
-  const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
-  const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
-
-  // Extract video URL from multiple possible locations
-  let result_url: string | undefined;
-  if (taskData.outputUrl) {
-    result_url = taskData.outputUrl;
-  } else if (taskData.response?.resultUrls?.[0]) {
-    result_url = taskData.response.resultUrls[0];
-  }
-
-  if (successFlag === 1) {
-    return {
-      status: 'completed',
-      result_url,
-      error: undefined
-    };
-  } else if (successFlag === 2 || successFlag === 3) {
-    return {
-      status: 'failed',
-      result_url: undefined,
-      error: taskData.errorMessage || taskData.failureReason || 'Video generation failed'
-    };
-  } else if (state === 'success') {
-    return {
-      status: 'completed',
-      result_url,
-      error: undefined
-    };
-  } else if (state === 'failed') {
-    return {
-      status: 'failed',
-      result_url: undefined,
-      error: taskData.errorMessage || taskData.failureReason || 'Video generation failed'
-    };
-  } else {
-    // Still processing (waiting, running, or other states)
-    return { status: 'processing' };
   }
 }
 

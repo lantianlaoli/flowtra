@@ -20,7 +20,7 @@ export async function POST() {
     }
     
     // Let's also check the table definition
-    const { data: tableInfo, error: tableError } = await supabase
+    const { error: tableError } = await supabase
       .from('character_ads_projects')
       .select('*')
       .limit(0); // Just get the structure

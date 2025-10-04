@@ -23,7 +23,7 @@ import { UserProduct } from '@/lib/supabase';
 export default function MultiVariantAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, refetchCredits } = useCredits();
-  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
+  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>('auto');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [elementsCount, setElementsCount] = useState(2);
@@ -43,6 +43,8 @@ export default function MultiVariantAdsPage() {
   
   // Get the actual models to use for the workflow
   const actualModel = getActualModel(selectedModel, userCredits || 0) || 'veo3_fast';
+  // Multi-variant workflow does not support Sora2; coerce to supported model
+  const actualModelForWorkflow: 'veo3' | 'veo3_fast' = (actualModel === 'sora2' ? 'veo3' : actualModel) as 'veo3' | 'veo3_fast';
   const actualImageModel = getActualImageModel(selectedImageModel);
 
   const {
@@ -54,7 +56,7 @@ export default function MultiVariantAdsPage() {
     resetWorkflow
   } = useMultiVariantAdsWorkflow(
     user?.id,
-    actualModel,
+    actualModelForWorkflow,
     actualImageModel,
     elementsCount,
     adCopy,
@@ -65,7 +67,7 @@ export default function MultiVariantAdsPage() {
     videoAspectRatio
   );
 
-  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
+  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2') => {
     setSelectedModel(model);
   };
 

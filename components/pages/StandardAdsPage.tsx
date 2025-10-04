@@ -32,7 +32,7 @@ interface KieCreditsStatus {
 export default function StandardAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
-  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast'>('auto');
+  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>('auto');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
@@ -48,7 +48,7 @@ export default function StandardAdsPage() {
   const [showProductManager, setShowProductManager] = useState(false);
   
   
-  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast') => {
+  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2') => {
     setSelectedModel(model);
   };
 
@@ -63,7 +63,16 @@ export default function StandardAdsPage() {
     startWorkflowWithSelectedProduct,
     startWorkflowWithTemporaryImages,
     resetWorkflow
-  } = useStandardAdsWorkflow(user?.id, selectedModel, selectedImageModel, updateCredits, refetchCredits, elementsCount, imageSize);
+  } = useStandardAdsWorkflow(
+    user?.id,
+    // Standard workflow does not support Sora2; coerce to supported model
+    (selectedModel === 'sora2' ? 'veo3' : selectedModel) as 'auto' | 'veo3' | 'veo3_fast',
+    selectedImageModel,
+    updateCredits,
+    refetchCredits,
+    elementsCount,
+    imageSize
+  );
 
 
   // Check KIE credits on page load
