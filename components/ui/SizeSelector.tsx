@@ -54,7 +54,7 @@ export default function SizeSelector({
     return 'Smart size selection';
   };
 
-  // All size options with user-facing scenario descriptions
+  // All size options with user-facing scenario descriptions (paired adjacently)
   const allSizeOptions = [
     {
       value: 'auto',
@@ -74,6 +74,7 @@ export default function SizeSelector({
       icon: Square,
       ratio: '1:1'
     },
+    // Keep Square HD after Square (shown for models that support it)
     {
       value: 'square_hd',
       label: 'Square HD',
@@ -83,24 +84,7 @@ export default function SizeSelector({
       icon: Square,
       ratio: '1:1'
     },
-    {
-      value: 'portrait_4_3',
-      label: 'Portrait',
-      subtitle: '3:4',
-      description: 'Vertical content format',
-      platforms: 'Instagram Feed, Facebook vertical',
-      icon: Smartphone,
-      ratio: '3:4'
-    },
-    {
-      value: 'portrait_3_2',
-      label: 'Portrait',
-      subtitle: '2:3',
-      description: 'Classic portrait format',
-      platforms: 'Print media, professional photos',
-      icon: Smartphone,
-      ratio: '2:3'
-    },
+    // 9:16 ↔ 16:9
     {
       value: 'portrait_16_9',
       label: 'Vertical',
@@ -111,6 +95,16 @@ export default function SizeSelector({
       ratio: '9:16'
     },
     {
+      value: 'landscape_16_9',
+      label: 'Widescreen',
+      subtitle: '16:9',
+      description: 'Cinematic widescreen',
+      platforms: 'YouTube covers, banner ads',
+      icon: Video,
+      ratio: '16:9'
+    },
+    // 4:5 ↔ 5:4
+    {
       value: 'portrait_5_4',
       label: 'Portrait',
       subtitle: '4:5',
@@ -118,24 +112,6 @@ export default function SizeSelector({
       platforms: 'Pinterest, flyers, posters',
       icon: Smartphone,
       ratio: '4:5'
-    },
-    {
-      value: 'landscape_4_3',
-      label: 'Standard',
-      subtitle: '4:3',
-      description: 'Traditional display format',
-      platforms: 'Facebook ads, presentations',
-      icon: Monitor,
-      ratio: '4:3'
-    },
-    {
-      value: 'landscape_3_2',
-      label: 'Classic',
-      subtitle: '3:2',
-      description: 'Classic landscape format',
-      platforms: 'Photography, print media',
-      icon: Monitor,
-      ratio: '3:2'
     },
     {
       value: 'landscape_5_4',
@@ -147,13 +123,40 @@ export default function SizeSelector({
       ratio: '5:4'
     },
     {
-      value: 'landscape_16_9',
-      label: 'Widescreen',
-      subtitle: '16:9',
-      description: 'Cinematic widescreen',
-      platforms: 'YouTube covers, banner ads',
-      icon: Video,
-      ratio: '16:9'
+      value: 'landscape_4_3',
+      label: 'Standard',
+      subtitle: '4:3',
+      description: 'Traditional display format',
+      platforms: 'Facebook ads, presentations',
+      icon: Monitor,
+      ratio: '4:3'
+    },
+    {
+      value: 'portrait_4_3',
+      label: 'Portrait',
+      subtitle: '3:4',
+      description: 'Vertical content format',
+      platforms: 'Instagram Feed, Facebook vertical',
+      icon: Smartphone,
+      ratio: '3:4'
+    },
+    {
+      value: 'landscape_3_2',
+      label: 'Classic',
+      subtitle: '3:2',
+      description: 'Classic landscape format',
+      platforms: 'Photography, print media',
+      icon: Monitor,
+      ratio: '3:2'
+    },
+    {
+      value: 'portrait_3_2',
+      label: 'Portrait',
+      subtitle: '2:3',
+      description: 'Classic portrait format',
+      platforms: 'Print media, professional photos',
+      icon: Smartphone,
+      ratio: '2:3'
     },
     {
       value: 'landscape_21_9',
