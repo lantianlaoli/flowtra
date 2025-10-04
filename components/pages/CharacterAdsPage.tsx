@@ -35,7 +35,7 @@ export default function CharacterAdsPage() {
   // Form state
   const [personImages, setPersonImages] = useState<File[]>([]);
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
-  const [videoDuration, setVideoDuration] = useState<8 | 16 | 24>(8);
+  const [videoDuration, setVideoDuration] = useState<8 | 10 | 16 | 20 | 24 | 30>(8);
   const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>('auto');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('seedream');
   const [imageSize, setImageSize] = useState<string>('auto');
@@ -290,7 +290,8 @@ export default function CharacterAdsPage() {
                         </div>
                         <VideoDurationSelector
                           value={videoDuration}
-                          onChange={setVideoDuration}
+                          onChange={(d) => setVideoDuration(d)}
+                          hideSora2Durations={true}
                         />
                       </div>
 
@@ -308,9 +309,10 @@ export default function CharacterAdsPage() {
                           <VideoModelSelector
                             credits={9999}
                             selectedModel={selectedVideoModel}
-                            onModelChange={setSelectedVideoModel}
+                            onModelChange={(m) => setSelectedVideoModel(m === 'sora2' ? 'auto' : m)}
                             hideCredits={true}
                             showIcon={true}
+                            disabledModels={['sora2']}
                           />
                         </div>
                       </div>

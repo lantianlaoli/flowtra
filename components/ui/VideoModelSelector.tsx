@@ -13,6 +13,7 @@ interface VideoModelSelectorProps {
   className?: string;
   showIcon?: boolean;
   hideCredits?: boolean;
+  disabledModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>; // Disable options due to external constraints (e.g., duration)
 }
 
 export default function VideoModelSelector({
@@ -22,7 +23,8 @@ export default function VideoModelSelector({
   label = 'Video Model',
   className,
   showIcon = false,
-  hideCredits = false
+  hideCredits = false,
+  disabledModels = []
 }: VideoModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -149,14 +151,17 @@ export default function VideoModelSelector({
             ref={optionsRef}
             className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-48 overflow-y-auto"
           >
-            {modelOptions.map((option) => (
+            {modelOptions.map((option) => {
+              const disabledByConstraint = disabledModels.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2');
+              const isDisabled = !option.affordable || disabledByConstraint;
+              return (
               <button
                 key={option.value}
-                onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2', option.affordable)}
-                disabled={!option.affordable}
+                onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2', !isDisabled)}
+                disabled={isDisabled}
                 className={cn(
                   "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between",
-                  !option.affordable
+                  isDisabled
                     ? "cursor-not-allowed opacity-50 bg-gray-50"
                     : "hover:bg-gray-100 cursor-pointer",
                   selectedModel === option.value
@@ -175,27 +180,27 @@ export default function VideoModelSelector({
                         <div className="text-xs text-gray-500">{option.features}</div>
                       )}
                     </div>
-                    {!option.affordable && (
+                    {isDisabled && (
                       <Lock className="w-3 h-3 text-gray-400" />
                     )}
                   </div>
                   {option.showCost && (
                     <div className={cn(
                       "flex items-center gap-1 text-xs font-medium",
-                      option.affordable ? "text-gray-600" : "text-red-500"
+                      !isDisabled ? "text-gray-600" : "text-red-500"
                     )}>
                       <Coins className="w-3 h-3" />
                       <span>{option.cost}</span>
                     </div>
                   )}
                 </div>
-                {selectedModel === option.value && option.affordable && (
+                {selectedModel === option.value && !isDisabled && (
                   <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
                     <Check className="h-2.5 w-2.5 text-white" />
                   </div>
                 )}
               </button>
-            ))}
+            )})}
           </div>
         )}
       </div>

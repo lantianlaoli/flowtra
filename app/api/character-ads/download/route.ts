@@ -35,9 +35,11 @@ export async function POST(request: NextRequest) {
 
 
     // Check if project has downloadable video
-    // For 8-second videos, accept single generated video; for others, require merged video
+    // Accept single generated video when only one scene is generated (8s for VEO*, 10s for Sora2)
     let videoUrl = project.merged_video_url;
-    if (!videoUrl && project.video_duration_seconds === 8 && project.generated_video_urls?.length > 0) {
+    const unitSeconds = (project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : project.video_model) === 'sora2' ? 10 : 8;
+    const totalScenes = (project.video_duration_seconds || 8) / unitSeconds;
+    if (!videoUrl && totalScenes === 1 && project.generated_video_urls?.length > 0) {
       videoUrl = project.generated_video_urls[0];
     }
 
@@ -73,8 +75,9 @@ export async function POST(request: NextRequest) {
       // Calculate download cost based on video duration and model
       const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
       const resolvedVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
-      const baseCostPer8s = getCreditCost(resolvedVideoModel);
-      const downloadCost = Math.round((videoDurationSeconds || project.video_duration_seconds || 8) / 8 * baseCostPer8s);
+      const unitSecondsCost = resolvedVideoModel === 'sora2' ? 10 : 8;
+      const baseCostPerUnit = getCreditCost(resolvedVideoModel);
+      const downloadCost = Math.round((videoDurationSeconds || project.video_duration_seconds || 8) / unitSecondsCost * baseCostPerUnit);
 
       // Check if user has enough credits
       if (userCredits.credits_remaining < downloadCost) {

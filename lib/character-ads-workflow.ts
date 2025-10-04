@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { IMAGE_MODELS } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { recordCharacterAdsEvent } from '@/lib/character-ads-tracking';
+// Events table removed: no tracking imports
 
 // Helper function to generate voice type based on accent and gender
 function generateVoiceType(accent: string, isMale: boolean): string {
@@ -138,8 +138,9 @@ Important:
 }
 
 // Generate prompts based on analysis and long_ads.md specifications
-async function generatePrompts(analysisResult: Record<string, unknown>, videoDurationSeconds: number, accent: string): Promise<Record<string, unknown>> {
-  const videoScenes = videoDurationSeconds / 8; // Each scene is 8 seconds
+async function generatePrompts(analysisResult: Record<string, unknown>, videoDurationSeconds: number, accent: string, videoModel: 'veo3' | 'veo3_fast' | 'sora2'): Promise<Record<string, unknown>> {
+  const unitSeconds = videoModel === 'sora2' ? 10 : 8;
+  const videoScenes = videoDurationSeconds / unitSeconds; // Scene length depends on model
 
   // Extract character information to determine appropriate voice type
   const characterInfo = (analysisResult as { character?: { visual_description?: string } })?.character?.visual_description || '';
@@ -186,7 +187,7 @@ For Scene 0 (image prompt):
 - IMPORTANT: Keep the character consistent with the reference image analysis
 
 For Scene 1+ (video prompts):
-- Each scene is 8 seconds long
+- Each scene is ${unitSeconds} seconds long
 - Include dialogue with casual, spontaneous tone (under 150 characters)
 - Describe accent and voice style consistently
 - Prefix video prompts with: "dialogue, the character in the video says:"
@@ -229,7 +230,7 @@ Return in JSON format:
   const userPrompt = `Description of the reference images are given below:
 ${JSON.stringify(analysisResult, null, 2)}
 
-Generate prompts for ${videoScenes} video scenes (8 seconds each) plus 1 image scene.`;
+Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) plus 1 image scene.`;
 
   const requestBody = JSON.stringify({
     model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
@@ -774,18 +775,7 @@ export async function processCharacterAdsProject(
 
         if (error) throw error;
 
-        await recordCharacterAdsEvent({
-          projectId: updatedProject.id,
-          userId: updatedProject.user_id ?? project.user_id,
-          status: updatedProject.status,
-          currentStep: updatedProject.current_step,
-          progressPercentage: updatedProject.progress_percentage,
-          message: 'Image analysis completed successfully',
-          metadata: {
-            source: 'workflow',
-            step: 'analyze_images'
-          }
-        });
+        // No event recording
 
         return {
           project: updatedProject,
@@ -805,11 +795,13 @@ export async function processCharacterAdsProject(
         const prompts = await generatePrompts(
           project.image_analysis_result,
           project.video_duration_seconds,
-          project.accent
+          project.accent,
+          (project.video_model as 'veo3' | 'veo3_fast' | 'sora2')
         );
 
         // Create scene records
-        const videoScenes = project.video_duration_seconds / 8;
+        const unitSeconds = (project.video_model === 'sora2') ? 10 : 8;
+        const videoScenes = project.video_duration_seconds / unitSeconds;
         const sceneRecords = [];
 
         // Scene 0 - Image
@@ -855,18 +847,7 @@ export async function processCharacterAdsProject(
 
         if (error) throw error;
 
-        await recordCharacterAdsEvent({
-          projectId: updatedProject.id,
-          userId: updatedProject.user_id ?? project.user_id,
-          status: updatedProject.status,
-          currentStep: updatedProject.current_step,
-          progressPercentage: updatedProject.progress_percentage,
-          message: 'Prompts generated successfully',
-          metadata: {
-            source: 'workflow',
-            step: 'generate_prompts'
-          }
-        });
+        // No event recording
 
         return {
           project: updatedProject,
@@ -918,18 +899,7 @@ export async function processCharacterAdsProject(
 
         if (error) throw error;
 
-        await recordCharacterAdsEvent({
-          projectId: updatedProject.id,
-          userId: updatedProject.user_id ?? project.user_id,
-          status: updatedProject.status,
-          currentStep: updatedProject.current_step,
-          progressPercentage: updatedProject.progress_percentage,
-          message: 'Image generation started',
-          metadata: {
-            source: 'workflow',
-            step: 'generate_image'
-          }
-        });
+        // No event recording
 
         // Update scene 0
         await supabase
@@ -983,18 +953,7 @@ export async function processCharacterAdsProject(
             .eq('project_id', project.id)
             .eq('scene_number', 0);
 
-          await recordCharacterAdsEvent({
-            projectId: updatedProject.id,
-            userId: updatedProject.user_id ?? project.user_id,
-            status: updatedProject.status,
-            currentStep: updatedProject.current_step,
-            progressPercentage: updatedProject.progress_percentage,
-            message: 'Image generation completed',
-            metadata: {
-              source: 'workflow',
-              step: 'check_image_status'
-            }
-          });
+          // No event recording
 
           return {
             project: updatedProject,
@@ -1026,7 +985,8 @@ export async function processCharacterAdsProject(
         
         console.log(`🎬 Video generation - stored model: ${project.video_model}, resolved model: ${actualVideoModel}`);
 
-        const videoScenes = project.video_duration_seconds / 8;
+        const unitSeconds = (project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : (project.video_model as 'veo3'|'veo3_fast'|'sora2')) === 'sora2' ? 10 : 8;
+        const videoScenes = project.video_duration_seconds / unitSeconds;
         const videoTaskIds = [];
 
         // Start video generation for each scene
@@ -1068,18 +1028,7 @@ export async function processCharacterAdsProject(
 
         if (error) throw error;
 
-        await recordCharacterAdsEvent({
-          projectId: updatedProject.id,
-          userId: updatedProject.user_id ?? project.user_id,
-          status: updatedProject.status,
-          currentStep: updatedProject.current_step,
-          progressPercentage: updatedProject.progress_percentage,
-          message: 'Video generation started for all scenes',
-          metadata: {
-            source: 'workflow',
-            step: 'generate_videos'
-          }
-        });
+        // No event recording
 
         return {
           project: updatedProject,
@@ -1127,8 +1076,10 @@ export async function processCharacterAdsProject(
         }
 
         if (allCompleted) {
-          // Check if we need to merge videos (only for duration > 8 seconds)
-          if (project.video_duration_seconds === 8) {
+          // Check if we need to merge videos (single-scene vs multi-scene)
+          const unitSecondsCheck = actualVideoModel === 'sora2' ? 10 : 8;
+          const videoScenes = project.video_duration_seconds / unitSecondsCheck;
+          if (videoScenes === 1) {
             // For 8-second videos, use the single generated video directly
             const { data: updatedProject, error } = await supabase
               .from('character_ads_projects')
@@ -1146,18 +1097,7 @@ export async function processCharacterAdsProject(
 
             if (error) throw error;
 
-            await recordCharacterAdsEvent({
-              projectId: updatedProject.id,
-              userId: updatedProject.user_id ?? project.user_id,
-              status: updatedProject.status,
-              currentStep: updatedProject.current_step,
-              progressPercentage: updatedProject.progress_percentage,
-              message: 'Video generation completed (no merge needed for 8s)',
-              metadata: {
-                source: 'workflow',
-                step: 'check_videos_status'
-              }
-            });
+            // No event recording
 
             return {
               project: updatedProject,
@@ -1180,18 +1120,7 @@ export async function processCharacterAdsProject(
 
             if (error) throw error;
 
-            await recordCharacterAdsEvent({
-              projectId: updatedProject.id,
-              userId: updatedProject.user_id ?? project.user_id,
-              status: updatedProject.status,
-              currentStep: updatedProject.current_step,
-              progressPercentage: updatedProject.progress_percentage,
-              message: 'All videos generated, starting merge',
-              metadata: {
-                source: 'workflow',
-                step: 'check_videos_status'
-              }
-            });
+            // No event recording
 
             return {
               project: updatedProject,
@@ -1233,18 +1162,7 @@ export async function processCharacterAdsProject(
 
         if (error) throw error;
 
-        await recordCharacterAdsEvent({
-          projectId: updatedProject.id,
-          userId: updatedProject.user_id ?? project.user_id,
-          status: updatedProject.status,
-          currentStep: updatedProject.current_step,
-          progressPercentage: updatedProject.progress_percentage,
-          message: 'Video merging started',
-          metadata: {
-            source: 'workflow',
-            step: 'merge_videos'
-          }
-        });
+        // No event recording
 
         return {
           project: updatedProject,
@@ -1280,18 +1198,7 @@ export async function processCharacterAdsProject(
 
           if (error) throw error;
 
-          await recordCharacterAdsEvent({
-            projectId: updatedProject.id,
-            userId: updatedProject.user_id ?? project.user_id,
-            status: updatedProject.status,
-            currentStep: updatedProject.current_step,
-            progressPercentage: updatedProject.progress_percentage,
-            message: 'Video merging completed successfully',
-            metadata: {
-              source: 'workflow',
-              step: 'check_merge_status'
-            }
-          });
+          // No event recording
 
           return {
             project: updatedProject,
@@ -1333,19 +1240,7 @@ export async function processCharacterAdsProject(
       })
       .eq('id', project.id);
 
-    await recordCharacterAdsEvent({
-      projectId: project.id,
-      userId: project.user_id,
-      status: 'failed',
-      currentStep: project.current_step,
-      progressPercentage: project.progress_percentage,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      metadata: {
-        source: 'workflow',
-        step,
-        event: 'error'
-      }
-    });
+    // No event recording on error
 
     throw error;
   }

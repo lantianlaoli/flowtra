@@ -655,6 +655,7 @@ export default function MultiVariantAdsPage() {
                     showIcon={true}
                     hideCredits={true}
                     className="col-span-1"
+                    disabledModels={['sora2']}
                   />
                 )}
 

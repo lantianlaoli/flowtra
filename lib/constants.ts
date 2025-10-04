@@ -2,7 +2,7 @@
 export const CREDIT_COSTS = {
   'veo3_fast': 30,    // Veo3 Fast: 30 credits per video
   'veo3': 150,        // Veo3 High Quality: 150 credits per video
-  'sora2': 200,       // Sora2: 200 credits per video (premium model)
+  'sora2': 30,        // Sora2: align with Veo3 Fast (30 credits per video)
   'download': 18,     // Download cost (60% of veo3_fast)
 } as const
 

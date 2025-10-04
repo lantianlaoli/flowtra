@@ -362,6 +362,7 @@ export default function StandardAdsPage() {
                       onModelChange={handleModelChange}
                       showIcon={true}
                       hideCredits={true}
+                      disabledModels={['sora2']}
                     />
                   )}
                 </div>
@@ -591,6 +592,7 @@ export default function StandardAdsPage() {
                     showIcon={true}
                     hideCredits={true}
                     className="col-span-1"
+                    disabledModels={['sora2']}
                   />
                 )}
 

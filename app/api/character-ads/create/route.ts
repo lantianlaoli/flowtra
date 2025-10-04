@@ -3,7 +3,6 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
 import { CREDIT_COSTS, getActualModel, getActualImageModel } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
-import { recordCharacterAdsEvent } from '@/lib/character-ads-tracking';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,9 +37,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate video duration
-    if (![8, 16, 24].includes(videoDurationSeconds)) {
+    if (![8, 10, 16, 20, 24, 30].includes(videoDurationSeconds)) {
       return NextResponse.json(
-        { error: 'Invalid video duration. Must be 8, 16, or 24 seconds' },
+        { error: 'Invalid video duration. Must be 8, 10, 16, 20, 24, or 30 seconds' },
         { status: 400 }
       );
     }
@@ -64,9 +63,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sora2 model is now supported directly
-    if (videoModel === 'sora2') {
-      console.log('🚀 Using Sora2 model - premium video generation');
+    // Enforce model-duration compatibility
+    const isSora2Duration = [10, 20, 30].includes(videoDurationSeconds);
+    if (isSora2Duration && videoModel !== 'sora2' && videoModel !== 'auto') {
+      return NextResponse.json(
+        { error: 'For 10s/20s/30s duration, video model must be Sora2' },
+        { status: 400 }
+      );
+    }
+    if (!isSora2Duration && videoModel === 'sora2') {
+      return NextResponse.json(
+        { error: 'Sora2 supports 10s/20s/30s durations only' },
+        { status: 400 }
+      );
     }
 
     if (!validAccents.includes(accent)) {
@@ -171,15 +180,20 @@ export async function POST(request: NextRequest) {
 
     // Convert 'auto' values to actual models using constants
     const actualImageModel = getActualImageModel(imageModel as 'auto' | 'nano_banana' | 'seedream');
-    const actualVideoModel = getActualModel(videoModel as 'auto' | 'veo3' | 'veo3_fast' | 'sora2', 1000); // Assume sufficient credits for model selection
-    const resolvedVideoModel = (actualVideoModel
-      ?? (videoModel === 'auto'
-        ? 'veo3_fast'
-        : (videoModel as 'veo3' | 'veo3_fast' | 'sora2')));
+    // Determine video model with duration constraints
+    let resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2';
+    if (isSora2Duration) {
+      resolvedVideoModel = 'sora2';
+    } else {
+      const actualVideoModel = getActualModel(videoModel as 'auto' | 'veo3' | 'veo3_fast' | 'sora2', 1000) || (videoModel === 'auto' ? 'veo3_fast' : (videoModel as 'veo3' | 'veo3_fast'));
+      // Guard against sora2 sneaking in for 8/16/24
+      resolvedVideoModel = actualVideoModel === 'sora2' ? 'veo3_fast' : actualVideoModel;
+    }
     
     // Calculate credits cost using constants (use actual model for cost calculation)
     const imageCredits = 0; // Image generation is free according to constants
-    const videoScenes = videoDurationSeconds / 8;
+    const sceneUnitSeconds = resolvedVideoModel === 'sora2' ? 10 : 8;
+    const videoScenes = videoDurationSeconds / sceneUnitSeconds;
     const videoCreditsPerScene = CREDIT_COSTS[resolvedVideoModel];
     const totalCredits = imageCredits + (videoScenes * videoCreditsPerScene);
 
@@ -213,18 +227,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await recordCharacterAdsEvent({
-      projectId: project.id,
-      userId: project.user_id,
-      status: project.status,
-      currentStep: project.current_step,
-      progressPercentage: project.progress_percentage,
-      message: 'Character spokesperson ad project created',
-      metadata: {
-        source: 'api',
-        action: 'create'
-      }
-    });
+    // No longer recording events to character_ads_project_events table
 
     // Start the workflow by triggering image analysis
     // This will be handled by a separate background process or webhook

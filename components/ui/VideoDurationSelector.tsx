@@ -3,16 +3,26 @@
 import { motion } from 'framer-motion';
 
 interface VideoDurationSelectorProps {
-  value: 8 | 16 | 24;
-  onChange: (duration: 8 | 16 | 24) => void;
+  value: 8 | 10 | 16 | 20 | 24 | 30;
+  onChange: (duration: 8 | 10 | 16 | 20 | 24 | 30) => void;
+  hideSora2Durations?: boolean;
 }
 
-export default function VideoDurationSelector({ value, onChange }: VideoDurationSelectorProps) {
-  const options = [
-    { value: 8 as const, label: '8s' },
-    { value: 16 as const, label: '16s' },
-    { value: 24 as const, label: '24s' },
-  ];
+export default function VideoDurationSelector({ value, onChange, hideSora2Durations = false }: VideoDurationSelectorProps) {
+  const options = hideSora2Durations
+    ? [
+        { value: 8 as const, label: '8s' },
+        { value: 16 as const, label: '16s' },
+        { value: 24 as const, label: '24s' },
+      ]
+    : [
+        { value: 8 as const, label: '8s' },
+        { value: 10 as const, label: '10s' },
+        { value: 16 as const, label: '16s' },
+        { value: 20 as const, label: '20s' },
+        { value: 24 as const, label: '24s' },
+        { value: 30 as const, label: '30s' },
+      ];
 
   return (
     <div className="flex gap-0 bg-gray-100 rounded-lg p-1">

@@ -2,16 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 
 import { getSupabaseAdmin } from '@/lib/supabase';
-import {
-  CHARACTER_ADS_SIMULATION_SEQUENCE,
-  createSimulatedCharacterAdsEvent,
-  recordCharacterAdsEvent,
-} from '@/lib/character-ads-tracking';
+import { CHARACTER_ADS_SIMULATION_SEQUENCE } from '@/lib/character-ads-tracking';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const MAX_LIMIT = 50;
+// Events have been removed; pagination constants omitted
 
 export async function GET(
   request: NextRequest,
@@ -48,44 +44,10 @@ export async function GET(
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const simulateParam = searchParams.get('simulate');
-    const shouldSimulate = simulateParam === 'true' || simulateParam === '1';
+    // Events table removed: no simulation or latest event lookups
+    const latestEvent = null;
 
-    const { data: latestEventRecords, error: latestEventError } = await supabase
-      .from('character_ads_project_events')
-      .select('*')
-      .eq('project_id', id)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (latestEventError) {
-      console.error('Failed to fetch latest character ads event:', latestEventError);
-    }
-
-    let latestEvent = latestEventRecords?.[0] ?? null;
-
-    if (shouldSimulate) {
-      const simulatedEvent = await createSimulatedCharacterAdsEvent({
-        projectId: id,
-        userId,
-        latestStatus: latestEvent?.status ?? project.status,
-        additionalMetadata: {
-          trigger: 'progress_poll',
-          request_id: request.headers.get('x-request-id') ?? undefined
-        }
-      });
-
-      if (simulatedEvent) {
-        latestEvent = simulatedEvent;
-      }
-    }
-
-    const limitParam = searchParams.get('limit');
-    const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : 10;
-    const limit = Number.isFinite(parsedLimit)
-      ? Math.min(Math.max(parsedLimit, 1), MAX_LIMIT)
-      : 10;
+    // Pagination params retained for compatibility, but unused since events are removed
 
     const cursorParam = searchParams.get('cursor');
     let cursorFilter: string | null = null;
@@ -96,91 +58,20 @@ export async function GET(
       }
     }
 
-    let eventsQuery = supabase
-      .from('character_ads_project_events')
-      .select('*')
-      .eq('project_id', id)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(limit);
+    // Events table removed: return empty events and derived defaults
+    const events: unknown[] = [];
+    const totalEvents = 0;
+    const simulatedEvents = 0;
+    const realEvents = 0;
+    const firstEventAt = null;
+    const lastEventAt = null;
+    const totalDurationSeconds = null;
+    const sinceProjectCreatedSeconds = null;
+    const averageIntervalSeconds = null;
+    const latestCursor = cursorFilter;
+    const hasMore = false;
 
-    if (cursorFilter) {
-      eventsQuery = eventsQuery.gt('created_at', cursorFilter);
-    }
-
-    const eventsPromise = eventsQuery;
-    const totalCountPromise = supabase
-      .from('character_ads_project_events')
-      .select('*', { count: 'exact', head: true })
-      .eq('project_id', id)
-      .eq('user_id', userId);
-    const simulatedCountPromise = supabase
-      .from('character_ads_project_events')
-      .select('*', { count: 'exact', head: true })
-      .eq('project_id', id)
-      .eq('user_id', userId)
-      .eq('is_simulated', true);
-    const firstEventPromise = supabase
-      .from('character_ads_project_events')
-      .select('created_at')
-      .eq('project_id', id)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1);
-    const lastEventPromise = supabase
-      .from('character_ads_project_events')
-      .select('created_at, status, progress_percentage, is_simulated')
-      .eq('project_id', id)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    const [eventsResult, totalCountResult, simulatedCountResult, firstEventResult, lastEventResult] = await Promise.all([
-      eventsPromise,
-      totalCountPromise,
-      simulatedCountPromise,
-      firstEventPromise,
-      lastEventPromise
-    ]);
-
-    if (eventsResult.error) {
-      console.error('Failed to fetch character ads events:', eventsResult.error);
-      return NextResponse.json(
-        { error: 'Failed to load project events' },
-        { status: 500 }
-      );
-    }
-
-    const events = eventsResult.data ?? [];
-    const totalEvents = totalCountResult.count ?? 0;
-    const simulatedEvents = simulatedCountResult.count ?? 0;
-    const realEvents = totalEvents - simulatedEvents;
-
-    const firstEventAt = firstEventResult.data?.[0]?.created_at ?? null;
-    const lastEventAt = lastEventResult.data?.[0]?.created_at ?? latestEvent?.created_at ?? null;
-
-    const totalDurationSeconds = firstEventAt && lastEventAt
-      ? Math.max(
-          0,
-          Math.round((new Date(lastEventAt).getTime() - new Date(firstEventAt).getTime()) / 1000)
-        )
-      : null;
-
-    const sinceProjectCreatedSeconds = lastEventAt
-      ? Math.max(
-          0,
-          Math.round((new Date(lastEventAt).getTime() - new Date(project.created_at).getTime()) / 1000)
-        )
-      : null;
-
-    const averageIntervalSeconds = totalEvents > 1 && totalDurationSeconds !== null
-      ? Math.round(totalDurationSeconds / (totalEvents - 1))
-      : null;
-
-    const latestCursor = events.length ? events[events.length - 1].created_at : cursorFilter;
-    const hasMore = events.length === limit;
-
-    const progressReferenceStatus = latestEvent?.status ?? project.status;
+    const progressReferenceStatus = project.status;
     const latestStepIndex = CHARACTER_ADS_SIMULATION_SEQUENCE.findIndex(
       (entry) => entry.status === progressReferenceStatus
     );
@@ -223,26 +114,7 @@ export async function GET(
   } catch (error) {
     console.error('Character ads progress polling error:', error);
 
-    // Capture the failure in the events table for observability when possible
-    if (userId && projectId) {
-      try {
-        await recordCharacterAdsEvent({
-          projectId,
-          userId,
-          status: 'failed',
-          currentStep: null,
-          progressPercentage: null,
-          message: error instanceof Error ? error.message : 'Unknown polling error',
-          metadata: {
-            source: 'progress_poll',
-            event: 'error'
-          },
-          isSimulated: true
-        });
-      } catch (trackingError) {
-        console.error('Failed to record polling error event:', trackingError);
-      }
-    }
+    // No event recording
 
     return NextResponse.json(
       { error: 'Internal server error' },

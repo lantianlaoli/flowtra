@@ -207,11 +207,12 @@ export async function GET() {
         // For completed items, ensure we have the correct video URL
         let videoUrl: string | undefined;
         if (mappedStatus === 'completed') {
-          // For 8-second videos, prefer single generated video or merged video
-          if (item.video_duration_seconds === 8) {
+          // Prefer single generated video when only one scene is expected (8s for VEO*, 10s for Sora2)
+          const unitSeconds = resolvedVideoModel === 'sora2' ? 10 : 8;
+          const totalScenes = (item.video_duration_seconds || 8) / unitSeconds;
+          if (totalScenes === 1) {
             videoUrl = item.merged_video_url || (item.generated_video_urls?.[0]);
           } else {
-            // For longer videos, use merged video
             videoUrl = item.merged_video_url;
           }
         }

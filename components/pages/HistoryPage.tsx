@@ -394,9 +394,10 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     // Calculate download cost based on video duration for Character Ads
     let downloadCost = getCreditCost(videoModel);
     if (isCharacterAds(item) && item.videoDurationSeconds) {
-      // For Character Ads: cost = (duration / 8) * base_cost_per_8s
-      const baseCostPer8s = getCreditCost(videoModel);
-      downloadCost = Math.round((item.videoDurationSeconds / 8) * baseCostPer8s);
+      // For Character Ads: cost = (duration / unitSeconds) * base_cost_per_unit
+      const unitSeconds = videoModel === 'sora2' ? 10 : 8;
+      const baseCostPerUnit = getCreditCost(videoModel);
+      downloadCost = Math.round((item.videoDurationSeconds / unitSeconds) * baseCostPerUnit);
     }
 
     if (isFirstDownload && userCredits < downloadCost) {
