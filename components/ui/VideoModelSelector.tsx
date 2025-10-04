@@ -171,8 +171,11 @@ export default function VideoModelSelector({
               >
                 <div className="flex items-center justify-between flex-1">
                   <div className="flex items-center gap-2">
-                    <div>
+                    <div className="flex items-center gap-2">
                       <span className="font-medium">{option.label}</span>
+                      {option.value === 'sora2' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">Beta</span>
+                      )}
                       {option.features && !hideCredits && (
                         <div className="text-xs text-gray-500">{option.features}</div>
                       )}

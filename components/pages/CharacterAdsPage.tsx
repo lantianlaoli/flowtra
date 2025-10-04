@@ -290,8 +290,16 @@ export default function CharacterAdsPage() {
                         </div>
                         <VideoDurationSelector
                           value={videoDuration}
-                          onChange={(d) => setVideoDuration(d)}
-                          hideSora2Durations={true}
+                          onChange={(d) => {
+                            setVideoDuration(d);
+                            // Enforce model constraint: 10/20/30 -> sora2 only
+                            const isSora2Duration = d === 10 || d === 20 || d === 30;
+                            if (isSora2Duration && selectedVideoModel !== 'sora2') {
+                              setSelectedVideoModel('sora2');
+                            } else if (!isSora2Duration && selectedVideoModel === 'sora2') {
+                              setSelectedVideoModel('auto');
+                            }
+                          }}
                         />
                       </div>
 
@@ -309,10 +317,25 @@ export default function CharacterAdsPage() {
                           <VideoModelSelector
                             credits={9999}
                             selectedModel={selectedVideoModel}
-                            onModelChange={(m) => setSelectedVideoModel(m === 'sora2' ? 'auto' : m)}
+                            onModelChange={(m) => {
+                              const isSora2Duration = videoDuration === 10 || videoDuration === 20 || videoDuration === 30;
+                              if (isSora2Duration) {
+                                // Only sora2 allowed for 10/20/30
+                                setSelectedVideoModel('sora2');
+                                return;
+                              }
+                              if (!isSora2Duration && m === 'sora2') {
+                                // Disallow sora2 for 8/16/24
+                                setSelectedVideoModel('auto');
+                                return;
+                              }
+                              setSelectedVideoModel(m);
+                            }}
                             hideCredits={true}
                             showIcon={true}
-                            disabledModels={['sora2']}
+                            disabledModels={(videoDuration === 10 || videoDuration === 20 || videoDuration === 30)
+                              ? ['veo3', 'veo3_fast']
+                              : ['sora2']}
                           />
                         </div>
                       </div>
