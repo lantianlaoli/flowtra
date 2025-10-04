@@ -715,7 +715,25 @@ async function generateMultiVariantCover(request: MultiVariantAdsRequest): Promi
       prompt: prompt,
       image_urls: [request.imageUrl],
       output_format: "png",
-      image_size: mapImageSize(request.imageSize || 'auto')
+      // Image size handling per model
+      ...(actualImageModel === 'nano_banana'
+        ? (() => {
+            const val = (request.imageSize || 'auto').trim();
+            // Accept direct ratio pass-through per Banana docs
+            const allowed = new Set(['1:1','9:16','16:9','3:4','4:3','3:2','2:3','5:4','4:5','21:9']);
+            if (allowed.has(val)) return { image_size: val };
+            if (val === 'auto') return {}; // omit to let service choose
+            return {}; // fallback omit
+          })()
+        : (() => {
+            // Seedream: keep existing behavior; support mapping for 16:9/9:16, else auto
+            const val = (request.imageSize || 'auto').trim();
+            if (val === '9:16') return { image_size: 'portrait_16_9' };
+            if (val === '16:9') return { image_size: 'landscape_16_9' };
+            if (val === 'auto') return { image_size: 'auto' };
+            return { image_size: 'auto' };
+          })()
+      )
     }
   };
 

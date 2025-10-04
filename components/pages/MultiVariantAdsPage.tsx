@@ -591,10 +591,14 @@ export default function MultiVariantAdsPage() {
                   >
                     <option value="auto">Auto (Native Resolution)</option>
                     <option value="1:1">Square (1:1)</option>
-                    <option value="3:4">Portrait 3:4</option>
-                    <option value="9:16">Portrait 9:16</option>
-                    <option value="4:3">Landscape 4:3</option>
-                    <option value="16:9">Landscape 16:9</option>
+                    <option value="3:4">Portrait (3:4)</option>
+                    <option value="2:3">Portrait (2:3)</option>
+                    <option value="9:16">Portrait (9:16)</option>
+                    <option value="4:5">Portrait (4:5)</option>
+                    <option value="4:3">Landscape (4:3)</option>
+                    <option value="3:2">Landscape (3:2)</option>
+                    <option value="16:9">Landscape (16:9)</option>
+                    <option value="21:9">Landscape (21:9)</option>
                   </select>
                   <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                 </div>
