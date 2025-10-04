@@ -368,7 +368,7 @@ export default function CharacterAdsPage() {
                           rows={3}
                           className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
                         />
-                        <div className="mt-1 text-xs text-gray-500">Optional. Used in the first video scene if provided.</div>
+
                       </div>
 
                     </div>
