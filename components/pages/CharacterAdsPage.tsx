@@ -14,7 +14,7 @@ import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { ArrowRight, Clock, Video, Settings, Package, History } from 'lucide-react';
+import { ArrowRight, Clock, Video, Settings, Package, History, MessageSquare } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -358,6 +358,7 @@ export default function CharacterAdsPage() {
                       {/* Custom Dialogue (Optional) */}
                       <div>
                         <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-2">
+                          <MessageSquare className="w-4 h-4 text-gray-600" />
                           Custom Dialogue (optional)
                         </label>
                         <textarea
