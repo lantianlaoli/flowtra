@@ -363,6 +363,10 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
         return '2:3';
       case 'landscape_3_2':
         return '3:2';
+      case 'portrait_5_4':
+        return '4:5';
+      case 'landscape_5_4':
+        return '5:4';
       case 'landscape_21_9':
         return '21:9';
       case 'auto':

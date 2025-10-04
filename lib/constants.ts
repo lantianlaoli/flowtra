@@ -17,13 +17,15 @@ export const IMAGE_SIZE_OPTIONS = {
   'nano_banana': [
     'auto',
     'square',
-    'square_hd',
+    // 'square_hd' removed for Banana to avoid duplicate 1:1 option
     'portrait_4_3',
     'portrait_3_2',
     'portrait_16_9',
+    'portrait_5_4',
     'landscape_4_3',
     'landscape_3_2',
     'landscape_16_9',
+    'landscape_5_4',
     'landscape_21_9'
   ],
   'seedream': [

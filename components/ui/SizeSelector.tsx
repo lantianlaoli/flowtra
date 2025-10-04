@@ -111,6 +111,15 @@ export default function SizeSelector({
       ratio: '9:16'
     },
     {
+      value: 'portrait_5_4',
+      label: 'Portrait',
+      subtitle: '4:5',
+      description: 'Vertical with more headroom',
+      platforms: 'Pinterest, flyers, posters',
+      icon: Smartphone,
+      ratio: '4:5'
+    },
+    {
       value: 'landscape_4_3',
       label: 'Standard',
       subtitle: '4:3',
@@ -127,6 +136,15 @@ export default function SizeSelector({
       platforms: 'Photography, print media',
       icon: Monitor,
       ratio: '3:2'
+    },
+    {
+      value: 'landscape_5_4',
+      label: 'Standard',
+      subtitle: '5:4',
+      description: 'Balanced landscape',
+      platforms: 'Display ads, product shots',
+      icon: Monitor,
+      ratio: '5:4'
     },
     {
       value: 'landscape_16_9',
