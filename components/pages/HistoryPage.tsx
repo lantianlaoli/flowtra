@@ -881,14 +881,16 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         >
                           {getStatusText(item.status)}
                           {item.status === 'failed' && (
-                            <div className="relative group">
+                            <div className="group">
                               <HelpCircle className="w-4 h-4" aria-label="Failed generation details" />
-                              <div className="absolute left-0 top-full mt-2 w-64 rounded-lg bg-gray-900 text-white text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto z-50">
+                              <div className="absolute left-0 right-auto top-full mt-2 w-[calc(100%-0.75rem)] max-w-[16rem] sm:max-w-[18rem] rounded-lg bg-gray-900 text-white text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto z-50 whitespace-normal break-words">
                                 <div className="font-medium mb-2">Generation Failed</div>
-                                <div className="space-y-1 mb-3">
-                                  <p>Sorry, there was an issue during generation.</p>
-                                  <p className="text-yellow-300">• We&apos;ll refund your credits</p>
-                                  <p className="text-blue-300">• Please try with a different image</p>
+                                <div className="space-y-2 mb-3">
+                                  <p>
+                                    This video couldn&apos;t be generated because your image may violate
+                                    Google&apos;s content policy. Please try again with a different product
+                                    photo.
+                                  </p>
                                 </div>
                                 <button
                                   onClick={(e) => {

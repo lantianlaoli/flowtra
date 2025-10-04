@@ -216,6 +216,7 @@ export async function POST(request: NextRequest) {
         video_model: resolvedVideoModel,
         video_aspect_ratio: videoAspectRatio,
         accent: accent,
+        custom_dialogue: customDialogue || null,
         credits_cost: totalCredits,
         status: 'pending',
         current_step: 'analyzing_images',

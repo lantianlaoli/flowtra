@@ -39,6 +39,7 @@ interface CharacterAdsProject {
   video_model: string;
   video_aspect_ratio?: string;
   accent: string;
+  custom_dialogue?: string;
   status: string;
   current_step: string;
   progress_percentage: number;
@@ -206,6 +207,7 @@ For Scene 1+ (video prompts):
 - Don't refer back to previous scenes
 - CRITICAL: Maintain character consistency - the same person from the reference image should appear in all scenes
 - CRITICAL: Maintain product consistency - focus on the same product throughout all scenes
+- If a user dialogue is provided, you MUST use it EXACTLY as given for Scene 1 without paraphrasing, summarizing, or changing words. Do not add prefixes/suffixes other than the required "dialogue, the character in the video says:". Preserve casing; you may only escape quotes when needed for JSON validity.
 
 Return in JSON format:
 {
@@ -277,7 +279,24 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
       .trim();
 
     console.log('Cleaned prompts content for parsing:', cleanedContent);
-    return JSON.parse(cleanedContent);
+    const parsed: { scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> } = JSON.parse(cleanedContent);
+    // Enforce exact user dialogue for Scene 1 if provided
+    if (userDialogue && Array.isArray(parsed.scenes)) {
+      const scenes: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> = parsed.scenes;
+      let s1 = scenes.find((s) => s && (Number(s.scene) === 1));
+      if (!s1 && scenes.length > 1) {
+        s1 = scenes[1];
+      }
+      if (s1) {
+        const exact = `dialogue, the character in the video says: ${userDialogue.replace(/"/g, '\\"')}`;
+        if (!s1.prompt || typeof s1.prompt === 'string') {
+          s1.prompt = { video_prompt: exact } as Record<string, unknown>;
+        } else {
+          (s1.prompt as Record<string, unknown>)["video_prompt"] = exact;
+        }
+      }
+    }
+    return parsed;
   } catch (error) {
     console.error('Failed to parse prompts result:', content);
     console.error('Prompts parse error:', error);
@@ -805,8 +824,14 @@ export async function processCharacterAdsProject(
           throw new Error('Image analysis result not found');
         }
 
+        // Ensure user dialogue persists: if missing from analysis_result but present on project, inject it
+        const analysisWithDialogue: Record<string, unknown> = { ...(project.image_analysis_result as Record<string, unknown>) };
+        if (!('user_dialogue' in analysisWithDialogue) && project.custom_dialogue) {
+          analysisWithDialogue['user_dialogue'] = project.custom_dialogue;
+        }
+
         const prompts = await generatePrompts(
-          project.image_analysis_result,
+          analysisWithDialogue,
           project.video_duration_seconds,
           project.accent,
           (project.video_model as 'veo3' | 'veo3_fast' | 'sora2')
