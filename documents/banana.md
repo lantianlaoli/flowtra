@@ -93,6 +93,23 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
   - `jpeg`: JPEG
 - **Default Value**: `"png"`
 
+#### image_size
+- **Type**: `string`
+- **Required**: No
+- **Description**: Radio description
+- **Options**:
+  - `1:1`: 1:1
+  - `9:16`: 9:16
+  - `16:9`: 16:9
+  - `3:4`: 3:4
+  - `4:3`: 4:3
+  - `3:2`: 3:2
+  - `2:3`: 2:3
+  - `5:4`: 5:4
+  - `4:5`: 4:5
+  - `21:9`: 21:9
+- **Default Value**: `"1:1"`
+
 ### Request Example
 
 ```json
@@ -101,7 +118,8 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
   "input": {
     "prompt": "turn this photo into a character figure. Behind it, place a box with the character’s image printed on it, and a computer showing the Blender modeling process on its screen. In front of the box, add a round plastic base with the character figure standing on it. set the scene indoors if possible",
     "image_urls": ["https://file.aiquickdraw.com/custom-page/akr/section-images/1756223420389w8xa2jfe.png"],
-    "output_format": "png"
+    "output_format": "png",
+    "image_size": "1:1"
   }
 }
 ```
@@ -148,7 +166,7 @@ GET https://api.kie.ai/api/v1/jobs/recordInfo?taskId=281e5b0********************
     "taskId": "281e5b0*********************f39b9",
     "model": "google/nano-banana-edit",
     "state": "waiting",
-    "param": "{\"model\":\"google/nano-banana-edit\",\"input\":{\"prompt\":\"turn this photo into a character figure. Behind it, place a box with the character’s image printed on it, and a computer showing the Blender modeling process on its screen. In front of the box, add a round plastic base with the character figure standing on it. set the scene indoors if possible\",\"image_urls\":[\"https://file.aiquickdraw.com/custom-page/akr/section-images/1756223420389w8xa2jfe.png\"],\"output_format\":\"png\"}}",
+    "param": "{\"model\":\"google/nano-banana-edit\",\"input\":{\"prompt\":\"turn this photo into a character figure. Behind it, place a box with the character’s image printed on it, and a computer showing the Blender modeling process on its screen. In front of the box, add a round plastic base with the character figure standing on it. set the scene indoors if possible\",\"image_urls\":[\"https://file.aiquickdraw.com/custom-page/akr/section-images/1756223420389w8xa2jfe.png\"],\"output_format\":\"png\",\"image_size\":\"1:1\"}}",
     "resultJson": "{\"resultUrls\":[\"https://file.aiquickdraw.com/custom-page/akr/section-images/1756260298615p09gs2nz.webp\"]}",
     "failCode": null,
     "failMsg": null,

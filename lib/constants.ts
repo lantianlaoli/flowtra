@@ -14,7 +14,18 @@ export const IMAGE_MODELS = {
 
 // Image size options for different models
 export const IMAGE_SIZE_OPTIONS = {
-  'nano_banana': ['auto'], // Banana only supports auto (no size parameter)
+  'nano_banana': [
+    'auto',
+    'square',
+    'square_hd',
+    'portrait_4_3',
+    'portrait_3_2',
+    'portrait_16_9',
+    'landscape_4_3',
+    'landscape_3_2',
+    'landscape_16_9',
+    'landscape_21_9'
+  ],
   'seedream': [
     'auto',
     'square',
@@ -266,7 +277,8 @@ export function getVideoAspectRatioOptions(model: 'veo3' | 'veo3_fast' | 'sora2'
 // Get auto image size based on video aspect ratio for seedream
 export function getAutoImageSize(videoAspectRatio: '16:9' | '9:16', imageModel: 'nano_banana' | 'seedream'): string {
   if (imageModel === 'nano_banana') {
-    return 'auto' // Banana only supports auto
+    // For Banana, choose a sensible default matching video aspect ratio
+    return videoAspectRatio === '9:16' ? 'portrait_16_9' : 'landscape_16_9'
   }
   
   // For seedream, map video aspect ratio to image size

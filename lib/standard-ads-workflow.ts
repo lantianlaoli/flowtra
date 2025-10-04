@@ -345,6 +345,35 @@ Based on the provided product image, create an enhanced advertising version that
 Requirements: Keep exact product appearance, only enhance presentation.${watermarkSection}`;
   }
 
+  // Map image_size for Nano Banana to ratio strings
+  const mapUiSizeToBanana = (val?: string): string | undefined => {
+    switch (val) {
+      case 'square':
+      case 'square_hd':
+        return '1:1';
+      case 'portrait_16_9':
+        return '9:16';
+      case 'landscape_16_9':
+        return '16:9';
+      case 'portrait_4_3':
+        return '3:4';
+      case 'landscape_4_3':
+        return '4:3';
+      case 'portrait_3_2':
+        return '2:3';
+      case 'landscape_3_2':
+        return '3:2';
+      case 'landscape_21_9':
+        return '21:9';
+      case 'auto':
+      case undefined:
+      case '':
+        return undefined;
+      default:
+        return undefined;
+    }
+  };
+
   const requestBody = {
     model: kieModelName,
     ...(process.env.KIE_STANDARD_ADS_CALLBACK_URL && {
@@ -354,7 +383,10 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
       prompt: prompt,
       image_urls: [imageUrl],
       output_format: "png",
-      image_size: request.imageSize === 'auto' ? 'auto' : (request.imageSize || 'auto')
+      ...(actualImageModel === 'nano_banana'
+        ? (() => { const r = mapUiSizeToBanana(request.imageSize); return r ? { image_size: r } : {}; })()
+        : { image_size: request.imageSize === 'auto' ? 'auto' : (request.imageSize || 'auto') }
+      )
     }
   };
 

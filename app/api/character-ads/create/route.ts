@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
         product_image_urls: productImageUrls,
         video_duration_seconds: videoDurationSeconds,
         image_model: actualImageModel,
-        // image_size: imageSize, // Temporarily commented out until DB migration is applied
+        image_size: imageSize,
         video_model: resolvedVideoModel,
         video_aspect_ratio: videoAspectRatio,
         accent: accent,

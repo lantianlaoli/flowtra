@@ -309,9 +309,44 @@ function getImageModelParameters(model: string, customImageSize?: string, videoA
   // Handle both short names and full model names
   if (model === IMAGE_MODELS.nano_banana || model === 'nano_banana' || model.includes('nano-banana')) {
     // Nano Banana parameters (google/nano-banana-edit)
-    // Note: Nano Banana doesn't support size parameter, so we ignore customImageSize
+    // Supports image_size in ratio strings like '1:1', '16:9', '9:16', '3:4', '4:3', '3:2', '2:3', '21:9'
+    const imageSize = customImageSize;
+    // Map UI-friendly sizes to Banana ratios
+    const mapUiToRatio = (val?: string, fallbackAspect?: string) => {
+      switch (val) {
+        case 'square':
+        case 'square_hd':
+          return '1:1';
+        case 'portrait_16_9':
+          return '9:16';
+        case 'landscape_16_9':
+          return '16:9';
+        case 'portrait_4_3':
+          return '3:4';
+        case 'landscape_4_3':
+          return '4:3';
+        case 'portrait_3_2':
+          return '2:3';
+        case 'landscape_3_2':
+          return '3:2';
+        case 'landscape_21_9':
+          return '21:9';
+        case 'auto':
+        case undefined:
+        case '':
+          // Choose based on video aspect ratio if provided
+          if (fallbackAspect === '9:16') return '9:16';
+          if (fallbackAspect === '16:9') return '16:9';
+          return undefined;
+        default:
+          return undefined;
+      }
+    };
+
+    const ratio = mapUiToRatio(imageSize as string | undefined, videoAspectRatio);
     return {
-      output_format: "png"
+      output_format: "png",
+      ...(ratio ? { image_size: ratio } : {})
     };
   } else if (model === IMAGE_MODELS.seedream || model === 'seedream' || model.includes('seedream')) {
     // Seedream V4 parameters (bytedance/seedream-v4-edit)
