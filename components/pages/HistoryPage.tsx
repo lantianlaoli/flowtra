@@ -951,7 +951,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                 </div>
                                 <div className="flex items-center gap-1 text-gray-500">
                                   <Loader2 className="w-4 h-4 animate-spin" />
-                                  <span className="text-xs font-medium">Processing</span>
+                                  <span className="text-xs font-medium">Generating</span>
                                 </div>
                               </button>
                             </div>
