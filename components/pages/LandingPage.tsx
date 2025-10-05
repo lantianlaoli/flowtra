@@ -70,42 +70,44 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
 
   return (
     <div className="mt-10 md:mt-12">
-      <div className="max-w-3xl mx-auto bg-white border border-gray-200 rounded-xl p-6 sm:p-7 shadow-sm hover:shadow transition-shadow">
-        <div className="text-center mb-4">
-          <h3 className="text-2xl font-bold text-gray-900">Get free ad mockups</h3>
-          <p className="text-sm sm:text-base text-gray-600 mt-2">Paste your store link — we’ll email you sample ad visuals.</p>
+      <div className="max-w-6xl mx-auto bg-white border border-gray-200 rounded-lg p-5 md:p-6 shadow-sm">
+        <div className="grid gap-4 md:gap-6 md:grid-cols-12 items-center">
+          {/* Left: copy */}
+          <div className="md:col-span-4">
+            <h3 className="text-2xl font-bold text-gray-900">Get free ad mockups</h3>
+            <p className="text-sm sm:text-base text-gray-600 mt-2">Paste your store link — we’ll email you sample ad visuals.</p>
+          </div>
+          {/* Right: long input + button */}
+          <div className="md:col-span-8">
+            <div className="flex gap-3 items-stretch">
+              <input
+                type="url"
+                value={storeUrl}
+                onChange={(e) => setStoreUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+                placeholder="https://yourstore.example.com"
+                className="min-w-0 flex-1 border border-gray-300 rounded-lg px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                inputMode="url"
+                aria-label="Store URL"
+              />
+              <button
+                onClick={handleSubmit}
+                disabled={!isLoaded || submitting}
+                className="shrink-0 bg-gray-900 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                aria-live="polite"
+              >
+                <Sparkles className="w-5 h-5" />
+                {submitting ? 'Submitting…' : 'Submit'}
+              </button>
+            </div>
+            {error && (
+              <div className="text-sm text-red-600 mt-2">{error}</div>
+            )}
+            {submitted && (
+              <div className="text-sm text-green-600 mt-2">Thanks! We’ll review your store.</div>
+            )}
+          </div>
         </div>
-
-        <div className="max-w-2xl mx-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-          <input
-            type="url"
-            value={storeUrl}
-            onChange={(e) => setStoreUrl(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
-            placeholder="https://yourstore.example.com"
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
-            inputMode="url"
-            aria-label="Store URL"
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={!isLoaded || submitting}
-            className="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            aria-live="polite"
-          >
-            <Sparkles className="w-5 h-5" />
-            {submitting ? 'Submitting…' : 'Submit'}
-          </button>
-        </div>
-
-        {error && (
-          <div className="text-sm text-red-600 mt-2 text-center">{error}</div>
-        )}
-        {submitted && (
-          <div className="text-sm text-green-600 mt-2 text-center">Thanks! We’ll review your store.</div>
-        )}
-
-        {/* privacy note removed as requested */}
       </div>
     </div>
   )
@@ -318,7 +320,7 @@ export default function LandingPage() {
             </h1>
             
             <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-              Turn photos into ads for <span className="inline-block bg-[#F56400] text-white px-2 py-1 rounded-md font-semibold">Etsy</span>, <span className="inline-block bg-[#95BF47] text-white px-2 py-1 rounded-md font-semibold">Shopify</span>, <span className="inline-block bg-[#FF90E8] text-white px-2 py-1 rounded-md font-semibold">Gumroad</span>, <span className="inline-block bg-[#6C5CE7] text-white px-2 py-1 rounded-md font-semibold">Stan</span> & social media.
+              AI ads for <span className="inline-block bg-[#F56400] text-white px-2 py-1 rounded-md font-semibold">Etsy</span>, <span className="inline-block bg-[#95BF47] text-white px-2 py-1 rounded-md font-semibold">Shopify</span>, <span className="inline-block bg-[#FF90E8] text-white px-2 py-1 rounded-md font-semibold">Gumroad</span>, <span className="inline-block bg-[#6C5CE7] text-white px-2 py-1 rounded-md font-semibold">Stan</span>, social platforms, and local stores.
             </p>
 
             {/* CTA Buttons */}
