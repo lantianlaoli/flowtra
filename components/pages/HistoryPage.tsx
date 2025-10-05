@@ -857,6 +857,27 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                             />
                           )
                         }
+                        {/* Character Ads processing overlay: soft veil + circular progress */}
+                        {item.status === 'processing' && isCharacterAds(item) && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]" />
+                            {(() => {
+                              const pct = Math.round(Math.max(0, Math.min(100, item.progress ?? 0)));
+                              return (
+                                <div className="relative w-20 h-20">
+                                  <div
+                                    className="absolute inset-0 rounded-full"
+                                    style={{ background: `conic-gradient(#111 ${pct}%, #e5e7eb 0)` }}
+                                  />
+                                  <div className="absolute inset-1 rounded-full bg-white/70 backdrop-blur-sm" />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-sm font-semibold text-gray-800 tabular-nums">{pct}%</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
                       
                     </div>
@@ -878,8 +899,8 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         </div>
                       </div>
 
-                      {/* Processing: show progress like other ad types */}
-                      {item.status === 'processing' && (
+                      {/* Processing: show progress like other ad types (non-character only) */}
+                      {item.status === 'processing' && !isCharacterAds(item) && (
                         <div className="mt-2">
                           <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
                             <span className="font-medium">{getStepLabel(item.currentStep)}</span>
@@ -899,14 +920,34 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         <div className="border-t border-gray-200 bg-white -mx-4 -mb-4 px-4 py-3 flex items-center">
                           {item.status === 'processing' && (
                             <div className="flex flex-col gap-2 w-full">
-                              {/* Show disabled controls to indicate in-progress state */}
+                              {/* Cover button: enabled if cover is ready during processing */}
+                              <button
+                                onClick={() => { if ('coverImageUrl' in item && item.coverImageUrl) handleCoverClick(item); }}
+                                disabled={!('coverImageUrl' in item && item.coverImageUrl)}
+                                className={cn(
+                                  'w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg border transition-colors',
+                                  'coverImageUrl' in item && item.coverImageUrl
+                                    ? 'bg-black text-white hover:bg-gray-800 border-black'
+                                    : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                                )}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <ImageIcon className={cn('w-4 h-4', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-white' : 'text-gray-500')} />
+                                  <span>{('coverImageUrl' in item && item.coverImageUrl) ? (coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover') : 'Cover'}</span>
+                                </div>
+                                <div className={cn('flex items-center gap-1', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-green-400' : 'text-gray-500')}>
+                                  <span className="text-xs font-bold">FREE</span>
+                                </div>
+                              </button>
+
+                              {/* Video button: always disabled while processing */}
                               <button
                                 disabled
                                 className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
                               >
                                 <div className="flex items-center gap-2">
-                                  <ImageIcon className="w-4 h-4 text-gray-500" />
-                                  <span>Cover</span>
+                                  <Download className="w-4 h-4" />
+                                  <span>Video</span>
                                 </div>
                                 <div className="flex items-center gap-1 text-gray-500">
                                   <Loader2 className="w-4 h-4 animate-spin" />
