@@ -240,7 +240,7 @@ export default function HistoryPage() {
       }
     };
 
-    const interval = setInterval(poll, 5000);
+    const interval = setInterval(poll, 3000);
     // Do an immediate poll to reduce perceived latency
     poll();
     return () => {

@@ -14,6 +14,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { handleCreemCheckout } from '@/lib/payment';
 import { CREDIT_COSTS } from '@/lib/constants';
+import BlogPreview from '@/components/sections/BlogPreview';
 
 const FileUpload = dynamic(() => import('@/components/FileUpload'), {
   ssr: false
@@ -291,7 +292,7 @@ export default function LandingPage() {
       {/* Hero Section */}
       <main className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Hero Section - Left/Right Layout */}
-        <div className="grid lg:grid-cols-5 items-center py-10 sm:py-12 lg:py-16 gap-6 sm:gap-8 lg:gap-12">
+        <section id="hero" className="grid lg:grid-cols-5 items-center py-10 sm:py-12 lg:py-16 gap-6 sm:gap-8 lg:gap-12 scroll-mt-24">
           {/* Left Content */}
           <div className="lg:col-span-3 space-y-5 sm:space-y-6 lg:space-y-8">
             {/* Promotion Badge - Above Title */}
@@ -454,10 +455,10 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* User Success Stories Section */}
-        <div className="pt-12 md:pt-20 pb-6 md:pb-10">
+        {/* Features / Success Stories Section */}
+        <section id="features" className="pt-12 md:pt-20 pb-6 md:pb-10 scroll-mt-24">
           <div className="text-center mb-8 md:mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3 sm:mb-6">
               Real Success Stories
@@ -694,7 +695,7 @@ export default function LandingPage() {
 
           {/* Lead Capture: Store Link Submission */}
           <StoreLinkCTA isLoaded={isLoaded} />
-        </div>
+        </section>
 
         {/* Upload Modal */}
         {showUpload && (
@@ -885,7 +886,7 @@ export default function LandingPage() {
         </div>
 
         {/* Pricing Section */}
-        <div className="py-12">
+        <section id="pricing" className="py-12 scroll-mt-24">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Pay Once, Use Forever</h2>
             <p className="text-base text-gray-600">One-time purchase. No subscriptions. Perfect for physical products on Etsy/Amazon and digital products on Gumroad/Stan/Payhip</p>
@@ -1007,8 +1008,11 @@ export default function LandingPage() {
               <PricingButton packageName="pro" />
             </div>
           </div>
-        </div>
+        </section>
       </main>
+
+      {/* Blog Preview Section */}
+      <BlogPreview />
 
       {/* FAQ Section */}
       <FAQ />

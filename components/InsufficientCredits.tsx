@@ -50,7 +50,7 @@ export default function InsufficientCredits({ currentCredits, requiredCredits }:
           {/* Action buttons - Notion style */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
             <Link
-              href="/pricing"
+              href="/#pricing"
               className="flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium shadow-sm"
             >
               <CreditCard className="w-4 h-4" />

@@ -118,7 +118,7 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
                 <span className="text-sm font-medium text-gray-900">Credits</span>
               </div>
               <Link 
-                href="/pricing"
+                href="/#pricing"
                 className="w-8 h-8 bg-gray-900 hover:bg-gray-800 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-105 shadow-sm hover:shadow-md"
                 title="Buy more credits"
               >
