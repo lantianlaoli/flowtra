@@ -458,11 +458,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* CTA below Hero */}
-        <SectionCTA 
-          title="Get 100 free credits"
-          subtitle="Sign in to start generating AI ads — no subscription."
-        />
+        {/* Removed CTA below Hero per request */}
 
         {/* Features / Success Stories Section */}
         <section id="features" className="pt-12 md:pt-20 pb-6 md:pb-10 scroll-mt-24">
