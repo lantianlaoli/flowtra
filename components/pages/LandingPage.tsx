@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useUser, SignInButton } from '@clerk/nextjs';
-import { GiftIcon } from '@heroicons/react/24/outline';
+import { GiftIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { Sparkles, Download, Smartphone, User } from 'lucide-react';
 import { FaTiktok } from 'react-icons/fa6';
 import { useRouter } from 'next/navigation';
@@ -15,7 +15,7 @@ import Footer from '@/components/layout/Footer';
 import { handleCreemCheckout } from '@/lib/payment';
 import { CREDIT_COSTS } from '@/lib/constants';
 import BlogPreview from '@/components/sections/BlogPreview';
-import SectionCTA from '@/components/sections/SectionCTA';
+// import SectionCTA from '@/components/sections/SectionCTA';
 
 const FileUpload = dynamic(() => import('@/components/FileUpload'), {
   ssr: false
@@ -69,34 +69,47 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
   }
 
   return (
-    <div className="text-center mt-10 md:mt-16">
-      <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">Get free ad mockups</h3>
-      <p className="text-sm sm:text-base text-gray-600 mt-2 mb-4">Paste your store link. We&apos;ll email you sample ad visuals.</p>
-      <div className="max-w-xl mx-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center px-4">
-        <input
-          type="url"
-          value={storeUrl}
-          onChange={(e) => setStoreUrl(e.target.value)}
-          placeholder="Store link (e.g. https://www.amazon.com/your-store)"
-          className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
-          inputMode="url"
-          aria-label="Store URL"
-        />
-        <button
-          onClick={handleSubmit}
-          disabled={!isLoaded || submitting}
-          className="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        >
-          <Sparkles className="w-5 h-5" />
-          {submitting ? 'Submitting...' : 'Submit'}
-        </button>
+    <div className="mt-10 md:mt-12">
+      <div className="max-w-3xl mx-auto bg-white border border-gray-200 rounded-xl p-6 sm:p-7 shadow-sm hover:shadow transition-shadow">
+        <div className="text-center mb-4">
+          <h3 className="text-2xl font-bold text-gray-900">Get free ad mockups</h3>
+          <p className="text-sm sm:text-base text-gray-600 mt-2">Paste your store link — we’ll email you sample ad visuals.</p>
+        </div>
+
+        <div className="max-w-2xl mx-auto flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <input
+            type="url"
+            value={storeUrl}
+            onChange={(e) => setStoreUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+            placeholder="https://yourstore.example.com"
+            className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-900"
+            inputMode="url"
+            aria-label="Store URL"
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={!isLoaded || submitting}
+            className="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            aria-live="polite"
+          >
+            <Sparkles className="w-5 h-5" />
+            {submitting ? 'Submitting…' : 'Submit'}
+          </button>
+        </div>
+
+        {error && (
+          <div className="text-sm text-red-600 mt-2 text-center">{error}</div>
+        )}
+        {submitted && (
+          <div className="text-sm text-green-600 mt-2 text-center">Thanks! We’ll review your store.</div>
+        )}
+
+        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-gray-500">
+          <LockClosedIcon className="w-4 h-4" />
+          <span>Your link is only used to create mockups. No spam.</span>
+        </div>
       </div>
-      {error && (
-        <div className="text-sm text-red-600 mt-2">{error}</div>
-      )}
-      {submitted && (
-        <div className="text-sm text-green-600 mt-2">Thanks! We&apos;ll review your store.</div>
-      )}
     </div>
   )
 }
@@ -700,11 +713,7 @@ export default function LandingPage() {
           <StoreLinkCTA isLoaded={isLoaded} />
         </section>
 
-        {/* CTA below Features */}
-        <SectionCTA 
-          title="Turn product photos into ads"
-          subtitle="Sign in and create your first AI video ad in minutes."
-        />
+        {/* Integrated StoreLink + CTA (single, horizontal layout) — removed duplicate */}
 
         {/* Upload Modal */}
         {showUpload && (
@@ -1019,11 +1028,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* CTA below Pricing */}
-        <SectionCTA 
-          title="Ready to make your first ad?"
-          subtitle="Sign in and start with free credits. Pay once for more credits — no subscriptions."
-        />
+        {/* Removed extra CTA below Pricing per request (keep single combined CTA in cases) */}
       </main>
 
       {/* Blog Preview Section */}
