@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/nextjs';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Sparkles, TrendingUp } from 'lucide-react';
 
 interface HeaderProps {
   showAuthButtons?: boolean;
@@ -81,8 +82,17 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               </Link>
               <SignedOut>
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button className="bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors">
-                    Make My First Ad
+                  <button className="silk-button relative px-6 py-2.5 rounded-lg text-sm font-semibold">
+                    <span className="silk-content">
+                      <span className="silk-default">
+                        <Sparkles className="w-4 h-4" />
+                        <span>Make My First Ad</span>
+                      </span>
+                      <span className="silk-hover">
+                        <TrendingUp className="w-4 h-4" />
+                        <span>Increase sales</span>
+                      </span>
+                    </span>
                   </button>
                 </SignInButton>
               </SignedOut>

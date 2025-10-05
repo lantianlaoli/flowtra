@@ -5,7 +5,7 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useUser, SignInButton } from '@clerk/nextjs';
 import { GiftIcon } from '@heroicons/react/24/outline';
-import { Sparkles, Download, Smartphone, User } from 'lucide-react';
+import { Sparkles, Download, Smartphone, User, TrendingUp, Play, Lightbulb } from 'lucide-react';
 import { FaTiktok } from 'react-icons/fa6';
 import { useRouter } from 'next/navigation';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -329,7 +329,7 @@ export default function LandingPage() {
               {!isLoaded ? (
                 <button
                   disabled
-                  className="bg-gray-300 text-gray-500 px-6 py-4 rounded-lg text-lg font-semibold cursor-not-allowed opacity-50 flex items-center gap-2 flex-1 justify-center"
+                  className="bg-gray-300 text-gray-500 h-14 px-6 rounded-lg text-lg font-semibold cursor-not-allowed opacity-50 flex items-center gap-2 flex-1 justify-center"
                 >
                   <Sparkles className="w-5 h-5" />
                   <span>Loading...</span>
@@ -337,20 +337,36 @@ export default function LandingPage() {
               ) : user ? (
                 <button
                   onClick={() => router.push('/dashboard?upload=true')}
-                  className="bg-gray-900 text-white px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2 flex-1 justify-center cursor-pointer"
+                  className="silk-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer"
                 >
-                  <Sparkles className="w-5 h-5" />
                   <span className="sm:hidden">start</span>
-                  <span className="hidden sm:inline">Create My First Ad</span>
+                  <span className="hidden sm:inline silk-content">
+                    <span className="silk-default">
+                      <Sparkles className="w-5 h-5" />
+                      <span>Create My First Ad</span>
+                    </span>
+                    <span className="silk-hover">
+                      <TrendingUp className="w-5 h-5" />
+                      <span>Increase sales</span>
+                    </span>
+                  </span>
                 </button>
               ) : (
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard?upload=true">
                   <button
-                    className="bg-gray-900 text-white px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2 flex-1 justify-center cursor-pointer"
+                    className="silk-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer"
                   >
-                    <Sparkles className="w-5 h-5" />
                     <span className="sm:hidden">start</span>
-                    <span className="hidden sm:inline">Create My First Ad</span>
+                    <span className="hidden sm:inline silk-content">
+                      <span className="silk-default">
+                        <Sparkles className="w-5 h-5" />
+                        <span>Create My First Ad</span>
+                      </span>
+                      <span className="silk-hover">
+                        <TrendingUp className="w-5 h-5" />
+                        <span>Increase sales</span>
+                      </span>
+                    </span>
                   </button>
                 </SignInButton>
               )}
@@ -360,13 +376,20 @@ export default function LandingPage() {
                 href="https://www.youtube.com/watch?v=AvrnifkIx7Q"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="border border-gray-300 text-gray-700 px-6 py-4 rounded-lg text-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-colors flex items-center gap-2 flex-1 justify-center cursor-pointer"
+                className="silk-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer"
+                title="See how easy it is"
               >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
                 <span className="sm:hidden">Watch</span>
-                <span className="hidden sm:inline">See How Easy</span>
+                <span className="hidden sm:inline silk-content">
+                  <span className="silk-default">
+                    <Play className="w-5 h-5" />
+                    <span>See How Easy</span>
+                  </span>
+                  <span className="silk-hover">
+                    <Lightbulb className="w-5 h-5" />
+                    <span>Watch tutorial</span>
+                  </span>
+                </span>
               </a>
             </div>
 
