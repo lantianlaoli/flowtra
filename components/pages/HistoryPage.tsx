@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import RetryImage from '@/components/ui/RetryImage';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, HelpCircle, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, HelpCircle, Download, Check } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -288,6 +288,18 @@ export default function HistoryPage() {
       default:
         return 'bg-gray-100 text-gray-600 border border-gray-200';
     }
+  };
+
+  const getStepLabel = (step?: string) => {
+    if (!step) return 'Processing';
+    const map: Record<string, string> = {
+      analyzing_image: 'Analyzing Image',
+      generating_cover: 'Generating Cover',
+      generating_video: 'Generating Video',
+      merging_video: 'Merging Video',
+      uploading_assets: 'Uploading Assets',
+    };
+    return map[step] || 'Processing';
   };
 
   const formatDate = (dateString: string) => {
@@ -866,28 +878,54 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         </div>
                       </div>
 
-                      {/* Processing: no progress bar; keep layout consistent */}
+                      {/* Processing: show progress like other ad types */}
                       {item.status === 'processing' && (
-                        <div className="mt-2" />
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                            <span className="font-medium">{getStepLabel(item.currentStep)}</span>
+                            <span className="tabular-nums">{Math.round(Math.max(0, Math.min(100, item.progress ?? 0)))}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gray-900 transition-all"
+                              style={{ width: `${Math.round(Math.max(0, Math.min(100, item.progress ?? 0)))}%` }}
+                            />
+                          </div>
+                        </div>
                       )}
 
                       {/* Bottom action area - pinned to bottom for alignment */}
                       <div className="mt-auto">
                         <div className="border-t border-gray-200 bg-white -mx-4 -mb-4 px-4 py-3 flex items-center">
+                          {item.status === 'processing' && (
+                            <div className="flex flex-col gap-2 w-full">
+                              {/* Show disabled controls to indicate in-progress state */}
+                              <button
+                                disabled
+                                className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <ImageIcon className="w-4 h-4 text-gray-500" />
+                                  <span>Cover</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-gray-500">
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <span className="text-xs font-medium">Processing</span>
+                                </div>
+                              </button>
+                            </div>
+                          )}
                           {item.status === 'failed' && (
                             <div className="flex flex-col gap-2 w-full">
                               {/* Cover Download Button */}
                               {'coverImageUrl' in item && item.coverImageUrl && (
                                 <button
-                                  onClick={() => isMultiVariantAds(item) ?
-                                    downloadMultiVariantAdsContent(item.id, 'cover', item.videoModel) :
-                                    downloadStandardAdsCover(item.id)
-                                  }
+                                  onClick={() => handleCoverClick(item)}
                                   className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
                                 >
                                   <div className="flex items-center gap-2">
                                     <ImageIcon className="w-4 h-4 text-white" />
-                                    <span>Cover</span>
+                                    <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
                                   </div>
                                   <div className="flex items-center gap-1 text-green-400">
                                     <span className="text-xs font-bold">FREE</span>
@@ -910,7 +948,67 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           )}
 
                           {item.status === 'completed' && (
-                            <div className="flex flex-col gap-2 w-full"></div>
+                            <div className="flex flex-col gap-2 w-full">
+                              {/* Cover Download Button (always free) */}
+                              {'coverImageUrl' in item && item.coverImageUrl && (
+                                <button
+                                  onClick={() => handleCoverClick(item)}
+                                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <ImageIcon className="w-4 h-4 text-white" />
+                                    <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-green-400">
+                                    <span className="text-xs font-bold">FREE</span>
+                                  </div>
+                                </button>
+                              )}
+
+                              {/* Video Download Button (paid on first download) */}
+                              {'videoUrl' in item && item.videoUrl && (
+                                <button
+                                  onClick={() => handleVideoClick(item)}
+                                  disabled={videoStates[item.id] === 'packing'}
+                                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Download className="w-4 h-4" />
+                                    <span>{videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Video'}</span>
+                                  </div>
+                                  {videoStates[item.id] === 'packing' ? (
+                                    <div className="flex items-center gap-1.5 text-gray-600">
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    </div>
+                                  ) : item.downloaded ? (
+                                    <div className="flex items-center gap-1.5 text-green-600">
+                                      <Check className="w-4 h-4" />
+                                      <span className="text-xs font-semibold">Downloaded</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5 text-gray-800">
+                                      {(() => {
+                                        // Compute dynamic cost for Character Ads based on duration; others use model cost
+                                        let cost = 0;
+                                        if (isCharacterAds(item) && item.videoDurationSeconds) {
+                                          const unitSeconds = item.videoModel === 'sora2' ? 10 : 8;
+                                          const base = getCreditCost(item.videoModel);
+                                          cost = Math.round((item.videoDurationSeconds / unitSeconds) * base);
+                                        } else {
+                                          cost = getCreditCost(item.videoModel as 'veo3' | 'veo3_fast');
+                                        }
+                                        return (
+                                          <>
+                                            <Coins className="w-4 h-4" />
+                                            <span className="font-bold">{cost}</span>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
