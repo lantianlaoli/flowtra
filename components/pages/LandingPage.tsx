@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useUser, SignInButton } from '@clerk/nextjs';
-import { GiftIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import { GiftIcon } from '@heroicons/react/24/outline';
 import { Sparkles, Download, Smartphone, User } from 'lucide-react';
 import { FaTiktok } from 'react-icons/fa6';
 import { useRouter } from 'next/navigation';
@@ -105,10 +105,7 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
           <div className="text-sm text-green-600 mt-2 text-center">Thanks! We’ll review your store.</div>
         )}
 
-        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-gray-500">
-          <LockClosedIcon className="w-4 h-4" />
-          <span>Your link is only used to create mockups. No spam.</span>
-        </div>
+        {/* privacy note removed as requested */}
       </div>
     </div>
   )
