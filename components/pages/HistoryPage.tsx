@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import RetryImage from '@/components/ui/RetryImage';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video, HelpCircle, Download, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -98,7 +98,7 @@ export default function HistoryPage() {
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<'all' | 'completed' | 'processing' | 'failed'>('all');
   // Content filter simplified: only video ads types remain
-  const [contentFilter, setContentFilter] = useState<'all' | 'video-ads'>('all');
+  const [contentFilter, setContentFilter] = useState<'all' | 'standard' | 'multi-variant' | 'character'>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
   const [downloadingVideo, setDownloadingVideo] = useState<string | null>(null);
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
@@ -121,8 +121,12 @@ export default function HistoryPage() {
     return history.filter(item => {
       // Status filter
       const statusMatch = filter === 'all' || item.status === filter;
-      // Only video ads are present now
-      const contentMatch = contentFilter === 'all' || contentFilter === 'video-ads';
+      // Content filter by ad type
+      const contentMatch =
+        contentFilter === 'all' ||
+        (contentFilter === 'standard' && isStandardAds(item)) ||
+        (contentFilter === 'multi-variant' && isMultiVariantAds(item)) ||
+        (contentFilter === 'character' && isCharacterAds(item));
       return statusMatch && contentMatch;
     });
   }, [history, filter, contentFilter]);
@@ -675,22 +679,23 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
           <div className="mb-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {/* Content Type Filter */}
-                <div className="bg-gray-50 p-1 rounded-lg inline-flex">
+                {/* Content Type Filter (Discover-like) */}
+                <div className="bg-white border border-gray-200 p-1 rounded-lg inline-flex shadow-sm">
                   {([
-                    { value: 'all', label: 'All Content' },
-                    { value: 'video-ads', label: 'Video Ads' }
-                  ] as const).map((type) => (
+                    { value: 'all', label: 'All', icon: ImageIcon },
+                    { value: 'standard', label: 'Standard', icon: ImageIcon },
+                    { value: 'multi-variant', label: 'Multi-Variant', icon: Layers },
+                    { value: 'character', label: 'Character', icon: VideoIcon },
+                  ] as const).map((opt) => (
                     <button
-                      key={type.value}
-                      onClick={() => setContentFilter(type.value)}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
-                        contentFilter === type.value
-                          ? 'bg-white text-gray-900 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
+                      key={opt.value}
+                      onClick={() => setContentFilter(opt.value)}
+                      className={`h-8 px-2.5 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                        contentFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
                       }`}
                     >
-                      {type.label}
+                      <opt.icon className="w-4 h-4" />
+                      <span className="text-xs font-medium">{opt.label}</span>
                     </button>
                   ))}
                 </div>
