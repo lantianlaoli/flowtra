@@ -5,7 +5,7 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useUser, SignInButton } from '@clerk/nextjs';
 import { GiftIcon } from '@heroicons/react/24/outline';
-import { Sparkles, Download, Smartphone, User, TrendingUp, Play, Lightbulb } from 'lucide-react';
+import { Sparkles, Download, Smartphone, User, TrendingUp, Play, Lightbulb, Check, UserPlus } from 'lucide-react';
 import { FaTiktok } from 'react-icons/fa6';
 import { useRouter } from 'next/navigation';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -308,12 +308,7 @@ export default function LandingPage() {
         <section id="hero" className="grid lg:grid-cols-5 items-center py-10 sm:py-12 lg:py-16 gap-6 sm:gap-8 lg:gap-12 scroll-mt-24">
           {/* Left Content */}
           <div className="lg:col-span-3 space-y-5 sm:space-y-6 lg:space-y-8">
-            {/* Promotion Badge - Above Title */}
-            <div className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200">
-              <GiftIcon className="w-4 h-4" />
-              100 Free Credits
-              <span className="text-gray-500">Unlimited image & video generation</span>
-            </div>
+            {/* Removed old badge; benefits moved under subtitle */}
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
               Professional Ads for <u>Small Business</u>
@@ -322,6 +317,42 @@ export default function LandingPage() {
             <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
               AI ads for <span className="inline-block bg-[#F56400] text-white px-2 py-1 rounded-md font-semibold">Etsy</span>, <span className="inline-block bg-[#95BF47] text-white px-2 py-1 rounded-md font-semibold">Shopify</span>, <span className="inline-block bg-[#FF90E8] text-white px-2 py-1 rounded-md font-semibold">Gumroad</span>, <span className="inline-block bg-[#6C5CE7] text-white px-2 py-1 rounded-md font-semibold">Stan</span>, social platforms, and local stores.
             </p>
+
+            {/* New users label + key benefits under subtitle */}
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
+                <UserPlus className="w-4 h-4" />
+                <span>For new users</span>
+              </span>
+              <span className="inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
+                <GiftIcon className="w-4 h-4" />
+                <span>100 free credits</span>
+              </span>
+            </div>
+            <ul className="text-gray-700 text-sm sm:text-base flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 mt-2">
+              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+                <Check className="w-4 h-4 text-green-600" />
+                <span>
+                  Images: <span className="font-semibold underline">unlimited</span> generation + free downloads (
+                  <span className="font-semibold underline">no watermark</span>)
+                </span>
+              </li>
+              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+                <Check className="w-4 h-4 text-green-600" />
+                <span>
+                  Videos: <span className="font-semibold underline">unlimited</span> generation; downloads cost credits (
+                  <span className="font-semibold underline">no watermark</span>)
+                </span>
+              </li>
+              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+                <Check className="w-4 h-4 text-green-600" />
+                <span><span className="font-semibold underline">Unlimited</span> product configurations</span>
+              </li>
+              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+                <Check className="w-4 h-4 text-green-600" />
+                <span>Portraits: <span className="font-semibold underline">unlimited</span> character additions</span>
+              </li>
+            </ul>
 
             {/* CTA Buttons */}
             <div className="flex flex-row items-start gap-3">
@@ -393,42 +424,44 @@ export default function LandingPage() {
               </a>
             </div>
 
-            {/* Social Proof under CTA - compact, one-line pill */}
-            <div className="pt-3" aria-label="Social proof">
-              <div
-                className="inline-flex min-w-[240px] items-center gap-3 rounded-2xl px-4 py-2
-                           bg-black/5 dark:bg-white/5 ring-1 ring-inset ring-black/10 dark:ring-white/10
-                           transition-colors hover:ring-black/20 dark:hover:ring-white/20"
-              >
-                {/* Avatars group */}
-                <div className="flex -space-x-2">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="inline-block w-7 h-7 rounded-full ring-2 ring-white/80 dark:ring-zinc-900/80 overflow-hidden">
-                      <Image
-                        src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_${i}.${i === 1 ? 'jpg' : 'png'}`}
-                        alt={`User avatar ${i}`}
-                        width={28}
-                        height={28}
-                        sizes="28px"
-                        className="w-full h-full object-cover"
-                        unoptimized
-                      />
-                    </div>
-                  ))}
-                </div>
-                {/* Single-line copy for harmony with avatars */}
-                <span
-                  className="text-sm font-semibold text-black whitespace-nowrap"
-                  title={(userCount !== null ? userCount.toLocaleString('en-US') : 'Thousands') + ' small business owners trust Flowtra'}
+            {/* Social Proof under CTA - only show with real metric */}
+            {userCount !== null && userCount > 0 && (
+              <div className="pt-3" aria-label="Social proof">
+                <div
+                  className="inline-flex min-w-[240px] items-center gap-3 rounded-2xl px-4 py-2
+                             bg-black/5 dark:bg-white/5 ring-1 ring-inset ring-black/10 dark:ring-white/10
+                             transition-colors hover:ring-black/20 dark:hover:ring-white/20"
                 >
-                  {`Trusted by `}
-                  <span className="font-bold tabular-nums">
-                    {userCount !== null ? userCount.toLocaleString('en-US') : 'Thousands'}
+                  {/* Avatars group */}
+                  <div className="flex -space-x-2">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="inline-block w-7 h-7 rounded-full ring-2 ring-white/80 dark:ring-zinc-900/80 overflow-hidden">
+                        <Image
+                          src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_${i}.${i === 1 ? 'jpg' : 'png'}`}
+                          alt={`User avatar ${i}`}
+                          width={28}
+                          height={28}
+                          sizes="28px"
+                          className="w-full h-full object-cover"
+                          unoptimized
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {/* Single-line copy for harmony with avatars */}
+                  <span
+                    className="text-sm font-semibold text-black whitespace-nowrap"
+                    title={`${userCount.toLocaleString('en-US')} small business owners trust Flowtra`}
+                  >
+                    {`Trusted by `}
+                    <span className="font-bold tabular-nums">
+                      {userCount.toLocaleString('en-US')}
+                    </span>
+                    {` small business owners`}
                   </span>
-                  {` small business owners`}
-                </span>
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
 
