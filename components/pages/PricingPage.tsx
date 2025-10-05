@@ -1,297 +1,236 @@
 'use client';
 
 import { useState } from 'react';
-import { SignedIn, SignedOut, useUser, SignInButton } from '@clerk/nextjs';
+import dynamic from 'next/dynamic';
+import { useUser, SignInButton } from '@clerk/nextjs';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { Zap } from 'lucide-react';
 import { CREDIT_COSTS } from '@/lib/constants';
 import { handleCreemCheckout } from '@/lib/payment';
 
-interface PricingPlan {
-  name: string;
-  price: number;
-  credits: number;
-  isRecommended?: boolean;
-  features: string[];
-}
-
-const pricingPlans: PricingPlan[] = (() => {
-  const toDownloads = (credits: number) => Math.floor(credits / CREDIT_COSTS.veo3_fast);
-  
-  return [
-    {
-      name: 'Lite',
-      price: 9,
-      credits: 500,
-      features: [
-        '500 credits',
-        `Up to ${toDownloads(500)} video downloads`,
-        'Unlimited image generation',
-        'Unlimited video generation',
-        'Image downloads are free forever',
-        'V2 batch generation'
-      ]
-    },
-    {
-      name: 'Basic',
-      price: 29,
-      credits: 2000,
-      isRecommended: true,
-      features: [
-        '2,000 credits',
-        `Up to ${toDownloads(2000)} video downloads`,
-        'Unlimited image generation',
-        'Unlimited video generation',
-        'Image downloads are free forever',
-        'V2 batch generation'
-      ]
-    },
-    {
-      name: 'Pro',
-      price: 49,
-      credits: 3500,
-      features: [
-        '3,500 credits',
-        `Up to ${toDownloads(3500)} video downloads`,
-        'Unlimited image generation',
-        'Unlimited video generation',
-        'Image downloads are free forever',
-        'V2 batch generation',
-        'Priority processing'
-      ]
-    }
-  ]
-})();
+const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
+  loading: () => <div className="py-12 flex justify-center"><div className="text-gray-400">Loading...</div></div>
+});
 
 export default function PricingPage() {
   const { user, isLoaded } = useUser();
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
 
-  const handleSelectPlan = async (planName: string) => {
-    console.log('🎯 Purchase button clicked for package:', planName);
-    console.log('👤 User loaded:', isLoaded, 'User object:', user);
+  // Downloads calculation identical to LandingPage
+  const liteDownloads = Math.floor(500 / CREDIT_COSTS.veo3_fast);
+  const basicDownloads = Math.floor(2000 / CREDIT_COSTS.veo3_fast);
+  const proDownloads = Math.floor(3500 / CREDIT_COSTS.veo3_fast);
 
-    // Add extra safety check for user loading state
+  const handlePurchase = async (packageName: 'lite' | 'basic' | 'pro') => {
     if (!isLoaded) {
-      console.log('⏳ User not yet loaded, ignoring click');
       alert('Please wait for the page to fully load');
       return;
     }
-
     if (!user) {
-      console.log('❌ No user found after loading');
       alert('Please log in before purchasing a package');
       return;
     }
-
     if (!user.emailAddresses || user.emailAddresses.length === 0) {
-      console.log('❌ No email addresses found for user');
       alert('No email address found. Please check your account settings.');
       return;
     }
-
     const userEmail = user.emailAddresses[0].emailAddress;
-    console.log('📧 User email:', userEmail);
-
     if (!userEmail) {
-      console.log('❌ Email address is empty');
       alert('Email address is required for purchase');
       return;
     }
-
-    // Convert plan name to lowercase for consistency with API
-    const packageName = planName.toLowerCase() as 'lite' | 'basic' | 'pro';
 
     try {
       await handleCreemCheckout({
         packageName,
         userEmail,
-        onLoading: (isLoading) => {
-          console.log(`🔄 Loading state changed: ${isLoading} for package: ${packageName}`);
-          setLoadingPackage(isLoading ? packageName : null);
-        },
-        onError: (error) => {
-          console.log('❌ Purchase error received:', error);
-          alert(`Purchase failed: ${error}`);
-        }
+        onLoading: (isLoading) => setLoadingPackage(isLoading ? packageName : null),
+        onError: (error) => alert(`Purchase failed: ${error}`)
       });
-    } catch (error) {
-      console.error('❌ Unexpected error in handleSelectPlan:', error);
+    } catch {
       alert('An unexpected error occurred. Please try again.');
     }
+  };
+
+  // PricingButton identical to LandingPage
+  const PricingButton = ({ packageName }: { packageName: 'lite' | 'basic' | 'pro' }) => {
+    if (!isLoaded) {
+      return (
+        <button
+          disabled
+          className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg cursor-not-allowed opacity-50"
+        >
+          Loading...
+        </button>
+      );
+    }
+
+    if (user) {
+      const isLoading = loadingPackage === packageName;
+      const buttonClass = packageName === 'basic'
+        ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+
+      return (
+        <button
+          onClick={() => handlePurchase(packageName)}
+          disabled={isLoading}
+          className={buttonClass}
+        >
+          {isLoading ? 'Processing...' : 'Get Started'}
+        </button>
+      );
+    }
+
+    const buttonClass = packageName === 'basic'
+      ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
+      : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer";
+
+    return (
+      <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+        <button className={buttonClass}>
+          Get Started
+        </button>
+      </SignInButton>
+    );
   };
 
   return (
     <div className="min-h-screen bg-white">
       <Header />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
-            Simple, Transparent Pricing
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Choose the plan that fits your needs
-          </p>
-        </div>
+      <main className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Pricing Section (mirrors LandingPage) */}
+        <div className="py-12">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Pay Once, Use Forever</h2>
+            <p className="text-base text-gray-600">One-time purchase. No subscriptions. Perfect for physical products on Etsy/Amazon and digital products on Gumroad/Stan/Payhip</p>
+          </div>
 
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
-          {pricingPlans.map((plan) => (
-            <div
-              key={plan.name}
-              className={`bg-white rounded-2xl p-8 shadow-sm flex flex-col ${
-                plan.isRecommended
-                  ? 'border-2 border-gray-900 transform scale-105'
-                  : 'border border-gray-200 hover:border-gray-300 transition-colors'
-              }`}
-            >
-              {plan.isRecommended && (
-                <div className="bg-gray-900 text-white px-3 py-1 rounded-md text-sm font-medium mb-4 inline-block">
-                  Recommended
-                </div>
-              )}
-
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">{plan.name}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
+            {/* Lite Plan */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Lite</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
-                ${plan.price}
+                $9
                 <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
-              
-              <ul className="space-y-3 mb-8 flex-grow">
-                {plan.features.map((feature, index) => (
-                  <li key={index} className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${
-                      plan.isRecommended ? 'bg-gray-900' : 'bg-gray-600'
-                    }`}></div>
-                    <span className="text-gray-600">{feature}</span>
-                  </li>
-                ))}
+              <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">500</span> credits</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Up to <span className="font-bold text-gray-900">{liteDownloads}</span> video downloads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Unlimited image & video generation</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Free image downloads forever</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Character Ads</span>
+                </li>
               </ul>
-
-              <SignedOut>
-                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button
-                    className={`w-full py-3 rounded-lg font-semibold transition-colors cursor-pointer ${
-                      plan.isRecommended
-                        ? 'bg-gray-900 text-white hover:bg-gray-800'
-                        : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Get Started
-                  </button>
-                </SignInButton>
-              </SignedOut>
-
-              <SignedIn>
-                {!isLoaded ? (
-                  <button
-                    disabled
-                    className="w-full py-3 rounded-lg bg-gray-300 text-gray-500 cursor-not-allowed opacity-50"
-                  >
-                    Loading...
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleSelectPlan(plan.name)}
-                    disabled={loadingPackage === plan.name.toLowerCase()}
-                    className={`w-full py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      plan.isRecommended
-                        ? 'bg-gray-900 text-white hover:bg-gray-800'
-                        : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {loadingPackage === plan.name.toLowerCase() ? 'Processing...' : 'Get Started'}
-                  </button>
-                )}
-              </SignedIn>
+              <PricingButton packageName="lite" />
             </div>
-          ))}
-        </div>
 
-        {/* Features Overview */}
-        <div className="bg-gray-50 rounded-2xl p-12 mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">What&apos;s Included</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Video Generation</h3>
-              <div className="flex items-center gap-2 mb-3">
-                <Zap className="w-5 h-5 text-blue-500" />
-                <span className="text-lg font-bold text-blue-600">Unlimited video generation</span>
+            {/* Basic Plan (Recommended) */}
+            <div className="bg-white rounded-2xl border-2 border-gray-900 p-6 md:p-8 shadow-sm transform scale-105 flex flex-col">
+              <div className="bg-gray-900 text-white px-3 py-1 rounded-md text-sm font-medium mb-4 inline-block">
+                Recommended
               </div>
-              <ul className="text-sm text-gray-600 space-y-2">
-                <li>• Generate as many videos as you need</li>
-                <li>• Professional quality and multiple formats</li>
-                <li>• Commercial use ready</li>
-                <li>• Downloads limited by your plan</li>
-              </ul>
-            </div>
-
-            <div className="bg-white rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Images</h3>
-              <div className="flex items-center gap-2 mb-3">
-                <Zap className="w-5 h-5 text-purple-500" />
-                <span className="text-lg font-bold text-purple-600">Unlimited image generation</span>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Basic</h3>
+              <div className="text-3xl font-bold text-gray-900 mb-4">
+                $29
+                <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
-              <ul className="text-sm text-gray-600 space-y-2">
-                <li>• Image downloads are free forever</li>
-                <li>• V2 batch generation</li>
-                <li>• Cover creation</li>
-                <li>• Multiple export formats</li>
+              <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">2,000</span> credits</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600">Up to <span className="font-bold text-gray-900">{basicDownloads}</span> video downloads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600">Unlimited image & video generation</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600">Free image downloads forever</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600">Character Ads</span>
+                </li>
               </ul>
-            </div>
-          </div>
-        </div>
-
-
-        {/* FAQ Section */}
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">
-            Frequently Asked Questions
-          </h2>
-          <div className="space-y-8">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Do credits expire?
-              </h3>
-              <p className="text-gray-600">
-                No, your credits never expire. Use them at your own pace to create advertisements whenever you need them.
-              </p>
+              <PricingButton packageName="basic" />
             </div>
 
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Can I upgrade my plan later?
-              </h3>
-              <p className="text-gray-600">
-                Yes, you can purchase additional credit packages anytime. Your existing credits will be added to your account.
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                How does video generation work?
-              </h3>
-              <p className="text-gray-600">
-                Our AI creates professional advertisement videos based on your requirements. Each plan includes a specific number of video downloads, plus unlimited access to ad image covers and batch generation features.
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Is there a free trial?
-              </h3>
-              <p className="text-gray-600">
-                New users get 100 free credits upon sign-up to test our AI advertisement generation capabilities.
-              </p>
+            {/* Pro Plan */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Pro</h3>
+              <div className="text-3xl font-bold text-gray-900 mb-4">
+                $49
+                <span className="text-lg font-normal text-gray-600">/package</span>
+              </div>
+              <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">3,500</span> credits</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Up to <span className="font-bold text-gray-900">{proDownloads}</span> video downloads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Unlimited image & video generation</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Free image downloads forever</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Character Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">Priority processing</span>
+                </li>
+              </ul>
+              <PricingButton packageName="pro" />
             </div>
           </div>
         </div>
       </main>
 
+      {/* FAQ Section (same as LandingPage) */}
+      <FAQ />
+
       <Footer />
     </div>
   );
 }
+
