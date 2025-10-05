@@ -284,13 +284,13 @@ export default function HistoryPage() {
   const getStatusBadgeClasses = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-100 text-green-700 border border-green-200';
+        return 'bg-gray-900 text-white border border-gray-900';
       case 'processing':
-        return 'bg-gray-100 text-gray-700 border border-gray-200';
+        return 'bg-gray-100 text-gray-800 border border-gray-300';
       case 'failed':
-        return 'bg-red-100 text-red-700 border border-red-200';
+        return 'bg-white text-gray-900 border border-gray-900';
       default:
-        return 'bg-gray-100 text-gray-600 border border-gray-200';
+        return 'bg-gray-100 text-gray-700 border border-gray-300';
     }
   };
 
@@ -803,13 +803,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           )}
                         </span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                        isCharacterAds(item)
-                          ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                          : isMultiVariantAds(item)
-                          ? 'bg-gradient-to-r from-orange-100 to-yellow-100 text-orange-700 border border-orange-200'
-                          : 'bg-gray-100 text-gray-600 border border-gray-200'
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-300`}>
                         {isCharacterAds(item)
                           ? 'Character Spokesperson'
                           : isMultiVariantAds(item)
