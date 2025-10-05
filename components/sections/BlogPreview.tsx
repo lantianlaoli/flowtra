@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { CalendarIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { getAllArticles, calculateReadingTime, extractExcerpt } from '@/lib/supabase';
+import SectionCTA from '@/components/sections/SectionCTA';
 
 interface Article {
   id: string;
@@ -106,6 +107,12 @@ export default function BlogPreview() {
             )}
           </div>
         )}
+
+        {/* CTA below Blog preview */}
+        <SectionCTA 
+          title="Put ideas into practice"
+          subtitle="Sign in and generate your first AI ad with free credits."
+        />
       </div>
     </section>
   );

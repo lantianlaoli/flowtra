@@ -15,6 +15,7 @@ import Footer from '@/components/layout/Footer';
 import { handleCreemCheckout } from '@/lib/payment';
 import { CREDIT_COSTS } from '@/lib/constants';
 import BlogPreview from '@/components/sections/BlogPreview';
+import SectionCTA from '@/components/sections/SectionCTA';
 
 const FileUpload = dynamic(() => import('@/components/FileUpload'), {
   ssr: false
@@ -457,6 +458,12 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* CTA below Hero */}
+        <SectionCTA 
+          title="Get 100 free credits"
+          subtitle="Sign in to start generating AI ads — no subscription."
+        />
+
         {/* Features / Success Stories Section */}
         <section id="features" className="pt-12 md:pt-20 pb-6 md:pb-10 scroll-mt-24">
           <div className="text-center mb-8 md:mb-12">
@@ -696,6 +703,12 @@ export default function LandingPage() {
           {/* Lead Capture: Store Link Submission */}
           <StoreLinkCTA isLoaded={isLoaded} />
         </section>
+
+        {/* CTA below Features */}
+        <SectionCTA 
+          title="Turn product photos into ads"
+          subtitle="Sign in and create your first AI video ad in minutes."
+        />
 
         {/* Upload Modal */}
         {showUpload && (
@@ -1009,6 +1022,12 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        {/* CTA below Pricing */}
+        <SectionCTA 
+          title="Ready to make your first ad?"
+          subtitle="Sign in and start with free credits. Pay once for more credits — no subscriptions."
+        />
       </main>
 
       {/* Blog Preview Section */}

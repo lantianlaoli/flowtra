@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import FAQSchema from '@/components/seo/FAQSchema';
+import SectionCTA from '@/components/sections/SectionCTA';
 
 interface FAQItem {
   question: string;
@@ -91,6 +92,11 @@ export default function FAQ() {
           ))}
         </div>
       </div>
+      {/* CTA below FAQ */}
+      <SectionCTA 
+        title="Still have questions? Try it free"
+        subtitle="Sign in to generate your first AI ad with 100 free credits."
+      />
     </section>
   );
 }
