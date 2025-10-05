@@ -84,6 +84,13 @@ export async function GET() {
         case 'completed':
           return 'completed';
         case 'failed':
+        case 'error':
+        case 'internal_error':
+        case 'failed_internal':
+        case 'failed_validation':
+        case 'failed_merge':
+        case 'timeout':
+        case 'cancelled':
           return 'failed';
         case 'started':
         case 'in_progress':
@@ -200,7 +207,11 @@ export async function GET() {
     // Transform Character Ads data - show all items (processing, completed, and failed)
     const transformedCharacterAdsHistory: CharacterAdsItem[] = (characterAdsItems || [])
       .map(item => {
-        const mappedStatus = mapWorkflowStatus(item.status);
+        let mappedStatus = mapWorkflowStatus(item.status);
+        // If backend recorded an error message and not completed, treat as failed for immediate UI feedback
+        if (item.error_message && mappedStatus !== 'completed') {
+          mappedStatus = 'failed';
+        }
         const storedVideoModel = item.video_model as 'veo3' | 'veo3_fast' | 'sora2';
         const resolvedVideoModel = item.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
 
