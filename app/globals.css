@@ -50,6 +50,7 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden; /* Prevent horizontal scroll/overflow on mobile */
 }
 
 /* Custom scrollbar styling */
@@ -149,10 +150,13 @@ body {
 }
 .silk-content {
   position: relative;
-  display: inline-flex;
+  display: none; /* hide by default to avoid overlap on mobile */
   align-items: center;
   justify-content: center;
   min-width: 10ch;
+}
+@media (min-width: 640px) {
+  .silk-content { display: inline-flex; }
 }
 .silk-default,
 .silk-hover {

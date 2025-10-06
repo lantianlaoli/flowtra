@@ -85,7 +85,7 @@ export default function CreditsPage() {
         userImageUrl={user?.imageUrl}
       />
       
-      <div className="ml-72 bg-gray-50 min-h-screen">
+      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
         <div className="p-8 max-w-7xl mx-auto">
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">

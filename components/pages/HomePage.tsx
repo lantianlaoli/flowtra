@@ -96,15 +96,15 @@ export default function HomePage() {
         userImageUrl={user?.imageUrl}
       />
       
-      <div className="ml-72 bg-gray-50 min-h-screen">
+      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
         <div className="p-8 max-w-7xl mx-auto">
           {/* Header Section */}
           <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-3 mb-2 min-w-0">
               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                 <Hand className="w-4 h-4 text-gray-700" />
               </div>
-              <h1 className="text-2xl font-semibold text-gray-900">
+              <h1 className="text-2xl font-semibold text-gray-900 mobile-ellipsis">
                 Hello, {getUserName()}
               </h1>
             </div>
@@ -117,9 +117,9 @@ export default function HomePage() {
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <BarChart3 className="w-4 h-4 text-gray-600" />
                 </div>
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-2xl font-bold text-gray-900">{stats.totalVideos}</span>
-                  <span className="text-sm font-medium text-gray-600 truncate">Total Videos Created</span>
+                <div className="flex items-baseline gap-2 min-w-0 w-full">
+                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.totalVideos}</span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-600 truncate flex-1">Total Videos Created</span>
                 </div>
               </div>
             </div>
@@ -129,9 +129,9 @@ export default function HomePage() {
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <TrendingUp className="w-4 h-4 text-gray-600" />
                 </div>
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-2xl font-bold text-gray-900">{stats.thisMonth}</span>
-                  <span className="text-sm font-medium text-gray-600 truncate">Ads This Month</span>
+                <div className="flex items-baseline gap-2 min-w-0 w-full">
+                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.thisMonth}</span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-600 truncate flex-1">Ads This Month</span>
                 </div>
               </div>
             </div>
@@ -141,9 +141,9 @@ export default function HomePage() {
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Zap className="w-4 h-4 text-gray-600" />
                 </div>
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-2xl font-bold text-gray-900">{stats.creditsUsed}</span>
-                  <span className="text-sm font-medium text-gray-600 truncate">Credits Used</span>
+                <div className="flex items-baseline gap-2 min-w-0 w-full">
+                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.creditsUsed}</span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-600 truncate flex-1">Credits Used</span>
                 </div>
               </div>
             </div>
@@ -154,9 +154,9 @@ export default function HomePage() {
                 <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Clock className="w-4 h-4 text-gray-600" />
                 </div>
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-2xl font-bold text-gray-900">{stats.hoursSaved}</span>
-                  <span className="text-sm font-medium text-gray-600 truncate">Hours Saved</span>
+                <div className="flex items-baseline gap-2 min-w-0 w-full">
+                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.hoursSaved}</span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-600 truncate flex-1">Hours Saved</span>
                 </div>
               </div>
             </div>
@@ -314,7 +314,7 @@ function DiscoverSection() {
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
       {/* Icon-only type filter */}
       <div className="p-3 border-b border-gray-200">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {(
             [
               { k: 'all', icon: ImageIcon, label: 'All' },

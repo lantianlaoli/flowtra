@@ -113,6 +113,8 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
             type="button"
             className="md:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-nav"
           >
             {mobileMenuOpen ? (
               <XMarkIcon className="w-6 h-6" />
@@ -122,9 +124,14 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           </button>
         </div>
 
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-gray-200">
+        {/* Mobile menu with animation */}
+        <div
+          id="mobile-nav"
+          className={`md:hidden overflow-hidden border-t border-gray-200 transition-all duration-300 ease-out ${
+            mobileMenuOpen ? 'opacity-100 max-h-[420px] py-4' : 'opacity-0 max-h-0 py-0'
+          }`}
+          aria-hidden={!mobileMenuOpen}
+        >
             <nav className="flex flex-col gap-5">
               <Link 
                 href="/#features" 
@@ -179,8 +186,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                 </div>
               )}
             </nav>
-          </div>
-        )}
+        </div>
       </div>
     </header>
   );

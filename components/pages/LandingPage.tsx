@@ -79,7 +79,7 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
           </div>
           {/* Right: long input + button */}
           <div className="md:col-span-8">
-            <div className="flex gap-3 items-stretch">
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch">
               <input
                 type="url"
                 value={storeUrl}
@@ -93,7 +93,7 @@ function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
               <button
                 onClick={handleSubmit}
                 disabled={!isLoaded || submitting}
-                className="shrink-0 bg-gray-900 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="shrink-0 bg-gray-900 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
                 aria-live="polite"
               >
                 <Sparkles className="w-5 h-5" />
@@ -320,37 +320,61 @@ export default function LandingPage() {
 
             {/* New users label + key benefits under subtitle */}
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
+              {/* Mobile: single concise pill */}
+              <span className="inline-flex sm:hidden items-center gap-2 text-sm font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
+                <GiftIcon className="w-4 h-4" />
+                <span>100 free credits</span>
+              </span>
+              {/* Desktop/Tablet: original two pills */}
+              <span className="hidden sm:inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
                 <UserPlus className="w-4 h-4" />
                 <span>For new users</span>
               </span>
-              <span className="inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
+              <span className="hidden sm:inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
                 <GiftIcon className="w-4 h-4" />
                 <span>100 free credits</span>
               </span>
             </div>
-            <ul className="text-gray-700 text-sm sm:text-base flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 mt-2">
-              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+            {/* Mobile: compact benefits */}
+            <div className="sm:hidden text-gray-700 text-sm mt-2">
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full px-2 py-1">
+                  <Check className="w-4 h-4 text-green-600" />
+                  <span>Unlimited gen</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full px-2 py-1">
+                  <Check className="w-4 h-4 text-green-600" />
+                  <span>No watermark</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full px-2 py-1">
+                  <Check className="w-4 h-4 text-green-600" />
+                  <span>Free images</span>
+                </span>
+              </div>
+            </div>
+            {/* Desktop/Tablet: detailed benefits */}
+            <ul className="hidden sm:flex text-gray-700 text-sm sm:text-base flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 mt-2">
+              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5 max-w-full">
                 <Check className="w-4 h-4 text-green-600" />
-                <span>
+                <span className="break-words">
                   Images: <span className="font-semibold underline">unlimited</span> generation + free downloads (
                   <span className="font-semibold underline">no watermark</span>)
                 </span>
               </li>
-              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5 max-w-full">
                 <Check className="w-4 h-4 text-green-600" />
-                <span>
+                <span className="break-words">
                   Videos: <span className="font-semibold underline">unlimited</span> generation; downloads cost credits (
                   <span className="font-semibold underline">no watermark</span>)
                 </span>
               </li>
-              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5 max-w-full">
                 <Check className="w-4 h-4 text-green-600" />
-                <span><span className="font-semibold underline">Unlimited</span> product configurations</span>
+                <span className="break-words"><span className="font-semibold underline">Unlimited</span> product configurations</span>
               </li>
-              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+              <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5 max-w-full">
                 <Check className="w-4 h-4 text-green-600" />
-                <span>Portraits: <span className="font-semibold underline">unlimited</span> character additions</span>
+                <span className="break-words">Portraits: <span className="font-semibold underline">unlimited</span> character additions</span>
               </li>
             </ul>
 
@@ -370,7 +394,7 @@ export default function LandingPage() {
                   onClick={() => router.push('/dashboard?upload=true')}
                   className="silk-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer"
                 >
-                  <span className="sm:hidden">start</span>
+                  <span className="sm:hidden">Start</span>
                   <span className="hidden sm:inline silk-content">
                     <span className="silk-default">
                       <Sparkles className="w-5 h-5" />
@@ -387,7 +411,7 @@ export default function LandingPage() {
                   <button
                     className="silk-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer"
                   >
-                    <span className="sm:hidden">start</span>
+                    <span className="sm:hidden">Start</span>
                     <span className="hidden sm:inline silk-content">
                       <span className="silk-default">
                         <Sparkles className="w-5 h-5" />
@@ -516,7 +540,7 @@ export default function LandingPage() {
                 <div className="bg-gray-900 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-[3/4]">
                   <VideoPlayer
                     src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/example.mp4"
-                    className="rounded-lg"
+                    className="rounded-lg object-contain"
                     showControls={true}
                     ariaLabel="AI-generated video advertisement example showing product transformation"
                   />
@@ -544,7 +568,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 lg:grid-cols-[5fr_7fr] gap-6 lg:gap-8">
 
               {/* Standard Ads Case */}
-              <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8">
+              <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8 overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3">
@@ -575,7 +599,8 @@ export default function LandingPage() {
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer"
                   >
                     <FaTiktok className="w-4 h-4" />
-                    {successCases[0].tiktokText}
+                    <span className="sm:hidden">View</span>
+                    <span className="hidden sm:inline">{successCases[0].tiktokText}</span>
                   </a>
                 </div>
 
@@ -589,10 +614,10 @@ export default function LandingPage() {
                 {/* Before & After Showcase */}
                 {successCases[0].layout === 'input-to-output' ? (
                   <div className="relative max-w-2xl mx-auto">
-                    <div className="flex items-center justify-center gap-6">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6">
                       {/* Original Product Image */}
                       <div className="flex flex-col items-center">
-                        <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[200px] h-[267px]">
+                        <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[160px] h-[213px] sm:w-[200px] sm:h-[267px]">
                           <Image
                             src={successCases[0].content.inputImage!}
                             alt="Original product photo"
@@ -605,9 +630,18 @@ export default function LandingPage() {
                         </div>
                       </div>
 
+                      {/* Mobile Arrow Between (vertical) */}
+                      <div className="block sm:hidden my-1">
+                        <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
+                          <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+
                       {/* Generated Video */}
                       <div className="flex flex-col items-center">
-                        <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[200px] h-[267px]">
+                        <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[160px] h-[213px] sm:w-[200px] sm:h-[267px]">
                           <VideoPlayer
                             src={successCases[0].content.videoUrl}
                             className="rounded-2xl"
@@ -618,7 +652,7 @@ export default function LandingPage() {
                     </div>
 
                     {/* Arrow Indicator */}
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -mt-4">
+                    <div className="hidden sm:block absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -mt-4">
                       <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
                         <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -641,7 +675,7 @@ export default function LandingPage() {
               </div>
 
               {/* Character Ads Case */}
-              <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8">
+              <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8 overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3">
@@ -672,7 +706,8 @@ export default function LandingPage() {
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer"
                   >
                     <FaTiktok className="w-4 h-4" />
-                    {successCases[1].tiktokText}
+                    <span className="sm:hidden">View</span>
+                    <span className="hidden sm:inline">{successCases[1].tiktokText}</span>
                   </a>
                 </div>
 
@@ -686,10 +721,10 @@ export default function LandingPage() {
                 {/* Multi-Input Showcase - Updated */}
                 {successCases[1].layout === 'multi-input-to-output' ? (
                   <div className="w-full mx-auto max-w-7xl">
-                    <div className="flex items-center justify-center gap-8">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
                       {/* Character Image */}
                       <div className="flex flex-col items-center">
-                        <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[200px] h-[267px]">
+                        <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[140px] h-[187px] sm:w-[200px] sm:h-[267px]">
                           <Image
                             src={successCases[1].content.characterImage!}
                             alt="Character photo"
@@ -704,8 +739,8 @@ export default function LandingPage() {
 
                       {/* Plus Sign */}
                       <div className="flex items-center justify-center">
-                        <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
-                          <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
+                          <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                           </svg>
                         </div>
@@ -713,7 +748,7 @@ export default function LandingPage() {
 
                       {/* Product Image */}
                       <div className="flex flex-col items-center">
-                        <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[200px] h-[267px]">
+                        <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[140px] h-[187px] sm:w-[200px] sm:h-[267px]">
                           <Image
                             src={successCases[1].content.productImage!}
                             alt="Product photo"
@@ -728,8 +763,8 @@ export default function LandingPage() {
 
                       {/* Arrow */}
                       <div className="flex items-center justify-center">
-                        <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
-                          <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
+                          <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         </div>
@@ -737,7 +772,7 @@ export default function LandingPage() {
 
                       {/* Generated Video */}
                       <div className="flex flex-col items-center">
-                        <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[200px] h-[267px]">
+                        <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[140px] h-[187px] sm:w-[200px] sm:h-[267px]">
                           <VideoPlayer
                             src={successCases[1].content.videoUrl}
                             className="rounded-2xl"
