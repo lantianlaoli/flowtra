@@ -470,7 +470,8 @@ async function generateVideoWithKIE(
       enableAudio: true,
       audioEnabled: true,
       generateVoiceover: false,
-      includeDialogue: false
+      includeDialogue: false,
+      enableTranslation: false
     };
     apiEndpoint = 'https://api.kie.ai/api/v1/veo/generate';
   }

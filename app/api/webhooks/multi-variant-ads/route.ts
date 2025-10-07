@@ -385,7 +385,8 @@ Ending: ${videoPrompt.ending}`;
     enableAudio: true,
     audioEnabled: true,
     generateVoiceover: false,
-    includeDialogue: false
+    includeDialogue: false,
+    enableTranslation: false
   };
 
   console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));

@@ -258,7 +258,8 @@ Other details: ${videoPrompt.other_details}`;
     enableAudio: true,
     audioEnabled: true,
     generateVoiceover: true,
-    includeDialogue: true
+    includeDialogue: true,
+    enableTranslation: false
   };
 
   console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
