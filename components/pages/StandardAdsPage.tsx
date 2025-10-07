@@ -231,7 +231,6 @@ export default function StandardAdsPage() {
                 <ProductSelector
                   selectedProduct={selectedProduct}
                   onProductSelect={setSelectedProduct}
-                  onManageProducts={() => setShowProductManager(true)}
                 />
               </div>
             </div>

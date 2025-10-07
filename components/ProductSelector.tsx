@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Package, Plus, Upload } from 'lucide-react';
+import { Images, Package, Upload } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 
 export interface TemporaryProduct extends Omit<UserProduct, 'id'> {
   id: string;
@@ -15,34 +15,42 @@ export interface TemporaryProduct extends Omit<UserProduct, 'id'> {
 interface ProductSelectorProps {
   selectedProduct: UserProduct | TemporaryProduct | null;
   onProductSelect: (product: UserProduct | TemporaryProduct | null) => void;
-  onManageProducts: () => void;
 }
+
+type FlowStep = 'choice' | 'upload' | 'existing' | 'review';
+
+const isTemporaryProduct = (
+  product: UserProduct | TemporaryProduct | null
+): product is TemporaryProduct => {
+  return product !== null && 'isTemporary' in product && product.isTemporary === true;
+};
 
 export default function ProductSelector({
   selectedProduct,
-  onProductSelect,
-  onManageProducts
+  onProductSelect
 }: ProductSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
   const [products, setProducts] = useState<UserProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [step, setStep] = useState<FlowStep>(() => (selectedProduct ? 'review' : 'choice'));
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previousSelectionRef = useRef<UserProduct | TemporaryProduct | null>(selectedProduct);
+
+  const selectedPhotos = selectedProduct?.user_product_photos || [];
 
   useEffect(() => {
     loadProducts();
   }, []);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+    if (selectedProduct !== previousSelectionRef.current) {
+      if (selectedProduct) {
+        setStep('review');
+      } else {
+        setStep('choice');
       }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+      previousSelectionRef.current = selectedProduct;
+    }
+  }, [selectedProduct]);
 
   const loadProducts = async () => {
     setIsLoading(true);
@@ -59,26 +67,24 @@ export default function ProductSelector({
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
+  const processFiles = (files: File[]) => {
+    if (!files.length) return;
 
-    // Create temporary product object
-    const filesArray = Array.from(files);
-    const tempPhotoUrls = filesArray.map(file => URL.createObjectURL(file));
+    const tempPhotoUrls = files.map((file) => URL.createObjectURL(file));
+    const tempId = `temp-${Date.now()}`;
 
     const temporaryProduct: TemporaryProduct = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
       isTemporary: true,
-      uploadedFiles: filesArray,
+      uploadedFiles: files,
       product_name: 'Uploaded Images',
-      description: `${filesArray.length} image${filesArray.length > 1 ? 's' : ''} uploaded`,
+      description: `${files.length} image${files.length > 1 ? 's' : ''} uploaded`,
       user_id: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       user_product_photos: tempPhotoUrls.map((url, index) => ({
         id: `temp-photo-${index}`,
-        product_id: `temp-${Date.now()}`,
+        product_id: tempId,
         user_id: '',
         photo_url: url,
         file_name: `temp-${index}`,
@@ -89,28 +95,261 @@ export default function ProductSelector({
     };
 
     onProductSelect(temporaryProduct);
-    setIsOpen(false);
+  };
 
-    // Reset file input
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    processFiles(Array.from(files));
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
-    return product !== null && 'isTemporary' in product && product.isTemporary === true;
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const files = Array.from(event.dataTransfer?.files || []);
+    if (!files.length) return;
+
+    processFiles(files);
   };
 
-  const selectedPhotos = selectedProduct?.user_product_photos || [];
-  const primaryPhoto = selectedPhotos.find(photo => photo.is_primary) || selectedPhotos[0];
+  const handleProductSelect = (product: UserProduct) => {
+    onProductSelect(product);
+  };
+
+  const clearSelection = () => {
+    onProductSelect(null);
+  };
+
+  const renderStepChoice = () => (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <button
+        type="button"
+        onClick={() => setStep('upload')}
+        className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-4 py-5 text-left transition hover:border-gray-300"
+      >
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <Upload className="h-4 w-4 text-gray-500" />
+          Upload photos
+        </div>
+        <p className="text-xs text-gray-500">Add images directly from your device.</p>
+      </button>
+      <button
+        type="button"
+        onClick={() => setStep('existing')}
+        className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-4 py-5 text-left transition hover:border-gray-300"
+      >
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <Images className="h-4 w-4 text-gray-500" />
+          Use saved product
+        </div>
+        <p className="text-xs text-gray-500">Choose from the products you already saved.</p>
+      </button>
+    </div>
+  );
+
+  const renderUploadStep = () => (
+    <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+        <div className="text-sm font-semibold text-gray-900">Upload product photos</div>
+        <button
+          type="button"
+          onClick={() => setStep('choice')}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-700"
+        >
+          <span className="text-base">←</span>
+          Back
+        </button>
+      </div>
+      <div
+        className="space-y-5 px-6 py-6"
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+        }}
+        onDrop={handleDrop}
+      >
+        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+          <button
+            type="button"
+            onClick={triggerFileInput}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-400 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+          >
+            <Upload className="h-4 w-4" />
+            Select images
+          </button>
+          <p className="mt-3 text-xs text-gray-500">
+            Drag and drop files here or browse from your device.
+          </p>
+        </div>
+        {isTemporaryProduct(selectedProduct) && selectedPhotos.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>Uploaded photos</span>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="cursor-pointer font-medium text-gray-500 hover:text-gray-700"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="flex gap-3 overflow-x-auto">
+              {selectedPhotos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="h-16 w-16 flex-none overflow-hidden rounded border border-gray-100"
+                >
+                  <Image
+                    src={photo.photo_url}
+                    alt={`Uploaded product photo`}
+                    width={64}
+                    height={64}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderExistingStep = () => (
+    <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+        <div className="text-sm font-semibold text-gray-900">Select a saved product</div>
+        <button
+          type="button"
+          onClick={() => setStep('choice')}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-700"
+        >
+          <span className="text-base">←</span>
+          Back
+        </button>
+      </div>
+      <div className="px-6 py-6">
+        {isLoading ? (
+          <div className="p-6 text-center text-sm text-gray-500">Loading products...</div>
+        ) : products.length === 0 ? (
+          <div className="p-6 text-center text-sm text-gray-500">
+            <Package className="mx-auto mb-3 h-8 w-8 text-gray-300" />
+            No products found.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {products.map((product) => {
+              const photos = product.user_product_photos || [];
+              const previewPhoto = photos.find((photo) => photo.is_primary) || photos[0];
+              const isSelected = selectedProduct?.id === product.id && !isTemporaryProduct(selectedProduct);
+
+              return (
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => handleProductSelect(product)}
+                  className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
+                    isSelected ? 'border-gray-400 bg-gray-100' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {previewPhoto ? (
+                    <div className="h-12 w-12 overflow-hidden rounded">
+                      <Image
+                        src={previewPhoto.photo_url}
+                        alt={product.product_name}
+                        width={48}
+                        height={48}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded bg-gray-100">
+                      <Package className="h-6 w-6 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-gray-900">
+                      {product.product_name}
+                    </div>
+                    <div className="truncate text-xs text-gray-500">
+                      {photos.length} {photos.length === 1 ? 'photo' : 'photos'}
+                      {product.description && (
+                        <>
+                          {' • '}
+                          {product.description}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderReviewStep = () => {
+    if (!selectedProduct) return null;
+
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          <div className="text-sm font-semibold text-gray-900">Product photos ready</div>
+        <button
+          type="button"
+          onClick={() => setStep('choice')}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-700"
+        >
+          <span className="text-base">←</span>
+          Back
+        </button>
+        </div>
+        <div className="space-y-4 px-6 py-6">
+          {!isTemporaryProduct(selectedProduct) && (
+            <div>
+              <div className="text-sm font-semibold text-gray-900">{selectedProduct.product_name}</div>
+              {selectedProduct.description && (
+                <p className="mt-1 text-xs text-gray-500">{selectedProduct.description}</p>
+              )}
+            </div>
+          )}
+          {selectedPhotos.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto">
+              {selectedPhotos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="h-16 w-16 flex-none overflow-hidden rounded border border-gray-100"
+                >
+                  <Image
+                    src={photo.photo_url}
+                    alt={`${selectedProduct.product_name} photo`}
+                    width={64}
+                    height={64}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">No photos linked yet.</p>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        Select Product
-      </label>
-
-      {/* Hidden file input */}
+    <div className="space-y-6">
       <input
         ref={fileInputRef}
         type="file"
@@ -120,185 +359,52 @@ export default function ProductSelector({
         className="hidden"
       />
 
-      {/* Selector Button */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors bg-white"
-      >
-        <div className="flex items-center gap-3">
-          {selectedProduct ? (
-            <>
-              {primaryPhoto ? (
-                <div className="w-8 h-8 rounded overflow-hidden">
-                  <Image
-                    src={primaryPhoto.photo_url}
-                    alt={selectedProduct.product_name}
-                    width={32}
-                    height={32}
-                    className="object-cover w-full h-full"
-                  />
-                </div>
-              ) : (
-                <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
-                  <Package className="w-4 h-4 text-gray-400" />
-                </div>
-              )}
-              <div className="text-left">
-                <div className="font-medium text-gray-900">
-                  {selectedProduct.product_name}
-                  {isTemporaryProduct(selectedProduct) && (
-                    <span className="ml-2 text-xs text-blue-600">(Temporary)</span>
-                  )}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {selectedPhotos.length} {selectedPhotos.length === 1 ? 'photo' : 'photos'}
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <Package className="w-5 h-5 text-gray-400" />
-              <span className="text-gray-500">Choose a product...</span>
-            </>
-          )}
-        </div>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {/* Dropdown */}
-      <AnimatePresence>
-        {isOpen && (
+      <AnimatePresence mode="wait">
+        {step === 'choice' && (
           <motion.div
-            className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] max-h-80 overflow-auto"
-            initial={{ opacity: 0, y: -10 }}
+            key="choice"
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2 }}
           >
-            {/* Upload Images Button */}
-            <button
-              onClick={() => {
-                fileInputRef.current?.click();
-                setIsOpen(false);
-              }}
-              className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-100 text-blue-600 font-medium transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
-                  <Upload className="w-4 h-4 text-blue-600" />
-                </div>
-                <span>Upload Images Directly</span>
-              </div>
-            </button>
+            {renderStepChoice()}
+          </motion.div>
+        )}
 
-            {/* Clear Selection */}
-            {selectedProduct && (
-              <button
-                onClick={() => {
-                  onProductSelect(null);
-                  setIsOpen(false);
-                }}
-                className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 text-gray-600"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center">
-                    <span className="text-gray-400 text-xs">×</span>
-                  </div>
-                  <span>No product selected</span>
-                </div>
-              </button>
-            )}
+        {step === 'upload' && (
+          <motion.div
+            key="upload"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2 }}
+          >
+            {renderUploadStep()}
+          </motion.div>
+        )}
 
-            {/* Products List */}
-            {isLoading ? (
-              <div className="p-4 text-center text-gray-500">
-                Loading products...
-              </div>
-            ) : products.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <div className="text-sm">No products found</div>
-                <button
-                  onClick={() => {
-                    onManageProducts();
-                    setIsOpen(false);
-                  }}
-                  className="mt-2 text-xs text-gray-900 hover:underline"
-                >
-                  Create your first product
-                </button>
-              </div>
-            ) : (
-              <>
-                {products.map((product) => {
-                  const photos = product.user_product_photos || [];
-                  const primaryPhoto = photos.find(photo => photo.is_primary) || photos[0];
-                  const isSelected = selectedProduct?.id === product.id;
+        {step === 'existing' && (
+          <motion.div
+            key="existing"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2 }}
+          >
+            {renderExistingStep()}
+          </motion.div>
+        )}
 
-                  return (
-                    <button
-                      key={product.id}
-                      onClick={() => {
-                        onProductSelect(product);
-                        setIsOpen(false);
-                      }}
-                      className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
-                        isSelected ? 'bg-gray-50' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        {primaryPhoto ? (
-                          <div className="w-10 h-10 rounded overflow-hidden">
-                            <Image
-                              src={primaryPhoto.photo_url}
-                              alt={product.product_name}
-                              width={40}
-                              height={40}
-                              className="object-cover w-full h-full"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center">
-                            <Package className="w-5 h-5 text-gray-400" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 truncate">
-                            {product.product_name}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {photos.length} {photos.length === 1 ? 'photo' : 'photos'}
-                            {product.description && (
-                              <>
-                                {' • '}
-                                <span className="truncate">{product.description}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-
-                {/* Manage Products Button */}
-                <div className="border-t border-gray-100">
-                  <button
-                    onClick={() => {
-                      onManageProducts();
-                      setIsOpen(false);
-                    }}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 text-gray-600 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Plus className="w-5 h-5" />
-                      <span className="text-sm">Manage Products</span>
-                    </div>
-                  </button>
-                </div>
-              </>
-            )}
+        {step === 'review' && (
+          <motion.div
+            key="review"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2 }}
+          >
+            {renderReviewStep()}
           </motion.div>
         )}
       </AnimatePresence>

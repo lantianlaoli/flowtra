@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -14,7 +14,7 @@ import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { ArrowRight, Clock, Video, Settings, Package, History, MessageSquare } from 'lucide-react';
+import { ArrowRight, Clock, Video, Settings, Package, History, MessageSquare, Sparkles, Wand2, Info } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -36,7 +36,7 @@ export default function CharacterAdsPage() {
   const [personImages, setPersonImages] = useState<File[]>([]);
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
   const [videoDuration, setVideoDuration] = useState<8 | 10 | 16 | 20 | 24 | 30>(8);
-  const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>('auto');
+  const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>('veo3_fast');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('seedream');
   const [imageSize, setImageSize] = useState<string>('auto');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
@@ -44,6 +44,9 @@ export default function CharacterAdsPage() {
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
+  const [isGeneratingDialogue, setIsGeneratingDialogue] = useState(false);
+  const [dialogueError, setDialogueError] = useState<string | null>(null);
+  const [hasAIGeneratedDialogue, setHasAIGeneratedDialogue] = useState(false);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -174,6 +177,74 @@ export default function CharacterAdsPage() {
     setSelectedPersonPhotoUrl('');
     setSelectedProduct(null);
     setSelectedAccent('australian');
+    setCustomDialogue('');
+    setDialogueError(null);
+    setHasAIGeneratedDialogue(false);
+  };
+
+  const productPhotoUrls = useMemo(() => {
+    if (!selectedProduct?.user_product_photos?.length) return [] as string[];
+    return selectedProduct.user_product_photos
+      .map((photo) => photo.photo_url)
+      .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
+      .slice(0, 3);
+  }, [selectedProduct]);
+
+  const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
+
+  const handleGenerateAIDialogue = async () => {
+    if (!selectedProduct) {
+      setDialogueError('Select a product before generating a dialogue.');
+      return;
+    }
+
+    if (productPhotoUrls.length === 0) {
+      setDialogueError('Please add product photos first so AI can understand your item.');
+      return;
+    }
+
+    setDialogueError(null);
+    setIsGeneratingDialogue(true);
+
+    const productName = selectedProduct.product_name || '';
+    const productDescription = selectedProduct.description || '';
+
+    try {
+      const response = await fetch('/api/character-ads/dialogue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          accent: selectedAccent,
+          productName,
+          productDescription,
+          productImageUrls: productPhotoUrls
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Failed to generate dialogue.');
+      }
+
+      setCustomDialogue(result.dialogue || '');
+      setHasAIGeneratedDialogue(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to generate dialogue.';
+      setDialogueError(message);
+      setHasAIGeneratedDialogue(false);
+    } finally {
+      setIsGeneratingDialogue(false);
+    }
+  };
+
+  const handleCustomDialogueChange = (value: string) => {
+    setCustomDialogue(value);
+    if (hasAIGeneratedDialogue) {
+      setHasAIGeneratedDialogue(false);
+    }
   };
 
   if (!isLoaded) {
@@ -197,7 +268,7 @@ export default function CharacterAdsPage() {
                 <Video className="w-4 h-4 text-gray-700" />
               </div>
               <h1 className="text-2xl font-semibold text-gray-900">
-                Character Spokesperson Ads
+                Character Ads
               </h1>
             </div>
           </div>
@@ -264,7 +335,6 @@ export default function CharacterAdsPage() {
                       <ProductSelector
                         selectedProduct={selectedProduct}
                         onProductSelect={setSelectedProduct}
-                        onManageProducts={() => setShowProductManager(true)}
                       />
 
                     </div>
@@ -295,7 +365,7 @@ export default function CharacterAdsPage() {
                         <VideoDurationSelector
                           value={videoDuration}
                           onChange={(d) => {
-                            // Do not auto-switch video model; keep user's selection (including 'auto')
+                            // Keep the chosen video model stable when duration changes
                             setVideoDuration(d);
                           }}
                         />
@@ -309,6 +379,7 @@ export default function CharacterAdsPage() {
                             selectedModel={selectedImageModel}
                             onModelChange={setSelectedImageModel}
                             showIcon={true}
+                            hiddenModels={['auto']}
                           />
                         </div>
                         <div className="relative">
@@ -321,6 +392,7 @@ export default function CharacterAdsPage() {
                             disabledModels={(videoDuration === 10 || videoDuration === 20 || videoDuration === 30)
                               ? ['veo3', 'veo3_fast']
                               : ['sora2']}
+                            hiddenModels={['auto']}
                           />
                         </div>
                       </div>
@@ -356,20 +428,69 @@ export default function CharacterAdsPage() {
                       </div>
 
                       {/* Custom Dialogue (Optional) */}
-                      <div>
-                        <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-2">
-                          <MessageSquare className="w-4 h-4 text-gray-600" />
-                          Custom Dialogue (optional)
-                        </label>
-                        <textarea
-                          value={customDialogue}
-                          onChange={(e) => setCustomDialogue(e.target.value)}
-                          placeholder="What should the character say? Keep it natural and under 150 characters."
-                          maxLength={200}
-                          rows={3}
-                          className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
-                        />
-
+                      <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                            <MessageSquare className="w-4 h-4 text-gray-600" />
+                            <span>Custom Dialogue</span>
+                            <span className="text-xs text-gray-500 font-medium">Optional</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleGenerateAIDialogue}
+                            disabled={isGeneratingDialogue || !canUseDialogueAI}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
+                          >
+                          {isGeneratingDialogue ? (
+                            <>
+                              <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                              Generating…
+                            </>
+                          ) : hasAIGeneratedDialogue ? (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              Regenerate
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              AI Generate
+                              {!canUseDialogueAI && (
+                                <span
+                                  className="ml-2 flex h-4 w-4 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-[10px] font-semibold text-amber-700"
+                                  title={selectedProduct
+                                    ? 'Upload at least one product photo so AI can understand your item before drafting dialogue.'
+                                    : 'Pick a product with photos to unlock AI dialogue suggestions.'}
+                                >
+                                  ?
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </button>
+                      </div>
+                        <div className="mt-3">
+                          {dialogueError && (
+                            <div className="mb-2 text-xs text-red-500">{dialogueError}</div>
+                          )}
+                          <div className="space-y-2">
+                            <textarea
+                              value={customDialogue}
+                              onChange={(e) => handleCustomDialogueChange(e.target.value)}
+                              placeholder="Add a short line the character will say. Think product hook + friendly CTA."
+                              maxLength={200}
+                              rows={3}
+                              className="w-full px-3 py-3 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 text-gray-900 transition"
+                            />
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <div className="inline-flex items-center gap-1 text-gray-600">
+                                <Wand2 className="w-3.5 h-3.5" />
+                                Tip: keep it under 200 characters for the most natural delivery.
+                              </div>
+                              <span>{customDialogue.length}/200</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                     </div>
