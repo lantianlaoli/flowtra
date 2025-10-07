@@ -323,7 +323,7 @@ export default function LandingPage() {
               {/* Mobile: single concise pill */}
               <span className="inline-flex sm:hidden items-center gap-2 text-sm font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
                 <GiftIcon className="w-4 h-4" />
-                <span>100 free credits</span>
+                <span>100 free credits (~$1.80 value)</span>
               </span>
               {/* Desktop/Tablet: original two pills */}
               <span className="hidden sm:inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
@@ -332,7 +332,7 @@ export default function LandingPage() {
               </span>
               <span className="hidden sm:inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
                 <GiftIcon className="w-4 h-4" />
-                <span>100 free credits</span>
+                <span>100 free credits (~$1.80 value)</span>
               </span>
             </div>
             {/* Mobile: compact benefits */}
@@ -364,7 +364,7 @@ export default function LandingPage() {
               <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5 max-w-full">
                 <Check className="w-4 h-4 text-green-600" />
                 <span className="break-words">
-                  Videos: <span className="font-semibold underline">unlimited</span> generation; downloads cost credits (
+                  Videos: <span className="font-semibold underline">unlimited</span> generation; each video is worth ~$0.54 (
                   <span className="font-semibold underline">no watermark</span>)
                 </span>
               </li>
