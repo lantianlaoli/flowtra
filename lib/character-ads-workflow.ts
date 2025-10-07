@@ -1064,6 +1064,37 @@ export async function processCharacterAdsProject(
 
         const unitSeconds = (project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : (project.video_model as 'veo3'|'veo3_fast'|'sora2')) === 'sora2' ? 10 : 8;
         const videoScenes = project.video_duration_seconds / unitSeconds;
+
+        const existingTaskIds = Array.isArray(project.kie_video_task_ids)
+          ? project.kie_video_task_ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+          : [];
+
+        if (existingTaskIds.length === videoScenes) {
+          console.log(`🎬 Project ${project.id} already has ${existingTaskIds.length} KIE video tasks, skipping duplicate generation.`);
+
+          const progress = Math.max(project.progress_percentage ?? 0, 70);
+          const { data: updatedProject, error: skipUpdateError } = await supabase
+            .from('character_ads_projects')
+            .update({
+              kie_video_task_ids: existingTaskIds,
+              status: 'generating_videos',
+              current_step: 'generating_videos',
+              progress_percentage: progress,
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', project.id)
+            .select()
+            .single();
+
+          if (skipUpdateError) throw skipUpdateError;
+
+          return {
+            project: updatedProject,
+            message: 'Video tasks already exist, moving to status checks',
+            nextStep: 'check_videos_status'
+          };
+        }
+
         const videoTaskIds = [];
 
         // Start video generation for each scene
