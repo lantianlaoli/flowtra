@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Lock, Coins, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,10 @@ interface VideoModelSelectorProps {
   showIcon?: boolean;
   hideCredits?: boolean;
   disabledModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>; // Disable options due to external constraints (e.g., duration)
+  hiddenModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>;
 }
+
+const SORA2_HELP_TEXT = 'OpenAI currently do not support uploads of images containing photorealistic people, so Sora2 is temporarily unavailable.';
 
 export default function VideoModelSelector({
   credits,
@@ -25,14 +28,15 @@ export default function VideoModelSelector({
   className,
   showIcon = false,
   hideCredits = false,
-  disabledModels = []
+  disabledModels = [],
+  hiddenModels
 }: VideoModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
 
   // Model options for dropdown with credit costs and processing times
-  const getModelOptions = () => {
+  const modelOptions = useMemo(() => {
     const autoSelection = getAutoModeSelection(credits);
     return [
       {
@@ -73,12 +77,26 @@ export default function VideoModelSelector({
         processingTime: getProcessingTime('sora2'),
         affordable: canAffordModel(credits, 'sora2'),
         showCost: !hideCredits,
-        features: 'Ultra premium'
+        features: 'In development'
       }
     ];
-  };
+  }, [credits, hideCredits]);
+  const visibleOptions = useMemo(
+    () =>
+      modelOptions.filter(
+        (option) => !hiddenModels?.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2')
+      ),
+    [modelOptions, hiddenModels]
+  );
 
-  const modelOptions = getModelOptions();
+  useEffect(() => {
+    if (hiddenModels?.includes(selectedModel)) {
+      const fallback = visibleOptions[0];
+      if (fallback && fallback.value !== selectedModel) {
+        onModelChange(fallback.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2');
+      }
+    }
+  }, [hiddenModels, selectedModel, visibleOptions, onModelChange]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -115,7 +133,7 @@ export default function VideoModelSelector({
     }
   }, [isOpen]);
 
-  const selectedOption = modelOptions.find(opt => opt.value === selectedModel);
+  const selectedOption = visibleOptions.find(opt => opt.value === selectedModel) || visibleOptions[0];
 
   const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast' | 'sora2', affordable: boolean) => {
     if (!affordable) return; // Prevent selection of unaffordable options
@@ -140,15 +158,23 @@ export default function VideoModelSelector({
           onClick={() => setIsOpen(!isOpen)}
           className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-md transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
-          <div className="min-w-0">
-            <div className="font-medium truncate">
+          <div className="min-w-0 flex flex-col">
+            <span className="font-medium truncate">
               {selectedOption?.label}
               {selectedOption?.value === 'sora2' && (
-                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">Beta</span>
+                <span className="ml-2 inline-flex items-center gap-1">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">In development</span>
+                  <span
+                    className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 text-[10px] text-gray-600 cursor-help"
+                    title={SORA2_HELP_TEXT}
+                  >
+                    ?
+                  </span>
+                </span>
               )}
-            </div>
-            {selectedOption?.features && (
-              <div className="text-xs text-gray-500 truncate">{selectedOption.features}</div>
+            </span>
+            {(selectedOption?.description || selectedOption?.features) && (
+              <span className="text-xs text-gray-500 truncate">{selectedOption?.description || selectedOption?.features}</span>
             )}
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
@@ -167,7 +193,7 @@ export default function VideoModelSelector({
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-48 overflow-y-auto"
           >
-            {modelOptions.map((option) => {
+            {visibleOptions.map((option) => {
               const disabledByConstraint = disabledModels.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2');
               const isDisabled = !option.affordable || disabledByConstraint;
               return (
@@ -185,33 +211,40 @@ export default function VideoModelSelector({
                     : "text-gray-700"
                 )}
               >
-                <div className="flex items-center justify-between flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{option.label}</span>
+                <div className="flex flex-1 items-start justify-between gap-3">
+                  <div className="flex flex-col">
+                    <span className="font-medium">
+                      {option.label}
                       {option.value === 'sora2' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">Beta</span>
+                        <span className="ml-2 inline-flex items-center gap-1">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">In development</span>
+                          <span
+                            className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 text-[10px] text-gray-600 cursor-help"
+                            title={SORA2_HELP_TEXT}
+                          >
+                            ?
+                          </span>
+                        </span>
                       )}
-                      {option.features && !hideCredits && (
-                        <div className="text-xs text-gray-500">{option.features}</div>
-                      )}
-                      {hideCredits && option.features && (
-                        <div className="text-xs text-gray-500">{option.features}</div>
-                      )}
-                    </div>
+                    </span>
+                    {(option.description || option.features) && (
+                      <span className="text-xs text-gray-500">{option.description || option.features}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
                     {isDisabled && (
                       <Lock className="w-3 h-3 text-gray-400" />
                     )}
+                    {option.showCost && (
+                      <div className={cn(
+                        "flex items-center gap-1 text-xs font-medium",
+                        !isDisabled ? "text-gray-600" : "text-red-500"
+                      )}>
+                        <Coins className="w-3 h-3" />
+                        <span>{option.cost}</span>
+                      </div>
+                    )}
                   </div>
-                  {option.showCost && (
-                    <div className={cn(
-                      "flex items-center gap-1 text-xs font-medium",
-                      !isDisabled ? "text-gray-600" : "text-red-500"
-                    )}>
-                      <Coins className="w-3 h-3" />
-                      <span>{option.cost}</span>
-                    </div>
-                  )}
                 </div>
                 {selectedModel === option.value && !isDisabled && (
                   <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">

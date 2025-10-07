@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,7 @@ interface ImageModelSelectorProps {
   className?: string;
   showIcon?: boolean;
   defaultModel?: 'auto' | 'nano_banana' | 'seedream';
+  hiddenModels?: Array<'auto' | 'nano_banana' | 'seedream'>;
 }
 
 export default function ImageModelSelector({
@@ -22,14 +23,15 @@ export default function ImageModelSelector({
   onModelChange,
   label = 'Image Model',
   className,
-  showIcon = false
+  showIcon = false,
+  hiddenModels
 }: ImageModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
 
   // Model options for dropdown with credit costs and processing times
-  const getModelOptions = () => {
+  const modelOptions = useMemo(() => {
     const autoSelection = getAutoImageModeSelection();
     return [
       {
@@ -63,9 +65,23 @@ export default function ImageModelSelector({
         features: 'High quality'
       }
     ];
-  };
+  }, [credits]);
+  const visibleOptions = useMemo(
+    () =>
+      modelOptions.filter(
+        (option) => !hiddenModels?.includes(option.value as 'auto' | 'nano_banana' | 'seedream')
+      ),
+    [modelOptions, hiddenModels]
+  );
 
-  const modelOptions = getModelOptions();
+  useEffect(() => {
+    if (hiddenModels?.includes(selectedModel)) {
+      const fallback = visibleOptions[0];
+      if (fallback && fallback.value !== selectedModel) {
+        onModelChange(fallback.value as 'auto' | 'nano_banana' | 'seedream');
+      }
+    }
+  }, [hiddenModels, selectedModel, visibleOptions, onModelChange]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -102,7 +118,7 @@ export default function ImageModelSelector({
     }
   }, [isOpen]);
 
-  const selectedOption = modelOptions.find(opt => opt.value === selectedModel);
+  const selectedOption = visibleOptions.find(opt => opt.value === selectedModel) || visibleOptions[0];
 
   const handleOptionSelect = (value: 'auto' | 'nano_banana' | 'seedream', affordable: boolean) => {
     if (!affordable) return; // Prevent selection of unaffordable options (though all are free)
@@ -127,10 +143,12 @@ export default function ImageModelSelector({
           onClick={() => setIsOpen(!isOpen)}
           className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-md transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
-          <div className="min-w-0">
-            <div className="font-medium truncate">{selectedOption?.label}</div>
-            {selectedOption?.features && (
-              <div className="text-xs text-gray-500 truncate">{selectedOption.features}</div>
+          <div className="min-w-0 flex flex-col">
+            <span className="font-medium truncate">{selectedOption?.label}</span>
+            {(selectedOption?.description || selectedOption?.features) && (
+              <span className="text-xs text-gray-500 truncate">
+                {selectedOption?.description || selectedOption?.features}
+              </span>
             )}
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
@@ -149,7 +167,7 @@ export default function ImageModelSelector({
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-48 overflow-y-auto"
           >
-            {modelOptions.map((option) => (
+            {visibleOptions.map((option) => (
               <button
                 key={option.value}
                 onClick={() => handleOptionSelect(option.value as 'auto' | 'nano_banana' | 'seedream', option.affordable)}
@@ -164,14 +182,12 @@ export default function ImageModelSelector({
                     : "text-gray-700"
                 )}
               >
-                <div className="flex items-center justify-between flex-1">
-                  <div className="flex items-center gap-2">
-                    <div>
-                      <span className="font-medium">{option.label}</span>
-                      {option.features && (
-                        <div className="text-xs text-gray-500">{option.features}</div>
-                      )}
-                    </div>
+                <div className="flex flex-1 items-start justify-between">
+                  <div className="flex flex-col">
+                    <span className="font-medium">{option.label}</span>
+                    {(option.description || option.features) && (
+                      <span className="text-xs text-gray-500">{option.description || option.features}</span>
+                    )}
                   </div>
                 </div>
                 {selectedModel === option.value && option.affordable && (

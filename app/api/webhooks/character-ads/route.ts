@@ -136,21 +136,7 @@ async function handleSuccessCallback(taskId: string, data: KieCallbackData, supa
       .eq('project_id', project.id)
       .eq('scene_number', 0);
 
-    console.log(`Updated project ${project.id} with generated image`);
-
-    // Trigger next step - video generation
-    try {
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-      await fetch(`${baseUrl}/api/character-ads/${project.id}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step: 'generate_videos' })
-      });
-      console.log(`Triggered video generation for project ${project.id}`);
-    } catch (triggerError) {
-      console.error(`Failed to trigger video generation for project ${project.id}:`, triggerError);
-      // Don't fail the webhook - the video generation can be triggered by polling
-    }
+    console.log(`Updated project ${project.id} with generated image (no auto-trigger for video generation)`);
 
   } catch (error) {
     console.error(`Error handling success callback for taskId ${taskId}:`, error);

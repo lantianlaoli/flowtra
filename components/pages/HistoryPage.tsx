@@ -805,7 +805,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-300`}>
                         {isCharacterAds(item)
-                          ? 'Character Spokesperson'
+                          ? 'Character'
                           : isMultiVariantAds(item)
                           ? 'Creative Mix'
                           : 'Product Focus'

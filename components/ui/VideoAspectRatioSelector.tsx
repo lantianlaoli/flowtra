@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Monitor, Smartphone } from 'lucide-react';
+import { ChevronDown, Check, Monitor, Smartphone, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getVideoAspectRatioOptions } from '@/lib/constants';
 
@@ -48,8 +48,7 @@ export default function VideoAspectRatioSelector({
       subtitle: '16:9',
       description: 'Horizontal widescreen format',
       platforms: 'YouTube videos, desktop ads, TV displays',
-      icon: Monitor,
-      note: 'Supports 1080P HD quality'
+      icon: Monitor
     },
     {
       value: '9:16' as const,
@@ -57,8 +56,7 @@ export default function VideoAspectRatioSelector({
       subtitle: '9:16',
       description: 'Vertical mobile-first format',
       platforms: 'TikTok, Instagram Reels, YouTube Shorts',
-      icon: Smartphone,
-      note: 'Optimized for mobile viewing'
+      icon: Smartphone
     }
   ];
 
@@ -112,7 +110,7 @@ export default function VideoAspectRatioSelector({
   return (
     <div className={cn("space-y-3", className)} ref={dropdownRef}>
       <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-        {showIcon && selectedOption && <selectedOption.icon className="w-4 h-4" />}
+        {showIcon && <Video className="w-4 h-4" />}
         {label}
       </label>
       <div className="relative">
@@ -125,10 +123,12 @@ export default function VideoAspectRatioSelector({
             {selectedOption?.icon && (
               <selectedOption.icon className="w-4 h-4 text-gray-500" />
             )}
-            <div>
+            <div className="flex items-center gap-2">
               <span className="font-medium">{selectedOption?.label}</span>
               {selectedOption?.subtitle && (
-                <span className="text-gray-500 ml-1">({selectedOption.subtitle})</span>
+                <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                  {selectedOption.subtitle}
+                </span>
               )}
             </div>
           </div>
@@ -169,14 +169,8 @@ export default function VideoAspectRatioSelector({
                           {option.subtitle}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-600 mt-0.5">
-                        {option.description}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
+                      <div className="text-xs text-gray-500 mt-0.5">
                         {option.platforms}
-                      </div>
-                      <div className="text-xs text-blue-600 mt-1 font-medium">
-                        {option.note}
                       </div>
                     </div>
                   </div>
