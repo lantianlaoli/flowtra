@@ -188,7 +188,7 @@ export type TablesUpdate<T extends keyof Database['public']['Tables']> = Databas
 export const uploadImageToStorage = async (file: File, filename?: string) => {
   const fileExt = file.name.split('.').pop()
   const fileName = filename || `${Math.random().toString(36).substring(2)}.${fileExt}`
-  const filePath = `covers/${fileName}`
+  const filePath = `temporary_products/${fileName}`
 
   const supabase = getSupabase()
   const { data, error } = await supabase.storage

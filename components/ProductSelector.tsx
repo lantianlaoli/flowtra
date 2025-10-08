@@ -32,6 +32,8 @@ export default function ProductSelector({
   const [products, setProducts] = useState<UserProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState<FlowStep>(() => (selectedProduct ? 'review' : 'choice'));
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previousSelectionRef = useRef<UserProduct | TemporaryProduct | null>(selectedProduct);
 
@@ -67,57 +69,88 @@ export default function ProductSelector({
     }
   };
 
-  const processFiles = (files: File[]) => {
-    if (!files.length) return;
+  const processFiles = async (files: File[]) => {
+    if (!files.length || isUploading) return;
 
-    const tempPhotoUrls = files.map((file) => URL.createObjectURL(file));
-    const tempId = `temp-${Date.now()}`;
+    setUploadError(null);
+    setIsUploading(true);
 
-    const temporaryProduct: TemporaryProduct = {
-      id: tempId,
-      isTemporary: true,
-      uploadedFiles: files,
-      product_name: 'Uploaded Images',
-      description: `${files.length} image${files.length > 1 ? 's' : ''} uploaded`,
-      user_id: '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      user_product_photos: tempPhotoUrls.map((url, index) => ({
-        id: `temp-photo-${index}`,
-        product_id: tempId,
+    try {
+      const formData = new FormData();
+      files.forEach((file, index) => {
+        formData.append(`file_${index}`, file);
+      });
+
+      const uploadResponse = await fetch('/api/upload-temp-images', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload images. Please try again.');
+      }
+
+      const uploadData = await uploadResponse.json();
+
+      if (!uploadData?.success || !Array.isArray(uploadData.imageUrls) || uploadData.imageUrls.length === 0) {
+        throw new Error('No image URLs returned from upload.');
+      }
+
+      const tempId = `temp-${Date.now()}`;
+      const timestamp = new Date().toISOString();
+
+      const temporaryProduct: TemporaryProduct = {
+        id: tempId,
+        isTemporary: true,
+        uploadedFiles: files,
+        product_name: 'Uploaded Images',
+        description: `${files.length} image${files.length > 1 ? 's' : ''} uploaded`,
         user_id: '',
-        photo_url: url,
-        file_name: `temp-${index}`,
-        is_primary: index === 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }))
-    };
+        created_at: timestamp,
+        updated_at: timestamp,
+        user_product_photos: uploadData.imageUrls.map((url: string, index: number) => ({
+          id: `temp-photo-${index}`,
+          product_id: tempId,
+          user_id: '',
+          photo_url: url,
+          file_name: files[index]?.name || `temp-${index}`,
+          is_primary: index === 0,
+          created_at: timestamp,
+          updated_at: timestamp
+        }))
+      };
 
-    onProductSelect(temporaryProduct);
+      onProductSelect(temporaryProduct);
+    } catch (error) {
+      console.error('Error uploading product photos:', error);
+      const message = error instanceof Error ? error.message : 'Failed to upload product photos.';
+      setUploadError(message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0 || isUploading) return;
 
-    processFiles(Array.from(files));
+    await processFiles(Array.from(files));
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const files = Array.from(event.dataTransfer?.files || []);
-    if (!files.length) return;
+    if (!files.length || isUploading) return;
 
-    processFiles(files);
+    await processFiles(files);
   };
 
   const handleProductSelect = (product: UserProduct) => {
@@ -180,15 +213,30 @@ export default function ProductSelector({
           <button
             type="button"
             onClick={triggerFileInput}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-400 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+            disabled={isUploading}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-400 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Upload className="h-4 w-4" />
-            Select images
+            {isUploading ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-transparent" />
+                Uploading…
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4" />
+                Select images
+              </>
+            )}
           </button>
           <p className="mt-3 text-xs text-gray-500">
             Drag and drop files here or browse from your device.
           </p>
         </div>
+        {uploadError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-600">
+            {uploadError}
+          </div>
+        )}
         {isTemporaryProduct(selectedProduct) && selectedPhotos.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-gray-500">
