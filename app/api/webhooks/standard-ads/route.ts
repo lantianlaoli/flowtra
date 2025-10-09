@@ -24,6 +24,7 @@ interface StandardAdsRecord {
   current_step: string;
   video_prompts?: Record<string, unknown>;
   video_model?: string;
+  video_aspect_ratio?: '16:9' | '9:16';
   last_processed_at: string;
   photo_only?: boolean | null;
 }
@@ -195,35 +196,63 @@ async function startVideoGeneration(record: StandardAdsRecord, coverImageUrl: st
     throw new Error('No creative prompts available for video generation');
   }
 
-  const videoPrompt = record.video_prompts as VideoPrompt;
+  const videoPrompt = record.video_prompts as VideoPrompt & { ad_copy?: string };
+  const providedAdCopyRaw =
+    typeof videoPrompt.ad_copy === 'string'
+      ? videoPrompt.ad_copy.trim()
+      : undefined;
+  const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
+  const dialogueContent = providedAdCopy || videoPrompt.dialogue;
+  const adCopyInstruction = providedAdCopy
+    ? `\nAd Copy (use verbatim): ${providedAdCopy}\nOn-screen Text: Display "${providedAdCopy}" prominently without paraphrasing.\nVoiceover: Speak "${providedAdCopy}" exactly as written.`
+    : '';
+
   const fullPrompt = `${videoPrompt.description}
 
 Setting: ${videoPrompt.setting}
 Camera: ${videoPrompt.camera_type} with ${videoPrompt.camera_movement}
 Action: ${videoPrompt.action}
 Lighting: ${videoPrompt.lighting}
-Dialogue: ${videoPrompt.dialogue}
+Dialogue: ${dialogueContent}
 Music: ${videoPrompt.music}
 Ending: ${videoPrompt.ending}
-Other details: ${videoPrompt.other_details}`;
+Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
 
   console.log('Generated video prompt:', fullPrompt);
 
-  const requestBody = {
-    prompt: fullPrompt,
-    model: record.video_model || 'veo3_fast',
-    aspectRatio: "16:9",
-    imageUrls: [coverImageUrl],
-    enableAudio: true,
-    audioEnabled: true,
-    generateVoiceover: true,
-    includeDialogue: true,
-    enableTranslation: false
-  };
+  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2';
+  const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-  console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
+  const isSora = videoModel === 'sora2';
+  const apiEndpoint = isSora
+    ? 'https://api.kie.ai/api/v1/jobs/createTask'
+    : 'https://api.kie.ai/api/v1/veo/generate';
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
+  const requestBody = isSora
+    ? {
+        model: 'sora-2-image-to-video',
+        input: {
+          prompt: fullPrompt,
+          image_urls: [coverImageUrl],
+          aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
+        }
+      }
+    : {
+        prompt: fullPrompt,
+        model: videoModel,
+        aspectRatio,
+        imageUrls: [coverImageUrl],
+        enableAudio: true,
+        audioEnabled: true,
+        generateVoiceover: true,
+        includeDialogue: true,
+        enableTranslation: false
+      };
+
+  console.log('Video API endpoint:', apiEndpoint);
+  console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
+
+  const response = await fetchWithRetry(apiEndpoint, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,

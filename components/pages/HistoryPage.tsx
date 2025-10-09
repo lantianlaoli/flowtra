@@ -5,13 +5,12 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import RetryImage from '@/components/ui/RetryImage';
 import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 
 interface StandardAdsItem {
   id: string;
@@ -24,7 +23,7 @@ interface StandardAdsItem {
   generationCreditsUsed?: number;
   productDescription?: string;
   imagePrompt?: string;
-  videoModel: 'veo3' | 'veo3_fast';
+  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;
@@ -100,7 +99,6 @@ export default function HistoryPage() {
   // Content filter simplified: only video ads types remain
   const [contentFilter, setContentFilter] = useState<'all' | 'standard' | 'multi-variant' | 'character'>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
-  const [downloadingVideo, setDownloadingVideo] = useState<string | null>(null);
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [, setDownloadStates] = useState<Record<string, 'idle' | 'processing' | 'success'>>({});
@@ -365,7 +363,6 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
 
     // Start download animation
     setDownloadStates(prev => ({ ...prev, [historyId]: 'processing' }));
-    setDownloadingVideo(historyId);
 
     try {
       // Use different API endpoint for Character Ads
@@ -439,8 +436,6 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
       console.error('Error downloading video:', error);
       alert('An error occurred while downloading the video');
       setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
-    } finally {
-      setDownloadingVideo(null);
     }
   };
 
@@ -1035,7 +1030,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                           const base = getCreditCost(item.videoModel);
                                           cost = Math.round((item.videoDurationSeconds / unitSeconds) * base);
                                         } else {
-                                          cost = getCreditCost(item.videoModel as 'veo3' | 'veo3_fast');
+                                          cost = getCreditCost(item.videoModel);
                                         }
                                         return (
                                           <>

@@ -455,8 +455,7 @@ async function generateVideoWithKIE(
       input: {
         prompt: finalPrompt,
         image_urls: [referenceImageUrl],
-        aspect_ratio: videoAspectRatio === '9:16' ? 'portrait' : 'landscape',
-        quality: 'standard'
+        aspect_ratio: videoAspectRatio === '9:16' ? 'portrait' : 'landscape'
       }
     };
     apiEndpoint = 'https://api.kie.ai/api/v1/jobs/createTask';

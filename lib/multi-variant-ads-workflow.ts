@@ -811,21 +811,6 @@ function generatePromptFromElements(elementsData: Record<string, unknown>, adCop
   return `${basePrompt}. Style: modern, clean, professional advertising with high-quality visual appeal.`;
 }
 
-// Helper function to map image size to KIE API format
-function mapImageSize(size: string): string {
-  const sizeMap: Record<string, string> = {
-    'auto': 'auto',
-    '1024x1024': '1:1',
-    '1080x1080': '1:1',
-    '1200x630': '16:9',
-    'square': '1:1',
-    'landscape': '16:9',
-    'portrait': '9:16'
-  };
-
-  return sizeMap[size] || 'auto';
-}
-
 export async function getMultiVariantItemsStatus(ids: string[]): Promise<{success: boolean; items?: Record<string, unknown>[]; error?: string}> {
   try {
     const supabase = getSupabaseAdmin();

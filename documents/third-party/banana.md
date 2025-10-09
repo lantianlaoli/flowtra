@@ -108,6 +108,7 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
   - `5:4`: 5:4
   - `4:5`: 4:5
   - `21:9`: 21:9
+  - `auto`: auto
 - **Default Value**: `"1:1"`
 
 ### Request Example

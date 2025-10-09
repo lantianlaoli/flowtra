@@ -12,7 +12,6 @@ import {
   Sparkles,
   Play,
   Layers,
-  Image as ImageIcon,
   Video,
   Package,
   Menu,

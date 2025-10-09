@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useStandardAdsWorkflow } from '@/hooks/useStandardAdsWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
-import { ArrowRight, History, Play, TrendingUp, Hash, Type, ChevronDown, Package } from 'lucide-react';
+import { ArrowRight, History, Play, TrendingUp, Hash, Type, ChevronDown, Package, Sparkles, Wand2 } from 'lucide-react';
 import GenerationConfirmation from '@/components/ui/GenerationConfirmation';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
@@ -32,8 +31,8 @@ interface KieCreditsStatus {
 export default function StandardAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
-  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>('auto');
-  const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
+  const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2'>('veo3_fast');
+  const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('nano_banana');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
     sufficient: true,
@@ -46,14 +45,27 @@ export default function StandardAdsPage() {
   const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
+  const [adCopy, setAdCopy] = useState('');
+  const [isGeneratingAdCopy, setIsGeneratingAdCopy] = useState(false);
+  const [adCopyError, setAdCopyError] = useState<string | null>(null);
+  const [hasAIGeneratedAdCopy, setHasAIGeneratedAdCopy] = useState(false);
+  const [isSuggestingWatermark, setIsSuggestingWatermark] = useState(false);
+  const [watermarkError, setWatermarkError] = useState<string | null>(null);
+  const [hasAISuggestedWatermark, setHasAISuggestedWatermark] = useState(false);
   
   
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2') => {
-    setSelectedModel(model);
+    // Filter out 'auto' since our state doesn't support it
+    if (model !== 'auto') {
+      setSelectedModel(model);
+    }
   };
 
   const handleImageModelChange = (model: 'auto' | 'nano_banana' | 'seedream') => {
-    setSelectedImageModel(model);
+    // Filter out 'auto' since our state doesn't support it
+    if (model !== 'auto') {
+      setSelectedImageModel(model);
+    }
   };
   const router = useRouter();
   
@@ -65,14 +77,155 @@ export default function StandardAdsPage() {
     resetWorkflow
   } = useStandardAdsWorkflow(
     user?.id,
-    // Standard workflow does not support Sora2; coerce to supported model
-    (selectedModel === 'sora2' ? 'veo3' : selectedModel) as 'auto' | 'veo3' | 'veo3_fast',
+    selectedModel,
     selectedImageModel,
     updateCredits,
     refetchCredits,
     elementsCount,
-    imageSize
+    imageSize,
+    videoAspectRatio,
+    adCopy
   );
+
+  const ALLOWED_WATERMARK_LOCATIONS = ['bottom left', 'bottom right', 'top left', 'top right', 'center bottom'] as const;
+  const uploadedImageUrl = state.data.uploadedFile?.url;
+
+  const formatLocationLabel = (value: string) =>
+    value
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+
+  const collectContext = useCallback(() => {
+    const productName = selectedProduct && 'product_name' in selectedProduct ? selectedProduct.product_name : undefined;
+    const productDescription = selectedProduct && 'description' in selectedProduct ? selectedProduct.description : undefined;
+
+    const productPhotos = selectedProduct && 'user_product_photos' in selectedProduct
+      ? (selectedProduct.user_product_photos || [])
+          .map((photo) => photo?.photo_url)
+          .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
+      : [];
+
+    const uploadedUrl = uploadedImageUrl && /^https?:\/\//i.test(uploadedImageUrl)
+      ? uploadedImageUrl
+      : undefined;
+
+    const allImageUrls = [...productPhotos, uploadedUrl]
+      .filter((url): url is string => Boolean(url))
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .slice(0, 3);
+
+    if (!productName && !productDescription && allImageUrls.length === 0) {
+      return null;
+    }
+
+    return {
+      productName,
+      productDescription,
+      productImageUrls: allImageUrls
+    };
+  }, [selectedProduct, uploadedImageUrl]);
+
+  const canUseAIHelpers = useMemo(() => collectContext() !== null, [collectContext]);
+
+  const handleGenerateAdCopy = async () => {
+    if (isGeneratingAdCopy) return;
+    const context = collectContext();
+    if (!context) {
+      setAdCopyError('Select a product or upload an image first.');
+      return;
+    }
+
+    setIsGeneratingAdCopy(true);
+    setAdCopyError(null);
+
+    try {
+      const response = await fetch('/api/standard-ads/ad-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(context)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Failed to generate ad copy.');
+      }
+
+      setAdCopy(result.adCopy || '');
+      setHasAIGeneratedAdCopy(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to generate ad copy.';
+      setAdCopyError(message);
+      setHasAIGeneratedAdCopy(false);
+    } finally {
+      setIsGeneratingAdCopy(false);
+    }
+  };
+
+  const normaliseLocation = (location: string | undefined) => {
+    if (!location) return 'bottom left';
+    const lower = location.toLowerCase().trim();
+    const match = ALLOWED_WATERMARK_LOCATIONS.find((loc) => loc === lower);
+    return match || 'bottom left';
+  };
+
+  const handleSuggestWatermark = async () => {
+    if (isSuggestingWatermark) return;
+    const context = collectContext();
+    if (!context) {
+      setWatermarkError('Select a product or upload an image first.');
+      return;
+    }
+
+    setIsSuggestingWatermark(true);
+    setWatermarkError(null);
+
+    try {
+      const response = await fetch('/api/standard-ads/watermark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(context)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Failed to suggest watermark.');
+      }
+
+      setTextWatermark(result.text || '');
+      setTextWatermarkLocation(normaliseLocation(result.location));
+      setHasAISuggestedWatermark(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to suggest watermark.';
+      setWatermarkError(message);
+      setHasAISuggestedWatermark(false);
+    } finally {
+      setIsSuggestingWatermark(false);
+    }
+  };
+
+  const handleAdCopyChange = (value: string) => {
+    setAdCopy(value);
+    if (hasAIGeneratedAdCopy) {
+      setHasAIGeneratedAdCopy(false);
+    }
+  };
+
+  const handleWatermarkTextChange = (value: string) => {
+    setTextWatermark(value);
+    if (hasAISuggestedWatermark) {
+      setHasAISuggestedWatermark(false);
+    }
+  };
+
+  const handleWatermarkLocationChange = (value: string) => {
+    setTextWatermarkLocation(normaliseLocation(value));
+    if (hasAISuggestedWatermark) {
+      setHasAISuggestedWatermark(false);
+    }
+  };
 
 
   // Check KIE credits on page load
@@ -143,6 +296,13 @@ export default function StandardAdsPage() {
     resetWorkflow();
     setSelectedProduct(null);
     setShowProductManager(false);
+    setAdCopy('');
+    setHasAIGeneratedAdCopy(false);
+    setAdCopyError(null);
+    setTextWatermark('');
+    setTextWatermarkLocation('bottom left');
+    setHasAISuggestedWatermark(false);
+    setWatermarkError(null);
   };
 
   const features = [
@@ -243,26 +403,7 @@ export default function StandardAdsPage() {
                   <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
                 </div>
 
-                {/* Product Preview - Show when product is selected */}
-                {selectedProduct && (
-                  <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                    {selectedProduct.user_product_photos?.find(p => p.is_primary) && (
-                      <Image
-                        src={selectedProduct.user_product_photos.find(p => p.is_primary)?.photo_url || selectedProduct.user_product_photos[0]?.photo_url || ''}
-                        alt="Selected product"
-                        width={60}
-                        height={60}
-                        className="rounded-lg object-cover"
-                      />
-                    )}
-                    <div>
-                      <p className="font-medium text-gray-900">{selectedProduct.product_name}</p>
-                      <p className="text-sm text-gray-600">Selected product</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Configuration Options */}
+                {/* Row 1: Ads and Generate Video */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Elements Count */}
                   <div>
@@ -309,25 +450,132 @@ export default function StandardAdsPage() {
                   </div>
                 </div>
 
+                {/* Row 2: Image and Video Models */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ImageModelSelector
+                    credits={userCredits || 0}
+                    selectedModel={selectedImageModel}
+                    onModelChange={handleImageModelChange}
+                    showIcon={true}
+                    hiddenModels={['auto']}
+                  />
+                  {shouldGenerateVideo && (
+                    <VideoModelSelector
+                      credits={userCredits || 0}
+                      selectedModel={selectedModel}
+                      onModelChange={handleModelChange}
+                      showIcon={true}
+                      hideCredits={true}
+                      hiddenModels={['auto']}
+                    />
+                  )}
+                </div>
+
+                {/* Row 3: Size and Video Aspect Ratio */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <SizeSelector
+                    selectedSize={imageSize}
+                    onSizeChange={setImageSize}
+                    imageModel={selectedImageModel}
+                    videoAspectRatio={videoAspectRatio}
+                    showIcon={true}
+                  />
+                  {shouldGenerateVideo && (
+                    <VideoAspectRatioSelector
+                      selectedAspectRatio={videoAspectRatio}
+                      onAspectRatioChange={setVideoAspectRatio}
+                      showIcon={true}
+                    />
+                  )}
+                </div>
+
+                {/* Ad Copy Configuration */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                      <Type className="w-4 h-4" />
+                      Ad Copy
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateAdCopy}
+                      disabled={isGeneratingAdCopy || !canUseAIHelpers}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
+                    >
+                      {isGeneratingAdCopy ? (
+                        <>
+                          <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                          Generating…
+                        </>
+                      ) : hasAIGeneratedAdCopy ? (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Regenerate
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          AI Generate
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={adCopy}
+                    onChange={(e) => handleAdCopyChange(e.target.value)}
+                    placeholder="Enter ad copy (optional)..."
+                    maxLength={120}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                  />
+                  {adCopyError && <p className="text-xs text-red-500 mt-1">{adCopyError}</p>}
+                </div>
+
                 {/* Watermark Configuration */}
                 <div>
-                  <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
-                    <Type className="w-4 h-4" />
-                    Watermark
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
-                  </label>
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                      <Type className="w-4 h-4" />
+                      Watermark
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSuggestWatermark}
+                      disabled={isSuggestingWatermark || !canUseAIHelpers}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
+                    >
+                      {isSuggestingWatermark ? (
+                        <>
+                          <span className="h-3 w-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
+                          Analyzing…
+                        </>
+                      ) : hasAISuggestedWatermark ? (
+                        <>
+                          <Wand2 className="w-3.5 h-3.5" />
+                          Regenerate
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-3.5 h-3.5" />
+                          AI Suggest
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex gap-2 flex-col sm:flex-row">
                     <input
                       type="text"
                       value={textWatermark}
-                      onChange={(e) => setTextWatermark(e.target.value)}
+                      onChange={(e) => handleWatermarkTextChange(e.target.value)}
                       placeholder="Enter brand name or watermark text..."
                       maxLength={50}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                      className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
                     />
                     <select
                       value={textWatermarkLocation}
-                      onChange={(e) => setTextWatermarkLocation(e.target.value)}
+                      onChange={(e) => handleWatermarkLocationChange(e.target.value)}
                       className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
                     >
                       <option value="bottom left">Bottom Left</option>
@@ -337,32 +585,7 @@ export default function StandardAdsPage() {
                       <option value="center bottom">Center Bottom</option>
                     </select>
                   </div>
-                </div>
-
-                {/* Size Configuration */}
-                <SizeSelector
-                  selectedSize={imageSize}
-                  onSizeChange={setImageSize}
-                  showIcon={true}
-                />
-
-                {/* Model Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <ImageModelSelector
-                    credits={userCredits || 0}
-                    selectedModel={selectedImageModel}
-                    onModelChange={handleImageModelChange}
-                    showIcon={true}
-                  />
-                  {shouldGenerateVideo && (
-                    <VideoModelSelector
-                      credits={userCredits || 0}
-                      selectedModel={selectedModel}
-                      onModelChange={handleModelChange}
-                      showIcon={true}
-                      hideCredits={true}
-                    />
-                  )}
+                  {watermarkError && <p className="text-xs text-red-500 mt-1">{watermarkError}</p>}
                 </div>
 
                 {/* Generate Button */}
@@ -413,240 +636,243 @@ export default function StandardAdsPage() {
     }
 
     // Show configuration interface after upload
-    if (state.workflowStatus === 'uploaded_waiting_config') {
-      return (
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12 h-full">
-            {/* Left Side - Image Preview emphasised */}
-            <div className="lg:col-span-6 flex flex-col h-full">
-              {/* Show uploaded file image */}
-              {state.data.uploadedFile?.url && (
-                <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white shadow-lg p-2 sm:p-3 flex relative overflow-hidden flex-1">
-                  {/* Subtle background pattern */}
-                  <div className="absolute inset-0 opacity-5">
-                    <div className="absolute inset-0" style={{
-                      backgroundImage: `radial-gradient(circle at 25% 25%, #6366f1 2px, transparent 2px), radial-gradient(circle at 75% 75%, #8b5cf6 2px, transparent 2px)`,
-                      backgroundSize: '50px 50px'
-                    }}></div>
-                  </div>
-                  <div className="flex-1 relative z-10 overflow-hidden flex flex-col">
-                    <div className="relative w-full flex-1 flex items-center justify-center">
-                      <Image
-                        src={state.data.uploadedFile.url}
-                        alt="Product"
-                        width={640}
-                        height={640}
-                        className="w-full h-auto object-contain rounded-xl bg-white/80 backdrop-blur-sm shadow-xl border border-white/20 max-h-[360px]"
-                      />
-                      {/* Subtle glow effect */}
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-transparent via-transparent to-white/10 pointer-events-none"></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
 
-            {/* Right Side - Configuration Area */}
-            <div className="lg:col-span-6 space-y-4 flex flex-col">
-
-              {/* Elements Count Selector - segmented control */}
-              <div>
-                <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-2">
-                  <Hash className="w-4 h-4" />
-                  Ads
-                </label>
-                <div
-                  role="radiogroup"
-                  aria-label="How many ads?"
-                  className="relative inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm"
-                >
-                  {[1,2,3].map((val) => {
-                    const active = elementsCount === val;
-                    return (
-                      <button
-                        key={val}
-                        role="radio"
-                        aria-checked={active}
-                        onClick={() => setElementsCount(val)}
-                        className={`relative px-5 py-2 text-base font-semibold rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
-                          active ? 'text-white' : 'text-gray-800 hover:bg-gray-50'
-                        } ${val !== 1 ? 'ml-1' : ''}`}
-                      >
-                        {active && (
-                          <motion.div
-                            layoutId="segmentedHighlight"
-                            className="absolute inset-0 rounded-lg bg-gray-900 shadow z-0"
-                            transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-                          />
-                        )}
-                        <span className="relative z-10">
-                          {val} {val === 1 ? 'ad' : 'ads'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Watermark Configuration */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                  <Type className="w-4 h-4" />
-                  Watermark
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                    Optional
-                  </span>
-                </label>
-
-                {/* Watermark Text Input and Location Selector */}
-                <div className="flex gap-2">
-                  {/* Left: Text Input - increased proportion */}
-                  <div className="flex-[2]">
-                    <input
-                      id="watermark-text"
-                      type="text"
-                      value={textWatermark}
-                      onChange={(e) => setTextWatermark(e.target.value)}
-                      placeholder="Enter brand name or watermark text..."
-                      maxLength={50}
-                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
-                    />
-                  </div>
-
-                  {/* Right: Location Selector - increased width */}
-                  <div className="relative w-40">
-                    <select
-                      id="watermark-location"
-                      value={textWatermarkLocation}
-                      onChange={(e) => setTextWatermarkLocation(e.target.value)}
-                      className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
-                    >
-                      <option value="bottom left">Bottom Left</option>
-                      <option value="bottom right">Bottom Right</option>
-                      <option value="top left">Top Left</option>
-                      <option value="top right">Top Right</option>
-                      <option value="center bottom">Center Bottom</option>
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-
-            {/* Image Size Configuration */}
-            <SizeSelector
-              selectedSize={imageSize}
-              onSizeChange={setImageSize}
-              showIcon={true}
-            />
-
-              {/* Video Generation Option - moved after Ads */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                  <Play className="w-4 h-4" />
-                  Video
-                </label>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShouldGenerateVideo(true)}
-                    className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
-                      shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                    }`}
-                    aria-pressed={shouldGenerateVideo}
-                  >
-                    Generate video
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShouldGenerateVideo(false)}
-                    className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
-                      !shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                    }`}
-                    aria-pressed={!shouldGenerateVideo}
-                  >
-                    Images only
-                  </button>
-                </div>
-              </div>
-
-              {/* Model Selection - in one row */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Image Model Selection */}
-                <ImageModelSelector
-                  credits={userCredits || 0}
-                  selectedModel={selectedImageModel}
-                  onModelChange={handleImageModelChange}
-                  showIcon={true}
-                  className="col-span-1"
-                />
-
-                {/* Video Model Selection - only show when video generation is enabled */}
-                {shouldGenerateVideo && (
-                  <VideoModelSelector
-                    credits={userCredits || 0}
-                    selectedModel={selectedModel}
-                    onModelChange={handleModelChange}
-                    showIcon={true}
-                    hideCredits={true}
-                    className="col-span-1"
-                  />
-                )}
-
-                {/* Placeholder when video is disabled */}
-                {!shouldGenerateVideo && (
-                  <div className="col-span-1 space-y-2">
-                    <label className="flex items-center gap-2 text-base font-medium text-gray-400">
-                      <Play className="w-4 h-4" />
-                      Video Model
-                    </label>
-                    <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 text-center">
-                      Video generation disabled
-                    </div>
-                  </div>
-                )}
-
-                {/* Video Aspect Ratio Selection - only show when video generation is enabled */}
-                {shouldGenerateVideo && (
-                  <VideoAspectRatioSelector
-                    selectedAspectRatio={videoAspectRatio}
-                    onAspectRatioChange={setVideoAspectRatio}
-                    showIcon={true}
-                    className="col-span-1"
-                  />
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-2 mt-auto">
+if (state.workflowStatus === 'uploaded_waiting_config') {
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-4 flex flex-col">
+        <div>
+          <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-2">
+            <Hash className="w-4 h-4" />
+            Ads
+          </label>
+          <div
+            role="radiogroup"
+            aria-label="How many ads?"
+            className="relative inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm"
+          >
+            {[1, 2, 3].map((val) => {
+              const active = elementsCount === val;
+              return (
                 <button
-                  onClick={handleStartWorkflow}
-                  disabled={state.isLoading}
-                  className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-2.5 rounded-lg hover:bg-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium relative overflow-hidden group"
+                  key={val}
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setElementsCount(val)}
+                  className={`relative px-5 py-2 text-base font-semibold rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
+                    active ? 'text-white' : 'text-gray-800 hover:bg-gray-50'
+                  } ${val !== 1 ? 'ml-1' : ''}`}
                 >
-                  {state.isLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                      <span>Generating…</span>
-                    </>
-                  ) : (
-                    <>
-                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
-                      <span className="group-hover:scale-105 transition-transform duration-200">Generate</span>
-                      <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Free</span>
-                    </>
+                  {active && (
+                    <motion.div
+                      layoutId="segmentedHighlight"
+                      className="absolute inset-0 rounded-lg bg-gray-900 shadow z-0"
+                      transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                    />
                   )}
+                  <span className="relative z-10">
+                    {val} {val === 1 ? 'ad' : 'ads'}
+                  </span>
                 </button>
-
-              </div>
-            </div>
-
-            
+              );
+            })}
           </div>
         </div>
-      );
-    }
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ImageModelSelector
+            credits={userCredits || 0}
+            selectedModel={selectedImageModel}
+            onModelChange={handleImageModelChange}
+            showIcon={true}
+            hiddenModels={['auto']}
+          />
+          {shouldGenerateVideo && (
+            <VideoModelSelector
+              credits={userCredits || 0}
+              selectedModel={selectedModel}
+              onModelChange={handleModelChange}
+              showIcon={true}
+              hideCredits={true}
+              hiddenModels={['auto']}
+            />
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SizeSelector
+            selectedSize={imageSize}
+            onSizeChange={setImageSize}
+            imageModel={selectedImageModel}
+            videoAspectRatio={videoAspectRatio}
+            showIcon={true}
+          />
+          {shouldGenerateVideo && (
+            <VideoAspectRatioSelector
+              selectedAspectRatio={videoAspectRatio}
+              onAspectRatioChange={setVideoAspectRatio}
+              showIcon={true}
+            />
+          )}
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+              <Type className="w-4 h-4" />
+              Ad Copy
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                Optional
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={handleGenerateAdCopy}
+              disabled={isGeneratingAdCopy || !canUseAIHelpers}
+              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
+            >
+              {isGeneratingAdCopy ? (
+                <>
+                  <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                  Generating…
+                </>
+              ) : hasAIGeneratedAdCopy ? (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Regenerate
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  AI Generate
+                </>
+              )}
+            </button>
+          </div>
+          <input
+            type="text"
+            value={adCopy}
+            onChange={(e) => handleAdCopyChange(e.target.value)}
+            placeholder="Enter ad copy (optional)..."
+            maxLength={120}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+          />
+          {adCopyError && <p className="text-xs text-red-500 mt-1">{adCopyError}</p>}
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+              <Type className="w-4 h-4" />
+              Watermark
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                Optional
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={handleSuggestWatermark}
+              disabled={isSuggestingWatermark || !canUseAIHelpers}
+              className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
+            >
+              {isSuggestingWatermark ? (
+                <>
+                  <span className="h-3 w-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
+                  Analyzing…
+                </>
+              ) : hasAISuggestedWatermark ? (
+                <>
+                  <Wand2 className="w-3.5 h-3.5" />
+                  Regenerate
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-3.5 h-3.5" />
+                  AI Suggest
+                </>
+              )}
+            </button>
+          </div>
+          <div className="flex gap-2 flex-col sm:flex-row">
+            <input
+              id="watermark-text"
+              type="text"
+              value={textWatermark}
+              onChange={(e) => handleWatermarkTextChange(e.target.value)}
+              placeholder="Enter brand name or watermark text..."
+              maxLength={50}
+              className="w-full sm:flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
+            />
+            <div className="relative sm:w-40">
+              <select
+                id="watermark-location"
+                value={textWatermarkLocation}
+                onChange={(e) => handleWatermarkLocationChange(e.target.value)}
+                className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
+              >
+                {ALLOWED_WATERMARK_LOCATIONS.map((loc) => (
+                  <option key={loc} value={loc}>{formatLocationLabel(loc)}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+            </div>
+          </div>
+          {watermarkError && <p className="text-xs text-red-500 mt-1">{watermarkError}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+            <Play className="w-4 h-4" />
+            Video
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setShouldGenerateVideo(true)}
+              className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
+                shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+              }`}
+              aria-pressed={shouldGenerateVideo}
+            >
+              Generate video
+            </button>
+            <button
+              type="button"
+              onClick={() => setShouldGenerateVideo(false)}
+              className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
+                !shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
+              }`}
+              aria-pressed={!shouldGenerateVideo}
+            >
+              Images only
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2 mt-auto">
+          <button
+            onClick={handleStartWorkflow}
+            disabled={state.isLoading}
+            className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-2.5 rounded-lg hover:bg-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium relative overflow-hidden group"
+          >
+            {state.isLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                <span>Generating…</span>
+              </>
+            ) : (
+              <>
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
+                <span className="group-hover:scale-105 transition-transform duration-200">Generate</span>
+                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Free</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
     // Show workflow initiated success state
     if (state.workflowStatus === 'workflow_initiated') {
       return (

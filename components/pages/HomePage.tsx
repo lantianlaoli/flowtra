@@ -7,27 +7,9 @@ import { Zap, TrendingUp, Hand, Volume2, VolumeX, Image as ImageIcon, Layers, Vi
 import Sidebar from '@/components/layout/Sidebar';
 import { useRef, useMemo, useCallback } from 'react';
 
-interface RecentVideo {
-  id: string;
-  thumbnail?: string;
-  videoUrl?: string;
-  createdAt: string;
-  status: 'completed' | 'processing' | 'failed';
-  generationTime?: number; // in minutes
-  modelUsed?: string;
-  creditsConsumed?: number;
-  creativePrompt?: {
-    music?: string;
-    action?: string;
-    ending?: string;
-    setting?: string;
-  };
-}
-
 export default function HomePage() {
   const { user, isLoaded } = useUser();
   const { credits } = useCredits();
-  const [recentVideos, setRecentVideos] = useState<RecentVideo[]>([]);
   const [stats, setStats] = useState({
     totalVideos: 0,
     thisMonth: 0,
@@ -38,22 +20,9 @@ export default function HomePage() {
   // Fetch recent videos and stats
   useEffect(() => {
     if (user) {
-      fetchRecentVideos();
       fetchStats();
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchRecentVideos = async () => {
-    try {
-      const response = await fetch('/api/recent-videos');
-      if (response.ok) {
-        const data = await response.json();
-        setRecentVideos(data.videos || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch recent videos:', error);
-    }
-  };
 
   const fetchStats = async () => {
     try {
@@ -360,6 +329,7 @@ function DiscoverSection() {
                 onMouseLeave={() => item.videoUrl && handleMouseLeave(item.id)}
               >
                 {/* Cover image */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={item.coverImageUrl}
                   alt="ad"

@@ -58,7 +58,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
 
     if (isFirstDownload) {
       // Charge full cost on first download (generation is free)
-      const downloadCost = getCreditCost(historyRecord.video_model as 'veo3' | 'veo3_fast');
+      const videoModelForCost = historyRecord.video_model as 'veo3' | 'veo3_fast' | 'sora2';
+      const downloadCost = getCreditCost(videoModelForCost);
 
       // Check if user has enough credits
       const creditCheck = await checkCredits(userId, downloadCost);
@@ -90,7 +91,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
         userId,
         'usage',
         downloadCost,
-        `Video download - ${historyRecord.video_model === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'}`,
+        `Video download - ${
+          historyRecord.video_model === 'veo3'
+            ? 'VEO3 High Quality'
+            : historyRecord.video_model === 'sora2'
+              ? 'Sora 2'
+              : 'VEO3 Fast'
+        }`,
         historyId,
         true
       );

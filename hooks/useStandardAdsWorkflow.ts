@@ -22,7 +22,7 @@ export interface WorkflowState {
     };
     errorMessage?: string;
     creditsUsed?: number;
-    videoModel?: 'auto' | 'veo3' | 'veo3_fast';
+    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2';
     watermark?: {
       enabled: boolean;
       text: string;
@@ -34,7 +34,17 @@ export interface WorkflowState {
   maxGuestUsage: number;
 }
 
-export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'auto' | 'veo3' | 'veo3_fast' = 'auto', selectedImageModel: 'auto' | 'nano_banana' | 'seedream' = 'auto', updateCredits?: (newCredits: number) => void, refetchCredits?: () => Promise<void>, elementsCount: number = 1, imageSize: string = 'auto') => {
+export const useStandardAdsWorkflow = (
+  userId?: string | null,
+  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' = 'veo3_fast',
+  selectedImageModel: 'auto' | 'nano_banana' | 'seedream' = 'nano_banana',
+  updateCredits?: (newCredits: number) => void,
+  refetchCredits?: () => Promise<void>,
+  elementsCount: number = 1,
+  imageSize: string = 'auto',
+  videoAspectRatio: '16:9' | '9:16' = '16:9',
+  adCopy: string = ''
+) => {
   // Initialize guest usage limits
   const maxGuestUsage = 1; // Guest users: 1 VEO3_fast
   const maxUserUsage = 2;   // Logged users: 2 VEO3_fast
@@ -268,7 +278,8 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
     watermarkConfig: { enabled: boolean; text: string; location?: string },
     currentElementsCount?: number,
     currentImageSize?: string,
-    generateVideo?: boolean
+    generateVideo?: boolean,
+    currentVideoAspectRatio?: '16:9' | '9:16'
   ) => {
     try {
       setLoading(true);
@@ -282,7 +293,9 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
         watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
-        shouldGenerateVideo: generateVideo
+        shouldGenerateVideo: generateVideo,
+        videoAspectRatio: currentVideoAspectRatio ?? videoAspectRatio,
+        adCopy: adCopy?.trim() ? adCopy.trim() : undefined
       };
 
       console.log('🔍 useWorkflow startWorkflowWithSelectedProduct requestData:', requestData);
@@ -334,13 +347,14 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
 
       setError(error.message || 'Failed to start workflow');
     }
-  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
+  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
 
   const startWorkflowWithConfig = useCallback(async (
     watermarkConfig: { enabled: boolean; text: string; location?: string },
     currentElementsCount?: number,
     currentImageSize?: string,
-    generateVideo?: boolean
+    generateVideo?: boolean,
+    currentVideoAspectRatio?: '16:9' | '9:16'
   ) => {
     if (!state.data.uploadedFile?.url || !state.data.uploadedFile?.path) {
       setError('No uploaded file found');
@@ -361,7 +375,9 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
         watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
-        shouldGenerateVideo: generateVideo
+        shouldGenerateVideo: generateVideo,
+        videoAspectRatio: currentVideoAspectRatio ?? videoAspectRatio,
+        adCopy: adCopy?.trim() ? adCopy.trim() : undefined
       };
 
       console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
@@ -413,14 +429,15 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
       
       setError(error.message || 'Failed to start workflow');
     }
-  }, [state.data.uploadedFile, userId, selectedModel, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
+  }, [state.data.uploadedFile, userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
 
   const startWorkflowWithTemporaryImages = useCallback(async (
     imageFiles: File[],
     watermarkConfig: { enabled: boolean; text: string; location?: string },
     currentElementsCount?: number,
     currentImageSize?: string,
-    generateVideo?: boolean
+    generateVideo?: boolean,
+    currentVideoAspectRatio?: '16:9' | '9:16'
   ) => {
     try {
       setLoading(true);
@@ -453,7 +470,9 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
         watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
-        shouldGenerateVideo: generateVideo
+        shouldGenerateVideo: generateVideo,
+        videoAspectRatio: currentVideoAspectRatio ?? videoAspectRatio,
+        adCopy: adCopy?.trim() ? adCopy.trim() : undefined
       };
 
       console.log('🔍 useWorkflow startWorkflowWithTemporaryImages requestData:', requestData);
@@ -506,7 +525,7 @@ export const useStandardAdsWorkflow = (userId?: string | null, selectedModel: 'a
 
       setError(error.message || 'Failed to start workflow with temporary images');
     }
-  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
+  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
 
   return {
     state,

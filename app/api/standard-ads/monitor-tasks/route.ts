@@ -191,7 +191,7 @@ async function processRecord(record: HistoryRecord) {
 
   // Handle video generation monitoring
   if (record.current_step === 'generating_video' && record.video_task_id && !record.video_url) {
-    const videoResult = await checkVideoStatus(record.video_task_id);
+    const videoResult = await checkVideoStatus(record.video_task_id, record.video_model);
 
     if (videoResult.status === 'SUCCESS' && videoResult.videoUrl) {
       console.log(`Video completed for record ${record.id}`);
@@ -235,36 +235,62 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     throw new Error('No creative prompts available for video generation');
   }
 
-  const videoPrompt = record.video_prompts;
+  const videoPrompt = record.video_prompts as VideoPrompt & { ad_copy?: string };
+  const providedAdCopyRaw =
+    typeof videoPrompt.ad_copy === 'string' ? videoPrompt.ad_copy.trim() : undefined;
+  const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
+  const dialogueContent = providedAdCopy || videoPrompt.dialogue;
+  const adCopyInstruction = providedAdCopy
+    ? `\nAd Copy (use verbatim): ${providedAdCopy}\nOn-screen Text: Display "${providedAdCopy}" prominently without paraphrasing.\nVoiceover: Speak "${providedAdCopy}" exactly as written.`
+    : '';
+
   const fullPrompt = `${videoPrompt.description}
 
 Setting: ${videoPrompt.setting}
 Camera: ${videoPrompt.camera_type} with ${videoPrompt.camera_movement}
 Action: ${videoPrompt.action}
 Lighting: ${videoPrompt.lighting}
-Dialogue: ${videoPrompt.dialogue}
+Dialogue: ${dialogueContent}
 Music: ${videoPrompt.music}
 Ending: ${videoPrompt.ending}
-Other details: ${videoPrompt.other_details}`;
+Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
 
   console.log('Generated video prompt:', fullPrompt);
-  console.log('Dialogue content:', videoPrompt.dialogue);
+  console.log('Dialogue content:', dialogueContent);
 
-  const requestBody = {
-    prompt: fullPrompt,
-    model: record.video_model || 'veo3_fast',
-    aspectRatio: record.video_aspect_ratio || "16:9",
-    imageUrls: [coverImageUrl],
-    enableAudio: true,
-    audioEnabled: true,
-    generateVoiceover: true,
-    includeDialogue: true,
-    enableTranslation: false
-  };
+  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2';
+  const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+  const isSora = videoModel === 'sora2';
 
-  console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
+  const apiEndpoint = isSora
+    ? 'https://api.kie.ai/api/v1/jobs/createTask'
+    : 'https://api.kie.ai/api/v1/veo/generate';
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
+  const requestBody = isSora
+    ? {
+        model: 'sora-2-image-to-video',
+        input: {
+          prompt: fullPrompt,
+          image_urls: [coverImageUrl],
+          aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
+        }
+      }
+    : {
+        prompt: fullPrompt,
+        model: videoModel,
+        aspectRatio,
+        imageUrls: [coverImageUrl],
+        enableAudio: true,
+        audioEnabled: true,
+        generateVoiceover: true,
+        includeDialogue: true,
+        enableTranslation: false
+      };
+
+  console.log('Video API endpoint:', apiEndpoint);
+  console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
+
+  const response = await fetchWithRetry(apiEndpoint, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -344,8 +370,13 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
   return { status: 'GENERATING' };
 }
 
-async function checkVideoStatus(taskId: string): Promise<{status: string, videoUrl?: string, errorMessage?: string}> {
-  const response = await fetchWithRetry(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
+async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{status: string, videoUrl?: string, errorMessage?: string}> {
+  const isSora = videoModel === 'sora2';
+  const endpoint = isSora
+    ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
+    : `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`;
+
+  const response = await fetchWithRetry(endpoint, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -364,6 +395,43 @@ async function checkVideoStatus(taskId: string): Promise<{status: string, videoU
 
   const taskData = data.data;
   if (!taskData) {
+    return { status: 'GENERATING' };
+  }
+
+  if (isSora) {
+    let resultJson: Record<string, unknown> = {};
+    try {
+      resultJson = JSON.parse(taskData.resultJson || '{}');
+    } catch {
+      resultJson = {};
+    }
+
+    const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
+      ? (resultJson as { resultUrls?: string[] }).resultUrls
+      : undefined;
+    const responseUrls = Array.isArray(taskData.response?.resultUrls)
+      ? (taskData.response.resultUrls as string[])
+      : undefined;
+    const flatUrls = Array.isArray(taskData.resultUrls)
+      ? (taskData.resultUrls as string[])
+      : undefined;
+    const videoUrl = (directUrls || responseUrls || flatUrls)?.[0];
+
+    const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
+    const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+
+    const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!videoUrl && state === undefined);
+    const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+
+    if (isSuccess) {
+      return { status: 'SUCCESS', videoUrl };
+    }
+    if (isFailed) {
+      return {
+        status: 'FAILED',
+        errorMessage: taskData.failMsg || taskData.errorMessage || 'Video generation failed'
+      };
+    }
     return { status: 'GENERATING' };
   }
 

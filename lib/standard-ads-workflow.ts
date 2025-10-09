@@ -6,7 +6,7 @@ export interface StartWorkflowRequest {
   imageUrl?: string;
   selectedProductId?: string;
   userId: string;
-  videoModel: 'auto' | 'veo3' | 'veo3_fast';
+  videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2';
   imageModel?: 'auto' | 'nano_banana' | 'seedream';
   watermark?: {
     text: string;
@@ -18,6 +18,7 @@ export interface StartWorkflowRequest {
   photoOnly?: boolean;
   shouldGenerateVideo?: boolean;
   videoAspectRatio?: '16:9' | '9:16';
+  adCopy?: string;
 }
 
 interface WorkflowResult {
@@ -76,7 +77,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     }
 
     // Convert 'auto' videoModel to a specific model
-    const actualVideoModel: 'veo3' | 'veo3_fast' = request.videoModel === 'auto' ? 'veo3_fast' : request.videoModel;
+    const actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' = request.videoModel === 'auto' ? 'veo3_fast' : request.videoModel;
 
     // Create project record in standard_ads_projects table
     const { data: project, error: insertError } = await supabase
@@ -156,7 +157,7 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
 
     // Step 2: Generate creative prompts
     console.log('✨ Generating creative prompts...');
-    const prompts = await generateCreativePrompts(description);
+    const prompts = await generateCreativePrompts(description, request.adCopy);
     console.log('🎯 Creative prompts generated:', Object.keys(prompts).join(', '));
 
     // Step 3: Start cover generation
@@ -231,7 +232,8 @@ async function describeImage(imageUrl: string): Promise<string> {
   return data.choices[0].message.content;
 }
 
-async function generateCreativePrompts(description: string): Promise<Record<string, unknown>> {
+async function generateCreativePrompts(description: string, adCopy?: string): Promise<Record<string, unknown>> {
+  const trimmedAdCopy = adCopy?.trim();
   const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -256,6 +258,7 @@ Generate a creative video advertisement prompt with these elements:
 - music: Music style
 - ending: How the ad concludes
 - other_details: Additional creative elements
+${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline. Do not paraphrase: "${trimmedAdCopy}".` : ''}
 
 Return as JSON format.`
         }
@@ -271,21 +274,32 @@ Return as JSON format.`
   const content = data.choices[0].message.content;
 
   try {
-    return JSON.parse(content);
+    const parsed = JSON.parse(content);
+    if (trimmedAdCopy) {
+      parsed.dialogue = trimmedAdCopy;
+      parsed.ad_copy = trimmedAdCopy;
+      parsed.tagline = trimmedAdCopy;
+    }
+    return parsed;
   } catch {
     // If JSON parsing fails, create a structured response
-    return {
+    const fallback = {
       description: content,
       setting: "Professional studio",
       camera_type: "Close-up",
       camera_movement: "Smooth pan",
       action: "Product showcase",
       lighting: "Soft professional lighting",
-      dialogue: "Highlighting key benefits",
+      dialogue: trimmedAdCopy || "Highlighting key benefits",
       music: "Upbeat commercial music",
       ending: "Call to action",
       other_details: "High-quality commercial style"
     };
+    if (trimmedAdCopy) {
+      (fallback as Record<string, unknown>).ad_copy = trimmedAdCopy;
+      (fallback as Record<string, unknown>).tagline = trimmedAdCopy;
+    }
+    return fallback;
   }
 }
 
@@ -312,6 +326,7 @@ Requirements:
   // Extract watermark information from request
   const watermarkText = request.watermark;
   const watermarkLocation = request.watermarkLocation;
+  const providedAdCopy = request.adCopy?.trim() || (typeof prompts.ad_copy === 'string' ? (prompts.ad_copy as string).trim() : '');
   
   if (watermarkText) {
     prompt += `\n\nWatermark Requirements:
@@ -319,6 +334,14 @@ Requirements:
 - Watermark location: ${watermarkLocation || 'bottom left'}
 - Make the watermark visible but not overpowering
 - Use appropriate font size and opacity for the watermark`;
+  }
+
+  if (providedAdCopy) {
+    const escapedAdCopy = providedAdCopy.replace(/"/g, '\\"');
+    prompt += `\n\nAd Copy Requirements:
+- Prominently include the headline text "${escapedAdCopy}" in the design
+- Keep typography clean and highly legible against the background
+- Use the provided text exactly as written without paraphrasing`;
   }
 
   // Ensure prompt doesn't exceed KIE API's 5000 character limit

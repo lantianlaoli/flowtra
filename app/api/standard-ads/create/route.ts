@@ -29,6 +29,11 @@ export async function POST(request: NextRequest) {
       requestData.imageModel = 'nano_banana';
     }
 
+    if (requestData.adCopy) {
+      const trimmed = requestData.adCopy.trim();
+      requestData.adCopy = trimmed.length > 0 ? trimmed : undefined;
+    }
+
     console.log('🚀 Standard ads workflow request received:', {
       imageUrl: requestData.imageUrl,
       selectedProductId: requestData.selectedProductId,
@@ -39,7 +44,8 @@ export async function POST(request: NextRequest) {
       watermarkLocation: requestData.watermarkLocation,
       imageSize: requestData.imageSize,
       elementsCount: requestData.elementsCount,
-      photoOnly: requestData.photoOnly
+      photoOnly: requestData.photoOnly,
+      adCopyProvided: !!requestData.adCopy
     });
 
     if (!requestData.imageUrl && !requestData.selectedProductId) {

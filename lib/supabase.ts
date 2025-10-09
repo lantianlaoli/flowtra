@@ -66,7 +66,7 @@ export interface SingleVideoProject {
   video_url?: string
   product_description?: Record<string, unknown> // JSONB field containing { description: string }
   video_prompts?: Record<string, unknown>
-  video_model: 'veo3' | 'veo3_fast'
+  video_model: 'veo3' | 'veo3_fast' | 'sora2'
   credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string

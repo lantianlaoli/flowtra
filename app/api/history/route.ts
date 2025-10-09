@@ -15,7 +15,7 @@ interface StandardAdsItem {
   generationCreditsUsed?: number;
   productDescription?: string;
   imagePrompt?: string;
-  videoModel: 'veo3' | 'veo3_fast';
+  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;
@@ -147,7 +147,12 @@ export async function GET() {
       generationCreditsUsed: 0,
       productDescription: item.product_description,
       imagePrompt: item.image_prompt,
-      videoModel: item.video_model,
+      videoModel:
+        item.video_model === 'sora2'
+          ? 'sora2'
+          : (item.video_model === 'veo3' || item.video_model === 'veo3_fast')
+            ? item.video_model
+            : 'veo3_fast',
       creditsUsed: item.credits_cost || 0,
       status: mapWorkflowStatus(item.status),
       createdAt: item.created_at,

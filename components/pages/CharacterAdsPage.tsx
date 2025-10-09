@@ -14,7 +14,7 @@ import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { ArrowRight, Clock, Video, Settings, Package, History, MessageSquare, Sparkles, Wand2, Info } from 'lucide-react';
+import { ArrowRight, Clock, Video, Settings, Package, History, MessageSquare, Sparkles, Wand2 } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';

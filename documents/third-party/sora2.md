@@ -93,15 +93,6 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
   - `landscape`: Landscape
 - **Default Value**: `"landscape"`
 
-#### quality
-- **Type**: `string`
-- **Required**: No
-- **Description**: This parameter specifies the quality of the image.
-- **Options**:
-  - `standard`: Standard
-  - `hd`: HD
-- **Default Value**: `"standard"`
-
 ### Request Example
 
 ```json
@@ -110,8 +101,7 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
   "input": {
     "prompt": "A claymation conductor passionately leads a claymation orchestra, while the entire group joyfully sings in chorus the phrase: “Sora 2 is now available on Kie AI.",
     "image_urls": ["https://file.aiquickdraw.com/custom-page/akr/section-images/17594315607644506ltpf.jpg"],
-    "aspect_ratio": "landscape",
-    "quality": "standard"
+    "aspect_ratio": "landscape"
   }
 }
 ```
@@ -158,7 +148,7 @@ GET https://api.kie.ai/api/v1/jobs/recordInfo?taskId=281e5b0********************
     "taskId": "281e5b0*********************f39b9",
     "model": "sora-2-image-to-video",
     "state": "waiting",
-    "param": "{\"model\":\"sora-2-image-to-video\",\"input\":{\"prompt\":\"A claymation conductor passionately leads a claymation orchestra, while the entire group joyfully sings in chorus the phrase: “Sora 2 is now available on Kie AI.\",\"image_urls\":[\"https://file.aiquickdraw.com/custom-page/akr/section-images/17594315607644506ltpf.jpg\"],\"aspect_ratio\":\"landscape\",\"quality\":\"standard\"}}",
+    "param": "{\"model\":\"sora-2-image-to-video\",\"input\":{\"prompt\":\"A claymation conductor passionately leads a claymation orchestra, while the entire group joyfully sings in chorus the phrase: “Sora 2 is now available on Kie AI.\",\"image_urls\":[\"https://file.aiquickdraw.com/custom-page/akr/section-images/17594315607644506ltpf.jpg\"],\"aspect_ratio\":\"landscape\"}}",
     "resultJson": "{\"resultUrls\":[\"https://file.aiquickdraw.com/custom-page/akr/section-images/1759431520451z8pcjrkk.mp4\"]}",
     "failCode": null,
     "failMsg": null,
