@@ -730,7 +730,12 @@ async function generateMultiVariantCover(request: MultiVariantAdsRequest): Promi
             const val = (request.imageSize || 'auto').trim();
             if (val === '9:16') return { image_size: 'portrait_16_9' };
             if (val === '16:9') return { image_size: 'landscape_16_9' };
-            if (val === 'auto') return { image_size: 'auto' };
+            if (val === 'auto') {
+              // When image size is 'auto', match the video aspect ratio
+              return request.videoAspectRatio === '9:16' 
+                ? { image_size: 'portrait_16_9' }
+                : { image_size: 'landscape_16_9' };
+            }
             return { image_size: 'auto' };
           })()
       )

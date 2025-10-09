@@ -66,6 +66,8 @@ export interface SingleVideoProject {
   video_url?: string
   product_description?: Record<string, unknown> // JSONB field containing { description: string }
   video_prompts?: Record<string, unknown>
+  image_prompt?: Record<string, unknown> // JSONB field containing the prompt used for cover generation
+  project_type?: string | null // Legacy field, not currently used in codebase
   video_model: 'veo3' | 'veo3_fast' | 'sora2'
   credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
@@ -73,6 +75,17 @@ export interface SingleVideoProject {
   watermark_text?: string | null
   watermark_location?: string | null
   cover_image_size?: string | null
+  photo_only?: boolean // If true, workflow skips video generation and only produces a cover image
+  downloaded?: boolean // Whether user has downloaded the video
+  download_credits_used?: number // Credits used for downloading (60% of total)
+  cover_task_id?: string | null
+  video_task_id?: string | null
+  current_step?: 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'completed'
+  progress_percentage?: number
+  last_processed_at?: string
+  selected_product_id?: string | null // Reference to user_products table
+  video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
+  video_generation_prompt?: Record<string, unknown> // NEW: JSONB field containing the prompt used for video generation
   created_at: string
   updated_at: string
 }

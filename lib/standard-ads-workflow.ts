@@ -79,6 +79,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Convert 'auto' videoModel to a specific model
     const actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' = request.videoModel === 'auto' ? 'veo3_fast' : request.videoModel;
 
+    // Calculate credits cost based on model and photo/video mode
+    let creditsCost = request.photoOnly ? 5 : 10; // Default: 5 for photo-only, 10 for video
+    if (!request.photoOnly && actualVideoModel === 'sora2') {
+      creditsCost = 30; // Sora2 costs 30 credits for video generation
+    }
+
     // Create project record in standard_ads_projects table
     const { data: project, error: insertError } = await supabase
       .from('standard_ads_projects')
@@ -91,12 +97,11 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         status: 'processing',
         current_step: 'describing',
         progress_percentage: 10,
-        credits_cost: request.photoOnly ? 5 : 10, // 5 for photo-only, 10 for video
+        credits_cost: creditsCost,
         watermark_text: request.watermark?.text,
         watermark_location: request.watermark?.location || request.watermarkLocation,
         cover_image_size: request.imageSize,
-        photo_only: request.photoOnly || false,
-        project_type: 'single_video'
+        photo_only: request.photoOnly || false
       })
       .select()
       .single();
@@ -167,10 +172,12 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
 
     // Update project with cover task ID and prompts
     // Note: product_description is JSONB in DB, store as object
+    // Store the image_prompt used for cover generation for auditing purposes
     const updateData = {
       cover_task_id: coverTaskId,
       video_prompts: prompts,
       product_description: { description },
+      image_prompt: description, // Store the original product description for image generation auditing
       current_step: 'generating_cover' as const,
       progress_percentage: 30,
       last_processed_at: new Date().toISOString()
@@ -274,7 +281,33 @@ Return as JSON format.`
   const content = data.choices[0].message.content;
 
   try {
-    const parsed = JSON.parse(content);
+    // First, try to extract JSON from markdown code blocks if present
+    let jsonContent = content;
+    
+    // Check if content contains markdown JSON code block
+    const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonBlockMatch) {
+      jsonContent = jsonBlockMatch[1];
+    }
+    
+    const parsed = JSON.parse(jsonContent);
+    
+    // Ensure description is a simple string, not JSON content
+    if (parsed.description && typeof parsed.description === 'string') {
+      // If description contains JSON markers or is too complex, simplify it
+      if (parsed.description.includes('```json') || parsed.description.includes('{')) {
+        parsed.description = parsed.description.replace(/```json\s*[\s\S]*?\s*```/g, '')
+                                            .replace(/\{[\s\S]*?\}/g, '')
+                                            .replace(/\s+/g, ' ')
+                                            .trim();
+        
+        // If after cleaning, description is empty or too short, provide a default
+        if (!parsed.description || parsed.description.length < 10) {
+          parsed.description = "Professional product showcase in modern setting";
+        }
+      }
+    }
+    
     if (trimmedAdCopy) {
       parsed.dialogue = trimmedAdCopy;
       parsed.ad_copy = trimmedAdCopy;
@@ -283,8 +316,15 @@ Return as JSON format.`
     return parsed;
   } catch {
     // If JSON parsing fails, create a structured response
+    // Clean the content to ensure it's a simple string description
+    const cleanDescription = content.replace(/```json\s*[\s\S]*?\s*```/g, '')
+                                     .replace(/\{[\s\S]*?\}/g, '')
+                                     .replace(/\s+/g, ' ')
+                                     .trim()
+                                     .substring(0, 200); // Limit length
+    
     const fallback = {
-      description: content,
+      description: cleanDescription || "Professional product showcase in modern setting",
       setting: "Professional studio",
       camera_type: "Close-up",
       camera_movement: "Smooth pan",
@@ -393,6 +433,8 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
       case 'landscape_21_9':
         return '21:9';
       case 'auto':
+        // When image size is 'auto', match the video aspect ratio
+        return request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
       case undefined:
       case '':
         return undefined;
@@ -412,7 +454,7 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
       output_format: "png",
       ...(actualImageModel === 'nano_banana'
         ? (() => { const r = mapUiSizeToBanana(request.imageSize); return r ? { image_size: r } : {}; })()
-        : { image_size: request.imageSize === 'auto' ? 'auto' : (request.imageSize || 'auto') }
+        : { image_size: request.imageSize === 'auto' ? (request.videoAspectRatio === '9:16' ? 'portrait_16_9' : 'landscape_16_9') : (request.imageSize || 'auto') }
       )
     }
   };

@@ -289,8 +289,10 @@ export const useStandardAdsWorkflow = (
         userId: userId,
         videoModel: selectedModel,
         imageModel: selectedImageModel,
-        watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined,
-        watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
+        watermark: watermarkConfig.enabled ? {
+          text: watermarkConfig.text,
+          location: watermarkConfig.location || 'bottom left'
+        } : undefined,
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,
@@ -370,9 +372,10 @@ export const useStandardAdsWorkflow = (
         userId: userId,
         videoModel: selectedModel,
         imageModel: selectedImageModel,
-        watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined,
-        // Do not send a location if watermark is disabled
-        watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
+        watermark: watermarkConfig.enabled ? {
+          text: watermarkConfig.text,
+          location: watermarkConfig.location || 'bottom left'
+        } : undefined,
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,
@@ -466,8 +469,10 @@ export const useStandardAdsWorkflow = (
         userId: userId,
         videoModel: selectedModel,
         imageModel: selectedImageModel,
-        watermark: watermarkConfig.enabled ? watermarkConfig.text : undefined,
-        watermarkLocation: watermarkConfig.enabled ? (watermarkConfig.location || 'bottom left') : undefined,
+        watermark: watermarkConfig.enabled ? {
+          text: watermarkConfig.text,
+          location: watermarkConfig.location || 'bottom left'
+        } : undefined,
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,

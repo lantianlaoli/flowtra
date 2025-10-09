@@ -240,23 +240,44 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     typeof videoPrompt.ad_copy === 'string' ? videoPrompt.ad_copy.trim() : undefined;
   const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
   const dialogueContent = providedAdCopy || videoPrompt.dialogue;
-  const adCopyInstruction = providedAdCopy
-    ? `\nAd Copy (use verbatim): ${providedAdCopy}\nOn-screen Text: Display "${providedAdCopy}" prominently without paraphrasing.\nVoiceover: Speak "${providedAdCopy}" exactly as written.`
-    : '';
 
-  const fullPrompt = `${videoPrompt.description}
+  // Validate and clean the description field to ensure it's a simple string
+  let cleanedDescription = videoPrompt.description;
+  if (typeof cleanedDescription === 'string') {
+    // Remove JSON code blocks and clean up the description
+    cleanedDescription = cleanedDescription
+      .replace(/```json\s*[\s\S]*?\s*```/g, '')
+      .replace(/\{[\s\S]*?\}/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // If description is empty or too short after cleaning, provide a default
+    if (!cleanedDescription || cleanedDescription.length < 10) {
+      cleanedDescription = "Professional product showcase in modern setting";
+    }
+  } else {
+    cleanedDescription = "Professional product showcase in modern setting";
+  }
 
-Setting: ${videoPrompt.setting}
-Camera: ${videoPrompt.camera_type} with ${videoPrompt.camera_movement}
-Action: ${videoPrompt.action}
-Lighting: ${videoPrompt.lighting}
-Dialogue: ${dialogueContent}
-Music: ${videoPrompt.music}
-Ending: ${videoPrompt.ending}
-Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
+  // Create structured JSON prompt with cleaned fields
+  const structuredPrompt = {
+    description: cleanedDescription,
+    setting: videoPrompt.setting || "Professional studio",
+    camera_type: videoPrompt.camera_type || "Close-up",
+    camera_movement: videoPrompt.camera_movement || "Smooth pan",
+    action: videoPrompt.action || "Product showcase",
+    lighting: videoPrompt.lighting || "Soft professional lighting",
+    dialogue: dialogueContent || "Highlighting key benefits",
+    music: videoPrompt.music || "Upbeat commercial music",
+    ending: videoPrompt.ending || "Call to action",
+    other_details: videoPrompt.other_details || "High-quality commercial style",
+    ad_copy: providedAdCopy
+  };
 
-  console.log('Generated video prompt:', fullPrompt);
+  console.log('Generated structured video prompt:', JSON.stringify(structuredPrompt, null, 2));
   console.log('Dialogue content:', dialogueContent);
+  console.log('Original description:', videoPrompt.description);
+  console.log('Cleaned description:', cleanedDescription);
 
   const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2';
   const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
@@ -266,17 +287,22 @@ Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
     ? 'https://api.kie.ai/api/v1/jobs/createTask'
     : 'https://api.kie.ai/api/v1/veo/generate';
 
+  // Convert structured prompt to string format for API
+  const promptString = typeof structuredPrompt === 'string' 
+    ? structuredPrompt 
+    : JSON.stringify(structuredPrompt);
+
   const requestBody = isSora
     ? {
         model: 'sora-2-image-to-video',
         input: {
-          prompt: fullPrompt,
+          prompt: promptString, // Send as string
           image_urls: [coverImageUrl],
           aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
         }
       }
     : {
-        prompt: fullPrompt,
+        prompt: promptString, // Send as string
         model: videoModel,
         aspectRatio,
         imageUrls: [coverImageUrl],
@@ -314,6 +340,8 @@ Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
 }
 
 async function checkCoverStatus(taskId: string): Promise<{status: string, imageUrl?: string}> {
+  console.log(`Checking cover status for taskId: ${taskId}`);
+  
   const response = await fetchWithRetry(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
     method: 'GET',
     headers: {
@@ -326,6 +354,7 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
   }
 
   const data = await response.json();
+  console.log(`Raw API response for task ${taskId}:`, JSON.stringify(data, null, 2));
 
   if (!data || data.code !== 200) {
     throw new Error((data && (data.message || data.msg)) || 'Failed to get nano-banana status');
@@ -333,12 +362,18 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
 
   const taskData = data.data;
   if (!taskData) {
+    console.log(`No taskData found for task ${taskId}`);
     return { status: 'GENERATING' };
   }
 
   // Normalize state flags and extract URL robustly
   const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
   const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+
+  console.log(`Task ${taskId} state: ${state}, successFlag: ${successFlag}`);
+  console.log(`Task ${taskId} resultJson:`, taskData.resultJson);
+  console.log(`Task ${taskId} response:`, taskData.response);
+  console.log(`Task ${taskId} resultUrls:`, taskData.resultUrls);
 
   let resultJson: Record<string, unknown> = {};
   try {
@@ -358,8 +393,15 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
     : undefined;
   const imageUrl = (directUrls || responseUrls || flatUrls)?.[0];
 
+  console.log(`Task ${taskId} extracted imageUrl: ${imageUrl}`);
+  console.log(`Task ${taskId} directUrls:`, directUrls);
+  console.log(`Task ${taskId} responseUrls:`, responseUrls);
+  console.log(`Task ${taskId} flatUrls:`, flatUrls);
+
   const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!imageUrl && (state === undefined));
   const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+
+  console.log(`Task ${taskId} isSuccess: ${isSuccess}, isFailed: ${isFailed}`);
 
   if (isSuccess) {
     return { status: 'SUCCESS', imageUrl };
