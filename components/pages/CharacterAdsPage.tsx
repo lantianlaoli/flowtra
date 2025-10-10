@@ -14,7 +14,7 @@ import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { ArrowRight, Clock, Video, Settings, Package, History, MessageSquare, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowRight, Clock, Video, Settings, Package, History, MessageSquare, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -576,7 +576,7 @@ export default function CharacterAdsPage() {
                 className="max-w-2xl mx-auto text-center space-y-6"
               >
                 <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-                  <span className="text-2xl text-red-600">⚠</span>
+                  <AlertCircle className="w-8 h-8 text-red-600" />
                 </div>
 
                 <div className="space-y-4">
@@ -588,12 +588,21 @@ export default function CharacterAdsPage() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => resetWorkflow()}
-                  className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 font-medium"
-                >
-                  Start Over
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={() => resetWorkflow()}
+                    className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 font-medium"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    onClick={() => router.push('/dashboard/support')}
+                    className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                    Having Trouble?
+                  </button>
+                </div>
               </motion.div>
             ) : null}
           </AnimatePresence>
