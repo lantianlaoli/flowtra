@@ -16,6 +16,7 @@ interface VideoModelSelectorProps {
   hideCredits?: boolean;
   disabledModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>; // Disable options due to external constraints (e.g., duration)
   hiddenModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>;
+  adsCount?: number; // Number of ads/variations to generate (for cost multiplication)
 }
 
 // const SORA2_HELP_TEXT = 'OpenAI currently do not support uploads of images containing photorealistic people, so Sora2 is temporarily unavailable.';
@@ -29,7 +30,8 @@ export default function VideoModelSelector({
   showIcon = false,
   hideCredits = false,
   disabledModels = [],
-  hiddenModels
+  hiddenModels,
+  adsCount = 1
 }: VideoModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -228,7 +230,7 @@ export default function VideoModelSelector({
                             !isDisabled ? "text-gray-600" : "text-red-500"
                           )}>
                             <Coins className="w-3 h-3" />
-                            <span>{option.generationCost}</span>
+                            <span>{option.generationCost * adsCount}</span>
                           </div>
                         )}
                       </div>
@@ -242,7 +244,7 @@ export default function VideoModelSelector({
                             !isDisabled ? "text-gray-600" : "text-red-500"
                           )}>
                             <Coins className="w-3 h-3" />
-                            <span>{option.downloadCost}</span>
+                            <span>{option.downloadCost * adsCount}</span>
                           </div>
                         )}
                       </div>

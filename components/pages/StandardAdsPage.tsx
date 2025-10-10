@@ -466,6 +466,7 @@ export default function StandardAdsPage() {
                       onModelChange={handleModelChange}
                       showIcon={true}
                       hiddenModels={['auto']}
+                      adsCount={elementsCount}
                     />
                   )}
                 </div>
@@ -692,6 +693,7 @@ if (state.workflowStatus === 'uploaded_waiting_config') {
               onModelChange={handleModelChange}
               showIcon={true}
               hiddenModels={['auto']}
+              adsCount={elementsCount}
             />
           )}
         </div>

@@ -460,6 +460,7 @@ export default function MultiVariantAdsPage() {
                       onModelChange={handleModelChange}
                       showIcon={true}
                       hiddenModels={['auto']}
+                      adsCount={elementsCount}
                     />
                   )}
                 </div>
@@ -727,6 +728,7 @@ export default function MultiVariantAdsPage() {
                     showIcon={true}
                     className="col-span-1"
                     hiddenModels={['auto']}
+                    adsCount={elementsCount}
                   />
                 )}
                 {!shouldGenerateVideo && (

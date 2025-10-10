@@ -292,17 +292,17 @@ export default function HistoryPage() {
     }
   };
 
-  const getStepLabel = (step?: string) => {
-    if (!step) return 'Processing';
-    const map: Record<string, string> = {
-      analyzing_image: 'Analyzing Image',
-      generating_cover: 'Generating Cover',
-      generating_video: 'Generating Video',
-      merging_video: 'Merging Video',
-      uploading_assets: 'Uploading Assets',
-    };
-    return map[step] || 'Processing';
-  };
+  // const getStepLabel = (step?: string) => {
+  //   if (!step) return 'Processing';
+  //   const map: Record<string, string> = {
+  //     analyzing_image: 'Analyzing Image',
+  //     generating_cover: 'Generating Cover',
+  //     generating_video: 'Generating Video',
+  //     merging_video: 'Merging Video',
+  //     uploading_assets: 'Uploading Assets',
+  //   };
+  //   return map[step] || 'Processing';
+  // };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
