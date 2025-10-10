@@ -384,15 +384,15 @@ export default function CharacterAdsPage() {
                         </div>
                         <div className="relative">
                           <VideoModelSelector
-                            credits={9999}
+                            credits={userCredits || 0}
                             selectedModel={selectedVideoModel}
                             onModelChange={(m) => setSelectedVideoModel(m)}
-                            hideCredits={true}
                             showIcon={true}
                             disabledModels={(videoDuration === 10 || videoDuration === 20 || videoDuration === 30)
                               ? ['veo3', 'veo3_fast']
                               : ['sora2']}
                             hiddenModels={['auto']}
+                            videoDurationSeconds={videoDuration}
                           />
                         </div>
                       </div>

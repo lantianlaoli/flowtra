@@ -17,6 +17,7 @@ interface VideoModelSelectorProps {
   disabledModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>; // Disable options due to external constraints (e.g., duration)
   hiddenModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>;
   adsCount?: number; // Number of ads/variations to generate (for cost multiplication)
+  videoDurationSeconds?: number; // Video duration in seconds (for character ads duration-based pricing)
 }
 
 // const SORA2_HELP_TEXT = 'OpenAI currently do not support uploads of images containing photorealistic people, so Sora2 is temporarily unavailable.';
@@ -31,7 +32,8 @@ export default function VideoModelSelector({
   hideCredits = false,
   disabledModels = [],
   hiddenModels,
-  adsCount = 1
+  adsCount = 1,
+  videoDurationSeconds
 }: VideoModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -40,12 +42,21 @@ export default function VideoModelSelector({
   // Model options for dropdown with credit costs and processing times
   const modelOptions = useMemo(() => {
     const autoSelection = getAutoModeSelection(credits);
+
+    // Helper function to calculate duration-based cost
+    const calculateDurationCost = (model: 'veo3' | 'veo3_fast' | 'sora2'): number => {
+      if (!videoDurationSeconds) return CREDIT_COSTS[model];
+      const unitSeconds = model === 'sora2' ? 10 : 8;
+      const baseCost = CREDIT_COSTS[model];
+      return Math.round((videoDurationSeconds / unitSeconds) * baseCost);
+    };
+
     return [
       {
         value: 'auto',
         label: 'Auto',
         description: '',
-        cost: autoSelection ? CREDIT_COSTS[autoSelection] : CREDIT_COSTS.veo3_fast,
+        cost: autoSelection ? calculateDurationCost(autoSelection) : calculateDurationCost('veo3_fast'),
         processingTime: autoSelection ? getProcessingTime(autoSelection) : '2-3 min',
         affordable: canAffordModel(credits, 'auto'),
         features: 'Smart model selection',
@@ -56,37 +67,37 @@ export default function VideoModelSelector({
         value: 'veo3',
         label: 'VEO3 High',
         description: '',
-        cost: CREDIT_COSTS.veo3,
+        cost: calculateDurationCost('veo3'),
         processingTime: getProcessingTime('veo3'),
         affordable: canAffordModel(credits, 'veo3'),
         features: 'Premium quality, 5-8 min',
-        generationCost: CREDIT_COSTS.veo3,
+        generationCost: calculateDurationCost('veo3'),
         downloadCost: 0
       },
       {
         value: 'veo3_fast',
         label: 'VEO3 Fast',
         description: '',
-        cost: CREDIT_COSTS.veo3_fast,
+        cost: calculateDurationCost('veo3_fast'),
         processingTime: getProcessingTime('veo3_fast'),
         affordable: canAffordModel(credits, 'veo3_fast'),
         features: 'Fast processing, 2-3 min',
         generationCost: 0,
-        downloadCost: CREDIT_COSTS.veo3_fast
+        downloadCost: calculateDurationCost('veo3_fast')
       },
       {
         value: 'sora2',
         label: 'Sora2',
         description: '',
-        cost: CREDIT_COSTS.sora2,
+        cost: calculateDurationCost('sora2'),
         processingTime: getProcessingTime('sora2'),
         affordable: canAffordModel(credits, 'sora2'),
         features: 'Advanced quality, 8-12 min',
         generationCost: 0,
-        downloadCost: CREDIT_COSTS.sora2
+        downloadCost: calculateDurationCost('sora2')
       }
     ];
-  }, [credits]);
+  }, [credits, videoDurationSeconds]);
   const visibleOptions = useMemo(
     () =>
       modelOptions.filter(
