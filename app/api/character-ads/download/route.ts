@@ -58,9 +58,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if this is the first download
+    // VEO3 prepaid: If generation_credits_used > 0, credits were already deducted at generation
     const isFirstDownload = !project.downloaded;
+    const isPrepaid = (project.generation_credits_used || 0) > 0;
 
-    if (isFirstDownload) {
+    if (isFirstDownload && !isPrepaid) {
       // Get user credits
       const { data: userCredits, error: creditsError } = await supabase
         .from('user_credits')
@@ -125,6 +127,20 @@ export async function POST(request: NextRequest) {
         .update({
           downloaded: true,
           download_credits_used: downloadCost
+        })
+        .eq('id', historyId);
+
+      if (updateError) {
+        console.error('Failed to mark project as downloaded:', updateError);
+        // Don't fail the download, just log the error
+      }
+    } else if (isFirstDownload && isPrepaid) {
+      // VEO3 prepaid: Just mark as downloaded without deducting credits
+      const { error: updateError } = await supabase
+        .from('character_ads_projects')
+        .update({
+          downloaded: true,
+          download_credits_used: 0 // No additional credits for download
         })
         .eq('id', historyId);
 

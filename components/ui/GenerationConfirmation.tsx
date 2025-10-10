@@ -36,10 +36,10 @@ export default function GenerationConfirmation({
           {description}
         </p>
 
-        {/* Key message about navigation freedom */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-lg mx-auto">
-          <p className="text-blue-800 text-sm font-medium">
-            ✨ Feel free to explore other features while we work on your project
+        {/* Key message about staying on the page */}
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-w-lg mx-auto">
+          <p className="text-amber-800 text-sm font-medium">
+            ⚠️ Please keep this tab open—switching pages might interrupt the generation workflow
           </p>
         </div>
 

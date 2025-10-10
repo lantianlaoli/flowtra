@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getActualImageModel, IMAGE_MODELS } from '@/lib/constants';
+import { getActualImageModel, IMAGE_MODELS, getCreditCost } from '@/lib/constants';
+import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
   imageUrl?: string;
@@ -85,8 +86,53 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       creditsCost = 30; // Sora2 costs 30 credits for video generation
     }
 
+    // For VEO3 model, deduct credits upfront (prepaid model)
+    if (!request.photoOnly && actualVideoModel === 'veo3') {
+      const veo3Cost = getCreditCost('veo3'); // 150 credits
+
+      // Check if user has enough credits
+      const creditCheck = await checkCredits(request.userId, veo3Cost);
+      if (!creditCheck.success) {
+        return {
+          success: false,
+          error: 'Failed to check credits',
+          details: creditCheck.error || 'Credit check failed'
+        };
+      }
+
+      if (!creditCheck.hasEnoughCredits) {
+        return {
+          success: false,
+          error: 'Insufficient credits',
+          details: `Need ${veo3Cost} credits for VEO3 High Quality model, have ${creditCheck.currentCredits || 0}`
+        };
+      }
+
+      // Deduct credits upfront
+      const deductResult = await deductCredits(request.userId, veo3Cost);
+      if (!deductResult.success) {
+        return {
+          success: false,
+          error: 'Failed to deduct credits',
+          details: deductResult.error || 'Credit deduction failed'
+        };
+      }
+
+      // Record the transaction
+      await recordCreditTransaction(
+        request.userId,
+        'usage',
+        veo3Cost,
+        'Video generation - VEO3 High Quality (prepaid)',
+        undefined,
+        true
+      );
+
+      creditsCost = veo3Cost; // Update credits cost for record
+    }
+
     // Create project record in standard_ads_projects table
-    const { data: project, error: insertError } = await supabase
+    const { data: project, error: insertError} = await supabase
       .from('standard_ads_projects')
       .insert({
         user_id: request.userId,
@@ -101,7 +147,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         watermark_text: request.watermark?.text,
         watermark_location: request.watermark?.location || request.watermarkLocation,
         cover_image_size: request.imageSize,
-        photo_only: request.photoOnly || false
+        photo_only: request.photoOnly || false,
+        // For VEO3, mark as generation credits already used (prepaid)
+        generation_credits_used: (!request.photoOnly && actualVideoModel === 'veo3') ? creditsCost : 0
       })
       .select()
       .single();
@@ -117,7 +165,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     // Start the AI workflow by calling image description
     try {
-      await startAIWorkflow(project.id, { ...request, imageUrl });
+      await startAIWorkflow(project.id, { ...request, imageUrl, videoModel: actualVideoModel });
     } catch (workflowError) {
       console.error('Workflow start error:', workflowError);
       // Update project status to failed
@@ -364,8 +412,8 @@ Requirements:
 - The product must remain visually identical to the original`;
 
   // Extract watermark information from request
-  const watermarkText = request.watermark;
-  const watermarkLocation = request.watermarkLocation;
+  const watermarkText = request.watermark?.text?.trim();
+  const watermarkLocation = request.watermark?.location || request.watermarkLocation;
   const providedAdCopy = request.adCopy?.trim() || (typeof prompts.ad_copy === 'string' ? (prompts.ad_copy as string).trim() : '');
   
   if (watermarkText) {
@@ -382,6 +430,16 @@ Requirements:
 - Prominently include the headline text "${escapedAdCopy}" in the design
 - Keep typography clean and highly legible against the background
 - Use the provided text exactly as written without paraphrasing`;
+  }
+
+  const includeSoraSafety = request.shouldGenerateVideo !== false && request.videoModel === 'sora2';
+  const soraSafetySection = `\n\nSora2 Safety Requirements:
+- Do not include photorealistic humans, faces, or bodies
+- Focus entirely on the product, typography, or abstract environments without people
+- Maintain a people-free composition that still feels dynamic and premium`;
+
+  if (includeSoraSafety) {
+    prompt += soraSafetySection;
   }
 
   // Ensure prompt doesn't exceed KIE API's 5000 character limit
@@ -406,6 +464,9 @@ Based on the provided product image, create an enhanced advertising version that
     prompt = `${criticalInstructions} ${truncatedDescription}
 
 Requirements: Keep exact product appearance, only enhance presentation.${watermarkSection}`;
+    if (includeSoraSafety) {
+      prompt += soraSafetySection;
+    }
   }
 
   // Map image_size for Nano Banana to ratio strings

@@ -465,7 +465,6 @@ export default function StandardAdsPage() {
                       selectedModel={selectedModel}
                       onModelChange={handleModelChange}
                       showIcon={true}
-                      hideCredits={true}
                       hiddenModels={['auto']}
                     />
                   )}
@@ -603,7 +602,6 @@ export default function StandardAdsPage() {
                     <>
                       <ArrowRight className="w-5 h-5" />
                       <span>Generate</span>
-                      <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Free</span>
                     </>
                   )}
                 </button>
@@ -693,7 +691,6 @@ if (state.workflowStatus === 'uploaded_waiting_config') {
               selectedModel={selectedModel}
               onModelChange={handleModelChange}
               showIcon={true}
-              hideCredits={true}
               hiddenModels={['auto']}
             />
           )}
@@ -864,7 +861,6 @@ if (state.workflowStatus === 'uploaded_waiting_config') {
               <>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
                 <span className="group-hover:scale-105 transition-transform duration-200">Generate</span>
-                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Free</span>
               </>
             )}
           </button>

@@ -18,7 +18,7 @@ interface VideoModelSelectorProps {
   hiddenModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>;
 }
 
-const SORA2_HELP_TEXT = 'OpenAI currently do not support uploads of images containing photorealistic people, so Sora2 is temporarily unavailable.';
+// const SORA2_HELP_TEXT = 'OpenAI currently do not support uploads of images containing photorealistic people, so Sora2 is temporarily unavailable.';
 
 export default function VideoModelSelector({
   credits,
@@ -46,8 +46,9 @@ export default function VideoModelSelector({
         cost: autoSelection ? CREDIT_COSTS[autoSelection] : CREDIT_COSTS.veo3_fast,
         processingTime: autoSelection ? getProcessingTime(autoSelection) : '2-3 min',
         affordable: canAffordModel(credits, 'auto'),
-        showCost: !!autoSelection && !hideCredits,
-        features: 'Smart selection'
+        features: 'Smart model selection',
+        generationCost: 0,
+        downloadCost: 0
       },
       {
         value: 'veo3',
@@ -56,8 +57,9 @@ export default function VideoModelSelector({
         cost: CREDIT_COSTS.veo3,
         processingTime: getProcessingTime('veo3'),
         affordable: canAffordModel(credits, 'veo3'),
-        showCost: !hideCredits,
-        features: 'Premium quality'
+        features: 'Premium quality, 5-8 min',
+        generationCost: CREDIT_COSTS.veo3,
+        downloadCost: 0
       },
       {
         value: 'veo3_fast',
@@ -66,8 +68,9 @@ export default function VideoModelSelector({
         cost: CREDIT_COSTS.veo3_fast,
         processingTime: getProcessingTime('veo3_fast'),
         affordable: canAffordModel(credits, 'veo3_fast'),
-        showCost: !hideCredits,
-        features: 'Fast processing'
+        features: 'Fast processing, 2-3 min',
+        generationCost: 0,
+        downloadCost: CREDIT_COSTS.veo3_fast
       },
       {
         value: 'sora2',
@@ -76,11 +79,12 @@ export default function VideoModelSelector({
         cost: CREDIT_COSTS.sora2,
         processingTime: getProcessingTime('sora2'),
         affordable: canAffordModel(credits, 'sora2'),
-        showCost: !hideCredits,
-        features: 'In development'
+        features: 'Advanced quality, 8-12 min',
+        generationCost: 0,
+        downloadCost: CREDIT_COSTS.sora2
       }
     ];
-  }, [credits, hideCredits]);
+  }, [credits]);
   const visibleOptions = useMemo(
     () =>
       modelOptions.filter(
@@ -161,17 +165,6 @@ export default function VideoModelSelector({
           <div className="min-w-0 flex flex-col">
             <span className="font-medium truncate">
               {selectedOption?.label}
-              {selectedOption?.value === 'sora2' && (
-                <span className="ml-2 inline-flex items-center gap-1">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">In development</span>
-                  <span
-                    className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 text-[10px] text-gray-600 cursor-help"
-                    title={SORA2_HELP_TEXT}
-                  >
-                    ?
-                  </span>
-                </span>
-              )}
             </span>
             {(selectedOption?.description || selectedOption?.features) && (
               <span className="text-xs text-gray-500 truncate">{selectedOption?.description || selectedOption?.features}</span>
@@ -211,40 +204,50 @@ export default function VideoModelSelector({
                     : "text-gray-700"
                 )}
               >
-                <div className="flex flex-1 items-start justify-between gap-3">
-                  <div className="flex flex-col">
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">
                       {option.label}
-                      {option.value === 'sora2' && (
-                        <span className="ml-2 inline-flex items-center gap-1">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">In development</span>
-                          <span
-                            className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 text-[10px] text-gray-600 cursor-help"
-                            title={SORA2_HELP_TEXT}
-                          >
-                            ?
-                          </span>
-                        </span>
-                      )}
                     </span>
-                    {(option.description || option.features) && (
-                      <span className="text-xs text-gray-500">{option.description || option.features}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
                     {isDisabled && (
                       <Lock className="w-3 h-3 text-gray-400" />
                     )}
-                    {option.showCost && (
-                      <div className={cn(
-                        "flex items-center gap-1 text-xs font-medium",
-                        !isDisabled ? "text-gray-600" : "text-red-500"
-                      )}>
-                        <Coins className="w-3 h-3" />
-                        <span>{option.cost}</span>
-                      </div>
-                    )}
                   </div>
+                  {(option.description || option.features) && (
+                    <span className="text-xs text-gray-500">{option.description || option.features}</span>
+                  )}
+                  {!hideCredits && option.value !== 'auto' && (
+                    <div className="flex items-center gap-3 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-gray-500">Generate:</span>
+                        {option.generationCost === 0 ? (
+                          <span className="bg-green-100 text-green-800 px-1.5 py-0.5 rounded font-medium">Free</span>
+                        ) : (
+                          <div className={cn(
+                            "flex items-center gap-1 font-medium",
+                            !isDisabled ? "text-gray-600" : "text-red-500"
+                          )}>
+                            <Coins className="w-3 h-3" />
+                            <span>{option.generationCost}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-gray-500">Download:</span>
+                        {option.downloadCost === 0 ? (
+                          <span className="bg-green-100 text-green-800 px-1.5 py-0.5 rounded font-medium">Free</span>
+                        ) : (
+                          <div className={cn(
+                            "flex items-center gap-1 font-medium",
+                            !isDisabled ? "text-gray-600" : "text-red-500"
+                          )}>
+                            <Coins className="w-3 h-3" />
+                            <span>{option.downloadCost}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {selectedModel === option.value && !isDisabled && (
                   <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">

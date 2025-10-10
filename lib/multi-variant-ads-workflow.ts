@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getActualImageModel, IMAGE_MODELS } from '@/lib/constants';
+import { getActualImageModel, IMAGE_MODELS, getCreditCost } from '@/lib/constants';
+import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 export interface MultiVariantAdsRequest {
   imageUrl?: string;
@@ -12,6 +13,7 @@ export interface MultiVariantAdsRequest {
   textWatermarkLocation?: string;
   generateVideo?: boolean;
   videoModel: 'veo3' | 'veo3_fast';
+  requestedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2';
   imageModel?: 'auto' | 'nano_banana' | 'seedream';
   watermark?: {
     text: string;
@@ -78,6 +80,53 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
     const elementsCount = request.elementsCount || 2;
     const projectIds: string[] = [];
 
+    // For VEO3 model, deduct credits upfront (prepaid model)
+    // Multi-variant creates multiple projects, so total cost = cost per video * elementsCount
+    const videoModel = request.videoModel || 'veo3';
+    let generationCreditsUsed = 0;
+
+    if (!request.photoOnly && videoModel === 'veo3') {
+      const veo3CostPerVideo = getCreditCost('veo3'); // 150 credits per video
+      const totalCost = veo3CostPerVideo * elementsCount;
+
+      // Check if user has enough credits
+      const creditCheck = await checkCredits(request.userId, totalCost);
+      if (!creditCheck.success) {
+        return {
+          success: false,
+          error: 'Failed to check credits'
+        };
+      }
+
+      if (!creditCheck.hasEnoughCredits) {
+        return {
+          success: false,
+          error: `Insufficient credits. Need ${totalCost} credits for ${elementsCount} VEO3 High Quality videos, have ${creditCheck.currentCredits || 0}`
+        };
+      }
+
+      // Deduct credits upfront
+      const deductResult = await deductCredits(request.userId, totalCost);
+      if (!deductResult.success) {
+        return {
+          success: false,
+          error: 'Failed to deduct credits'
+        };
+      }
+
+      // Record the transaction
+      await recordCreditTransaction(
+        request.userId,
+        'usage',
+        totalCost,
+        `Video generation - ${elementsCount}x VEO3 High Quality (prepaid)`,
+        undefined,
+        true
+      );
+
+      generationCreditsUsed = veo3CostPerVideo; // Credits used per project
+    }
+
     // Create multiple project records based on elementsCount
     for (let i = 0; i < elementsCount; i++) {
       const { data: project, error } = await supabase
@@ -89,12 +138,13 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
           status: 'analyzing_images',
           current_step: 'analyzing_images',
           progress_percentage: 0,
-          video_model: request.videoModel || 'veo3',
+          video_model: videoModel,
           video_aspect_ratio: request.videoAspectRatio || '16:9',
           watermark_text: request.textWatermark || request.watermark?.text,
           watermark_location: request.textWatermarkLocation || request.watermark?.location,
           photo_only: request.photoOnly || false,
           cover_image_size: request.coverImageSize || '1024x1024',
+          generation_credits_used: generationCreditsUsed, // Mark VEO3 as prepaid
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -103,6 +153,18 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
 
       if (error) {
         console.error(`Failed to create multi-variant project ${i + 1}:`, error);
+        // If we already deducted credits, we should refund them
+        if (generationCreditsUsed > 0) {
+          await deductCredits(request.userId, -generationCreditsUsed * elementsCount);
+          await recordCreditTransaction(
+            request.userId,
+            'refund',
+            generationCreditsUsed * elementsCount,
+            'Refund for failed multi-variant project creation',
+            undefined,
+            true
+          );
+        }
         return { success: false, error: error.message };
       }
 
@@ -704,7 +766,80 @@ async function generateMultiVariantCover(request: MultiVariantAdsRequest): Promi
   const kieModelName = IMAGE_MODELS[actualImageModel];
 
   // Generate prompt based on elements data and context
-  const prompt = generatePromptFromElements(request.elementsData || {}, request.adCopy);
+  let prompt = generatePromptFromElements(request.elementsData || {}, request.adCopy);
+
+  const fallbackAspect = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
+  const normalisedImageSize = (request.imageSize || 'auto').trim();
+
+  const requestedVideoModel = request.requestedVideoModel || request.videoModel;
+  const includeSoraSafety = request.generateVideo !== false && requestedVideoModel === 'sora2';
+  const soraSafetySection = `\n\nSora2 Safety Requirements:
+- Remove photorealistic humans, faces, and bodies from the scene
+- Highlight the product using abstract design, typography, or stylised environments without people
+- If characters are unavoidable, use simplified silhouettes without realistic facial detail`;
+
+  if (includeSoraSafety) {
+    prompt += soraSafetySection;
+  }
+
+  const mapUiSizeToBanana = (value: string): string | undefined => {
+    switch (value) {
+      case 'auto':
+        return fallbackAspect;
+      case 'square':
+      case 'square_hd':
+        return '1:1';
+      case 'portrait_16_9':
+        return '9:16';
+      case 'landscape_16_9':
+        return '16:9';
+      case 'portrait_4_3':
+        return '3:4';
+      case 'landscape_4_3':
+        return '4:3';
+      case 'portrait_3_2':
+        return '2:3';
+      case 'landscape_3_2':
+        return '3:2';
+      case 'portrait_5_4':
+        return '4:5';
+      case 'landscape_5_4':
+        return '5:4';
+      case 'landscape_21_9':
+        return '21:9';
+      default:
+        return undefined;
+    }
+  };
+
+  const mapUiSizeToSeedream = (value: string): string => {
+    switch (value) {
+      case 'auto':
+        return fallbackAspect === '9:16' ? 'portrait_16_9' : 'landscape_16_9';
+      case 'square':
+      case 'square_hd':
+        return value;
+      case 'portrait_16_9':
+        return 'portrait_16_9';
+      case 'landscape_16_9':
+        return 'landscape_16_9';
+      case 'portrait_4_3':
+        return 'portrait_4_3';
+      case 'landscape_4_3':
+        return 'landscape_4_3';
+      case 'portrait_3_2':
+        return 'portrait_3_2';
+      case 'landscape_3_2':
+        return 'landscape_3_2';
+      case 'landscape_21_9':
+        return 'landscape_21_9';
+      default:
+        return fallbackAspect === '9:16' ? 'portrait_16_9' : 'landscape_16_9';
+    }
+  };
+
+  const bananaSize = mapUiSizeToBanana(normalisedImageSize);
+  const seedreamSize = mapUiSizeToSeedream(normalisedImageSize);
 
   const requestBody = {
     model: kieModelName,
@@ -717,27 +852,8 @@ async function generateMultiVariantCover(request: MultiVariantAdsRequest): Promi
       output_format: "png",
       // Image size handling per model
       ...(actualImageModel === 'nano_banana'
-        ? (() => {
-            const val = (request.imageSize || 'auto').trim();
-            // Accept direct ratio pass-through per Banana docs
-            const allowed = new Set(['1:1','9:16','16:9','3:4','4:3','3:2','2:3','5:4','4:5','21:9']);
-            if (allowed.has(val)) return { image_size: val };
-            if (val === 'auto') return {}; // omit to let service choose
-            return {}; // fallback omit
-          })()
-        : (() => {
-            // Seedream: keep existing behavior; support mapping for 16:9/9:16, else auto
-            const val = (request.imageSize || 'auto').trim();
-            if (val === '9:16') return { image_size: 'portrait_16_9' };
-            if (val === '16:9') return { image_size: 'landscape_16_9' };
-            if (val === 'auto') {
-              // When image size is 'auto', match the video aspect ratio
-              return request.videoAspectRatio === '9:16' 
-                ? { image_size: 'portrait_16_9' }
-                : { image_size: 'landscape_16_9' };
-            }
-            return { image_size: 'auto' };
-          })()
+        ? (bananaSize ? { image_size: bananaSize } : {})
+        : { image_size: seedreamSize }
       )
     }
   };

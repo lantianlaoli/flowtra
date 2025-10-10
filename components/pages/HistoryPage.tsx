@@ -347,6 +347,9 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
 
     if (!item) return;
 
+    // Check if VEO3 prepaid (credits already deducted at generation)
+    const isPrepaid = (item.generationCreditsUsed || 0) > 0;
+
     // Calculate download cost based on video duration for Character Ads
     let downloadCost = getCreditCost(videoModel);
     if (isCharacterAds(item) && item.videoDurationSeconds) {
@@ -356,7 +359,8 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
       downloadCost = Math.round((item.videoDurationSeconds / unitSeconds) * baseCostPerUnit);
     }
 
-    if (isFirstDownload && userCredits < downloadCost) {
+    // For prepaid VEO3, no credit check needed
+    if (!isPrepaid && isFirstDownload && userCredits < downloadCost) {
       alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
       return;
     }
@@ -507,9 +511,14 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
   const downloadMultiVariantAdsContent = async (instanceId: string, contentType: 'cover' | 'video', videoModel: 'veo3' | 'veo3_fast') => {
     if (!user?.id) return;
 
+    // Check if VEO3 prepaid (credits already deducted at generation)
+    const item = history.find(h => h.id === instanceId);
+    const isPrepaid = item && (item.generationCreditsUsed || 0) > 0;
+
     const downloadCost = getCreditCost(videoModel);
-    
-    if (contentType === 'video' && (!userCredits || userCredits < downloadCost)) {
+
+    // For prepaid VEO3, no credit check needed
+    if (!isPrepaid && contentType === 'video' && (!userCredits || userCredits < downloadCost)) {
       alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
       return;
     }
@@ -779,9 +788,9 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                 <div className="font-medium mb-2">Generation Failed</div>
                                 <div className="space-y-2 mb-3">
                                   <p>
-                                    This video couldn&apos;t be generated because your image may violate
-                                    Google&apos;s content policy. Please try again with a different product
-                                    photo.
+                                    {('coverImageUrl' in item && item.coverImageUrl)
+                                      ? 'We couldn\'t complete the video generation due to some technical issues. However, your cover image has been successfully generated and is ready to download.'
+                                      : 'We couldn\'t complete the generation due to some technical issues. Please try again with a different product photo.'}
                                   </p>
                                 </div>
                                 <button
@@ -851,8 +860,8 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                             />
                           )
                         }
-                        {/* Character Ads processing overlay: soft veil + circular progress */}
-                        {item.status === 'processing' && isCharacterAds(item) && (
+                        {/* Unified processing overlay with circular progress */}
+                        {item.status === 'processing' && (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]" />
                             {(() => {
@@ -864,7 +873,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                     style={{ background: `conic-gradient(#111 ${pct}%, #e5e7eb 0)` }}
                                   />
                                   <div className="absolute inset-1 rounded-full bg-white/70 backdrop-blur-sm" />
-                                  <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
                                     <span className="text-sm font-semibold text-gray-800 tabular-nums">{pct}%</span>
                                   </div>
                                 </div>
@@ -893,21 +902,6 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         </div>
                       </div>
 
-                      {/* Processing: show progress like other ad types (non-character only) */}
-                      {item.status === 'processing' && !isCharacterAds(item) && (
-                        <div className="mt-2">
-                          <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                            <span className="font-medium">{getStepLabel(item.currentStep)}</span>
-                            <span className="tabular-nums">{Math.round(Math.max(0, Math.min(100, item.progress ?? 0)))}%</span>
-                          </div>
-                          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gray-900 transition-all"
-                              style={{ width: `${Math.round(Math.max(0, Math.min(100, item.progress ?? 0)))}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
 
                       {/* Bottom action area - pinned to bottom for alignment */}
                       <div className="mt-auto">
@@ -945,7 +939,6 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                 </div>
                                 <div className="flex items-center gap-1 text-gray-500">
                                   <Loader2 className="w-4 h-4 animate-spin" />
-                                  <span className="text-xs font-medium">Generating</span>
                                 </div>
                               </button>
                             </div>
@@ -1023,6 +1016,15 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                   ) : (
                                     <div className="flex items-center gap-1.5 text-gray-800">
                                       {(() => {
+                                        // Check if VEO3 prepaid (credits already deducted at generation)
+                                        const isPrepaid = (item.generationCreditsUsed || 0) > 0;
+
+                                        if (isPrepaid) {
+                                          return (
+                                            <span className="text-xs font-bold text-green-600">Prepaid</span>
+                                          );
+                                        }
+
                                         // Compute dynamic cost for Character Ads based on duration; others use model cost
                                         let cost = 0;
                                         if (isCharacterAds(item) && item.videoDurationSeconds) {

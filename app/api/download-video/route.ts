@@ -54,9 +54,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     }
 
     // Handle download logic - first time download charges credits, repeat downloads are free
+    // VEO3 prepaid: If generation_credits_used > 0, credits were already deducted at generation
     const isFirstDownload = !historyRecord.downloaded;
+    const isPrepaid = (historyRecord.generation_credits_used || 0) > 0;
 
-    if (isFirstDownload) {
+    if (isFirstDownload && !isPrepaid) {
       // Charge full cost on first download (generation is free)
       const videoModelForCost = historyRecord.video_model as 'veo3' | 'veo3_fast' | 'sora2';
       const downloadCost = getCreditCost(videoModelForCost);
@@ -124,7 +126,25 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
           historyId,
           true
         );
-        
+
+        return NextResponse.json({
+          success: false,
+          message: 'Failed to update download record'
+        }, { status: 500 });
+      }
+    } else if (isFirstDownload && isPrepaid) {
+      // VEO3 prepaid: Just mark as downloaded without deducting credits
+      const { error: updateError } = await supabase
+        .from('standard_ads_projects')
+        .update({
+          downloaded: true,
+          download_credits_used: 0, // No additional credits for download
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', historyId);
+
+      if (updateError) {
+        console.error('Failed to update history record:', updateError);
         return NextResponse.json({
           success: false,
           message: 'Failed to update download record'

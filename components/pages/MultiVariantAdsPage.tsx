@@ -1,17 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useMultiVariantAdsWorkflow } from '@/hooks/useMultiVariantAdsWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { ArrowRight, History, Play, Image as ImageIcon, Hash, Type, Crop, ChevronDown, Layers, Package, TrendingUp } from 'lucide-react';
+import { ArrowRight, History, Play, Image as ImageIcon, Hash, Type, ChevronDown, Layers, Package, TrendingUp, Sparkles, Wand2 } from 'lucide-react';
 import GenerationConfirmation from '@/components/ui/GenerationConfirmation';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
+import SizeSelector from '@/components/ui/SizeSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import ShowcaseSection from '@/components/ui/ShowcaseSection';
@@ -23,13 +24,19 @@ import { UserProduct } from '@/lib/supabase';
 export default function MultiVariantAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, refetchCredits } = useCredits();
-  const [selectedModel, setSelectedModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>('auto');
-  const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('auto');
+  const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2'>('veo3_fast');
+  const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('seedream');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [elementsCount, setElementsCount] = useState(2);
   const [adCopy, setAdCopy] = useState('');
+  const [isGeneratingAdCopy, setIsGeneratingAdCopy] = useState(false);
+  const [adCopyError, setAdCopyError] = useState<string | null>(null);
+  const [hasAIGeneratedAdCopy, setHasAIGeneratedAdCopy] = useState(false);
   const [textWatermark, setTextWatermark] = useState('');
   const [textWatermarkLocation, setTextWatermarkLocation] = useState('bottom left');
+  const [isSuggestingWatermark, setIsSuggestingWatermark] = useState(false);
+  const [watermarkError, setWatermarkError] = useState<string | null>(null);
+  const [hasAISuggestedWatermark, setHasAISuggestedWatermark] = useState(false);
   const [imageSize, setImageSize] = useState('auto');
   const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
@@ -46,6 +53,8 @@ export default function MultiVariantAdsPage() {
   // Multi-variant workflow does not support Sora2; coerce to supported model
   const actualModelForWorkflow: 'veo3' | 'veo3_fast' = (actualModel === 'sora2' ? 'veo3' : actualModel) as 'veo3' | 'veo3_fast';
   const actualImageModel = getActualImageModel(selectedImageModel);
+
+  const ALLOWED_WATERMARK_LOCATIONS = ['bottom left', 'bottom right', 'top left', 'top right', 'center bottom'] as const;
 
   const {
     state,
@@ -64,14 +73,17 @@ export default function MultiVariantAdsPage() {
     textWatermarkLocation,
     imageSize,
     shouldGenerateVideo,
-    videoAspectRatio
+    videoAspectRatio,
+    selectedModel
   );
 
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2') => {
+    if (model === 'auto') return;
     setSelectedModel(model);
   };
 
   const handleImageModelChange = (model: 'auto' | 'nano_banana' | 'seedream') => {
+    if (model === 'auto') return;
     setSelectedImageModel(model);
   };
 
@@ -102,6 +114,10 @@ export default function MultiVariantAdsPage() {
     resetWorkflow();
     setSelectedProduct(null);
     setShowProductManager(false);
+    setHasAIGeneratedAdCopy(false);
+    setAdCopyError(null);
+    setHasAISuggestedWatermark(false);
+    setWatermarkError(null);
   };
 
   const handleDownload = async (instanceId: string, contentType: 'cover' | 'video') => {
@@ -135,6 +151,141 @@ export default function MultiVariantAdsPage() {
   }, []);
 
   // Removed unused getProgressPercentage helper to satisfy lint
+
+  const collectContext = useCallback(() => {
+    const productName =
+      selectedProduct && 'product_name' in selectedProduct ? selectedProduct.product_name : undefined;
+    const productDescription =
+      selectedProduct && 'description' in selectedProduct ? selectedProduct.description : undefined;
+
+    const productPhotos =
+      selectedProduct && 'user_product_photos' in selectedProduct
+        ? (selectedProduct.user_product_photos || [])
+            .map((photo) => photo?.photo_url)
+            .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
+        : [];
+
+    const uploadedUrl =
+      state.uploadedFile?.url && /^https?:\/\//i.test(state.uploadedFile.url)
+        ? state.uploadedFile.url
+        : undefined;
+
+    const allImageUrls = [...productPhotos, uploadedUrl]
+      .filter((url): url is string => Boolean(url))
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .slice(0, 3);
+
+    if (!productName && !productDescription && allImageUrls.length === 0) {
+      return null;
+    }
+
+    return {
+      productName,
+      productDescription,
+      productImageUrls: allImageUrls
+    };
+  }, [selectedProduct, state.uploadedFile]);
+
+  const canUseAIHelpers = useMemo(() => collectContext() !== null, [collectContext]);
+
+  const handleAdCopyChange = (value: string) => {
+    setAdCopy(value);
+    setAdCopyError(null);
+    if (value.trim().length === 0) {
+      setHasAIGeneratedAdCopy(false);
+    }
+  };
+
+  const handleGenerateAdCopy = async () => {
+    if (isGeneratingAdCopy) return;
+    const context = collectContext();
+    if (!context) {
+      setAdCopyError('Select a product or upload an image first.');
+      return;
+    }
+
+    setIsGeneratingAdCopy(true);
+    setAdCopyError(null);
+
+    try {
+      const response = await fetch('/api/multi-variant-ads/ad-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(context)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Failed to generate ad copy.');
+      }
+
+      setAdCopy(result.adCopy || '');
+      setHasAIGeneratedAdCopy(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to generate ad copy.';
+      setAdCopyError(message);
+      setHasAIGeneratedAdCopy(false);
+    } finally {
+      setIsGeneratingAdCopy(false);
+    }
+  };
+
+  const normaliseLocation = (location: string | undefined) => {
+    if (!location) return 'bottom left';
+    const lower = location.toLowerCase().trim();
+    const match = ALLOWED_WATERMARK_LOCATIONS.find((loc) => loc === lower);
+    return match || 'bottom left';
+  };
+
+  const handleWatermarkTextChange = (value: string) => {
+    setTextWatermark(value);
+    setWatermarkError(null);
+    if (value.trim().length === 0) {
+      setHasAISuggestedWatermark(false);
+    }
+  };
+
+  const handleWatermarkLocationChange = (value: string) => {
+    setTextWatermarkLocation(normaliseLocation(value));
+    setWatermarkError(null);
+  };
+
+  const handleSuggestWatermark = async () => {
+    if (isSuggestingWatermark) return;
+    const context = collectContext();
+    if (!context) {
+      setWatermarkError('Select a product or upload an image first.');
+      return;
+    }
+
+    setIsSuggestingWatermark(true);
+    setWatermarkError(null);
+
+    try {
+      const response = await fetch('/api/multi-variant-ads/watermark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(context)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Failed to suggest watermark.');
+      }
+
+      setTextWatermark(result.text || '');
+      setTextWatermarkLocation(normaliseLocation(result.location));
+      setHasAISuggestedWatermark(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to suggest watermark.';
+      setWatermarkError(message);
+      setHasAISuggestedWatermark(false);
+    } finally {
+      setIsSuggestingWatermark(false);
+    }
+  };
 
 
   const features = [
@@ -228,7 +379,7 @@ export default function MultiVariantAdsPage() {
                 </div>
 
                 {/* Product Preview - Show when product is selected */}
-                {selectedProduct && (
+                {selectedProduct && !isTemporaryProduct(selectedProduct) && (
                   <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
                     {selectedProduct.user_product_photos?.find(p => p.is_primary) && (
                       <Image
@@ -293,43 +444,137 @@ export default function MultiVariantAdsPage() {
                   </div>
                 </div>
 
+                {/* Model Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ImageModelSelector
+                    credits={userCredits || 0}
+                    selectedModel={selectedImageModel}
+                    onModelChange={handleImageModelChange}
+                    showIcon={true}
+                    hiddenModels={['auto']}
+                  />
+                  {shouldGenerateVideo && (
+                    <VideoModelSelector
+                      credits={userCredits || 0}
+                      selectedModel={selectedModel}
+                      onModelChange={handleModelChange}
+                      showIcon={true}
+                      hiddenModels={['auto']}
+                    />
+                  )}
+                </div>
+
+                {/* Size and Aspect Ratio */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <SizeSelector
+                    selectedSize={imageSize}
+                    onSizeChange={setImageSize}
+                    imageModel={selectedImageModel}
+                    videoAspectRatio={videoAspectRatio}
+                    showIcon={true}
+                  />
+                  {shouldGenerateVideo && (
+                    <VideoAspectRatioSelector
+                      selectedAspectRatio={videoAspectRatio}
+                      onAspectRatioChange={setVideoAspectRatio}
+                      showIcon={true}
+                    />
+                  )}
+                </div>
+
                 {/* Ad Copy Configuration */}
                 <div>
-                  <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
-                    <Type className="w-4 h-4" />
-                    Ad Copy
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
-                  </label>
+                  <div className="flex items-center gap-2 mb-3">
+                    <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                      <Type className="w-4 h-4" />
+                      Ad Copy
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateAdCopy}
+                      disabled={isGeneratingAdCopy || !canUseAIHelpers}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
+                    >
+                      {isGeneratingAdCopy ? (
+                        <>
+                          <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                          Generating…
+                        </>
+                      ) : hasAIGeneratedAdCopy ? (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Regenerate
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          AI Generate
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={adCopy}
-                    onChange={(e) => setAdCopy(e.target.value)}
+                    onChange={(e) => handleAdCopyChange(e.target.value)}
                     placeholder="Enter ad copy (optional)..."
                     maxLength={120}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
                   />
-                  <p className="text-xs text-gray-500 mt-1">If provided, all variations will use this ad copy.</p>
+                  {adCopyError ? (
+                    <p className="text-xs text-red-500 mt-1">{adCopyError}</p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">
+                      If provided, all variations will use this ad copy.
+                    </p>
+                  )}
                 </div>
 
                 {/* Watermark Configuration */}
                 <div>
-                  <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
-                    <Type className="w-4 h-4" />
-                    Watermark
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
-                  </label>
+                  <div className="flex items-center gap-2 mb-3">
+                    <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                      <Type className="w-4 h-4" />
+                      Watermark
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSuggestWatermark}
+                      disabled={isSuggestingWatermark || !canUseAIHelpers}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
+                    >
+                      {isSuggestingWatermark ? (
+                        <>
+                          <span className="h-3 w-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
+                          Analyzing…
+                        </>
+                      ) : hasAISuggestedWatermark ? (
+                        <>
+                          <Wand2 className="w-3.5 h-3.5" />
+                          Regenerate
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-3.5 h-3.5" />
+                          AI Suggest
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <div className="flex gap-3">
                     <input
                       type="text"
                       value={textWatermark}
-                      onChange={(e) => setTextWatermark(e.target.value)}
+                      onChange={(e) => handleWatermarkTextChange(e.target.value)}
                       placeholder="Enter brand name or watermark text..."
                       maxLength={50}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
                     />
                     <select
                       value={textWatermarkLocation}
-                      onChange={(e) => setTextWatermarkLocation(e.target.value)}
+                      onChange={(e) => handleWatermarkLocationChange(e.target.value)}
                       className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
                     >
                       <option value="bottom left">Bottom Left</option>
@@ -339,55 +584,8 @@ export default function MultiVariantAdsPage() {
                       <option value="center bottom">Center Bottom</option>
                     </select>
                   </div>
+                  {watermarkError && <p className="text-xs text-red-500 mt-1">{watermarkError}</p>}
                 </div>
-
-                {/* Size Configuration */}
-                <div>
-                  <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
-                    <Crop className="w-4 h-4" />
-                    Size
-                  </label>
-                  <select
-                    value={imageSize}
-                    onChange={(e) => setImageSize(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
-                  >
-                    <option value="auto">Auto (Native Resolution)</option>
-                    <option value="1:1">Square (1:1)</option>
-                    <option value="3:4">Portrait 3:4</option>
-                    <option value="9:16">Portrait 9:16</option>
-                    <option value="4:3">Landscape 4:3</option>
-                    <option value="16:9">Landscape 16:9</option>
-                  </select>
-                </div>
-
-                {/* Model Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <ImageModelSelector
-                    credits={userCredits || 0}
-                    selectedModel={selectedImageModel}
-                    onModelChange={handleImageModelChange}
-                    showIcon={true}
-                  />
-                  {shouldGenerateVideo && (
-                    <VideoModelSelector
-                      credits={userCredits || 0}
-                      selectedModel={selectedModel}
-                      onModelChange={handleModelChange}
-                      showIcon={true}
-                      hideCredits={true}
-                    />
-                  )}
-                </div>
-
-                {/* Video Aspect Ratio */}
-                {shouldGenerateVideo && (
-                  <VideoAspectRatioSelector
-                    selectedAspectRatio={videoAspectRatio}
-                    onAspectRatioChange={setVideoAspectRatio}
-                    showIcon={true}
-                  />
-                )}
 
                 {/* Generate Button */}
                 <button
@@ -404,7 +602,6 @@ export default function MultiVariantAdsPage() {
                     <>
                       <ArrowRight className="w-5 h-5" />
                       <span>Generate</span>
-                      <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Free</span>
                     </>
                   )}
                 </button>
@@ -512,33 +709,138 @@ export default function MultiVariantAdsPage() {
                 </div>
               </div>
 
+              {/* Model Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ImageModelSelector
+                  credits={userCredits || 0}
+                  selectedModel={selectedImageModel}
+                  onModelChange={handleImageModelChange}
+                  showIcon={true}
+                  className="col-span-1"
+                  hiddenModels={['auto']}
+                />
+                {shouldGenerateVideo && (
+                  <VideoModelSelector
+                    credits={userCredits || 0}
+                    selectedModel={selectedModel}
+                    onModelChange={handleModelChange}
+                    showIcon={true}
+                    className="col-span-1"
+                    hiddenModels={['auto']}
+                  />
+                )}
+                {!shouldGenerateVideo && (
+                  <div className="col-span-1 space-y-3">
+                    <label className="flex items-center gap-2 text-base font-medium text-gray-400">
+                      <Play className="w-4 h-4" />
+                      Video Model
+                    </label>
+                    <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 text-center">
+                      Video generation disabled
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Image Size and Aspect Ratio */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <SizeSelector
+                  selectedSize={imageSize}
+                  onSizeChange={setImageSize}
+                  imageModel={selectedImageModel}
+                  videoAspectRatio={videoAspectRatio}
+                  showIcon={true}
+                />
+                {shouldGenerateVideo && (
+                  <VideoAspectRatioSelector
+                    selectedAspectRatio={videoAspectRatio}
+                    onAspectRatioChange={setVideoAspectRatio}
+                    showIcon={true}
+                  />
+                )}
+              </div>
+
               {/* Ad Copy Configuration */}
               <div className="space-y-3">
-                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                  <Type className="w-4 h-4" />
-                  Ad Copy
-                </label>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                    <Type className="w-4 h-4" />
+                    Ad Copy
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateAdCopy}
+                    disabled={isGeneratingAdCopy || !canUseAIHelpers}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
+                  >
+                    {isGeneratingAdCopy ? (
+                      <>
+                        <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                        Generating…
+                      </>
+                    ) : hasAIGeneratedAdCopy ? (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Regenerate
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        AI Generate
+                      </>
+                    )}
+                  </button>
+                </div>
                 <input
                   id="ad-copy-text"
                   type="text"
                   value={adCopy}
-                  onChange={(e) => setAdCopy(e.target.value)}
+                  onChange={(e) => handleAdCopyChange(e.target.value)}
                   placeholder="Enter ad copy (optional)..."
                   maxLength={120}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
                 />
-                <p className="text-xs text-gray-500">If provided, all variations will use this ad copy.</p>
+                {adCopyError ? (
+                  <p className="text-xs text-red-500">{adCopyError}</p>
+                ) : (
+                  <p className="text-xs text-gray-500">If provided, all variations will use this ad copy.</p>
+                )}
               </div>
 
               {/* Watermark Configuration */}
               <div className="space-y-3">
-                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                  <Type className="w-4 h-4" />
-                  Watermark
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                    Optional
-                  </span>
-                </label>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+                    <Type className="w-4 h-4" />
+                    Watermark
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                      Optional
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleSuggestWatermark}
+                    disabled={isSuggestingWatermark || !canUseAIHelpers}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
+                  >
+                    {isSuggestingWatermark ? (
+                      <>
+                        <span className="h-3 w-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
+                        Analyzing…
+                      </>
+                    ) : hasAISuggestedWatermark ? (
+                      <>
+                        <Wand2 className="w-3.5 h-3.5" />
+                        Regenerate
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="w-3.5 h-3.5" />
+                        AI Suggest
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 {/* Watermark Text Input and Location Selector - Left Right Layout */}
                 <div className="flex gap-3">
@@ -548,7 +850,7 @@ export default function MultiVariantAdsPage() {
                       id="watermark-text"
                       type="text"
                       value={textWatermark}
-                      onChange={(e) => setTextWatermark(e.target.value)}
+                      onChange={(e) => handleWatermarkTextChange(e.target.value)}
                       placeholder="Enter brand name or watermark text..."
                       maxLength={50}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
@@ -560,7 +862,7 @@ export default function MultiVariantAdsPage() {
                     <select
                       id="watermark-location"
                       value={textWatermarkLocation}
-                      onChange={(e) => setTextWatermarkLocation(e.target.value)}
+                      onChange={(e) => handleWatermarkLocationChange(e.target.value)}
                       className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
                     >
                       <option value="bottom left">Bottom Left</option>
@@ -572,41 +874,7 @@ export default function MultiVariantAdsPage() {
                     <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                   </div>
                 </div>
-              </div>
-
-              {/* Image Size Configuration */}
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                  <Crop className="w-4 h-4" />
-                  Size
-                </label>
-
-                <div className="relative">
-                  <select
-                    id="image-size"
-                    value={imageSize}
-                    onChange={(e) => setImageSize(e.target.value)}
-                    className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
-                  >
-                    <option value="auto">Auto (Native Resolution)</option>
-                    <option value="1:1">Square (1:1)</option>
-                    {/* 9:16 ↔ 16:9 */}
-                    <option value="9:16">Portrait (9:16)</option>
-                    <option value="16:9">Landscape (16:9)</option>
-                    {/* 4:5 ↔ 5:4 */}
-                    <option value="4:5">Portrait (4:5)</option>
-                    <option value="5:4">Landscape (5:4)</option>
-                    {/* 3:4 ↔ 4:3 */}
-                    <option value="3:4">Portrait (3:4)</option>
-                    <option value="4:3">Landscape (4:3)</option>
-                    {/* 2:3 ↔ 3:2 */}
-                    <option value="2:3">Portrait (2:3)</option>
-                    <option value="3:2">Landscape (3:2)</option>
-                    {/* 21:9 */}
-                    <option value="21:9">Landscape (21:9)</option>
-                  </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                </div>
+                {watermarkError && <p className="text-xs text-red-500">{watermarkError}</p>}
               </div>
 
               {/* Video Generation Option - moved after Ads */}
@@ -644,52 +912,6 @@ export default function MultiVariantAdsPage() {
                 </p>
               </div>
 
-              {/* Model Selection - in one row */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Image Model Selection */}
-                <ImageModelSelector
-                  credits={userCredits || 0}
-                  selectedModel={selectedImageModel}
-                  onModelChange={handleImageModelChange}
-                  showIcon={true}
-                  className="col-span-1"
-                />
-
-                {/* Video Model Selection - only show when video generation is enabled */}
-                {shouldGenerateVideo && (
-                  <VideoModelSelector
-                    credits={userCredits || 0}
-                    selectedModel={selectedModel}
-                    onModelChange={handleModelChange}
-                    showIcon={true}
-                    hideCredits={true}
-                    className="col-span-1"
-                  />
-                )}
-
-                {/* Placeholder when video is disabled */}
-                {!shouldGenerateVideo && (
-                  <div className="col-span-1 space-y-3">
-                    <label className="flex items-center gap-2 text-base font-medium text-gray-400">
-                      <Play className="w-4 h-4" />
-                      Video Model
-                    </label>
-                    <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500 text-center">
-                      Video generation disabled
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Video Aspect Ratio */}
-              {shouldGenerateVideo && (
-                <VideoAspectRatioSelector
-                  selectedAspectRatio={videoAspectRatio}
-                  onAspectRatioChange={setVideoAspectRatio}
-                  showIcon={true}
-                />
-              )}
-
               {/* Action Buttons moved to right side */}
               <div className="space-y-3">
                 <button
@@ -706,7 +928,6 @@ export default function MultiVariantAdsPage() {
                     <>
                       <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
                       <span className="group-hover:scale-105 transition-transform duration-200">Generate</span>
-                      <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Free</span>
                     </>
                   )}
                 </button>

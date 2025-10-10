@@ -39,7 +39,8 @@ export function useMultiVariantAdsWorkflow(
   textWatermarkLocation: string = 'bottom left',
   imageSize: string = 'auto',
   shouldGenerateVideo: boolean = true,
-  videoAspectRatio: '16:9' | '9:16' = '16:9'
+  videoAspectRatio: '16:9' | '9:16' = '16:9',
+  requestedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' = videoModel
 ) {
   const [state, setState] = useState<WorkflowV2State>({
     isLoading: false,
@@ -91,7 +92,14 @@ export function useMultiVariantAdsWorkflow(
   const startBatchWorkflowWithProduct = useCallback(async (selectedProductId: string) => {
     if (!userId) return;
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    const previousStatus = state.workflowStatus;
+
+    setState(prev => ({
+      ...prev,
+      isLoading: true,
+      error: null,
+      workflowStatus: 'processing'
+    }));
 
     try {
       const response = await fetch('/api/multi-variant-ads/create', {
@@ -101,6 +109,7 @@ export function useMultiVariantAdsWorkflow(
           selectedProductId,
           userId,
           videoModel,
+          requestedVideoModel,
           imageModel,
           elementsCount,
           adCopy,
@@ -149,17 +158,25 @@ export function useMultiVariantAdsWorkflow(
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to start workflow'
+        error: error instanceof Error ? error.message : 'Failed to start workflow',
+        workflowStatus: previousStatus
       }));
       throw error;
     }
-  }, [userId, videoModel, imageModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo, videoAspectRatio]);
+  }, [userId, videoModel, requestedVideoModel, imageModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo, videoAspectRatio, state.workflowStatus]);
 
   // Start V2 items (no DB batch)
   const startBatchWorkflow = useCallback(async () => {
     if (!state.uploadedFile || !userId) return;
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    const previousStatus = state.workflowStatus;
+
+    setState(prev => ({
+      ...prev,
+      isLoading: true,
+      error: null,
+      workflowStatus: 'processing'
+    }));
 
     try {
       const response = await fetch('/api/multi-variant-ads/create', {
@@ -169,6 +186,7 @@ export function useMultiVariantAdsWorkflow(
           imageUrl: state.uploadedFile.url,
           userId,
           videoModel,
+          requestedVideoModel,
           imageModel,
           elementsCount,
           adCopy,
@@ -217,11 +235,12 @@ export function useMultiVariantAdsWorkflow(
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to start workflow'
+        error: error instanceof Error ? error.message : 'Failed to start workflow',
+        workflowStatus: previousStatus
       }));
       throw error;
     }
-  }, [state.uploadedFile, userId, videoModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo]);
+  }, [state.uploadedFile, userId, videoModel, requestedVideoModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo, videoAspectRatio, state.workflowStatus]);
 
   // Download content
   const downloadContent = useCallback(async (instanceId: string, contentType: 'cover' | 'video') => {
@@ -336,7 +355,14 @@ export function useMultiVariantAdsWorkflow(
   const startBatchWorkflowWithTemporaryImages = useCallback(async (imageFiles: File[]) => {
     if (!userId) return;
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    const previousStatus = state.workflowStatus;
+
+    setState(prev => ({
+      ...prev,
+      isLoading: true,
+      error: null,
+      workflowStatus: 'processing'
+    }));
 
     try {
       // Upload images to Supabase first
@@ -365,6 +391,7 @@ export function useMultiVariantAdsWorkflow(
           imageUrl: primaryImageUrl,
           userId,
           videoModel,
+          requestedVideoModel,
           imageModel,
           elementsCount,
           adCopy,
@@ -413,11 +440,12 @@ export function useMultiVariantAdsWorkflow(
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to start workflow with temporary images'
+        error: error instanceof Error ? error.message : 'Failed to start workflow with temporary images',
+        workflowStatus: previousStatus
       }));
       throw error;
     }
-  }, [userId, videoModel, imageModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo, videoAspectRatio]);
+  }, [userId, videoModel, requestedVideoModel, imageModel, elementsCount, adCopy, textWatermark, textWatermarkLocation, imageSize, shouldGenerateVideo, videoAspectRatio, state.workflowStatus]);
 
   return {
     state,

@@ -515,7 +515,6 @@ export default function CharacterAdsPage() {
                           <>
                             <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform duration-200" />
                             <span>Generate Ad</span>
-                            <span className="ml-2 text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">Free</span>
                           </>
                         )}
                       </motion.button>

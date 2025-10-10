@@ -281,8 +281,18 @@ export const useStandardAdsWorkflow = (
     generateVideo?: boolean,
     currentVideoAspectRatio?: '16:9' | '9:16'
   ) => {
+    const previousStatus = state.workflowStatus;
+
     try {
-      setLoading(true);
+      setState(prev => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+        workflowStatus:
+          prev.workflowStatus === 'started' || prev.workflowStatus === 'uploaded_waiting_config'
+            ? 'workflow_initiated'
+            : prev.workflowStatus
+      }));
 
       const requestData = {
         selectedProductId,
@@ -347,9 +357,15 @@ export const useStandardAdsWorkflow = (
         refetchCredits();
       }
 
-      setError(error.message || 'Failed to start workflow');
+      const message = error instanceof Error ? error.message : 'Failed to start workflow';
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        workflowStatus: previousStatus,
+        error: message
+      }));
     }
-  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
+  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, updateCredits, refetchCredits, pollWorkflowStatus, state.workflowStatus]);
 
   const startWorkflowWithConfig = useCallback(async (
     watermarkConfig: { enabled: boolean; text: string; location?: string },
@@ -363,8 +379,18 @@ export const useStandardAdsWorkflow = (
       return;
     }
 
+    const previousStatus = state.workflowStatus;
+
     try {
-      setLoading(true);
+      setState(prev => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+        workflowStatus:
+          prev.workflowStatus === 'started' || prev.workflowStatus === 'uploaded_waiting_config'
+            ? 'workflow_initiated'
+            : prev.workflowStatus
+      }));
 
       const requestData = {
         imageUrl: state.data.uploadedFile.url,
@@ -430,9 +456,15 @@ export const useStandardAdsWorkflow = (
         refetchCredits();
       }
       
-      setError(error.message || 'Failed to start workflow');
+      const message = error instanceof Error ? error.message : 'Failed to start workflow';
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        workflowStatus: previousStatus,
+        error: message
+      }));
     }
-  }, [state.data.uploadedFile, userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
+  }, [state.data.uploadedFile, userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, updateCredits, refetchCredits, pollWorkflowStatus, state.workflowStatus]);
 
   const startWorkflowWithTemporaryImages = useCallback(async (
     imageFiles: File[],
@@ -442,8 +474,18 @@ export const useStandardAdsWorkflow = (
     generateVideo?: boolean,
     currentVideoAspectRatio?: '16:9' | '9:16'
   ) => {
+    const previousStatus = state.workflowStatus;
+
     try {
-      setLoading(true);
+      setState(prev => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+        workflowStatus:
+          prev.workflowStatus === 'started' || prev.workflowStatus === 'uploaded_waiting_config'
+            ? 'workflow_initiated'
+            : prev.workflowStatus
+      }));
 
       // Upload images to Supabase first
       const formData = new FormData();
@@ -528,9 +570,15 @@ export const useStandardAdsWorkflow = (
         refetchCredits();
       }
 
-      setError(error.message || 'Failed to start workflow with temporary images');
+      const message = error instanceof Error ? error.message : 'Failed to start workflow with temporary images';
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        workflowStatus: previousStatus,
+        error: message
+      }));
     }
-  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, setLoading, setError, updateCredits, refetchCredits, pollWorkflowStatus]);
+  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, updateCredits, refetchCredits, pollWorkflowStatus, state.workflowStatus]);
 
   return {
     state,

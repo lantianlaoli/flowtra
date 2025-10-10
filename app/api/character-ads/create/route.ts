@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
-import { CREDIT_COSTS, getActualModel, getActualImageModel } from '@/lib/constants';
+import { CREDIT_COSTS, getActualModel, getActualImageModel, getCreditCost } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
+import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 export async function POST(request: NextRequest) {
   try {
@@ -202,6 +203,59 @@ export async function POST(request: NextRequest) {
     const videoCreditsPerScene = CREDIT_COSTS[resolvedVideoModel];
     const totalCredits = imageCredits + (videoScenes * videoCreditsPerScene);
 
+    // VEO3 prepaid credit deduction
+    let generationCreditsUsed = 0;
+    if (resolvedVideoModel === 'veo3') {
+      const veo3CostPerScene = getCreditCost('veo3'); // 150 credits per scene
+      const totalVeo3Cost = veo3CostPerScene * videoScenes;
+
+      // Check if user has enough credits
+      const creditCheck = await checkCredits(userId, totalVeo3Cost);
+      if (!creditCheck.success) {
+        return NextResponse.json(
+          {
+            error: 'Failed to check credits',
+            details: creditCheck.error || 'Credit check failed'
+          },
+          { status: 500 }
+        );
+      }
+
+      if (!creditCheck.hasEnoughCredits) {
+        return NextResponse.json(
+          {
+            error: 'Insufficient credits',
+            details: `Need ${totalVeo3Cost} credits for ${videoScenes} VEO3 High Quality scene(s), have ${creditCheck.currentCredits || 0}`
+          },
+          { status: 400 }
+        );
+      }
+
+      // Deduct credits upfront
+      const deductResult = await deductCredits(userId, totalVeo3Cost);
+      if (!deductResult.success) {
+        return NextResponse.json(
+          {
+            error: 'Failed to deduct credits',
+            details: deductResult.error || 'Credit deduction failed'
+          },
+          { status: 500 }
+        );
+      }
+
+      // Record the transaction
+      await recordCreditTransaction(
+        userId,
+        'usage',
+        totalVeo3Cost,
+        `Character ads - ${videoScenes}x VEO3 High Quality scenes (prepaid)`,
+        undefined,
+        true
+      );
+
+      generationCreditsUsed = totalVeo3Cost;
+    }
+
     // Create project in database
     const supabase = getSupabaseAdmin();
     const { data: project, error: insertError } = await supabase
@@ -218,6 +272,7 @@ export async function POST(request: NextRequest) {
         accent: accent,
         custom_dialogue: customDialogue || null,
         credits_cost: totalCredits,
+        generation_credits_used: generationCreditsUsed,
         status: 'pending',
         current_step: 'analyzing_images',
         progress_percentage: 0,
@@ -227,6 +282,18 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error('Database insert error:', insertError);
+      // Refund credits if project creation failed
+      if (generationCreditsUsed > 0) {
+        await deductCredits(userId, -generationCreditsUsed);
+        await recordCreditTransaction(
+          userId,
+          'refund',
+          generationCreditsUsed,
+          'Refund for failed character ads project creation',
+          undefined,
+          true
+        );
+      }
       return NextResponse.json(
         { error: 'Failed to create project in database' },
         { status: 500 }

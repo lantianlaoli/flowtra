@@ -69,6 +69,30 @@ export async function POST(
         });
       }
 
+      // VEO3 prepaid: If generation_credits_used > 0, credits were already deducted at generation
+      const isPrepaid = (instance.generation_credits_used || 0) > 0;
+
+      if (isPrepaid) {
+        // VEO3 prepaid: Just mark as downloaded without deducting credits
+        await supabase
+          .from('multi_variant_ads_projects')
+          .update({
+            downloaded: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id);
+
+        console.log(`✅ VEO3 prepaid video marked as downloaded (no additional charge), user: ${instance.user_id}`);
+
+        return NextResponse.json({
+          success: true,
+          downloadUrl: instance.video_url,
+          contentType: 'video',
+          creditsUsed: 0,
+          message: 'Video download ready (prepaid)'
+        });
+      }
+
       // Determine model and download cost
       const model: 'veo3' | 'veo3_fast' = (instance.video_model === 'veo3' || instance.video_model === 'veo3_fast')
         ? instance.video_model
