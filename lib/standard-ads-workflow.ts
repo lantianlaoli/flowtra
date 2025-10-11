@@ -146,7 +146,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         credits_cost: creditsCost,
         watermark_text: request.watermark?.text,
         watermark_location: request.watermark?.location || request.watermarkLocation,
-        cover_image_size: request.imageSize,
+        cover_image_aspect_ratio: request.imageSize || request.videoAspectRatio || '16:9', // Default to video aspect ratio
         photo_only: request.photoOnly || false,
         // For VEO3, mark as generation credits already used (prepaid)
         generation_credits_used: (!request.photoOnly && actualVideoModel === 'veo3') ? creditsCost : 0

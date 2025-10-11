@@ -113,7 +113,7 @@ interface HistoryRecord {
   last_processed_at: string;
   watermark_text?: string | null;
   watermark_location?: string | null;
-  cover_image_size?: string | null;
+  cover_image_aspect_ratio?: string | null;
   image_prompt?: string | null;
   photo_only?: boolean | null;
 }

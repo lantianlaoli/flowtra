@@ -67,14 +67,13 @@ export interface SingleVideoProject {
   product_description?: Record<string, unknown> // JSONB field containing { description: string }
   video_prompts?: Record<string, unknown>
   image_prompt?: Record<string, unknown> // JSONB field containing the prompt used for cover generation
-  project_type?: string | null // Legacy field, not currently used in codebase
   video_model: 'veo3' | 'veo3_fast' | 'sora2'
   credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string
   watermark_text?: string | null
   watermark_location?: string | null
-  cover_image_size?: string | null
+  cover_image_aspect_ratio?: string | null // Aspect ratio of the cover image (e.g., "16:9", "9:16", "1:1")
   photo_only?: boolean // If true, workflow skips video generation and only produces a cover image
   downloaded?: boolean // Whether user has downloaded the video
   download_credits_used?: number // Credits used for downloading (60% of total)
@@ -114,10 +113,9 @@ export interface MultiVariantProject {
   download_credits_used: number
   watermark_text?: string
   watermark_location?: string
-  cover_image_size?: string
+  cover_image_aspect_ratio?: string // Aspect ratio of the cover image (e.g., "16:9", "9:16", "1:1")
   image_prompt?: Record<string, unknown>
   photo_only: boolean
-  project_type?: string
 }
 
 // Database types for user_photos table

@@ -22,7 +22,7 @@ interface MultiVariantInstance {
   cover_task_id?: string;
   video_task_id?: string;
   cover_image_url?: string;
-  cover_image_size?: string | null;
+  cover_image_aspect_ratio?: string | null;
   video_url?: string;
   photo_only?: boolean | null;
   status: string;
@@ -162,7 +162,7 @@ async function handleCoverCompletion(instance: MultiVariantInstance, data: KieCa
       };
 
       if (derivedSize) {
-        updatePayload.cover_image_size = derivedSize;
+        updatePayload.cover_image_aspect_ratio = derivedSize;
       }
 
       await supabase
@@ -255,7 +255,7 @@ function deriveCoverImageSize(
 
   const elementsImageSize = instance.elements_data && (instance.elements_data as Record<string, unknown>).image_size;
   candidates.push(normalizeImageSizeInput(elementsImageSize));
-  candidates.push(normalizeImageSizeInput(instance.cover_image_size));
+  candidates.push(normalizeImageSizeInput(instance.cover_image_aspect_ratio));
 
   for (const value of candidates) {
     if (value) {
