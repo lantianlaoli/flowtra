@@ -31,7 +31,7 @@ interface WorkflowV2State {
 
 export function useMultiVariantAdsWorkflow(
   userId?: string,
-  videoModel: 'veo3' | 'veo3_fast' = 'veo3_fast',
+  videoModel: 'veo3' | 'veo3_fast' | 'sora2' = 'veo3_fast',
   imageModel: 'nano_banana' | 'seedream' = 'nano_banana',
   elementsCount: number = 2,
   adCopy: string = '',
