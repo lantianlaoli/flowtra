@@ -466,14 +466,25 @@ export default function MultiVariantAdsPage() {
                     hiddenModels={['auto']}
                   />
                   {shouldGenerateVideo && (
-                    <VideoModelSelector
-                      credits={userCredits || 0}
-                      selectedModel={selectedModel}
-                      onModelChange={handleModelChange}
-                      showIcon={true}
-                      hiddenModels={['auto']}
-                      adsCount={elementsCount}
-                    />
+                    <>
+                      <VideoModelSelector
+                        credits={userCredits || 0}
+                        selectedModel={selectedModel}
+                        onModelChange={handleModelChange}
+                        showIcon={true}
+                        hiddenModels={['auto']}
+                        adsCount={elementsCount}
+                      />
+                      {selectedModel === 'sora2' && (
+                        <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                          <p className="text-xs text-amber-800">
+                            <strong>Note:</strong> OpenAI currently does not support uploads of images containing photorealistic people.
+                            Please ensure your product images do not contain real human faces.
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -733,15 +744,26 @@ export default function MultiVariantAdsPage() {
                   hiddenModels={['auto']}
                 />
                 {shouldGenerateVideo && (
-                  <VideoModelSelector
-                    credits={userCredits || 0}
-                    selectedModel={selectedModel}
-                    onModelChange={handleModelChange}
-                    showIcon={true}
-                    className="col-span-1"
-                    hiddenModels={['auto']}
-                    adsCount={elementsCount}
-                  />
+                  <>
+                    <VideoModelSelector
+                      credits={userCredits || 0}
+                      selectedModel={selectedModel}
+                      onModelChange={handleModelChange}
+                      showIcon={true}
+                      className="col-span-1"
+                      hiddenModels={['auto']}
+                      adsCount={elementsCount}
+                    />
+                    {selectedModel === 'sora2' && (
+                      <div className="col-span-2 mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-amber-800">
+                          <strong>Note:</strong> OpenAI currently does not support uploads of images containing photorealistic people.
+                          Please ensure your product images do not contain real human faces.
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
                 {!shouldGenerateVideo && (
                   <div className="col-span-1 space-y-3">

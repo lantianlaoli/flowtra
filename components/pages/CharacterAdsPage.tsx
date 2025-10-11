@@ -395,7 +395,7 @@ export default function CharacterAdsPage() {
                             hiddenModels={['auto']}
                           />
                         </div>
-                        <div className="relative">
+                        <div className="relative space-y-3">
                           <VideoModelSelector
                             credits={userCredits || 0}
                             selectedModel={selectedVideoModel}
@@ -407,6 +407,22 @@ export default function CharacterAdsPage() {
                             hiddenModels={['auto']}
                             videoDurationSeconds={videoDuration}
                           />
+                          {selectedVideoModel === 'sora2' && (personImages.length > 0 || selectedPersonPhotoUrl) && (
+                            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                              <div className="flex items-start gap-3">
+                                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <h4 className="text-sm font-semibold text-red-900 mb-1">
+                                    Sora2 Cannot Process Human Photos
+                                  </h4>
+                                  <p className="text-xs text-red-800">
+                                    OpenAI currently does not support uploads of images containing photorealistic people.
+                                    Please switch to VEO3 models for character ads, or remove person photos to use Sora2.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 

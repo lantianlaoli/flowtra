@@ -20,7 +20,7 @@ interface VideoModelSelectorProps {
   videoDurationSeconds?: number; // Video duration in seconds (for character ads duration-based pricing)
 }
 
-// const SORA2_HELP_TEXT = 'OpenAI currently do not support uploads of images containing photorealistic people, so Sora2 is temporarily unavailable.';
+const SORA2_WARNING = '⚠️ OpenAI does not support images with photorealistic people';
 
 export default function VideoModelSelector({
   credits,
@@ -88,7 +88,7 @@ export default function VideoModelSelector({
       {
         value: 'sora2',
         label: 'Sora2',
-        description: '',
+        description: SORA2_WARNING,
         cost: calculateDurationCost('sora2'),
         processingTime: getProcessingTime('sora2'),
         affordable: canAffordModel(credits, 'sora2'),
