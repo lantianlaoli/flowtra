@@ -95,7 +95,6 @@ export default function HistoryPage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState<'all' | 'completed' | 'processing' | 'failed'>('all');
   // Content filter simplified: only video ads types remain
   const [contentFilter, setContentFilter] = useState<'all' | 'standard' | 'multi-variant' | 'character'>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
@@ -117,17 +116,15 @@ export default function HistoryPage() {
   // Memoized filtered history for better performance
   const filteredHistory = useMemo(() => {
     return history.filter(item => {
-      // Status filter
-      const statusMatch = filter === 'all' || item.status === filter;
       // Content filter by ad type
       const contentMatch =
         contentFilter === 'all' ||
         (contentFilter === 'standard' && isStandardAds(item)) ||
         (contentFilter === 'multi-variant' && isMultiVariantAds(item)) ||
         (contentFilter === 'character' && isCharacterAds(item));
-      return statusMatch && contentMatch;
+      return contentMatch;
     });
-  }, [history, filter, contentFilter]);
+  }, [history, contentFilter]);
 
   // Memoized pagination calculations
   const { totalPages, currentHistory } = useMemo(() => {
@@ -250,7 +247,7 @@ export default function HistoryPage() {
   // Reset to first page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, contentFilter]);
+  }, [contentFilter]);
 
   // Loading state
   if (!isLoaded) {
@@ -681,47 +678,26 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
 
           {/* Filter Tabs */}
           <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {/* Content Type Filter (Discover-like) */}
-                <div className="bg-white border border-gray-200 p-1 rounded-lg inline-flex shadow-sm">
-                  {([
-                    { value: 'all', label: 'All', icon: ImageIcon },
-                    { value: 'standard', label: 'Standard', icon: ImageIcon },
-                    { value: 'multi-variant', label: 'Multi-Variant', icon: Layers },
-                    { value: 'character', label: 'Character', icon: VideoIcon },
-                  ] as const).map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setContentFilter(opt.value)}
-                      className={`h-8 px-2.5 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                        contentFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <opt.icon className="w-4 h-4" />
-                      <span className="text-xs font-medium">{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Status Filter */}
-                <div className="bg-gray-50 p-1 rounded-lg inline-flex">
-                  {(['all', 'completed', 'processing', 'failed'] as const).map((status) => (
-                    <button
-                      key={status}
-                      onClick={() => setFilter(status)}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
-                        filter === status
-                          ? 'bg-white text-gray-900 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </button>
-                  ))}
-                </div>
+            <div className="flex items-center gap-3">
+              {/* Content Type Filter (Discover-like) */}
+              <div className="bg-white border border-gray-200 p-1 rounded-lg inline-flex shadow-sm">
+                {([
+                  { value: 'all', label: 'All', icon: ImageIcon },
+                  { value: 'standard', label: 'Standard', icon: ImageIcon },
+                  { value: 'multi-variant', label: 'Multi-Variant', icon: Layers },
+                  { value: 'character', label: 'Character', icon: VideoIcon },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setContentFilter(opt.value)}
+                    className={`h-8 px-2.5 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                      contentFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <opt.icon className="w-4 h-4" />
+                    <span className="text-xs font-medium">{opt.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
