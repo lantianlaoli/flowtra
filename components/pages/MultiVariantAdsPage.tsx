@@ -154,7 +154,11 @@ export default function MultiVariantAdsPage() {
   // Show toast notification when workflow starts processing
   useEffect(() => {
     if (state.workflowStatus === 'processing') {
-      showSuccess(`Added ${elementsCount} ad variation${elementsCount > 1 ? 's' : ''} to generation queue!`);
+      showSuccess(
+        `Added ${elementsCount} ad variation${elementsCount > 1 ? 's' : ''} to generation queue!`,
+        5000,
+        { label: 'View Progress →', href: '/dashboard/videos' }
+      );
     }
   }, [state.workflowStatus, elementsCount, showSuccess]);
 

@@ -4,12 +4,17 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 import { ToastContainer } from '@/components/ui/Toast';
 import type { ToastType, ToastProps } from '@/components/ui/Toast';
 
+interface ToastAction {
+  label: string;
+  href: string;
+}
+
 interface ToastContextValue {
-  showToast: (message: string, type?: ToastType, duration?: number) => void;
-  showSuccess: (message: string, duration?: number) => void;
-  showError: (message: string, duration?: number) => void;
-  showWarning: (message: string, duration?: number) => void;
-  showInfo: (message: string, duration?: number) => void;
+  showToast: (message: string, type?: ToastType, duration?: number, action?: ToastAction) => void;
+  showSuccess: (message: string, duration?: number, action?: ToastAction) => void;
+  showError: (message: string, duration?: number, action?: ToastAction) => void;
+  showWarning: (message: string, duration?: number, action?: ToastAction) => void;
+  showInfo: (message: string, duration?: number, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
@@ -22,7 +27,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    (message: string, type: ToastType = 'info', duration = 5000) => {
+    (message: string, type: ToastType = 'info', duration = 5000, action?: ToastAction) => {
       const id = `toast-${Date.now()}-${Math.random()}`;
       const newToast: ToastProps = {
         id,
@@ -30,6 +35,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         type,
         duration,
         onClose: removeToast,
+        actionLabel: action?.label,
+        actionHref: action?.href,
       };
 
       setToasts((prev) => [...prev, newToast]);
@@ -38,22 +45,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 
   const showSuccess = useCallback(
-    (message: string, duration?: number) => showToast(message, 'success', duration),
+    (message: string, duration?: number, action?: ToastAction) => showToast(message, 'success', duration, action),
     [showToast]
   );
 
   const showError = useCallback(
-    (message: string, duration?: number) => showToast(message, 'error', duration),
+    (message: string, duration?: number, action?: ToastAction) => showToast(message, 'error', duration, action),
     [showToast]
   );
 
   const showWarning = useCallback(
-    (message: string, duration?: number) => showToast(message, 'warning', duration),
+    (message: string, duration?: number, action?: ToastAction) => showToast(message, 'warning', duration, action),
     [showToast]
   );
 
   const showInfo = useCallback(
-    (message: string, duration?: number) => showToast(message, 'info', duration),
+    (message: string, duration?: number, action?: ToastAction) => showToast(message, 'info', duration, action),
     [showToast]
   );
 

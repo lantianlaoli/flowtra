@@ -92,7 +92,11 @@ export default function CharacterAdsPage() {
   // Show toast notification when generation starts
   useEffect(() => {
     if (workflowStatus === 'success') {
-      showSuccess('Added character ad to generation queue! Your ad is being created in the background.');
+      showSuccess(
+        'Added character ad to generation queue! Your ad is being created in the background.',
+        5000,
+        { label: 'View Progress →', href: '/dashboard/videos' }
+      );
     }
   }, [workflowStatus, showSuccess]);
 

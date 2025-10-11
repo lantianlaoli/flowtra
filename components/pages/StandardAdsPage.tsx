@@ -257,7 +257,11 @@ export default function StandardAdsPage() {
   // Show toast notification when workflow is initiated
   useEffect(() => {
     if (state.workflowStatus === 'workflow_initiated') {
-      showSuccess('Added to generation queue! Your ad is being created in the background.');
+      showSuccess(
+        'Added to generation queue! Your ad is being created in the background.',
+        5000,
+        { label: 'View Progress →', href: '/dashboard/videos' }
+      );
     }
   }, [state.workflowStatus, showSuccess]);
 
