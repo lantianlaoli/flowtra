@@ -115,9 +115,6 @@ async function processInstance(instance: InstanceRecord) {
   let currentStep = instance.current_step;
   let lastProcessedAt = instance.last_processed_at;
 
-  // Always poll for image progress to handle stuck tasks
-  // const hasCallback = !!process.env.KIE_MULTI_VARIANT_ADS_CALLBACK_URL;
-
   const shouldGenerateVideo = (() => {
     if (instance.photo_only === true) return false;
     const raw = instance.elements_data as Record<string, unknown> | null | undefined;

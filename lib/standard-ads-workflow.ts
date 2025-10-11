@@ -331,15 +331,20 @@ Return as JSON format.`
   try {
     // First, try to extract JSON from markdown code blocks if present
     let jsonContent = content;
-    
+
     // Check if content contains markdown JSON code block
     const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
     if (jsonBlockMatch) {
       jsonContent = jsonBlockMatch[1];
     }
-    
-    const parsed = JSON.parse(jsonContent);
-    
+
+    let parsed = JSON.parse(jsonContent);
+
+    // Handle nested structure from OpenRouter (e.g., {video_advertisement_prompt: {...}})
+    if (parsed.video_advertisement_prompt && typeof parsed.video_advertisement_prompt === 'object') {
+      parsed = parsed.video_advertisement_prompt;
+    }
+
     // Ensure description is a simple string, not JSON content
     if (parsed.description && typeof parsed.description === 'string') {
       // If description contains JSON markers or is too complex, simplify it
@@ -348,14 +353,14 @@ Return as JSON format.`
                                             .replace(/\{[\s\S]*?\}/g, '')
                                             .replace(/\s+/g, ' ')
                                             .trim();
-        
+
         // If after cleaning, description is empty or too short, provide a default
         if (!parsed.description || parsed.description.length < 10) {
           parsed.description = "Professional product showcase in modern setting";
         }
       }
     }
-    
+
     if (trimmedAdCopy) {
       parsed.dialogue = trimmedAdCopy;
       parsed.ad_copy = trimmedAdCopy;
@@ -506,9 +511,6 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
 
   const requestBody = {
     model: kieModelName,
-    ...(process.env.KIE_STANDARD_ADS_CALLBACK_URL && {
-      callBackUrl: process.env.KIE_STANDARD_ADS_CALLBACK_URL
-    }),
     input: {
       prompt: prompt,
       image_urls: [imageUrl],

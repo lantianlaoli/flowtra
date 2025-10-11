@@ -3,6 +3,7 @@ import Script from 'next/script'
 import { ClerkProvider } from '@clerk/nextjs'
 import { UserInitializer } from '@/components/UserInitializer'
 import { CreditsProvider } from '@/contexts/CreditsContext'
+import { ToastProvider } from '@/contexts/ToastContext'
 import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { PHProvider, PostHogPageView } from '@/providers/posthog'
@@ -213,9 +214,11 @@ export default function RootLayout({
           </Script>
           <PHProvider>
             <CreditsProvider>
-              <UserInitializer />
-              <PostHogPageView />
-              {children}
+              <ToastProvider>
+                <UserInitializer />
+                <PostHogPageView />
+                {children}
+              </ToastProvider>
             </CreditsProvider>
           </PHProvider>
           <Analytics />

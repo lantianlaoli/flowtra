@@ -399,11 +399,7 @@ async function generateImageWithKIE(
       prompt: JSON.stringify(prompt),
       image_urls: referenceImages,
       ...modelParams  // Spread the model-specific parameters
-    },
-    // Add callback URL if configured for faster webhook notifications
-    ...(process.env.KIE_CHARACTER_ADS_CALLBACK_URL && {
-      callBackUrl: process.env.KIE_CHARACTER_ADS_CALLBACK_URL
-    })
+    }
   };
 
   console.log('KIE API request payload:', JSON.stringify(payload, null, 2));

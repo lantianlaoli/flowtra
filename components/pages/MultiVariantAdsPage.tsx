@@ -5,10 +5,10 @@ import Image from 'next/image';
 import { useMultiVariantAdsWorkflow } from '@/hooks/useMultiVariantAdsWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
+import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import { ArrowRight, History, Play, Image as ImageIcon, Hash, Type, ChevronDown, Layers, Package, TrendingUp, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
-import GenerationConfirmation from '@/components/ui/GenerationConfirmation';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
@@ -24,6 +24,7 @@ import { UserProduct } from '@/lib/supabase';
 export default function MultiVariantAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, refetchCredits } = useCredits();
+  const { showSuccess } = useToast();
   const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2'>('veo3_fast');
   const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('seedream');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
@@ -149,6 +150,13 @@ export default function MultiVariantAdsPage() {
     };
     checkKieCredits();
   }, []);
+
+  // Show toast notification when workflow starts processing
+  useEffect(() => {
+    if (state.workflowStatus === 'processing') {
+      showSuccess(`Added ${elementsCount} ad variation${elementsCount > 1 ? 's' : ''} to generation queue!`);
+    }
+  }, [state.workflowStatus, elementsCount, showSuccess]);
 
   // Removed unused getProgressPercentage helper to satisfy lint
 
@@ -941,17 +949,7 @@ export default function MultiVariantAdsPage() {
       );
     }
 
-    // Show simple started state (Notion style) instead of progress page
-    if (state.workflowStatus === 'processing') {
-      return (
-        <GenerationConfirmation
-          title="Your ad variations are being generated!"
-          description="Multiple creative approaches are being created in the background."
-          estimatedTime="Usually takes 3-5 minutes"
-          onCreateAnother={handleResetWorkflow}
-        />
-      );
-    }
+    // processing state is now handled by toast notification - no UI needed
 
     // Show completed state with results
     if (state.workflowStatus === 'completed') {

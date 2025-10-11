@@ -4,11 +4,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useStandardAdsWorkflow } from '@/hooks/useStandardAdsWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
+import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
 import { ArrowRight, History, Play, TrendingUp, Hash, Type, ChevronDown, Package, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
-import GenerationConfirmation from '@/components/ui/GenerationConfirmation';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
@@ -31,6 +31,7 @@ interface KieCreditsStatus {
 export default function StandardAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
+  const { showSuccess } = useToast();
   const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2'>('veo3_fast');
   const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('nano_banana');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
@@ -234,7 +235,7 @@ export default function StandardAdsPage() {
       try {
         const response = await fetch('/api/check-kie-credits');
         const result = await response.json();
-        
+
         setKieCreditsStatus({
           sufficient: result.success && result.sufficient,
           loading: false,
@@ -252,6 +253,13 @@ export default function StandardAdsPage() {
 
     checkKieCredits();
   }, []);
+
+  // Show toast notification when workflow is initiated
+  useEffect(() => {
+    if (state.workflowStatus === 'workflow_initiated') {
+      showSuccess('Added to generation queue! Your ad is being created in the background.');
+    }
+  }, [state.workflowStatus, showSuccess]);
 
 
   // Loading state
@@ -871,18 +879,7 @@ if (state.workflowStatus === 'uploaded_waiting_config') {
     </div>
   );
 }
-    // Show workflow initiated success state
-    if (state.workflowStatus === 'workflow_initiated') {
-      return (
-        <GenerationConfirmation
-          title="Your content is being generated!"
-          description="The generation process is now running in the background."
-          estimatedTime="Usually takes 3-5 minutes"
-          onCreateAnother={handleResetWorkflow}
-        />
-      );
-    }
-
+    // workflow_initiated state is now handled by toast notification - no UI needed
     // For processing workflow, only show failed state
     if (state.workflowStatus === 'failed') {
       return (

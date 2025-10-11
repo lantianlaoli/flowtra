@@ -843,9 +843,6 @@ async function generateMultiVariantCover(request: MultiVariantAdsRequest): Promi
 
   const requestBody = {
     model: kieModelName,
-    ...(process.env.KIE_MULTI_VARIANT_ADS_CALLBACK_URL && {
-      callBackUrl: process.env.KIE_MULTI_VARIANT_ADS_CALLBACK_URL
-    }),
     input: {
       prompt: prompt,
       image_urls: [request.imageUrl],

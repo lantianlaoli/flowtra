@@ -122,70 +122,57 @@ async function processRecord(record: HistoryRecord) {
   const supabase = getSupabaseAdmin();
   console.log(`Processing record ${record.id}, step: ${record.current_step}, status: ${record.status}`);
 
-  // Check if callback URL is empty - if so, actively poll for image progress
-  const hasCallback = !!process.env.KIE_STANDARD_ADS_CALLBACK_URL;
-
   // Handle cover generation monitoring
   if (record.current_step === 'generating_cover' && record.cover_task_id && !record.cover_image_url) {
-    // Only check status if no callback URL is configured
-    if (!hasCallback) {
-      const coverResult = await checkCoverStatus(record.cover_task_id);
+    const coverResult = await checkCoverStatus(record.cover_task_id);
 
-      if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
-        console.log(`Cover completed for record ${record.id}`);
+    if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
+      console.log(`Cover completed for record ${record.id}`);
 
-        // If photo_only, complete workflow here
-        if (record.photo_only === true) {
-          const { error: updErr } = await supabase
-            .from('standard_ads_projects')
-            .update({
-              cover_image_url: coverResult.imageUrl,
-              status: 'completed',
-              current_step: 'completed',
-              progress_percentage: 100,
-              last_processed_at: new Date().toISOString()
-            })
-            .eq('id', record.id);
+      // If photo_only, complete workflow here
+      if (record.photo_only === true) {
+        const { error: updErr } = await supabase
+          .from('standard_ads_projects')
+          .update({
+            cover_image_url: coverResult.imageUrl,
+            status: 'completed',
+            current_step: 'completed',
+            progress_percentage: 100,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', record.id);
 
-          if (updErr) {
-            console.error(`Failed to mark record ${record.id} as completed (photo-only):`, updErr);
-            throw new Error(`DB update failed for record ${record.id}`);
-          }
-
-          console.log(`Completed image-only workflow for record ${record.id}`);
-        } else {
-          // Cover completed, start video generation
-          const videoTaskId = await startVideoGeneration(record, coverResult.imageUrl);
-
-          const { error: startErr } = await supabase
-            .from('standard_ads_projects')
-            .update({
-              cover_image_url: coverResult.imageUrl,
-              video_task_id: videoTaskId,
-              current_step: 'generating_video',
-              progress_percentage: 85,
-              last_processed_at: new Date().toISOString()
-            })
-            .eq('id', record.id);
-
-          if (startErr) {
-            console.error(`Failed to update record ${record.id} after starting video:`, startErr);
-            throw new Error(`DB update failed for record ${record.id}`);
-          }
-
-          console.log(`Started video generation for record ${record.id}, taskId: ${videoTaskId}`);
+        if (updErr) {
+          console.error(`Failed to mark record ${record.id} as completed (photo-only):`, updErr);
+          throw new Error(`DB update failed for record ${record.id}`);
         }
 
-      } else if (coverResult.status === 'FAILED') {
-        throw new Error('Cover generation failed');
+        console.log(`Completed image-only workflow for record ${record.id}`);
+      } else {
+        // Cover completed, start video generation
+        const videoTaskId = await startVideoGeneration(record, coverResult.imageUrl);
+
+        const { error: startErr } = await supabase
+          .from('standard_ads_projects')
+          .update({
+            cover_image_url: coverResult.imageUrl,
+            video_task_id: videoTaskId,
+            current_step: 'generating_video',
+            progress_percentage: 85,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', record.id);
+
+        if (startErr) {
+          console.error(`Failed to update record ${record.id} after starting video:`, startErr);
+          throw new Error(`DB update failed for record ${record.id}`);
+        }
+
+        console.log(`Started video generation for record ${record.id}, taskId: ${videoTaskId}`);
       }
-    }
-    // If callback URL exists, just update last_processed_at
-    else {
-      await supabase
-        .from('standard_ads_projects')
-        .update({ last_processed_at: new Date().toISOString() })
-        .eq('id', record.id);
+
+    } else if (coverResult.status === 'FAILED') {
+      throw new Error('Cover generation failed');
     }
   }
 
@@ -235,74 +222,54 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     throw new Error('No creative prompts available for video generation');
   }
 
-  const videoPrompt = record.video_prompts as VideoPrompt & { ad_copy?: string };
-  const providedAdCopyRaw =
-    typeof videoPrompt.ad_copy === 'string' ? videoPrompt.ad_copy.trim() : undefined;
-  const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
-  const dialogueContent = providedAdCopy || videoPrompt.dialogue;
-
-  // Validate and clean the description field to ensure it's a simple string
-  let cleanedDescription = videoPrompt.description;
-  if (typeof cleanedDescription === 'string') {
-    // Remove JSON code blocks and clean up the description
-    cleanedDescription = cleanedDescription
-      .replace(/```json\s*[\s\S]*?\s*```/g, '')
-      .replace(/\{[\s\S]*?\}/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    // If description is empty or too short after cleaning, provide a default
-    if (!cleanedDescription || cleanedDescription.length < 10) {
-      cleanedDescription = "Professional product showcase in modern setting";
-    }
-  } else {
-    cleanedDescription = "Professional product showcase in modern setting";
+  // Handle nested structure (e.g., {video_advertisement_prompt: {...}})
+  let videoPrompt = record.video_prompts as VideoPrompt & { ad_copy?: string; video_advertisement_prompt?: VideoPrompt };
+  if (videoPrompt.video_advertisement_prompt && typeof videoPrompt.video_advertisement_prompt === 'object') {
+    videoPrompt = videoPrompt.video_advertisement_prompt as VideoPrompt & { ad_copy?: string };
   }
 
-  // Create structured JSON prompt with cleaned fields
-  const structuredPrompt = {
-    description: cleanedDescription,
-    setting: videoPrompt.setting || "Professional studio",
-    camera_type: videoPrompt.camera_type || "Close-up",
-    camera_movement: videoPrompt.camera_movement || "Smooth pan",
-    action: videoPrompt.action || "Product showcase",
-    lighting: videoPrompt.lighting || "Soft professional lighting",
-    dialogue: dialogueContent || "Highlighting key benefits",
-    music: videoPrompt.music || "Upbeat commercial music",
-    ending: videoPrompt.ending || "Call to action",
-    other_details: videoPrompt.other_details || "High-quality commercial style",
-    ad_copy: providedAdCopy
-  };
+  const providedAdCopyRaw =
+    typeof videoPrompt.ad_copy === 'string'
+      ? videoPrompt.ad_copy.trim()
+      : undefined;
+  const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
+  const dialogueContent = providedAdCopy || videoPrompt.dialogue;
+  const adCopyInstruction = providedAdCopy
+    ? `\nAd Copy (use verbatim): ${providedAdCopy}\nOn-screen Text: Display "${providedAdCopy}" prominently without paraphrasing.\nVoiceover: Speak "${providedAdCopy}" exactly as written.`
+    : '';
 
-  console.log('Generated structured video prompt:', JSON.stringify(structuredPrompt, null, 2));
-  console.log('Dialogue content:', dialogueContent);
-  console.log('Original description:', videoPrompt.description);
-  console.log('Cleaned description:', cleanedDescription);
+  const fullPrompt = `${videoPrompt.description}
+
+Setting: ${videoPrompt.setting}
+Camera: ${videoPrompt.camera_type} with ${videoPrompt.camera_movement}
+Action: ${videoPrompt.action}
+Lighting: ${videoPrompt.lighting}
+Dialogue: ${dialogueContent}
+Music: ${videoPrompt.music}
+Ending: ${videoPrompt.ending}
+Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
+
+  console.log('Generated video prompt:', fullPrompt);
 
   const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2';
   const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
-  const isSora = videoModel === 'sora2';
 
+  const isSora = videoModel === 'sora2';
   const apiEndpoint = isSora
     ? 'https://api.kie.ai/api/v1/jobs/createTask'
     : 'https://api.kie.ai/api/v1/veo/generate';
-
-  // Convert structured prompt to string format for API
-  const promptString = typeof structuredPrompt === 'string' 
-    ? structuredPrompt 
-    : JSON.stringify(structuredPrompt);
 
   const requestBody = isSora
     ? {
         model: 'sora-2-image-to-video',
         input: {
-          prompt: promptString, // Send as string
+          prompt: fullPrompt,
           image_urls: [coverImageUrl],
           aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
         }
       }
     : {
-        prompt: promptString, // Send as string
+        prompt: fullPrompt,
         model: videoModel,
         aspectRatio,
         imageUrls: [coverImageUrl],

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
+import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import UserPhotoGallery from '@/components/UserPhotoGallery';
 import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
@@ -14,7 +15,7 @@ import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { ArrowRight, Clock, Video, Settings, Package, History, MessageSquare, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
+import { ArrowRight, Clock, Video, Settings, Package, MessageSquare, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -30,6 +31,7 @@ interface KieCreditsStatus {
 export default function CharacterAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
+  const { showSuccess } = useToast();
   const router = useRouter();
 
   // Form state
@@ -68,7 +70,7 @@ export default function CharacterAdsPage() {
       try {
         const response = await fetch('/api/check-kie-credits');
         const result = await response.json();
-        
+
         setKieCreditsStatus({
           sufficient: result.success && result.sufficient,
           loading: false,
@@ -86,6 +88,13 @@ export default function CharacterAdsPage() {
 
     checkKieCredits();
   }, []);
+
+  // Show toast notification when generation starts
+  useEffect(() => {
+    if (workflowStatus === 'success') {
+      showSuccess('Added character ad to generation queue! Your ad is being created in the background.');
+    }
+  }, [workflowStatus, showSuccess]);
 
   const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
     return product !== null && 'isTemporary' in product && product.isTemporary === true;
@@ -520,50 +529,6 @@ export default function CharacterAdsPage() {
                       </motion.button>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ) : workflowStatus === 'success' ? (
-              /* Success State - Simple Notification */
-              <motion.div
-                key="success"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="max-w-2xl mx-auto text-center space-y-6"
-              >
-                {/* Success indicator */}
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto">
-                  <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-
-                {/* Content */}
-                <div className="space-y-4">
-                  <h3 className="text-xl font-medium text-gray-900">
-                    Ad Creation Started
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
-                    Your character spokesperson ad is being created. The process is now running in the background.
-                  </p>
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => router.push('/dashboard/videos')}
-                    className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium cursor-pointer"
-                  >
-                    <History className="w-4 h-4" />
-                    View Progress
-                  </button>
-                  <button
-                    onClick={() => resetWorkflow()}
-                    className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium cursor-pointer"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                    Create Another
-                  </button>
                 </div>
               </motion.div>
             ) : workflowStatus === 'error' ? (

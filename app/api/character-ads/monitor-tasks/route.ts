@@ -131,9 +131,6 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
   const supabase = getSupabaseAdmin();
   console.log(`Processing project ${project.id}, step: ${project.current_step}, status: ${project.status}`);
 
-  // Check if callback URL is empty - if so, actively poll for image progress
-  const hasCallback = !!process.env.KIE_CHARACTER_ADS_CALLBACK_URL;
-
   // Handle timeout checks first
   if (project.last_processed_at) {
     const lastProcessed = new Date(project.last_processed_at).getTime();
@@ -160,68 +157,58 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
 
   // Handle image generation monitoring specifically
   if (project.status === 'generating_image' && project.kie_image_task_id && !project.generated_image_url) {
-    // Only check status if no callback URL is configured
-    if (!hasCallback) {
-      const imageResult = await checkKieImageStatus(project.kie_image_task_id);
+    const imageResult = await checkKieImageStatus(project.kie_image_task_id);
 
-      if (imageResult.status === 'SUCCESS' && imageResult.imageUrl) {
-        console.log(`Image completed for project ${project.id}`);
+    if (imageResult.status === 'SUCCESS' && imageResult.imageUrl) {
+      console.log(`Image completed for project ${project.id}`);
 
-        // Update project with image completion
-        await supabase
-          .from('character_ads_projects')
-          .update({
-            generated_image_url: imageResult.imageUrl,
-            status: 'generating_videos',
-            current_step: 'generating_videos',
-            progress_percentage: 60,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', project.id);
-
-        // Update Scene 0 (image scene)
-        await supabase
-          .from('character_ads_scenes')
-          .update({
-            generated_url: imageResult.imageUrl,
-            status: 'completed'
-          })
-          .eq('project_id', project.id)
-          .eq('scene_number', 0);
-
-        // Trigger next step - video generation
-        try {
-          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-          await fetch(`${baseUrl}/api/character-ads/${project.id}/process`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ step: 'generate_videos' })
-          });
-          console.log(`Triggered video generation for project ${project.id}`);
-        } catch (triggerError) {
-          console.error(`Failed to trigger video generation for project ${project.id}:`, triggerError);
-          // Don't fail the webhook - the video generation can be triggered by polling
-        }
-
-      } else if (imageResult.status === 'FAILED') {
-        throw new Error('Image generation failed');
-      }
-      // If still generating, update progress
-      else if (imageResult.status === 'GENERATING') {
-        await supabase
-          .from('character_ads_projects')
-          .update({
-            progress_percentage: 40,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', project.id);
-      }
-    }
-    // If callback URL exists, just update last_processed_at
-    else {
+      // Update project with image completion
       await supabase
         .from('character_ads_projects')
-        .update({ last_processed_at: new Date().toISOString() })
+        .update({
+          generated_image_url: imageResult.imageUrl,
+          status: 'generating_videos',
+          current_step: 'generating_videos',
+          progress_percentage: 60,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', project.id);
+
+      // Update Scene 0 (image scene)
+      await supabase
+        .from('character_ads_scenes')
+        .update({
+          generated_url: imageResult.imageUrl,
+          status: 'completed'
+        })
+        .eq('project_id', project.id)
+        .eq('scene_number', 0);
+
+      // Trigger next step - video generation
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+        await fetch(`${baseUrl}/api/character-ads/${project.id}/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: 'generate_videos' })
+        });
+        console.log(`Triggered video generation for project ${project.id}`);
+      } catch (triggerError) {
+        console.error(`Failed to trigger video generation for project ${project.id}:`, triggerError);
+        // Don't fail the monitor - the video generation can be triggered by polling
+      }
+
+    } else if (imageResult.status === 'FAILED') {
+      throw new Error('Image generation failed');
+    }
+    // If still generating, update progress
+    else if (imageResult.status === 'GENERATING') {
+      await supabase
+        .from('character_ads_projects')
+        .update({
+          progress_percentage: 40,
+          last_processed_at: new Date().toISOString()
+        })
         .eq('id', project.id);
     }
     return;

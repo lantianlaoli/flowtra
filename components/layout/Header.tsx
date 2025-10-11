@@ -5,7 +5,6 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/nextjs';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
-import { Sparkles, TrendingUp } from 'lucide-react';
 
 interface HeaderProps {
   showAuthButtons?: boolean;
@@ -82,17 +81,8 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               </Link>
               <SignedOut>
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button className="silk-button relative px-6 py-2.5 rounded-lg text-sm font-semibold">
-                    <span className="silk-content">
-                      <span className="silk-default">
-                        <Sparkles className="w-4 h-4" />
-                        <span>Make My First Ad</span>
-                      </span>
-                      <span className="silk-hover">
-                        <TrendingUp className="w-4 h-4" />
-                        <span>Increase sales</span>
-                      </span>
-                    </span>
+                  <button className="border border-gray-300 text-gray-700 px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors">
+                    Login
                   </button>
                 </SignInButton>
               </SignedOut>
@@ -166,17 +156,17 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                 <div className="pt-4 border-t border-gray-200">
                   <SignedOut>
                     <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                      <button 
-                        className="block bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-center font-semibold w-full"
+                      <button
+                        className="block border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-center font-semibold w-full"
                         onClick={() => setMobileMenuOpen(false)}
                       >
-                        Make My First Ad
+                        Login
                       </button>
                     </SignInButton>
                   </SignedOut>
                   <SignedIn>
-                    <Link 
-                      href="/dashboard" 
+                    <Link
+                      href="/dashboard"
                       className="block bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-center font-semibold"
                       onClick={() => setMobileMenuOpen(false)}
                     >
