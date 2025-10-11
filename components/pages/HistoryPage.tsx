@@ -73,7 +73,7 @@ interface CharacterAdsItem {
 
 type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem;
 
-const ITEMS_PER_PAGE = 6; // 2 rows × 3 columns = 6 items per page
+const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns = 8 items per page
 
 // Helper functions
 
