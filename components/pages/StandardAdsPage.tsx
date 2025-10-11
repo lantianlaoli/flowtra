@@ -345,8 +345,8 @@ export default function StandardAdsPage() {
       return <InsufficientCredits currentCredits={userCredits} requiredCredits={CREDIT_COSTS.veo3_fast} />;
     }
     
-    // Show main interface when no workflow is running
-    if (state.workflowStatus === 'started') {
+    // Show main interface when no workflow is running or just initiated
+    if (state.workflowStatus === 'started' || state.workflowStatus === 'workflow_initiated') {
       // Product Manager interface
       if (showProductManager) {
         return (

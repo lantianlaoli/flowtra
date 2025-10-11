@@ -320,8 +320,8 @@ export default function MultiVariantAdsPage() {
         </div>
       );
     }
-    // Show main interface when idle
-    if (state.workflowStatus === 'idle') {
+    // Show main interface when idle or processing
+    if (state.workflowStatus === 'idle' || state.workflowStatus === 'processing') {
       // Product Manager interface
       if (showProductManager) {
         return (

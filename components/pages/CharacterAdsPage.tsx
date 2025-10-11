@@ -313,7 +313,7 @@ export default function CharacterAdsPage() {
                 </div>
                 <ProductManager />
               </motion.div>
-            ) : workflowStatus === 'idle' ? (
+            ) : workflowStatus === 'idle' || workflowStatus === 'success' ? (
               <motion.div
                 key="configuration"
                 initial={{ opacity: 0, y: 20 }}
