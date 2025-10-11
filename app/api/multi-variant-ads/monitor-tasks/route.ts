@@ -101,6 +101,7 @@ interface InstanceRecord {
   video_aspect_ratio?: string;
   credits_cost: number;
   downloaded: boolean;
+  download_credits_used: number;
   error_message?: string;
   created_at: string;
   updated_at: string;
@@ -207,7 +208,7 @@ async function processInstance(instance: InstanceRecord) {
 
   // Handle video generation monitoring
   if (instance.status === 'generating_video' && instance.video_task_id && !instance.video_url) {
-    const videoResult = await checkVideoStatus(instance.video_task_id);
+    const videoResult = await checkVideoStatus(instance.video_task_id, instance.video_model);
 
     if (videoResult.status === 'SUCCESS' && videoResult.videoUrl) {
       console.log(`Video completed for instance ${instance.id}`);
@@ -331,30 +332,46 @@ Ending: ${videoPrompt.ending}`;
 
   console.log('Generated video prompt:', finalPrompt);
 
-  const selectedModel = instance.video_model === 'veo3' ? 'veo3' : 'veo3_fast';
+  const videoModel = (instance.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2';
+  const aspectRatio = instance.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-  const requestBody: Record<string, unknown> = {
-    prompt: finalPrompt,
-    model: selectedModel,
-    aspectRatio: instance.video_aspect_ratio || "16:9",
-    imageUrls: [coverImageUrl],
-    enableAudio: true,
-    audioEnabled: true,
-    generateVoiceover: false, // No voiceover for v2
-    includeDialogue: false,
-    enableTranslation: false
-  };
+  const isSora = videoModel === 'sora2';
+  const apiEndpoint = isSora
+    ? 'https://api.kie.ai/api/v1/jobs/createTask'
+    : 'https://api.kie.ai/api/v1/veo/generate';
 
-  console.log('VEO API request body:', JSON.stringify(requestBody, null, 2));
+  const requestBody = isSora
+    ? {
+        model: 'sora-2-image-to-video',
+        input: {
+          prompt: finalPrompt,
+          image_urls: [coverImageUrl],
+          aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
+        }
+      }
+    : {
+        prompt: finalPrompt,
+        model: videoModel,
+        aspectRatio,
+        imageUrls: [coverImageUrl],
+        enableAudio: true,
+        audioEnabled: true,
+        generateVoiceover: false, // No voiceover for v2
+        includeDialogue: false,
+        enableTranslation: false
+      };
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
+  console.log('Video API endpoint:', apiEndpoint);
+  console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
+
+  const response = await fetchWithRetry(apiEndpoint, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody)
-  }, 3, 30000);
+  }, 8, 30000);
 
   if (!response.ok) {
     const errorData = await response.text();
@@ -370,8 +387,13 @@ Ending: ${videoPrompt.ending}`;
   return data.data.taskId;
 }
 
-async function checkVideoStatus(taskId: string): Promise<{status: string, videoUrl?: string, errorMessage?: string}> {
-  const response = await fetchWithRetry(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
+async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{status: string, videoUrl?: string, errorMessage?: string}> {
+  const isSora = videoModel === 'sora2';
+  const endpoint = isSora
+    ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
+    : `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`;
+
+  const response = await fetchWithRetry(endpoint, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -393,6 +415,45 @@ async function checkVideoStatus(taskId: string): Promise<{status: string, videoU
     return { status: 'GENERATING' };
   }
 
+  if (isSora) {
+    // Sora2 status checking logic
+    let resultJson: Record<string, unknown> = {};
+    try {
+      resultJson = JSON.parse(taskData.resultJson || '{}');
+    } catch {
+      resultJson = {};
+    }
+
+    const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
+      ? (resultJson as { resultUrls?: string[] }).resultUrls
+      : undefined;
+    const responseUrls = Array.isArray(taskData.response?.resultUrls)
+      ? (taskData.response.resultUrls as string[])
+      : undefined;
+    const flatUrls = Array.isArray(taskData.resultUrls)
+      ? (taskData.resultUrls as string[])
+      : undefined;
+    const videoUrl = (directUrls || responseUrls || flatUrls)?.[0];
+
+    const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
+    const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+
+    const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!videoUrl && state === undefined);
+    const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+
+    if (isSuccess) {
+      return { status: 'SUCCESS', videoUrl };
+    }
+    if (isFailed) {
+      return {
+        status: 'FAILED',
+        errorMessage: taskData.failMsg || taskData.errorMessage || 'Video generation failed'
+      };
+    }
+    return { status: 'GENERATING' };
+  }
+
+  // VEO3 status checking logic
   if (taskData.successFlag === 1) {
     return {
       status: 'SUCCESS',

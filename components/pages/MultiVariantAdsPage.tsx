@@ -51,8 +51,8 @@ export default function MultiVariantAdsPage() {
   
   // Get the actual models to use for the workflow
   const actualModel = getActualModel(selectedModel, userCredits || 0) || 'veo3_fast';
-  // Multi-variant workflow does not support Sora2; coerce to supported model
-  const actualModelForWorkflow: 'veo3' | 'veo3_fast' = (actualModel === 'sora2' ? 'veo3' : actualModel) as 'veo3' | 'veo3_fast';
+  // Multi-variant workflow now supports Sora2
+  const actualModelForWorkflow: 'veo3' | 'veo3_fast' | 'sora2' = actualModel as 'veo3' | 'veo3_fast' | 'sora2';
   const actualImageModel = getActualImageModel(selectedImageModel);
 
   const ALLOWED_WATERMARK_LOCATIONS = ['bottom left', 'bottom right', 'top left', 'top right', 'center bottom'] as const;
@@ -1160,7 +1160,7 @@ export default function MultiVariantAdsPage() {
           <AnimatePresence mode="wait">
             {workflowContent && (
               <motion.div
-                key={state.workflowStatus}
+                key={state.workflowStatus === 'processing' ? 'idle' : state.workflowStatus}
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}

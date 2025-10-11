@@ -8,7 +8,7 @@ export interface WorkflowInstanceState {
   cover_task_id?: string;
   video_task_id?: string;
   cover_image_url?: string;
-  cover_image_size?: string | null;
+  cover_image_aspect_ratio?: string | null;
   video_url?: string;
   status: 'pending' | 'generating_cover' | 'generating_video' | 'completed' | 'failed';
   current_step: 'waiting' | 'generating_cover' | 'generating_video' | 'completed';
@@ -135,7 +135,7 @@ export function useMultiVariantAdsWorkflow(
         id,
         user_id: userId,
         elements_data: { generate_video: shouldGenerateVideo },
-        cover_image_size: imageSize,
+        cover_image_aspect_ratio: imageSize,
         status: 'pending' as const,
         current_step: 'waiting' as const,
         credits_cost: creditsCost,
@@ -212,7 +212,7 @@ export function useMultiVariantAdsWorkflow(
         id,
         user_id: userId,
         elements_data: { generate_video: shouldGenerateVideo },
-        cover_image_size: imageSize,
+        cover_image_aspect_ratio: imageSize,
         status: 'pending' as const,
         current_step: 'waiting' as const,
         credits_cost: creditsCost,
@@ -313,7 +313,7 @@ export function useMultiVariantAdsWorkflow(
           cover_task_id: it.cover_task_id,
           video_task_id: it.video_task_id,
           cover_image_url: it.cover_image_url,
-          cover_image_size: it.cover_image_size,
+          cover_image_aspect_ratio: it.cover_image_aspect_ratio,
           video_url: it.video_url,
           status: it.status,
           current_step: it.current_step,
@@ -417,7 +417,7 @@ export function useMultiVariantAdsWorkflow(
         id,
         user_id: userId,
         elements_data: { generate_video: shouldGenerateVideo },
-        cover_image_size: imageSize,
+        cover_image_aspect_ratio: imageSize,
         status: 'pending' as const,
         current_step: 'waiting' as const,
         credits_cost: creditsCost,

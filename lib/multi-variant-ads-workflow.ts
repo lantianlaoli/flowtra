@@ -12,7 +12,7 @@ export interface MultiVariantAdsRequest {
   textWatermark?: string;
   textWatermarkLocation?: string;
   generateVideo?: boolean;
-  videoModel: 'veo3' | 'veo3_fast';
+  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
   requestedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2';
   imageModel?: 'auto' | 'nano_banana' | 'seedream';
   watermark?: {
@@ -143,7 +143,7 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
           watermark_text: request.textWatermark || request.watermark?.text,
           watermark_location: request.textWatermarkLocation || request.watermark?.location,
           photo_only: request.photoOnly || false,
-          cover_image_size: request.coverImageSize || '1024x1024',
+          cover_image_aspect_ratio: request.coverImageSize || '16:9', // Default to video aspect ratio
           generation_credits_used: generationCreditsUsed, // Mark VEO3 as prepaid
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -971,7 +971,7 @@ export async function generateVideoDesignFromCover(coverImageUrl: string, elemen
 }> {
   const supabase = getSupabaseAdmin();
 
-  // Get project details
+  // Get project details including product description
   const { data: project } = await supabase
     .from('multi_variant_ads_projects')
     .select('*')
@@ -982,7 +982,63 @@ export async function generateVideoDesignFromCover(coverImageUrl: string, elemen
     throw new Error('Project not found');
   }
 
-  // Generate creative video prompt using AI
+  // Extract product description from project
+  const productDescription = project.product_description as Record<string, unknown> | undefined;
+
+  // Extract element details for richer context
+  const product = elementsData.product || 'the product';
+  const character = elementsData.character || 'target audience';
+  const adCopy = elementsData.ad_copy || '';
+  const visualGuide = elementsData.visual_guide || '';
+  const primaryColor = elementsData['Primary color'] || '';
+  const secondaryColor = elementsData['Secondary color'] || '';
+  const tertiaryColor = elementsData['Tertiary color'] || '';
+
+  // Build a comprehensive, detailed prompt with specific examples
+  const contextPrompt = `You are a professional video advertisement director. Based on the product information and cover image provided, create a DETAILED, SPECIFIC video advertisement script.
+
+PRODUCT INFORMATION:
+- Product Name: ${product}
+- Target Audience: ${character}
+- Ad Copy/Main Message: ${adCopy}
+- Visual Style Guide: ${visualGuide}
+- Color Palette: Primary ${primaryColor}, Secondary ${secondaryColor}, Tertiary ${tertiaryColor}
+- Product Analysis: ${productDescription ? JSON.stringify(productDescription, null, 2) : 'See cover image for product details'}
+
+REQUIREMENTS:
+Create a cinematic, professional advertisement video script that:
+1. Maintains EXACT consistency with the cover image's style, colors, and mood
+2. Showcases the product's key features through SPECIFIC actions and scenes
+3. Appeals directly to ${character} with relatable, concrete scenarios
+4. Integrates the ad copy "${adCopy}" naturally into the dialogue/voiceover
+5. Creates a compelling narrative with multiple distinct scenes and camera angles
+
+IMPORTANT GUIDELINES:
+- Be EXTREMELY SPECIFIC: Instead of "product demonstration", describe EXACTLY what happens (e.g., "Close-up on hands carefully peeling the sticker from backing, revealing the glossy finish")
+- Include MULTIPLE SCENES with clear transitions (at least 3-4 different shots/moments)
+- Specify EXACT camera movements (e.g., "Slow dolly-in from medium to close-up", "Smooth 360-degree rotation around product")
+- Describe CONCRETE ACTIONS in detail (e.g., "Person applies sticker to laptop lid, smooths it with fingertips, then closes laptop to reveal full design")
+- Mention SPECIFIC SOUNDS/MUSIC (e.g., "Gentle 'peel' sound effect when removing backing", "Upbeat ukulele melody transitioning to romantic piano")
+- Create a VISUAL STORY, not just a description
+
+EXAMPLE OF EXPECTED DETAIL LEVEL:
+{
+  "description": "A montage showcasing various applications of Rose Stamp Stickers, interspersed with close-ups highlighting the sticker's intricate design and premium quality.",
+  "setting": "Varied environments: close-up on a wooden desk with journal and coffee mug, student working at a cafe with sunlight streaming through window, two friends exchanging gifts in a cozy living room, outdoor scene with person decorating water bottle at a park bench.",
+  "camera_type": "Dynamic mix of macro shots (extreme close-up on sticker details showing scalloped border and rose petals), medium shots (people using stickers in lifestyle contexts), close-ups (hands applying stickers), and product shots (arranged stickers on white surface).",
+  "camera_movement": "Fluid movements including: slow dolly shot gliding across desk surface, gentle zoom-in to emphasize sticker detail, handheld follow shots tracking person's hands as they apply sticker, smooth pan across multiple decorated items, 360-degree rotation around finished product.",
+  "action": "1. Extreme close-up: Fingers carefully peel Rose Stamp Sticker from backing sheet, revealing glossy finish and intricate rose design. 2. Medium shot: Student in cafe places sticker on laptop lid, smooths it gently with thumb, then admires the result with a smile. 3. Close-up sequence: Hands stick sticker onto phone case, journal cover, and water bottle in quick succession, each application showing the sticker's versatility. 4. Lifestyle shot: Friend presents decorated phone case as gift, recipient's face lights up with joy. 5. Macro detail shot: Camera slowly travels across sticker surface, highlighting scalloped border, delicate rose petals, and tiny heart details.",
+  "lighting": "Bright, cheerful lighting with warm 2700K-3000K color temperature creating inviting atmosphere. Natural window light (soft, diffused) for cafe and living room scenes supplemented with fill lights to eliminate harsh shadows. Outdoor scenes use golden hour sunlight. Studio product shots employ softbox lighting from 45-degree angle with subtle rim light to enhance sticker's glossy finish and create depth.",
+  "dialogue": "Voiceover (upbeat female voice, friendly and enthusiastic tone): 'Transform the ordinary into something special with Rose Stamp Stickers! Whether you're personalizing your laptop, decorating a gift, or adding charm to your water bottle, these adorable stickers bring instant joy to everything they touch.' [Brief pause as visual montage plays] 'Durable, weather-resistant, and bursting with romantic charm – each sticker is a tiny work of art at just 5 cents worth of happiness!' [Softer, more intimate tone] 'Express your unique style, spread love to those around you, and make every day a little more beautiful with Rose Stamp Stickers.'",
+  "music": "Opens with upbeat, cheerful ukulele melody (120 BPM) featuring playful fingerpicking pattern and light percussion, creating a fun and lighthearted mood. Music transitions to a gentler, more romantic acoustic guitar arrangement (90 BPM) during close-up emotional moments and gift-giving scene. Background includes subtle 'whoosh' sound effects during quick scene transitions, gentle 'peel' sound when sticker is removed from backing, and soft 'press' sound when applied to surfaces.",
+  "ending": "Final sequence: Slow-motion shot of person smiling warmly while looking at their newly decorated belongings (laptop, journal, phone) arranged artfully on desk. Camera slowly pulls back to reveal the full collection. Screen fades to white, then text overlay appears in elegant script font matching sticker's romantic aesthetic: 'Rose Stamp Stickers – Spread the Love' followed by website URL (www.rosestamps.com) in clean sans-serif. Final frame holds for 2 seconds with subtle sparkle animation around the rose graphic.",
+  "other_details": "Utilize stop-motion animation technique (12 fps) for 2-3 second sequence showing multiple stickers being applied in rapid succession, creating dynamic visual interest. Incorporate subtle color grading with slightly enhanced saturation (+15%) to make the rose pink and hearts pop against backgrounds. Use pastel color palette (soft pinks, cream whites, mint greens) throughout all scenes to maintain cohesive brand aesthetic. Add gentle lens flare effect when showing sticker's glossy finish. Include quick 0.5-second insert shots of sticker packaging to establish product source. Maintain aspect ratio consistent with cover image. Final cut should feel warm, inviting, and aspirational while showcasing practical applications."
+}
+
+NOW CREATE YOUR DETAILED SCRIPT:
+Your output must match this level of specificity and detail. Do NOT use generic descriptions. Every element should paint a vivid, concrete picture that a film crew could execute exactly as written.`;
+
+  // Generate creative video prompt using AI with structured output
   const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -993,24 +1049,79 @@ export async function generateVideoDesignFromCover(coverImageUrl: string, elemen
       model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001',
       messages: [
         {
+          role: 'system',
+          content: 'You are an award-winning video advertisement director and creative scriptwriter. Your specialty is creating highly detailed, cinematic advertisement scripts that are specific, actionable, and visually compelling. You never use generic descriptions - every script you write is tailored to the exact product with concrete details a film crew can execute.'
+        },
+        {
           role: 'user',
-          content: `Create a professional video advertisement prompt for this product based on the cover image and elements data: ${JSON.stringify(elementsData)}
-
-Generate a structured creative prompt with these elements:
-- description: Main scene description
-- setting: Location/environment
-- camera_type: Type of camera shot
-- camera_movement: Camera movement style
-- action: What happens in the scene
-- lighting: Lighting setup
-- dialogue: Spoken content/voiceover
-- music: Music style
-- ending: How the ad concludes
-- other_details: Additional creative elements
-
-Return as JSON format.`
+          content: [
+            {
+              type: 'text',
+              text: contextPrompt
+            },
+            {
+              type: 'image_url',
+              image_url: { url: coverImageUrl }
+            }
+          ]
         }
-      ]
+      ],
+      max_tokens: 2000, // Increased for detailed responses
+      temperature: 0.85, // Higher creativity for unique, detailed scripts
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'video_advertisement_script',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              description: {
+                type: 'string',
+                description: 'Detailed main scene description with specific visual elements and narrative structure. Must be concrete and specific, not generic.'
+              },
+              setting: {
+                type: 'string',
+                description: 'Specific location/environment descriptions with details about lighting, props, and atmosphere. Include multiple settings if the ad features scene changes.'
+              },
+              camera_type: {
+                type: 'string',
+                description: 'Specific camera shot types (e.g., "macro", "medium shot", "close-up"). Describe multiple shot types if using varied angles.'
+              },
+              camera_movement: {
+                type: 'string',
+                description: 'Detailed camera movements with specifics (e.g., "Slow dolly-in from 3 feet to 6 inches", "Smooth 360-degree rotation at 10 seconds per revolution").'
+              },
+              action: {
+                type: 'string',
+                description: 'Step-by-step breakdown of what happens in the video. Use numbered sequences (1., 2., 3.) describing exact actions, not general concepts.'
+              },
+              lighting: {
+                type: 'string',
+                description: 'Specific lighting setup including color temperature (K), light sources, angles, and mood. Be technical and precise.'
+              },
+              dialogue: {
+                type: 'string',
+                description: 'Complete voiceover script or spoken dialogue. Write the EXACT words to be spoken, including tone direction and pacing notes.'
+              },
+              music: {
+                type: 'string',
+                description: 'Detailed music and sound description including genre, tempo (BPM), instruments, mood transitions, and specific sound effects with timing.'
+              },
+              ending: {
+                type: 'string',
+                description: 'Detailed description of final sequence, including call-to-action, text overlays, logo placement, and final frame composition.'
+              },
+              other_details: {
+                type: 'string',
+                description: 'Additional creative elements: post-production effects, color grading specifics, animation techniques, transitions, aspect ratios, overall aesthetic notes.'
+              }
+            },
+            required: ['description', 'setting', 'camera_type', 'camera_movement', 'action', 'lighting', 'dialogue', 'music', 'ending', 'other_details'],
+            additionalProperties: false
+          }
+        }
+      }
     })
   }, 3, 30000);
 
@@ -1029,23 +1140,34 @@ Return as JSON format.`
     } else if (content.includes('```')) {
       cleanContent = content.replace(/```\s*/, '').replace(/\s*```$/, '');
     }
-    
-    return JSON.parse(cleanContent);
+
+    const parsed = JSON.parse(cleanContent);
+
+    // Ensure ad_copy is used in dialogue if provided
+    if (adCopy && typeof adCopy === 'string' && adCopy.trim()) {
+      parsed.dialogue = adCopy;
+    }
+
+    return parsed;
   } catch (error) {
     console.error('Failed to parse video design result:', content);
     console.error('Parse error:', error);
-    // If JSON parsing fails, create a structured response
+
+    // If JSON parsing fails, create a product-specific fallback based on available data
+    const fallbackDescription = (typeof visualGuide === 'string' ? visualGuide : '') || `Professional showcase of ${product} targeting ${character}`;
+    const fallbackAdCopy = (typeof adCopy === 'string' ? adCopy : '') || `Discover ${product} - designed for ${character}`;
+
     return {
-      description: "Professional product advertisement showcase",
-      setting: "Modern studio environment",
-      camera_type: "Close-up product shot",
-      camera_movement: "Smooth circular pan",
-      action: "Product demonstration and feature highlights",
-      lighting: "Soft professional lighting with accent highlights",
-      dialogue: "Compelling product benefits and call-to-action",
-      music: "Upbeat commercial background music",
-      ending: "Strong call-to-action with brand logo",
-      other_details: "High-quality commercial production style"
+      description: fallbackDescription,
+      setting: `Professional environment suited for ${product}`,
+      camera_type: "Dynamic product-focused shot",
+      camera_movement: "Smooth pan highlighting product features",
+      action: `${character} engaging with ${product}, demonstrating key benefits`,
+      lighting: `Professional lighting matching the brand colors (${primaryColor})`,
+      dialogue: fallbackAdCopy,
+      music: "Upbeat, modern commercial music matching target audience",
+      ending: `Strong call-to-action featuring ${product} with brand message`,
+      other_details: `Maintain color consistency (${primaryColor}, ${secondaryColor}) and professional advertising style`
     };
   }
 }
