@@ -10,6 +10,8 @@ import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import { ArrowRight, History, Play, Image as ImageIcon, Hash, Type, ChevronDown, Layers, Package, TrendingUp, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
+import VideoQualitySelector from '@/components/ui/VideoQualitySelector';
+import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
@@ -25,7 +27,10 @@ export default function MultiVariantAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, refetchCredits } = useCredits();
   const { showSuccess } = useToast();
-  const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2'>('veo3_fast');
+  // NEW: Top-level video config state
+  const [videoQuality, setVideoQuality] = useState<'standard' | 'high'>('standard');
+  const [videoDuration, setVideoDuration] = useState<'8' | '10' | '15'>('10');
+  const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto'>('veo3_fast');
   const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('seedream');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [elementsCount, setElementsCount] = useState(2);
@@ -78,8 +83,7 @@ export default function MultiVariantAdsPage() {
     selectedModel
   );
 
-  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2') => {
-    if (model === 'auto') return;
+  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
     setSelectedModel(model);
   };
 
@@ -456,6 +460,22 @@ export default function MultiVariantAdsPage() {
                   </div>
                 </div>
 
+                {/* Video Quality and Duration */}
+                {shouldGenerateVideo && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <VideoQualitySelector
+                      selectedQuality={videoQuality}
+                      onQualityChange={setVideoQuality}
+                      showIcon={true}
+                    />
+                    <VideoDurationSelector
+                      selectedDuration={videoDuration}
+                      onDurationChange={setVideoDuration}
+                      showIcon={true}
+                    />
+                  </div>
+                )}
+
                 {/* Model Selection */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ImageModelSelector
@@ -471,6 +491,8 @@ export default function MultiVariantAdsPage() {
                         credits={userCredits || 0}
                         selectedModel={selectedModel}
                         onModelChange={handleModelChange}
+                        videoQuality={videoQuality}
+                        videoDuration={videoDuration}
                         showIcon={true}
                         hiddenModels={['auto']}
                         adsCount={elementsCount}
@@ -733,6 +755,22 @@ export default function MultiVariantAdsPage() {
                 </div>
               </div>
 
+              {/* Video Quality and Duration */}
+              {shouldGenerateVideo && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <VideoQualitySelector
+                    selectedQuality={videoQuality}
+                    onQualityChange={setVideoQuality}
+                    showIcon={true}
+                  />
+                  <VideoDurationSelector
+                    selectedDuration={videoDuration}
+                    onDurationChange={setVideoDuration}
+                    showIcon={true}
+                  />
+                </div>
+              )}
+
               {/* Model Selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <ImageModelSelector
@@ -749,6 +787,8 @@ export default function MultiVariantAdsPage() {
                       credits={userCredits || 0}
                       selectedModel={selectedModel}
                       onModelChange={handleModelChange}
+                      videoQuality={videoQuality}
+                      videoDuration={videoDuration}
                       showIcon={true}
                       className="col-span-1"
                       hiddenModels={['auto']}

@@ -15,7 +15,8 @@ import {
   Video,
   Package,
   Menu,
-  X
+  X,
+  Eraser
 } from 'lucide-react';
 import { LayoutGroup, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -47,6 +48,11 @@ const navigation = [
     name: 'Character Ads',
     href: '/dashboard/character-ads',
     icon: Video
+  },
+  {
+    name: 'Watermark Removal',
+    href: '/dashboard/watermark-removal',
+    icon: Eraser
   },
   {
     name: 'My Ads',

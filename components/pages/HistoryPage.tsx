@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -71,7 +71,18 @@ interface CharacterAdsItem {
   videoDurationSeconds?: number;
 }
 
-type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem;
+interface WatermarkRemovalItem {
+  id: string;
+  originalVideoUrl: string;
+  videoUrl?: string;
+  creditsUsed: number;
+  status: 'processing' | 'completed' | 'failed';
+  createdAt: string;
+  adType: 'watermark-removal';
+  errorMessage?: string;
+}
+
+type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem | WatermarkRemovalItem;
 
 const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns = 8 items per page
 
@@ -89,6 +100,10 @@ const isMultiVariantAds = (item: HistoryItem): item is MultiVariantAdsItem => {
   return 'adType' in item && item.adType === 'multi-variant';
 };
 
+const isWatermarkRemoval = (item: HistoryItem): item is WatermarkRemovalItem => {
+  return 'adType' in item && item.adType === 'watermark-removal';
+};
+
 export default function HistoryPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
@@ -96,7 +111,7 @@ export default function HistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   // Content filter simplified: only video ads types remain
-  const [contentFilter, setContentFilter] = useState<'all' | 'standard' | 'multi-variant' | 'character'>('all');
+  const [contentFilter, setContentFilter] = useState<'all' | 'standard' | 'multi-variant' | 'character' | 'watermark-removal'>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -121,7 +136,8 @@ export default function HistoryPage() {
         contentFilter === 'all' ||
         (contentFilter === 'standard' && isStandardAds(item)) ||
         (contentFilter === 'multi-variant' && isMultiVariantAds(item)) ||
-        (contentFilter === 'character' && isCharacterAds(item));
+        (contentFilter === 'character' && isCharacterAds(item)) ||
+        (contentFilter === 'watermark-removal' && isWatermarkRemoval(item));
       return contentMatch;
     });
   }, [history, contentFilter]);
@@ -340,12 +356,12 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     if (!user?.id || !userCredits) return;
 
     const item = history.find(h => h.id === historyId);
-    const isFirstDownload = !item?.downloaded;
+    const isFirstDownload = item && 'downloaded' in item ? !item.downloaded : false;
 
     if (!item) return;
 
     // Check if VEO3 prepaid (credits already deducted at generation)
-    const isPrepaid = (item.generationCreditsUsed || 0) > 0;
+    const isPrepaid = item && 'generationCreditsUsed' in item ? (item.generationCreditsUsed || 0) > 0 : false;
 
     // Calculate download cost based on video duration for Character Ads
     let downloadCost = getCreditCost(videoModel);
@@ -406,11 +422,11 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
             prevHistory.map(item =>
               item.id === historyId
                 ? {
-                    ...item,
-                    downloaded: true,
-                    downloadCreditsUsed: isFirstDownload ? downloadCost : item.downloadCreditsUsed,
-                  }
-                : item
+                      ...item,
+                      downloaded: true,
+                      downloadCreditsUsed: isFirstDownload ? downloadCost : ('downloadCreditsUsed' in item ? item.downloadCreditsUsed : 0),
+                    }
+                  : item
             )
           );
 
@@ -510,7 +526,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
 
     // Check if VEO3 prepaid (credits already deducted at generation)
     const item = history.find(h => h.id === instanceId);
-    const isPrepaid = item && (item.generationCreditsUsed || 0) > 0;
+    const isPrepaid = item && 'generationCreditsUsed' in item ? (item.generationCreditsUsed || 0) > 0 : false;
 
     const downloadCost = getCreditCost(videoModel);
 
@@ -609,6 +625,33 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     }
   };
 
+  // Watermark removal video download function (free - credits already charged at generation)
+  const downloadWatermarkRemovalVideo = async (historyId: string) => {
+    if (!user?.id) return;
+
+    const item = history.find(h => h.id === historyId);
+    if (!item || !isWatermarkRemoval(item) || !item.videoUrl) return;
+
+    try {
+      // Fetch as blob to force background download without navigation
+      const res = await fetch(item.videoUrl, { mode: 'cors' });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `watermark-removed-${historyId}.mp4`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Download failed');
+    }
+  };
+
   // Unified handler to show emotional phrase on Cover click then trigger download
   const handleCoverClick = async (item: HistoryItem) => {
     // only for ads content
@@ -635,12 +678,12 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
 
   // Unified handler to show emotional text on Video click then trigger download
   const handleVideoClick = async (item: HistoryItem) => {
-    // only for ads content
-
     const id = item.id;
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (isMultiVariantAds(item)) {
+      if (isWatermarkRemoval(item)) {
+        await downloadWatermarkRemovalVideo(item.id);
+      } else if (isMultiVariantAds(item)) {
         await downloadMultiVariantAdsContent(item.id, 'video', item.videoModel);
       } else if (isStandardAds(item) || isCharacterAds(item)) {
         await downloadVideo(item.id, item.videoModel);
@@ -686,6 +729,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                   { value: 'standard', label: 'Standard', icon: ImageIcon },
                   { value: 'multi-variant', label: 'Multi-Variant', icon: Layers },
                   { value: 'character', label: 'Character', icon: VideoIcon },
+                  { value: 'watermark-removal', label: 'Sora2 Watermark Removal', icon: Droplets },
                 ] as const).map((opt) => (
                   <button
                     key={opt.value}
@@ -784,11 +828,13 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         </span>
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-300`}>
-                        {isCharacterAds(item)
+                        {isWatermarkRemoval(item)
+                          ? 'Sora2 Watermark Removal'
+                          : isCharacterAds(item)
                           ? 'Character'
                           : isMultiVariantAds(item)
-                          ? 'Creative Mix'
-                          : 'Product Focus'
+                          ? 'Multi variant'
+                          : 'Standard'
                         }
                       </span>
                     </div>
@@ -806,6 +852,28 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                     >
                       <div className="aspect-[3/4] bg-white relative overflow-hidden">
                         {
+                          // Watermark removal video display
+                          isWatermarkRemoval(item) ? (
+                            item.status === 'completed' && item.videoUrl && hoveredVideo === item.id ? (
+                              <VideoPlayer
+                                src={item.videoUrl}
+                                className="w-full h-full object-cover"
+                                autoPlay={true}
+                                loop={true}
+                                playsInline={true}
+                                showControls={false}
+                              />
+                            ) : (
+                              <VideoPlayer
+                                src={item.originalVideoUrl}
+                                className="w-full h-full object-cover"
+                                autoPlay={false}
+                                loop={false}
+                                playsInline={true}
+                                showControls={false}
+                              />
+                            )
+                          ) :
                           // Regular video ad display
                           item.status === 'completed' && 'videoUrl' in item && item.videoUrl &&
                           (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) &&
@@ -816,9 +884,9 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                               autoPlay={true}
                               loop={true}
                               playsInline={true}
-                              showControls={true}
+                              showControls={false}
                             />
-                          ) : item.coverImageUrl ? (
+                          ) : 'coverImageUrl' in item && item.coverImageUrl ? (
                             <Image
                               src={item.coverImageUrl}
                               alt="Generated cover"
@@ -826,10 +894,18 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                               height={300}
                               className="w-full h-full object-cover"
                             />
+                          ) : 'originalImageUrl' in item && item.originalImageUrl ? (
+                            <Image
+                              src={item.originalImageUrl}
+                              alt="Original product"
+                              width={400}
+                              height={300}
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
                             <Image
-                              src={item.originalImageUrl || '/placeholder-image.png'}
-                              alt="Original product"
+                              src="/placeholder-image.png"
+                              alt="Placeholder"
                               width={400}
                               height={300}
                               className="w-full h-full object-cover"
@@ -840,7 +916,9 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         {item.status === 'processing' && (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]" />
-                            {(() => {
+                            {isWatermarkRemoval(item) ? (
+                              <Loader2 className="w-12 h-12 animate-spin text-gray-800" />
+                            ) : (() => {
                               const pct = Math.round(Math.max(0, Math.min(100, item.progress ?? 0)));
                               return (
                                 <div className="relative w-20 h-20">
@@ -884,142 +962,197 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                         <div className="border-t border-gray-200 bg-white -mx-4 -mb-4 px-4 py-3 flex items-center">
                           {item.status === 'processing' && (
                             <div className="flex flex-col gap-2 w-full">
-                              {/* Cover button: enabled if cover is ready during processing */}
-                              <button
-                                onClick={() => { if ('coverImageUrl' in item && item.coverImageUrl) handleCoverClick(item); }}
-                                disabled={!('coverImageUrl' in item && item.coverImageUrl)}
-                                className={cn(
-                                  'w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg border transition-colors',
-                                  'coverImageUrl' in item && item.coverImageUrl
-                                    ? 'bg-black text-white hover:bg-gray-800 border-black'
-                                    : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
-                                )}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <ImageIcon className={cn('w-4 h-4', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-white' : 'text-gray-500')} />
-                                  <span>{('coverImageUrl' in item && item.coverImageUrl) ? (coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover') : 'Cover'}</span>
-                                </div>
-                                <div className={cn('flex items-center gap-1', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-green-400' : 'text-gray-500')}>
-                                  <span className="text-xs font-bold">FREE</span>
-                                </div>
-                              </button>
+                              {/* Watermark Removal: Only show processing video button */}
+                              {isWatermarkRemoval(item) ? (
+                                <button
+                                  disabled
+                                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Download className="w-4 h-4" />
+                                    <span>Processing...</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-gray-500">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  </div>
+                                </button>
+                              ) : (
+                                <>
+                                  {/* Cover button: enabled if cover is ready during processing */}
+                                  <button
+                                    onClick={() => { if ('coverImageUrl' in item && item.coverImageUrl) handleCoverClick(item); }}
+                                    disabled={!('coverImageUrl' in item && item.coverImageUrl)}
+                                    className={cn(
+                                      'w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg border transition-colors',
+                                      'coverImageUrl' in item && item.coverImageUrl
+                                        ? 'bg-black text-white hover:bg-gray-800 border-black'
+                                        : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <ImageIcon className={cn('w-4 h-4', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-white' : 'text-gray-500')} />
+                                      <span>{('coverImageUrl' in item && item.coverImageUrl) ? (coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover') : 'Cover'}</span>
+                                    </div>
+                                    <div className={cn('flex items-center gap-1', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-green-400' : 'text-gray-500')}>
+                                      <span className="text-xs font-bold">FREE</span>
+                                    </div>
+                                  </button>
 
-                              {/* Video button: always disabled while processing */}
-                              <button
-                                disabled
-                                className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Download className="w-4 h-4" />
-                                  <span>Video</span>
-                                </div>
-                                <div className="flex items-center gap-1 text-gray-500">
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                </div>
-                              </button>
+                                  {/* Video button: always disabled while processing */}
+                                  <button
+                                    disabled
+                                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Download className="w-4 h-4" />
+                                      <span>Video</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-gray-500">
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    </div>
+                                  </button>
+                                </>
+                              )}
                             </div>
                           )}
                           {item.status === 'failed' && (
                             <div className="flex flex-col gap-2 w-full">
-                              {/* Cover Download Button */}
-                              {'coverImageUrl' in item && item.coverImageUrl && (
-                                <button
-                                  onClick={() => handleCoverClick(item)}
-                                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <ImageIcon className="w-4 h-4 text-white" />
-                                    <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
+                              {/* Watermark Removal & Regular Ads: Show no charge info */}
+                              {isWatermarkRemoval(item) ? (
+                                <div className="w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg">
+                                  <div className="flex items-center gap-2.5">
+                                    <RotateCcw className="w-4 h-4 text-gray-600" />
+                                    <span className="font-medium text-gray-900">Credits refunded</span>
                                   </div>
-                                  <div className="flex items-center gap-1 text-green-400">
-                                    <span className="text-xs font-bold">FREE</span>
+                                  <div className="flex items-center gap-1.5 text-gray-700">
+                                    <Coins className="w-4 h-4" />
+                                    <span className="font-bold">0</span>
                                   </div>
-                                </button>
-                              )}
+                                </div>
+                              ) : (
+                                <>
+                                  {/* Cover Download Button */}
+                                  {'coverImageUrl' in item && item.coverImageUrl && (
+                                    <button
+                                      onClick={() => handleCoverClick(item)}
+                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <ImageIcon className="w-4 h-4 text-white" />
+                                        <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 text-green-400">
+                                        <span className="text-xs font-bold">FREE</span>
+                                      </div>
+                                    </button>
+                                  )}
 
-                              {/* No charge info */}
-                              <div className="w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg">
-                                <div className="flex items-center gap-2.5">
-                                  <RotateCcw className="w-4 h-4 text-gray-600" />
-                                  <span className="font-medium text-gray-900">No charge</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-gray-700">
-                                  <Coins className="w-4 h-4" />
-                                  <span className="font-bold">0</span>
-                                </div>
-                              </div>
+                                  {/* No charge info */}
+                                  <div className="w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg">
+                                    <div className="flex items-center gap-2.5">
+                                      <RotateCcw className="w-4 h-4 text-gray-600" />
+                                      <span className="font-medium text-gray-900">No charge</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-gray-700">
+                                      <Coins className="w-4 h-4" />
+                                      <span className="font-bold">0</span>
+                                    </div>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           )}
 
                           {item.status === 'completed' && (
                             <div className="flex flex-col gap-2 w-full">
-                              {/* Cover Download Button (always free) */}
-                              {'coverImageUrl' in item && item.coverImageUrl && (
-                                <button
-                                  onClick={() => handleCoverClick(item)}
-                                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <ImageIcon className="w-4 h-4 text-white" />
-                                    <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 text-green-400">
-                                    <span className="text-xs font-bold">FREE</span>
-                                  </div>
-                                </button>
-                              )}
-
-                              {/* Video Download Button (paid on first download) */}
-                              {'videoUrl' in item && item.videoUrl && (
-                                <button
-                                  onClick={() => handleVideoClick(item)}
-                                  disabled={videoStates[item.id] === 'packing'}
-                                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Download className="w-4 h-4" />
-                                    <span>{videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Video'}</span>
-                                  </div>
-                                  {videoStates[item.id] === 'packing' ? (
-                                    <div className="flex items-center gap-1.5 text-gray-600">
-                                      <Loader2 className="w-4 h-4 animate-spin" />
+                              {/* Watermark Removal: Only show video download (free) */}
+                              {isWatermarkRemoval(item) ? (
+                                item.videoUrl && (
+                                  <button
+                                    onClick={() => handleVideoClick(item)}
+                                    disabled={videoStates[item.id] === 'packing'}
+                                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Download className="w-4 h-4 text-white" />
+                                      <span>{videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Download Video'}</span>
                                     </div>
-                                  ) : item.downloaded ? (
-                                    <div className="flex items-center gap-1.5 text-green-600">
-                                      <Check className="w-4 h-4" />
-                                      <span className="text-xs font-semibold">Downloaded</span>
+                                    <div className="flex items-center gap-1 text-green-400">
+                                      <span className="text-xs font-bold">FREE</span>
                                     </div>
-                                  ) : (
-                                    <div className="flex items-center gap-1.5 text-gray-800">
-                                      {(() => {
-                                        // Check if VEO3 prepaid (credits already deducted at generation)
-                                        const isPrepaid = (item.generationCreditsUsed || 0) > 0;
-
-                                        if (isPrepaid) {
-                                          return (
-                                            <span className="text-xs font-bold text-green-600">Prepaid</span>
-                                          );
-                                        }
-
-                                        // Compute dynamic cost for Character Ads based on duration; others use model cost
-                                        let cost = 0;
-                                        if (isCharacterAds(item) && item.videoDurationSeconds) {
-                                          const unitSeconds = item.videoModel === 'sora2' ? 10 : 8;
-                                          const base = getCreditCost(item.videoModel);
-                                          cost = Math.round((item.videoDurationSeconds / unitSeconds) * base);
-                                        } else {
-                                          cost = getCreditCost(item.videoModel);
-                                        }
-                                        return (
-                                          <>
-                                            <Coins className="w-4 h-4" />
-                                            <span className="font-bold">{cost}</span>
-                                          </>
-                                        );
-                                      })()}
-                                    </div>
+                                  </button>
+                                )
+                              ) : (
+                                <>
+                                  {/* Cover Download Button (always free) */}
+                                  {'coverImageUrl' in item && item.coverImageUrl && (
+                                    <button
+                                      onClick={() => handleCoverClick(item)}
+                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <ImageIcon className="w-4 h-4 text-white" />
+                                        <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 text-green-400">
+                                        <span className="text-xs font-bold">FREE</span>
+                                      </div>
+                                    </button>
                                   )}
-                                </button>
+
+                                  {/* Video Download Button (paid on first download) */}
+                                  {'videoUrl' in item && item.videoUrl && (
+                                    <button
+                                      onClick={() => handleVideoClick(item)}
+                                      disabled={videoStates[item.id] === 'packing'}
+                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Download className="w-4 h-4" />
+                                        <span>{videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Video'}</span>
+                                      </div>
+                                      {videoStates[item.id] === 'packing' ? (
+                                        <div className="flex items-center gap-1.5 text-gray-600">
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        </div>
+                                      ) : item.downloaded ? (
+                                        <div className="flex items-center gap-1.5 text-green-600">
+                                          <Check className="w-4 h-4" />
+                                          <span className="text-xs font-semibold">Downloaded</span>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-1.5 text-gray-800">
+                                          {(() => {
+                                            // Check if VEO3 prepaid (credits already deducted at generation)
+                                            const isPrepaid = (item.generationCreditsUsed || 0) > 0;
+
+                                            if (isPrepaid) {
+                                              return (
+                                                <span className="text-xs font-bold text-green-600">Prepaid</span>
+                                              );
+                                            }
+
+                                            // Compute dynamic cost for Character Ads based on duration; others use model cost
+                                            let cost = 0;
+                                            if (isCharacterAds(item) && item.videoDurationSeconds) {
+                                              const unitSeconds = item.videoModel === 'sora2' ? 10 : 8;
+                                              const base = getCreditCost(item.videoModel);
+                                              cost = Math.round((item.videoDurationSeconds / unitSeconds) * base);
+                                            } else {
+                                              cost = getCreditCost(item.videoModel);
+                                            }
+                                            return (
+                                              <>
+                                                <Coins className="w-4 h-4" />
+                                                <span className="font-bold">{cost}</span>
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                      )}
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}

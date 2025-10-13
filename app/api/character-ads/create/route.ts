@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
-import { CREDIT_COSTS, getActualModel, getActualImageModel, getCreditCost } from '@/lib/constants';
+import { CREDIT_COSTS, getActualModel, getActualImageModel, getCreditCost, getSora2ProCreditCost } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     // Validate models and accent
     const validImageModels = ['auto', 'nano_banana', 'seedream'];
-    const validVideoModels = ['auto', 'veo3', 'veo3_fast', 'sora2'];
+    const validVideoModels = ['auto', 'veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
     const validAccents = [
       'american', 'canadian', 'british', 'irish', 'scottish',
       'australian', 'new_zealand', 'indian', 'singaporean', 'filipino',
@@ -187,20 +187,30 @@ export async function POST(request: NextRequest) {
     // Convert 'auto' values to actual models using constants
     const actualImageModel = getActualImageModel(imageModel as 'auto' | 'nano_banana' | 'seedream');
     // Determine video model with duration constraints
-    let resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2';
+    let resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
     if (isSora2Duration) {
-      resolvedVideoModel = 'sora2';
+      resolvedVideoModel = videoModel === 'sora2_pro' ? 'sora2_pro' : 'sora2';
     } else {
-      const actualVideoModel = getActualModel(videoModel as 'auto' | 'veo3' | 'veo3_fast' | 'sora2', 1000) || (videoModel === 'auto' ? 'veo3_fast' : (videoModel as 'veo3' | 'veo3_fast'));
-      // Guard against sora2 sneaking in for 8/16/24
-      resolvedVideoModel = actualVideoModel === 'sora2' ? 'veo3_fast' : actualVideoModel;
+      const actualVideoModel = getActualModel(videoModel as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro', 1000) || (videoModel === 'auto' ? 'veo3_fast' : (videoModel as 'veo3' | 'veo3_fast' | 'sora2_pro'));
+      // Guard against sora2/sora2_pro sneaking in for 8/16/24
+      resolvedVideoModel = (actualVideoModel === 'sora2' || actualVideoModel === 'sora2_pro') ? 'veo3_fast' : actualVideoModel;
     }
     
     // Calculate credits cost using constants (use actual model for cost calculation)
     const imageCredits = 0; // Image generation is free according to constants
-    const sceneUnitSeconds = resolvedVideoModel === 'sora2' ? 10 : 8;
+    const sceneUnitSeconds = (resolvedVideoModel === 'sora2' || resolvedVideoModel === 'sora2_pro') ? 10 : 8;
     const videoScenes = videoDurationSeconds / sceneUnitSeconds;
-    const videoCreditsPerScene = CREDIT_COSTS[resolvedVideoModel];
+
+    let videoCreditsPerScene: number;
+    if (resolvedVideoModel === 'sora2_pro') {
+      // For Sora2 Pro, we need duration and quality params (use defaults for character ads)
+      const sora2ProDuration = videoDurationSeconds === 10 ? '10' : '15';
+      const sora2ProQuality = 'standard'; // Default for character ads
+      videoCreditsPerScene = getSora2ProCreditCost(sora2ProDuration, sora2ProQuality);
+    } else {
+      videoCreditsPerScene = CREDIT_COSTS[resolvedVideoModel];
+    }
+
     const totalCredits = imageCredits + (videoScenes * videoCreditsPerScene);
 
     // VEO3 prepaid credit deduction

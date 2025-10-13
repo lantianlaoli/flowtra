@@ -9,7 +9,7 @@ import { getVideoAspectRatioOptions } from '@/lib/constants';
 interface VideoAspectRatioSelectorProps {
   selectedAspectRatio: '16:9' | '9:16';
   onAspectRatioChange: (aspectRatio: '16:9' | '9:16') => void;
-  videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2';
+  videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   label?: string;
   className?: string;
   showIcon?: boolean;

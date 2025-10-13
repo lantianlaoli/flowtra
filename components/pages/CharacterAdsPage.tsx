@@ -6,7 +6,7 @@ import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import UserPhotoGallery from '@/components/UserPhotoGallery';
-import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
+import CharacterAdsDurationSelector from '@/components/ui/CharacterAdsDurationSelector';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
@@ -38,7 +38,7 @@ export default function CharacterAdsPage() {
   const [personImages, setPersonImages] = useState<File[]>([]);
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
   const [videoDuration, setVideoDuration] = useState<8 | 10 | 16 | 20 | 24 | 30>(8);
-  const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2'>('veo3_fast');
+  const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>('veo3_fast');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('seedream');
   const [imageSize, setImageSize] = useState<string>('auto');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
@@ -375,7 +375,7 @@ export default function CharacterAdsPage() {
                             Video Duration
                           </label>
                         </div>
-                        <VideoDurationSelector
+                        <CharacterAdsDurationSelector
                           value={videoDuration}
                           onChange={(d) => {
                             // Keep the chosen video model stable when duration changes

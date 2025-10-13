@@ -11,6 +11,8 @@ import InsufficientCredits from '@/components/InsufficientCredits';
 import { ArrowRight, History, Play, TrendingUp, Hash, Type, ChevronDown, Package, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
+import VideoQualitySelector from '@/components/ui/VideoQualitySelector';
+import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
@@ -32,7 +34,10 @@ export default function StandardAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
   const { showSuccess } = useToast();
-  const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2'>('veo3_fast');
+  // NEW: Top-level video config state
+  const [videoQuality, setVideoQuality] = useState<'standard' | 'high'>('standard');
+  const [videoDuration, setVideoDuration] = useState<'8' | '10' | '15'>('8');
+  const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto'>('veo3_fast');
   const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('nano_banana');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
@@ -55,11 +60,8 @@ export default function StandardAdsPage() {
   const [hasAISuggestedWatermark, setHasAISuggestedWatermark] = useState(false);
   
   
-  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2') => {
-    // Filter out 'auto' since our state doesn't support it
-    if (model !== 'auto') {
-      setSelectedModel(model);
-    }
+  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
+    setSelectedModel(model);
   };
 
   const handleImageModelChange = (model: 'auto' | 'nano_banana' | 'seedream') => {
@@ -462,7 +464,23 @@ export default function StandardAdsPage() {
                   </div>
                 </div>
 
-                {/* Row 2: Image and Video Models */}
+                {/* Row 2: NEW - Video Quality and Duration */}
+                {shouldGenerateVideo && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <VideoQualitySelector
+                      selectedQuality={videoQuality}
+                      onQualityChange={setVideoQuality}
+                      showIcon={true}
+                    />
+                    <VideoDurationSelector
+                      selectedDuration={videoDuration}
+                      onDurationChange={setVideoDuration}
+                      showIcon={true}
+                    />
+                  </div>
+                )}
+
+                {/* Row 3: Image and Video Models */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ImageModelSelector
                     credits={userCredits || 0}
@@ -477,6 +495,8 @@ export default function StandardAdsPage() {
                         credits={userCredits || 0}
                         selectedModel={selectedModel}
                         onModelChange={handleModelChange}
+                        videoQuality={videoQuality}
+                        videoDuration={videoDuration}
                         showIcon={true}
                         hiddenModels={['auto']}
                         adsCount={elementsCount}
@@ -701,6 +721,22 @@ if (state.workflowStatus === 'uploaded_waiting_config') {
           </div>
         </div>
 
+        {/* Video Quality and Duration Selectors */}
+        {shouldGenerateVideo && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <VideoQualitySelector
+              selectedQuality={videoQuality}
+              onQualityChange={setVideoQuality}
+              showIcon={true}
+            />
+            <VideoDurationSelector
+              selectedDuration={videoDuration}
+              onDurationChange={setVideoDuration}
+              showIcon={true}
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ImageModelSelector
             credits={userCredits || 0}
@@ -715,6 +751,8 @@ if (state.workflowStatus === 'uploaded_waiting_config') {
                 credits={userCredits || 0}
                 selectedModel={selectedModel}
                 onModelChange={handleModelChange}
+                videoQuality={videoQuality}
+                videoDuration={videoDuration}
                 showIcon={true}
                 hiddenModels={['auto']}
                 adsCount={elementsCount}

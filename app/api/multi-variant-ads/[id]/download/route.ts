@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabase } from '@/lib/supabase';
+import { getDownloadCost, isFreeGenerationModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
-import { getCreditCost, CREDIT_COSTS } from '@/lib/constants';
 
 export async function POST(
   request: NextRequest,
@@ -56,24 +56,52 @@ export async function POST(
       });
     }
 
-    // For video downloads, check and deduct credits
+    // ===== VERSION 3.0: MIXED BILLING - Download Phase =====
+    // FREE generation models (veo3_fast, sora2): Charge at download
+    // PAID generation models (veo3, sora2_pro): Download is FREE (already paid at generation)
     if (contentType === 'video') {
-      // Check if already downloaded (and thus already paid for)
-      if (instance.downloaded) {
-        return NextResponse.json({
-          success: true,
-          downloadUrl: instance.video_url,
-          contentType: 'video',
-          creditsUsed: 0,
-          message: 'Video already purchased, download ready'
-        });
-      }
+      const isFirstDownload = !instance.downloaded;
+      const videoModel = instance.video_model as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+      let creditsUsed = 0;
 
-      // VEO3 prepaid: If generation_credits_used > 0, credits were already deducted at generation
-      const isPrepaid = (instance.generation_credits_used || 0) > 0;
+      if (isFirstDownload) {
+        // Check if this model has download cost (free-generation models)
+        if (isFreeGenerationModel(videoModel)) {
+          const downloadCost = getDownloadCost(videoModel);
 
-      if (isPrepaid) {
-        // VEO3 prepaid: Just mark as downloaded without deducting credits
+          // Check if user has enough credits
+          const creditCheck = await checkCredits(instance.user_id, downloadCost);
+          if (!creditCheck.hasEnoughCredits) {
+            return NextResponse.json({
+              error: `Insufficient credits. Need ${downloadCost} credits, have ${creditCheck.currentCredits}`,
+              success: false
+            }, { status: 402 });
+          }
+
+          // Deduct download cost
+          const deductResult = await deductCredits(instance.user_id, downloadCost);
+          if (!deductResult.success) {
+            return NextResponse.json({
+              error: 'Failed to deduct credits for download',
+              success: false
+            }, { status: 500 });
+          }
+
+          // Record credit transaction
+          await recordCreditTransaction(
+            instance.user_id,
+            'usage',
+            -downloadCost,
+            `Downloaded ${videoModel} multi-variant video (${id})`,
+            id
+          );
+
+          creditsUsed = downloadCost;
+          console.log(`[Download Billing] Charged ${downloadCost} credits for ${videoModel} download (user: ${instance.user_id})`);
+        }
+        // If paid-generation model, download is FREE (no credit deduction)
+
+        // Mark as downloaded
         await supabase
           .from('multi_variant_ads_projects')
           .update({
@@ -81,79 +109,16 @@ export async function POST(
             updated_at: new Date().toISOString()
           })
           .eq('id', id);
-
-        console.log(`✅ VEO3 prepaid video marked as downloaded (no additional charge), user: ${instance.user_id}`);
-
-        return NextResponse.json({
-          success: true,
-          downloadUrl: instance.video_url,
-          contentType: 'video',
-          creditsUsed: 0,
-          message: 'Video download ready (prepaid)'
-        });
       }
-
-      // Determine model and download cost
-      const model: 'veo3' | 'veo3_fast' = (instance.video_model === 'veo3' || instance.video_model === 'veo3_fast')
-        ? instance.video_model
-        : (instance.credits_cost === CREDIT_COSTS.veo3 ? 'veo3' : 'veo3_fast');
-
-      const downloadCost = getCreditCost(model);
-
-      // Check if user has enough credits
-      const checkResult = await checkCredits(instance.user_id, downloadCost);
-
-      if (!checkResult.success) {
-        return NextResponse.json({
-          error: checkResult.error || 'Failed to check credits'
-        }, { status: 500 });
-      }
-
-      if (!checkResult.hasEnoughCredits) {
-        return NextResponse.json({
-          error: 'Insufficient credits',
-          required: downloadCost,
-          current: checkResult.currentCredits || 0
-        }, { status: 400 });
-      }
-
-      // Deduct credits
-      const deductResult = await deductCredits(instance.user_id, downloadCost);
-
-      if (!deductResult.success) {
-        return NextResponse.json({
-          error: deductResult.error || 'Failed to deduct credits'
-        }, { status: 500 });
-      }
-
-      // Mark as downloaded
-      await supabase
-        .from('multi_variant_ads_projects')
-        .update({
-          downloaded: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id);
-
-      // Record credit transaction with model in description
-      await recordCreditTransaction(
-        instance.user_id,
-        'usage',
-        downloadCost,
-        `Video download - multi-variant ads (${model === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast'})`,
-        undefined,
-        true
-      );
-
-      console.log(`✅ Deducted ${downloadCost} credits for video download, user: ${instance.user_id} (model: ${model})`);
 
       return NextResponse.json({
         success: true,
         downloadUrl: instance.video_url,
         contentType: 'video',
-        creditsUsed: downloadCost,
-        remainingCredits: deductResult.remainingCredits,
-        message: 'Video download ready, credits deducted'
+        creditsUsed,
+        message: creditsUsed > 0
+          ? `Download complete (${creditsUsed} credits charged)`
+          : 'Download complete (free download)'
       });
     }
 

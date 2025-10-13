@@ -2,50 +2,46 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Clock } from 'lucide-react';
+import { ChevronDown, Check, Sparkles, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface VideoDurationSelectorProps {
-  selectedDuration: '8' | '10' | '15';
-  onDurationChange: (duration: '8' | '10' | '15') => void;
+interface VideoQualitySelectorProps {
+  selectedQuality: 'standard' | 'high';
+  onQualityChange: (quality: 'standard' | 'high') => void;
   label?: string;
   className?: string;
   showIcon?: boolean;
   disabled?: boolean;
-  disabledDurations?: Array<'8' | '10' | '15'>;
+  disabledQualities?: Array<'standard' | 'high'>;
 }
 
-export default function VideoDurationSelector({
-  selectedDuration,
-  onDurationChange,
-  label = 'Video Duration',
+export default function VideoQualitySelector({
+  selectedQuality,
+  onQualityChange,
+  label = 'Video Quality',
   className,
   showIcon = false,
   disabled = false,
-  disabledDurations = []
-}: VideoDurationSelectorProps) {
+  disabledQualities = []
+}: VideoQualitySelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
 
-  const durationOptions = [
+  const qualityOptions = [
     {
-      value: '8' as const,
-      label: '8 seconds',
-      description: 'Standard short-form video',
-      features: 'Perfect for quick product showcase'
+      value: 'standard' as const,
+      label: 'Standard',
+      description: 'Balanced quality and cost',
+      icon: Zap,
+      features: 'Fast processing, good quality'
     },
     {
-      value: '10' as const,
-      label: '10 seconds',
-      description: 'Extended presentation time',
-      features: 'Ideal for detailed feature highlights'
-    },
-    {
-      value: '15' as const,
-      label: '15 seconds',
-      description: 'Full storytelling format',
-      features: 'Comprehensive product narrative'
+      value: 'high' as const,
+      label: 'HD',
+      description: 'Premium high-definition',
+      icon: Sparkles,
+      features: 'Premium quality, longer processing'
     }
   ];
 
@@ -82,18 +78,18 @@ export default function VideoDurationSelector({
     }
   }, [isOpen]);
 
-  const selectedOption = durationOptions.find(opt => opt.value === selectedDuration);
+  const selectedOption = qualityOptions.find(opt => opt.value === selectedQuality);
 
-  const handleOptionSelect = (value: '8' | '10' | '15') => {
-    if (disabledDurations.includes(value)) return;
-    onDurationChange(value);
+  const handleOptionSelect = (value: 'standard' | 'high') => {
+    if (disabledQualities.includes(value)) return;
+    onQualityChange(value);
     setIsOpen(false);
   };
 
   return (
     <div className={cn("space-y-3", className)} ref={dropdownRef}>
       <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-        {showIcon && <Clock className="w-4 h-4" />}
+        {showIcon && <Sparkles className="w-4 h-4" />}
         {label}
       </label>
       <div className="relative">
@@ -109,9 +105,14 @@ export default function VideoDurationSelector({
           )}
         >
           <div className="min-w-0 flex flex-col">
-            <span className="font-medium truncate">
-              {selectedOption?.label}
-            </span>
+            <div className="flex items-center gap-2">
+              {selectedOption?.icon && (
+                <selectedOption.icon className="w-4 h-4 text-gray-500" />
+              )}
+              <span className="font-medium truncate">
+                {selectedOption?.label}
+              </span>
+            </div>
             {selectedOption?.features && (
               <span className="text-xs text-gray-500 truncate mt-0.5">
                 {selectedOption.features}
@@ -134,8 +135,8 @@ export default function VideoDurationSelector({
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] overflow-hidden"
           >
-            {durationOptions.map((option) => {
-              const isDisabled = disabledDurations.includes(option.value);
+            {qualityOptions.map((option) => {
+              const isDisabled = disabledQualities.includes(option.value);
               return (
                 <button
                   key={option.value}
@@ -146,14 +147,14 @@ export default function VideoDurationSelector({
                     isDisabled
                       ? "cursor-not-allowed opacity-50 bg-gray-50"
                       : "hover:bg-gray-100 cursor-pointer",
-                    selectedDuration === option.value
+                    selectedQuality === option.value
                       ? "bg-gray-100 text-gray-900"
                       : "text-gray-700"
                   )}
                 >
                   <div className="flex flex-1 flex-col gap-1">
                     <div className="flex items-center gap-2">
-                      <Clock className={cn(
+                      <option.icon className={cn(
                         "w-4 h-4",
                         isDisabled ? "text-gray-400" : "text-gray-500"
                       )} />
@@ -166,7 +167,7 @@ export default function VideoDurationSelector({
                       {option.features}
                     </span>
                   </div>
-                  {selectedDuration === option.value && !isDisabled && (
+                  {selectedQuality === option.value && !isDisabled && (
                     <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
                       <Check className="h-2.5 w-2.5 text-white" />
                     </div>

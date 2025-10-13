@@ -51,7 +51,7 @@ The application implements three main AI workflows:
 ### External APIs
 - **KIE API**: Primary AI service for image and video generation
   - Image models: `google/nano-banana-edit`, `bytedance/seedream-v4-edit`
-  - Video model: Veo3 (fast/high-quality variants)
+  - Video models: Veo3 (fast/high-quality), Sora2, Sora2 Pro
   - API docs: `documents/banana.md`, `documents/seedream.md`
 - **OpenRouter**: For AI text generation (image descriptions, prompts)
 - **Supabase**: Database and file storage
@@ -64,12 +64,20 @@ The application implements three main AI workflows:
 - **Monitor tasks**: `/api/{workflow}/monitor-tasks` - Background job processors
 - **Webhooks**: `/api/webhooks/{workflow}` - Handle external API callbacks
 
-### Credit System
-- Costs defined in `lib/constants.ts`
-- Video generation: 30 credits (veo3_fast) or 150 credits (veo3)
-- Image generation: Free (nano_banana, seedream)
-- Download: 18 credits (60% of veo3_fast cost)
-- Initial credits: 100 for new users
+### Credit System (Mixed Billing Model - Version 3.0)
+- **Billing Model**: Dual-tier system for flexibility
+  - **Basic Models (Veo3 Fast, Sora2)**: FREE generation → PAID download
+  - **Premium Models (Veo3, Sora2 Pro)**: PAID generation → FREE download
+- **Costs defined in** `lib/constants.ts`:
+  - **Generation Costs** (paid models):
+    - Veo3: 150 credits per 8s video
+    - Sora2 Pro: 36-160 credits (dynamic based on duration/quality)
+  - **Download Costs** (free-generation models):
+    - Veo3 Fast: 20 credits per 8s video
+    - Sora2: 6 credits per 10s video
+- **Image generation**: Always free (nano_banana, seedream)
+- **Initial credits**: 100 for new users
+- **Automatic refunds**: Credits refunded if PAID generation fails
 
 ### Environment Variables
 Required environment variables (check existing code for complete list):
@@ -118,3 +126,124 @@ When modifying any AI prompts in the codebase:
 - `prompts/multi-variant-ads-workflow.md` - Multi-Variant Ads complete workflow
 - `prompts/character-ads-workflow.md` - Character Ads complete workflow
 <!-- YouTube Thumbnail workflow removed -->
+
+---
+
+## Implementation Notes
+
+### Generation-Time Billing (Version 2.0)
+
+**Implementation Date**: 2025-10-13
+
+**Key Changes:**
+1. **Unified Upfront Billing**: All video models (Sora2, Veo3, Veo3 Fast, Sora2 Pro) charge credits at generation start
+2. **Free Downloads**: Download endpoints no longer deduct credits, only mark download status
+3. **Automatic Refunds**: Workflow error handlers refund credits if generation fails
+
+**Modified Files:**
+- `lib/standard-ads-workflow.ts` - Upfront billing for all models
+- `lib/multi-variant-ads-workflow.ts` - Upfront billing for all models
+- `app/api/character-ads/create/route.ts` - Sora2 Pro support
+- `app/api/download-video/route.ts` - Removed credit deduction
+- `app/api/multi-variant-ads/[id]/download/route.ts` - Removed credit deduction
+- `app/api/character-ads/download/route.ts` - Removed credit deduction
+- `components/pages/PricingPage.tsx` - Updated messaging
+- `components/pages/LandingPage.tsx` - Updated messaging
+
+**Technical Decisions:**
+- **Why generation-time billing?** Simplifies UX, eliminates download friction, encourages sharing
+- **Why automatic refunds?** User trust - they pay upfront, so failures must be refunded
+- **Why Sora2 Pro?** User demand for higher quality professional content
+
+**Known Limitations:**
+- Sora2 Pro pricing complexity (4 tier system) may confuse some users
+- Refunds depend on proper error handling in workflows
+- Auto mode selection may need adjustment based on user feedback
+
+**Testing Considerations:**
+- Test credit deduction timing (must be before API calls)
+- Test refund logic for all failure scenarios
+- Test Sora2 Pro dynamic pricing calculations
+- Verify downloads work without credit checks
+
+**Related Documentation:**
+- `documents/local/pricing-and-billing-rules.md` - Complete billing rules (Version 2.0)
+
+---
+
+### Mixed Billing Model (Version 3.0)
+
+**Implementation Date**: 2025-10-13
+
+**Overview:**
+Version 3.0 introduces a dual-tier billing model where different video models have different billing strategies to optimize user experience and cost:
+- **Basic Models (Veo3 Fast, Sora2)**: FREE generation, PAID download (pay only if satisfied)
+- **Premium Models (Veo3, Sora2 Pro)**: PAID generation, FREE download (upfront payment)
+
+**Key Changes:**
+
+1. **Model Classification** (`lib/constants.ts`):
+```typescript
+// FREE generation models (charge at download)
+export const FREE_GENERATION_MODELS = ['veo3_fast', 'sora2'] as const;
+
+// PAID generation models (charge at generation)
+export const PAID_GENERATION_MODELS = ['veo3', 'sora2_pro'] as const;
+
+// Separate cost structures
+export const GENERATION_COSTS = { 'veo3': 150 }; // Sora2 Pro uses getSora2ProCreditCost()
+export const DOWNLOAD_COSTS = { 'veo3_fast': 20, 'sora2': 6 };
+```
+
+2. **Generation Phase** (Workflows):
+   - Only deduct credits for PAID generation models
+   - FREE generation models generate without credit check
+   - Refunds only apply to PAID generation models
+
+3. **Download Phase** (Download APIs):
+   - FREE generation models: Check credits and deduct at first download
+   - PAID generation models: No credit deduction (already paid)
+
+**Modified Files:**
+- `lib/constants.ts` - Added model classification, helper functions
+- `lib/standard-ads-workflow.ts` - Generation billing logic
+- `lib/multi-variant-ads-workflow.ts` - Generation billing logic
+- `app/api/download-video/route.ts` - Download billing logic
+- `app/api/multi-variant-ads/[id]/download/route.ts` - Download billing logic
+- `app/api/character-ads/download/route.ts` - Download billing logic
+- `components/ui/VideoModelSelector.tsx` - UI shows "Generation: X credits" vs "Download: X credits"
+- `components/pages/PricingPage.tsx` - Updated messaging
+- `components/pages/LandingPage.tsx` - Updated messaging
+
+**Helper Functions Added:**
+```typescript
+isFreeGenerationModel(model): boolean // Check if model has free generation
+isPaidGenerationModel(model): boolean // Check if model has paid generation
+getGenerationCost(model, ...): number // Get generation cost (0 for free models)
+getDownloadCost(model): number // Get download cost (0 for paid models)
+```
+
+**Technical Decisions:**
+- **Why mixed billing?** Provides flexibility for users - try basic models risk-free, premium models for professional quality
+- **Why free generation for basic models?** Lowers entry barrier, users only pay if satisfied with result
+- **Why paid generation for premium?** Prevents abuse of expensive models, ensures committed users only
+
+**Benefits:**
+- Lower risk for new users (try before you buy with basic models)
+- Clear value proposition for premium models
+- Reduces wasted generations (users preview before downloading)
+- Flexibility for different use cases and budgets
+
+**Known Limitations:**
+- Users need to understand two different billing models
+- UI must clearly communicate which model uses which billing
+- Must prevent abuse of free generation (future: rate limiting)
+
+**Testing Considerations:**
+- Test credit deduction timing for both model types
+- Verify download billing only applies to free-generation models
+- Test insufficient credits at both generation and download phases
+- Verify UI correctly shows billing timing per model
+
+**Related Documentation:**
+- `documents/local/pricing-and-billing-rules.md` - Should be updated to Version 3.0

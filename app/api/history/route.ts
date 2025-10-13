@@ -62,7 +62,18 @@ interface CharacterAdsItem {
   videoDurationSeconds?: number;
 }
 
-type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem;
+interface WatermarkRemovalItem {
+  id: string;
+  originalVideoUrl: string;
+  videoUrl?: string;
+  creditsUsed: number;
+  status: 'processing' | 'completed' | 'failed';
+  createdAt: string;
+  adType: 'watermark-removal';
+  errorMessage?: string;
+}
+
+type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem | WatermarkRemovalItem;
 
 export async function GET() {
   try {
@@ -133,6 +144,17 @@ export async function GET() {
 
     if (characterAdsError) {
       console.error('Failed to fetch Character Ads history:', characterAdsError);
+    }
+
+    // Fetch Watermark Removal data
+    const { data: watermarkRemovalItems, error: watermarkRemovalError } = await supabase
+      .from('sora2_watermark_removal_tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (watermarkRemovalError) {
+      console.error('Failed to fetch Watermark Removal history:', watermarkRemovalError);
     }
 
     // Transform Standard Ads data
@@ -252,11 +274,24 @@ export async function GET() {
         };
       });
 
+    // Transform Watermark Removal data
+    const transformedWatermarkRemovalHistory: WatermarkRemovalItem[] = (watermarkRemovalItems || []).map(item => ({
+      id: item.id,
+      originalVideoUrl: item.input_video_url,
+      videoUrl: item.output_video_url || undefined,
+      creditsUsed: item.credits_used || 3,
+      status: mapWorkflowStatus(item.status),
+      createdAt: item.created_at,
+      adType: 'watermark-removal',
+      errorMessage: item.error_message || undefined
+    }));
+
     // Combine and sort by creation date
     const combinedHistory: HistoryItem[] = [
       ...transformedStandardAdsHistory,
       ...transformedMultiVariantAdsHistory,
-      ...transformedCharacterAdsHistory
+      ...transformedCharacterAdsHistory,
+      ...transformedWatermarkRemovalHistory
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return NextResponse.json({

@@ -31,7 +31,7 @@ interface WorkflowV2State {
 
 export function useMultiVariantAdsWorkflow(
   userId?: string,
-  videoModel: 'veo3' | 'veo3_fast' | 'sora2' = 'veo3_fast',
+  videoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto' = 'veo3_fast',
   imageModel: 'nano_banana' | 'seedream' = 'nano_banana',
   elementsCount: number = 2,
   adCopy: string = '',
@@ -40,7 +40,7 @@ export function useMultiVariantAdsWorkflow(
   imageSize: string = 'auto',
   shouldGenerateVideo: boolean = true,
   videoAspectRatio: '16:9' | '9:16' = '16:9',
-  requestedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' = videoModel
+  requestedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto'
 ) {
   const [state, setState] = useState<WorkflowV2State>({
     isLoading: false,
@@ -129,7 +129,8 @@ export function useMultiVariantAdsWorkflow(
       const result = await response.json();
       const itemIds: string[] = result.itemIds || [];
       setCurrentItemIds(itemIds);
-      const creditsCost = shouldGenerateVideo ? getCreditCost(videoModel) : 0;
+      // Credit cost will be determined by the backend based on actual model used
+      const creditsCost = shouldGenerateVideo ? (videoModel === 'auto' || videoModel === 'sora2_pro' ? 0 : getCreditCost(videoModel)) : 0;
 
       const seeded = itemIds.map((id) => ({
         id,
@@ -206,7 +207,8 @@ export function useMultiVariantAdsWorkflow(
       const result = await response.json();
       const itemIds: string[] = result.itemIds || [];
       setCurrentItemIds(itemIds);
-      const creditsCost = shouldGenerateVideo ? getCreditCost(videoModel) : 0;
+      // Credit cost will be determined by the backend based on actual model used
+      const creditsCost = shouldGenerateVideo ? (videoModel === 'auto' || videoModel === 'sora2_pro' ? 0 : getCreditCost(videoModel)) : 0;
 
       const seeded = itemIds.map((id) => ({
         id,
@@ -411,7 +413,8 @@ export function useMultiVariantAdsWorkflow(
       const result = await response.json();
       const itemIds: string[] = result.itemIds || [];
       setCurrentItemIds(itemIds);
-      const creditsCost = shouldGenerateVideo ? getCreditCost(videoModel) : 0;
+      // Credit cost will be determined by the backend based on actual model used
+      const creditsCost = shouldGenerateVideo ? (videoModel === 'auto' || videoModel === 'sora2_pro' ? 0 : getCreditCost(videoModel)) : 0;
 
       const seeded = itemIds.map((id) => ({
         id,

@@ -73,11 +73,17 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               >
                 Blog
               </Link>
-              <Link 
-                href="/#faq" 
+              <Link
+                href="/#faq"
                 className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50"
               >
                 FAQ
+              </Link>
+              <Link
+                href="/sora2-watermark-removal"
+                className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50"
+              >
+                Sora2 Watermark Removal
               </Link>
               <SignedOut>
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard">
@@ -144,14 +150,21 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               >
                 Blog
               </Link>
-              <Link 
-                href="/#faq" 
+              <Link
+                href="/#faq"
                 className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 FAQ
               </Link>
-              
+              <Link
+                href="/sora2-watermark-removal"
+                className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Sora2 Watermark Removal
+              </Link>
+
               {showAuthButtons && (
                 <div className="pt-4 border-t border-gray-200">
                   <SignedOut>

@@ -1,13 +1,13 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getActualImageModel, IMAGE_MODELS, getCreditCost } from '@/lib/constants';
+import { getActualImageModel, IMAGE_MODELS, getAutoModeSelection, getGenerationCost } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
   imageUrl?: string;
   selectedProductId?: string;
   userId: string;
-  videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2';
+  videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   imageModel?: 'auto' | 'nano_banana' | 'seedream';
   watermark?: {
     text: string;
@@ -20,6 +20,9 @@ export interface StartWorkflowRequest {
   shouldGenerateVideo?: boolean;
   videoAspectRatio?: '16:9' | '9:16';
   adCopy?: string;
+  // NEW: Sora2 Pro params
+  sora2ProDuration?: '10' | '15';
+  sora2ProQuality?: 'standard' | 'high';
 }
 
 interface WorkflowResult {
@@ -77,58 +80,70 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       };
     }
 
-    // Convert 'auto' videoModel to a specific model
-    const actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' = request.videoModel === 'auto' ? 'veo3_fast' : request.videoModel;
-
-    // Calculate credits cost based on model and photo/video mode
-    let creditsCost = request.photoOnly ? 5 : 10; // Default: 5 for photo-only, 10 for video
-    if (!request.photoOnly && actualVideoModel === 'sora2') {
-      creditsCost = 30; // Sora2 costs 30 credits for video generation
+    // Convert 'auto' to specific model
+    let actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+    if (request.videoModel === 'auto') {
+      const autoSelection = getAutoModeSelection(0); // Get cheapest model
+      actualVideoModel = autoSelection || 'sora2'; // Fallback to cheapest
+    } else {
+      actualVideoModel = request.videoModel;
     }
 
-    // For VEO3 model, deduct credits upfront (prepaid model)
-    if (!request.photoOnly && actualVideoModel === 'veo3') {
-      const veo3Cost = getCreditCost('veo3'); // 150 credits
-
-      // Check if user has enough credits
-      const creditCheck = await checkCredits(request.userId, veo3Cost);
-      if (!creditCheck.success) {
-        return {
-          success: false,
-          error: 'Failed to check credits',
-          details: creditCheck.error || 'Credit check failed'
-        };
-      }
-
-      if (!creditCheck.hasEnoughCredits) {
-        return {
-          success: false,
-          error: 'Insufficient credits',
-          details: `Need ${veo3Cost} credits for VEO3 High Quality model, have ${creditCheck.currentCredits || 0}`
-        };
-      }
-
-      // Deduct credits upfront
-      const deductResult = await deductCredits(request.userId, veo3Cost);
-      if (!deductResult.success) {
-        return {
-          success: false,
-          error: 'Failed to deduct credits',
-          details: deductResult.error || 'Credit deduction failed'
-        };
-      }
-
-      // Record the transaction
-      await recordCreditTransaction(
-        request.userId,
-        'usage',
-        veo3Cost,
-        'Video generation - VEO3 High Quality (prepaid)',
-        undefined,
-        true
+    // ===== VERSION 3.0: MIXED BILLING - Generation Phase =====
+    // Basic models (veo3_fast, sora2): FREE generation, paid download
+    // Premium models (veo3, sora2_pro): PAID generation, free download
+    let generationCost = 0;
+    if (!request.photoOnly) {
+      // Calculate generation cost based on model
+      generationCost = getGenerationCost(
+        actualVideoModel,
+        request.sora2ProDuration,
+        request.sora2ProQuality
       );
 
-      creditsCost = veo3Cost; // Update credits cost for record
+      // Only check and deduct credits if generation is paid
+      if (generationCost > 0) {
+        // Check if user has enough credits
+        const creditCheck = await checkCredits(request.userId, generationCost);
+        if (!creditCheck.success) {
+          return {
+            success: false,
+            error: 'Failed to check credits',
+            details: creditCheck.error || 'Credit check failed'
+          };
+        }
+
+        if (!creditCheck.hasEnoughCredits) {
+          return {
+            success: false,
+            error: 'Insufficient credits',
+            details: `Need ${generationCost} credits for ${actualVideoModel.toUpperCase()} model, have ${creditCheck.currentCredits || 0}`
+          };
+        }
+
+        // Deduct credits UPFRONT for paid generation models
+        const deductResult = await deductCredits(request.userId, generationCost);
+        if (!deductResult.success) {
+          return {
+            success: false,
+            error: 'Failed to deduct credits',
+            details: deductResult.error || 'Credit deduction failed'
+          };
+        }
+
+        // Record the transaction
+        await recordCreditTransaction(
+          request.userId,
+          'usage',
+          generationCost,
+          `Video generation - ${actualVideoModel.toUpperCase()}`,
+          undefined,
+          true
+        );
+      }
+      // If generationCost is 0, generation is FREE (will charge at download)
+    } else {
+      generationCost = 0; // Photo-only mode is free
     }
 
     // Create project record in standard_ads_projects table
@@ -143,13 +158,16 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         status: 'processing',
         current_step: 'describing',
         progress_percentage: 10,
-        credits_cost: creditsCost,
+        credits_cost: generationCost, // Only generation cost (download cost charged separately)
         watermark_text: request.watermark?.text,
         watermark_location: request.watermark?.location || request.watermarkLocation,
-        cover_image_aspect_ratio: request.imageSize || request.videoAspectRatio || '16:9', // Default to video aspect ratio
+        cover_image_aspect_ratio: request.imageSize || request.videoAspectRatio || '16:9',
         photo_only: request.photoOnly || false,
-        // For VEO3, mark as generation credits already used (prepaid)
-        generation_credits_used: (!request.photoOnly && actualVideoModel === 'veo3') ? creditsCost : 0
+        // NEW: Sora2 Pro fields
+        sora2_pro_duration: actualVideoModel === 'sora2_pro' ? (request.sora2ProDuration || '10') : null,
+        sora2_pro_quality: actualVideoModel === 'sora2_pro' ? (request.sora2ProQuality || 'standard') : null,
+        // DEPRECATED: download_credits_used (downloads are now free)
+        download_credits_used: 0,
       })
       .select()
       .single();
@@ -168,6 +186,21 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       await startAIWorkflow(project.id, { ...request, imageUrl, videoModel: actualVideoModel });
     } catch (workflowError) {
       console.error('Workflow start error:', workflowError);
+
+      // REFUND credits on failure (only for paid generation models)
+      if (!request.photoOnly && generationCost > 0) {
+        console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure`);
+        await deductCredits(request.userId, -generationCost); // Negative = refund
+        await recordCreditTransaction(
+          request.userId,
+          'refund',
+          generationCost,
+          `Refund for failed ${actualVideoModel.toUpperCase()} generation`,
+          project.id,
+          true
+        );
+      }
+
       // Update project status to failed
       await supabase
         .from('standard_ads_projects')

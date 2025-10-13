@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getActualImageModel, IMAGE_MODELS, getCreditCost } from '@/lib/constants';
+import { getActualImageModel, IMAGE_MODELS, getGenerationCost } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 export interface MultiVariantAdsRequest {
@@ -12,8 +12,8 @@ export interface MultiVariantAdsRequest {
   textWatermark?: string;
   textWatermarkLocation?: string;
   generateVideo?: boolean;
-  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
-  requestedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2';
+  videoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+  requestedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   imageModel?: 'auto' | 'nano_banana' | 'seedream';
   watermark?: {
     text: string;
@@ -24,6 +24,9 @@ export interface MultiVariantAdsRequest {
   coverImageSize?: string;
   elementsData?: Record<string, unknown>;
   videoAspectRatio?: '16:9' | '9:16';
+  // NEW: Sora2 Pro params
+  sora2ProDuration?: '10' | '15';
+  sora2ProQuality?: 'standard' | 'high';
 }
 
 interface MultiVariantResult {
@@ -80,54 +83,70 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
     const elementsCount = request.elementsCount || 2;
     const projectIds: string[] = [];
 
-    // For VEO3 model, deduct credits upfront (prepaid model)
-    // Multi-variant creates multiple projects, so total cost = cost per video * elementsCount
-    const videoModel = request.videoModel || 'veo3';
-    let generationCreditsUsed = 0;
+    // ===== VERSION 3.0: MIXED BILLING - Generation Phase =====
+    // Basic models (veo3_fast, sora2): FREE generation, paid download
+    // Premium models (veo3, sora2_pro): PAID generation, free download
+    let generationCostPerVideo = 0;
+    let totalGenerationCost = 0;
 
-    if (!request.photoOnly && videoModel === 'veo3') {
-      const veo3CostPerVideo = getCreditCost('veo3'); // 150 credits per video
-      const totalCost = veo3CostPerVideo * elementsCount;
+    if (!request.photoOnly) {
+      const videoModel = request.videoModel || 'veo3';
 
-      // Check if user has enough credits
-      const creditCheck = await checkCredits(request.userId, totalCost);
-      if (!creditCheck.success) {
-        return {
-          success: false,
-          error: 'Failed to check credits'
-        };
-      }
-
-      if (!creditCheck.hasEnoughCredits) {
-        return {
-          success: false,
-          error: `Insufficient credits. Need ${totalCost} credits for ${elementsCount} VEO3 High Quality videos, have ${creditCheck.currentCredits || 0}`
-        };
-      }
-
-      // Deduct credits upfront
-      const deductResult = await deductCredits(request.userId, totalCost);
-      if (!deductResult.success) {
-        return {
-          success: false,
-          error: 'Failed to deduct credits'
-        };
-      }
-
-      // Record the transaction
-      await recordCreditTransaction(
-        request.userId,
-        'usage',
-        totalCost,
-        `Video generation - ${elementsCount}x VEO3 High Quality (prepaid)`,
-        undefined,
-        true
+      // Calculate generation cost based on model
+      generationCostPerVideo = getGenerationCost(
+        videoModel,
+        request.sora2ProDuration,
+        request.sora2ProQuality
       );
 
-      generationCreditsUsed = veo3CostPerVideo; // Credits used per project
+      // Total cost = cost per video * number of variants
+      totalGenerationCost = generationCostPerVideo * elementsCount;
+
+      // Only check and deduct credits if generation is paid
+      if (totalGenerationCost > 0) {
+        // Check if user has enough credits
+        const creditCheck = await checkCredits(request.userId, totalGenerationCost);
+        if (!creditCheck.success) {
+          return {
+            success: false,
+            error: 'Failed to check credits'
+          };
+        }
+
+        if (!creditCheck.hasEnoughCredits) {
+          return {
+            success: false,
+            error: `Insufficient credits. Need ${totalGenerationCost} credits for ${elementsCount}x ${videoModel.toUpperCase()} videos, have ${creditCheck.currentCredits || 0}`
+          };
+        }
+
+        // Deduct credits UPFRONT for paid generation models
+        const deductResult = await deductCredits(request.userId, totalGenerationCost);
+        if (!deductResult.success) {
+          return {
+            success: false,
+            error: 'Failed to deduct credits'
+          };
+        }
+
+        // Record the transaction
+        await recordCreditTransaction(
+          request.userId,
+          'usage',
+          totalGenerationCost,
+          `Video generation - ${elementsCount}x ${videoModel.toUpperCase()}`,
+          undefined,
+          true
+        );
+      }
+      // If totalGenerationCost is 0, generation is FREE (will charge at download)
+    } else {
+      generationCostPerVideo = 0; // Photo-only mode is free
     }
 
     // Create multiple project records based on elementsCount
+    const videoModel = request.videoModel || 'veo3';
+
     for (let i = 0; i < elementsCount; i++) {
       const { data: project, error } = await supabase
         .from('multi_variant_ads_projects')
@@ -143,8 +162,13 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
           watermark_text: request.textWatermark || request.watermark?.text,
           watermark_location: request.textWatermarkLocation || request.watermark?.location,
           photo_only: request.photoOnly || false,
-          cover_image_aspect_ratio: request.coverImageSize || '16:9', // Default to video aspect ratio
-          generation_credits_used: generationCreditsUsed, // Mark VEO3 as prepaid
+          cover_image_aspect_ratio: request.coverImageSize || '16:9',
+          credits_cost: generationCostPerVideo, // Only generation cost (download cost charged separately)
+          // NEW: Sora2 Pro fields
+          sora2_pro_duration: videoModel === 'sora2_pro' ? (request.sora2ProDuration || '10') : null,
+          sora2_pro_quality: videoModel === 'sora2_pro' ? (request.sora2ProQuality || 'standard') : null,
+          // DEPRECATED: download_credits_used (downloads are now free)
+          download_credits_used: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -153,13 +177,14 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
 
       if (error) {
         console.error(`Failed to create multi-variant project ${i + 1}:`, error);
-        // If we already deducted credits, we should refund them
-        if (generationCreditsUsed > 0) {
-          await deductCredits(request.userId, -generationCreditsUsed * elementsCount);
+        // REFUND credits on failure (only for paid generation models)
+        if (!request.photoOnly && totalGenerationCost > 0) {
+          console.log(`⚠️ Refunding ${totalGenerationCost} credits due to project creation failure`);
+          await deductCredits(request.userId, -totalGenerationCost);
           await recordCreditTransaction(
             request.userId,
             'refund',
-            generationCreditsUsed * elementsCount,
+            totalGenerationCost,
             'Refund for failed multi-variant project creation',
             undefined,
             true

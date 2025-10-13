@@ -16,10 +16,10 @@ export default function PricingPage() {
   const { user, isLoaded } = useUser();
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
 
-  // Downloads calculation identical to LandingPage
-  const liteDownloads = Math.floor(500 / CREDIT_COSTS.veo3_fast);
-  const basicDownloads = Math.floor(2000 / CREDIT_COSTS.veo3_fast);
-  const proDownloads = Math.floor(3500 / CREDIT_COSTS.veo3_fast);
+  // Video generation estimates (generation-time billing)
+  const liteVideos = Math.floor(500 / CREDIT_COSTS.veo3_fast);
+  const basicVideos = Math.floor(2000 / CREDIT_COSTS.veo3_fast);
+  const proVideos = Math.floor(3500 / CREDIT_COSTS.veo3_fast);
 
   const handlePurchase = async (packageName: 'lite' | 'basic' | 'pro') => {
     if (!isLoaded) {
@@ -104,7 +104,7 @@ export default function PricingPage() {
         <div className="py-12">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Pay Once, Use Forever</h2>
-            <p className="text-base text-gray-600">One-time purchase. No subscriptions. Perfect for physical products on Etsy/Amazon and digital products on Gumroad/Stan/Payhip</p>
+            <p className="text-base text-gray-600">One-time purchase. No subscriptions. Flexible billing: Basic models (free generation, paid download) or Premium models (paid generation, free download)</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
@@ -122,15 +122,15 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Up to <span className="font-bold text-gray-900">{liteDownloads}</span> video downloads</span>
+                  <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{liteVideos}</span> Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Unlimited image & video generation</span>
+                  <span className="text-gray-600">Mixed billing model</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Free image downloads forever</span>
+                  <span className="text-gray-600">Always free image generation</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
@@ -161,15 +161,15 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Up to <span className="font-bold text-gray-900">{basicDownloads}</span> video downloads</span>
+                  <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{basicVideos}</span> Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Unlimited image & video generation</span>
+                  <span className="text-gray-600">Free unlimited downloads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Free image downloads forever</span>
+                  <span className="text-gray-600">Free image generation</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
@@ -197,15 +197,15 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Up to <span className="font-bold text-gray-900">{proDownloads}</span> video downloads</span>
+                  <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{proVideos}</span> Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Unlimited image & video generation</span>
+                  <span className="text-gray-600">Mixed billing model</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Free image downloads forever</span>
+                  <span className="text-gray-600">Always free image generation</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>

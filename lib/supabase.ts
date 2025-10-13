@@ -67,7 +67,7 @@ export interface SingleVideoProject {
   product_description?: Record<string, unknown> // JSONB field containing { description: string }
   video_prompts?: Record<string, unknown>
   image_prompt?: Record<string, unknown> // JSONB field containing the prompt used for cover generation
-  video_model: 'veo3' | 'veo3_fast' | 'sora2'
+  video_model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'
   credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string
@@ -76,7 +76,7 @@ export interface SingleVideoProject {
   cover_image_aspect_ratio?: string | null // Aspect ratio of the cover image (e.g., "16:9", "9:16", "1:1")
   photo_only?: boolean // If true, workflow skips video generation and only produces a cover image
   downloaded?: boolean // Whether user has downloaded the video
-  download_credits_used?: number // Credits used for downloading (60% of total)
+  download_credits_used?: number // DEPRECATED: Credits used for downloading (no longer applicable, downloads are free)
   cover_task_id?: string | null
   video_task_id?: string | null
   current_step?: 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'completed'
@@ -84,7 +84,9 @@ export interface SingleVideoProject {
   last_processed_at?: string
   selected_product_id?: string | null // Reference to user_products table
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
-  video_generation_prompt?: Record<string, unknown> // NEW: JSONB field containing the prompt used for video generation
+  video_generation_prompt?: Record<string, unknown> // JSONB field containing the prompt used for video generation
+  sora2_pro_duration?: '10' | '15' | null // Sora2 Pro video duration (10s or 15s)
+  sora2_pro_quality?: 'standard' | 'high' | null // Sora2 Pro video quality (standard or HD)
   created_at: string
   updated_at: string
 }
@@ -110,12 +112,14 @@ export interface MultiVariantProject {
   original_image_url?: string
   product_description?: Record<string, unknown>
   video_model?: string
-  download_credits_used: number
+  download_credits_used: number  // DEPRECATED: Downloads are now free
   watermark_text?: string
   watermark_location?: string
   cover_image_aspect_ratio?: string // Aspect ratio of the cover image (e.g., "16:9", "9:16", "1:1")
   image_prompt?: Record<string, unknown>
   photo_only: boolean
+  sora2_pro_duration?: '10' | '15' | null // Sora2 Pro video duration (10s or 15s)
+  sora2_pro_quality?: 'standard' | 'high' | null // Sora2 Pro video quality (standard or HD)
 }
 
 // Database types for user_photos table
@@ -152,6 +156,21 @@ export interface UserProductPhoto {
   updated_at: string
 }
 
+// Database types for sora2_watermark_removal_tasks table
+export interface Sora2WatermarkRemovalTask {
+  id: string
+  user_id: string
+  input_video_url: string
+  output_video_url?: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  kie_task_id?: string
+  credits_used: number
+  error_message?: string
+  created_at: string
+  completed_at?: string
+  updated_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -174,6 +193,11 @@ export type Database = {
         Row: UserPhoto
         Insert: Omit<UserPhoto, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<UserPhoto, 'id' | 'created_at' | 'updated_at'>>
+      }
+      sora2_watermark_removal_tasks: {
+        Row: Sora2WatermarkRemovalTask
+        Insert: Omit<Sora2WatermarkRemovalTask, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Sora2WatermarkRemovalTask, 'id' | 'created_at' | 'updated_at'>>
       }
     }
     Views: {

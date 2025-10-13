@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabase } from '@/lib/supabase';
+import { getDownloadCost, isFreeGenerationModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
-import { getCreditCost } from '@/lib/constants';
 
 interface DownloadVideoRequest {
   historyId: string;
@@ -53,92 +53,53 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       }, { status: 400 });
     }
 
-    // Handle download logic - first time download charges credits, repeat downloads are free
-    // VEO3 prepaid: If generation_credits_used > 0, credits were already deducted at generation
+    // ===== VERSION 3.0: MIXED BILLING - Download Phase =====
+    // FREE generation models (veo3_fast, sora2): Charge at download
+    // PAID generation models (veo3, sora2_pro): Download is FREE (already paid at generation)
     const isFirstDownload = !historyRecord.downloaded;
-    const isPrepaid = (historyRecord.generation_credits_used || 0) > 0;
+    const videoModel = historyRecord.video_model as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
 
-    if (isFirstDownload && !isPrepaid) {
-      // Charge full cost on first download (generation is free)
-      const videoModelForCost = historyRecord.video_model as 'veo3' | 'veo3_fast' | 'sora2';
-      const downloadCost = getCreditCost(videoModelForCost);
+    if (isFirstDownload) {
+      // Check if this model has download cost (free-generation models)
+      if (isFreeGenerationModel(videoModel)) {
+        const downloadCost = getDownloadCost(videoModel);
 
-      // Check if user has enough credits
-      const creditCheck = await checkCredits(userId, downloadCost);
-      if (!creditCheck.success) {
-        return NextResponse.json({
-          success: false,
-          message: creditCheck.error || 'Failed to check credits'
-        }, { status: 500 });
-      }
+        // Check if user has enough credits
+        const creditCheck = await checkCredits(userId, downloadCost);
+        if (!creditCheck.hasEnoughCredits) {
+          return NextResponse.json({
+            success: false,
+            message: `Insufficient credits. Need ${downloadCost} credits, have ${creditCheck.currentCredits}`
+          }, { status: 402 });
+        }
 
-      if (!creditCheck.hasEnoughCredits) {
-        return NextResponse.json({
-          success: false,
-          message: `Insufficient credits. Need ${downloadCost}, have ${creditCheck.currentCredits || 0}`
-        }, { status: 400 });
-      }
+        // Deduct download cost
+        const deductResult = await deductCredits(userId, downloadCost);
+        if (!deductResult.success) {
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to deduct credits for download'
+          }, { status: 500 });
+        }
 
-      // Deduct download credits
-      const deductResult = await deductCredits(userId, downloadCost);
-      if (!deductResult.success) {
-        return NextResponse.json({
-          success: false,
-          message: deductResult.error || 'Failed to deduct credits'
-        }, { status: 500 });
-      }
-
-      // Record the transaction
-      await recordCreditTransaction(
-        userId,
-        'usage',
-        downloadCost,
-        `Video download - ${
-          historyRecord.video_model === 'veo3'
-            ? 'VEO3 High Quality'
-            : historyRecord.video_model === 'sora2'
-              ? 'Sora 2'
-              : 'VEO3 Fast'
-        }`,
-        historyId,
-        true
-      );
-
-      // Update the history record to mark as downloaded
-      const { error: updateError } = await supabase
-        .from('standard_ads_projects')
-        .update({
-          downloaded: true,
-          download_credits_used: downloadCost,
-          last_processed_at: new Date().toISOString()
-        })
-        .eq('id', historyId);
-
-      if (updateError) {
-        console.error('Failed to update history record:', updateError);
-        // Try to refund credits if update failed
-        await deductCredits(userId, -downloadCost);
+        // Record credit transaction
         await recordCreditTransaction(
           userId,
-          'refund',
-          downloadCost,
-          'Refund for failed download update',
-          historyId,
-          true
+          'usage',
+          -downloadCost,
+          `Downloaded ${videoModel} video (${historyId})`,
+          historyId
         );
 
-        return NextResponse.json({
-          success: false,
-          message: 'Failed to update download record'
-        }, { status: 500 });
+        console.log(`[Download Billing] Charged ${downloadCost} credits for ${videoModel} download (user: ${userId})`);
       }
-    } else if (isFirstDownload && isPrepaid) {
-      // VEO3 prepaid: Just mark as downloaded without deducting credits
+      // If paid-generation model, download is FREE (no credit deduction)
+
+      // Mark as downloaded
       const { error: updateError } = await supabase
         .from('standard_ads_projects')
         .update({
           downloaded: true,
-          download_credits_used: 0, // No additional credits for download
           last_processed_at: new Date().toISOString()
         })
         .eq('id', historyId);
@@ -151,7 +112,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
         }, { status: 500 });
       }
     }
-    // For repeat downloads, no credit deduction or database updates needed
 
     // Fetch the video file from the external URL and return it directly
     try {

@@ -22,13 +22,13 @@ export interface WorkflowState {
     };
     errorMessage?: string;
     creditsUsed?: number;
-    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2';
+    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
     watermark?: {
       enabled: boolean;
       text: string;
     };
   };
-  
+
   // Guest usage tracking
   guestUsageCount: number;
   maxGuestUsage: number;
@@ -36,7 +36,7 @@ export interface WorkflowState {
 
 export const useStandardAdsWorkflow = (
   userId?: string | null,
-  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' = 'veo3_fast',
+  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' = 'veo3_fast',
   selectedImageModel: 'auto' | 'nano_banana' | 'seedream' = 'nano_banana',
   updateCredits?: (newCredits: number) => void,
   refetchCredits?: () => Promise<void>,

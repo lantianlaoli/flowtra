@@ -60,7 +60,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           loop={loop}
           playsInline={playsInline}
           preload="metadata"
-          controls={false}
+          controls={showControls}
           aria-label={ariaLabel || "Product demonstration video"}
           onError={(e) => console.warn('Video error:', e)}
           onLoadedMetadata={() => {
