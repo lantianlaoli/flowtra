@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -842,7 +842,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                     <div 
                       className="relative bg-white"
                       onMouseEnter={() => {
-                        if (item.status === 'completed' && item.videoUrl) {
+                        if (!isWatermarkRemoval(item) && item.status === 'completed' && item.videoUrl) {
                           setHoveredVideo(item.id);
                         }
                       }}
@@ -852,27 +852,14 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                     >
                       <div className="aspect-[3/4] bg-white relative overflow-hidden">
                         {
-                          // Watermark removal video display
+                          // Watermark removal cards show a static placeholder to match layout
                           isWatermarkRemoval(item) ? (
-                            item.status === 'completed' && item.videoUrl && hoveredVideo === item.id ? (
-                              <VideoPlayer
-                                src={item.videoUrl}
-                                className="w-full h-full object-cover"
-                                autoPlay={true}
-                                loop={true}
-                                playsInline={true}
-                                showControls={false}
-                              />
-                            ) : (
-                              <VideoPlayer
-                                src={item.originalVideoUrl}
-                                className="w-full h-full object-cover"
-                                autoPlay={false}
-                                loop={false}
-                                playsInline={true}
-                                showControls={false}
-                              />
-                            )
+                            <div className="w-full h-full bg-gray-900 text-white flex flex-col items-center justify-center gap-3 px-4 text-center">
+                              <AlertCircle className="w-8 h-8 text-white" />
+                              <div className="text-sm leading-snug text-gray-100">
+                                Sorry that we cannot preview newly de-watermarked videos. Please download to view the result.
+                              </div>
+                            </div>
                           ) :
                           // Regular video ad display
                           item.status === 'completed' && 'videoUrl' in item && item.videoUrl &&
@@ -1067,21 +1054,37 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                             <div className="flex flex-col gap-2 w-full">
                               {/* Watermark Removal: Only show video download (free) */}
                               {isWatermarkRemoval(item) ? (
-                                item.videoUrl && (
-                                  <button
-                                    onClick={() => handleVideoClick(item)}
-                                    disabled={videoStates[item.id] === 'packing'}
-                                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <Download className="w-4 h-4 text-white" />
-                                      <span>{videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Download Video'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-green-400">
-                                      <span className="text-xs font-bold">FREE</span>
-                                    </div>
-                                  </button>
-                                )
+                                <>
+                                  {item.originalVideoUrl && (
+                                    <a
+                                      href={item.originalVideoUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Play className="w-4 h-4" />
+                                        <span>Open Original Video</span>
+                                      </div>
+                                      <ArrowUpRight className="w-4 h-4 text-gray-600" />
+                                    </a>
+                                  )}
+                                  {item.videoUrl && (
+                                    <button
+                                      onClick={() => handleVideoClick(item)}
+                                      disabled={videoStates[item.id] === 'packing'}
+                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Download className="w-4 h-4 text-white" />
+                                        <span>{videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Download Watermark-Free Video'}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 text-green-400">
+                                        <span className="text-xs font-bold">FREE</span>
+                                      </div>
+                                    </button>
+                                  )}
+                                </>
                               ) : (
                                 <>
                                   {/* Cover Download Button (always free) */}

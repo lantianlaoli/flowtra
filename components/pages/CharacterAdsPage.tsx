@@ -56,6 +56,11 @@ export default function CharacterAdsPage() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [projectId, setProjectId] = useState<string | null>(null);
 
+  const disabledVideoModels = useMemo(
+    () => ['sora2', 'sora2_pro'] as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>,
+    []
+  );
+
   // KIE credits state
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
     sufficient: true,
@@ -88,6 +93,12 @@ export default function CharacterAdsPage() {
 
     checkKieCredits();
   }, []);
+
+  useEffect(() => {
+    if (selectedVideoModel === 'sora2' || selectedVideoModel === 'sora2_pro') {
+      setSelectedVideoModel('veo3_fast');
+    }
+  }, [selectedVideoModel]);
 
   // Show toast notification when generation starts
   useEffect(() => {
@@ -401,13 +412,11 @@ export default function CharacterAdsPage() {
                             selectedModel={selectedVideoModel}
                             onModelChange={(m) => setSelectedVideoModel(m)}
                             showIcon={true}
-                            disabledModels={(videoDuration === 10 || videoDuration === 20 || videoDuration === 30)
-                              ? ['veo3', 'veo3_fast']
-                              : ['sora2']}
+                            disabledModels={disabledVideoModels}
                             hiddenModels={['auto']}
                             videoDurationSeconds={videoDuration}
                           />
-                          {selectedVideoModel === 'sora2' && (personImages.length > 0 || selectedPersonPhotoUrl) && (
+                          {['sora2', 'sora2_pro'].includes(selectedVideoModel) && (personImages.length > 0 || selectedPersonPhotoUrl) && (
                             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                               <div className="flex items-start gap-3">
                                 <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />

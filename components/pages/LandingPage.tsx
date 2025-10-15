@@ -541,7 +541,6 @@ export default function LandingPage() {
                   <VideoPlayer
                     src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/example.mp4"
                     className="rounded-lg object-contain"
-                    showControls={true}
                     ariaLabel="AI-generated video advertisement example showing product transformation"
                   />
                 </div>

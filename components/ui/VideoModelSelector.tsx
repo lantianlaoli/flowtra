@@ -9,7 +9,6 @@ import {
   canAffordModel,
   getAutoModeSelection,
   getProcessingTime,
-  getAvailableModels,
   modelSupports,
   getModelCostByConfig,
   isFreeGenerationModel,
@@ -55,17 +54,6 @@ export default function VideoModelSelector({
   const [tooltipData, setTooltipData] = useState<{ text: string; left: number; top: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
-
-  // Get models that support current quality/duration config (if provided)
-  const supportedModels = useMemo(() => {
-    if (videoQuality && videoDuration) {
-      return getAvailableModels(videoQuality, videoDuration);
-    }
-    // If not provided, all models are supported (backwards compatibility)
-    return ['veo3', 'veo3_fast', 'sora2', 'sora2_pro'] as const;
-  }, [videoQuality, videoDuration]);
-// Replace with:
-// Remove the above block
 
   // Model options with NEW PRICING (generation-time billing, downloads are FREE)
   const modelOptions = useMemo(() => {
