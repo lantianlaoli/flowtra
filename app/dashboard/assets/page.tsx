@@ -23,18 +23,18 @@ export default function AssetsPage() {
       />
 
       <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Boxes className="w-4 h-4 text-gray-700" />
+          <div className="mb-6 md:mb-8">
+            <div className="flex items-center gap-2 md:gap-3 mb-2">
+              <div className="w-7 h-7 md:w-8 md:h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <Boxes className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-700" />
               </div>
-              <h1 className="text-2xl font-semibold text-gray-900">
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
                 Assets
               </h1>
             </div>
-            <p className="text-gray-600">
+            <p className="text-sm md:text-base text-gray-600">
               Manage your brands and products in one unified place
             </p>
           </div>

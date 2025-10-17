@@ -55,19 +55,35 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
-    const { product_name, description } = body;
+    const { product_name, description, brand_id } = body;
 
-    if (!product_name) {
-      return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
+    // Build update object dynamically to handle partial updates
+    const updateData: Record<string, string | null> = {};
+
+    if (product_name !== undefined) {
+      if (!product_name) {
+        return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
+      }
+      updateData.product_name = product_name;
+    }
+
+    if (description !== undefined) {
+      updateData.description = description || null;
+    }
+
+    if (brand_id !== undefined) {
+      updateData.brand_id = brand_id || null;
+    }
+
+    // If no fields to update, return error
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('user_products')
-      .update({
-        product_name,
-        description: description || null
-      })
+      .update(updateData)
       .eq('id', id)
       .eq('user_id', userId)
       .select()

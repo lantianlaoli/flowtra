@@ -1,16 +1,38 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
+import VideoAudioManager from './useVideoAudioManager';
 
 interface UseVideoAudioOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  instanceId?: string; // Optional custom instance ID
 }
 
-export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
+// Generate unique instance ID
+let instanceCounter = 0;
+function generateInstanceId(): string {
+  return `video-${Date.now()}-${++instanceCounter}`;
+}
+
+export function useVideoAudio({ videoRef, instanceId }: UseVideoAudioOptions) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [userHasInteracted, setUserHasInteracted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [needsClickToEnable, setNeedsClickToEnable] = useState(false);
+
+  // Stable instance ID for this video player
+  const videoInstanceId = useRef(instanceId || generateInstanceId());
+  const managerRef = useRef<VideoAudioManager | null>(null);
+
+  // Initialize manager and register this video instance
+  useEffect(() => {
+    managerRef.current = VideoAudioManager.getInstance();
+    managerRef.current.register(videoInstanceId.current, videoRef, setAudioEnabled);
+
+    return () => {
+      managerRef.current?.unregister(videoInstanceId.current);
+    };
+  }, [videoRef]);
 
   // Detect any user interaction to enable audio capability
   useEffect(() => {
@@ -30,60 +52,16 @@ export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
     };
   }, []);
 
-  // Auto-enable audio when video element is ready and user has interacted
-  useEffect(() => {
-    if (!videoRef.current) return;
-
-    const video = videoRef.current;
-
-    const tryEnableAudio = () => {
-      if (!video) return;
-
-      // If user hasn't interacted yet, show the click prompt
-      if (!userHasInteracted) {
-        setNeedsClickToEnable(true);
-        return;
-      }
-
-      try {
-        video.muted = false;
-        const playPromise = video.play?.();
-        if (playPromise && typeof playPromise.then === 'function') {
-          playPromise
-            .then(() => {
-              setAudioEnabled(true);
-              setNeedsClickToEnable(false);
-            })
-            .catch(() => {
-              setAudioEnabled(false);
-              setNeedsClickToEnable(true);
-            });
-        } else {
-          setAudioEnabled(true);
-          setNeedsClickToEnable(false);
-        }
-      } catch (error) {
-        console.warn('Failed to auto-enable audio:', error);
-        setNeedsClickToEnable(true);
-        setAudioEnabled(false);
-      }
-    };
-
-    // Try to enable audio once metadata is loaded
-    if (video.readyState >= 1) {
-      tryEnableAudio();
-    } else {
-      video.addEventListener('loadedmetadata', tryEnableAudio, { once: true });
-    }
-
-    return () => {
-      video.removeEventListener('loadedmetadata', tryEnableAudio);
-    };
-  }, [videoRef, userHasInteracted]);
+  // Note: We removed auto-enable audio on load to prevent multiple videos playing simultaneously
+  // Audio will only be enabled on hover or click, managed by the global audio manager
 
   const handleHover = useCallback(() => {
     setIsHovered(true);
-    if (!videoRef.current) return;
+    if (!videoRef.current || !managerRef.current) return;
+
+    // Request audio control from manager (this will mute other videos)
+    const canEnableAudio = managerRef.current.requestAudio(videoInstanceId.current);
+    if (!canEnableAudio) return;
 
     // Only attempt audio if user has interacted (browser policy)
     if (userHasInteracted) {
@@ -119,10 +97,13 @@ export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
 
   const handleLeave = useCallback(() => {
     setIsHovered(false);
-    
-    if (videoRef.current) {
+
+    if (videoRef.current && managerRef.current) {
       try {
-        // Simply mute - don't touch video playback
+        // Release audio control from manager
+        managerRef.current.releaseAudio(videoInstanceId.current);
+
+        // Mute the video
         videoRef.current.muted = true;
         setAudioEnabled(false);
       } catch (error) {
@@ -132,9 +113,14 @@ export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
   }, [videoRef]);
 
   const handleClickEnable = useCallback(() => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !managerRef.current) return;
+
     try {
       setUserHasInteracted(true);
+
+      // Request audio control from manager
+      managerRef.current.requestAudio(videoInstanceId.current);
+
       videoRef.current.muted = false;
       const playPromise = videoRef.current.play?.();
       if (playPromise && typeof playPromise.then === 'function') {

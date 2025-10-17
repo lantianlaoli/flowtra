@@ -318,79 +318,81 @@ export default function AssetsManager() {
   return (
     <div className="space-y-6">
       {/* Header with Stats */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-1">Assets Management</h2>
-            <p className="text-gray-600">Manage your brands and products in one place</p>
+            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-1">Assets Management</h2>
+            <p className="text-sm md:text-base text-gray-600">Manage your brands and products in one place</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2 md:gap-3">
             <button
               onClick={() => setShowCreateBrandModal(true)}
-              className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 md:gap-2 bg-white border border-gray-300 text-gray-700 px-3 md:px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm md:text-base"
             >
               <Tag className="w-4 h-4" />
-              New Brand
+              <span className="hidden sm:inline">New Brand</span>
+              <span className="sm:hidden">Brand</span>
             </button>
             <button
               onClick={() => {
                 setSelectedBrandIdForProduct(null);
                 setShowCreateProductModal(true);
               }}
-              className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
+              className="flex items-center gap-1.5 md:gap-2 bg-gray-900 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base"
             >
               <Plus className="w-4 h-4" />
-              New Product
+              <span className="hidden sm:inline">New Product</span>
+              <span className="sm:hidden">Product</span>
             </button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Tag className="w-5 h-5 text-blue-600" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+          <div className="bg-gray-50 rounded-lg p-3 md:p-4">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="w-9 h-9 md:w-10 md:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Tag className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-semibold text-gray-900">{assetsData.stats.totalBrands}</p>
-                <p className="text-sm text-gray-600">Brands</p>
+                <p className="text-xl md:text-2xl font-semibold text-gray-900">{assetsData.stats.totalBrands}</p>
+                <p className="text-xs md:text-sm text-gray-600">Brands</p>
               </div>
             </div>
           </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <Package className="w-5 h-5 text-green-600" />
+          <div className="bg-gray-50 rounded-lg p-3 md:p-4">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="w-9 h-9 md:w-10 md:h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Package className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-semibold text-gray-900">{assetsData.stats.totalProducts}</p>
-                <p className="text-sm text-gray-600">Total Products</p>
+                <p className="text-xl md:text-2xl font-semibold text-gray-900">{assetsData.stats.totalProducts}</p>
+                <p className="text-xs md:text-sm text-gray-600">Total Products</p>
               </div>
             </div>
           </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-orange-600" />
+          <div className="bg-gray-50 rounded-lg p-3 md:p-4">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="w-9 h-9 md:w-10 md:h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <BarChart3 className="w-4 h-4 md:w-5 md:h-5 text-orange-600" />
               </div>
               <div>
-                <p className="text-2xl font-semibold text-gray-900">{assetsData.stats.unbrandedCount}</p>
-                <p className="text-sm text-gray-600">Unbranded</p>
+                <p className="text-xl md:text-2xl font-semibold text-gray-900">{assetsData.stats.unbrandedCount}</p>
+                <p className="text-xs md:text-sm text-gray-600">Unbranded</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Search */}
-        <div className="relative mt-6">
+        <div className="relative mt-4 md:mt-6">
           <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Search brands and products..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
           />
         </div>
       </div>
@@ -424,10 +426,10 @@ export default function AssetsManager() {
 
             {/* Unbranded Products Section */}
             {filteredUnbrandedProducts.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Package className="w-5 h-5 text-gray-400" />
-                  <h3 className="text-lg font-semibold text-gray-900">
+              <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
+                <div className="flex items-center gap-2 md:gap-3 mb-4">
+                  <Package className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900">
                     Unbranded Products ({filteredUnbrandedProducts.length})
                   </h3>
                 </div>
@@ -449,14 +451,14 @@ export default function AssetsManager() {
 
             {/* Empty State */}
             {assetsData.brands.length === 0 && assetsData.unbrandedProducts.length === 0 && !searchTerm && (
-              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                <Tag className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <h3 className="text-xl font-medium text-gray-900 mb-2">No assets yet</h3>
-                <p className="text-gray-600 mb-6">Start by creating your first brand or product</p>
-                <div className="flex gap-3 justify-center">
+              <div className="bg-white rounded-xl border border-gray-200 p-8 md:p-12 text-center">
+                <Tag className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 text-gray-300" />
+                <h3 className="text-lg md:text-xl font-medium text-gray-900 mb-2">No assets yet</h3>
+                <p className="text-sm md:text-base text-gray-600 mb-4 md:mb-6">Start by creating your first brand or product</p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <button
                     onClick={() => setShowCreateBrandModal(true)}
-                    className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
+                    className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base"
                   >
                     <Tag className="w-4 h-4" />
                     Create Brand
@@ -466,7 +468,7 @@ export default function AssetsManager() {
                       setSelectedBrandIdForProduct(null);
                       setShowCreateProductModal(true);
                     }}
-                    className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm md:text-base"
                   >
                     <Package className="w-4 h-4" />
                     Create Product

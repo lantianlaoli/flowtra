@@ -12,6 +12,7 @@ interface VideoPlayerProps {
   showControls?: boolean;
   captionsUrl?: string;
   ariaLabel?: string;
+  instanceId?: string; // Optional custom instance ID for debugging
 }
 
 const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
@@ -23,20 +24,21 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
     playsInline = true,
     showControls = false,
     captionsUrl,
-    ariaLabel
+    ariaLabel,
+    instanceId
   }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
-    
+
     // Use the passed ref or our internal ref
     const currentRef = (ref as React.RefObject<HTMLVideoElement>) || videoRef;
-    
+
     const {
       audioEnabled,
       needsClickToEnable,
       handleHover,
       handleLeave,
       handleClickEnable,
-    } = useVideoAudio({ videoRef: currentRef });
+    } = useVideoAudio({ videoRef: currentRef, instanceId });
 
     const onMouseEnter = () => {
       handleHover();

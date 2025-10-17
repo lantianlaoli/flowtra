@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { product_name, description } = body;
+    const { product_name, description, brand_id } = body;
 
     if (!product_name) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
       .insert({
         user_id: userId,
         product_name,
-        description: description || null
+        description: description || null,
+        brand_id: brand_id || null
       })
       .select()
       .single();

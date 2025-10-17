@@ -87,7 +87,22 @@ interface WatermarkRemovalItem {
 
 type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem | WatermarkRemovalItem;
 
-const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns = 8 items per page
+const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns (desktop) = 8 items per page
+
+const CONTENT_FILTER_OPTIONS = [
+  { value: 'all', label: 'All Ads', icon: ImageIcon },
+  { value: 'standard', label: 'Standard', icon: ImageIcon },
+  { value: 'multi-variant', label: 'Multi-Variant', icon: Layers },
+  { value: 'character', label: 'Character', icon: VideoIcon },
+  { value: 'watermark-removal', label: 'Watermark Removal', icon: Droplets },
+] as const;
+
+const ASPECT_RATIO_OPTIONS = [
+  { value: 'all', label: 'All Ratios', shortLabel: 'All', icon: VideoIcon },
+  { value: '9:16', label: '9:16 Portrait', shortLabel: '9:16', icon: Smartphone },
+  { value: '16:9', label: '16:9 Landscape', shortLabel: '16:9', icon: Monitor },
+  { value: '1:1', label: '1:1 Square', shortLabel: '1:1', icon: Square },
+] as const;
 
 // Helper functions
 
@@ -732,81 +747,127 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
       />
       
       <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
-        <div className="p-8 max-w-7xl mx-auto">
-          <div className="mb-8">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+          <div className="mb-6 md:mb-8">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                 <Play className="w-4 h-4 text-gray-700" />
               </div>
-              <h1 className="text-2xl font-semibold text-gray-900">
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
                 My Ads
               </h1>
             </div>
           </div>
 
           {/* Filter Tabs */}
-          <div className="mb-6 space-y-3">
+          <div className="mb-4 md:mb-6 space-y-4">
             {/* Content Type Filter */}
-            <div className="flex items-center gap-3">
-              <div className="bg-white border border-gray-200 p-1 rounded-lg inline-flex shadow-sm">
-                {([
-                  { value: 'all', label: 'All', icon: ImageIcon },
-                  { value: 'standard', label: 'Standard', icon: ImageIcon },
-                  { value: 'multi-variant', label: 'Multi-Variant', icon: Layers },
-                  { value: 'character', label: 'Character', icon: VideoIcon },
-                  { value: 'watermark-removal', label: 'Sora2 Watermark Removal', icon: Droplets },
-                ] as const).map((opt) => (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs md:text-sm font-medium text-gray-600 px-0.5">Ad Type</span>
+              {/* Mobile quick grid */}
+              <div className="md:hidden grid grid-cols-2 gap-2">
+                {CONTENT_FILTER_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setContentFilter(opt.value)}
-                    className={`h-8 px-2.5 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                      contentFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300',
+                      contentFilter === opt.value
+                        ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                    )}
                   >
-                    <opt.icon className="w-4 h-4" />
-                    <span className="text-xs font-medium">{opt.label}</span>
+                    <opt.icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{opt.label}</span>
                   </button>
                 ))}
+              </div>
+              {/* Desktop segmented control */}
+              <div className="hidden md:block">
+                <div className="bg-white border border-gray-200 p-1 rounded-lg shadow-sm overflow-x-auto -mx-0.5 px-0.5">
+                  <div className="flex gap-1 min-w-max">
+                    {CONTENT_FILTER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setContentFilter(opt.value)}
+                        className={cn(
+                          'h-9 px-3 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer flex-shrink-0 text-xs font-medium',
+                          contentFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
+                        )}
+                      >
+                        <opt.icon className="w-4 h-4 flex-shrink-0" />
+                        <span>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Aspect Ratio Filter */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-600">Video Size:</span>
-              <div className="bg-white border border-gray-200 p-1 rounded-lg inline-flex shadow-sm">
-                {([
-                  { value: 'all', label: 'All Ratios', icon: VideoIcon },
-                  { value: '9:16', label: '9:16 Portrait', icon: Smartphone },
-                  { value: '16:9', label: '16:9 Landscape', icon: Monitor },
-                  { value: '1:1', label: '1:1 Square', icon: Square },
-                ] as const).map((opt) => (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs md:text-sm font-medium text-gray-600 px-0.5">Video Size</span>
+              {/* Mobile quick grid */}
+              <div className="md:hidden grid grid-cols-2 gap-2">
+                {ASPECT_RATIO_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setAspectRatioFilter(opt.value)}
-                    className={`h-8 px-2.5 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                      aspectRatioFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300',
+                      aspectRatioFilter === opt.value
+                        ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                    )}
                   >
-                    <opt.icon className="w-4 h-4" />
-                    <span className="text-xs font-medium">{opt.label}</span>
+                    <opt.icon className="w-4 h-4 flex-shrink-0" />
+                    <div className="flex flex-col items-start leading-tight">
+                      <span>{opt.label}</span>
+                      {opt.shortLabel && (
+                        <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                          {opt.shortLabel}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 ))}
+              </div>
+              {/* Desktop segmented control */}
+              <div className="hidden md:block">
+                <div className="bg-white border border-gray-200 p-1 rounded-lg shadow-sm overflow-x-auto -mx-0.5 px-0.5">
+                  <div className="flex gap-1 min-w-max">
+                    {ASPECT_RATIO_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setAspectRatioFilter(opt.value)}
+                        className={cn(
+                          'h-9 px-3 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer flex-shrink-0 text-xs font-medium',
+                          aspectRatioFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
+                        )}
+                      >
+                        <opt.icon className="w-4 h-4 flex-shrink-0" />
+                        <span className="hidden md:inline">{opt.label}</span>
+                        <span className="md:hidden">{opt.shortLabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Projects Grid */}
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
               {Array.from({ length: 6 }).map((_, index) => (
                 <div key={index} className="bg-white rounded-lg border border-gray-200 overflow-hidden animate-pulse">
                   <div className="aspect-[3/4] bg-gray-200"></div>
-                  <div className="p-4">
-                    <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-3 bg-gray-200 rounded w-3/4 mb-3"></div>
+                  <div className="p-2 md:p-4">
+                    <div className="h-3 md:h-4 bg-gray-200 rounded mb-1.5 md:mb-2"></div>
+                    <div className="h-2.5 md:h-3 bg-gray-200 rounded w-3/4 mb-2 md:mb-3"></div>
                     <div className="flex items-center justify-between">
-                      <div className="h-6 bg-gray-200 rounded w-16"></div>
-                      <div className="h-8 bg-gray-200 rounded w-20"></div>
+                      <div className="h-5 md:h-6 bg-gray-200 rounded w-12 md:w-16"></div>
+                      <div className="h-6 md:h-8 bg-gray-200 rounded w-16 md:w-20"></div>
                     </div>
                   </div>
                 </div>
@@ -829,7 +890,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
                 {currentHistory.map((item) => (
                   <motion.div
                     key={item.id}
@@ -841,18 +902,18 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                     transition={{ duration: 0.4, ease: "easeOut" }}
                     className="relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-all duration-200 hover:shadow-md flex flex-col"
                   >
-                    <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none z-20">
-                      <div className="flex items-center gap-1">
+                    <div className="absolute top-1.5 md:top-3 left-1.5 md:left-3 flex items-center gap-1 md:gap-2 pointer-events-none z-20">
+                      <div className="flex items-center gap-0.5 md:gap-1">
                         <span
                           className={cn(
-                            'px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 pointer-events-auto',
+                            'px-1.5 md:px-2 py-0.5 rounded-full text-[10px] md:text-xs font-semibold flex items-center gap-0.5 md:gap-1 pointer-events-auto',
                             getStatusBadgeClasses(item.status)
                           )}
                         >
                           {getStatusText(item.status)}
                           {item.status === 'failed' && (
                             <div className="group">
-                              <HelpCircle className="w-4 h-4" aria-label="Failed generation details" />
+                              <HelpCircle className="w-3 h-3 md:w-4 md:h-4" aria-label="Failed generation details" />
                               <div className="absolute left-0 right-auto top-full mt-2 w-[calc(100%-0.75rem)] max-w-[16rem] sm:max-w-[18rem] rounded-lg bg-gray-900 text-white text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto z-50 whitespace-normal break-words">
                                 <div className="font-medium mb-2">Generation Failed</div>
                                 <div className="space-y-2 mb-3">
@@ -876,7 +937,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           )}
                         </span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-300`}>
+                      <span className={`px-1.5 md:px-2 py-0.5 rounded-full text-[10px] md:text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-300`}>
                         {isWatermarkRemoval(item)
                           ? 'Sora2 Watermark Removal'
                           : isCharacterAds(item)
@@ -981,17 +1042,17 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                     </div>
 
                     {/* Card Content */}
-                    <div className="p-4 flex-1 flex flex-col">
-                      
+                    <div className="p-2 md:p-4 flex-1 flex flex-col">
+
                       {/* Enhanced metadata display */}
-                      <div className="space-y-2 mb-2">
-                        <div className="flex items-center text-sm text-gray-500 gap-2">
-                          <Clock className="w-4 h-4" />
+                      <div className="space-y-1 md:space-y-2 mb-1 md:mb-2">
+                        <div className="flex items-center text-xs md:text-sm text-gray-500 gap-1 md:gap-2">
+                          <Clock className="w-3 h-3 md:w-4 md:h-4" />
                           <span className="font-medium">
                             {formatDate(item.createdAt)}
                           </span>
-                          <span className="text-gray-300">•</span>
-                          <span className="text-gray-400">
+                          <span className="text-gray-300 hidden md:inline">•</span>
+                          <span className="text-gray-400 hidden md:inline">
                             {formatTime(item.createdAt)}
                           </span>
                         </div>
@@ -1000,21 +1061,21 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
 
                       {/* Bottom action area - pinned to bottom for alignment */}
                       <div className="mt-auto">
-                        <div className="border-t border-gray-200 bg-white -mx-4 -mb-4 px-4 py-3 flex items-center">
+                        <div className="border-t border-gray-200 bg-white -mx-2 md:-mx-4 -mb-2 md:-mb-4 px-2 md:px-4 py-2 md:py-3 flex items-center">
                           {item.status === 'processing' && (
-                            <div className="flex flex-col gap-2 w-full">
+                            <div className="flex flex-col gap-1.5 md:gap-2 w-full">
                               {/* Watermark Removal: Only show processing video button */}
                               {isWatermarkRemoval(item) ? (
                                 <button
                                   disabled
-                                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
+                                  className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
                                 >
-                                  <div className="flex items-center gap-2">
-                                    <Download className="w-4 h-4" />
+                                  <div className="flex items-center gap-1.5 md:gap-2">
+                                    <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                     <span>Processing...</span>
                                   </div>
                                   <div className="flex items-center gap-1 text-gray-500">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
                                   </div>
                                 </button>
                               ) : (
@@ -1024,32 +1085,32 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                     onClick={() => { if ('coverImageUrl' in item && item.coverImageUrl) handleCoverClick(item); }}
                                     disabled={!('coverImageUrl' in item && item.coverImageUrl)}
                                     className={cn(
-                                      'w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg border transition-colors',
+                                      'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm rounded-lg border transition-colors',
                                       'coverImageUrl' in item && item.coverImageUrl
                                         ? 'bg-black text-white hover:bg-gray-800 border-black'
                                         : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
                                     )}
                                   >
-                                    <div className="flex items-center gap-2">
-                                      <ImageIcon className={cn('w-4 h-4', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-white' : 'text-gray-500')} />
+                                    <div className="flex items-center gap-1.5 md:gap-2">
+                                      <ImageIcon className={cn('w-3.5 h-3.5 md:w-4 md:h-4', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-white' : 'text-gray-500')} />
                                       <span>{('coverImageUrl' in item && item.coverImageUrl) ? (coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover') : 'Cover'}</span>
                                     </div>
                                     <div className={cn('flex items-center gap-1', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-green-400' : 'text-gray-500')}>
-                                      <span className="text-xs font-bold">FREE</span>
+                                      <span className="text-[10px] md:text-xs font-bold">FREE</span>
                                     </div>
                                   </button>
 
                                   {/* Video button: always disabled while processing */}
                                   <button
                                     disabled
-                                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
+                                    className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
                                   >
-                                    <div className="flex items-center gap-2">
-                                      <Download className="w-4 h-4" />
+                                    <div className="flex items-center gap-1.5 md:gap-2">
+                                      <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                       <span>Video</span>
                                     </div>
                                     <div className="flex items-center gap-1 text-gray-500">
-                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
                                     </div>
                                   </button>
                                 </>
@@ -1057,16 +1118,16 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                             </div>
                           )}
                           {item.status === 'failed' && (
-                            <div className="flex flex-col gap-2 w-full">
+                            <div className="flex flex-col gap-1.5 md:gap-2 w-full">
                               {/* Watermark Removal & Regular Ads: Show no charge info */}
                               {isWatermarkRemoval(item) ? (
-                                <div className="w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg">
-                                  <div className="flex items-center gap-2.5">
-                                    <RotateCcw className="w-4 h-4 text-gray-600" />
+                                <div className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm border border-gray-300 rounded-lg">
+                                  <div className="flex items-center gap-1.5 md:gap-2.5">
+                                    <RotateCcw className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-600" />
                                     <span className="font-medium text-gray-900">Credits refunded</span>
                                   </div>
-                                  <div className="flex items-center gap-1.5 text-gray-700">
-                                    <Coins className="w-4 h-4" />
+                                  <div className="flex items-center gap-1 md:gap-1.5 text-gray-700">
+                                    <Coins className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                     <span className="font-bold">0</span>
                                   </div>
                                 </div>
@@ -1076,26 +1137,26 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                   {'coverImageUrl' in item && item.coverImageUrl && (
                                     <button
                                       onClick={() => handleCoverClick(item)}
-                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
                                     >
-                                      <div className="flex items-center gap-2">
-                                        <ImageIcon className="w-4 h-4 text-white" />
+                                      <div className="flex items-center gap-1.5 md:gap-2">
+                                        <ImageIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                                         <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
                                       </div>
                                       <div className="flex items-center gap-1 text-green-400">
-                                        <span className="text-xs font-bold">FREE</span>
+                                        <span className="text-[10px] md:text-xs font-bold">FREE</span>
                                       </div>
                                     </button>
                                   )}
 
                                   {/* No charge info */}
-                                  <div className="w-full flex items-center justify-between px-3 py-2.5 text-sm border border-gray-300 rounded-lg">
-                                    <div className="flex items-center gap-2.5">
-                                      <RotateCcw className="w-4 h-4 text-gray-600" />
+                                  <div className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm border border-gray-300 rounded-lg">
+                                    <div className="flex items-center gap-1.5 md:gap-2.5">
+                                      <RotateCcw className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-600" />
                                       <span className="font-medium text-gray-900">No charge</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-gray-700">
-                                      <Coins className="w-4 h-4" />
+                                    <div className="flex items-center gap-1 md:gap-1.5 text-gray-700">
+                                      <Coins className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                       <span className="font-bold">0</span>
                                     </div>
                                   </div>
@@ -1105,7 +1166,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           )}
 
                           {item.status === 'completed' && (
-                            <div className="flex flex-col gap-2 w-full">
+                            <div className="flex flex-col gap-1.5 md:gap-2 w-full">
                               {/* Watermark Removal: Only show video download (free) */}
                               {isWatermarkRemoval(item) ? (
                                 <>
@@ -1114,27 +1175,37 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                       href={item.originalVideoUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
                                     >
-                                      <div className="flex items-center gap-2">
-                                        <Play className="w-4 h-4" />
-                                        <span>Open Original Video</span>
+                                      <div className="flex items-center gap-1.5 md:gap-2">
+                                        <Play className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                        <span className="truncate">
+                                          <span className="md:hidden">Original</span>
+                                          <span className="hidden md:inline">Open Original Video</span>
+                                        </span>
                                       </div>
-                                      <ArrowUpRight className="w-4 h-4 text-gray-600" />
+                                      <ArrowUpRight className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-600 flex-shrink-0" />
                                     </a>
                                   )}
                                   {item.videoUrl && (
                                     <button
                                       onClick={() => handleVideoClick(item)}
                                       disabled={videoStates[item.id] === 'packing'}
-                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
                                     >
-                                      <div className="flex items-center gap-2">
-                                        <Download className="w-4 h-4 text-white" />
-                                        <span>{videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Download Watermark-Free Video'}</span>
+                                      <div className="flex items-center gap-1.5 md:gap-2">
+                                        <Download className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
+                                        <span className="truncate">
+                                          {videoStates[item.id] ? getPackingText(videoStates[item.id]!) : (
+                                            <>
+                                              <span className="md:hidden">No Watermark</span>
+                                              <span className="hidden md:inline">Download Watermark-Free Video</span>
+                                            </>
+                                          )}
+                                        </span>
                                       </div>
-                                      <div className="flex items-center gap-1 text-green-400">
-                                        <span className="text-xs font-bold">FREE</span>
+                                      <div className="flex items-center gap-1 text-green-400 flex-shrink-0">
+                                        <span className="text-[10px] md:text-xs font-bold">FREE</span>
                                       </div>
                                     </button>
                                   )}
@@ -1145,14 +1216,14 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                   {'coverImageUrl' in item && item.coverImageUrl && (
                                     <button
                                       onClick={() => handleCoverClick(item)}
-                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
                                     >
-                                      <div className="flex items-center gap-2">
-                                        <ImageIcon className="w-4 h-4 text-white" />
+                                      <div className="flex items-center gap-1.5 md:gap-2">
+                                        <ImageIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                                         <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
                                       </div>
                                       <div className="flex items-center gap-1 text-green-400">
-                                        <span className="text-xs font-bold">FREE</span>
+                                        <span className="text-[10px] md:text-xs font-bold">FREE</span>
                                       </div>
                                     </button>
                                   )}
@@ -1162,30 +1233,30 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                     <button
                                       onClick={() => handleVideoClick(item)}
                                       disabled={videoStates[item.id] === 'packing'}
-                                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
                                     >
-                                      <div className="flex items-center gap-2">
-                                        <Download className="w-4 h-4" />
+                                      <div className="flex items-center gap-1.5 md:gap-2">
+                                        <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                         <span>{videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Video'}</span>
                                       </div>
                                       {videoStates[item.id] === 'packing' ? (
-                                        <div className="flex items-center gap-1.5 text-gray-600">
-                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        <div className="flex items-center gap-1 md:gap-1.5 text-gray-600">
+                                          <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
                                         </div>
                                       ) : item.downloaded ? (
-                                        <div className="flex items-center gap-1.5 text-green-600">
-                                          <Check className="w-4 h-4" />
-                                          <span className="text-xs font-semibold">Downloaded</span>
+                                        <div className="flex items-center gap-1 md:gap-1.5 text-green-600">
+                                          <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                          <span className="text-[10px] md:text-xs font-semibold">Downloaded</span>
                                         </div>
                                       ) : (
-                                        <div className="flex items-center gap-1.5 text-gray-800">
+                                        <div className="flex items-center gap-1 md:gap-1.5 text-gray-800">
                                           {(() => {
                                             // Check if VEO3 prepaid (credits already deducted at generation)
                                             const isPrepaid = (item.generationCreditsUsed || 0) > 0;
 
                                             if (isPrepaid) {
                                               return (
-                                                <span className="text-xs font-bold text-green-600">Prepaid</span>
+                                                <span className="text-[10px] md:text-xs font-bold text-green-600">Prepaid</span>
                                               );
                                             }
 
@@ -1200,7 +1271,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                             }
                                             return (
                                               <>
-                                                <Coins className="w-4 h-4" />
+                                                <Coins className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                                 <span className="font-bold">{cost}</span>
                                               </>
                                             );
