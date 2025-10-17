@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, ArrowUpRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, ArrowUpRight, Smartphone, Monitor, Square } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -30,6 +30,7 @@ interface StandardAdsItem {
   progress?: number;
   currentStep?: string;
   adType: 'standard';
+  videoAspectRatio?: string;
 }
 
 interface MultiVariantAdsItem {
@@ -50,6 +51,7 @@ interface MultiVariantAdsItem {
   currentStep?: string;
   adType: 'multi-variant';
   elementsData?: Record<string, unknown>;
+  videoAspectRatio?: string;
 }
 
 
@@ -69,6 +71,7 @@ interface CharacterAdsItem {
   currentStep?: string;
   adType: 'character';
   videoDurationSeconds?: number;
+  videoAspectRatio?: string;
 }
 
 interface WatermarkRemovalItem {
@@ -112,6 +115,8 @@ export default function HistoryPage() {
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   // Content filter simplified: only video ads types remain
   const [contentFilter, setContentFilter] = useState<'all' | 'standard' | 'multi-variant' | 'character' | 'watermark-removal'>('all');
+  // Aspect ratio filter for video dimensions
+  const [aspectRatioFilter, setAspectRatioFilter] = useState<'all' | '9:16' | '16:9' | '1:1'>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -127,6 +132,19 @@ export default function HistoryPage() {
   const [videoStates, setVideoStates] = useState<Record<string, 'packing' | 'done' | null>>({});
   // Removed YouTube thumbnail transient state
 
+  // Helper function to get aspect ratio class
+  const getAspectRatioClass = (aspectRatio?: string) => {
+    switch (aspectRatio) {
+      case '16:9':
+        return 'aspect-[16/9]';
+      case '1:1':
+        return 'aspect-square';
+      case '9:16':
+      default:
+        return 'aspect-[9/16]';
+    }
+  };
+
 
   // Memoized filtered history for better performance
   const filteredHistory = useMemo(() => {
@@ -138,9 +156,16 @@ export default function HistoryPage() {
         (contentFilter === 'multi-variant' && isMultiVariantAds(item)) ||
         (contentFilter === 'character' && isCharacterAds(item)) ||
         (contentFilter === 'watermark-removal' && isWatermarkRemoval(item));
-      return contentMatch;
+
+      // Aspect ratio filter
+      const aspectRatioMatch =
+        aspectRatioFilter === 'all' ||
+        (isWatermarkRemoval(item)) || // Watermark removal items don't have aspect ratio, show them always
+        ('videoAspectRatio' in item && item.videoAspectRatio === aspectRatioFilter);
+
+      return contentMatch && aspectRatioMatch;
     });
-  }, [history, contentFilter]);
+  }, [history, contentFilter, aspectRatioFilter]);
 
   // Memoized pagination calculations
   const { totalPages, currentHistory } = useMemo(() => {
@@ -263,7 +288,7 @@ export default function HistoryPage() {
   // Reset to first page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [contentFilter]);
+  }, [contentFilter, aspectRatioFilter]);
 
   // Loading state
   if (!isLoaded) {
@@ -720,9 +745,9 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
           </div>
 
           {/* Filter Tabs */}
-          <div className="mb-6">
+          <div className="mb-6 space-y-3">
+            {/* Content Type Filter */}
             <div className="flex items-center gap-3">
-              {/* Content Type Filter (Discover-like) */}
               <div className="bg-white border border-gray-200 p-1 rounded-lg inline-flex shadow-sm">
                 {([
                   { value: 'all', label: 'All', icon: ImageIcon },
@@ -736,6 +761,30 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                     onClick={() => setContentFilter(opt.value)}
                     className={`h-8 px-2.5 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
                       contentFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <opt.icon className="w-4 h-4" />
+                    <span className="text-xs font-medium">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Aspect Ratio Filter */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-600">Video Size:</span>
+              <div className="bg-white border border-gray-200 p-1 rounded-lg inline-flex shadow-sm">
+                {([
+                  { value: 'all', label: 'All Ratios', icon: VideoIcon },
+                  { value: '9:16', label: '9:16 Portrait', icon: Smartphone },
+                  { value: '16:9', label: '16:9 Landscape', icon: Monitor },
+                  { value: '1:1', label: '1:1 Square', icon: Square },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setAspectRatioFilter(opt.value)}
+                    className={`h-8 px-2.5 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                      aspectRatioFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
                     }`}
                   >
                     <opt.icon className="w-4 h-4" />
@@ -839,18 +888,23 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                       </span>
                     </div>
                     {/* Video Preview on Hover */}
-                    <div 
-                      className="relative bg-white"
-                      onMouseEnter={() => {
-                        if (!isWatermarkRemoval(item) && item.status === 'completed' && item.videoUrl) {
-                          setHoveredVideo(item.id);
-                        }
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredVideo(null);
-                      }}
+                    <div
+                      className="relative bg-black overflow-hidden"
                     >
-                      <div className="aspect-[3/4] bg-white relative overflow-hidden">
+                      <div
+                        className={cn(
+                          "w-full bg-black relative flex items-center justify-center",
+                          getAspectRatioClass('videoAspectRatio' in item ? item.videoAspectRatio : '9:16')
+                        )}
+                        onMouseEnter={() => {
+                          if (!isWatermarkRemoval(item) && item.status === 'completed' && item.videoUrl) {
+                            setHoveredVideo(item.id);
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          setHoveredVideo(null);
+                        }}
+                      >
                         {
                           // Watermark removal cards show a static placeholder to match layout
                           isWatermarkRemoval(item) ? (
@@ -867,7 +921,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           hoveredVideo === item.id ? (
                             <VideoPlayer
                               src={item.videoUrl}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                               autoPlay={true}
                               loop={true}
                               playsInline={true}
@@ -879,7 +933,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                               alt="Generated cover"
                               width={400}
                               height={300}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                             />
                           ) : 'originalImageUrl' in item && item.originalImageUrl ? (
                             <Image
@@ -887,7 +941,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                               alt="Original product"
                               width={400}
                               height={300}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                             />
                           ) : (
                             <Image
@@ -895,7 +949,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                               alt="Placeholder"
                               width={400}
                               height={300}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                             />
                           )
                         }

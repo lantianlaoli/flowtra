@@ -30,6 +30,57 @@ export function useVideoAudio({ videoRef }: UseVideoAudioOptions) {
     };
   }, []);
 
+  // Auto-enable audio when video element is ready and user has interacted
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    const video = videoRef.current;
+
+    const tryEnableAudio = () => {
+      if (!video) return;
+
+      // If user hasn't interacted yet, show the click prompt
+      if (!userHasInteracted) {
+        setNeedsClickToEnable(true);
+        return;
+      }
+
+      try {
+        video.muted = false;
+        const playPromise = video.play?.();
+        if (playPromise && typeof playPromise.then === 'function') {
+          playPromise
+            .then(() => {
+              setAudioEnabled(true);
+              setNeedsClickToEnable(false);
+            })
+            .catch(() => {
+              setAudioEnabled(false);
+              setNeedsClickToEnable(true);
+            });
+        } else {
+          setAudioEnabled(true);
+          setNeedsClickToEnable(false);
+        }
+      } catch (error) {
+        console.warn('Failed to auto-enable audio:', error);
+        setNeedsClickToEnable(true);
+        setAudioEnabled(false);
+      }
+    };
+
+    // Try to enable audio once metadata is loaded
+    if (video.readyState >= 1) {
+      tryEnableAudio();
+    } else {
+      video.addEventListener('loadedmetadata', tryEnableAudio, { once: true });
+    }
+
+    return () => {
+      video.removeEventListener('loadedmetadata', tryEnableAudio);
+    };
+  }, [videoRef, userHasInteracted]);
+
   const handleHover = useCallback(() => {
     setIsHovered(true);
     if (!videoRef.current) return;

@@ -22,6 +22,7 @@ interface StandardAdsItem {
   progress?: number;
   currentStep?: string;
   adType: 'standard';
+  videoAspectRatio?: string;
 }
 
 interface MultiVariantAdsItem {
@@ -42,6 +43,7 @@ interface MultiVariantAdsItem {
   currentStep?: string;
   adType: 'multi-variant';
   elementsData?: Record<string, unknown>;
+  videoAspectRatio?: string;
 }
 
 interface CharacterAdsItem {
@@ -60,6 +62,7 @@ interface CharacterAdsItem {
   currentStep?: string;
   adType: 'character';
   videoDurationSeconds?: number;
+  videoAspectRatio?: string;
 }
 
 interface WatermarkRemovalItem {
@@ -180,7 +183,8 @@ export async function GET() {
       createdAt: item.created_at,
       progress: item.progress_percentage,
       currentStep: item.current_step,
-      adType: 'standard'
+      adType: 'standard',
+      videoAspectRatio: item.video_aspect_ratio || '9:16'
     }));
 
     // Transform Multi-Variant Ads data
@@ -227,7 +231,8 @@ export async function GET() {
         progress: (instance.progress_percentage as number | null) ?? 0,
         currentStep: instance.current_step,
         adType: 'multi-variant',
-        elementsData: instance.elements_data || undefined
+        elementsData: instance.elements_data || undefined,
+        videoAspectRatio: '9:16' // Multi-variant always uses 9:16
       };
     });
 
@@ -270,7 +275,8 @@ export async function GET() {
           progress: item.progress_percentage,
           currentStep: item.current_step,
           adType: 'character',
-          videoDurationSeconds: item.video_duration_seconds
+          videoDurationSeconds: item.video_duration_seconds,
+          videoAspectRatio: item.video_aspect_ratio || '9:16'
         };
       });
 
