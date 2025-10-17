@@ -3,10 +3,10 @@
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import ProductManager from '@/components/ProductManager';
-import { Package } from 'lucide-react';
+import AssetsManager from '@/components/AssetsManager';
+import { Boxes } from 'lucide-react';
 
-export default function ProductsPage() {
+export default function AssetsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
 
@@ -28,16 +28,19 @@ export default function ProductsPage() {
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Package className="w-4 h-4 text-gray-700" />
+                <Boxes className="w-4 h-4 text-gray-700" />
               </div>
               <h1 className="text-2xl font-semibold text-gray-900">
-                My Products
+                Assets
               </h1>
             </div>
+            <p className="text-gray-600">
+              Manage your brands and products in one unified place
+            </p>
           </div>
 
-          {/* Product Manager */}
-          <ProductManager />
+          {/* Assets Manager */}
+          <AssetsManager />
         </div>
       </div>
     </div>

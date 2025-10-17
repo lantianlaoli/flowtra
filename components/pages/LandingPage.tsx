@@ -364,7 +364,7 @@ export default function LandingPage() {
               <li className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5 max-w-full">
                 <Check className="w-4 h-4 text-green-600" />
                 <span className="break-words">
-                  Videos: <span className="font-semibold underline">unlimited</span> generation; each video is worth ~$0.54 (
+                  Videos: <span className="font-semibold underline">unlimited</span> generation;download each video is worth ~$0.54 (
                   <span className="font-semibold underline">no watermark</span>)
                 </span>
               </li>

@@ -13,7 +13,7 @@ import {
   Play,
   Layers,
   Video,
-  Package,
+  Boxes,
   Menu,
   X,
   Eraser
@@ -60,9 +60,9 @@ const navigation = [
     icon: Play
   },
   {
-    name: 'My Products',
-    href: '/dashboard/products',
-    icon: Package
+    name: 'Assets',
+    href: '/dashboard/assets',
+    icon: Boxes
   },
   {
     name: 'Account',

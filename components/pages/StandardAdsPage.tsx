@@ -21,7 +21,7 @@ import ShowcaseSection from '@/components/ui/ShowcaseSection';
 import { useRouter } from 'next/navigation';
 import { canAffordModel, CREDIT_COSTS } from '@/lib/constants';
 import { AnimatePresence, motion } from 'framer-motion';
-import { UserProduct } from '@/lib/supabase';
+import { UserProduct, UserBrand } from '@/lib/supabase';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -50,6 +50,7 @@ export default function StandardAdsPage() {
   const [imageSize, setImageSize] = useState('auto');
   const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
+  const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
   const [adCopy, setAdCopy] = useState('');
   const [isGeneratingAdCopy, setIsGeneratingAdCopy] = useState(false);
@@ -296,19 +297,34 @@ export default function StandardAdsPage() {
         watermarkConfig,
         elementsCount,
         imageSize,
-        shouldGenerateVideo
+        shouldGenerateVideo,
+        selectedBrand?.id
       );
     } else if (selectedProduct) {
       // Use selected product for workflow
-      await startWorkflowWithSelectedProduct(selectedProduct.id, watermarkConfig, elementsCount, imageSize, shouldGenerateVideo);
+      await startWorkflowWithSelectedProduct(
+        selectedProduct.id,
+        watermarkConfig,
+        elementsCount,
+        imageSize,
+        shouldGenerateVideo,
+        selectedBrand?.id
+      );
     } else {
-      await startWorkflowWithConfig(watermarkConfig, elementsCount, imageSize, shouldGenerateVideo);
+      await startWorkflowWithConfig(
+        watermarkConfig,
+        elementsCount,
+        imageSize,
+        shouldGenerateVideo,
+        selectedBrand?.id
+      );
     }
   };
 
   const handleResetWorkflow = () => {
     resetWorkflow();
     setSelectedProduct(null);
+    setSelectedBrand(null);
     setShowProductManager(false);
     setAdCopy('');
     setHasAIGeneratedAdCopy(false);
@@ -396,7 +412,7 @@ export default function StandardAdsPage() {
                 </div>
               </div>
 
-              {/* Product Selection */}
+              {/* Product Selection (with integrated brand selection) */}
               <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Package className="w-5 h-5 text-gray-700" />
@@ -405,6 +421,10 @@ export default function StandardAdsPage() {
                 <ProductSelector
                   selectedProduct={selectedProduct}
                   onProductSelect={setSelectedProduct}
+                  selectedBrand={selectedBrand}
+                  onBrandSelect={setSelectedBrand}
+                  videoModel={selectedModel}
+                  shouldGenerateVideo={shouldGenerateVideo}
                 />
               </div>
             </div>

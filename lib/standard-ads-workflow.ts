@@ -6,6 +6,7 @@ import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/cred
 export interface StartWorkflowRequest {
   imageUrl?: string;
   selectedProductId?: string;
+  selectedBrandId?: string; // NEW: Brand selection for ending frame
   userId: string;
   videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   imageModel?: 'auto' | 'nano_banana' | 'seedream';
@@ -153,6 +154,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         user_id: request.userId,
         original_image_url: imageUrl,
         selected_product_id: request.selectedProductId,
+        selected_brand_id: request.selectedBrandId, // NEW: Brand selection
         video_model: actualVideoModel,
         video_aspect_ratio: request.videoAspectRatio || '16:9',
         status: 'processing',
@@ -322,6 +324,74 @@ async function describeImage(imageUrl: string): Promise<string> {
 
 async function generateCreativePrompts(description: string, adCopy?: string): Promise<Record<string, unknown>> {
   const trimmedAdCopy = adCopy?.trim();
+
+  // Define JSON schema for Structured Outputs
+  const responseFormat = {
+    type: "json_schema",
+    json_schema: {
+      name: "video_advertisement_schema",
+      strict: true,
+      schema: {
+        type: "object",
+        properties: {
+          description: {
+            type: "string",
+            description: "Main scene description"
+          },
+          setting: {
+            type: "string",
+            description: "Location/environment"
+          },
+          camera_type: {
+            type: "string",
+            description: "Type of camera shot"
+          },
+          camera_movement: {
+            type: "string",
+            description: "Camera movement style"
+          },
+          action: {
+            type: "string",
+            description: "What happens in the scene"
+          },
+          lighting: {
+            type: "string",
+            description: "Lighting setup"
+          },
+          dialogue: {
+            type: "string",
+            description: "Spoken content/voiceover"
+          },
+          music: {
+            type: "string",
+            description: "Music style"
+          },
+          ending: {
+            type: "string",
+            description: "How the ad concludes"
+          },
+          other_details: {
+            type: "string",
+            description: "Additional creative elements"
+          }
+        },
+        required: [
+          "description",
+          "setting",
+          "camera_type",
+          "camera_movement",
+          "action",
+          "lighting",
+          "dialogue",
+          "music",
+          "ending",
+          "other_details"
+        ],
+        additionalProperties: false
+      }
+    }
+  };
+
   const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -330,6 +400,7 @@ async function generateCreativePrompts(description: string, adCopy?: string): Pr
     },
     body: JSON.stringify({
       model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001',
+      response_format: responseFormat,
       messages: [
         {
           role: 'user',
@@ -346,71 +417,32 @@ Generate a creative video advertisement prompt with these elements:
 - music: Music style
 - ending: How the ad concludes
 - other_details: Additional creative elements
-${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline. Do not paraphrase: "${trimmedAdCopy}".` : ''}
-
-Return as JSON format.`
+${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline. Do not paraphrase: "${trimmedAdCopy}".` : ''}`
         }
       ]
     })
   }, 3, 30000);
 
   if (!response.ok) {
-    throw new Error(`Prompt generation failed: ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(`Prompt generation failed: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
   const content = data.choices[0].message.content;
 
+  // With Structured Outputs, the response is guaranteed to match our schema
+  let parsed: Record<string, unknown>;
+
   try {
-    // First, try to extract JSON from markdown code blocks if present
-    let jsonContent = content;
+    parsed = JSON.parse(content);
+  } catch (parseError) {
+    console.error('Failed to parse structured output:', parseError);
+    console.error('Content received:', content);
 
-    // Check if content contains markdown JSON code block
-    const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonBlockMatch) {
-      jsonContent = jsonBlockMatch[1];
-    }
-
-    let parsed = JSON.parse(jsonContent);
-
-    // Handle nested structure from OpenRouter (e.g., {video_advertisement_prompt: {...}})
-    if (parsed.video_advertisement_prompt && typeof parsed.video_advertisement_prompt === 'object') {
-      parsed = parsed.video_advertisement_prompt;
-    }
-
-    // Ensure description is a simple string, not JSON content
-    if (parsed.description && typeof parsed.description === 'string') {
-      // If description contains JSON markers or is too complex, simplify it
-      if (parsed.description.includes('```json') || parsed.description.includes('{')) {
-        parsed.description = parsed.description.replace(/```json\s*[\s\S]*?\s*```/g, '')
-                                            .replace(/\{[\s\S]*?\}/g, '')
-                                            .replace(/\s+/g, ' ')
-                                            .trim();
-
-        // If after cleaning, description is empty or too short, provide a default
-        if (!parsed.description || parsed.description.length < 10) {
-          parsed.description = "Professional product showcase in modern setting";
-        }
-      }
-    }
-
-    if (trimmedAdCopy) {
-      parsed.dialogue = trimmedAdCopy;
-      parsed.ad_copy = trimmedAdCopy;
-      parsed.tagline = trimmedAdCopy;
-    }
-    return parsed;
-  } catch {
-    // If JSON parsing fails, create a structured response
-    // Clean the content to ensure it's a simple string description
-    const cleanDescription = content.replace(/```json\s*[\s\S]*?\s*```/g, '')
-                                     .replace(/\{[\s\S]*?\}/g, '')
-                                     .replace(/\s+/g, ' ')
-                                     .trim()
-                                     .substring(0, 200); // Limit length
-    
-    const fallback = {
-      description: cleanDescription || "Professional product showcase in modern setting",
+    // Fallback (should rarely happen with Structured Outputs)
+    parsed = {
+      description: "Professional product showcase in modern setting",
       setting: "Professional studio",
       camera_type: "Close-up",
       camera_movement: "Smooth pan",
@@ -421,12 +453,16 @@ Return as JSON format.`
       ending: "Call to action",
       other_details: "High-quality commercial style"
     };
-    if (trimmedAdCopy) {
-      (fallback as Record<string, unknown>).ad_copy = trimmedAdCopy;
-      (fallback as Record<string, unknown>).tagline = trimmedAdCopy;
-    }
-    return fallback;
   }
+
+  // Override dialogue with adCopy if provided
+  if (trimmedAdCopy) {
+    parsed.dialogue = trimmedAdCopy;
+    parsed.ad_copy = trimmedAdCopy;
+    parsed.tagline = trimmedAdCopy;
+  }
+
+  return parsed;
 }
 
 async function generateCover(imageUrl: string, prompts: Record<string, unknown>, request: StartWorkflowRequest): Promise<string> {
@@ -574,5 +610,103 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
     throw new Error(data.msg || 'Failed to generate cover');
   }
 
+  return data.data.taskId;
+}
+
+// NEW: Generate brand ending frame for video末帧
+export async function generateBrandEndingFrame(
+  brandId: string,
+  productImageUrl: string,
+  aspectRatio: '16:9' | '9:16',
+  imageModel?: 'nano_banana' | 'seedream'
+): Promise<string> {
+  const supabase = getSupabaseAdmin();
+
+  // Fetch brand data
+  const { data: brand, error: brandError } = await supabase
+    .from('user_brands')
+    .select('*')
+    .eq('id', brandId)
+    .single();
+
+  if (brandError || !brand) {
+    throw new Error(`Brand not found: ${brandError?.message || 'Unknown error'}`);
+  }
+
+  // Determine image model to use
+  const actualImageModel = imageModel || 'nano_banana';
+  const kieModelName = IMAGE_MODELS[actualImageModel];
+
+  // Build brand ending frame prompt - combining product and brand
+  const prompt = `Create a professional brand ending frame for video advertisement by combining the product image and brand logo provided.
+
+Brand Information:
+- Brand Name: ${brand.brand_name}
+${brand.brand_slogan ? `- Brand Slogan: "${brand.brand_slogan}"` : ''}
+
+Design Requirements:
+- Reference both the product image (first image) and brand logo (second image)
+- Create a cohesive ending frame that showcases the product with prominent brand identity
+- Position the brand logo strategically (bottom-third, corner, or integrated into the design)
+${brand.brand_slogan ? `- Display "${brand.brand_slogan}" in elegant, readable typography` : ''}
+- Maintain the product's visual appeal from the first image
+- Professional composition that combines product showcase with brand elements
+- Clean, premium aesthetic suitable for video conclusion
+- Aspect ratio: ${aspectRatio}
+- Style: Modern, polished, memorable brand impression
+- Ensure brand logo is clearly visible and recognizable
+- Balance between product visibility and brand prominence
+- High contrast for readability
+- Professional color scheme that complements both product and brand identity`;
+
+  // Map aspect ratio to KIE image size format
+  let imageSize: string;
+  if (actualImageModel === 'nano_banana') {
+    imageSize = aspectRatio; // nano_banana uses "16:9" or "9:16" directly
+  } else {
+    // seedream uses portrait_16_9 or landscape_16_9
+    imageSize = aspectRatio === '9:16' ? 'portrait_16_9' : 'landscape_16_9';
+  }
+
+  const requestBody = {
+    model: kieModelName,
+    input: {
+      prompt: prompt,
+      image_urls: [productImageUrl, brand.brand_logo_url], // Product image + brand logo
+      output_format: "png",
+      ...(actualImageModel === 'nano_banana'
+        ? { image_size: imageSize }
+        : { image_size: imageSize }
+      )
+    }
+  };
+
+  console.log('🎨 Generating brand ending frame for brand:', brand.brand_name);
+  console.log('🖼️  Product image:', productImageUrl);
+  console.log('🏷️  Brand logo:', brand.brand_logo_url);
+  console.log('📋 Request body:', JSON.stringify(requestBody, null, 2));
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody)
+  }, 5, 30000);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Brand ending frame generation failed:', response.status, errorText);
+    throw new Error(`Brand ending frame generation failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (data.code !== 200) {
+    throw new Error(data.msg || 'Failed to generate brand ending frame');
+  }
+
+  console.log('✅ Brand ending frame task created:', data.data.taskId);
   return data.data.taskId;
 }

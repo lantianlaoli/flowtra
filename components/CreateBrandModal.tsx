@@ -1,41 +1,40 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Package, Upload, Loader2 } from 'lucide-react';
+import { X, Tag, Upload, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { UserProduct } from '@/lib/supabase';
+import { UserBrand } from '@/lib/supabase';
 
-interface CreateProductModalProps {
+interface CreateBrandModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onProductCreated: (product: UserProduct) => void;
-  preselectedBrandId?: string | null;
+  onBrandCreated: (brand: UserBrand) => void;
 }
 
-export default function CreateProductModal({
+export default function CreateBrandModal({
   isOpen,
   onClose,
-  onProductCreated,
-  preselectedBrandId = null
-}: CreateProductModalProps) {
-  const [productName, setProductName] = useState('');
+  onBrandCreated
+}: CreateBrandModalProps) {
+  const [brandName, setBrandName] = useState('');
+  const [brandSlogan, setBrandSlogan] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
 
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      setProductName('');
+      setBrandName('');
+      setBrandSlogan('');
+      setLogoFile(null);
+      setLogoPreview(null);
       setError(null);
-      setUploadedImage(null);
-      setImagePreview(null);
       // Auto focus input after modal animation
       setTimeout(() => {
-        const input = document.querySelector('#product-name-input') as HTMLInputElement;
+        const input = document.querySelector('#brand-name-input') as HTMLInputElement;
         if (input) input.focus();
       }, 150);
     }
@@ -44,31 +43,46 @@ export default function CreateProductModal({
   // Handle ESC key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && !isCreating) {
         onClose();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+  }, [isOpen, isCreating, onClose]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setUploadedImage(file);
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setError('Please upload an image file');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Logo file size must be less than 5MB');
+        return;
+      }
+      setLogoFile(file);
       const reader = new FileReader();
       reader.onload = () => {
-        setImagePreview(reader.result as string);
+        setLogoPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+      setError(null);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!productName.trim()) {
-      setError('Product name is required');
+
+    if (!brandName.trim()) {
+      setError('Brand name is required');
+      return;
+    }
+
+    if (!logoFile) {
+      setError('Brand logo is required');
       return;
     }
 
@@ -76,55 +90,36 @@ export default function CreateProductModal({
     setError(null);
 
     try {
-      // First create the product
-      const response = await fetch('/api/user-products', {
+      const formData = new FormData();
+      formData.append('brand_name', brandName.trim());
+      if (brandSlogan.trim()) {
+        formData.append('brand_slogan', brandSlogan.trim());
+      }
+      formData.append('logo', logoFile);
+
+      const response = await fetch('/api/user-brands', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_name: productName.trim(),
-          brand_id: preselectedBrandId
-        })
+        body: formData
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create product');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create brand');
       }
 
       const data = await response.json();
-      const newProduct = data.product;
-
-      // If there's an uploaded image, upload it as the first photo
-      if (uploadedImage) {
-        setIsUploading(true);
-        const formData = new FormData();
-        formData.append('file', uploadedImage);
-        formData.append('is_primary', 'true');
-
-        const photoResponse = await fetch(`/api/user-products/${newProduct.id}/photos`, {
-          method: 'POST',
-          body: formData
-        });
-
-        if (photoResponse.ok) {
-          const photoData = await photoResponse.json();
-          // Update the product with the uploaded photo
-          newProduct.user_product_photos = [photoData.photo];
-        }
-      }
-
-      onProductCreated(newProduct);
+      onBrandCreated(data.brand);
       onClose();
     } catch (error) {
-      console.error('Error creating product:', error);
-      setError('Failed to create product. Please try again.');
+      console.error('Error creating brand:', error);
+      setError(error instanceof Error ? error.message : 'Failed to create brand. Please try again.');
     } finally {
       setIsCreating(false);
-      setIsUploading(false);
     }
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget && !isCreating) {
       onClose();
     }
   };
@@ -160,11 +155,11 @@ export default function CreateProductModal({
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-                  <Package className="w-4 h-4 text-white" />
+                  <Tag className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Create New Product</h3>
-                  <p className="text-sm text-gray-600">Enter your product name to get started</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Create New Brand</h3>
+                  <p className="text-sm text-gray-600">Add a brand with logo and slogan</p>
                 </div>
               </div>
               <button
@@ -178,46 +173,62 @@ export default function CreateProductModal({
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Product Name Input */}
+              {/* Brand Name Input */}
               <div>
-                <label htmlFor="product-name-input" className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Name *
+                <label htmlFor="brand-name-input" className="block text-sm font-medium text-gray-700 mb-2">
+                  Brand Name *
                 </label>
                 <input
-                  id="product-name-input"
+                  id="brand-name-input"
                   type="text"
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors"
-                  placeholder="Enter product name"
+                  placeholder="Enter brand name"
                   disabled={isCreating}
                   maxLength={100}
                 />
-                {error && (
-                  <p className="mt-1 text-sm text-red-600">{error}</p>
-                )}
               </div>
 
-              {/* Optional Image Upload */}
+              {/* Brand Slogan Input */}
+              <div>
+                <label htmlFor="brand-slogan-input" className="block text-sm font-medium text-gray-700 mb-2">
+                  Brand Slogan (Optional)
+                </label>
+                <input
+                  id="brand-slogan-input"
+                  type="text"
+                  value={brandSlogan}
+                  onChange={(e) => setBrandSlogan(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors"
+                  placeholder="Enter brand slogan"
+                  disabled={isCreating}
+                  maxLength={200}
+                />
+              </div>
+
+              {/* Logo Upload */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Image (Optional)
+                  Brand Logo *
                 </label>
                 <div className="space-y-3">
-                  {imagePreview ? (
+                  {logoPreview ? (
                     <div className="relative">
-                      <Image
-                        src={imagePreview}
-                        alt="Product preview"
-                        width={400}
-                        height={128}
-                        className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                      />
+                      <div className="w-full h-32 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center p-4">
+                        <Image
+                          src={logoPreview}
+                          alt="Brand logo preview"
+                          width={200}
+                          height={200}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
-                          setUploadedImage(null);
-                          setImagePreview(null);
+                          setLogoFile(null);
+                          setLogoPreview(null);
                         }}
                         className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
                         disabled={isCreating}
@@ -230,19 +241,24 @@ export default function CreateProductModal({
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={handleImageUpload}
+                        onChange={handleLogoUpload}
                         className="hidden"
                         disabled={isCreating}
                       />
                       <div className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-gray-400 cursor-pointer transition-colors">
                         <Upload className="w-6 h-6 text-gray-400 mb-2" />
-                        <p className="text-sm text-gray-600">Click to upload image</p>
-                        <p className="text-xs text-gray-500">PNG, JPG up to 8MB</p>
+                        <p className="text-sm text-gray-600">Click to upload logo</p>
+                        <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
                       </div>
                     </label>
                   )}
                 </div>
               </div>
+
+              {/* Error Message */}
+              {error && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4">
@@ -256,16 +272,13 @@ export default function CreateProductModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={isCreating || !productName.trim()}
+                  disabled={isCreating || !brandName.trim() || !logoFile}
                   className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {isCreating && (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   )}
-                  {isCreating
-                    ? (isUploading ? 'Uploading...' : 'Creating...')
-                    : 'Create Product'
-                  }
+                  {isCreating ? 'Creating...' : 'Create Brand'}
                 </button>
               </div>
             </form>

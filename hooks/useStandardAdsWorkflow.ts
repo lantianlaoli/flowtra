@@ -279,7 +279,7 @@ export const useStandardAdsWorkflow = (
     currentElementsCount?: number,
     currentImageSize?: string,
     generateVideo?: boolean,
-    currentVideoAspectRatio?: '16:9' | '9:16'
+    selectedBrandId?: string
   ) => {
     const previousStatus = state.workflowStatus;
 
@@ -306,8 +306,9 @@ export const useStandardAdsWorkflow = (
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,
-        videoAspectRatio: currentVideoAspectRatio ?? videoAspectRatio,
-        adCopy: adCopy?.trim() ? adCopy.trim() : undefined
+        videoAspectRatio: videoAspectRatio,
+        adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
+        selectedBrandId: selectedBrandId
       };
 
       console.log('🔍 useWorkflow startWorkflowWithSelectedProduct requestData:', requestData);
@@ -372,7 +373,7 @@ export const useStandardAdsWorkflow = (
     currentElementsCount?: number,
     currentImageSize?: string,
     generateVideo?: boolean,
-    currentVideoAspectRatio?: '16:9' | '9:16'
+    selectedBrandId?: string
   ) => {
     if (!state.data.uploadedFile?.url || !state.data.uploadedFile?.path) {
       setError('No uploaded file found');
@@ -405,8 +406,9 @@ export const useStandardAdsWorkflow = (
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,
-        videoAspectRatio: currentVideoAspectRatio ?? videoAspectRatio,
-        adCopy: adCopy?.trim() ? adCopy.trim() : undefined
+        videoAspectRatio: videoAspectRatio,
+        adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
+        selectedBrandId: selectedBrandId
       };
 
       console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
@@ -472,7 +474,7 @@ export const useStandardAdsWorkflow = (
     currentElementsCount?: number,
     currentImageSize?: string,
     generateVideo?: boolean,
-    currentVideoAspectRatio?: '16:9' | '9:16'
+    selectedBrandId?: string
   ) => {
     const previousStatus = state.workflowStatus;
 
@@ -518,8 +520,9 @@ export const useStandardAdsWorkflow = (
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,
-        videoAspectRatio: currentVideoAspectRatio ?? videoAspectRatio,
-        adCopy: adCopy?.trim() ? adCopy.trim() : undefined
+        videoAspectRatio: videoAspectRatio,
+        adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
+        selectedBrandId: selectedBrandId
       };
 
       console.log('🔍 useWorkflow startWorkflowWithTemporaryImages requestData:', requestData);

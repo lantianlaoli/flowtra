@@ -83,6 +83,9 @@ export interface SingleVideoProject {
   progress_percentage?: number
   last_processed_at?: string
   selected_product_id?: string | null // Reference to user_products table
+  selected_brand_id?: string | null // Reference to user_brands table
+  brand_ending_frame_url?: string | null // AI-generated brand ending frame URL
+  brand_ending_task_id?: string | null // Brand frame generation task ID
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
   video_generation_prompt?: Record<string, unknown> // JSONB field containing the prompt used for video generation
   sora2_pro_duration?: '10' | '15' | null // Sora2 Pro video duration (10s or 15s)
@@ -133,15 +136,28 @@ export interface UserPhoto {
   updated_at: string
 }
 
+// Database types for user_brands table
+export interface UserBrand {
+  id: string
+  user_id: string
+  brand_name: string
+  brand_logo_url: string
+  brand_slogan?: string
+  created_at: string
+  updated_at: string
+}
+
 // Database types for user_products table
 export interface UserProduct {
   id: string
   user_id: string
   product_name: string
   description?: string
+  brand_id?: string
   created_at: string
   updated_at: string
   user_product_photos?: UserProductPhoto[]
+  brand?: UserBrand // Joined data when fetching with brand relationship
 }
 
 // Database types for user_product_photos table
@@ -474,4 +490,75 @@ export const uploadProductPhotoToStorage = async (file: File, userId: string) =>
     publicUrl,
     fullUrl: publicUrl
   }
+}
+
+// Upload brand logo to storage in brands folder
+export const uploadBrandLogoToStorage = async (file: File, userId: string) => {
+  console.log(`[uploadBrandLogoToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes)`);
+
+  const fileExt = file.name.split('.').pop()
+  const uuid = Math.random().toString(36).substring(2, 15)
+  const fileName = `${uuid}_logo.${fileExt}`
+  const filePath = `brands/${userId}/${fileName}`
+
+  const supabase = getSupabase()
+
+  // Upload to storage
+  console.log(`[uploadBrandLogoToStorage] Uploading to storage path: ${filePath}`);
+  const { data, error } = await supabase.storage
+    .from('images')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    })
+
+  if (error) {
+    console.error(`[uploadBrandLogoToStorage] Storage upload error for user ${userId}:`, {
+      error: error.message,
+      filePath,
+      fileName: file.name
+    });
+    throw new Error(`Storage upload failed: ${error.message}`);
+  }
+
+  console.log(`[uploadBrandLogoToStorage] Storage upload successful for user ${userId}, path: ${data.path}`);
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('images')
+    .getPublicUrl(filePath)
+
+  console.log(`[uploadBrandLogoToStorage] Generated public URL for user ${userId}: ${publicUrl}`);
+
+  return {
+    path: data.path,
+    publicUrl,
+    fullUrl: publicUrl
+  }
+}
+
+// Delete brand logo from storage
+export const deleteBrandLogoFromStorage = async (logoUrl: string): Promise<void> => {
+  const supabase = getSupabase()
+
+  // Extract file path from URL
+  // Format: https://{project}.supabase.co/storage/v1/object/public/images/brands/{userId}/{filename}
+  const urlParts = logoUrl.split('/images/')
+  if (urlParts.length < 2) {
+    console.error(`[deleteBrandLogoFromStorage] Invalid logo URL format: ${logoUrl}`);
+    return
+  }
+
+  const filePath = urlParts[1]
+  console.log(`[deleteBrandLogoFromStorage] Deleting file at path: ${filePath}`);
+
+  const { error } = await supabase.storage
+    .from('images')
+    .remove([filePath])
+
+  if (error) {
+    console.error(`[deleteBrandLogoFromStorage] Error deleting file:`, error);
+    throw new Error(`Failed to delete brand logo: ${error.message}`);
+  }
+
+  console.log(`[deleteBrandLogoFromStorage] Successfully deleted file: ${filePath}`);
 }
