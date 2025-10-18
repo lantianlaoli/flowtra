@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { generateBrandEndingFrame } from '@/lib/standard-ads-workflow';
+import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 
 export async function POST() {
   try {
@@ -94,6 +95,7 @@ type VideoPrompt = {
   music: string;
   ending: string;
   other_details: string;
+  language?: string;
 };
 
 interface HistoryRecord {
@@ -121,6 +123,7 @@ interface HistoryRecord {
   brand_ending_frame_url?: string;
   brand_ending_task_id?: string;
   image_model?: 'nano_banana' | 'seedream';
+  language?: string;
 }
 
 async function processRecord(record: HistoryRecord) {
@@ -374,7 +377,25 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     ? `\nAd Copy (use verbatim): ${providedAdCopy}\nOn-screen Text: Display "${providedAdCopy}" prominently without paraphrasing.\nVoiceover: Speak "${providedAdCopy}" exactly as written.`
     : '';
 
-  const fullPrompt = `${videoPrompt.description}
+  // Get language information from video_prompts if available, fallback to record.language
+  const languageFromPrompt = typeof videoPrompt.language === 'string' ? videoPrompt.language : undefined;
+  const language = (record.language || 'en') as LanguageCode;
+  const languageName = languageFromPrompt || getLanguagePromptName(language);
+
+  console.log('🌍 Language handling:');
+  console.log('  - languageFromPrompt:', languageFromPrompt);
+  console.log('  - record.language:', record.language);
+  console.log('  - languageName (final):', languageName);
+  console.log('  - Will add prefix:', languageName !== 'English');
+
+  // Add language metadata at the beginning of the prompt (simple format for VEO3 API)
+  const languagePrefix = languageName !== 'English'
+    ? `"language": "${languageName}"\n\n`
+    : '';
+
+  console.log('🎬 Language prefix:', languagePrefix ? `YES - "${languageName}"` : 'NO (English)');
+
+  const fullPrompt = `${languagePrefix}${videoPrompt.description}
 
 Setting: ${videoPrompt.setting}
 Camera: ${videoPrompt.camera_type} with ${videoPrompt.camera_movement}

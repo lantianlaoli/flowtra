@@ -320,10 +320,18 @@ async function startVideoGeneration(record: StandardAdsRecord, coverImageUrl: st
   const language = (record.language || 'en') as LanguageCode;
   const languageName = languageFromPrompt || getLanguagePromptName(language);
 
+  console.log('🌍 Language handling:');
+  console.log('  - languageFromPrompt:', languageFromPrompt);
+  console.log('  - record.language:', record.language);
+  console.log('  - languageName (final):', languageName);
+  console.log('  - Will add prefix:', languageName !== 'English');
+
   // Add language metadata at the beginning of the prompt (simple format for VEO3 API)
   const languagePrefix = languageName !== 'English'
     ? `"language": "${languageName}"\n\n`
     : '';
+
+  console.log('🎬 Language prefix:', languagePrefix ? `YES - "${languageName}"` : 'NO (English)');
 
   const fullPrompt = `${languagePrefix}${videoPrompt.description}
 

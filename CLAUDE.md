@@ -61,8 +61,9 @@ The application implements three main AI workflows:
 - **Creation endpoints**: `/api/{workflow}/create` - Start new workflows
 - **Status endpoints**: `/api/{workflow}/[id]/status` - Check workflow progress
 - **History endpoints**: `/api/{workflow}/history` - List user's projects
-- **Monitor tasks**: `/api/{workflow}/monitor-tasks` - Background job processors
-- **Webhooks**: `/api/webhooks/{workflow}` - Handle external API callbacks
+- **Monitor tasks**: `/api/{workflow}/monitor-tasks` - Background job processors that handle all workflow progress updates
+
+**IMPORTANT**: This application uses **monitor-tasks** for ALL workflow progress updates, NOT webhooks. The monitor-tasks endpoints poll KIE API to check task status and update database records accordingly. Webhook endpoints exist but are NOT actively used in the current workflow.
 
 ### Credit System (Mixed Billing Model - Version 3.0)
 - **Billing Model**: Dual-tier system for flexibility
@@ -100,10 +101,11 @@ Next.js image optimization is configured for:
 - Security headers configured for XSS protection, content sniffing prevention
 
 ### Monitoring & Background Jobs
-- Monitor tasks run periodically to check AI job status
-- Webhook callbacks are preferred over polling when available
+- **Monitor tasks are the PRIMARY mechanism** for checking AI job status and updating workflow progress
+- Monitor endpoints (`/api/{workflow}/monitor-tasks`) poll KIE API periodically to check task completion
 - Timeout handling: 15min for images, 30min for videos
 - Failed jobs are marked with error messages for debugging
+- **Note**: Webhook endpoints exist but are NOT used in the active workflow - all progress updates happen via monitor-tasks
 
 ### Key Libraries
 - **UI**: TailwindCSS v4, Heroicons, Lucide React, Framer Motion
