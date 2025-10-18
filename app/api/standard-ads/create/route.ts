@@ -13,16 +13,28 @@ export async function POST(request: NextRequest) {
     }
     const requestData: StartWorkflowRequest = await request.json();
 
+    // Validate custom script mode
+    if (requestData.useCustomScript) {
+      const trimmedScript = requestData.customScript?.trim();
+      if (!trimmedScript) {
+        return NextResponse.json(
+          { error: 'Custom script is required when custom script mode is enabled' },
+          { status: 400 }
+        );
+      }
+      requestData.customScript = trimmedScript;
+    }
+
     // Ensure photoOnly field is correctly set as inverse of shouldGenerateVideo
     // If interface selected image only, then shouldGenerateVideo should be false, photoOnly should be true
     requestData.photoOnly = requestData.shouldGenerateVideo === undefined ? false : !requestData.shouldGenerateVideo;
-    
+
     // Log shows photoOnly inconsistent with user choice, may be shouldGenerateVideo passing issue
     // If user selected "image only" in interface, ensure photoOnly is true
     if (requestData.shouldGenerateVideo === false) {
       requestData.photoOnly = true;
     }
-    
+
     // Fix model selection issue: ensure nano_banana selection doesn't show as auto
     if (requestData.imageModel === 'auto') {
       // Default to use nano_banana as the actual model for auto
@@ -46,7 +58,9 @@ export async function POST(request: NextRequest) {
       elementsCount: requestData.elementsCount,
       photoOnly: requestData.photoOnly,
       adCopyProvided: !!requestData.adCopy,
-      language: requestData.language
+      language: requestData.language,
+      useCustomScript: requestData.useCustomScript,
+      customScriptProvided: !!requestData.customScript
     });
 
     if (!requestData.imageUrl && !requestData.selectedProductId) {

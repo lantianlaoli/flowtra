@@ -44,7 +44,9 @@ export const useStandardAdsWorkflow = (
   imageSize: string = 'auto',
   videoAspectRatio: '16:9' | '9:16' = '16:9',
   adCopy: string = '',
-  selectedLanguage: string = 'en'
+  selectedLanguage: string = 'en',
+  useCustomScript: boolean = false,
+  customScript: string = ''
 ) => {
   // Initialize guest usage limits
   const maxGuestUsage = 1; // Guest users: 1 VEO3_fast
@@ -310,7 +312,9 @@ export const useStandardAdsWorkflow = (
         videoAspectRatio: videoAspectRatio,
         adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
         selectedBrandId: selectedBrandId,
-        language: selectedLanguage
+        language: selectedLanguage,
+        useCustomScript: useCustomScript,
+        customScript: customScript?.trim() ? customScript.trim() : undefined
       };
 
       console.log('🔍 useWorkflow startWorkflowWithSelectedProduct requestData:', requestData);
@@ -411,7 +415,9 @@ export const useStandardAdsWorkflow = (
         videoAspectRatio: videoAspectRatio,
         adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
         selectedBrandId: selectedBrandId,
-        language: selectedLanguage
+        language: selectedLanguage,
+        useCustomScript: useCustomScript,
+        customScript: customScript?.trim() ? customScript.trim() : undefined
       };
 
       console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
@@ -526,7 +532,9 @@ export const useStandardAdsWorkflow = (
         videoAspectRatio: videoAspectRatio,
         adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
         selectedBrandId: selectedBrandId,
-        language: selectedLanguage
+        language: selectedLanguage,
+        useCustomScript: useCustomScript,
+        customScript: customScript?.trim() ? customScript.trim() : undefined
       };
 
       console.log('🔍 useWorkflow startWorkflowWithTemporaryImages requestData:', requestData);

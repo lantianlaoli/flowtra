@@ -16,7 +16,7 @@ export async function POST() {
       .from('standard_ads_projects')
       .select('*')
       .in('status', ['started', 'in_progress', 'processing', 'generating_cover', 'generating_brand_ending', 'generating_video'])
-      .not('cover_task_id', 'is', null)
+      .or('cover_task_id.not.is.null,use_custom_script.eq.true') // Include records with cover_task_id OR custom script mode
       .order('last_processed_at', { ascending: true })
       .limit(20); // Process max 20 records per run
 
@@ -124,11 +124,41 @@ interface HistoryRecord {
   brand_ending_task_id?: string;
   image_model?: 'nano_banana' | 'seedream';
   language?: string;
+  // NEW: Custom script fields
+  custom_script?: string | null;
+  use_custom_script?: boolean | null;
+  original_image_url?: string; // For custom script mode (use original image instead of generated cover)
 }
 
 async function processRecord(record: HistoryRecord) {
   const supabase = getSupabaseAdmin();
   console.log(`Processing record ${record.id}, step: ${record.current_step}, status: ${record.status}`);
+
+  // Handle custom script mode - ready to generate video directly
+  if (record.current_step === 'ready_for_video' && record.use_custom_script && record.cover_image_url && !record.video_task_id) {
+    console.log(`📜 Custom script mode - starting video generation for record ${record.id}`);
+
+    // Start video generation using cover_image_url (which is the original image in custom script mode)
+    const videoTaskId = await startVideoGeneration(record, record.cover_image_url);
+
+    const { error: vidStartErr } = await supabase
+      .from('standard_ads_projects')
+      .update({
+        video_task_id: videoTaskId,
+        current_step: 'generating_video',
+        progress_percentage: 85,
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', record.id);
+
+    if (vidStartErr) {
+      console.error(`Failed to update record ${record.id} after starting custom script video:`, vidStartErr);
+      throw new Error(`DB update failed for record ${record.id}`);
+    }
+
+    console.log(`✅ Started custom script video generation for record ${record.id}, taskId: ${videoTaskId}`);
+    return;
+  }
 
   // Handle cover generation monitoring
   if (record.current_step === 'generating_cover' && record.cover_task_id && !record.cover_image_url) {
@@ -335,6 +365,98 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     throw new Error('No creative prompts available for video generation');
   }
 
+  // ===== CUSTOM SCRIPT MODE =====
+  if (record.use_custom_script) {
+    console.log('📜 Custom script mode - using user-provided script');
+
+    // Extract custom script from video_prompts
+    const customScriptData = record.video_prompts as { customScript?: string; language?: string };
+    const customScript = customScriptData.customScript || record.custom_script;
+
+    if (!customScript) {
+      throw new Error('Custom script not found in video_prompts or custom_script field');
+    }
+
+    console.log('📝 Custom script:', customScript.substring(0, 200) + '...');
+
+    // Get language
+    const language = (record.language || customScriptData.language || 'en') as LanguageCode;
+    const languageName = getLanguagePromptName(language);
+
+    // Add language prefix if not English
+    const languagePrefix = languageName !== 'English'
+      ? `"language": "${languageName}"\n\n`
+      : '';
+
+    console.log('🌍 Custom script language:', languageName);
+
+    // Use custom script directly as prompt
+    const fullPrompt = `${languagePrefix}${customScript}`;
+
+    console.log('Generated custom script video prompt (first 300 chars):', fullPrompt.substring(0, 300));
+
+    // Skip to API call section below (continue with existing API logic)
+    const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2';
+    const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+
+    const isSora = videoModel === 'sora2';
+    const apiEndpoint = isSora
+      ? 'https://api.kie.ai/api/v1/jobs/createTask'
+      : 'https://api.kie.ai/api/v1/veo/generate';
+
+    // Custom script mode doesn't support brand ending frame (single image only)
+    const imageUrls = [coverImageUrl];
+
+    console.log('📽️  Custom script video generation - single image mode');
+
+    const requestBody = isSora
+      ? {
+          model: 'sora-2-image-to-video',
+          input: {
+            prompt: fullPrompt,
+            image_urls: [coverImageUrl],
+            aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
+          }
+        }
+      : {
+          prompt: fullPrompt,
+          model: videoModel,
+          aspectRatio,
+          imageUrls: imageUrls,
+          enableAudio: true,
+          audioEnabled: true,
+          generateVoiceover: true,
+          includeDialogue: true,
+          enableTranslation: false
+        };
+
+    console.log('Video API endpoint:', apiEndpoint);
+    console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
+
+    const response = await fetchWithRetry(apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    }, 8, 30000);
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Failed to generate video: ${response.status} ${errorData}`);
+    }
+
+    const data = await response.json();
+
+    if (data.code !== 200) {
+      throw new Error(data.msg || 'Failed to generate video');
+    }
+
+    return data.data.taskId;
+  }
+
+  // ===== NORMAL MODE (AI-generated prompts) =====
   // With Structured Outputs, video_prompts should already be in the correct format
   // But keep backward compatibility for old records with nested structures
   let videoPrompt = record.video_prompts as VideoPrompt & {

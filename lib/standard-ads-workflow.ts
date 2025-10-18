@@ -25,6 +25,9 @@ export interface StartWorkflowRequest {
   sora2ProDuration?: '10' | '15';
   sora2ProQuality?: 'standard' | 'high';
   language?: string; // Language for AI-generated content
+  // NEW: Custom Script mode
+  customScript?: string; // User-provided video script for direct video generation
+  useCustomScript?: boolean; // Flag to enable custom script mode
 }
 
 interface WorkflowResult {
@@ -162,8 +165,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         video_model: actualVideoModel,
         video_aspect_ratio: request.videoAspectRatio || '16:9',
         status: 'processing',
-        current_step: 'describing',
-        progress_percentage: 10,
+        current_step: request.useCustomScript ? 'ready_for_video' : 'describing',
+        progress_percentage: request.useCustomScript ? 50 : 10,
         credits_cost: generationCost, // Only generation cost (download cost charged separately)
         watermark_text: request.watermark?.text,
         watermark_location: request.watermark?.location || request.watermarkLocation,
@@ -173,6 +176,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         // NEW: Sora2 Pro fields
         sora2_pro_duration: actualVideoModel === 'sora2_pro' ? (request.sora2ProDuration || '10') : null,
         sora2_pro_quality: actualVideoModel === 'sora2_pro' ? (request.sora2ProQuality || 'standard') : null,
+        // NEW: Custom script fields
+        custom_script: request.customScript || null,
+        use_custom_script: request.useCustomScript || false,
         // DEPRECATED: download_credits_used (downloads are now free)
         download_credits_used: 0,
       })
@@ -243,6 +249,49 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
   const supabase = getSupabaseAdmin();
 
   try {
+    // CUSTOM SCRIPT MODE: Skip AI steps and use original image
+    if (request.useCustomScript && request.customScript) {
+      console.log('📜 Custom script mode enabled - skipping AI description and cover generation');
+      console.log('📝 Custom script:', request.customScript.substring(0, 100) + '...');
+
+      // Store custom script directly in video_prompts field
+      // Convert language code to language name for video generation
+      const languageCode = (request.language || 'en') as LanguageCode;
+      const languageName = getLanguagePromptName(languageCode);
+
+      const customScriptPrompt = {
+        customScript: request.customScript,
+        language: languageName
+      };
+
+      // Update project: use original image as cover, store custom script, mark ready for video
+      const updateData = {
+        cover_image_url: request.imageUrl, // Use original image directly
+        video_prompts: customScriptPrompt,
+        product_description: { customScript: request.customScript },
+        current_step: 'ready_for_video' as const,
+        progress_percentage: 50,
+        last_processed_at: new Date().toISOString()
+      };
+
+      console.log('💾 Updating project with custom script data');
+
+      const { data: updateResult, error: updateError } = await supabase
+        .from('standard_ads_projects')
+        .update(updateData)
+        .eq('id', projectId)
+        .select();
+
+      if (updateError) {
+        console.error('❌ Database update error:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Custom script workflow prepared successfully:', updateResult);
+      return;
+    }
+
+    // NORMAL MODE: AI-powered workflow
     // Step 1: Describe the image
     console.log('🔍 Starting image description...');
     const description = await describeImage(request.imageUrl);
