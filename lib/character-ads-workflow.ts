@@ -441,7 +441,7 @@ async function generateVideoWithKIE(
   language?: string
 ): Promise<{ taskId: string }> {
   // Convert prompt object to string for API
-  let basePrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
+  const basePrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
 
   // Add language metadata if not English (simple format for VEO3 API)
   const lang = (language || 'en') as LanguageCode;

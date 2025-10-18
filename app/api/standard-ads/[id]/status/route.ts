@@ -45,6 +45,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       workflowStatus: record.status,
       currentStep: record.current_step,
       progress: record.progress_percentage || 0,
+      status: record.status,
+      current_step: record.current_step,
+      progress_percentage: record.progress_percentage || 0,
+      language: record.language || null,
+      video_prompts: record.video_prompts || null,
       data: {
         originalImageUrl: record.original_image_url,
         productDescription: record.product_description || null,

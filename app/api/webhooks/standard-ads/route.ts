@@ -47,6 +47,7 @@ type VideoPrompt = {
   music: string;
   ending: string;
   other_details: string;
+  language?: string;
 };
 
 export async function POST(request: NextRequest) {

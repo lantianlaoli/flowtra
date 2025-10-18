@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
       imageSize: requestData.imageSize,
       elementsCount: requestData.elementsCount,
       photoOnly: requestData.photoOnly,
-      adCopyProvided: !!requestData.adCopy
+      adCopyProvided: !!requestData.adCopy,
+      language: requestData.language
     });
 
     if (!requestData.imageUrl && !requestData.selectedProductId) {
