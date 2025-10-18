@@ -314,14 +314,17 @@ async function startVideoGeneration(record: StandardAdsRecord, coverImageUrl: st
     ? `\nAd Copy (use verbatim): ${providedAdCopy}\nOn-screen Text: Display "${providedAdCopy}" prominently without paraphrasing.\nVoiceover: Speak "${providedAdCopy}" exactly as written.`
     : '';
 
-  // Get language information
+  // Get language information from video_prompts if available, fallback to record.language
+  const languageFromPrompt = typeof videoPrompt.language === 'string' ? videoPrompt.language : undefined;
   const language = (record.language || 'en') as LanguageCode;
-  const languageName = getLanguagePromptName(language);
-  const languageInstruction = language !== 'en'
-    ? `\n\nLanguage Requirement: All spoken dialogue and on-screen text MUST be in ${languageName}. Do not use English unless explicitly mixed in the dialogue.`
+  const languageName = languageFromPrompt || getLanguagePromptName(language);
+
+  // Add language metadata at the beginning of the prompt (simple format for VEO3 API)
+  const languagePrefix = languageName !== 'English'
+    ? `"language": "${languageName}"\n\n`
     : '';
 
-  const fullPrompt = `${videoPrompt.description}
+  const fullPrompt = `${languagePrefix}${videoPrompt.description}
 
 Setting: ${videoPrompt.setting}
 Camera: ${videoPrompt.camera_type} with ${videoPrompt.camera_movement}
@@ -330,7 +333,7 @@ Lighting: ${videoPrompt.lighting}
 Dialogue: ${dialogueContent}
 Music: ${videoPrompt.music}
 Ending: ${videoPrompt.ending}
-Other details: ${videoPrompt.other_details}${adCopyInstruction}${languageInstruction}`;
+Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
 
   console.log('Generated video prompt:', fullPrompt);
 

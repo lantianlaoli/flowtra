@@ -378,6 +378,10 @@ async function generateCreativePrompts(description: string, adCopy?: string, lan
           other_details: {
             type: "string",
             description: "Additional creative elements"
+          },
+          language: {
+            type: "string",
+            description: "Language name for voiceover generation"
           }
         },
         required: [
@@ -390,7 +394,8 @@ async function generateCreativePrompts(description: string, adCopy?: string, lan
           "dialogue",
           "music",
           "ending",
-          "other_details"
+          "other_details",
+          "language"
         ],
         additionalProperties: false
       }
@@ -418,11 +423,14 @@ Generate a creative video advertisement prompt with these elements:
 - camera_movement: Camera movement style
 - action: What happens in the scene
 - lighting: Lighting setup
-- dialogue: Spoken content/voiceover
+- dialogue: Spoken content/voiceover (in English)
 - music: Music style
 - ending: How the ad concludes
 - other_details: Additional creative elements
-${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline. Do not paraphrase: "${trimmedAdCopy}".` : ''}${language && language !== 'en' ? `\n\nIMPORTANT: Generate all text content (dialogue, on-screen text, voiceover descriptions) in ${getLanguagePromptName(language as LanguageCode)} language. The dialogue, ending text, and any on-screen messages should be written in ${getLanguagePromptName(language as LanguageCode)}, not English.` : ''}`
+- language: The language name for voiceover generation (e.g., "English", "Urdu (Pakistan's national language)", "Punjabi")
+${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline. Do not paraphrase: "${trimmedAdCopy}".` : ''}
+
+IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in English. The 'language' field is metadata only to specify what language the video voiceover should use.`
         }
       ]
     })
@@ -456,7 +464,8 @@ ${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline.
       dialogue: trimmedAdCopy || "Highlighting key benefits",
       music: "Upbeat commercial music",
       ending: "Call to action",
-      other_details: "High-quality commercial style"
+      other_details: "High-quality commercial style",
+      language: language ? getLanguagePromptName(language as LanguageCode) : "English"
     };
   }
 
@@ -465,6 +474,13 @@ ${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline.
     parsed.dialogue = trimmedAdCopy;
     parsed.ad_copy = trimmedAdCopy;
     parsed.tagline = trimmedAdCopy;
+  }
+
+  // Set language metadata (AI should have generated it, but ensure it's set)
+  if (language) {
+    parsed.language = getLanguagePromptName(language as LanguageCode);
+  } else if (!parsed.language) {
+    parsed.language = "English";
   }
 
   return parsed;

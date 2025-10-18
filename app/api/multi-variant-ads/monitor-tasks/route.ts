@@ -322,11 +322,13 @@ async function startVideoGeneration(
   // Get language information
   const language = (instance.language || 'en') as LanguageCode;
   const languageName = getLanguagePromptName(language);
-  const languageInstruction = language !== 'en'
-    ? `\n\nLanguage Requirement: All spoken dialogue and on-screen text MUST be in ${languageName}. Do not use English unless explicitly mixed in the dialogue.`
+
+  // Add language metadata at the beginning of the prompt (simple format for VEO3 API)
+  const languagePrefix = languageName !== 'English'
+    ? `"language": "${languageName}"\n\n`
     : '';
 
-  const finalPrompt = `Create a short, cinematic product ad video based on the provided cover image. Maintain consistency with the cover's style, layout, and color palette.
+  const finalPrompt = `${languagePrefix}Create a short, cinematic product ad video based on the provided cover image. Maintain consistency with the cover's style, layout, and color palette.
 
 Description: ${videoPrompt.description}
 Setting: ${videoPrompt.setting}
@@ -337,7 +339,7 @@ Lighting: ${videoPrompt.lighting}
 Other Details: ${videoPrompt.other_details}
 Dialogue: ${videoPrompt.dialogue}
 Music: ${videoPrompt.music}
-Ending: ${videoPrompt.ending}${languageInstruction}`;
+Ending: ${videoPrompt.ending}`;
 
   console.log('Generated video prompt:', finalPrompt);
 

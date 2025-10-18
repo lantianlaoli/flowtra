@@ -443,14 +443,14 @@ async function generateVideoWithKIE(
   // Convert prompt object to string for API
   let basePrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
 
-  // Add language instruction if not English
+  // Add language metadata if not English (simple format for VEO3 API)
   const lang = (language || 'en') as LanguageCode;
   const languageName = getLanguagePromptName(lang);
-  const languageInstruction = lang !== 'en'
-    ? `\n\nLanguage Requirement: All spoken dialogue and on-screen text MUST be in ${languageName}. Do not use English unless explicitly mixed in the dialogue.`
+  const languagePrefix = languageName !== 'English'
+    ? `"language": "${languageName}"\n\n`
     : '';
 
-  const finalPrompt = `${basePrompt}${languageInstruction}`;
+  const finalPrompt = `${languagePrefix}${basePrompt}`;
 
   let requestBody: Record<string, unknown>;
   let apiEndpoint: string;
