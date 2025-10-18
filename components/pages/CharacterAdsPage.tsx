@@ -12,6 +12,7 @@ import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
 import AccentSelector, { AccentType } from '@/components/ui/AccentSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
+import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
@@ -45,6 +46,7 @@ export default function CharacterAdsPage() {
   const [selectedAccent, setSelectedAccent] = useState<AccentType>('american');
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
   const [showProductManager, setShowProductManager] = useState(false);
   const [isGeneratingDialogue, setIsGeneratingDialogue] = useState(false);
   const [dialogueError, setDialogueError] = useState<string | null>(null);
@@ -243,7 +245,8 @@ export default function CharacterAdsPage() {
           accent: selectedAccent,
           productName,
           productDescription,
-          productImageUrls: productPhotoUrls
+          productImageUrls: productPhotoUrls,
+          language: selectedLanguage
         })
       });
 
@@ -464,6 +467,13 @@ export default function CharacterAdsPage() {
                           showIcon={true}
                         />
                       </div>
+
+                      {/* Language Selection */}
+                      <LanguageSelector
+                        selectedLanguage={selectedLanguage}
+                        onLanguageChange={setSelectedLanguage}
+                        showIcon={true}
+                      />
 
                       {/* Custom Dialogue (Optional) */}
                       <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">

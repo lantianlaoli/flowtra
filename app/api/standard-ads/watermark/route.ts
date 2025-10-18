@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
+import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 
 interface WatermarkRequestPayload {
   productName?: string;
   productDescription?: string;
   productImageUrls?: string[];
+  language?: LanguageCode;
 }
 
 const WATERMARK_LOCATIONS = ['bottom left', 'bottom right', 'top left', 'top right', 'center bottom'] as const;
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as WatermarkRequestPayload;
-    const { productName, productDescription, productImageUrls = [] } = body;
+    const { productName, productDescription, productImageUrls = [], language = 'en' } = body;
 
     const cleanedImageUrls = productImageUrls
       .filter((url) => typeof url === 'string' && /^https?:\/\//i.test(url))
@@ -106,14 +108,15 @@ export async function POST(request: NextRequest) {
     const descriptionSnippet =
       productDescription?.trim() || 'A modern product that needs a tasteful watermark.';
     const nameSnippet = productName?.trim() || 'the product';
+    const languageName = getLanguagePromptName(language);
 
-    const systemPrompt = `You are a brand design assistant. Analyze product images to identify brand names, logos, or text visible on the product/packaging. Suggest concise watermark text (≤ 4 words) based on what you see in the image, and recommend optimal placement for a product advertisement. Consider logo visibility, background contrast, and visual balance. Respond in strict JSON format.`;
+    const systemPrompt = `You are a brand design assistant. Analyze product images to identify brand names, logos, or text visible on the product/packaging. Suggest concise watermark text (≤ 4 words) in ${languageName} based on what you see in the image, and recommend optimal placement for a product advertisement. The watermark text MUST be written in ${languageName}. Consider logo visibility, background contrast, and visual balance. Respond in strict JSON format.`;
 
     // Build user message content with images if available
     const userContent: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = [
       {
         type: 'text',
-        text: `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\n\n${cleanedImageUrls.length > 0 ? 'Analyze the product images carefully. Look for any brand names, logos, or text visible on the product or packaging. Extract the brand name if visible.' : 'No product visuals provided.'}\n\nReturn JSON with keys "watermarkText" and "watermarkLocation". Location must be one of: ${WATERMARK_LOCATIONS.join(', ')}.`
+        text: `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\n\n${cleanedImageUrls.length > 0 ? 'Analyze the product images carefully. Look for any brand names, logos, or text visible on the product or packaging. Extract the brand name if visible.' : 'No product visuals provided.'}\n\nReturn JSON with keys "watermarkText" (in ${languageName}) and "watermarkLocation". The watermarkText MUST be in ${languageName}. Location must be one of: ${WATERMARK_LOCATIONS.join(', ')}.`
       }
     ];
 

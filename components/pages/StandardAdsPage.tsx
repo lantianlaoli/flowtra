@@ -15,6 +15,7 @@ import VideoQualitySelector from '@/components/ui/VideoQualitySelector';
 import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
+import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import ShowcaseSection from '@/components/ui/ShowcaseSection';
@@ -59,6 +60,7 @@ export default function StandardAdsPage() {
   const [isSuggestingWatermark, setIsSuggestingWatermark] = useState(false);
   const [watermarkError, setWatermarkError] = useState<string | null>(null);
   const [hasAISuggestedWatermark, setHasAISuggestedWatermark] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
   
   
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
@@ -147,7 +149,7 @@ export default function StandardAdsPage() {
       const response = await fetch('/api/standard-ads/ad-copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(context)
+        body: JSON.stringify({ ...context, language: selectedLanguage })
       });
 
       const result = await response.json();
@@ -189,7 +191,7 @@ export default function StandardAdsPage() {
       const response = await fetch('/api/standard-ads/watermark', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(context)
+        body: JSON.stringify({ ...context, language: selectedLanguage })
       });
 
       const result = await response.json();
@@ -551,6 +553,13 @@ export default function StandardAdsPage() {
                     />
                   )}
                 </div>
+
+                {/* Language Selection */}
+                <LanguageSelector
+                  selectedLanguage={selectedLanguage}
+                  onLanguageChange={setSelectedLanguage}
+                  showIcon={true}
+                />
 
                 {/* Ad Copy Configuration */}
                 <div>

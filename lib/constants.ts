@@ -509,3 +509,55 @@ export function getRecommendedModel(
 
   return affordableModels[0]?.model || null;
 }
+
+// ===== LANGUAGE SUPPORT =====
+
+export type LanguageCode = 'en' | 'zh' | 'es' | 'fr' | 'de' | 'ur' | 'pa';
+
+// Language code to display name mapping
+export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
+  'en': 'English',
+  'zh': 'Chinese',
+  'es': 'Spanish',
+  'fr': 'French',
+  'de': 'German',
+  'ur': 'Urdu',
+  'pa': 'Punjabi'
+} as const;
+
+// Language code to native name mapping
+export const LANGUAGE_NATIVE_NAMES: Record<LanguageCode, string> = {
+  'en': 'English',
+  'zh': '中文',
+  'es': 'Español',
+  'fr': 'Français',
+  'de': 'Deutsch',
+  'ur': 'اردو',
+  'pa': 'ਪੰਜਾਬੀ'
+} as const;
+
+// Language code to natural language name for AI prompts
+export const LANGUAGE_PROMPT_NAMES: Record<LanguageCode, string> = {
+  'en': 'English',
+  'zh': 'Chinese (中文)',
+  'es': 'Spanish (Español)',
+  'fr': 'French (Français)',
+  'de': 'German (Deutsch)',
+  'ur': 'Urdu (اردو)',
+  'pa': 'Punjabi (ਪੰਜਾਬੀ)'
+} as const;
+
+// Get language display name
+export function getLanguageName(code: LanguageCode): string {
+  return LANGUAGE_NAMES[code];
+}
+
+// Get language native name
+export function getLanguageNativeName(code: LanguageCode): string {
+  return LANGUAGE_NATIVE_NAMES[code];
+}
+
+// Get language name for AI prompts
+export function getLanguagePromptName(code: LanguageCode): string {
+  return LANGUAGE_PROMPT_NAMES[code];
+}

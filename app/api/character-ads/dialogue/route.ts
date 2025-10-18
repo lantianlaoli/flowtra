@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
+import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 
 const accentLabelMap: Record<string, string> = {
   american: 'American',
@@ -23,6 +24,7 @@ interface DialogueRequestPayload {
   productName?: string;
   productDescription?: string;
   productImageUrls?: string[];
+  language?: LanguageCode;
 }
 
 export async function POST(request: NextRequest) {
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as DialogueRequestPayload;
-    const { accent, productName, productDescription, productImageUrls = [] } = body;
+    const { accent, productName, productDescription, productImageUrls = [], language = 'en' } = body;
 
     if (!accent) {
       return NextResponse.json(
@@ -51,11 +53,12 @@ export async function POST(request: NextRequest) {
     const accentLabel = accentLabelMap[accent] || 'American';
     const nameSnippet = productName?.trim() || 'the product';
     const descriptionSnippet = productDescription?.trim() || 'A modern product that customers love.';
+    const languageName = getLanguagePromptName(language);
 
     const systemPrompt = `You are an advertising dialogue writer for user-generated content spokesperson videos.\n
-Requirements:\n- Return exactly one spoken line (<= 200 characters).\n- Sound casual, enthusiastic, and authentic as if spoken on camera.\n- Blend a hook, the key benefit, and a friendly call-to-action.\n- Avoid hashtags, emojis, marketing buzzwords, or repeated punctuation.\n- Do not add quotes or surrounding characters.\n- Reflect the requested accent naturally in word choice or cadence.\n- Base the line on the product imagery and description provided.`;
+Requirements:\n- Return exactly one spoken line (<= 200 characters) in ${languageName}.\n- Sound casual, enthusiastic, and authentic as if spoken on camera.\n- Blend a hook, the key benefit, and a friendly call-to-action.\n- Avoid hashtags, emojis, marketing buzzwords, or repeated punctuation.\n- Do not add quotes or surrounding characters.\n- Reflect the requested accent naturally in word choice or cadence.\n- Base the line on the product imagery and description provided.\n- The dialogue MUST be written in ${languageName}.`;
 
-    const userTextPrompt = `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\nAccent: ${accentLabel}\nIf possible, reference standout visuals you observe. Respond with one spoken line now.`;
+    const userTextPrompt = `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\nAccent: ${accentLabel}\nLanguage: ${languageName}\nIf possible, reference standout visuals you observe. Respond with one spoken line in ${languageName} now.`;
 
     const userContent: Array<
       | { type: 'text'; text: string }

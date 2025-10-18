@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
+import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 
 interface AdCopyRequestPayload {
   productName?: string;
   productDescription?: string;
   productImageUrls?: string[];
+  language?: LanguageCode;
 }
 
 // Use vision-capable model when images are provided
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as AdCopyRequestPayload;
-    const { productName, productDescription, productImageUrls = [] } = body;
+    const { productName, productDescription, productImageUrls = [], language = 'en' } = body;
 
     const cleanedImageUrls = productImageUrls
       .filter((url) => typeof url === 'string' && /^https?:\/\//i.test(url))
@@ -41,14 +43,15 @@ export async function POST(request: NextRequest) {
     const descriptionSnippet =
       productDescription?.trim() || 'A modern product with strong customer appeal.';
     const nameSnippet = productName?.trim() || 'the product';
+    const languageName = getLanguagePromptName(language);
 
-    const systemPrompt = `You are a performance marketing copywriter. Create ONE short, punchy ad copy headline (6-12 words) that drives conversions. Return ONLY the headline text, nothing else. No introductions, no bullet points, no lists. Just the headline. Avoid emojis, hashtags, and all caps. Focus on clarity, benefit, and urgency.`;
+    const systemPrompt = `You are a performance marketing copywriter. Create ONE short, punchy ad copy headline (6-12 words) that drives conversions. The headline MUST be written in ${languageName}. Return ONLY the headline text in ${languageName}, nothing else. No introductions, no bullet points, no lists. Just the headline. Avoid emojis, hashtags, and all caps. Focus on clarity, benefit, and urgency.`;
 
     // Build user message content with images if available
     const userContent: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = [
       {
         type: 'text',
-        text: `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\n\nAnalyze the product ${cleanedImageUrls.length > 0 ? 'images' : ''} and create ONE compelling ad copy headline that highlights key features and benefits. Return ONLY the headline text.`
+        text: `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\n\nAnalyze the product ${cleanedImageUrls.length > 0 ? 'images' : ''} and create ONE compelling ad copy headline that highlights key features and benefits. The headline MUST be written in ${languageName}. Return ONLY the headline text in ${languageName}.`
       }
     ];
 

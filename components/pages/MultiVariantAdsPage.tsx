@@ -15,6 +15,7 @@ import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
+import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import ShowcaseSection from '@/components/ui/ShowcaseSection';
@@ -47,6 +48,7 @@ export default function MultiVariantAdsPage() {
   const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
   const router = useRouter();
   const [kieCreditsStatus, setKieCreditsStatus] = useState<{ sufficient: boolean; loading: boolean; currentCredits?: number; threshold?: number }>({
     sufficient: true,
@@ -227,7 +229,7 @@ export default function MultiVariantAdsPage() {
       const response = await fetch('/api/multi-variant-ads/ad-copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(context)
+        body: JSON.stringify({ ...context, language: selectedLanguage })
       });
 
       const result = await response.json();
@@ -282,7 +284,7 @@ export default function MultiVariantAdsPage() {
       const response = await fetch('/api/multi-variant-ads/watermark', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(context)
+        body: JSON.stringify({ ...context, language: selectedLanguage })
       });
 
       const result = await response.json();
@@ -527,6 +529,13 @@ export default function MultiVariantAdsPage() {
                     />
                   )}
                 </div>
+
+                {/* Language Selection */}
+                <LanguageSelector
+                  selectedLanguage={selectedLanguage}
+                  onLanguageChange={setSelectedLanguage}
+                  showIcon={true}
+                />
 
                 {/* Ad Copy Configuration */}
                 <div>
@@ -835,6 +844,13 @@ export default function MultiVariantAdsPage() {
                   />
                 )}
               </div>
+
+              {/* Language Selection */}
+              <LanguageSelector
+                selectedLanguage={selectedLanguage}
+                onLanguageChange={setSelectedLanguage}
+                showIcon={true}
+              />
 
               {/* Ad Copy Configuration */}
               <div className="space-y-3">
