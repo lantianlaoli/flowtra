@@ -18,7 +18,6 @@ import SizeSelector from '@/components/ui/SizeSelector';
 import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
-import ShowcaseSection from '@/components/ui/ShowcaseSection';
 import { useRouter } from 'next/navigation';
 import { canAffordModel, CREDIT_COSTS } from '@/lib/constants';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -61,8 +60,11 @@ export default function StandardAdsPage() {
   const [watermarkError, setWatermarkError] = useState<string | null>(null);
   const [hasAISuggestedWatermark, setHasAISuggestedWatermark] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
-  
-  
+  const [useCustomScript, setUseCustomScript] = useState(false);
+  const [customScript, setCustomScript] = useState('');
+  const [activeTab, setActiveTab] = useState<'adcopy' | 'script'>('adcopy');
+
+
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
     setSelectedModel(model);
   };
@@ -91,7 +93,9 @@ export default function StandardAdsPage() {
     imageSize,
     videoAspectRatio,
     adCopy,
-    selectedLanguage
+    selectedLanguage,
+    useCustomScript,
+    customScript
   );
 
   const ALLOWED_WATERMARK_LOCATIONS = ['bottom left', 'bottom right', 'top left', 'top right', 'center bottom'] as const;
@@ -336,6 +340,9 @@ export default function StandardAdsPage() {
     setTextWatermarkLocation('bottom left');
     setHasAISuggestedWatermark(false);
     setWatermarkError(null);
+    setUseCustomScript(false);
+    setCustomScript('');
+    setActiveTab('adcopy');
   };
 
   const features = [
@@ -390,59 +397,40 @@ export default function StandardAdsPage() {
       }
 
       return (
-        <div className="max-w-6xl mx-auto space-y-8">
-          <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12 items-start">
-            {/* Left Column - Description, Features, and Product Selection */}
-            <div className="lg:col-span-5 space-y-6">
-              {/* Feature Introduction */}
-              <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">
-                  Professional Video Ads
-                </h2>
-                <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                  Create conversion-ready video advertisements that maintain product authenticity while leveraging AI-powered storytelling and motion design.
-                </p>
-                <div className="space-y-3">
-                  {features.map((feature, index) => (
-                    <div key={index} className="flex items-start gap-3">
-                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></div>
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900">{feature.title}</h4>
-                        <p className="text-xs text-gray-600">{feature.description}</p>
-                      </div>
-                    </div>
-                  ))}
+        <div className="max-w-6xl mx-auto space-y-6">
+          {/* Top Banner - Feature Introduction */}
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">
+              Professional Video Ads
+            </h2>
+            <p className="text-sm text-gray-600 leading-relaxed mb-4">
+              Create conversion-ready video advertisements that maintain product authenticity while leveraging AI-powered storytelling and motion design.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {features.map((feature, index) => (
+                <div key={index} className="flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900">{feature.title}</h4>
+                    <p className="text-xs text-gray-600">{feature.description}</p>
+                  </div>
                 </div>
-              </div>
-
-              {/* Product Selection (with integrated brand selection) */}
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Package className="w-5 h-5 text-gray-700" />
-                  <h3 className="text-lg font-semibold text-gray-900">Select Product</h3>
-                </div>
-                <ProductSelector
-                  selectedProduct={selectedProduct}
-                  onProductSelect={setSelectedProduct}
-                  selectedBrand={selectedBrand}
-                  onBrandSelect={setSelectedBrand}
-                  videoModel={selectedModel}
-                  shouldGenerateVideo={shouldGenerateVideo}
-                />
-              </div>
+              ))}
             </div>
+          </div>
 
-            {/* Right Column - Configuration */}
+          {/* Main Grid - Left: Configuration, Right: Product & Content */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+            {/* Left Column - Basic Configuration (7/12 = ~60%) */}
             <div className="lg:col-span-7">
               <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-6">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-gray-700" />
-                  <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Basic Configuration</h3>
                 </div>
 
-                {/* Row 1: Ads and Generate Video */}
+                {/* Ads Count and Generate Video Toggle */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Elements Count */}
                   <div>
                     <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
                       <Hash className="w-4 h-4" />
@@ -466,7 +454,6 @@ export default function StandardAdsPage() {
                     </div>
                   </div>
 
-                  {/* Video Generation Toggle */}
                   <div>
                     <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
                       <Play className="w-4 h-4" />
@@ -487,7 +474,7 @@ export default function StandardAdsPage() {
                   </div>
                 </div>
 
-                {/* Row 2: NEW - Video Quality and Duration */}
+                {/* Video Quality and Duration */}
                 {shouldGenerateVideo && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <VideoQualitySelector
@@ -503,7 +490,7 @@ export default function StandardAdsPage() {
                   </div>
                 )}
 
-                {/* Row 3: Image and Video Models */}
+                {/* Image and Video Models */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ImageModelSelector
                     credits={userCredits || 0}
@@ -537,7 +524,7 @@ export default function StandardAdsPage() {
                   )}
                 </div>
 
-                {/* Row 3: Size and Video Aspect Ratio */}
+                {/* Size and Video Aspect Ratio */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <SizeSelector
                     selectedSize={imageSize}
@@ -561,148 +548,212 @@ export default function StandardAdsPage() {
                   onLanguageChange={setSelectedLanguage}
                   showIcon={true}
                 />
+              </div>
+            </div>
 
-                {/* Ad Copy Configuration */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                      <Type className="w-4 h-4" />
-                      Ad Copy
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleGenerateAdCopy}
-                      disabled={isGeneratingAdCopy || !canUseAIHelpers}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
-                    >
-                      {isGeneratingAdCopy ? (
-                        <>
-                          <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
-                          Generating…
-                        </>
-                      ) : hasAIGeneratedAdCopy ? (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5" />
-                          Regenerate
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5" />
-                          AI Generate
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={adCopy}
-                    onChange={(e) => handleAdCopyChange(e.target.value)}
-                    placeholder="Enter ad copy (optional)..."
-                    maxLength={120}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
-                  />
-                  {adCopyError && <p className="text-xs text-red-500 mt-1">{adCopyError}</p>}
+            {/* Right Column - Product Selection & Content (5/12 = ~40%) */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Product Selection */}
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-lg font-semibold text-gray-900">Product Selection</h3>
+                </div>
+                <ProductSelector
+                  selectedProduct={selectedProduct}
+                  onProductSelect={setSelectedProduct}
+                  selectedBrand={selectedBrand}
+                  onBrandSelect={setSelectedBrand}
+                  videoModel={selectedModel}
+                  shouldGenerateVideo={shouldGenerateVideo}
+                />
+              </div>
+
+              {/* Tab Section - Ad Copy/Watermark OR Custom Script */}
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Type className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-lg font-semibold text-gray-900">Custom Script or Ad Copy & Watermark</h3>
                 </div>
 
-                {/* Watermark Configuration */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                      <Type className="w-4 h-4" />
-                      Watermark
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
-                    </label>
+                {/* Tab Navigation */}
+                <div className="flex gap-2 mb-4 border-b border-gray-200">
+                  <button
+                    onClick={() => {
+                      setActiveTab('adcopy');
+                      setUseCustomScript(false);
+                    }}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                      activeTab === 'adcopy'
+                        ? 'border-gray-900 text-gray-900'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Ad Copy & Watermark
+                  </button>
+                  {shouldGenerateVideo && (
                     <button
-                      type="button"
-                      onClick={handleSuggestWatermark}
-                      disabled={isSuggestingWatermark || !canUseAIHelpers}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
+                      onClick={() => {
+                        setActiveTab('script');
+                        setUseCustomScript(true);
+                        setAdCopy('');
+                        setTextWatermark('');
+                      }}
+                      className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                        activeTab === 'script'
+                          ? 'border-purple-600 text-purple-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
                     >
-                      {isSuggestingWatermark ? (
-                        <>
-                          <span className="h-3 w-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
-                          Analyzing…
-                        </>
-                      ) : hasAISuggestedWatermark ? (
-                        <>
-                          <Wand2 className="w-3.5 h-3.5" />
-                          Regenerate
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 className="w-3.5 h-3.5" />
-                          AI Suggest
-                        </>
-                      )}
+                      <span className="flex items-center gap-2">
+                        Custom Script
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Advanced</span>
+                      </span>
                     </button>
-                  </div>
-                  <div className="flex gap-2 flex-col sm:flex-row">
-                    <input
-                      type="text"
-                      value={textWatermark}
-                      onChange={(e) => handleWatermarkTextChange(e.target.value)}
-                      placeholder="Enter brand name or watermark text..."
-                      maxLength={50}
-                      className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
-                    />
-                    <select
-                      value={textWatermarkLocation}
-                      onChange={(e) => handleWatermarkLocationChange(e.target.value)}
-                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
-                    >
-                      <option value="bottom left">Bottom Left</option>
-                      <option value="bottom right">Bottom Right</option>
-                      <option value="top left">Top Left</option>
-                      <option value="top right">Top Right</option>
-                      <option value="center bottom">Center Bottom</option>
-                    </select>
-                  </div>
-                  {watermarkError && <p className="text-xs text-red-500 mt-1">{watermarkError}</p>}
+                  )}
                 </div>
 
-                {/* Generate Button */}
-                <button
-                  onClick={handleStartWorkflow}
-                  disabled={state.isLoading || !selectedProduct}
-                  className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                >
-                  {state.isLoading ? (
+                {/* Tab Content */}
+                <div className="space-y-4">
+                  {activeTab === 'adcopy' ? (
                     <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                      <span>Generating…</span>
+                      {/* Ad Copy */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <label className="text-sm font-medium text-gray-900">
+                            Ad Copy
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full ml-2">Optional</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleGenerateAdCopy}
+                            disabled={isGeneratingAdCopy || !canUseAIHelpers}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
+                          >
+                            {isGeneratingAdCopy ? (
+                              <>
+                                <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                                Generating…
+                              </>
+                            ) : hasAIGeneratedAdCopy ? (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5" />
+                                Regenerate
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5" />
+                                AI Generate
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={adCopy}
+                          onChange={(e) => handleAdCopyChange(e.target.value)}
+                          placeholder="Enter ad copy (optional)..."
+                          maxLength={120}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                        />
+                        {adCopyError && <p className="text-xs text-red-500 mt-1">{adCopyError}</p>}
+                      </div>
+
+                      {/* Watermark */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <label className="text-sm font-medium text-gray-900">
+                            Watermark
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full ml-2">Optional</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleSuggestWatermark}
+                            disabled={isSuggestingWatermark || !canUseAIHelpers}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
+                          >
+                            {isSuggestingWatermark ? (
+                              <>
+                                <span className="h-3 w-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
+                                Analyzing…
+                              </>
+                            ) : hasAISuggestedWatermark ? (
+                              <>
+                                <Wand2 className="w-3.5 h-3.5" />
+                                Regenerate
+                              </>
+                            ) : (
+                              <>
+                                <Wand2 className="w-3.5 h-3.5" />
+                                AI Suggest
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="flex gap-2 flex-col sm:flex-row">
+                          <input
+                            type="text"
+                            value={textWatermark}
+                            onChange={(e) => handleWatermarkTextChange(e.target.value)}
+                            placeholder="Enter brand name or watermark text..."
+                            maxLength={50}
+                            className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                          />
+                          <select
+                            value={textWatermarkLocation}
+                            onChange={(e) => handleWatermarkLocationChange(e.target.value)}
+                            className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                          >
+                            <option value="bottom left">Bottom Left</option>
+                            <option value="bottom right">Bottom Right</option>
+                            <option value="top left">Top Left</option>
+                            <option value="top right">Top Right</option>
+                            <option value="center bottom">Center Bottom</option>
+                          </select>
+                        </div>
+                        {watermarkError && <p className="text-xs text-red-500 mt-1">{watermarkError}</p>}
+                      </div>
                     </>
                   ) : (
-                    <>
-                      <ArrowRight className="w-5 h-5" />
-                      <span>Generate</span>
-                    </>
+                    /* Custom Script Tab */
+                    <div className="space-y-3">
+                      <textarea
+                        value={customScript}
+                        onChange={(e) => setCustomScript(e.target.value)}
+                        placeholder="Paste your pre-generated video script here..."
+                        rows={15}
+                        className="w-full px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 text-sm font-mono bg-white"
+                      />
+                      {customScript.trim().length > 0 && (
+                        <p className="text-xs text-gray-600">
+                          Script length: {customScript.trim().length} characters
+                        </p>
+                      )}
+                    </div>
                   )}
-                </button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Showcase Section - Notion style design */}
-          <div className="border border-gray-100/80 bg-white/60 backdrop-blur-sm rounded-xl p-6 mt-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-6 h-6 bg-gray-900 rounded-md flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-xl font-medium text-gray-900 tracking-tight">
-                  See how entrepreneurs create viral ads with AI
-                </h3>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  Real examples from our community
-                </p>
-              </div>
-            </div>
-            <ShowcaseSection
-              workflowType="standard-ads"
-              className="max-w-5xl mx-auto"
-            />
-          </div>
+          {/* Full-width Generate Button at Bottom */}
+          <button
+            onClick={handleStartWorkflow}
+            disabled={state.isLoading || !selectedProduct}
+            className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
+          >
+            {state.isLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                <span>Generating…</span>
+              </>
+            ) : (
+              <>
+                <ArrowRight className="w-5 h-5" />
+                <span>Generate</span>
+              </>
+            )}
+          </button>
         </div>
       );
     }
