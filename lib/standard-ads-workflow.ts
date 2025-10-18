@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getActualImageModel, IMAGE_MODELS, getAutoModeSelection, getGenerationCost } from '@/lib/constants';
+import { getActualImageModel, IMAGE_MODELS, getAutoModeSelection, getGenerationCost, getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
@@ -24,6 +24,7 @@ export interface StartWorkflowRequest {
   // NEW: Sora2 Pro params
   sora2ProDuration?: '10' | '15';
   sora2ProQuality?: 'standard' | 'high';
+  language?: string; // Language for AI-generated content
 }
 
 interface WorkflowResult {
@@ -47,13 +48,16 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           user_product_photos (*)
         `)
         .eq('id', request.selectedProductId)
+        .eq('user_id', request.userId)
         .single();
 
       if (productError || !product) {
+        console.error('Product query error:', productError);
+        console.error('Product query params:', { id: request.selectedProductId, userId: request.userId });
         return {
           success: false,
           error: 'Product not found',
-          details: productError?.message || 'Selected product does not exist'
+          details: productError?.message || 'Selected product does not exist or does not belong to this user'
         };
       }
 
@@ -165,6 +169,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         watermark_location: request.watermark?.location || request.watermarkLocation,
         cover_image_aspect_ratio: request.imageSize || request.videoAspectRatio || '16:9',
         photo_only: request.photoOnly || false,
+        language: request.language || 'en', // Language for AI-generated content
         // NEW: Sora2 Pro fields
         sora2_pro_duration: actualVideoModel === 'sora2_pro' ? (request.sora2ProDuration || '10') : null,
         sora2_pro_quality: actualVideoModel === 'sora2_pro' ? (request.sora2ProQuality || 'standard') : null,
@@ -245,7 +250,7 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
 
     // Step 2: Generate creative prompts
     console.log('✨ Generating creative prompts...');
-    const prompts = await generateCreativePrompts(description, request.adCopy);
+    const prompts = await generateCreativePrompts(description, request.adCopy, request.language);
     console.log('🎯 Creative prompts generated:', Object.keys(prompts).join(', '));
 
     // Step 3: Start cover generation
@@ -322,7 +327,7 @@ async function describeImage(imageUrl: string): Promise<string> {
   return data.choices[0].message.content;
 }
 
-async function generateCreativePrompts(description: string, adCopy?: string): Promise<Record<string, unknown>> {
+async function generateCreativePrompts(description: string, adCopy?: string, language?: string): Promise<Record<string, unknown>> {
   const trimmedAdCopy = adCopy?.trim();
 
   // Define JSON schema for Structured Outputs
@@ -417,7 +422,7 @@ Generate a creative video advertisement prompt with these elements:
 - music: Music style
 - ending: How the ad concludes
 - other_details: Additional creative elements
-${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline. Do not paraphrase: "${trimmedAdCopy}".` : ''}`
+${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline. Do not paraphrase: "${trimmedAdCopy}".` : ''}${language && language !== 'en' ? `\n\nIMPORTANT: Generate all text content (dialogue, on-screen text, voiceover descriptions) in ${getLanguagePromptName(language as LanguageCode)} language. The dialogue, ending text, and any on-screen messages should be written in ${getLanguagePromptName(language as LanguageCode)}, not English.` : ''}`
         }
       ]
     })

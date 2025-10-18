@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     const videoAspectRatio = (formData.get('video_aspect_ratio') as '16:9' | '9:16') || '16:9';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const selectedProductId = formData.get('selected_product_id') as string;
+    const language = (formData.get('language') as string) || 'en';
 
     console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, imageSize, videoModel, accent, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId });
 
@@ -281,6 +282,7 @@ export async function POST(request: NextRequest) {
         video_aspect_ratio: videoAspectRatio,
         accent: accent,
         custom_dialogue: customDialogue || null,
+        language: language, // Language for AI-generated content
         credits_cost: totalCredits,
         generation_credits_used: generationCreditsUsed,
         status: 'pending',

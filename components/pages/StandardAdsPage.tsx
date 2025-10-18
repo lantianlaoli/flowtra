@@ -90,7 +90,8 @@ export default function StandardAdsPage() {
     elementsCount,
     imageSize,
     videoAspectRatio,
-    adCopy
+    adCopy,
+    selectedLanguage
   );
 
   const ALLOWED_WATERMARK_LOCATIONS = ['bottom left', 'bottom right', 'top left', 'top right', 'center bottom'] as const;

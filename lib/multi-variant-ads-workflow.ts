@@ -24,6 +24,7 @@ export interface MultiVariantAdsRequest {
   coverImageSize?: string;
   elementsData?: Record<string, unknown>;
   videoAspectRatio?: '16:9' | '9:16';
+  language?: string; // Language for AI-generated content
   // NEW: Sora2 Pro params
   sora2ProDuration?: '10' | '15';
   sora2ProQuality?: 'standard' | 'high';
@@ -163,6 +164,7 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
           watermark_location: request.textWatermarkLocation || request.watermark?.location,
           photo_only: request.photoOnly || false,
           cover_image_aspect_ratio: request.coverImageSize || '16:9',
+          language: request.language || 'en', // Language for AI-generated content
           credits_cost: generationCostPerVideo, // Only generation cost (download cost charged separately)
           // NEW: Sora2 Pro fields
           sora2_pro_duration: videoModel === 'sora2_pro' ? (request.sora2ProDuration || '10') : null,

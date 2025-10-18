@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { generateBrandEndingFrame } from '@/lib/standard-ads-workflow';
+import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 
 interface KieCallbackData {
   taskId: string;
@@ -32,6 +33,7 @@ interface StandardAdsRecord {
   brand_ending_frame_url?: string;
   brand_ending_task_id?: string;
   image_model?: 'nano_banana' | 'seedream';
+  language?: string;
 }
 
 type VideoPrompt = {
@@ -312,6 +314,13 @@ async function startVideoGeneration(record: StandardAdsRecord, coverImageUrl: st
     ? `\nAd Copy (use verbatim): ${providedAdCopy}\nOn-screen Text: Display "${providedAdCopy}" prominently without paraphrasing.\nVoiceover: Speak "${providedAdCopy}" exactly as written.`
     : '';
 
+  // Get language information
+  const language = (record.language || 'en') as LanguageCode;
+  const languageName = getLanguagePromptName(language);
+  const languageInstruction = language !== 'en'
+    ? `\n\nLanguage Requirement: All spoken dialogue and on-screen text MUST be in ${languageName}. Do not use English unless explicitly mixed in the dialogue.`
+    : '';
+
   const fullPrompt = `${videoPrompt.description}
 
 Setting: ${videoPrompt.setting}
@@ -321,7 +330,7 @@ Lighting: ${videoPrompt.lighting}
 Dialogue: ${dialogueContent}
 Music: ${videoPrompt.music}
 Ending: ${videoPrompt.ending}
-Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
+Other details: ${videoPrompt.other_details}${adCopyInstruction}${languageInstruction}`;
 
   console.log('Generated video prompt:', fullPrompt);
 

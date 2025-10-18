@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { generateVideoDesignFromCover } from '@/lib/multi-variant-ads-workflow';
+import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 
 export async function POST() {
   try {
@@ -103,6 +104,7 @@ interface InstanceRecord {
   downloaded: boolean;
   download_credits_used: number;
   error_message?: string;
+  language?: string;
   created_at: string;
   updated_at: string;
   last_processed_at: string;
@@ -317,6 +319,13 @@ async function startVideoGeneration(
     ending: string;
   }
 ): Promise<string> {
+  // Get language information
+  const language = (instance.language || 'en') as LanguageCode;
+  const languageName = getLanguagePromptName(language);
+  const languageInstruction = language !== 'en'
+    ? `\n\nLanguage Requirement: All spoken dialogue and on-screen text MUST be in ${languageName}. Do not use English unless explicitly mixed in the dialogue.`
+    : '';
+
   const finalPrompt = `Create a short, cinematic product ad video based on the provided cover image. Maintain consistency with the cover's style, layout, and color palette.
 
 Description: ${videoPrompt.description}
@@ -328,7 +337,7 @@ Lighting: ${videoPrompt.lighting}
 Other Details: ${videoPrompt.other_details}
 Dialogue: ${videoPrompt.dialogue}
 Music: ${videoPrompt.music}
-Ending: ${videoPrompt.ending}`;
+Ending: ${videoPrompt.ending}${languageInstruction}`;
 
   console.log('Generated video prompt:', finalPrompt);
 

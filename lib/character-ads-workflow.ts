@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { IMAGE_MODELS } from '@/lib/constants';
+import { IMAGE_MODELS, getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 // Events table removed: no tracking imports
 
@@ -40,6 +40,7 @@ interface CharacterAdsProject {
   video_aspect_ratio?: string;
   accent: string;
   custom_dialogue?: string;
+  language?: string;
   status: string;
   current_step: string;
   progress_percentage: number;
@@ -436,10 +437,20 @@ async function generateVideoWithKIE(
   prompt: Record<string, unknown>,
   videoModel: string,
   referenceImageUrl: string,
-  videoAspectRatio?: '16:9' | '9:16'
+  videoAspectRatio?: '16:9' | '9:16',
+  language?: string
 ): Promise<{ taskId: string }> {
   // Convert prompt object to string for API
-  const finalPrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
+  let basePrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
+
+  // Add language instruction if not English
+  const lang = (language || 'en') as LanguageCode;
+  const languageName = getLanguagePromptName(lang);
+  const languageInstruction = lang !== 'en'
+    ? `\n\nLanguage Requirement: All spoken dialogue and on-screen text MUST be in ${languageName}. Do not use English unless explicitly mixed in the dialogue.`
+    : '';
+
+  const finalPrompt = `${basePrompt}${languageInstruction}`;
 
   let requestBody: Record<string, unknown>;
   let apiEndpoint: string;
@@ -1101,7 +1112,8 @@ export async function processCharacterAdsProject(
             videoPrompt as Record<string, unknown>,
             actualVideoModel, // Use actual video model (sora2 if detected)
             project.generated_image_url, // Use generated image as reference
-            project.video_aspect_ratio as '16:9' | '9:16' | undefined
+            project.video_aspect_ratio as '16:9' | '9:16' | undefined,
+            project.language // Pass language for video prompt
           );
 
           videoTaskIds.push(taskId);
