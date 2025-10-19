@@ -9,6 +9,7 @@ interface StandardAdsItem {
   originalImageUrl: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  coverAspectRatio?: string;
   photoOnly?: boolean;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
@@ -30,6 +31,7 @@ interface MultiVariantAdsItem {
   originalImageUrl?: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  coverAspectRatio?: string;
   photoOnly?: boolean;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
@@ -51,6 +53,7 @@ interface CharacterAdsItem {
   originalImageUrl?: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  coverAspectRatio?: string;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
@@ -77,6 +80,35 @@ interface WatermarkRemovalItem {
 }
 
 type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem | WatermarkRemovalItem;
+
+type SupportedAspectRatio = '16:9' | '9:16' | '1:1';
+
+const normalizeAspectRatio = (ratio?: string | null): SupportedAspectRatio | undefined => {
+  if (!ratio) return undefined;
+  const normalized = ratio.toString().toLowerCase().replace(/\s+/g, '');
+
+  if (normalized.includes('16:9') || normalized.includes('16x9') || normalized.includes('landscape')) {
+    return '16:9';
+  }
+
+  if (normalized.includes('9:16') || normalized.includes('9x16') || normalized.includes('portrait')) {
+    return '9:16';
+  }
+
+  if (normalized.includes('1:1') || normalized.includes('1x1') || normalized.includes('square')) {
+    return '1:1';
+  }
+
+  return undefined;
+};
+
+const resolveVideoAspectRatio = (videoRatio?: string | null, fallbackRatio?: string | null): SupportedAspectRatio => {
+  return normalizeAspectRatio(videoRatio) ?? normalizeAspectRatio(fallbackRatio) ?? '9:16';
+};
+
+const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | undefined => {
+  return normalizeAspectRatio(ratio);
+};
 
 export async function GET() {
   try {
@@ -172,6 +204,7 @@ export async function GET() {
       generationCreditsUsed: 0,
       productDescription: item.product_description,
       imagePrompt: item.image_prompt,
+      coverAspectRatio: resolveCoverAspectRatio(item.cover_image_aspect_ratio),
       videoModel:
         item.video_model === 'sora2'
           ? 'sora2'
@@ -184,7 +217,7 @@ export async function GET() {
       progress: item.progress_percentage,
       currentStep: item.current_step,
       adType: 'standard',
-      videoAspectRatio: item.video_aspect_ratio || '9:16'
+      videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio)
     }));
 
     // Transform Multi-Variant Ads data
@@ -209,6 +242,7 @@ export async function GET() {
       original_image_url?: string | null;
       product_description?: string | null;
       video_model?: 'veo3' | 'veo3_fast' | string | null;
+      cover_image_aspect_ratio?: string | null;
     }
 
     const transformedMultiVariantAdsHistory: MultiVariantAdsItem[] = (multiVariantAdsItems || []).map((instance: MultiVariantRow) => {
@@ -219,6 +253,7 @@ export async function GET() {
         originalImageUrl: instance.original_image_url || originalImageFromElements,
         coverImageUrl: instance.cover_image_url || undefined,
         videoUrl: instance.video_url || undefined,
+        coverAspectRatio: resolveCoverAspectRatio(instance.cover_image_aspect_ratio),
         photoOnly: instance.photo_only === true,
         downloaded: instance.downloaded,
         downloadCreditsUsed: 0,
@@ -264,6 +299,7 @@ export async function GET() {
           id: item.id,
           originalImageUrl: item.person_image_urls?.[0], // Use first person image as thumbnail
           coverImageUrl: item.generated_image_url, // Map generated image to cover for preview
+          coverAspectRatio: resolveCoverAspectRatio(item.cover_image_aspect_ratio),
           videoUrl, // Show video only for completed items
           downloaded: item.downloaded || false,
           downloadCreditsUsed: item.download_credits_used || 0,
@@ -276,7 +312,7 @@ export async function GET() {
           currentStep: item.current_step,
           adType: 'character',
           videoDurationSeconds: item.video_duration_seconds,
-          videoAspectRatio: item.video_aspect_ratio || '9:16'
+          videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio)
         };
       });
 

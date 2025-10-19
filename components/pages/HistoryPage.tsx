@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, ArrowUpRight, Smartphone, Monitor, Square } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, ArrowUpRight, Volume2, CalendarClock } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -17,6 +17,7 @@ interface StandardAdsItem {
   originalImageUrl: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  coverAspectRatio?: string;
   photoOnly?: boolean;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
@@ -38,6 +39,7 @@ interface MultiVariantAdsItem {
   originalImageUrl?: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  coverAspectRatio?: string;
   photoOnly?: boolean;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
@@ -60,6 +62,7 @@ interface CharacterAdsItem {
   originalImageUrl?: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  coverAspectRatio?: string;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
@@ -89,22 +92,46 @@ type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem | Wa
 
 const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns (desktop) = 8 items per page
 
-const CONTENT_FILTER_OPTIONS = [
-  { value: 'all', label: 'All Ads', icon: ImageIcon },
-  { value: 'standard', label: 'Standard', icon: ImageIcon },
-  { value: 'multi-variant', label: 'Multi-Variant', icon: Layers },
-  { value: 'character', label: 'Character', icon: VideoIcon },
-  { value: 'watermark-removal', label: 'Watermark Removal', icon: Droplets },
+const AD_TYPE_OPTIONS = [
+  {
+    value: 'all',
+    label: 'All Ads',
+    icon: ImageIcon,
+    description: 'Every campaign you have generated so far',
+  },
+  {
+    value: 'standard',
+    label: 'Standard',
+    icon: ImageIcon,
+    description: 'Single-product ads generated from one photo',
+  },
+  {
+    value: 'multi-variant',
+    label: 'Multi-Variant',
+    icon: Layers,
+    description: 'Variant sets with multiple layout experiments',
+  },
+  {
+    value: 'character',
+    label: 'Character',
+    icon: VideoIcon,
+    description: 'Character-driven videos and image sets',
+  },
+  {
+    value: 'watermark-removal',
+    label: 'Watermark Removal',
+    icon: Droplets,
+    description: 'Processed videos with Sora2 watermark removal',
+  },
 ] as const;
 
-const ASPECT_RATIO_OPTIONS = [
-  { value: 'all', label: 'All Ratios', shortLabel: 'All', icon: VideoIcon },
-  { value: '9:16', label: '9:16 Portrait', shortLabel: '9:16', icon: Smartphone },
-  { value: '16:9', label: '16:9 Landscape', shortLabel: '16:9', icon: Monitor },
-  { value: '1:1', label: '1:1 Square', shortLabel: '1:1', icon: Square },
-] as const;
+type AdTypeFilterValue = (typeof AD_TYPE_OPTIONS)[number]['value'];
 
-// Helper functions
+const interactiveCardActionClasses =
+  'cursor-pointer transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/20 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0';
+
+const paginationButtonClasses =
+  'cursor-pointer transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/15 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0 disabled:pointer-events-none';
 
 const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
   return 'adType' in item && item.adType === 'character';
@@ -128,10 +155,7 @@ export default function HistoryPage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
-  // Content filter simplified: only video ads types remain
-  const [contentFilter, setContentFilter] = useState<'all' | 'standard' | 'multi-variant' | 'character' | 'watermark-removal'>('all');
-  // Aspect ratio filter for video dimensions
-  const [aspectRatioFilter, setAspectRatioFilter] = useState<'all' | '9:16' | '16:9' | '1:1'>('all');
+  const [adTypeFilter, setAdTypeFilter] = useState<AdTypeFilterValue>('all');
   const { credits: userCredits, refetchCredits } = useCredits();
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -149,12 +173,19 @@ export default function HistoryPage() {
 
   // Helper function to get aspect ratio class
   const getAspectRatioClass = (aspectRatio?: string) => {
-    switch (aspectRatio) {
+    const normalized = aspectRatio?.toLowerCase();
+    switch (normalized) {
       case '16:9':
+      case '16x9':
+      case 'landscape':
         return 'aspect-[16/9]';
       case '1:1':
+      case '1x1':
+      case 'square':
         return 'aspect-square';
       case '9:16':
+      case '9x16':
+      case 'portrait':
       default:
         return 'aspect-[9/16]';
     }
@@ -162,25 +193,19 @@ export default function HistoryPage() {
 
 
   // Memoized filtered history for better performance
-  const filteredHistory = useMemo(() => {
+  const adTypeFilteredHistory = useMemo(() => {
     return history.filter(item => {
-      // Content filter by ad type
-      const contentMatch =
-        contentFilter === 'all' ||
-        (contentFilter === 'standard' && isStandardAds(item)) ||
-        (contentFilter === 'multi-variant' && isMultiVariantAds(item)) ||
-        (contentFilter === 'character' && isCharacterAds(item)) ||
-        (contentFilter === 'watermark-removal' && isWatermarkRemoval(item));
-
-      // Aspect ratio filter
-      const aspectRatioMatch =
-        aspectRatioFilter === 'all' ||
-        (isWatermarkRemoval(item)) || // Watermark removal items don't have aspect ratio, show them always
-        ('videoAspectRatio' in item && item.videoAspectRatio === aspectRatioFilter);
-
-      return contentMatch && aspectRatioMatch;
+      return (
+        adTypeFilter === 'all' ||
+        (adTypeFilter === 'standard' && isStandardAds(item)) ||
+        (adTypeFilter === 'multi-variant' && isMultiVariantAds(item)) ||
+        (adTypeFilter === 'character' && isCharacterAds(item)) ||
+        (adTypeFilter === 'watermark-removal' && isWatermarkRemoval(item))
+      );
     });
-  }, [history, contentFilter, aspectRatioFilter]);
+  }, [history, adTypeFilter]);
+
+  const filteredHistory = adTypeFilteredHistory;
 
   // Memoized pagination calculations
   const { totalPages, currentHistory } = useMemo(() => {
@@ -303,7 +328,7 @@ export default function HistoryPage() {
   // Reset to first page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [contentFilter, aspectRatioFilter]);
+  }, [adTypeFilter]);
 
   // Loading state
   if (!isLoaded) {
@@ -749,110 +774,62 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
       <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
           <div className="mb-6 md:mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Play className="w-4 h-4 text-gray-700" />
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <Play className="w-4 h-4 text-gray-700" />
+                </div>
+                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+                  My Ads
+                </h1>
               </div>
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                My Ads
-              </h1>
+              <div className="relative md:max-w-sm">
+                <div className="flex items-start gap-3 rounded-2xl border border-amber-200/70 bg-gradient-to-r from-white via-white to-amber-50/80 px-3.5 py-3 shadow-sm backdrop-blur-sm">
+                  <div className="mt-0.5">
+                    <CalendarClock className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs md:text-sm font-semibold text-amber-900 tracking-wide uppercase">
+                      Download within 15 days
+                    </p>
+                    <p className="text-[11px] md:text-xs text-amber-800 leading-relaxed max-w-xs">
+                      Every ad stays live for 15 days only. We automatically purge expired assets, so please download anything you love before it disappears.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="mb-4 md:mb-6 space-y-4">
-            {/* Content Type Filter */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs md:text-sm font-medium text-gray-600 px-0.5">Ad Type</span>
-              {/* Mobile quick grid */}
-              <div className="md:hidden grid grid-cols-2 gap-2">
-                {CONTENT_FILTER_OPTIONS.map((opt) => (
+          {/* Filter Controls */}
+          <div className="mb-4 md:mb-6">
+            <div className="flex w-full flex-wrap items-center gap-2 md:inline-flex md:w-auto md:gap-3 rounded-2xl border border-gray-200 bg-white/80 p-3 md:p-4 shadow-sm">
+              {AD_TYPE_OPTIONS.map((option) => {
+                const isActive = adTypeFilter === option.value;
+                return (
                   <button
-                    key={opt.value}
-                    onClick={() => setContentFilter(opt.value)}
+                    key={option.value}
+                    type="button"
+                    title={option.description}
+                    onClick={() => setAdTypeFilter(option.value)}
+                    aria-pressed={isActive}
                     className={cn(
-                      'flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300',
-                      contentFilter === opt.value
+                      'inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/10',
+                      isActive
                         ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:text-gray-900'
                     )}
                   >
-                    <opt.icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate">{opt.label}</span>
-                  </button>
-                ))}
-              </div>
-              {/* Desktop segmented control */}
-              <div className="hidden md:block">
-                <div className="bg-white border border-gray-200 p-1 rounded-lg shadow-sm overflow-x-auto -mx-0.5 px-0.5">
-                  <div className="flex gap-1 min-w-max">
-                    {CONTENT_FILTER_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setContentFilter(opt.value)}
-                        className={cn(
-                          'h-9 px-3 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer flex-shrink-0 text-xs font-medium',
-                          contentFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-                        )}
-                      >
-                        <opt.icon className="w-4 h-4 flex-shrink-0" />
-                        <span>{opt.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Aspect Ratio Filter */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs md:text-sm font-medium text-gray-600 px-0.5">Video Size</span>
-              {/* Mobile quick grid */}
-              <div className="md:hidden grid grid-cols-2 gap-2">
-                {ASPECT_RATIO_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setAspectRatioFilter(opt.value)}
-                    className={cn(
-                      'flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300',
-                      aspectRatioFilter === opt.value
-                        ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
-                    )}
-                  >
-                    <opt.icon className="w-4 h-4 flex-shrink-0" />
-                    <div className="flex flex-col items-start leading-tight">
-                      <span>{opt.label}</span>
-                      {opt.shortLabel && (
-                        <span className="text-[10px] uppercase tracking-wide text-gray-400">
-                          {opt.shortLabel}
-                        </span>
+                    <option.icon
+                      className={cn(
+                        'h-4 w-4',
+                        isActive ? 'text-white' : 'text-gray-500'
                       )}
-                    </div>
+                    />
+                    <span>{option.label}</span>
                   </button>
-                ))}
-              </div>
-              {/* Desktop segmented control */}
-              <div className="hidden md:block">
-                <div className="bg-white border border-gray-200 p-1 rounded-lg shadow-sm overflow-x-auto -mx-0.5 px-0.5">
-                  <div className="flex gap-1 min-w-max">
-                    {ASPECT_RATIO_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setAspectRatioFilter(opt.value)}
-                        className={cn(
-                          'h-9 px-3 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer flex-shrink-0 text-xs font-medium',
-                          aspectRatioFilter === opt.value ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-                        )}
-                      >
-                        <opt.icon className="w-4 h-4 flex-shrink-0" />
-                        <span className="hidden md:inline">{opt.label}</span>
-                        <span className="md:hidden">{opt.shortLabel}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
 
@@ -928,7 +905,10 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                     e.stopPropagation();
                                     router.push('/dashboard/support');
                                   }}
-                                  className="w-full text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-center transition-colors"
+                                  className={cn(
+                                    'w-full text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-center transition-colors',
+                                    interactiveCardActionClasses
+                                  )}
                                 >
                                   Contact Support →
                                 </button>
@@ -1014,6 +994,16 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                             />
                           )
                         }
+                        {hoveredVideo === item.id &&
+                          !isWatermarkRemoval(item) &&
+                          item.status === 'completed' &&
+                          'videoUrl' in item && item.videoUrl &&
+                          (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) && (
+                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white pointer-events-none shadow-lg backdrop-blur-sm">
+                              <Volume2 className="w-3.5 h-3.5" />
+                              <span>Click for sound</span>
+                            </div>
+                          )}
                         {/* Unified processing overlay with circular progress */}
                         {item.status === 'processing' && (
                           <div className="absolute inset-0 flex items-center justify-center">
@@ -1068,7 +1058,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                               {isWatermarkRemoval(item) ? (
                                 <button
                                   disabled
-                                  className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
+                                  className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed disabled:pointer-events-none"
                                 >
                                   <div className="flex items-center gap-1.5 md:gap-2">
                                     <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -1085,9 +1075,9 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                     onClick={() => { if ('coverImageUrl' in item && item.coverImageUrl) handleCoverClick(item); }}
                                     disabled={!('coverImageUrl' in item && item.coverImageUrl)}
                                     className={cn(
-                                      'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm rounded-lg border transition-colors',
+                                      'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm rounded-lg border transition-colors disabled:pointer-events-none',
                                       'coverImageUrl' in item && item.coverImageUrl
-                                        ? 'bg-black text-white hover:bg-gray-800 border-black'
+                                        ? cn('bg-black text-white hover:bg-gray-800 border-black', interactiveCardActionClasses)
                                         : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
                                     )}
                                   >
@@ -1103,7 +1093,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                   {/* Video button: always disabled while processing */}
                                   <button
                                     disabled
-                                    className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed"
+                                    className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed disabled:pointer-events-none"
                                   >
                                     <div className="flex items-center gap-1.5 md:gap-2">
                                       <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -1137,7 +1127,10 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                   {'coverImageUrl' in item && item.coverImageUrl && (
                                     <button
                                       onClick={() => handleCoverClick(item)}
-                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                      className={cn(
+                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black',
+                                        interactiveCardActionClasses
+                                      )}
                                     >
                                       <div className="flex items-center gap-1.5 md:gap-2">
                                         <ImageIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
@@ -1175,7 +1168,10 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                       href={item.originalVideoUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                                      className={cn(
+                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors',
+                                        interactiveCardActionClasses
+                                      )}
                                     >
                                       <div className="flex items-center gap-1.5 md:gap-2">
                                         <Play className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -1191,7 +1187,10 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                     <button
                                       onClick={() => handleVideoClick(item)}
                                       disabled={videoStates[item.id] === 'packing'}
-                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                      className={cn(
+                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black disabled:pointer-events-none',
+                                        interactiveCardActionClasses
+                                      )}
                                     >
                                       <div className="flex items-center gap-1.5 md:gap-2">
                                         <Download className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
@@ -1216,7 +1215,10 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                   {'coverImageUrl' in item && item.coverImageUrl && (
                                     <button
                                       onClick={() => handleCoverClick(item)}
-                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black"
+                                      className={cn(
+                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black',
+                                        interactiveCardActionClasses
+                                      )}
                                     >
                                       <div className="flex items-center gap-1.5 md:gap-2">
                                         <ImageIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
@@ -1233,7 +1235,10 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                     <button
                                       onClick={() => handleVideoClick(item)}
                                       disabled={videoStates[item.id] === 'packing'}
-                                      className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                                      className={cn(
+                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors disabled:pointer-events-none',
+                                        interactiveCardActionClasses
+                                      )}
                                     >
                                       <div className="flex items-center gap-1.5 md:gap-2">
                                         <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -1298,7 +1303,10 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                     <button
                       onClick={() => goToPage(currentPage - 1)}
                       disabled={currentPage === 1}
-                      className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className={cn(
+                        'px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+                        paginationButtonClasses
+                      )}
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
@@ -1348,11 +1356,13 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           ) : (
                             <button
                               onClick={() => goToPage(page as number)}
-                              className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                              className={cn(
+                                'px-3 py-2 text-sm font-medium rounded-md transition-colors',
                                 currentPage === page
                                   ? 'bg-gray-900 text-white'
-                                  : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
-                              }`}
+                                  : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50',
+                                paginationButtonClasses
+                              )}
                             >
                               {page}
                             </button>
@@ -1364,7 +1374,10 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                     <button
                       onClick={() => goToPage(currentPage + 1)}
                       disabled={currentPage === totalPages}
-                      className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className={cn(
+                        'px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+                        paginationButtonClasses
+                      )}
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>
