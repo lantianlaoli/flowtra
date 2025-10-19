@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
-import Script from 'next/script'
-import { ClerkProvider } from '@clerk/nextjs'
-import { UserInitializer } from '@/components/UserInitializer'
-import { CreditsProvider } from '@/contexts/CreditsContext'
-import { ToastProvider } from '@/contexts/ToastContext'
-import { Analytics } from '@vercel/analytics/react'
-import { SpeedInsights } from '@vercel/speed-insights/react'
-import { PHProvider, PostHogPageView } from '@/providers/posthog'
+import Script from 'next/script';
+import { ClerkProvider } from '@clerk/nextjs';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
+import { PHProvider, PostHogPageView } from '@/providers/posthog';
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -202,9 +199,9 @@ export default function RootLayout({
         <body className="antialiased">
           <Script
             src="https://www.googletagmanager.com/gtag/js?id=G-CP7HSQFTCP"
-            strategy="afterInteractive"
+            strategy="lazyOnload"
           />
-          <Script id="google-analytics" strategy="afterInteractive">
+          <Script id="google-analytics" strategy="lazyOnload">
             {`
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
@@ -213,13 +210,8 @@ export default function RootLayout({
             `}
           </Script>
           <PHProvider>
-            <CreditsProvider>
-              <ToastProvider>
-                <UserInitializer />
-                <PostHogPageView />
-                {children}
-              </ToastProvider>
-            </CreditsProvider>
+            <PostHogPageView />
+            {children}
           </PHProvider>
           <Analytics />
           <SpeedInsights />

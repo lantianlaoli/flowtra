@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, forwardRef } from 'react';
+import { useRef, forwardRef } from 'react';
 import { useVideoAudio } from '@/hooks/useVideoAudio';
 
 interface VideoPlayerProps {
@@ -19,7 +19,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
   ({
     src,
     className = '',
-    autoPlay = true,
+    autoPlay = false,
     loop = true,
     playsInline = true,
     showControls = false,
@@ -40,13 +40,6 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       handleClickEnable,
     } = useVideoAudio({ videoRef: currentRef, instanceId });
 
-    useEffect(() => {
-      handleHover();
-      return () => {
-        handleLeave();
-      };
-    }, [handleHover, handleLeave]);
-
     return (
       <div 
         className="relative group w-full h-full"
@@ -58,10 +51,15 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           muted={!audioEnabled}
           loop={loop}
           playsInline={playsInline}
-          preload="metadata"
+          preload="none"
           controls={showControls}
           aria-label={ariaLabel || "Product demonstration video"}
           onError={(e) => console.warn('Video error:', e)}
+          onMouseEnter={handleHover}
+          onFocus={handleHover}
+          onMouseLeave={handleLeave}
+          onBlur={handleLeave}
+          onClick={handleClickEnable}
           onLoadedMetadata={() => {
             // Respect current audio state; ensure muted only if audio not enabled
             if (currentRef.current && !audioEnabled) {

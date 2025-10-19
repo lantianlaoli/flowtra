@@ -1,124 +1,24 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { useUser, SignInButton } from '@clerk/nextjs';
 import { GiftIcon } from '@heroicons/react/24/outline';
-import { Sparkles, Download, Smartphone, User, TrendingUp, Play, Lightbulb, Check, UserPlus } from 'lucide-react';
+import { Download, Smartphone, User, Play, Lightbulb, Check, UserPlus } from 'lucide-react';
 import { FaTiktok } from 'react-icons/fa6';
-import { useRouter } from 'next/navigation';
-import VideoPlayer from '@/components/ui/VideoPlayer';
 import DemoVideoSchema from '@/components/seo/DemoVideoSchema';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { handleCreemCheckout } from '@/lib/payment';
 import { CREDIT_COSTS } from '@/lib/constants';
 import BlogPreview from '@/components/sections/BlogPreview';
-// import SectionCTA from '@/components/sections/SectionCTA';
-
-const FileUpload = dynamic(() => import('@/components/FileUpload'), {
-  ssr: false
-});
+import { getActivatedUserCount } from '@/lib/publicMetrics';
+import { HeroPrimaryButton } from '@/components/pages/landing/HeroPrimaryButton';
+import { PricingButton } from '@/components/pages/landing/PricingButton';
+import { StoreLinkCTA } from '@/components/pages/landing/StoreLinkCTA';
+import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 
 const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
   loading: () => <div className="py-12 flex justify-center"><div className="text-gray-400">Loading...</div></div>
 });
 
-// Inline component to capture store links as leads
-function StoreLinkCTA({ isLoaded }: { isLoaded: boolean }) {
-  useUser() // access hook to keep consistent auth context (not used directly)
-  const [storeUrl, setStoreUrl] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleSubmit = async () => {
-    setError(null)
-    const url = storeUrl.trim()
-    if (!url) {
-      setError('Please paste your store URL.')
-      return
-    }
-    try {
-      // eslint-disable-next-line no-new
-      new URL(url)
-    } catch {
-      setError('Please enter a valid URL (including https://).')
-      return
-    }
-    setSubmitting(true)
-    try {
-      const res = await fetch('/api/lead/store-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeUrl: url }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to submit')
-      }
-      setSubmitted(true)
-      setStoreUrl('')
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Submission failed'
-      setError(msg)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="mt-10 md:mt-12">
-      <div className="max-w-6xl mx-auto bg-white border border-gray-200 rounded-lg p-5 md:p-6 shadow-sm">
-        <div className="grid gap-4 md:gap-6 md:grid-cols-12 items-center">
-          {/* Left: copy */}
-          <div className="md:col-span-4">
-            <h3 className="text-2xl font-bold text-gray-900">Get free ad mockups</h3>
-            <p className="text-sm sm:text-base text-gray-600 mt-2">Paste your store link — we’ll email you sample ad visuals.</p>
-          </div>
-          {/* Right: long input + button */}
-          <div className="md:col-span-8">
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-              <input
-                type="url"
-                value={storeUrl}
-                onChange={(e) => setStoreUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
-                placeholder="https://yourstore.example.com"
-                className="min-w-0 flex-1 border border-gray-300 rounded-lg px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-gray-900"
-                inputMode="url"
-                aria-label="Store URL"
-              />
-              <button
-                onClick={handleSubmit}
-                disabled={!isLoaded || submitting}
-                className="shrink-0 bg-gray-900 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
-                aria-live="polite"
-              >
-                <Sparkles className="w-5 h-5" />
-                {submitting ? 'Submitting…' : 'Submit'}
-              </button>
-            </div>
-            {error && (
-              <div className="text-sm text-red-600 mt-2">{error}</div>
-            )}
-            {submitted && (
-              <div className="text-sm text-green-600 mt-2">Thanks! We’ll review your store.</div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export default function LandingPage() {
-  const [showUpload, setShowUpload] = useState(false);
-  const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
-  const router = useRouter();
-  const { user, isLoaded } = useUser();
-  const [userCount, setUserCount] = useState<number | null>(null);
+export default async function LandingPage() {
 
   // Success Stories (no longer needs state management)
 
@@ -157,129 +57,7 @@ export default function LandingPage() {
   const liteVideos = Math.floor(500 / CREDIT_COSTS.veo3_fast);
   const basicVideos = Math.floor(2000 / CREDIT_COSTS.veo3_fast);
   const proVideos = Math.floor(3500 / CREDIT_COSTS.veo3_fast);
-
-  const handleFileUpload = () => {
-    router.push('/dashboard?upload=true');
-  };
-
-  // Fetch real registered user count (public metric)
-  // Use effect to avoid side effects during render
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/public/metrics/user-count', { cache: 'no-store' });
-        const data = await res.json();
-        if (!cancelled && data?.success) {
-          setUserCount(typeof data.count === 'number' ? data.count : 0);
-        }
-      } catch {
-        if (!cancelled) setUserCount(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-
-
-  const handlePurchase = async (packageName: 'lite' | 'basic' | 'pro') => {
-    console.log('🎯 Purchase button clicked for package:', packageName);
-    console.log('👤 User loaded:', isLoaded, 'User object:', user);
-
-    // Add extra safety check for user loading state
-    if (!isLoaded) {
-      console.log('⏳ User not yet loaded, ignoring click');
-      alert('Please wait for the page to fully load');
-      return;
-    }
-
-    if (!user) {
-      console.log('❌ No user found after loading');
-      alert('Please log in before purchasing a package');
-      return;
-    }
-
-    if (!user.emailAddresses || user.emailAddresses.length === 0) {
-      console.log('❌ No email addresses found for user');
-      alert('No email address found. Please check your account settings.');
-      return;
-    }
-
-    const userEmail = user.emailAddresses[0].emailAddress;
-    console.log('📧 User email:', userEmail);
-
-    if (!userEmail) {
-      console.log('❌ Email address is empty');
-      alert('Email address is required for purchase');
-      return;
-    }
-
-    try {
-      await handleCreemCheckout({
-        packageName,
-        userEmail,
-        onLoading: (isLoading) => {
-          console.log(`🔄 Loading state changed: ${isLoading} for package: ${packageName}`);
-          setLoadingPackage(isLoading ? packageName : null);
-        },
-        onError: (error) => {
-          console.log('❌ Purchase error received:', error);
-          alert(`Purchase failed: ${error}`);
-        }
-      });
-    } catch (error) {
-      console.error('❌ Unexpected error in handlePurchase:', error);
-      alert('An unexpected error occurred. Please try again.');
-    }
-  };
-
-  // Create a component for pricing card buttons to handle loading states properly
-  const PricingButton = ({ packageName }: { packageName: 'lite' | 'basic' | 'pro' }) => {
-    console.log('🔄 PricingButton render - isLoaded:', isLoaded, 'user:', !!user, 'package:', packageName);
-
-    // Show loading state while user data is loading
-    if (!isLoaded) {
-      return (
-        <button
-          disabled
-          className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg cursor-not-allowed opacity-50"
-        >
-          Loading...
-        </button>
-      );
-    }
-
-    // User is loaded and logged in - show purchase button
-    if (user) {
-      const isLoading = loadingPackage === packageName;
-      const buttonClass = packageName === 'basic'
-        ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
-
-      return (
-        <button
-          onClick={() => handlePurchase(packageName)}
-          disabled={isLoading}
-          className={buttonClass}
-        >
-          {isLoading ? 'Processing...' : 'Get Started'}
-        </button>
-      );
-    }
-
-    // User is loaded but not logged in - show sign in button
-    const buttonClass = packageName === 'basic'
-      ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
-      : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer";
-
-    return (
-      <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-        <button className={buttonClass}>
-          Get Started
-        </button>
-      </SignInButton>
-    );
-  };
+  const activatedUserCount = await getActivatedUserCount();
 
   return (
     <div className="min-h-screen bg-white">
@@ -380,52 +158,7 @@ export default function LandingPage() {
 
             {/* CTA Buttons */}
             <div className="flex flex-row items-start gap-3">
-              {/* Main CTA Button with proper loading state handling */}
-              {!isLoaded ? (
-                <button
-                  disabled
-                  className="bg-gray-300 text-gray-500 h-14 px-6 rounded-lg text-lg font-semibold cursor-not-allowed opacity-50 flex items-center gap-2 flex-1 justify-center"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Loading...</span>
-                </button>
-              ) : user ? (
-                <button
-                  onClick={() => router.push('/dashboard?upload=true')}
-                  className="silk-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer"
-                >
-                  <span className="sm:hidden">Start</span>
-                  <span className="hidden sm:inline silk-content">
-                    <span className="silk-default">
-                      <Sparkles className="w-5 h-5" />
-                      <span>Create My First Ad</span>
-                    </span>
-                    <span className="silk-hover">
-                      <TrendingUp className="w-5 h-5" />
-                      <span>Increase sales</span>
-                    </span>
-                  </span>
-                </button>
-              ) : (
-                <SignInButton mode="modal" forceRedirectUrl="/dashboard?upload=true">
-                  <button
-                    className="silk-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer"
-                  >
-                    <span className="sm:hidden">Start</span>
-                    <span className="hidden sm:inline silk-content">
-                      <span className="silk-default">
-                        <Sparkles className="w-5 h-5" />
-                        <span>Create My First Ad</span>
-                      </span>
-                      <span className="silk-hover">
-                        <TrendingUp className="w-5 h-5" />
-                        <span>Increase sales</span>
-                      </span>
-                    </span>
-                  </button>
-                </SignInButton>
-              )}
-              
+              <HeroPrimaryButton />
               {/* Tutorial Video Button */}
               <a
                 href="https://youtu.be/zCFmbZJaUws"
@@ -449,7 +182,7 @@ export default function LandingPage() {
             </div>
 
             {/* Social Proof under CTA - only show with real metric */}
-            {userCount !== null && userCount > 0 && (
+            {activatedUserCount > 0 && (
               <div className="pt-3" aria-label="Social proof">
                 <div
                   className="inline-flex min-w-[240px] items-center gap-3 rounded-2xl px-4 py-2
@@ -467,7 +200,7 @@ export default function LandingPage() {
                           height={28}
                           sizes="28px"
                           className="w-full h-full object-cover"
-                          unoptimized
+                         
                         />
                       </div>
                     ))}
@@ -475,11 +208,11 @@ export default function LandingPage() {
                   {/* Single-line copy for harmony with avatars */}
                   <span
                     className="text-sm font-semibold text-black whitespace-nowrap"
-                    title={`${userCount.toLocaleString('en-US')} small business owners trust Flowtra`}
+                    title={`${activatedUserCount.toLocaleString('en-US')} small business owners trust Flowtra`}
                   >
                     {`Trusted by `}
                     <span className="font-bold tabular-nums">
-                      {userCount.toLocaleString('en-US')}
+                      {activatedUserCount.toLocaleString('en-US')}
                     </span>
                     {` small business owners`}
                   </span>
@@ -502,7 +235,7 @@ export default function LandingPage() {
                   sizes="(max-width: 640px) 192px, (max-width: 768px) 192px, 192px"
                   priority
                   className="w-full h-full object-cover"
-                  unoptimized
+                 
                 />
               </div>
             </div>
@@ -526,7 +259,7 @@ export default function LandingPage() {
                     height={400}
                     sizes="(max-width: 640px) 145px, (max-width: 768px) 181px, 248px"
                     className="w-full h-full object-cover"
-                    unoptimized
+                   
                   />
                 </div>
                 <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1">
@@ -537,13 +270,12 @@ export default function LandingPage() {
 
               {/* Premium Video - Right */}
               <div className="relative">
-                <div className="bg-gray-900 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-[3/4]">
-                  <VideoPlayer
-                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/example.mp4"
-                    className="rounded-lg object-contain"
-                    ariaLabel="AI-generated video advertisement example showing product transformation"
-                  />
-                </div>
+                <LazyVideoPlayer
+                  wrapperClassName="bg-gray-900 rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-[3/4]"
+                  className="w-full h-full rounded-lg object-contain"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/example.mp4"
+                  ariaLabel="AI-generated video advertisement example showing product transformation"
+                />
               </div>
             </div>
           </div>
@@ -579,7 +311,7 @@ export default function LandingPage() {
                         height={48}
                         sizes="48px"
                         className="w-full h-full object-cover"
-                        unoptimized
+                       
                       />
                     </div>
                     <div>
@@ -624,7 +356,7 @@ export default function LandingPage() {
                             height={267}
                             sizes="200px"
                             className="w-full h-full object-cover"
-                            unoptimized
+                           
                           />
                         </div>
                       </div>
@@ -640,13 +372,12 @@ export default function LandingPage() {
 
                       {/* Generated Video */}
                       <div className="flex flex-col items-center">
-                        <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[160px] h-[213px] sm:w-[200px] sm:h-[267px]">
-                          <VideoPlayer
-                            src={successCases[0].content.videoUrl}
-                            className="rounded-2xl"
-                            ariaLabel="Standard Ads success story: video created with Flowtra AI"
-                          />
-                        </div>
+                        <LazyVideoPlayer
+                          wrapperClassName="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[160px] h-[213px] sm:w-[200px] sm:h-[267px]"
+                          className="h-full w-full rounded-2xl"
+                          src={successCases[0].content.videoUrl}
+                          ariaLabel="Standard Ads success story: video created with Flowtra AI"
+                        />
                       </div>
                     </div>
 
@@ -661,14 +392,13 @@ export default function LandingPage() {
                   </div>
                 ) : (
                   <div className="relative mx-auto max-w-[240px]">
-                    <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
-                      <VideoPlayer
-                        src={successCases[0].content.videoUrl}
-                        className="rounded-2xl"
-                        showControls={true}
-                        ariaLabel="Standard Ads success story: video created with Flowtra AI"
-                      />
-                    </div>
+                    <LazyVideoPlayer
+                      wrapperClassName="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl"
+                      className="h-full w-full rounded-2xl"
+                      src={successCases[0].content.videoUrl}
+                      showControls={true}
+                      ariaLabel="Standard Ads success story: video created with Flowtra AI"
+                    />
                   </div>
                 )}
               </div>
@@ -686,7 +416,7 @@ export default function LandingPage() {
                         height={48}
                         sizes="48px"
                         className="w-full h-full object-cover"
-                        unoptimized
+                       
                       />
                     </div>
                     <div>
@@ -731,7 +461,7 @@ export default function LandingPage() {
                             height={267}
                             sizes="200px"
                             className="w-full h-full object-cover"
-                            unoptimized
+                           
                           />
                         </div>
                       </div>
@@ -755,7 +485,7 @@ export default function LandingPage() {
                             height={267}
                             sizes="200px"
                             className="w-full h-full object-cover"
-                            unoptimized
+                           
                           />
                         </div>
                       </div>
@@ -771,26 +501,24 @@ export default function LandingPage() {
 
                       {/* Generated Video */}
                       <div className="flex flex-col items-center">
-                        <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[140px] h-[187px] sm:w-[200px] sm:h-[267px]">
-                          <VideoPlayer
-                            src={successCases[1].content.videoUrl}
-                            className="rounded-2xl"
-                            ariaLabel="Character Ads success story: personalized video created with character and product"
-                          />
-                        </div>
+                        <LazyVideoPlayer
+                          wrapperClassName="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[140px] h-[187px] sm:w-[200px] sm:h-[267px]"
+                          className="h-full w-full rounded-2xl"
+                          src={successCases[1].content.videoUrl}
+                          ariaLabel="Character Ads success story: personalized video created with character and product"
+                        />
                       </div>
                     </div>
                   </div>
                 ) : (
                   <div className="relative mx-auto max-w-[240px]">
-                    <div className="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
-                      <VideoPlayer
-                        src={successCases[1].content.videoUrl}
-                        className="rounded-2xl"
-                        showControls={true}
-                        ariaLabel="Character Ads success story: personalized video created with character and product"
-                      />
-                    </div>
+                    <LazyVideoPlayer
+                      wrapperClassName="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl"
+                      className="h-full w-full rounded-2xl"
+                      src={successCases[1].content.videoUrl}
+                      showControls={true}
+                      ariaLabel="Character Ads success story: personalized video created with character and product"
+                    />
                   </div>
                 )}
               </div>
@@ -799,37 +527,8 @@ export default function LandingPage() {
           </div>
 
           {/* Lead Capture: Store Link Submission */}
-          <StoreLinkCTA isLoaded={isLoaded} />
+          <StoreLinkCTA />
         </section>
-
-        {/* Integrated StoreLink + CTA (single, horizontal layout) — removed duplicate */}
-
-        {/* Upload Modal */}
-        {showUpload && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl p-8 max-w-md w-full">
-              <h3 className="text-2xl font-bold mb-4">Start Creating Your Ad</h3>
-              <p className="text-gray-600 mb-6">
-                Upload your product photo and let AI create amazing advertisements for you. Get started with a free trial!
-              </p>
-              <FileUpload 
-                onFileUpload={handleFileUpload} 
-                isLoading={false}
-                multiple={false}
-              />
-              <div className="mt-4 text-center">
-                <button
-                  onClick={() => setShowUpload(false)}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
-                  aria-label="Cancel file upload and close modal"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Competitor Comparison Section */}
         <div className="py-12">
           <div className="text-center mb-8">
