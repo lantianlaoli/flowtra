@@ -25,9 +25,11 @@ export interface MultiVariantAdsRequest {
   elementsData?: Record<string, unknown>;
   videoAspectRatio?: '16:9' | '9:16';
   language?: string; // Language for AI-generated content
-  // NEW: Sora2 Pro params
-  sora2ProDuration?: '10' | '15';
-  sora2ProQuality?: 'standard' | 'high';
+  // Generic video params (applicable to all models)
+  sora2ProDuration?: '10' | '15'; // DEPRECATED: Use videoDuration
+  sora2ProQuality?: 'standard' | 'high'; // DEPRECATED: Use videoQuality
+  videoDuration?: string; // Generic video duration (e.g., '8', '10', '15')
+  videoQuality?: 'standard' | 'high'; // Generic video quality
 }
 
 interface MultiVariantResult {
@@ -93,11 +95,13 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
     if (!request.photoOnly) {
       const videoModel = request.videoModel || 'veo3';
 
-      // Calculate generation cost based on model
+      // Calculate generation cost based on model (support both old and new param names)
+      const duration = request.videoDuration || request.sora2ProDuration;
+      const quality = request.videoQuality || request.sora2ProQuality;
       generationCostPerVideo = getGenerationCost(
         videoModel,
-        request.sora2ProDuration,
-        request.sora2ProQuality
+        duration,
+        quality
       );
 
       // Total cost = cost per video * number of variants
@@ -167,8 +171,8 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
           language: request.language || 'en', // Language for AI-generated content
           credits_cost: generationCostPerVideo, // Only generation cost (download cost charged separately)
           // NEW: Sora2 Pro fields
-          sora2_pro_duration: videoModel === 'sora2_pro' ? (request.sora2ProDuration || '10') : null,
-          sora2_pro_quality: videoModel === 'sora2_pro' ? (request.sora2ProQuality || 'standard') : null,
+          video_duration: request.videoDuration || request.sora2ProDuration || (videoModel === 'veo3' || videoModel === 'veo3_fast' ? '8' : '10'),
+          video_quality: request.videoQuality || request.sora2ProQuality || 'standard',
           // DEPRECATED: download_credits_used (downloads are now free)
           download_credits_used: 0,
           created_at: new Date().toISOString(),

@@ -88,8 +88,8 @@ export interface SingleVideoProject {
   brand_ending_task_id?: string | null // Brand frame generation task ID
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
   video_generation_prompt?: Record<string, unknown> // JSONB field containing the prompt used for video generation
-  sora2_pro_duration?: '10' | '15' | null // Sora2 Pro video duration (10s or 15s)
-  sora2_pro_quality?: 'standard' | 'high' | null // Sora2 Pro video quality (standard or HD)
+  video_duration?: string | null // Video duration in seconds (e.g., '8', '10', '15') - applicable to all video models
+  video_quality?: 'standard' | 'high' | null // Video quality setting - applicable to all video models
   created_at: string
   updated_at: string
 }
@@ -121,8 +121,8 @@ export interface MultiVariantProject {
   cover_image_aspect_ratio?: string // Aspect ratio of the cover image (e.g., "16:9", "9:16", "1:1")
   image_prompt?: Record<string, unknown>
   photo_only: boolean
-  sora2_pro_duration?: '10' | '15' | null // Sora2 Pro video duration (10s or 15s)
-  sora2_pro_quality?: 'standard' | 'high' | null // Sora2 Pro video quality (standard or HD)
+  video_duration?: string | null // Video duration in seconds (e.g., '8', '10', '15') - applicable to all video models
+  video_quality?: 'standard' | 'high' | null // Video quality setting - applicable to all video models
 }
 
 // Database types for user_photos table

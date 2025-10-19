@@ -193,17 +193,21 @@ export function isPaidGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 's
 }
 
 // Get generation cost (0 for free generation models)
+// IMPORTANT: videoDuration and videoQuality are generic parameters applicable to all models
+// They are currently only used by Sora2 Pro, but kept generic for future model support
 export function getGenerationCost(
   model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro',
-  sora2ProDuration?: '10' | '15',
-  sora2ProQuality?: 'standard' | 'high'
+  videoDuration?: string, // Generic: e.g., '8', '10', '15' (seconds)
+  videoQuality?: 'standard' | 'high' // Generic: applicable to all models
 ): number {
   if (isFreeGenerationModel(model)) {
     return 0; // Free generation models
   }
 
   if (model === 'sora2_pro') {
-    return getSora2ProCreditCost(sora2ProDuration || '10', sora2ProQuality || 'standard');
+    // For Sora2 Pro, use duration and quality to calculate cost
+    const duration = (videoDuration === '15' ? '15' : '10') as '10' | '15';
+    return getSora2ProCreditCost(duration, videoQuality || 'standard');
   }
 
   if (model === 'veo3') {

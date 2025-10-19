@@ -10,6 +10,7 @@ export interface WorkflowState {
   workflowStatus: WorkflowStatus;
   currentStep: WorkflowStep | null;
   progress: number;
+  workflowInitiatedCount: number; // Counter that increments each time workflow is initiated
   data: {
     uploadedFile?: {
       url: string;
@@ -75,6 +76,7 @@ export const useStandardAdsWorkflow = (
     workflowStatus: 'started',
     currentStep: null,
     progress: 0,
+    workflowInitiatedCount: 0,
     data: {
       videoModel: selectedModel
     },
@@ -157,12 +159,7 @@ export const useStandardAdsWorkflow = (
         updateCredits(result.remainingCredits);
       }
 
-      // Start polling if we got a historyId (with delay to allow UI to show success state)
-      if (result.historyId) {
-        setTimeout(() => {
-          pollWorkflowStatus(result.historyId);
-        }, 1000); // Wait 1 second before starting to poll
-      }
+      // No polling - workflow runs completely in background via monitor-tasks
 
     } catch (error: any) {
       // Revert guest usage count on error
@@ -180,85 +177,7 @@ export const useStandardAdsWorkflow = (
     }
   }, [userId, guestUsageCount, maxGuestUsage, updateGuestUsage, setLoading, setError, selectedModel]);
 
-  const pollWorkflowStatus = useCallback((historyId: string) => {
-    let pollInterval: NodeJS.Timeout;
-    
-    const poll = async () => {
-      try {
-        const response = await fetch(`/api/standard-ads/${historyId}/status`);
-        if (!response.ok) {
-          console.error('Failed to fetch workflow status:', response.status);
-          return;
-        }
-        
-        const result = await response.json();
-        if (!result.success) {
-          console.error('Workflow status error:', result.error);
-          return;
-        }
-        
-        setState(prev => {
-          // Don't override workflow_initiated status until user explicitly navigates away
-          // This allows the success screen to stay visible until user clicks a button
-          const shouldUpdateStatus = prev.workflowStatus !== 'workflow_initiated' || 
-                                   result.workflowStatus === 'failed' || 
-                                   result.workflowStatus === 'completed';
-          
-          // Update credits in sidebar when credits are used/refunded
-          if (result.data.creditsUsed && updateCredits && userId && result.data.creditsRemaining !== undefined) {
-            updateCredits(result.data.creditsRemaining);
-          }
-          
-          return {
-            ...prev,
-            workflowStatus: shouldUpdateStatus ? result.workflowStatus : prev.workflowStatus,
-            currentStep: result.currentStep,
-            progress: result.progress,
-            data: {
-              ...prev.data,
-              productDescription: result.data.productDescription,
-              creativePrompts: result.data.creativePrompts,
-              video: result.data.videoUrl ? {
-                url: result.data.videoUrl
-              } : undefined,
-              errorMessage: result.data.errorMessage,
-              creditsUsed: result.data.creditsUsed,
-              videoModel: result.data.videoModel
-            }
-          };
-        });
-        
-        // Stop polling if completed or failed
-        if (result.isCompleted || result.isFailed) {
-          if (pollInterval) {
-            clearInterval(pollInterval);
-          }
-          if (result.isFailed) {
-            setError(result.data.errorMessage || 'Workflow failed');
-            // Refetch credits in case of failure (credits might have been refunded)
-            if (userId && refetchCredits) {
-              console.log('🔄 Refetching credits due to workflow failure');
-              refetchCredits();
-            }
-          }
-        }
-        
-      } catch (error) {
-        console.error('Error polling workflow status:', error);
-      }
-    };
-    
-    // Start immediate poll and then every 5 seconds
-    poll();
-    pollInterval = setInterval(poll, 5000);
-    
-    // Cleanup function
-    return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
-    };
-  }, [setError]);
+  // Polling removed - workflow runs completely in background via monitor-tasks API
 
   const resetWorkflow = useCallback(() => {
     setState({
@@ -268,6 +187,7 @@ export const useStandardAdsWorkflow = (
       workflowStatus: 'started',
       currentStep: null,
       progress: 0,
+      workflowInitiatedCount: 0,
       data: {
         videoModel: selectedModel
       },
@@ -338,6 +258,7 @@ export const useStandardAdsWorkflow = (
         isLoading: false,
         historyId: result.historyId,
         workflowStatus: 'workflow_initiated',
+        workflowInitiatedCount: prev.workflowInitiatedCount + 1,
         data: {
           ...prev.data,
           watermark: watermarkConfig
@@ -350,12 +271,7 @@ export const useStandardAdsWorkflow = (
         updateCredits(result.remainingCredits);
       }
 
-      // Start polling if we got a historyId (with delay to allow UI to show success state)
-      if (result.historyId) {
-        setTimeout(() => {
-          pollWorkflowStatus(result.historyId);
-        }, 1000); // Wait 1 second before starting to poll
-      }
+      // No polling - workflow runs completely in background via monitor-tasks
 
     } catch (error: any) {
       // Refetch credits in case of error (credits might have been refunded)
@@ -372,7 +288,7 @@ export const useStandardAdsWorkflow = (
         error: message
       }));
     }
-  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, updateCredits, refetchCredits, pollWorkflowStatus, state.workflowStatus]);
+  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, selectedLanguage, useCustomScript, customScript, updateCredits, refetchCredits, state.workflowStatus]);
 
   const startWorkflowWithConfig = useCallback(async (
     watermarkConfig: { enabled: boolean; text: string; location?: string },
@@ -441,6 +357,7 @@ export const useStandardAdsWorkflow = (
         isLoading: false,
         historyId: result.historyId,
         workflowStatus: 'workflow_initiated',
+        workflowInitiatedCount: prev.workflowInitiatedCount + 1,
         data: {
           ...prev.data,
           watermark: watermarkConfig
@@ -453,12 +370,7 @@ export const useStandardAdsWorkflow = (
         updateCredits(result.remainingCredits);
       }
 
-      // Start polling if we got a historyId (with delay to allow UI to show success state)
-      if (result.historyId) {
-        setTimeout(() => {
-          pollWorkflowStatus(result.historyId);
-        }, 1000); // Wait 1 second before starting to poll
-      }
+      // No polling - workflow runs completely in background via monitor-tasks
 
     } catch (error: any) {
       // Refetch credits in case of error (credits might have been refunded)
@@ -475,7 +387,7 @@ export const useStandardAdsWorkflow = (
         error: message
       }));
     }
-  }, [state.data.uploadedFile, userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, updateCredits, refetchCredits, pollWorkflowStatus, state.workflowStatus]);
+  }, [state.data.uploadedFile, userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, selectedLanguage, useCustomScript, customScript, updateCredits, refetchCredits, state.workflowStatus]);
 
   const startWorkflowWithTemporaryImages = useCallback(async (
     imageFiles: File[],
@@ -571,12 +483,7 @@ export const useStandardAdsWorkflow = (
         updateCredits(result.remainingCredits);
       }
 
-      // Start polling if we got a historyId
-      if (result.historyId) {
-        setTimeout(() => {
-          pollWorkflowStatus(result.historyId);
-        }, 1000);
-      }
+      // No polling - workflow runs completely in background via monitor-tasks
 
     } catch (error: any) {
       // Refetch credits in case of error
@@ -593,7 +500,7 @@ export const useStandardAdsWorkflow = (
         error: message
       }));
     }
-  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, updateCredits, refetchCredits, pollWorkflowStatus, state.workflowStatus]);
+  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, selectedLanguage, useCustomScript, customScript, updateCredits, refetchCredits, state.workflowStatus]);
 
   return {
     state,
@@ -601,7 +508,6 @@ export const useStandardAdsWorkflow = (
     startWorkflowWithConfig,
     startWorkflowWithSelectedProduct,
     startWorkflowWithTemporaryImages,
-    resetWorkflow,
-    pollWorkflowStatus
+    resetWorkflow
   };
 };

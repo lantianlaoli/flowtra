@@ -154,6 +154,15 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       generationCost = 0; // Photo-only mode is free
     }
 
+    // Determine actual cover_image_aspect_ratio (resolve 'auto' to actual value)
+    let actualCoverAspectRatio: string;
+    if (request.imageSize === 'auto' || !request.imageSize) {
+      // When image size is 'auto', use the video aspect ratio
+      actualCoverAspectRatio = request.videoAspectRatio || '16:9';
+    } else {
+      actualCoverAspectRatio = request.imageSize;
+    }
+
     // Create project record in standard_ads_projects table
     const { data: project, error: insertError} = await supabase
       .from('standard_ads_projects')
@@ -170,12 +179,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         credits_cost: generationCost, // Only generation cost (download cost charged separately)
         watermark_text: request.watermark?.text,
         watermark_location: request.watermark?.location || request.watermarkLocation,
-        cover_image_aspect_ratio: request.imageSize || request.videoAspectRatio || '16:9',
+        cover_image_aspect_ratio: actualCoverAspectRatio, // Store actual ratio, never 'auto'
         photo_only: request.photoOnly || false,
         language: request.language || 'en', // Language for AI-generated content
-        // NEW: Sora2 Pro fields
-        sora2_pro_duration: actualVideoModel === 'sora2_pro' ? (request.sora2ProDuration || '10') : null,
-        sora2_pro_quality: actualVideoModel === 'sora2_pro' ? (request.sora2ProQuality || 'standard') : null,
+        // Generic video fields (renamed from sora2_pro_*)
+        video_duration: request.sora2ProDuration || (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' ? '8' : '10'),
+        video_quality: request.sora2ProQuality || 'standard',
         // NEW: Custom script fields
         custom_script: request.customScript || null,
         use_custom_script: request.useCustomScript || false,
@@ -194,41 +203,35 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       };
     }
 
-    // Start the AI workflow by calling image description
-    try {
-      await startAIWorkflow(project.id, { ...request, imageUrl, videoModel: actualVideoModel });
-    } catch (workflowError) {
-      console.error('Workflow start error:', workflowError);
+    // Start the AI workflow in background (fire-and-forget for instant UX)
+    // Don't await - let it run asynchronously so the button can be clicked again immediately
+    startAIWorkflow(project.id, { ...request, imageUrl, videoModel: actualVideoModel })
+      .catch(async (workflowError) => {
+        console.error('Background workflow error:', workflowError);
 
-      // REFUND credits on failure (only for paid generation models)
-      if (!request.photoOnly && generationCost > 0) {
-        console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure`);
-        await deductCredits(request.userId, -generationCost); // Negative = refund
-        await recordCreditTransaction(
-          request.userId,
-          'refund',
-          generationCost,
-          `Refund for failed ${actualVideoModel.toUpperCase()} generation`,
-          project.id,
-          true
-        );
-      }
+        // REFUND credits on failure (only for paid generation models)
+        if (!request.photoOnly && generationCost > 0) {
+          console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure`);
+          await deductCredits(request.userId, -generationCost); // Negative = refund
+          await recordCreditTransaction(
+            request.userId,
+            'refund',
+            generationCost,
+            `Refund for failed ${actualVideoModel.toUpperCase()} generation`,
+            project.id,
+            true
+          );
+        }
 
-      // Update project status to failed
-      await supabase
-        .from('standard_ads_projects')
-        .update({
-          status: 'failed',
-          error_message: workflowError instanceof Error ? workflowError.message : 'Workflow start failed'
-        })
-        .eq('id', project.id);
-
-      return {
-        success: false,
-        error: 'Failed to start AI workflow',
-        details: workflowError instanceof Error ? workflowError.message : 'Unknown error'
-      };
-    }
+        // Update project status to failed
+        await supabase
+          .from('standard_ads_projects')
+          .update({
+            status: 'failed',
+            error_message: workflowError instanceof Error ? workflowError.message : 'Workflow start failed'
+          })
+          .eq('id', project.id);
+      });
 
     return {
       success: true,
@@ -379,7 +382,7 @@ async function describeImage(imageUrl: string): Promise<string> {
 async function generateCreativePrompts(description: string, adCopy?: string, language?: string): Promise<Record<string, unknown>> {
   const trimmedAdCopy = adCopy?.trim();
 
-  // Define JSON schema for Structured Outputs
+  // Define JSON schema for Structured Outputs - IMPORTANT: This must return a SINGLE object, not an array
   const responseFormat = {
     type: "json_schema",
     json_schema: {
@@ -465,7 +468,7 @@ async function generateCreativePrompts(description: string, adCopy?: string, lan
           role: 'user',
           content: `Based on this product description: "${description}"
 
-Generate a creative video advertisement prompt with these elements:
+Generate ONE creative video advertisement prompt as a single JSON object with these elements:
 - description: Main scene description
 - setting: Location/environment
 - camera_type: Type of camera shot
@@ -479,6 +482,7 @@ Generate a creative video advertisement prompt with these elements:
 - language: The language name for voiceover generation (e.g., "English", "Urdu (Pakistan's national language)", "Punjabi")
 ${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline. Do not paraphrase: "${trimmedAdCopy}".` : ''}
 
+CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.
 IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in English. The 'language' field is metadata only to specify what language the video voiceover should use.`
         }
       ]
@@ -497,7 +501,27 @@ IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in 
   let parsed: Record<string, unknown>;
 
   try {
-    parsed = JSON.parse(content);
+    const rawParsed = JSON.parse(content);
+
+    // CRITICAL FIX: Handle case where AI returns an array instead of a single object
+    if (Array.isArray(rawParsed)) {
+      console.warn('⚠️ AI returned an array instead of single object, taking first element');
+      parsed = rawParsed[0] || {};
+    } else {
+      parsed = rawParsed;
+    }
+
+    // Validate all required fields are present
+    const requiredFields = ['description', 'setting', 'camera_type', 'camera_movement', 'action', 'lighting', 'dialogue', 'music', 'ending', 'other_details', 'language'];
+    const missingFields = requiredFields.filter(field => !parsed[field]);
+
+    if (missingFields.length > 0) {
+      console.error('❌ Missing required fields in AI response:', missingFields);
+      console.error('Parsed content:', parsed);
+      throw new Error(`AI response missing fields: ${missingFields.join(', ')}`);
+    }
+
+    console.log('✅ Structured output parsed successfully with all required fields');
   } catch (parseError) {
     console.error('Failed to parse structured output:', parseError);
     console.error('Content received:', content);

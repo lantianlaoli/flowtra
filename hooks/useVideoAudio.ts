@@ -65,30 +65,38 @@ export function useVideoAudio({ videoRef, instanceId }: UseVideoAudioOptions) {
 
     // Only attempt audio if user has interacted (browser policy)
     if (userHasInteracted) {
-      try {
-        videoRef.current.muted = false;
-        const playPromise = videoRef.current.play?.();
-        if (playPromise && typeof playPromise.then === 'function') {
-          playPromise
-            .then(() => {
-              setAudioEnabled(true);
-              setNeedsClickToEnable(false);
-            })
-            .catch(() => {
-              // Fallback: require click to enable
-              setAudioEnabled(false);
-              setNeedsClickToEnable(true);
-            });
-        } else {
-          // Older browsers
-          setAudioEnabled(true);
-          setNeedsClickToEnable(false);
-        }
-      } catch (error) {
-        console.warn('Failed to unmute/play video:', error);
-        setNeedsClickToEnable(true);
-        setAudioEnabled(false);
-      }
+      // in handleHover
+          try {
+            // Pause the video first to force a new play attempt
+            if (videoRef.current) {
+              if (!videoRef.current.paused) {
+                videoRef.current.pause();
+              }
+              videoRef.current.muted = false;
+              const playPromise = videoRef.current.play();
+              if (playPromise && typeof playPromise.then === 'function') {
+                playPromise
+                  .then(() => {
+                    setAudioEnabled(true);
+                    setNeedsClickToEnable(false);
+                  })
+                  .catch(() => {
+                    // Fallback: require click to enable
+                    setAudioEnabled(false);
+                    setNeedsClickToEnable(true);
+                    if (videoRef.current) videoRef.current.muted = true; // Reset to muted
+                  });
+              } else {
+                // Older browsers
+                setAudioEnabled(true);
+                setNeedsClickToEnable(false);
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to unmute/play video:', error);
+            setNeedsClickToEnable(true);
+            setAudioEnabled(false);
+          }
     } else {
       // No prior interaction – show hint to click
       setNeedsClickToEnable(true);
@@ -104,7 +112,7 @@ export function useVideoAudio({ videoRef, instanceId }: UseVideoAudioOptions) {
         managerRef.current.releaseAudio(videoInstanceId.current);
 
         // Mute the video
-        videoRef.current.muted = true;
+        if (videoRef.current) videoRef.current.muted = true;
         setAudioEnabled(false);
       } catch (error) {
         console.warn('Failed to mute video:', error);
@@ -121,22 +129,24 @@ export function useVideoAudio({ videoRef, instanceId }: UseVideoAudioOptions) {
       // Request audio control from manager
       managerRef.current.requestAudio(videoInstanceId.current);
 
-      videoRef.current.muted = false;
-      const playPromise = videoRef.current.play?.();
-      if (playPromise && typeof playPromise.then === 'function') {
-        playPromise
-          .then(() => {
-            setAudioEnabled(true);
-            setNeedsClickToEnable(false);
-          })
-          .catch((err) => {
-            console.warn('Play with audio failed:', err);
-            setAudioEnabled(false);
-            setNeedsClickToEnable(true);
-          });
-      } else {
-        setAudioEnabled(true);
-        setNeedsClickToEnable(false);
+      if (videoRef.current) {
+        videoRef.current.muted = false;
+        const playPromise = videoRef.current.play?.();
+        if (playPromise && typeof playPromise.then === 'function') {
+          playPromise
+            .then(() => {
+              setAudioEnabled(true);
+              setNeedsClickToEnable(false);
+            })
+            .catch((err) => {
+              console.warn('Play with audio failed:', err);
+              setAudioEnabled(false);
+              setNeedsClickToEnable(true);
+            });
+        } else {
+          setAudioEnabled(true);
+          setNeedsClickToEnable(false);
+        }
       }
     } catch (error) {
       console.warn('Failed to enable audio on click:', error);

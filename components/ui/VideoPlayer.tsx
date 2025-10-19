@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, forwardRef } from 'react';
+import { useRef, useEffect, forwardRef } from 'react';
 import { useVideoAudio } from '@/hooks/useVideoAudio';
 
 interface VideoPlayerProps {
@@ -40,19 +40,16 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       handleClickEnable,
     } = useVideoAudio({ videoRef: currentRef, instanceId });
 
-    const onMouseEnter = () => {
+    useEffect(() => {
       handleHover();
-    };
-
-    const onMouseLeave = () => {
-      handleLeave();
-    };
+      return () => {
+        handleLeave();
+      };
+    }, [handleHover, handleLeave]);
 
     return (
       <div 
         className="relative group w-full h-full"
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
       >
         <video
           ref={currentRef}

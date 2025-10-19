@@ -33,8 +33,6 @@ interface VideoModelSelectorProps {
   videoDurationSeconds?: number;
 }
 
-const SORA2_WARNING = '⚠️ OpenAI does not support images with photorealistic people';
-
 export default function VideoModelSelector({
   credits,
   selectedModel,
@@ -98,7 +96,7 @@ export default function VideoModelSelector({
       {
         value: 'sora2',
         label: 'Sora2',
-        description: SORA2_WARNING,
+        description: '',
         cost: calculateDurationCost('sora2'),
         processingTime: getProcessingTime('sora2'),
         affordable: canAffordModel(credits, 'sora2'),
@@ -118,7 +116,7 @@ export default function VideoModelSelector({
       {
         value: 'sora2_pro',
         label: 'Sora2 Pro',
-        description: SORA2_WARNING,
+        description: '',
         cost: calculateDurationCost('sora2_pro'),
         processingTime: getProcessingTime('sora2_pro'),
         affordable: credits >= calculateDurationCost('sora2_pro'),

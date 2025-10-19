@@ -54,8 +54,9 @@ export default function ProductSelector({
 
   const selectedPhotos = selectedProduct?.user_product_photos || [];
 
-  // Check if brand ending is supported for current video model
-  const isBrandEndingSupported = shouldGenerateVideo && (videoModel === 'veo3' || videoModel === 'veo3_fast');
+  // Brand ending (video ending with brand logo) is only supported for veo3/veo3_fast
+  // But users can select brand products for any model (the product itself is still used)
+  const supportsBrandEnding = shouldGenerateVideo && (videoModel === 'veo3' || videoModel === 'veo3_fast');
 
   useEffect(() => {
     loadProducts();
@@ -213,22 +214,20 @@ export default function ProductSelector({
         <p className="text-xs text-gray-500">Add images directly from your device (no brand).</p>
       </button>
 
-      {isBrandEndingSupported && (
-        <button
-          type="button"
-          onClick={() => {
-            loadBrandsAndProducts();
-            setStep('brand-selection');
-          }}
-          className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-4 py-5 text-left transition hover:border-gray-300"
-        >
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
-            <Tag className="h-4 w-4 text-gray-500" />
-            Select from brand
-          </div>
-          <p className="text-xs text-gray-500">Choose a brand, then select its product.</p>
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => {
+          loadBrandsAndProducts();
+          setStep('brand-selection');
+        }}
+        className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-4 py-5 text-left transition hover:border-gray-300"
+      >
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <Tag className="h-4 w-4 text-gray-500" />
+          Select from brand
+        </div>
+        <p className="text-xs text-gray-500">Choose a brand, then select its product.</p>
+      </button>
 
       <button
         type="button"
@@ -662,7 +661,7 @@ export default function ProductSelector({
           )}
 
           {/* Brand Info (if brand is selected) */}
-          {currentBrand && isBrandEndingSupported && (
+          {currentBrand && (
             <div className="rounded-lg bg-gray-50 border border-gray-200 p-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white rounded flex items-center justify-center flex-shrink-0">
@@ -677,9 +676,16 @@ export default function ProductSelector({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <Tag className="w-3 h-3 text-gray-500" />
-                    <span className="text-xs font-medium text-gray-700">Brand Ending</span>
+                    <span className="text-xs font-medium text-gray-700">
+                      {supportsBrandEnding ? 'Brand Ending' : 'Brand Product'}
+                    </span>
                   </div>
                   <div className="text-xs text-gray-600 truncate">{currentBrand.brand_name}</div>
+                  {!supportsBrandEnding && (
+                    <div className="text-xs text-amber-600 mt-1">
+                      Brand ending not available for this model
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

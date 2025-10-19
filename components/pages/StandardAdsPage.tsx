@@ -8,7 +8,7 @@ import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
-import { ArrowRight, History, Play, TrendingUp, Hash, Type, ChevronDown, Package, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
+import { ArrowRight, Play, TrendingUp, Hash, Type, Package, Sparkles, Wand2 } from 'lucide-react';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import VideoQualitySelector from '@/components/ui/VideoQualitySelector';
@@ -18,8 +18,8 @@ import SizeSelector from '@/components/ui/SizeSelector';
 import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
-import { useRouter } from 'next/navigation';
-import { canAffordModel, CREDIT_COSTS } from '@/lib/constants';
+
+import { canAffordModel, CREDIT_COSTS, modelSupports, getAvailableModels } from '@/lib/constants';
 import { AnimatePresence, motion } from 'framer-motion';
 import { UserProduct, UserBrand } from '@/lib/supabase';
 
@@ -75,7 +75,22 @@ export default function StandardAdsPage() {
       setSelectedImageModel(model);
     }
   };
-  const router = useRouter();
+
+  // Auto-switch video model when quality/duration changes and current model is not supported
+  useEffect(() => {
+    // Check if current model supports the selected quality and duration
+    if (selectedModel !== 'auto' && !modelSupports(selectedModel, videoQuality, videoDuration)) {
+      // Get available models for current quality/duration
+      const availableModels: Array<'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'> = getAvailableModels(videoQuality, videoDuration);
+
+      if (availableModels.length > 0) {
+        // Switch to the first available model
+        setSelectedModel(availableModels[0]);
+      }
+    }
+  }, [videoDuration, videoQuality, selectedModel]);
+
+  
   
   const {
     state,
@@ -101,11 +116,7 @@ export default function StandardAdsPage() {
   const ALLOWED_WATERMARK_LOCATIONS = ['bottom left', 'bottom right', 'top left', 'top right', 'center bottom'] as const;
   const uploadedImageUrl = state.data.uploadedFile?.url;
 
-  const formatLocationLabel = (value: string) =>
-    value
-      .split(' ')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+  
 
   const collectContext = useCallback(() => {
     const productName = selectedProduct && 'product_name' in selectedProduct ? selectedProduct.product_name : undefined;
@@ -264,16 +275,40 @@ export default function StandardAdsPage() {
     checkKieCredits();
   }, []);
 
-  // Show toast notification when workflow is initiated
+  const handleResetWorkflow = useCallback(() => {
+    resetWorkflow();
+    setSelectedProduct(null);
+    setSelectedBrand(null);
+    setShowProductManager(false);
+    setAdCopy('');
+    setHasAIGeneratedAdCopy(false);
+    setAdCopyError(null);
+    setTextWatermark('');
+    setTextWatermarkLocation('bottom left');
+    setHasAISuggestedWatermark(false);
+    setWatermarkError(null);
+    setUseCustomScript(false);
+    setCustomScript('');
+    setActiveTab('adcopy');
+  }, [resetWorkflow]);
+
+  // Show toast notification when workflow is initiated, then reset page
   useEffect(() => {
-    if (state.workflowStatus === 'workflow_initiated') {
+    // Only show toast if counter is greater than 0 (workflow has been initiated at least once)
+    if (state.workflowInitiatedCount > 0) {
       showSuccess(
         'Added to generation queue! Your ad is being created in the background.',
         5000,
         { label: 'View Progress →', href: '/dashboard/videos' }
       );
+
+      // Reset the page to allow creating another ad immediately
+      // Small delay to ensure toast is shown before reset
+      setTimeout(() => {
+        handleResetWorkflow();
+      }, 100);
     }
-  }, [state.workflowStatus, showSuccess]);
+  }, [state.workflowInitiatedCount, showSuccess, handleResetWorkflow]);
 
 
   // Loading state
@@ -328,23 +363,6 @@ export default function StandardAdsPage() {
     }
   };
 
-  const handleResetWorkflow = () => {
-    resetWorkflow();
-    setSelectedProduct(null);
-    setSelectedBrand(null);
-    setShowProductManager(false);
-    setAdCopy('');
-    setHasAIGeneratedAdCopy(false);
-    setAdCopyError(null);
-    setTextWatermark('');
-    setTextWatermarkLocation('bottom left');
-    setHasAISuggestedWatermark(false);
-    setWatermarkError(null);
-    setUseCustomScript(false);
-    setCustomScript('');
-    setActiveTab('adcopy');
-  };
-
   const features = [
     {
       title: 'Authentic Product Focus',
@@ -377,8 +395,8 @@ export default function StandardAdsPage() {
       return <InsufficientCredits currentCredits={userCredits} requiredCredits={CREDIT_COSTS.veo3_fast} />;
     }
     
-    // Show main interface when no workflow is running or just initiated
-    if (state.workflowStatus === 'started' || state.workflowStatus === 'workflow_initiated') {
+    // Always show main interface (workflow runs in background)
+    if (true) {
       // Product Manager interface
       if (showProductManager) {
         return (
@@ -500,27 +518,16 @@ export default function StandardAdsPage() {
                     hiddenModels={['auto']}
                   />
                   {shouldGenerateVideo && (
-                    <>
-                      <VideoModelSelector
-                        credits={userCredits || 0}
-                        selectedModel={selectedModel}
-                        onModelChange={handleModelChange}
-                        videoQuality={videoQuality}
-                        videoDuration={videoDuration}
-                        showIcon={true}
-                        hiddenModels={['auto']}
-                        adsCount={elementsCount}
-                      />
-                      {selectedModel === 'sora2' && (
-                        <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                          <p className="text-xs text-amber-800">
-                            <strong>Note:</strong> OpenAI currently does not support uploads of images containing photorealistic people.
-                            Please ensure your product images do not contain real human faces.
-                          </p>
-                        </div>
-                      )}
-                    </>
+                    <VideoModelSelector
+                      credits={userCredits || 0}
+                      selectedModel={selectedModel}
+                      onModelChange={handleModelChange}
+                      videoQuality={videoQuality}
+                      videoDuration={videoDuration}
+                      showIcon={true}
+                      hiddenModels={['auto']}
+                      adsCount={elementsCount}
+                    />
                   )}
                 </div>
 
@@ -758,367 +765,12 @@ export default function StandardAdsPage() {
       );
     }
 
-    // Show configuration interface after upload
-
-if (state.workflowStatus === 'uploaded_waiting_config') {
-  return (
-    <div className="max-w-4xl mx-auto">
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-4 flex flex-col">
-        <div>
-          <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-2">
-            <Hash className="w-4 h-4" />
-            Ads
-          </label>
-          <div
-            role="radiogroup"
-            aria-label="How many ads?"
-            className="relative inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm"
-          >
-            {[1, 2, 3].map((val) => {
-              const active = elementsCount === val;
-              return (
-                <button
-                  key={val}
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => setElementsCount(val)}
-                  className={`relative px-5 py-2 text-base font-semibold rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
-                    active ? 'text-white' : 'text-gray-800 hover:bg-gray-50'
-                  } ${val !== 1 ? 'ml-1' : ''}`}
-                >
-                  {active && (
-                    <motion.div
-                      layoutId="segmentedHighlight"
-                      className="absolute inset-0 rounded-lg bg-gray-900 shadow z-0"
-                      transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-                    />
-                  )}
-                  <span className="relative z-10">
-                    {val} {val === 1 ? 'ad' : 'ads'}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Video Quality and Duration Selectors */}
-        {shouldGenerateVideo && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <VideoQualitySelector
-              selectedQuality={videoQuality}
-              onQualityChange={setVideoQuality}
-              showIcon={true}
-            />
-            <VideoDurationSelector
-              selectedDuration={videoDuration}
-              onDurationChange={setVideoDuration}
-              showIcon={true}
-            />
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ImageModelSelector
-            credits={userCredits || 0}
-            selectedModel={selectedImageModel}
-            onModelChange={handleImageModelChange}
-            showIcon={true}
-            hiddenModels={['auto']}
-          />
-          {shouldGenerateVideo && (
-            <>
-              <VideoModelSelector
-                credits={userCredits || 0}
-                selectedModel={selectedModel}
-                onModelChange={handleModelChange}
-                videoQuality={videoQuality}
-                videoDuration={videoDuration}
-                showIcon={true}
-                hiddenModels={['auto']}
-                adsCount={elementsCount}
-              />
-              {selectedModel === 'sora2' && (
-                <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-amber-800">
-                    <strong>Note:</strong> OpenAI currently does not support uploads of images containing photorealistic people.
-                    Please ensure your product images do not contain real human faces.
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SizeSelector
-            selectedSize={imageSize}
-            onSizeChange={setImageSize}
-            imageModel={selectedImageModel}
-            videoAspectRatio={videoAspectRatio}
-            showIcon={true}
-          />
-          {shouldGenerateVideo && (
-            <VideoAspectRatioSelector
-              selectedAspectRatio={videoAspectRatio}
-              onAspectRatioChange={setVideoAspectRatio}
-              showIcon={true}
-            />
-          )}
-        </div>
-
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-              <Type className="w-4 h-4" />
-              Ad Copy
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                Optional
-              </span>
-            </label>
-            <button
-              type="button"
-              onClick={handleGenerateAdCopy}
-              disabled={isGeneratingAdCopy || !canUseAIHelpers}
-              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
-            >
-              {isGeneratingAdCopy ? (
-                <>
-                  <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
-                  Generating…
-                </>
-              ) : hasAIGeneratedAdCopy ? (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Regenerate
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  AI Generate
-                </>
-              )}
-            </button>
-          </div>
-          <input
-            type="text"
-            value={adCopy}
-            onChange={(e) => handleAdCopyChange(e.target.value)}
-            placeholder="Enter ad copy (optional)..."
-            maxLength={120}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
-          />
-          {adCopyError && <p className="text-xs text-red-500 mt-1">{adCopyError}</p>}
-        </div>
-
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-              <Type className="w-4 h-4" />
-              Watermark
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                Optional
-              </span>
-            </label>
-            <button
-              type="button"
-              onClick={handleSuggestWatermark}
-              disabled={isSuggestingWatermark || !canUseAIHelpers}
-              className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
-            >
-              {isSuggestingWatermark ? (
-                <>
-                  <span className="h-3 w-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
-                  Analyzing…
-                </>
-              ) : hasAISuggestedWatermark ? (
-                <>
-                  <Wand2 className="w-3.5 h-3.5" />
-                  Regenerate
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-3.5 h-3.5" />
-                  AI Suggest
-                </>
-              )}
-            </button>
-          </div>
-          <div className="flex gap-2 flex-col sm:flex-row">
-            <input
-              id="watermark-text"
-              type="text"
-              value={textWatermark}
-              onChange={(e) => handleWatermarkTextChange(e.target.value)}
-              placeholder="Enter brand name or watermark text..."
-              maxLength={50}
-              className="w-full sm:flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
-            />
-            <div className="relative sm:w-40">
-              <select
-                id="watermark-location"
-                value={textWatermarkLocation}
-                onChange={(e) => handleWatermarkLocationChange(e.target.value)}
-                className="w-full px-3 py-1.5 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
-              >
-                {ALLOWED_WATERMARK_LOCATIONS.map((loc) => (
-                  <option key={loc} value={loc}>{formatLocationLabel(loc)}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-            </div>
-          </div>
-          {watermarkError && <p className="text-xs text-red-500 mt-1">{watermarkError}</p>}
-        </div>
-
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-            <Play className="w-4 h-4" />
-            Video
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setShouldGenerateVideo(true)}
-              className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
-                shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-              }`}
-              aria-pressed={shouldGenerateVideo}
-            >
-              Generate video
-            </button>
-            <button
-              type="button"
-              onClick={() => setShouldGenerateVideo(false)}
-              className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 ${
-                !shouldGenerateVideo ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-              }`}
-              aria-pressed={!shouldGenerateVideo}
-            >
-              Images only
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-2 mt-auto">
-          <button
-            onClick={handleStartWorkflow}
-            disabled={state.isLoading}
-            className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-2.5 rounded-lg hover:bg-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium relative overflow-hidden group"
-          >
-            {state.isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                <span>Generating…</span>
-              </>
-            ) : (
-              <>
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
-                <span className="group-hover:scale-105 transition-transform duration-200">Generate</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-    // workflow_initiated state is now handled by toast notification - no UI needed
-    // For processing workflow, only show failed state
-    if (state.workflowStatus === 'failed') {
-      return (
-        <div className="max-w-xl mx-auto text-center space-y-6">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-            <AlertCircle className="w-8 h-8 text-red-600" />
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-xl font-semibold text-gray-900">
-              Oops! Something went wrong
-            </h3>
-            <p className="text-gray-600 text-base">
-              We encountered an issue: {state.error || state.data.errorMessage || 'Unknown error occurred'}
-            </p>
-          </div>
-
-          <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={handleResetWorkflow}
-              className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 font-medium"
-            >
-              Try Again
-            </button>
-            <button
-              onClick={() => router.push('/dashboard/support')}
-              className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium flex items-center justify-center gap-2"
-            >
-              <HelpCircle className="w-4 h-4" />
-              Having Trouble?
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    // Hide in_progress state - users don't need to wait on page
-
-    // For completed workflow, show success page
-    if (state.workflowStatus === 'completed') {
-      return (
-        <div className="max-w-xl mx-auto text-center space-y-6 animate-bounce-in">
-          <div className="relative">
-            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto animate-float">
-              <div className="relative">
-                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                {/* Success ring animation */}
-                <div className="absolute inset-0 w-8 h-8 border-4 border-white/30 rounded-full animate-pulse-glow"></div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <h3 className="text-2xl font-bold text-gray-900 animate-slide-in-left">
-              All done!
-            </h3>
-            <p className="text-gray-600 text-lg animate-slide-in-right">
-              Your ad is ready to make some noise!
-            </p>
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 animate-slide-in-left">
-              <div className="flex items-center gap-2 text-green-700">
-                <TrendingUp className="w-4 h-4" />
-                <span className="font-medium">Ready to download and share!</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3 justify-center animate-slide-in-right">
-            <button
-              onClick={() => router.push('/dashboard/videos')}
-              className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-6 py-3 rounded-lg hover:from-gray-800 hover:to-gray-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:-translate-y-1 cursor-pointer"
-            >
-              <History className="w-4 h-4" />
-              View Results
-            </button>
-            <button
-              onClick={handleResetWorkflow}
-              className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium cursor-pointer"
-            >
-              <ArrowRight className="w-4 h-4" />
-              Create Another
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    // Hide all processing steps from user
+    // No additional UI states needed - workflow runs completely in background
     return null;
   };
+
+  // Removed legacy states: uploaded_waiting_config, failed, completed
+  // All workflow processing happens in background via monitor-tasks
 
   const workflowContent = renderWorkflowContent();
 

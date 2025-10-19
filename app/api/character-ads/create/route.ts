@@ -314,19 +314,16 @@ export async function POST(request: NextRequest) {
 
     // No longer recording events to character_ads_project_events table
 
-    // Start the workflow by triggering image analysis
-    // This will be handled by a separate background process or webhook
-    // For now, we'll trigger it via a separate API call
-    try {
-      await fetch(`${request.nextUrl.origin}/api/character-ads/${project.id}/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step: 'analyze_images', customDialogue })
-      });
-    } catch (error) {
-      console.error('Failed to trigger workflow:', error);
-      // Don't fail the entire request, the workflow can be triggered later
-    }
+    // Start the workflow in background (fire-and-forget for instant UX)
+    // Don't await - let it run asynchronously so the button can be clicked again immediately
+    fetch(`${request.nextUrl.origin}/api/character-ads/${project.id}/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ step: 'analyze_images', customDialogue })
+    }).catch(error => {
+      console.error('Background workflow trigger failed:', error);
+      // Error handling in background, doesn't affect user response
+    });
 
     return NextResponse.json({
       id: project.id,
