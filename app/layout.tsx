@@ -7,27 +7,27 @@ import { PHProvider, PostHogPageView } from '@/providers/posthog';
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Flowtra - AI Video Ads for Small Business | Under $1 Per Video",
-  description: "Create professional video ads for your small business in under 1 minute. Transform product photos into Etsy, Amazon, Walmart & social media ads. Starting under $1/video - perfect for small retailers and creators.",
+  title: "Flowtra AI - AI Video Generator for Etsy, Shopify & Gumroad Sellers",
+  description: "Generate scroll-stopping marketing videos and product images in minutes. Flowtra helps Etsy, Shopify, Gumroad, and Stan sellers create ads with unlimited free generations and one-time plans starting at $9.",
   keywords: [
-    "Etsy video ads creator",
-    "small business video ads under $1",
-    "handmade product video marketing",
-    "craft business advertising tools",
-    "Etsy seller marketing videos",
-    "AI video ads for small business",
-    "product advertisement generator",
-    "Amazon product ads",
-    "Walmart advertising tools",
-    "affordable AI marketing tools",
-    "video ads for handmade products",
-    "small retailer marketing videos",
-    "AI video ads from photos",
-    "under 1 minute video creation",
-    "product photo to video converter",
-    "cheap video ad generator",
-    "craft business video marketing",
-    "makers and creators video tools"
+    "AI video maker for Etsy sellers",
+    "Shopify product video generator",
+    "Gumroad marketing tool",
+    "Stan creators AI",
+    "free AI video generator",
+    "unlimited AI image maker",
+    "AI tool no subscription",
+    "one-time AI video tool",
+    "AI video generator $9 plan",
+    "customizable AI video templates",
+    "AI marketing tool for small business",
+    "product photo to video AI",
+    "TikTok ad maker AI",
+    "Instagram Reels AI video",
+    "Etsy product showcase generator",
+    "Shopify ad automation",
+    "digital product promo video",
+    "creator economy marketing AI"
   ],
   authors: [{ name: "Flowtra Team" }],
   creator: "Flowtra",
@@ -42,8 +42,8 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: "Flowtra - AI Video Ads for Small Business | Under $1 Per Video",
-    description: "Create professional video ads for your small business in under 1 minute. Transform product photos into Etsy, Amazon, Walmart & social media ads. Starting under $1/video - perfect for small retailers and creators.",
+    title: "Flowtra AI - AI Video Generator for Etsy, Shopify & Gumroad Sellers",
+    description: "Generate scroll-stopping marketing videos and product images in minutes. Flowtra helps Etsy, Shopify, Gumroad, and Stan sellers create ads with unlimited free generations and one-time plans starting at $9.",
     url: 'https://www.flowtra.store',
     siteName: 'Flowtra',
     images: [
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
         url: '/opengraph-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Flowtra - AI Video Ads for Small Business Under $1',
+        alt: 'Flowtra AI - Video Generator for Etsy, Shopify & Gumroad Sellers',
       }
     ],
     locale: 'en_US',
@@ -59,8 +59,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Flowtra - AI Video Ads for Small Business | Under $1 Per Video',
-    description: 'Create professional video ads for your small business in under 1 minute. Transform product photos into Etsy, Amazon, Walmart & social media ads. Under $1/video.',
+    title: 'Flowtra AI - AI Video Generator for Etsy, Shopify & Gumroad Sellers',
+    description: 'Generate scroll-stopping marketing videos and product images in minutes. Unlimited free generations and one-time plans starting at $9.',
     images: ['/twitter-image.jpg'],
     creator: '@flowtra',
   },
@@ -115,8 +115,8 @@ export default function RootLayout({
               __html: JSON.stringify({
                 '@context': 'https://schema.org',
                 '@type': 'SoftwareApplication',
-                name: 'Flowtra - AI Video Ads for Small Business',
-                description: 'AI-powered video advertisement generation platform designed for small businesses, Etsy sellers, makers and creators. Create professional video ads from product photos in under 1 minute for under $1.',
+                name: 'Flowtra AI - AI Video Generator for Etsy, Shopify & Gumroad Sellers',
+                description: 'AI-powered marketing toolkit that turns product photos into scroll-stopping videos and images for Etsy, Shopify, Gumroad, and Stan sellers. Create campaigns in minutes with unlimited free generations.',
                 url: 'https://www.flowtra.store',
                 applicationCategory: 'BusinessApplication',
                 operatingSystem: 'Web',
@@ -134,7 +134,7 @@ export default function RootLayout({
                     price: '9',
                     priceCurrency: 'USD',
                     category: 'AI Marketing Tools',
-                    description: '500 credits for AI video generation'
+                    description: '500 credits for AI video and image generation with unlimited free trials'
                   },
                   {
                     '@type': 'Offer',
@@ -142,7 +142,7 @@ export default function RootLayout({
                     price: '29',
                     priceCurrency: 'USD',
                     category: 'AI Marketing Tools',
-                    description: '2,000 credits for AI video and image generation'
+                    description: '2,000 credits for multi-platform video, image, and ad copy creation'
                   },
                   {
                     '@type': 'Offer',
@@ -150,7 +150,7 @@ export default function RootLayout({
                     price: '49',
                     priceCurrency: 'USD',
                     category: 'AI Marketing Tools',
-                    description: '3,500 credits with priority processing'
+                    description: '3,500 credits with priority rendering and template unlocks'
                   }
                 ],
                 publisher: {
@@ -165,13 +165,13 @@ export default function RootLayout({
                   }
                 },
                 featureList: [
-                  'AI Video Generation for Small Business',
-                  'Under $1 Video Ad Creation',
-                  'Etsy, Amazon, Walmart Ad Generation',
-                  'Professional Video Ads in Under 1 Minute',
-                  'Handmade Product Video Marketing',
-                  'Small Retailer Marketing Automation',
-                  'Craft Business Video Advertisement Tools'
+                  'AI video generator for Etsy and Shopify sellers',
+                  'Unlimited free video and image generations',
+                  'One-time pricing plans starting at $9',
+                  'Template-based ads for Gumroad and Stan creators',
+                  'Beginner-friendly marketing video builder',
+                  'Upload product photos and get ads in minutes',
+                  'Commercial usage rights with no watermarks'
                 ],
                 screenshot: 'https://www.flowtra.store/app-screenshot.jpg',
                 video: {
