@@ -77,6 +77,34 @@ export default function CreditsPage() {
     });
   };
 
+  // Parse transaction description to extract feature, stage, and model
+  interface ParsedTransaction {
+    feature: string;
+    stage: string;
+    model?: string;
+  }
+
+  const parseTransactionDescription = (desc: string): ParsedTransaction => {
+    // Parse "Feature Name - Action (MODEL)" format
+    const parts = desc.split(' - ');
+    const feature = parts[0] || 'Unknown';
+    const action = parts[1] || '';
+
+    let stage = 'Other';
+    if (action.includes('generation')) stage = 'Generation';
+    else if (action.includes('Downloaded')) stage = 'Download';
+    else if (action.includes('Refund')) stage = 'Refund';
+    else if (action.includes('Purchase') || feature.includes('Purchase')) stage = 'Purchase';
+    else if (action.includes('Remove') || action.includes('removal')) stage = 'Processing';
+    else if (feature.includes('Initial')) stage = 'Welcome';
+
+    // Extract model from parentheses
+    const modelMatch = action.match(/\(([^)]+)\)/);
+    const model = modelMatch ? modelMatch[1] : undefined;
+
+    return { feature, stage, model };
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar
@@ -166,36 +194,75 @@ export default function CreditsPage() {
               </div>
             ) : (
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                {transactions.map((transaction, index) => (
-                  <div 
-                    key={transaction.id} 
-                    className={`flex items-center justify-between px-4 py-4 hover:bg-gray-50 transition-colors ${
-                      index < transactions.length - 1 ? 'border-b border-gray-100' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100`}>
-                        {transaction.type === 'purchase' ? (
-                          <HiPlus className="w-4 h-4 text-gray-700" />
-                        ) : transaction.type === 'usage' ? (
-                          <HiMinus className="w-4 h-4 text-gray-700" />
-                        ) : (
-                          <HiLightningBolt className="w-4 h-4 text-gray-700" />
-                        )}
+                {transactions.map((transaction, index) => {
+                  const parsed = parseTransactionDescription(transaction.description);
+
+                  return (
+                    <div
+                      key={transaction.id}
+                      className={`flex items-center justify-between px-4 py-4 hover:bg-gray-50 transition-colors ${
+                        index < transactions.length - 1 ? 'border-b border-gray-100' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                          transaction.type === 'purchase' ? 'bg-green-100' :
+                          transaction.type === 'refund' ? 'bg-orange-100' :
+                          'bg-gray-100'
+                        }`}>
+                          {transaction.type === 'purchase' ? (
+                            <HiPlus className="w-4 h-4 text-green-700" />
+                          ) : transaction.type === 'usage' ? (
+                            <HiMinus className="w-4 h-4 text-gray-700" />
+                          ) : (
+                            <HiLightningBolt className="w-4 h-4 text-orange-700" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            {/* Feature Badge */}
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded whitespace-nowrap">
+                              {parsed.feature}
+                            </span>
+
+                            {/* Stage Badge */}
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap ${
+                              parsed.stage === 'Generation' ? 'bg-green-100 text-green-700' :
+                              parsed.stage === 'Download' ? 'bg-purple-100 text-purple-700' :
+                              parsed.stage === 'Refund' ? 'bg-orange-100 text-orange-700' :
+                              parsed.stage === 'Purchase' ? 'bg-emerald-100 text-emerald-700' :
+                              parsed.stage === 'Welcome' ? 'bg-pink-100 text-pink-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {parsed.stage}
+                            </span>
+
+                            {/* Model Badge */}
+                            {parsed.model && (
+                              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded whitespace-nowrap">
+                                {parsed.model}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500">{formatDate(transaction.created_at)}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-900 mb-1">{transaction.description}</p>
-                        <p className="text-xs text-gray-500">{formatDate(transaction.created_at)}</p>
+
+                      <div className="flex items-center gap-2 ml-4">
+                        <span className={`text-sm font-semibold tabular-nums ${
+                          transaction.type === 'purchase' || transaction.type === 'refund'
+                            ? 'text-green-600'
+                            : 'text-gray-900'
+                        }`}>
+                          {transaction.type === 'purchase' || transaction.type === 'refund' ? '+' : ''}
+                          {Math.abs(transaction.amount).toLocaleString()}
+                        </span>
+                        <Coins className="w-3 h-3 text-gray-500" />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold text-gray-900 tabular-nums`}>
-                        {Math.abs(transaction.amount).toLocaleString()}
-                      </span>
-                      <Coins className="w-3 h-3 text-gray-500" />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

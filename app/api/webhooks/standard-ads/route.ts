@@ -34,6 +34,8 @@ interface StandardAdsRecord {
   brand_ending_task_id?: string;
   image_model?: 'nano_banana' | 'seedream';
   language?: string;
+  video_duration?: string | null;
+  video_quality?: 'standard' | 'high' | null;
 }
 
 type VideoPrompt = {
@@ -346,16 +348,16 @@ Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
 
   console.log('Generated video prompt:', fullPrompt);
 
-  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2';
+  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-  const isSora = videoModel === 'sora2';
-  const apiEndpoint = isSora
+  const isSoraFamily = videoModel === 'sora2' || videoModel === 'sora2_pro';
+  const apiEndpoint = isSoraFamily
     ? 'https://api.kie.ai/api/v1/jobs/createTask'
     : 'https://api.kie.ai/api/v1/veo/generate';
 
   // Determine if dual-image generation (veo3.1 with brand ending frame)
-  const isDualImage = brandEndingFrameUrl && (videoModel === 'veo3' || videoModel === 'veo3_fast');
+  const isDualImage = !isSoraFamily && brandEndingFrameUrl && (videoModel === 'veo3' || videoModel === 'veo3_fast');
   const imageUrls = isDualImage ? [coverImageUrl, brandEndingFrameUrl] : [coverImageUrl];
 
   console.log(`Video generation mode: ${isDualImage ? 'dual-image (veo3.1)' : 'single-image'}`);
@@ -364,14 +366,22 @@ Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
     console.log(`Last frame: ${brandEndingFrameUrl}`);
   }
 
-  const requestBody = isSora
+  const soraInput = {
+    prompt: fullPrompt,
+    image_urls: [coverImageUrl],
+    aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
+  } as Record<string, unknown>;
+
+  if (videoModel === 'sora2_pro') {
+    soraInput.n_frames = record.video_duration === '15' ? '15' : '10';
+    soraInput.size = record.video_quality === 'high' ? 'high' : 'standard';
+    soraInput.remove_watermark = true;
+  }
+
+  const requestBody = isSoraFamily
     ? {
-        model: 'sora-2-image-to-video',
-        input: {
-          prompt: fullPrompt,
-          image_urls: [coverImageUrl],
-          aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
-        }
+        model: videoModel === 'sora2_pro' ? 'sora-2-pro-image-to-video' : 'sora-2-image-to-video',
+        input: soraInput
       }
     : {
         prompt: fullPrompt,

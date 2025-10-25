@@ -128,6 +128,8 @@ interface HistoryRecord {
   custom_script?: string | null;
   use_custom_script?: boolean | null;
   original_image_url?: string; // For custom script mode (use original image instead of generated cover)
+  video_duration?: string | null;
+  video_quality?: 'standard' | 'high' | null;
 }
 
 async function processRecord(record: HistoryRecord) {
@@ -353,7 +355,7 @@ async function processRecord(record: HistoryRecord) {
   // Handle timeout checks (records not updated for too long)
   const lastProcessed = new Date(record.last_processed_at).getTime();
   const now = Date.now();
-  const timeoutMinutes = record.current_step === 'generating_video' ? 30 : 15; // 30min for video, 15min for cover
+  const timeoutMinutes = 40; // 40min timeout for all steps
 
   if (now - lastProcessed > timeoutMinutes * 60 * 1000) {
     throw new Error(`Task timeout: no progress for ${timeoutMinutes} minutes`);
@@ -396,11 +398,11 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     console.log('Generated custom script video prompt (first 300 chars):', fullPrompt.substring(0, 300));
 
     // Skip to API call section below (continue with existing API logic)
-    const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2';
+    const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
     const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-    const isSora = videoModel === 'sora2';
-    const apiEndpoint = isSora
+    const isSoraFamily = videoModel === 'sora2' || videoModel === 'sora2_pro';
+    const apiEndpoint = isSoraFamily
       ? 'https://api.kie.ai/api/v1/jobs/createTask'
       : 'https://api.kie.ai/api/v1/veo/generate';
 
@@ -409,14 +411,22 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
 
     console.log('📽️  Custom script video generation - single image mode');
 
-    const requestBody = isSora
+    const soraInput = {
+      prompt: fullPrompt,
+      image_urls: imageUrls,
+      aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
+    } as Record<string, unknown>;
+
+    if (videoModel === 'sora2_pro') {
+      soraInput.n_frames = record.video_duration === '15' ? '15' : '10';
+      soraInput.size = record.video_quality === 'high' ? 'high' : 'standard';
+      soraInput.remove_watermark = true;
+    }
+
+    const requestBody = isSoraFamily
       ? {
-          model: 'sora-2-image-to-video',
-          input: {
-            prompt: fullPrompt,
-            image_urls: [coverImageUrl],
-            aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
-          }
+          model: videoModel === 'sora2_pro' ? 'sora-2-pro-image-to-video' : 'sora-2-image-to-video',
+          input: soraInput
         }
       : {
           prompt: fullPrompt,
@@ -530,16 +540,16 @@ Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
 
   console.log('Generated video prompt:', fullPrompt);
 
-  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2';
+  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-  const isSora = videoModel === 'sora2';
-  const apiEndpoint = isSora
+  const isSoraFamily = videoModel === 'sora2' || videoModel === 'sora2_pro';
+  const apiEndpoint = isSoraFamily
     ? 'https://api.kie.ai/api/v1/jobs/createTask'
     : 'https://api.kie.ai/api/v1/veo/generate';
 
   // Determine if dual-image generation (veo3.1 with brand ending frame)
-  const isDualImage = brandEndingFrameUrl && (videoModel === 'veo3' || videoModel === 'veo3_fast');
+  const isDualImage = !isSoraFamily && brandEndingFrameUrl && (videoModel === 'veo3' || videoModel === 'veo3_fast');
   const imageUrls = isDualImage ? [coverImageUrl, brandEndingFrameUrl] : [coverImageUrl];
 
   console.log(`Video generation mode: ${isDualImage ? 'dual-image (veo3.1)' : 'single-image'}`);
@@ -548,14 +558,22 @@ Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
     console.log(`Last frame: ${brandEndingFrameUrl}`);
   }
 
-  const requestBody = isSora
+  const soraInput = {
+    prompt: fullPrompt,
+    image_urls: [coverImageUrl],
+    aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
+  } as Record<string, unknown>;
+
+  if (videoModel === 'sora2_pro') {
+    soraInput.n_frames = record.video_duration === '15' ? '15' : '10';
+    soraInput.size = record.video_quality === 'high' ? 'high' : 'standard';
+    soraInput.remove_watermark = true;
+  }
+
+  const requestBody = isSoraFamily
     ? {
-        model: 'sora-2-image-to-video',
-        input: {
-          prompt: fullPrompt,
-          image_urls: [coverImageUrl],
-          aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
-        }
+        model: videoModel === 'sora2_pro' ? 'sora-2-pro-image-to-video' : 'sora-2-image-to-video',
+        input: soraInput
       }
     : {
         prompt: fullPrompt,
@@ -669,8 +687,8 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
 }
 
 async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{status: string, videoUrl?: string, errorMessage?: string}> {
-  const isSora = videoModel === 'sora2';
-  const endpoint = isSora
+  const isSoraFamily = videoModel === 'sora2' || videoModel === 'sora2_pro';
+  const endpoint = isSoraFamily
     ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
     : `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`;
 
@@ -696,7 +714,7 @@ async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{s
     return { status: 'GENERATING' };
   }
 
-  if (isSora) {
+  if (isSoraFamily) {
     let resultJson: Record<string, unknown> = {};
     try {
       resultJson = JSON.parse(taskData.resultJson || '{}');

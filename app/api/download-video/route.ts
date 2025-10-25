@@ -87,7 +87,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
           userId,
           'usage',
           -downloadCost,
-          `Downloaded ${videoModel} video (${historyId})`,
+          `Standard Ads - Downloaded video (${videoModel.toUpperCase()})`,
           historyId
         );
 

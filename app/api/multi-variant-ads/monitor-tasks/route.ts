@@ -252,8 +252,7 @@ async function processInstance(instance: InstanceRecord) {
   // Handle timeout checks (instances not updated for too long)
   const lastProcessed = lastProcessedAt ? new Date(lastProcessedAt).getTime() : 0;
   const now = Date.now();
-  const isVideoStage = currentStatus === 'generating_video' || currentStep === 'generating_video';
-  const timeoutMinutes = isVideoStage ? 30 : 15; // 30min for video, 15min for cover
+  const timeoutMinutes = 40; // 40min timeout for all steps
 
   if (lastProcessed && now - lastProcessed > timeoutMinutes * 60 * 1000) {
     throw new Error(`Task timeout: no progress for ${timeoutMinutes} minutes`);

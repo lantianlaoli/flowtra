@@ -135,20 +135,7 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
   if (project.last_processed_at) {
     const lastProcessed = new Date(project.last_processed_at).getTime();
     const now = Date.now();
-    let timeoutMinutes = 15; // Default timeout
-
-    // Different timeouts for different steps
-    switch (project.current_step) {
-      case 'generating_videos':
-      case 'merging_videos':
-        timeoutMinutes = 30;
-        break;
-      case 'generating_image':
-        timeoutMinutes = 20;
-        break;
-      default:
-        timeoutMinutes = 15;
-    }
+    const timeoutMinutes = 40; // 40min timeout for all steps
 
     if (now - lastProcessed > timeoutMinutes * 60 * 1000) {
       throw new Error(`Task timeout: no progress for ${timeoutMinutes} minutes`);

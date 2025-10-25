@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
           userId,
           'usage',
           downloadCost,
-          `Downloaded ${videoModel} character ads video (${historyId})`,
+          `Character Ads - Downloaded video (${videoModel.toUpperCase()})`,
           historyId
         );
 

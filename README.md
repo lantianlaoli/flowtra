@@ -2,6 +2,8 @@
 
 A modern Next.js application built with Supabase integration.
 
+> **Note:** The OpenAI Apps SDK MCP server and widget code now live in the sibling [`flowtra-mcp`](../flowtra-mcp/README.md) project. Run MCP-related tooling from that repository.
+
 ## Tech Stack
 
 - **Next.js 15** with App Router

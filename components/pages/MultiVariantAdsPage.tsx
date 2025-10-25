@@ -21,7 +21,7 @@ import ProductManager from '@/components/ProductManager';
 import ShowcaseSection from '@/components/ui/ShowcaseSection';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { getActualModel, getActualImageModel } from '@/lib/constants';
+import { getActualModel, getActualImageModel, isFreeGenerationModel, getGenerationCost } from '@/lib/constants';
 import { UserProduct } from '@/lib/supabase';
 
 export default function MultiVariantAdsPage() {
@@ -657,6 +657,29 @@ export default function MultiVariantAdsPage() {
                     <>
                       <ArrowRight className="w-5 h-5" />
                       <span>Generate</span>
+                      {(() => {
+                        // Calculate credits for button display
+                        const actualModel = getActualModel(selectedModel, userCredits || 0);
+                        if (!actualModel) return null;
+
+                        const isFreeGen = isFreeGenerationModel(actualModel);
+                        if (isFreeGen) {
+                          // Free generation models - show FREE badge
+                          return (
+                            <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
+                              FREE
+                            </span>
+                          );
+                        } else {
+                          // Paid generation models - show credit cost (× variants count)
+                          const cost = getGenerationCost(actualModel, videoDuration, videoQuality) * elementsCount;
+                          return (
+                            <span className="ml-2 text-sm opacity-90">
+                              (-{cost} credits)
+                            </span>
+                          );
+                        }
+                      })()}
                     </>
                   )}
                 </button>
@@ -1020,6 +1043,29 @@ export default function MultiVariantAdsPage() {
                     <>
                       <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
                       <span className="group-hover:scale-105 transition-transform duration-200">Generate</span>
+                      {(() => {
+                        // Calculate credits for button display
+                        const actualModel = getActualModel(selectedModel, userCredits || 0);
+                        if (!actualModel) return null;
+
+                        const isFreeGen = isFreeGenerationModel(actualModel);
+                        if (isFreeGen) {
+                          // Free generation models - show FREE badge
+                          return (
+                            <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
+                              FREE
+                            </span>
+                          );
+                        } else {
+                          // Paid generation models - show credit cost (× variants count)
+                          const cost = getGenerationCost(actualModel, videoDuration, videoQuality) * elementsCount;
+                          return (
+                            <span className="ml-2 text-sm opacity-90">
+                              (-{cost} credits)
+                            </span>
+                          );
+                        }
+                      })()}
                     </>
                   )}
                 </button>

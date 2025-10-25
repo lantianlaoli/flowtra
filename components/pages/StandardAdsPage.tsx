@@ -25,7 +25,10 @@ import {
   modelSupports,
   getAvailableModels,
   getAvailableDurations,
-  getAvailableQualities
+  getAvailableQualities,
+  isFreeGenerationModel,
+  getGenerationCost,
+  getActualModel
 } from '@/lib/constants';
 import { AnimatePresence, motion } from 'framer-motion';
 import { UserProduct, UserBrand } from '@/lib/supabase';
@@ -855,6 +858,29 @@ export default function StandardAdsPage() {
               <>
                 <ArrowRight className="w-5 h-5" />
                 <span>Generate</span>
+                {(() => {
+                  // Calculate credits for button display
+                  const actualModel = getActualModel(selectedModel, userCredits || 0);
+                  if (!actualModel) return null;
+
+                  const isFreeGen = isFreeGenerationModel(actualModel);
+                  if (isFreeGen) {
+                    // Free generation models - show FREE badge
+                    return (
+                      <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
+                        FREE
+                      </span>
+                    );
+                  } else {
+                    // Paid generation models - show credit cost
+                    const cost = getGenerationCost(actualModel, videoDuration, videoQuality) * elementsCount;
+                    return (
+                      <span className="ml-2 text-sm opacity-90">
+                        (-{cost} credits)
+                      </span>
+                    );
+                  }
+                })()}
               </>
             )}
           </button>

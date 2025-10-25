@@ -24,6 +24,9 @@ export interface StartWorkflowRequest {
   // NEW: Sora2 Pro params
   sora2ProDuration?: '10' | '15';
   sora2ProQuality?: 'standard' | 'high';
+  // Generic video params (applies to all models)
+  videoDuration?: '8' | '10' | '15';
+  videoQuality?: 'standard' | 'high';
   language?: string; // Language for AI-generated content
   // NEW: Custom Script mode
   customScript?: string; // User-provided video script for direct video generation
@@ -101,12 +104,14 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Basic models (veo3_fast, sora2): FREE generation, paid download
     // Premium models (veo3, sora2_pro): PAID generation, free download
     let generationCost = 0;
+    const duration = request.videoDuration || request.sora2ProDuration;
+    const quality = request.videoQuality || request.sora2ProQuality;
     if (!request.photoOnly) {
       // Calculate generation cost based on model
       generationCost = getGenerationCost(
         actualVideoModel,
-        request.sora2ProDuration,
-        request.sora2ProQuality
+        duration,
+        quality
       );
 
       // Only check and deduct credits if generation is paid
@@ -144,7 +149,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           request.userId,
           'usage',
           generationCost,
-          `Video generation - ${actualVideoModel.toUpperCase()}`,
+          `Standard Ads - Video generation (${actualVideoModel.toUpperCase()})`,
           undefined,
           true
         );
@@ -183,8 +188,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         photo_only: request.photoOnly || false,
         language: request.language || 'en', // Language for AI-generated content
         // Generic video fields (renamed from sora2_pro_*)
-        video_duration: request.sora2ProDuration || (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' ? '8' : '10'),
-        video_quality: request.sora2ProQuality || 'standard',
+        video_duration: duration || (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' ? '8' : '10'),
+        video_quality: quality || 'standard',
         // NEW: Custom script fields
         custom_script: request.customScript || null,
         use_custom_script: request.useCustomScript || false,
@@ -217,7 +222,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             request.userId,
             'refund',
             generationCost,
-            `Refund for failed ${actualVideoModel.toUpperCase()} generation`,
+            `Standard Ads - Refund for failed ${actualVideoModel.toUpperCase()} generation`,
             project.id,
             true
           );
@@ -600,7 +605,7 @@ Requirements:
 - Use the provided text exactly as written without paraphrasing`;
   }
 
-  const includeSoraSafety = request.shouldGenerateVideo !== false && request.videoModel === 'sora2';
+  const includeSoraSafety = request.shouldGenerateVideo !== false && (request.videoModel === 'sora2' || request.videoModel === 'sora2_pro');
   const soraSafetySection = `\n\nSora2 Safety Requirements:
 - Do not include photorealistic humans, faces, or bodies
 - Focus entirely on the product, typography, or abstract environments without people

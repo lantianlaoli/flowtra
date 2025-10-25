@@ -74,7 +74,7 @@ export async function startWatermarkRemovalWorkflow(
       request.userId,
       'usage',
       WATERMARK_REMOVAL_COST,
-      'Watermark removal',
+      'Watermark Removal - Remove watermark',
       undefined,
       true
     );
@@ -101,7 +101,7 @@ export async function startWatermarkRemovalWorkflow(
         request.userId,
         'refund',
         WATERMARK_REMOVAL_COST,
-        'Refund for database error',
+        'Watermark Removal - Refund for database error',
         undefined,
         true
       );
@@ -147,7 +147,7 @@ export async function startWatermarkRemovalWorkflow(
         request.userId,
         'refund',
         WATERMARK_REMOVAL_COST,
-        'Refund for failed watermark removal',
+        'Watermark Removal - Refund for failed removal',
         project.id,
         true
       );

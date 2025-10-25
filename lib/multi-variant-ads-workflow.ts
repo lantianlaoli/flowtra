@@ -139,7 +139,7 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
           request.userId,
           'usage',
           totalGenerationCost,
-          `Video generation - ${elementsCount}x ${videoModel.toUpperCase()}`,
+          `Multi-Variant Ads - Video generation (${elementsCount}x ${videoModel.toUpperCase()})`,
           undefined,
           true
         );
@@ -191,7 +191,7 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
             request.userId,
             'refund',
             totalGenerationCost,
-            'Refund for failed multi-variant project creation',
+            'Multi-Variant Ads - Refund for failed project creation',
             undefined,
             true
           );

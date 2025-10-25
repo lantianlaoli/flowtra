@@ -206,8 +206,8 @@ export async function GET() {
       imagePrompt: item.image_prompt,
       coverAspectRatio: resolveCoverAspectRatio(item.cover_image_aspect_ratio),
       videoModel:
-        item.video_model === 'sora2'
-          ? 'sora2'
+        item.video_model === 'sora2' || item.video_model === 'sora2_pro'
+          ? item.video_model
           : (item.video_model === 'veo3' || item.video_model === 'veo3_fast')
             ? item.video_model
             : 'veo3_fast',

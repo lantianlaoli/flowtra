@@ -35,11 +35,11 @@ export async function POST() {
         console.log(`Processing task ${task.id} (KIE task ID: ${task.kie_task_id})`);
 
         try {
-          // Check if task has timed out (30 minutes for video processing)
+          // Check if task has timed out (40 minutes for video processing)
           if (task.updated_at) {
             const lastUpdated = new Date(task.updated_at).getTime();
             const now = Date.now();
-            const timeoutMinutes = 30;
+            const timeoutMinutes = 40;
 
             if (now - lastUpdated > timeoutMinutes * 60 * 1000) {
               throw new Error(`Task timeout: no progress for ${timeoutMinutes} minutes`);
@@ -92,7 +92,7 @@ export async function POST() {
             task.user_id,
             'refund',
             WATERMARK_REMOVAL_COST,
-            'Refund for failed watermark removal',
+            'Watermark Removal - Refund for failed removal',
             task.id,
             true
           );

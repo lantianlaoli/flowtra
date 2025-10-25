@@ -61,6 +61,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         errorMessage: record.error_message || null,
         creditsUsed: record.credits_cost || 0,
         videoModel: record.video_model || 'veo3_fast',
+        videoDuration: record.video_duration || null,
+        videoQuality: record.video_quality || null,
         retryCount: 0,
         lastProcessedAt: record.last_processed_at,
         createdAt: record.created_at,

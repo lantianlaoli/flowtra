@@ -21,6 +21,7 @@ import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import ShowcaseSection from '@/components/ui/ShowcaseSection';
+import { getActualModel, isFreeGenerationModel, getGenerationCost } from '@/lib/constants';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -563,6 +564,31 @@ export default function CharacterAdsPage() {
                           <>
                             <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform duration-200" />
                             <span>Generate Ad</span>
+                            {(() => {
+                              // Calculate credits for button display
+                              const actualModel = getActualModel(selectedVideoModel, userCredits || 0);
+                              if (!actualModel) return null;
+
+                              const isFreeGen = isFreeGenerationModel(actualModel);
+                              if (isFreeGen) {
+                                // Free generation models - show FREE badge
+                                return (
+                                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
+                                    FREE
+                                  </span>
+                                );
+                              } else {
+                                // Paid generation models - show credit cost
+                                // Character ads: cost × number of scenes (duration in seconds / 8)
+                                const scenesCount = Math.ceil(videoDuration / 8);
+                                const cost = getGenerationCost(actualModel) * scenesCount;
+                                return (
+                                  <span className="ml-2 text-sm opacity-90">
+                                    (-{cost} credits)
+                                  </span>
+                                );
+                              }
+                            })()}
                           </>
                         )}
                       </motion.button>

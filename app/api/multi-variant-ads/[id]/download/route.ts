@@ -92,7 +92,7 @@ export async function POST(
             instance.user_id,
             'usage',
             -downloadCost,
-            `Downloaded ${videoModel} multi-variant video (${id})`,
+            `Multi-Variant Ads - Downloaded video (${videoModel.toUpperCase()})`,
             id
           );
 

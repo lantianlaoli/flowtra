@@ -18,7 +18,7 @@ import {
   X,
   Eraser
 } from 'lucide-react';
-import { LayoutGroup, motion } from 'framer-motion';
+import { LayoutGroup, motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import FeedbackWidget from '@/components/FeedbackWidget';
 
@@ -127,7 +127,7 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
                 </div>
                 <span className="text-sm font-medium text-gray-900">Credits</span>
               </div>
-              <Link 
+              <Link
                 href="/#pricing"
                 className="w-8 h-8 bg-gray-900 hover:bg-gray-800 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-105 shadow-sm hover:shadow-md"
                 title="Buy more credits"
@@ -135,7 +135,18 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
                 <Plus className="w-4 h-4 text-white" />
               </Link>
             </div>
-            <div className="text-2xl font-bold text-gray-900 tracking-tight">{credits.toLocaleString()}</div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={credits}
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="text-2xl font-bold text-gray-900 tracking-tight"
+              >
+                {credits.toLocaleString()}
+              </motion.div>
+            </AnimatePresence>
           </div>
         )}
 
@@ -273,7 +284,7 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
                   </div>
                   <span className="text-sm font-medium text-gray-900">Credits</span>
                 </div>
-                <Link 
+                <Link
                   href="/#pricing"
                   className="w-8 h-8 bg-gray-900 hover:bg-gray-800 rounded-lg flex items-center justify-center transition-all duration-200"
                   title="Buy more credits"
@@ -282,7 +293,18 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
                   <Plus className="w-4 h-4 text-white" />
                 </Link>
               </div>
-              <div className="text-2xl font-bold text-gray-900 tracking-tight">{credits.toLocaleString()}</div>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={credits}
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="text-2xl font-bold text-gray-900 tracking-tight"
+                >
+                  {credits.toLocaleString()}
+                </motion.div>
+              </AnimatePresence>
             </div>
           )}
 
