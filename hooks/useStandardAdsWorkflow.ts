@@ -44,6 +44,8 @@ export const useStandardAdsWorkflow = (
   elementsCount: number = 1,
   imageSize: string = 'auto',
   videoAspectRatio: '16:9' | '9:16' = '16:9',
+  videoQuality: 'standard' | 'high' = 'standard',
+  videoDuration: '8' | '10' | '15' = '8',
   adCopy: string = '',
   selectedLanguage: string = 'en',
   useCustomScript: boolean = false,
@@ -94,6 +96,16 @@ export const useStandardAdsWorkflow = (
       }
     }));
   }, [selectedModel]);
+
+  const resolveVideoConfig = useCallback(() => {
+    const normalizedDuration = videoDuration === '15'
+      ? '15'
+      : videoDuration === '10'
+        ? '10'
+        : '8';
+
+    return { videoDuration: normalizedDuration, videoQuality } as const;
+  }, [videoDuration, videoQuality]);
 
   const setLoading = useCallback((loading: boolean) => {
     setState(prev => ({ ...prev, isLoading: loading, error: null }));
@@ -217,6 +229,11 @@ export const useStandardAdsWorkflow = (
             : prev.workflowStatus
       }));
 
+      const { videoDuration: resolvedDuration, videoQuality: resolvedQuality } = resolveVideoConfig();
+      const sora2ProDuration = selectedModel === 'sora2_pro' && resolvedDuration
+        ? (resolvedDuration === '15' ? '15' : '10')
+        : undefined;
+
       const requestData = {
         selectedProductId,
         userId: userId,
@@ -230,6 +247,10 @@ export const useStandardAdsWorkflow = (
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,
         videoAspectRatio: videoAspectRatio,
+        videoDuration: resolvedDuration,
+        videoQuality: resolvedQuality,
+        sora2ProDuration,
+        sora2ProQuality: selectedModel === 'sora2_pro' ? resolvedQuality : undefined,
         adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
         selectedBrandId: selectedBrandId,
         language: selectedLanguage,
@@ -288,7 +309,22 @@ export const useStandardAdsWorkflow = (
         error: message
       }));
     }
-  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, selectedLanguage, useCustomScript, customScript, updateCredits, refetchCredits, state.workflowStatus]);
+  }, [
+    userId,
+    selectedModel,
+    selectedImageModel,
+    elementsCount,
+    imageSize,
+    videoAspectRatio,
+    resolveVideoConfig,
+    adCopy,
+    selectedLanguage,
+    useCustomScript,
+    customScript,
+    updateCredits,
+    refetchCredits,
+    state.workflowStatus
+  ]);
 
   const startWorkflowWithConfig = useCallback(async (
     watermarkConfig: { enabled: boolean; text: string; location?: string },
@@ -315,6 +351,11 @@ export const useStandardAdsWorkflow = (
             : prev.workflowStatus
       }));
 
+      const { videoDuration: resolvedDuration, videoQuality: resolvedQuality } = resolveVideoConfig();
+      const sora2ProDuration = selectedModel === 'sora2_pro' && resolvedDuration
+        ? (resolvedDuration === '15' ? '15' : '10')
+        : undefined;
+
       const requestData = {
         imageUrl: state.data.uploadedFile.url,
         imagePath: state.data.uploadedFile.path,
@@ -329,6 +370,10 @@ export const useStandardAdsWorkflow = (
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,
         videoAspectRatio: videoAspectRatio,
+        videoDuration: resolvedDuration,
+        videoQuality: resolvedQuality,
+        sora2ProDuration,
+        sora2ProQuality: selectedModel === 'sora2_pro' ? resolvedQuality : undefined,
         adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
         selectedBrandId: selectedBrandId,
         language: selectedLanguage,
@@ -387,7 +432,23 @@ export const useStandardAdsWorkflow = (
         error: message
       }));
     }
-  }, [state.data.uploadedFile, userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, selectedLanguage, useCustomScript, customScript, updateCredits, refetchCredits, state.workflowStatus]);
+  }, [
+    state.data.uploadedFile,
+    userId,
+    selectedModel,
+    selectedImageModel,
+    elementsCount,
+    imageSize,
+    videoAspectRatio,
+    resolveVideoConfig,
+    adCopy,
+    selectedLanguage,
+    useCustomScript,
+    customScript,
+    updateCredits,
+    refetchCredits,
+    state.workflowStatus
+  ]);
 
   const startWorkflowWithTemporaryImages = useCallback(async (
     imageFiles: File[],
@@ -429,6 +490,11 @@ export const useStandardAdsWorkflow = (
       const primaryImageUrl = uploadResult.imageUrls[0];
 
       // Start workflow with uploaded image URL
+      const { videoDuration: resolvedDuration, videoQuality: resolvedQuality } = resolveVideoConfig();
+      const sora2ProDuration = selectedModel === 'sora2_pro' && resolvedDuration
+        ? (resolvedDuration === '15' ? '15' : '10')
+        : undefined;
+
       const requestData = {
         imageUrl: primaryImageUrl,
         userId: userId,
@@ -442,6 +508,10 @@ export const useStandardAdsWorkflow = (
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,
         videoAspectRatio: videoAspectRatio,
+        videoDuration: resolvedDuration,
+        videoQuality: resolvedQuality,
+        sora2ProDuration,
+        sora2ProQuality: selectedModel === 'sora2_pro' ? resolvedQuality : undefined,
         adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
         selectedBrandId: selectedBrandId,
         language: selectedLanguage,
@@ -470,6 +540,7 @@ export const useStandardAdsWorkflow = (
         isLoading: false,
         historyId: result.historyId,
         workflowStatus: 'workflow_initiated',
+        workflowInitiatedCount: prev.workflowInitiatedCount + 1,
         data: {
           ...prev.data,
           uploadedFile: { url: primaryImageUrl },
@@ -500,7 +571,22 @@ export const useStandardAdsWorkflow = (
         error: message
       }));
     }
-  }, [userId, selectedModel, selectedImageModel, elementsCount, imageSize, videoAspectRatio, adCopy, selectedLanguage, useCustomScript, customScript, updateCredits, refetchCredits, state.workflowStatus]);
+  }, [
+    userId,
+    selectedModel,
+    selectedImageModel,
+    elementsCount,
+    imageSize,
+    videoAspectRatio,
+    resolveVideoConfig,
+    adCopy,
+    selectedLanguage,
+    useCustomScript,
+    customScript,
+    updateCredits,
+    refetchCredits,
+    state.workflowStatus
+  ]);
 
   return {
     state,

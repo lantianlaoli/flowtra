@@ -19,7 +19,14 @@ import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 
-import { canAffordModel, CREDIT_COSTS, modelSupports, getAvailableModels } from '@/lib/constants';
+import {
+  canAffordModel,
+  CREDIT_COSTS,
+  modelSupports,
+  getAvailableModels,
+  getAvailableDurations,
+  getAvailableQualities
+} from '@/lib/constants';
 import { AnimatePresence, motion } from 'framer-motion';
 import { UserProduct, UserBrand } from '@/lib/supabase';
 
@@ -30,10 +37,13 @@ interface KieCreditsStatus {
   threshold?: number;
 }
 
+const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
+const ALL_VIDEO_DURATIONS: Array<'8' | '10' | '15'> = ['8', '10', '15'];
+
 export default function StandardAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
   // NEW: Top-level video config state
   const [videoQuality, setVideoQuality] = useState<'standard' | 'high'>('standard');
   const [videoDuration, setVideoDuration] = useState<'8' | '10' | '15'>('8');
@@ -63,6 +73,7 @@ export default function StandardAdsPage() {
   const [useCustomScript, setUseCustomScript] = useState(false);
   const [customScript, setCustomScript] = useState('');
   const [activeTab, setActiveTab] = useState<'adcopy' | 'script'>('adcopy');
+  const [hasUserQueuedToast, setHasUserQueuedToast] = useState(false);
 
 
   const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
@@ -107,6 +118,8 @@ export default function StandardAdsPage() {
     elementsCount,
     imageSize,
     videoAspectRatio,
+    videoQuality,
+    videoDuration,
     adCopy,
     selectedLanguage,
     useCustomScript,
@@ -149,6 +162,68 @@ export default function StandardAdsPage() {
   }, [selectedProduct, uploadedImageUrl]);
 
   const canUseAIHelpers = useMemo(() => collectContext() !== null, [collectContext]);
+
+  const availableDurations = useMemo(
+    () => getAvailableDurations(videoQuality),
+    [videoQuality]
+  );
+
+  const availableQualities = useMemo(
+    () => getAvailableQualities(videoDuration),
+    [videoDuration]
+  );
+
+  const disabledDurations = useMemo(
+    () =>
+      ALL_VIDEO_DURATIONS.filter(
+        (duration) => !availableDurations.includes(duration)
+      ) as Array<'8' | '10' | '15'>,
+    [availableDurations]
+  );
+
+  const disabledQualities = useMemo(
+    () =>
+      ALL_VIDEO_QUALITIES.filter(
+        (quality) => !availableQualities.includes(quality)
+      ) as Array<'standard' | 'high'>,
+    [availableQualities]
+  );
+
+  const handleVideoQualityChange = useCallback(
+    (quality: 'standard' | 'high') => {
+      const supportedDurations = getAvailableDurations(quality);
+      const nextDuration = supportedDurations[0] ?? '10';
+
+      if (!supportedDurations.includes(videoDuration)) {
+        if (nextDuration !== videoDuration) {
+          setVideoDuration(nextDuration);
+        }
+      }
+
+      if (quality !== videoQuality) {
+        setVideoQuality(quality);
+      }
+    },
+    [videoDuration, videoQuality]
+  );
+
+  const handleVideoDurationChange = useCallback(
+    (duration: '8' | '10' | '15') => {
+      const supportedQualities = getAvailableQualities(duration);
+      const nextQuality = supportedQualities[0] ?? 'standard';
+
+      if (!supportedQualities.includes(videoQuality)) {
+        if (nextQuality !== videoQuality) {
+          setVideoQuality(nextQuality);
+        }
+      }
+
+      if (duration !== videoDuration) {
+        setVideoDuration(duration);
+      }
+    },
+    [videoQuality, videoDuration]
+  );
 
   const handleGenerateAdCopy = async () => {
     if (isGeneratingAdCopy) return;
@@ -296,11 +371,15 @@ export default function StandardAdsPage() {
   useEffect(() => {
     // Only show toast if counter is greater than 0 (workflow has been initiated at least once)
     if (state.workflowInitiatedCount > 0) {
-      showSuccess(
-        'Added to generation queue! Your ad is being created in the background.',
-        5000,
-        { label: 'View Progress →', href: '/dashboard/videos' }
-      );
+      if (!hasUserQueuedToast) {
+        showSuccess(
+          'Added to generation queue! Your ad is being created in the background.',
+          5000,
+          { label: 'View Progress →', href: '/dashboard/videos' }
+        );
+      } else {
+        setHasUserQueuedToast(false);
+      }
 
       // Reset the page to allow creating another ad immediately
       // Small delay to ensure toast is shown before reset
@@ -308,7 +387,16 @@ export default function StandardAdsPage() {
         handleResetWorkflow();
       }, 100);
     }
-  }, [state.workflowInitiatedCount, showSuccess, handleResetWorkflow]);
+  }, [state.workflowInitiatedCount, showSuccess, handleResetWorkflow, hasUserQueuedToast]);
+
+  useEffect(() => {
+    if (state.error) {
+      showError(state.error.includes('Failed') ? state.error : `Failed to start workflow: ${state.error}`);
+      if (hasUserQueuedToast) {
+        setHasUserQueuedToast(false);
+      }
+    }
+  }, [state.error, hasUserQueuedToast, showError]);
 
 
   // Loading state
@@ -326,6 +414,13 @@ export default function StandardAdsPage() {
   };
 
   const handleStartWorkflow = async () => {
+    showSuccess(
+      'Added to generation queue! Your ad is being created in the background.',
+      5000,
+      { label: 'View Progress →', href: '/dashboard/videos' }
+    );
+    setHasUserQueuedToast(true);
+
     const watermarkConfig = {
       enabled: textWatermark.trim().length > 0,
       text: textWatermark.trim(),
@@ -497,13 +592,15 @@ export default function StandardAdsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <VideoQualitySelector
                       selectedQuality={videoQuality}
-                      onQualityChange={setVideoQuality}
+                      onQualityChange={handleVideoQualityChange}
                       showIcon={true}
+                      disabledQualities={disabledQualities}
                     />
                     <VideoDurationSelector
                       selectedDuration={videoDuration}
-                      onDurationChange={setVideoDuration}
+                      onDurationChange={handleVideoDurationChange}
                       showIcon={true}
+                      disabledDurations={disabledDurations}
                     />
                   </div>
                 )}
