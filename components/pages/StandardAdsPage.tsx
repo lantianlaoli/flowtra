@@ -316,7 +316,7 @@ export default function StandardAdsPage() {
     }
 
     return (
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6">
         {/* Top Banner - Feature Introduction */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
@@ -339,130 +339,128 @@ export default function StandardAdsPage() {
         </div>
 
         {/* Main Configuration */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-          {/* Left Column - Configuration (7/12 = ~60%) */}
-          <div className="lg:col-span-7">
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-6">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-gray-700" />
-                <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
-              </div>
-
-              {/* NEW: Mode Toggles */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <OutputModeToggle
-                  mode={outputMode}
-                  onModeChange={handleOutputModeChange}
-                />
-                <GenerationModeToggle
-                  mode={generationMode}
-                  onModeChange={setGenerationMode}
-                />
-              </div>
-
-              {/* NEW: Brand & Product Card */}
-              <BrandProductCard
-                brand={selectedBrand}
-                product={selectedProduct}
-              />
-
-              {/* Single Row: Language, Image Model (always), and Format */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <LanguageSelector
-                  selectedLanguage={selectedLanguage}
-                  onLanguageChange={setSelectedLanguage}
-                  showIcon={true}
-                />
-
-                <ImageModelSelector
-                  credits={userCredits || 0}
-                  selectedModel={selectedImageModel}
-                  onModelChange={handleImageModelChange}
-                  showIcon={true}
-                  hiddenModels={['auto']}
-                />
-
-                <FormatSelector
-                  outputMode={outputMode}
-                  selectedFormat={format}
-                  onFormatChange={setFormat}
-                />
-              </div>
-
-              {/* Video Configuration Row (only when outputMode === 'video') */}
-              {outputMode === 'video' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <VideoQualitySelector
-                    selectedQuality={videoQuality}
-                    onQualityChange={handleVideoQualityChange}
-                    showIcon={true}
-                    disabledQualities={disabledQualities}
-                  />
-                  <VideoDurationSelector
-                    selectedDuration={videoDuration}
-                    onDurationChange={handleVideoDurationChange}
-                    showIcon={true}
-                    disabledDurations={disabledDurations}
-                  />
-                </div>
-              )}
-
-              {/* Video Model (only when outputMode === 'video') */}
-              {outputMode === 'video' && (
-                <VideoModelSelector
-                  credits={userCredits || 0}
-                  selectedModel={selectedModel}
-                  onModelChange={handleModelChange}
-                  showIcon={true}
-                  hiddenModels={['auto']}
-                  disabledModels={disabledModels as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>}
-                  videoQuality={videoQuality}
-                  videoDuration={videoDuration}
-                  adsCount={1}
-                />
-              )}
-
-              {/* Custom Prompt Input (only in custom mode) */}
-              {generationMode === 'custom' && (
-                <CustomPromptInput
-                  value={customPrompt}
-                  onChange={setCustomPrompt}
-                />
-              )}
-            </div>
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-6">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-gray-700" />
+            <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
           </div>
 
-          {/* Right Column - Product Selection (5/12 = ~40%) */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
-              <ProductSelector
-                selectedProduct={selectedProduct}
-                onProductSelect={(product) => {
-                  setSelectedProduct(product);
-                  // Extract brand from product if available
-                  if (product && 'brand' in product && product.brand) {
-                    setSelectedBrand(product.brand as UserBrand);
-                  }
-                }}
+          {/* NEW: Mode Toggles */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <OutputModeToggle
+              mode={outputMode}
+              onModeChange={handleOutputModeChange}
+            />
+            <GenerationModeToggle
+              mode={generationMode}
+              onModeChange={setGenerationMode}
+            />
+          </div>
+
+          {/* NEW: Brand & Product Card with integrated selector */}
+          <div className="space-y-4">
+            <BrandProductCard
+              brand={selectedBrand}
+              product={selectedProduct}
+            />
+            <ProductSelector
+              selectedProduct={selectedProduct}
+              onProductSelect={(product) => {
+                setSelectedProduct(product);
+                // Extract brand from product if available
+                if (product && 'brand' in product && product.brand) {
+                  setSelectedBrand(product.brand as UserBrand);
+                }
+              }}
+            />
+          </div>
+
+          {/* Single Row: Language, Duration, Quality, Format (for video mode) */}
+          {outputMode === 'video' ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <LanguageSelector
+                selectedLanguage={selectedLanguage}
+                onLanguageChange={setSelectedLanguage}
+                showIcon={true}
+              />
+              <VideoDurationSelector
+                selectedDuration={videoDuration}
+                onDurationChange={handleVideoDurationChange}
+                showIcon={true}
+                disabledDurations={disabledDurations}
+              />
+              <VideoQualitySelector
+                selectedQuality={videoQuality}
+                onQualityChange={handleVideoQualityChange}
+                showIcon={true}
+                disabledQualities={disabledQualities}
+              />
+              <FormatSelector
+                outputMode={outputMode}
+                selectedFormat={format}
+                onFormatChange={setFormat}
               />
             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <LanguageSelector
+                selectedLanguage={selectedLanguage}
+                onLanguageChange={setSelectedLanguage}
+                showIcon={true}
+              />
+              <ImageModelSelector
+                credits={userCredits || 0}
+                selectedModel={selectedImageModel}
+                onModelChange={handleImageModelChange}
+                showIcon={true}
+                hiddenModels={['auto']}
+              />
+              <FormatSelector
+                outputMode={outputMode}
+                selectedFormat={format}
+                onFormatChange={setFormat}
+              />
+            </div>
+          )}
 
-            {/* Generate Button */}
-            <button
-              onClick={handleStartWorkflow}
-              disabled={!selectedProduct || !selectedBrand}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad
-              <ArrowRight className="w-4 h-4" />
-            </button>
+          {/* Video Model (only when outputMode === 'video') */}
+          {outputMode === 'video' && (
+            <VideoModelSelector
+              credits={userCredits || 0}
+              selectedModel={selectedModel}
+              onModelChange={handleModelChange}
+              showIcon={true}
+              hiddenModels={['auto']}
+              disabledModels={disabledModels as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>}
+              videoQuality={videoQuality}
+              videoDuration={videoDuration}
+              adsCount={1}
+            />
+          )}
 
-            {!selectedProduct && (
-              <p className="text-xs text-center text-gray-500">
-                Please select a product to continue
-              </p>
-            )}
-          </div>
+          {/* Custom Prompt Input (only in custom mode) */}
+          {generationMode === 'custom' && (
+            <CustomPromptInput
+              value={customPrompt}
+              onChange={setCustomPrompt}
+            />
+          )}
+
+          {/* Generate Button */}
+          <button
+            onClick={handleStartWorkflow}
+            disabled={!selectedProduct || !selectedBrand}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad
+            <ArrowRight className="w-4 h-4" />
+          </button>
+
+          {!selectedProduct && (
+            <p className="text-xs text-center text-gray-500">
+              Please select a product to continue
+            </p>
+          )}
         </div>
       </div>
     );
@@ -472,7 +470,7 @@ export default function StandardAdsPage() {
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
-        <div className="p-6">
+        <div className="px-8 py-6">
           {renderWorkflowContent()}
         </div>
       </main>
