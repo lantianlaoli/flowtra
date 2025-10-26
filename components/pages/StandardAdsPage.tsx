@@ -451,13 +451,25 @@ export default function StandardAdsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto">
-        <div className="px-8 py-6">
+      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
+        <div className="p-8 max-w-7xl mx-auto">
+          {/* Page Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-gray-700" />
+              </div>
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Professional Brand Ads
+              </h1>
+            </div>
+          </div>
+
           {renderWorkflowContent()}
         </div>
-      </main>
+      </div>
     </div>
   );
 }

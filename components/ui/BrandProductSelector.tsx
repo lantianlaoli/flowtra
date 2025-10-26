@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Building2, ChevronDown } from 'lucide-react';
+import { Package, Building2, Check } from 'lucide-react';
 import { UserProduct, UserBrand } from '@/lib/supabase';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -75,152 +75,179 @@ export default function BrandProductSelector({
     }
   };
 
-  const handleBrandChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const brandId = e.target.value;
-    if (brandId) {
-      const brand = brands.find(b => b.id === brandId);
-      onBrandSelect(brand || null);
-      onProductSelect(null); // Reset product selection
-    } else {
+  const handleBrandClick = (brand: UserBrand) => {
+    if (selectedBrand?.id === brand.id) {
       onBrandSelect(null);
       onProductSelect(null);
+    } else {
+      onBrandSelect(brand);
+      onProductSelect(null); // Reset product when changing brand
     }
   };
 
-  const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const productId = e.target.value;
-    if (productId) {
-      const product = brandProducts.find(p => p.id === productId);
-      if (product) {
-        // Attach brand to product
-        const productWithBrand = { ...product, brand: selectedBrand };
-        onProductSelect(productWithBrand as UserProduct);
-      }
-    } else {
+  const handleProductClick = (product: UserProduct) => {
+    if (selectedProduct?.id === product.id) {
       onProductSelect(null);
+    } else {
+      // Attach brand to product
+      const productWithBrand = { ...product, brand: selectedBrand };
+      onProductSelect(productWithBrand as UserProduct);
     }
   };
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-3", className)}>
       <div className="flex items-center gap-2 text-base font-medium text-gray-900">
-        <Package className="h-4 w-4" />
-        Brand & Product Selection
+        Brand & Product
       </div>
 
-      {/* Brand Dropdown */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-gray-700">Brand</label>
-        <div className="relative">
-          <select
-            value={selectedBrand?.id || ''}
-            onChange={handleBrandChange}
-            disabled={isLoadingBrands}
-            className={cn(
-              "w-full appearance-none rounded-lg border-2 border-gray-300 bg-white px-4 py-3 pr-10",
-              "text-sm font-medium text-gray-900",
-              "focus:border-black focus:outline-none focus:ring-0",
-              "disabled:bg-gray-50 disabled:cursor-not-allowed",
-              "transition-colors"
-            )}
-          >
-            <option value="">Select a brand...</option>
-            {brands.map((brand) => (
-              <option key={brand.id} value={brand.id}>
-                {brand.brand_name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
-
-      {/* Product Dropdown */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-gray-700">Product</label>
-        <div className="relative">
-          <select
-            value={selectedProduct?.id || ''}
-            onChange={handleProductChange}
-            disabled={!selectedBrand || isLoadingProducts}
-            className={cn(
-              "w-full appearance-none rounded-lg border-2 border-gray-300 bg-white px-4 py-3 pr-10",
-              "text-sm font-medium text-gray-900",
-              "focus:border-black focus:outline-none focus:ring-0",
-              "disabled:bg-gray-50 disabled:cursor-not-allowed",
-              "transition-colors"
-            )}
-          >
-            <option value="">
-              {!selectedBrand
-                ? 'Select a brand first...'
-                : isLoadingProducts
-                  ? 'Loading products...'
-                  : 'Select a product...'}
-            </option>
-            {brandProducts.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.product_name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
-
-      {/* Preview Card */}
-      {selectedBrand && selectedProduct && (
-        <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
-          <div className="text-xs font-semibold text-gray-500 uppercase mb-3">Selected</div>
-          <div className="flex items-center gap-4">
-            {/* Brand Section */}
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-12 h-12 bg-white rounded-md flex items-center justify-center border border-gray-300 flex-shrink-0 overflow-hidden">
-                {selectedBrand.brand_logo_url ? (
-                  <Image
-                    src={selectedBrand.brand_logo_url}
-                    alt={selectedBrand.brand_name}
-                    width={48}
-                    height={48}
-                    className="object-cover w-full h-full"
-                  />
-                ) : (
-                  <Building2 className="w-6 h-6 text-gray-400" />
-                )}
-              </div>
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <div className="text-xs text-gray-500">Brand</div>
-                <div className="text-sm font-semibold text-gray-900 truncate">
-                  {selectedBrand.brand_name}
-                </div>
-              </div>
+      {/* Left-Right Layout Container */}
+      <div className="border-2 border-gray-300 rounded-lg bg-white overflow-hidden">
+        <div className="grid grid-cols-2 divide-x-2 divide-gray-300">
+          {/* Left: Brand Selection */}
+          <div className="p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <Building2 className="w-4 h-4" />
+              <span>Select Brand</span>
             </div>
 
-            {/* Product Section */}
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-12 h-12 bg-white rounded-md flex items-center justify-center border border-gray-300 flex-shrink-0 overflow-hidden">
-                {selectedProduct.user_product_photos?.[0]?.photo_url ? (
-                  <Image
-                    src={selectedProduct.user_product_photos[0].photo_url}
-                    alt={selectedProduct.product_name}
-                    width={48}
-                    height={48}
-                    className="object-cover w-full h-full"
-                  />
-                ) : (
-                  <Package className="w-6 h-6 text-gray-400" />
-                )}
+            {isLoadingBrands ? (
+              <div className="flex justify-center py-8">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-black"></div>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs text-gray-500">Product</div>
-                <div className="text-sm font-semibold text-gray-900 truncate">
-                  {selectedProduct.product_name}
-                </div>
+            ) : brands.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-500">
+                No brands found
               </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {brands.map((brand) => {
+                  const isSelected = selectedBrand?.id === brand.id;
+                  return (
+                    <button
+                      key={brand.id}
+                      onClick={() => handleBrandClick(brand)}
+                      className={cn(
+                        "w-full rounded-lg border-2 p-3 text-left transition-all",
+                        "flex items-center gap-3",
+                        isSelected
+                          ? "border-black bg-gray-50"
+                          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                      )}
+                    >
+                      {/* Brand Logo */}
+                      <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center border border-gray-300 flex-shrink-0 overflow-hidden">
+                        {brand.brand_logo_url ? (
+                          <Image
+                            src={brand.brand_logo_url}
+                            alt={brand.brand_name}
+                            width={40}
+                            height={40}
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <Building2 className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+
+                      {/* Brand Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">
+                          {brand.brand_name}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">
+                          {brand.brand_slogan || 'No slogan'}
+                        </div>
+                      </div>
+
+                      {/* Check Icon */}
+                      {isSelected && (
+                        <Check className="w-5 h-5 text-black flex-shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Product Selection */}
+          <div className="p-4 space-y-3 bg-gray-50">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <Package className="w-4 h-4" />
+              <span>Select Product</span>
             </div>
+
+            {!selectedBrand ? (
+              <div className="text-center py-12 text-sm text-gray-500">
+                Select a brand first
+              </div>
+            ) : isLoadingProducts ? (
+              <div className="flex justify-center py-8">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-black"></div>
+              </div>
+            ) : brandProducts.length === 0 ? (
+              <div className="text-center py-12 text-sm text-gray-500">
+                No products in this brand
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {brandProducts.map((product) => {
+                  const isSelected = selectedProduct?.id === product.id;
+                  const primaryPhoto = product.user_product_photos?.find(p => p.is_primary);
+                  const photo = primaryPhoto || product.user_product_photos?.[0];
+
+                  return (
+                    <button
+                      key={product.id}
+                      onClick={() => handleProductClick(product)}
+                      className={cn(
+                        "w-full rounded-lg border-2 p-3 text-left transition-all",
+                        "flex items-center gap-3",
+                        isSelected
+                          ? "border-black bg-white"
+                          : "border-gray-200 bg-white hover:border-gray-300"
+                      )}
+                    >
+                      {/* Product Photo */}
+                      <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center border border-gray-300 flex-shrink-0 overflow-hidden">
+                        {photo?.photo_url ? (
+                          <Image
+                            src={photo.photo_url}
+                            alt={product.product_name}
+                            width={40}
+                            height={40}
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <Package className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+
+                      {/* Product Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">
+                          {product.product_name}
+                        </div>
+                        {product.description && (
+                          <div className="text-xs text-gray-500 truncate">
+                            {product.description}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Check Icon */}
+                      {isSelected && (
+                        <Check className="w-5 h-5 text-black flex-shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
