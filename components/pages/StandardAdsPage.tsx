@@ -439,12 +439,6 @@ export default function StandardAdsPage() {
             Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad
             <ArrowRight className="w-4 h-4" />
           </button>
-
-          {!selectedProduct && (
-            <p className="text-xs text-center text-gray-500">
-              Please select a product to continue
-            </p>
-          )}
         </div>
       </div>
     );

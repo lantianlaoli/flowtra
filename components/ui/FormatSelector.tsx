@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Maximize2 } from 'lucide-react';
+import { ChevronDown, Check, Maximize2, Square, Smartphone, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { OutputMode } from './OutputModeToggle';
+import type { LucideIcon } from 'lucide-react';
 
 // Image format types (aspect ratios for images)
 export type ImageFormat = '1:1' | '3:4' | '4:3';
@@ -19,7 +20,7 @@ interface FormatOption {
   value: Format;
   label: string;
   description: string;
-  icon: string;
+  icon: LucideIcon;
 }
 
 interface FormatSelectorProps {
@@ -32,16 +33,16 @@ interface FormatSelectorProps {
 
 // Format options for image mode
 const IMAGE_FORMATS: FormatOption[] = [
-  { value: '1:1', label: 'Square', description: '1:1 ratio', icon: '⬜' },
-  { value: '3:4', label: 'Portrait', description: '3:4 ratio', icon: '📱' },
-  { value: '4:3', label: 'Landscape', description: '4:3 ratio', icon: '🖥️' },
+  { value: '1:1', label: 'Square', description: '1:1 ratio', icon: Square },
+  { value: '3:4', label: 'Portrait', description: '3:4 ratio', icon: Smartphone },
+  { value: '4:3', label: 'Landscape', description: '4:3 ratio', icon: Monitor },
 ];
 
 // Format options for video mode
 const VIDEO_FORMATS: FormatOption[] = [
-  { value: '1:1', label: 'Square', description: '1:1 ratio', icon: '⬜' },
-  { value: '9:16', label: 'Portrait', description: '9:16 ratio', icon: '📱' },
-  { value: '16:9', label: 'Landscape', description: '16:9 ratio', icon: '🖥️' },
+  { value: '1:1', label: 'Square', description: '1:1 ratio', icon: Square },
+  { value: '9:16', label: 'Portrait', description: '9:16 ratio', icon: Smartphone },
+  { value: '16:9', label: 'Landscape', description: '16:9 ratio', icon: Monitor },
 ];
 
 export default function FormatSelector({
@@ -120,7 +121,7 @@ export default function FormatSelector({
           className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-md transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
           <div className="flex items-center gap-2">
-            <span className="text-base">{selectedOption.icon}</span>
+            <selectedOption.icon className="w-4 h-4 text-gray-600" />
             <div className="flex flex-col">
               <span className="font-medium">{selectedOption.label}</span>
               <span className="text-xs text-gray-500">{selectedOption.description}</span>
@@ -142,31 +143,34 @@ export default function FormatSelector({
               transition={{ type: 'spring', stiffness: 300, damping: 28 }}
               className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] overflow-hidden"
             >
-              {formatOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleOptionSelect(option.value)}
-                  className={cn(
-                    "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 cursor-pointer",
-                    selectedFormat === option.value
-                      ? "bg-gray-100 text-gray-900"
-                      : "text-gray-700"
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">{option.icon}</span>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{option.label}</span>
-                      <span className="text-xs text-gray-500">{option.description}</span>
+              {formatOptions.map((option) => {
+                const IconComponent = option.icon;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleOptionSelect(option.value)}
+                    className={cn(
+                      "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 cursor-pointer",
+                      selectedFormat === option.value
+                        ? "bg-gray-100 text-gray-900"
+                        : "text-gray-700"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <IconComponent className="w-4 h-4 text-gray-600" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{option.label}</span>
+                        <span className="text-xs text-gray-500">{option.description}</span>
+                      </div>
                     </div>
-                  </div>
-                  {selectedFormat === option.value && (
-                    <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center">
-                      <Check className="h-2.5 w-2.5 text-white" />
-                    </div>
-                  )}
-                </button>
-              ))}
+                    {selectedFormat === option.value && (
+                      <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center">
+                        <Check className="h-2.5 w-2.5 text-white" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </motion.div>
           )}
         </AnimatePresence>
