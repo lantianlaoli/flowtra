@@ -9,10 +9,8 @@ import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
 import { ArrowRight, Play, TrendingUp, Hash, Type, Package, Sparkles, Wand2 } from 'lucide-react';
-import VideoModelSelector from '@/components/ui/VideoModelSelector';
+import VideoConfigurationSelector, { VideoConfiguration } from '@/components/ui/VideoConfigurationSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
-import VideoQualitySelector from '@/components/ui/VideoQualitySelector';
-import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
 import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
@@ -22,13 +20,10 @@ import ProductManager from '@/components/ProductManager';
 import {
   canAffordModel,
   CREDIT_COSTS,
-  modelSupports,
-  getAvailableModels,
-  getAvailableDurations,
-  getAvailableQualities,
   isFreeGenerationModel,
   getGenerationCost,
-  getActualModel
+  getActualModel,
+  getDefaultVideoConfiguration
 } from '@/lib/constants';
 import { AnimatePresence, motion } from 'framer-motion';
 import { UserProduct, UserBrand } from '@/lib/supabase';
@@ -40,17 +35,13 @@ interface KieCreditsStatus {
   threshold?: number;
 }
 
-const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
-const ALL_VIDEO_DURATIONS: Array<'8' | '10' | '15'> = ['8', '10', '15'];
-
 export default function StandardAdsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
   const { showSuccess, showError } = useToast();
-  // NEW: Top-level video config state
-  const [videoQuality, setVideoQuality] = useState<'standard' | 'high'>('standard');
-  const [videoDuration, setVideoDuration] = useState<'8' | '10' | '15'>('8');
-  const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto'>('veo3_fast');
+
+  // Video configuration (unified model + quality + duration)
+  const [videoConfig, setVideoConfig] = useState<VideoConfiguration>(() => getDefaultVideoConfiguration());
   const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('nano_banana');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
@@ -79,30 +70,12 @@ export default function StandardAdsPage() {
   const [hasUserQueuedToast, setHasUserQueuedToast] = useState(false);
 
 
-  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
-    setSelectedModel(model);
-  };
-
   const handleImageModelChange = (model: 'auto' | 'nano_banana' | 'seedream') => {
     // Filter out 'auto' since our state doesn't support it
     if (model !== 'auto') {
       setSelectedImageModel(model);
     }
   };
-
-  // Auto-switch video model when quality/duration changes and current model is not supported
-  useEffect(() => {
-    // Check if current model supports the selected quality and duration
-    if (selectedModel !== 'auto' && !modelSupports(selectedModel, videoQuality, videoDuration)) {
-      // Get available models for current quality/duration
-      const availableModels: Array<'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'> = getAvailableModels(videoQuality, videoDuration);
-
-      if (availableModels.length > 0) {
-        // Switch to the first available model
-        setSelectedModel(availableModels[0]);
-      }
-    }
-  }, [videoDuration, videoQuality, selectedModel]);
 
   
   
@@ -114,15 +87,15 @@ export default function StandardAdsPage() {
     resetWorkflow
   } = useStandardAdsWorkflow(
     user?.id,
-    selectedModel,
+    videoConfig.model,
     selectedImageModel,
     updateCredits,
     refetchCredits,
     elementsCount,
     imageSize,
     videoAspectRatio,
-    videoQuality,
-    videoDuration,
+    videoConfig.quality,
+    videoConfig.duration,
     adCopy,
     selectedLanguage,
     useCustomScript,
@@ -165,68 +138,6 @@ export default function StandardAdsPage() {
   }, [selectedProduct, uploadedImageUrl]);
 
   const canUseAIHelpers = useMemo(() => collectContext() !== null, [collectContext]);
-
-  const availableDurations = useMemo(
-    () => getAvailableDurations(videoQuality),
-    [videoQuality]
-  );
-
-  const availableQualities = useMemo(
-    () => getAvailableQualities(videoDuration),
-    [videoDuration]
-  );
-
-  const disabledDurations = useMemo(
-    () =>
-      ALL_VIDEO_DURATIONS.filter(
-        (duration) => !availableDurations.includes(duration)
-      ) as Array<'8' | '10' | '15'>,
-    [availableDurations]
-  );
-
-  const disabledQualities = useMemo(
-    () =>
-      ALL_VIDEO_QUALITIES.filter(
-        (quality) => !availableQualities.includes(quality)
-      ) as Array<'standard' | 'high'>,
-    [availableQualities]
-  );
-
-  const handleVideoQualityChange = useCallback(
-    (quality: 'standard' | 'high') => {
-      const supportedDurations = getAvailableDurations(quality);
-      const nextDuration = supportedDurations[0] ?? '10';
-
-      if (!supportedDurations.includes(videoDuration)) {
-        if (nextDuration !== videoDuration) {
-          setVideoDuration(nextDuration);
-        }
-      }
-
-      if (quality !== videoQuality) {
-        setVideoQuality(quality);
-      }
-    },
-    [videoDuration, videoQuality]
-  );
-
-  const handleVideoDurationChange = useCallback(
-    (duration: '8' | '10' | '15') => {
-      const supportedQualities = getAvailableQualities(duration);
-      const nextQuality = supportedQualities[0] ?? 'standard';
-
-      if (!supportedQualities.includes(videoQuality)) {
-        if (nextQuality !== videoQuality) {
-          setVideoQuality(nextQuality);
-        }
-      }
-
-      if (duration !== videoDuration) {
-        setVideoDuration(duration);
-      }
-    },
-    [videoQuality, videoDuration]
-  );
 
   const handleGenerateAdCopy = async () => {
     if (isGeneratingAdCopy) return;
@@ -590,25 +501,7 @@ export default function StandardAdsPage() {
                   </div>
                 </div>
 
-                {/* Video Quality and Duration */}
-                {shouldGenerateVideo && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <VideoQualitySelector
-                      selectedQuality={videoQuality}
-                      onQualityChange={handleVideoQualityChange}
-                      showIcon={true}
-                      disabledQualities={disabledQualities}
-                    />
-                    <VideoDurationSelector
-                      selectedDuration={videoDuration}
-                      onDurationChange={handleVideoDurationChange}
-                      showIcon={true}
-                      disabledDurations={disabledDurations}
-                    />
-                  </div>
-                )}
-
-                {/* Image and Video Models */}
+                {/* Image Model and Video Configuration */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ImageModelSelector
                     credits={userCredits || 0}
@@ -618,14 +511,11 @@ export default function StandardAdsPage() {
                     hiddenModels={['auto']}
                   />
                   {shouldGenerateVideo && (
-                    <VideoModelSelector
+                    <VideoConfigurationSelector
                       credits={userCredits || 0}
-                      selectedModel={selectedModel}
-                      onModelChange={handleModelChange}
-                      videoQuality={videoQuality}
-                      videoDuration={videoDuration}
+                      selectedConfig={videoConfig}
+                      onConfigChange={setVideoConfig}
                       showIcon={true}
-                      hiddenModels={['auto']}
                       adsCount={elementsCount}
                     />
                   )}
@@ -671,7 +561,7 @@ export default function StandardAdsPage() {
                   onProductSelect={setSelectedProduct}
                   selectedBrand={selectedBrand}
                   onBrandSelect={setSelectedBrand}
-                  videoModel={selectedModel}
+                  videoModel={videoConfig.model}
                   shouldGenerateVideo={shouldGenerateVideo}
                 />
               </div>
@@ -860,7 +750,7 @@ export default function StandardAdsPage() {
                 <span>Generate</span>
                 {(() => {
                   // Calculate credits for button display
-                  const actualModel = getActualModel(selectedModel, userCredits || 0);
+                  const actualModel = getActualModel(videoConfig.model, userCredits || 0);
                   if (!actualModel) return null;
 
                   const isFreeGen = isFreeGenerationModel(actualModel);
@@ -873,7 +763,7 @@ export default function StandardAdsPage() {
                     );
                   } else {
                     // Paid generation models - show credit cost
-                    const cost = getGenerationCost(actualModel, videoDuration, videoQuality) * elementsCount;
+                    const cost = getGenerationCost(actualModel, videoConfig.duration, videoConfig.quality) * elementsCount;
                     return (
                       <span className="ml-2 text-sm opacity-90">
                         (-{cost} credits)

@@ -514,6 +514,49 @@ export function getRecommendedModel(
   return affordableModels[0]?.model || null;
 }
 
+// ===== VIDEO CONFIGURATION PRESETS =====
+
+export interface VideoConfigurationPreset {
+  id: string;
+  model: VideoModel;
+  quality: VideoQuality;
+  duration: VideoDuration;
+  label: string;
+  description: string;
+}
+
+// Get default video configuration based on user's stored preference or system default
+export function getDefaultVideoConfiguration(): { model: VideoModel; quality: VideoQuality; duration: VideoDuration } {
+  try {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('flowtra_video_config');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Validate the stored config
+        if (
+          parsed &&
+          typeof parsed.model === 'string' &&
+          typeof parsed.quality === 'string' &&
+          typeof parsed.duration === 'string'
+        ) {
+          return {
+            model: parsed.model as VideoModel,
+            quality: parsed.quality as VideoQuality,
+            duration: parsed.duration as VideoDuration
+          };
+        }
+      }
+    }
+  } catch {}
+
+  // Default configuration
+  return {
+    model: 'veo3_fast',
+    quality: 'standard',
+    duration: '8'
+  };
+}
+
 // ===== LANGUAGE SUPPORT =====
 
 export type LanguageCode = 'en' | 'zh' | 'es' | 'fr' | 'de' | 'ur' | 'pa';
