@@ -299,35 +299,54 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
       return;
     }
 
-    // NORMAL MODE: AI-powered workflow
-    // Step 1: Describe the image
-    console.log('🔍 Starting image description...');
-    const description = await describeImage(request.imageUrl);
-    console.log('📝 Image description received:', description?.substring(0, 100) + '...');
+    // AUTO MODE: Simplified brand-driven workflow
+    // Fetch brand information to use slogan directly
+    let brandSlogan = request.adCopy || '';
+    let description = '';
 
-    // Step 2: Generate creative prompts
-    console.log('✨ Generating creative prompts...');
-    const prompts = await generateCreativePrompts(description, request.adCopy, request.language);
-    console.log('🎯 Creative prompts generated:', Object.keys(prompts).join(', '));
+    if (request.selectedBrandId) {
+      console.log('🏷️  Fetching brand information for auto mode...');
+      const { data: brand, error: brandError } = await supabase
+        .from('user_brands')
+        .select('brand_name, brand_slogan')
+        .eq('id', request.selectedBrandId)
+        .eq('user_id', request.userId)
+        .single();
 
-    // Step 3: Start cover generation
+      if (!brandError && brand) {
+        brandSlogan = brand.brand_slogan || brand.brand_name || '';
+        description = `Brand: ${brand.brand_name}. ${brand.brand_slogan || ''}`;
+        console.log('✅ Using brand slogan:', brandSlogan);
+      } else {
+        console.warn('⚠️  Brand not found, using adCopy fallback');
+      }
+    }
+
+    // Use brand slogan as prompt directly (no AI description needed)
+    const prompts = {
+      videoPrompt: brandSlogan,
+      imagePrompt: description || brandSlogan,
+      language: getLanguagePromptName(request.language as LanguageCode)
+    };
+
+    console.log('🎯 Using brand-driven prompts:', prompts);
+
+    // Step 1: Start cover generation (using brand prompt directly)
     console.log('🎨 Starting cover generation...');
     const coverTaskId = await generateCover(request.imageUrl, prompts, request);
     console.log('🆔 Cover task ID:', coverTaskId);
 
     // Update project with cover task ID and prompts
-    // Note: product_description is JSONB in DB, store as object
-    // Store the image_prompt used for cover generation for auditing purposes
     const updateData = {
       cover_task_id: coverTaskId,
       video_prompts: prompts,
-      product_description: { description },
-      image_prompt: description, // Store the original product description for image generation auditing
+      product_description: { description: description || brandSlogan },
+      image_prompt: description || brandSlogan,
       current_step: 'generating_cover' as const,
       progress_percentage: 30,
       last_processed_at: new Date().toISOString()
     };
-    console.log('💾 Updating project with data:', { ...updateData, product_description: { description: description?.substring(0, 50) + '...' } });
+    console.log('💾 Updating project with brand-driven data');
 
     const { data: updateResult, error: updateError } = await supabase
       .from('standard_ads_projects')
@@ -340,8 +359,8 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
       throw updateError;
     }
 
-    console.log('✅ Database updated successfully:', updateResult);
-    console.log('✅ AI workflow started successfully');
+    console.log('✅ Database updated successfully');
+    console.log('✅ Auto mode workflow started successfully (no AI pre-processing)');
 
   } catch (error) {
     console.error('AI workflow error:', error);
