@@ -454,7 +454,7 @@ export default function StandardAdsPage() {
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
       <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-8 max-w-4xl mx-auto">
           {/* Page Header */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
