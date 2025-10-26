@@ -151,7 +151,7 @@ export function useMultiVariantAdsWorkflow(
       setState(prev => ({
         ...prev,
         isLoading: false,
-        workflowStatus: 'processing'
+        workflowStatus: 'idle'
       }));
 
       return result;
@@ -342,17 +342,17 @@ export function useMultiVariantAdsWorkflow(
     }
   }, []);
 
-  // Auto-fetch items status
-  useEffect(() => {
-    if (!currentItemIds.length) return;
-    const interval = setInterval(() => {
-      if (state.workflowStatus === 'processing') {
-        fetchItemsStatus(currentItemIds);
-      }
-    }, 3000);
-    fetchItemsStatus(currentItemIds);
-    return () => clearInterval(interval);
-  }, [currentItemIds, state.workflowStatus, fetchItemsStatus]);
+  // Auto-fetch items status - DISABLED: no longer polling for status updates
+  // useEffect(() => {
+  //   if (!currentItemIds.length) return;
+  //   const interval = setInterval(() => {
+  //     if (state.workflowStatus === 'processing') {
+  //       fetchItemsStatus(currentItemIds);
+  //     }
+  //   }, 3000);
+  //   fetchItemsStatus(currentItemIds);
+  //   return () => clearInterval(interval);
+  // }, [currentItemIds, state.workflowStatus, fetchItemsStatus]);
 
   const startBatchWorkflowWithTemporaryImages = useCallback(async (imageFiles: File[]) => {
     if (!userId) return;
@@ -435,7 +435,7 @@ export function useMultiVariantAdsWorkflow(
       setState(prev => ({
         ...prev,
         isLoading: false,
-        workflowStatus: 'processing'
+        workflowStatus: 'idle'
       }));
 
       return result;

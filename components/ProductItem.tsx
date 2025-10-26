@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Edit2, Trash2, Plus, X, MoveRight } from 'lucide-react';
+import { Edit2, Trash2, Plus, X } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog from './ConfirmDialog';
@@ -13,7 +13,6 @@ interface ProductItemProps {
   onDelete: (productId: string) => void;
   onPhotoUpload: (productId: string, file: File) => void;
   onDeletePhoto: (productId: string, photoId: string) => void;
-  onMoveToBrand?: (productId: string) => void;
   indented?: boolean; // Whether to show indentation (when under a brand)
 }
 
@@ -23,7 +22,6 @@ export default function ProductItem({
   onDelete,
   onPhotoUpload,
   onDeletePhoto,
-  onMoveToBrand,
   indented = true
 }: ProductItemProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -218,16 +216,6 @@ export default function ProductItem({
             >
               <Edit2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
             </button>
-
-            {onMoveToBrand && (
-              <button
-                onClick={() => onMoveToBrand(product.id)}
-                className="p-1.5 md:p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors hidden sm:block"
-                title="Move to brand"
-              >
-                <MoveRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              </button>
-            )}
 
             {/* Delete button - always visible on mobile, hover-based on desktop */}
             <button

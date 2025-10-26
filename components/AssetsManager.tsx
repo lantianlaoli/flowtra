@@ -327,22 +327,11 @@ export default function AssetsManager() {
           <div className="flex gap-2 md:gap-3">
             <button
               onClick={() => setShowCreateBrandModal(true)}
-              className="flex items-center gap-1.5 md:gap-2 bg-white border border-gray-300 text-gray-700 px-3 md:px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm md:text-base"
+              className="flex items-center gap-1.5 md:gap-2 bg-gray-900 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base"
             >
               <Tag className="w-4 h-4" />
               <span className="hidden sm:inline">New Brand</span>
               <span className="sm:hidden">Brand</span>
-            </button>
-            <button
-              onClick={() => {
-                setSelectedBrandIdForProduct(null);
-                setShowCreateProductModal(true);
-              }}
-              className="flex items-center gap-1.5 md:gap-2 bg-gray-900 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New Product</span>
-              <span className="sm:hidden">Product</span>
             </button>
           </div>
         </div>
@@ -453,27 +442,15 @@ export default function AssetsManager() {
             {assetsData.brands.length === 0 && assetsData.unbrandedProducts.length === 0 && !searchTerm && (
               <div className="bg-white rounded-xl border border-gray-200 p-8 md:p-12 text-center">
                 <Tag className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 text-gray-300" />
-                <h3 className="text-lg md:text-xl font-medium text-gray-900 mb-2">No assets yet</h3>
-                <p className="text-sm md:text-base text-gray-600 mb-4 md:mb-6">Start by creating your first brand or product</p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => setShowCreateBrandModal(true)}
-                    className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base"
-                  >
-                    <Tag className="w-4 h-4" />
-                    Create Brand
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedBrandIdForProduct(null);
-                      setShowCreateProductModal(true);
-                    }}
-                    className="flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm md:text-base"
-                  >
-                    <Package className="w-4 h-4" />
-                    Create Product
-                  </button>
-                </div>
+                <h3 className="text-lg md:text-xl font-medium text-gray-900 mb-2">No brands yet</h3>
+                <p className="text-sm md:text-base text-gray-600 mb-4 md:mb-6">Start by creating your first brand. All products must belong to a brand.</p>
+                <button
+                  onClick={() => setShowCreateBrandModal(true)}
+                  className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base mx-auto"
+                >
+                  <Tag className="w-4 h-4" />
+                  Create Brand
+                </button>
               </div>
             )}
           </>

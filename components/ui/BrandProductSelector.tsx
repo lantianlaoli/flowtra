@@ -22,30 +22,31 @@ export default function BrandProductSelector({
   className
 }: BrandProductSelectorProps) {
   const [brands, setBrands] = useState<UserBrand[]>([]);
+  const [allProducts, setAllProducts] = useState<Map<string, UserProduct[]>>(new Map());
   const [brandProducts, setBrandProducts] = useState<UserProduct[]>([]);
-  const [isLoadingBrands, setIsLoadingBrands] = useState(false);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
 
   const brandDropdownRef = useRef<HTMLDivElement>(null);
   const productDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Load brands on mount
+  // Load all brands and their products on mount
   useEffect(() => {
-    loadBrands();
+    loadAllData();
   }, []);
 
-  // Load products when brand changes
+  // Update displayed products when brand changes (instant, from cache)
   useEffect(() => {
     if (selectedBrand) {
-      loadBrandProducts(selectedBrand.id);
+      const products = allProducts.get(selectedBrand.id) || [];
+      setBrandProducts(products);
     } else {
       setBrandProducts([]);
       onProductSelect(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBrand?.id]);
+  }, [selectedBrand?.id, allProducts]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -62,36 +63,50 @@ export default function BrandProductSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const loadBrands = async () => {
-    setIsLoadingBrands(true);
+  const loadAllData = async () => {
+    setIsLoading(true);
     try {
-      const response = await fetch('/api/brands');
-      const data = await response.json();
+      // Step 1: Load all brands
+      const brandsResponse = await fetch('/api/brands');
+      const brandsData = await brandsResponse.json();
 
-      if (data.success && Array.isArray(data.brands)) {
-        setBrands(data.brands);
+      if (!brandsData.success || !Array.isArray(brandsData.brands)) {
+        console.error('Failed to load brands');
+        return;
       }
-    } catch (error) {
-      console.error('Error loading brands:', error);
-    } finally {
-      setIsLoadingBrands(false);
-    }
-  };
 
-  const loadBrandProducts = async (brandId: string) => {
-    setIsLoadingProducts(true);
-    try {
-      const response = await fetch(`/api/brands/${brandId}/products`);
-      const data = await response.json();
+      const loadedBrands = brandsData.brands;
+      setBrands(loadedBrands);
 
-      if (data.success && Array.isArray(data.products)) {
-        setBrandProducts(data.products);
-      }
+      // Step 2: Load products for all brands in parallel
+      const productsPromises = loadedBrands.map(async (brand: UserBrand) => {
+        try {
+          const response = await fetch(`/api/brands/${brand.id}/products`);
+          const data = await response.json();
+
+          if (data.success && Array.isArray(data.products)) {
+            return { brandId: brand.id, products: data.products };
+          }
+          return { brandId: brand.id, products: [] };
+        } catch (error) {
+          console.error(`Error loading products for brand ${brand.id}:`, error);
+          return { brandId: brand.id, products: [] };
+        }
+      });
+
+      const productsResults = await Promise.all(productsPromises);
+
+      // Step 3: Build products map
+      const productsMap = new Map<string, UserProduct[]>();
+      productsResults.forEach(({ brandId, products }) => {
+        productsMap.set(brandId, products);
+      });
+
+      setAllProducts(productsMap);
     } catch (error) {
-      console.error('Error loading brand products:', error);
-      setBrandProducts([]);
+      console.error('Error loading brands and products:', error);
     } finally {
-      setIsLoadingProducts(false);
+      setIsLoading(false);
     }
   };
 
@@ -127,7 +142,7 @@ export default function BrandProductSelector({
             <button
               type="button"
               onClick={() => setIsBrandDropdownOpen(!isBrandDropdownOpen)}
-              disabled={isLoadingBrands}
+              disabled={isLoading}
               className={cn(
                 "w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg",
                 "focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent",
@@ -158,14 +173,14 @@ export default function BrandProductSelector({
                 </>
               ) : (
                 <span className="text-gray-500">
-                  {isLoadingBrands ? 'Loading brands...' : brands.length === 0 ? 'No brands found' : 'Choose a brand'}
+                  {isLoading ? 'Loading...' : brands.length === 0 ? 'No brands found' : 'Choose a brand'}
                 </span>
               )}
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             </button>
 
             {/* Dropdown Menu */}
-            {isBrandDropdownOpen && !isLoadingBrands && brands.length > 0 && (
+            {isBrandDropdownOpen && !isLoading && brands.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
                 {brands.map((brand) => (
                   <button
@@ -216,7 +231,7 @@ export default function BrandProductSelector({
             <button
               type="button"
               onClick={() => setIsProductDropdownOpen(!isProductDropdownOpen)}
-              disabled={!selectedBrand || isLoadingProducts}
+              disabled={!selectedBrand || isLoading}
               className={cn(
                 "w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg",
                 "focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent",
@@ -251,8 +266,8 @@ export default function BrandProductSelector({
                 <span className="text-gray-500">
                   {!selectedBrand
                     ? 'Select a brand first'
-                    : isLoadingProducts
-                    ? 'Loading products...'
+                    : isLoading
+                    ? 'Loading...'
                     : brandProducts.length === 0
                     ? 'No products in this brand'
                     : 'Choose a product'}
@@ -262,7 +277,7 @@ export default function BrandProductSelector({
             </button>
 
             {/* Dropdown Menu */}
-            {isProductDropdownOpen && !isLoadingProducts && brandProducts.length > 0 && (
+            {isProductDropdownOpen && !isLoading && brandProducts.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
                 {brandProducts.map((product) => {
                   const primaryPhoto = product.user_product_photos?.find(p => p.is_primary);

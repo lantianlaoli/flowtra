@@ -35,7 +35,6 @@ export default function BrandSection({
 }: BrandSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isHovered, setIsHovered] = useState(false);
-  const [showAddMenu, setShowAddMenu] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const products = brand.products || [];
 
@@ -53,10 +52,9 @@ export default function BrandSection({
     onEditBrand(brand);
   };
 
-  const handleAddProduct = (e: React.MouseEvent, mode: 'create' | 'select') => {
+  const handleAddProduct = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setShowAddMenu(false);
-    onAddProductToBrand(brand.id, mode);
+    onAddProductToBrand(brand.id, 'create');
   };
 
   return (
@@ -115,65 +113,15 @@ export default function BrandSection({
 
           {/* Actions */}
           <div className="flex items-center gap-1 md:gap-2">
-            {/* Add Product Dropdown */}
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowAddMenu(!showAddMenu);
-                }}
-                className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 text-xs md:text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Add product to this brand"
-              >
-                <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                <span className="hidden sm:inline">Add Product</span>
-                <ChevronDown className="w-2.5 h-2.5 md:w-3 md:h-3 hidden sm:inline" />
-              </button>
-
-              {/* Dropdown Menu */}
-              <AnimatePresence>
-                {showAddMenu && (
-                  <>
-                    {/* Backdrop to close menu */}
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowAddMenu(false);
-                      }}
-                    />
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 top-full mt-1 w-48 sm:w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20"
-                    >
-                      <button
-                        onClick={(e) => handleAddProduct(e, 'create')}
-                        className="w-full px-3 sm:px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 sm:gap-3"
-                      >
-                        <Plus className="w-4 h-4 flex-shrink-0" />
-                        <div>
-                          <div className="font-medium">Create New Product</div>
-                          <div className="text-xs text-gray-500 hidden sm:block">Add a new product to this brand</div>
-                        </div>
-                      </button>
-                      <button
-                        onClick={(e) => handleAddProduct(e, 'select')}
-                        className="w-full px-3 sm:px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 sm:gap-3"
-                      >
-                        <Package className="w-4 h-4 flex-shrink-0" />
-                        <div>
-                          <div className="font-medium">Select Existing</div>
-                          <div className="text-xs text-gray-500 hidden sm:block">Choose from unbranded products</div>
-                        </div>
-                      </button>
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Add Product Button */}
+            <button
+              onClick={handleAddProduct}
+              className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 text-xs md:text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Add product to this brand"
+            >
+              <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Add Product</span>
+            </button>
 
             <button
               onClick={handleEditBrand}
@@ -227,7 +175,7 @@ export default function BrandSection({
                   <Package className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-2 text-gray-300" />
                   <p className="text-xs md:text-sm">No products in this brand yet</p>
                   <button
-                    onClick={(e) => handleAddProduct(e, 'create')}
+                    onClick={handleAddProduct}
                     className="mt-2 md:mt-3 text-xs md:text-sm text-gray-600 hover:text-gray-900 underline"
                   >
                     Add your first product
@@ -242,7 +190,6 @@ export default function BrandSection({
                     onDelete={onDeleteProduct}
                     onPhotoUpload={onPhotoUpload}
                     onDeletePhoto={onDeletePhoto}
-                    onMoveToBrand={onMoveProductFromBrand}
                     indented={true}
                   />
                 ))

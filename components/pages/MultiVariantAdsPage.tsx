@@ -8,7 +8,7 @@ import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { ArrowRight, History, Play, Image as ImageIcon, Hash, Type, ChevronDown, Layers, Package, TrendingUp, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
+import { ArrowRight, History, Play, Image as ImageIcon, Hash, Layers, TrendingUp, AlertCircle, HelpCircle, Coins } from 'lucide-react';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import VideoQualitySelector from '@/components/ui/VideoQualitySelector';
 import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
@@ -16,13 +16,25 @@ import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
 import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
-import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
+import BrandProductSelector from '@/components/ui/BrandProductSelector';
 import ProductManager from '@/components/ProductManager';
-import ShowcaseSection from '@/components/ui/ShowcaseSection';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { getActualModel, getActualImageModel, isFreeGenerationModel, getGenerationCost } from '@/lib/constants';
-import { UserProduct } from '@/lib/supabase';
+import {
+  getActualModel,
+  getActualImageModel,
+  isFreeGenerationModel,
+  getGenerationCost,
+  modelSupports,
+  getAvailableDurations,
+  getAvailableQualities,
+  type VideoModel
+} from '@/lib/constants';
+import { UserProduct, UserBrand } from '@/lib/supabase';
+
+const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
+const ALL_VIDEO_DURATIONS: Array<'8' | '10' | '15'> = ['8', '10', '15'];
+const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
 
 export default function MultiVariantAdsPage() {
   const { user, isLoaded } = useUser();
@@ -35,18 +47,10 @@ export default function MultiVariantAdsPage() {
   const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('seedream');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [elementsCount, setElementsCount] = useState(2);
-  const [adCopy, setAdCopy] = useState('');
-  const [isGeneratingAdCopy, setIsGeneratingAdCopy] = useState(false);
-  const [adCopyError, setAdCopyError] = useState<string | null>(null);
-  const [hasAIGeneratedAdCopy, setHasAIGeneratedAdCopy] = useState(false);
-  const [textWatermark, setTextWatermark] = useState('');
-  const [textWatermarkLocation, setTextWatermarkLocation] = useState('bottom left');
-  const [isSuggestingWatermark, setIsSuggestingWatermark] = useState(false);
-  const [watermarkError, setWatermarkError] = useState<string | null>(null);
-  const [hasAISuggestedWatermark, setHasAISuggestedWatermark] = useState(false);
   const [imageSize, setImageSize] = useState('auto');
   const [shouldGenerateVideo, setShouldGenerateVideo] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
+  const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
   const router = useRouter();
@@ -62,22 +66,23 @@ export default function MultiVariantAdsPage() {
   const actualModelForWorkflow: 'veo3' | 'veo3_fast' | 'sora2' = actualModel as 'veo3' | 'veo3_fast' | 'sora2';
   const actualImageModel = getActualImageModel(selectedImageModel);
 
-  const ALLOWED_WATERMARK_LOCATIONS = ['bottom left', 'bottom right', 'top left', 'top right', 'center bottom'] as const;
+  // Auto-derive ad copy and watermark from brand
+  const derivedAdCopy = selectedBrand?.brand_slogan || '';
+  const derivedWatermark = selectedBrand?.brand_name || '';
+  const textWatermarkLocation = 'bottom left';
 
   const {
     state,
     startBatchWorkflow,
     startBatchWorkflowWithProduct,
-    startBatchWorkflowWithTemporaryImages,
-    downloadContent,
     resetWorkflow
   } = useMultiVariantAdsWorkflow(
     user?.id,
     actualModelForWorkflow,
     actualImageModel,
     elementsCount,
-    adCopy,
-    textWatermark,
+    derivedAdCopy,
+    derivedWatermark,
     textWatermarkLocation,
     imageSize,
     shouldGenerateVideo,
@@ -85,9 +90,72 @@ export default function MultiVariantAdsPage() {
     selectedModel
   );
 
-  const handleModelChange = (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
-    setSelectedModel(model);
-  };
+  // Calculate available and disabled options based on current selection
+  const availableDurations = useMemo(
+    () => getAvailableDurations(videoQuality),
+    [videoQuality]
+  );
+
+  const availableQualities = useMemo(
+    () => getAvailableQualities(videoDuration),
+    [videoDuration]
+  );
+
+  const disabledDurations = useMemo(
+    () => ALL_VIDEO_DURATIONS.filter(d => !availableDurations.includes(d)),
+    [availableDurations]
+  );
+
+  const disabledQualities = useMemo(
+    () => ALL_VIDEO_QUALITIES.filter(q => !availableQualities.includes(q)),
+    [availableQualities]
+  );
+
+  const disabledModels = useMemo(
+    () => ALL_VIDEO_MODELS.filter(m => !modelSupports(m, videoQuality, videoDuration)),
+    [videoQuality, videoDuration]
+  );
+
+  // Handle quality change with auto-adjustment of duration if needed
+  const handleVideoQualityChange = useCallback(
+    (quality: 'standard' | 'high') => {
+      const supportedDurations = getAvailableDurations(quality);
+
+      if (!supportedDurations.includes(videoDuration)) {
+        const nextDuration = supportedDurations[0] ?? '10';
+        setVideoDuration(nextDuration);
+      }
+
+      setVideoQuality(quality);
+    },
+    [videoDuration]
+  );
+
+  // Handle duration change with auto-adjustment of quality if needed
+  const handleVideoDurationChange = useCallback(
+    (duration: '8' | '10' | '15') => {
+      const supportedQualities = getAvailableQualities(duration);
+
+      if (!supportedQualities.includes(videoQuality)) {
+        const nextQuality = supportedQualities[0] ?? 'standard';
+        setVideoQuality(nextQuality);
+      }
+
+      setVideoDuration(duration);
+    },
+    [videoQuality]
+  );
+
+  // Handle model change with validation
+  const handleModelChange = useCallback(
+    (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
+      // Filter out 'auto' since our state doesn't support it
+      if (model !== 'auto' && modelSupports(model, videoQuality, videoDuration)) {
+        setSelectedModel(model);
+      }
+    },
+    [videoQuality, videoDuration]
+  );
 
   const handleImageModelChange = (model: 'auto' | 'nano_banana' | 'seedream') => {
     if (model === 'auto') return;
@@ -96,18 +164,17 @@ export default function MultiVariantAdsPage() {
 
   // Note: keep hooks above; render loading UI later to avoid conditional hooks
 
-
-  const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
-    return product !== null && 'isTemporary' in product && product.isTemporary === true;
-  };
-
   const handleStartWorkflow = async () => {
     try {
-      // Handle temporary product (direct upload)
-      if (selectedProduct && isTemporaryProduct(selectedProduct)) {
-        await startBatchWorkflowWithTemporaryImages(selectedProduct.uploadedFiles);
-      } else if (selectedProduct) {
-        // Use product workflow if product is selected
+      // Show toast notification immediately
+      showSuccess(
+        'Added to generation queue! Your ad is being created in the background.',
+        5000,
+        { label: 'View Progress →', href: '/dashboard/videos' }
+      );
+
+      if (selectedProduct) {
+        // Use product workflow with selected product
         await startBatchWorkflowWithProduct(selectedProduct.id);
       } else {
         await startBatchWorkflow();
@@ -120,21 +187,8 @@ export default function MultiVariantAdsPage() {
   const handleResetWorkflow = () => {
     resetWorkflow();
     setSelectedProduct(null);
+    setSelectedBrand(null);
     setShowProductManager(false);
-    setHasAIGeneratedAdCopy(false);
-    setAdCopyError(null);
-    setHasAISuggestedWatermark(false);
-    setWatermarkError(null);
-  };
-
-  const handleDownload = async (instanceId: string, contentType: 'cover' | 'video') => {
-    try {
-      await downloadContent(instanceId, contentType);
-      await refetchCredits(); // Refresh credits after download
-    } catch (error) {
-      console.error('Download failed:', error);
-      alert(error instanceof Error ? error.message : 'Download failed');
-    }
   };
 
   // Check KIE credits on page load (maintenance check)
@@ -157,154 +211,7 @@ export default function MultiVariantAdsPage() {
     checkKieCredits();
   }, []);
 
-  // Show toast notification when workflow starts processing
-  useEffect(() => {
-    if (state.workflowStatus === 'processing') {
-      showSuccess(
-        `Added ${elementsCount} ad variation${elementsCount > 1 ? 's' : ''} to generation queue!`,
-        5000,
-        { label: 'View Progress →', href: '/dashboard/videos' }
-      );
-    }
-  }, [state.workflowStatus, elementsCount, showSuccess]);
-
   // Removed unused getProgressPercentage helper to satisfy lint
-
-  const collectContext = useCallback(() => {
-    const productName =
-      selectedProduct && 'product_name' in selectedProduct ? selectedProduct.product_name : undefined;
-    const productDescription =
-      selectedProduct && 'description' in selectedProduct ? selectedProduct.description : undefined;
-
-    const productPhotos =
-      selectedProduct && 'user_product_photos' in selectedProduct
-        ? (selectedProduct.user_product_photos || [])
-            .map((photo) => photo?.photo_url)
-            .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
-        : [];
-
-    const uploadedUrl =
-      state.uploadedFile?.url && /^https?:\/\//i.test(state.uploadedFile.url)
-        ? state.uploadedFile.url
-        : undefined;
-
-    const allImageUrls = [...productPhotos, uploadedUrl]
-      .filter((url): url is string => Boolean(url))
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .slice(0, 3);
-
-    if (!productName && !productDescription && allImageUrls.length === 0) {
-      return null;
-    }
-
-    return {
-      productName,
-      productDescription,
-      productImageUrls: allImageUrls
-    };
-  }, [selectedProduct, state.uploadedFile]);
-
-  const canUseAIHelpers = useMemo(() => collectContext() !== null, [collectContext]);
-
-  const handleAdCopyChange = (value: string) => {
-    setAdCopy(value);
-    setAdCopyError(null);
-    if (value.trim().length === 0) {
-      setHasAIGeneratedAdCopy(false);
-    }
-  };
-
-  const handleGenerateAdCopy = async () => {
-    if (isGeneratingAdCopy) return;
-    const context = collectContext();
-    if (!context) {
-      setAdCopyError('Select a product or upload an image first.');
-      return;
-    }
-
-    setIsGeneratingAdCopy(true);
-    setAdCopyError(null);
-
-    try {
-      const response = await fetch('/api/multi-variant-ads/ad-copy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...context, language: selectedLanguage })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.error || 'Failed to generate ad copy.');
-      }
-
-      setAdCopy(result.adCopy || '');
-      setHasAIGeneratedAdCopy(true);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to generate ad copy.';
-      setAdCopyError(message);
-      setHasAIGeneratedAdCopy(false);
-    } finally {
-      setIsGeneratingAdCopy(false);
-    }
-  };
-
-  const normaliseLocation = (location: string | undefined) => {
-    if (!location) return 'bottom left';
-    const lower = location.toLowerCase().trim();
-    const match = ALLOWED_WATERMARK_LOCATIONS.find((loc) => loc === lower);
-    return match || 'bottom left';
-  };
-
-  const handleWatermarkTextChange = (value: string) => {
-    setTextWatermark(value);
-    setWatermarkError(null);
-    if (value.trim().length === 0) {
-      setHasAISuggestedWatermark(false);
-    }
-  };
-
-  const handleWatermarkLocationChange = (value: string) => {
-    setTextWatermarkLocation(normaliseLocation(value));
-    setWatermarkError(null);
-  };
-
-  const handleSuggestWatermark = async () => {
-    if (isSuggestingWatermark) return;
-    const context = collectContext();
-    if (!context) {
-      setWatermarkError('Select a product or upload an image first.');
-      return;
-    }
-
-    setIsSuggestingWatermark(true);
-    setWatermarkError(null);
-
-    try {
-      const response = await fetch('/api/multi-variant-ads/watermark', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...context, language: selectedLanguage })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.error || 'Failed to suggest watermark.');
-      }
-
-      setTextWatermark(result.text || '');
-      setTextWatermarkLocation(normaliseLocation(result.location));
-      setHasAISuggestedWatermark(true);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to suggest watermark.';
-      setWatermarkError(message);
-      setHasAISuggestedWatermark(false);
-    } finally {
-      setIsSuggestingWatermark(false);
-    }
-  };
-
 
   const features = [
     {
@@ -375,14 +282,12 @@ export default function MultiVariantAdsPage() {
                 </div>
               </div>
 
-              {/* Product Selection */}
+              {/* Brand & Product Selection */}
               <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Package className="w-5 h-5 text-gray-700" />
-                  <h3 className="text-lg font-semibold text-gray-900">Select Product</h3>
-                </div>
-                <ProductSelector
+                <BrandProductSelector
+                  selectedBrand={selectedBrand}
                   selectedProduct={selectedProduct}
+                  onBrandSelect={setSelectedBrand}
                   onProductSelect={setSelectedProduct}
                 />
               </div>
@@ -395,25 +300,6 @@ export default function MultiVariantAdsPage() {
                   <TrendingUp className="w-5 h-5 text-gray-700" />
                   <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
                 </div>
-
-                {/* Product Preview - Show when product is selected */}
-                {selectedProduct && !isTemporaryProduct(selectedProduct) && (
-                  <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                    {selectedProduct.user_product_photos?.find(p => p.is_primary) && (
-                      <Image
-                        src={selectedProduct.user_product_photos.find(p => p.is_primary)?.photo_url || selectedProduct.user_product_photos[0]?.photo_url || ''}
-                        alt="Selected product"
-                        width={60}
-                        height={60}
-                        className="rounded-lg object-cover"
-                      />
-                    )}
-                    <div>
-                      <p className="font-medium text-gray-900">{selectedProduct.product_name}</p>
-                      <p className="text-sm text-gray-600">Selected product</p>
-                    </div>
-                  </div>
-                )}
 
                 {/* Configuration Options */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -467,13 +353,15 @@ export default function MultiVariantAdsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <VideoQualitySelector
                       selectedQuality={videoQuality}
-                      onQualityChange={setVideoQuality}
+                      onQualityChange={handleVideoQualityChange}
                       showIcon={true}
+                      disabledQualities={disabledQualities}
                     />
                     <VideoDurationSelector
                       selectedDuration={videoDuration}
-                      onDurationChange={setVideoDuration}
+                      onDurationChange={handleVideoDurationChange}
                       showIcon={true}
+                      disabledDurations={disabledDurations}
                     />
                   </div>
                 )}
@@ -497,17 +385,9 @@ export default function MultiVariantAdsPage() {
                         videoDuration={videoDuration}
                         showIcon={true}
                         hiddenModels={['auto']}
+                        disabledModels={disabledModels as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>}
                         adsCount={elementsCount}
                       />
-                      {selectedModel === 'sora2' && (
-                        <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                          <p className="text-xs text-amber-800">
-                            <strong>Note:</strong> OpenAI currently does not support uploads of images containing photorealistic people.
-                            Please ensure your product images do not contain real human faces.
-                          </p>
-                        </div>
-                      )}
                     </>
                   )}
                 </div>
@@ -537,115 +417,10 @@ export default function MultiVariantAdsPage() {
                   showIcon={true}
                 />
 
-                {/* Ad Copy Configuration */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                      <Type className="w-4 h-4" />
-                      Ad Copy
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleGenerateAdCopy}
-                      disabled={isGeneratingAdCopy || !canUseAIHelpers}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
-                    >
-                      {isGeneratingAdCopy ? (
-                        <>
-                          <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
-                          Generating…
-                        </>
-                      ) : hasAIGeneratedAdCopy ? (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5" />
-                          Regenerate
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5" />
-                          AI Generate
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={adCopy}
-                    onChange={(e) => handleAdCopyChange(e.target.value)}
-                    placeholder="Enter ad copy (optional)..."
-                    maxLength={120}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
-                  />
-                  {adCopyError ? (
-                    <p className="text-xs text-red-500 mt-1">{adCopyError}</p>
-                  ) : (
-                    <p className="text-xs text-gray-500 mt-1">
-                      If provided, all variations will use this ad copy.
-                    </p>
-                  )}
-                </div>
-
-                {/* Watermark Configuration */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                      <Type className="w-4 h-4" />
-                      Watermark
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">Optional</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleSuggestWatermark}
-                      disabled={isSuggestingWatermark || !canUseAIHelpers}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
-                    >
-                      {isSuggestingWatermark ? (
-                        <>
-                          <span className="h-3 w-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
-                          Analyzing…
-                        </>
-                      ) : hasAISuggestedWatermark ? (
-                        <>
-                          <Wand2 className="w-3.5 h-3.5" />
-                          Regenerate
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 className="w-3.5 h-3.5" />
-                          AI Suggest
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <div className="flex gap-3">
-                    <input
-                      type="text"
-                      value={textWatermark}
-                      onChange={(e) => handleWatermarkTextChange(e.target.value)}
-                      placeholder="Enter brand name or watermark text..."
-                      maxLength={50}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
-                    />
-                    <select
-                      value={textWatermarkLocation}
-                      onChange={(e) => handleWatermarkLocationChange(e.target.value)}
-                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
-                    >
-                      <option value="bottom left">Bottom Left</option>
-                      <option value="bottom right">Bottom Right</option>
-                      <option value="top left">Top Left</option>
-                      <option value="top right">Top Right</option>
-                      <option value="center bottom">Center Bottom</option>
-                    </select>
-                  </div>
-                  {watermarkError && <p className="text-xs text-red-500 mt-1">{watermarkError}</p>}
-                </div>
-
                 {/* Generate Button */}
                 <button
                   onClick={handleStartWorkflow}
-                  disabled={state.isLoading || !selectedProduct}
+                  disabled={state.isLoading || !selectedProduct || !selectedBrand}
                   className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                   {state.isLoading ? (
@@ -674,8 +449,9 @@ export default function MultiVariantAdsPage() {
                           // Paid generation models - show credit cost (× variants count)
                           const cost = getGenerationCost(actualModel, videoDuration, videoQuality) * elementsCount;
                           return (
-                            <span className="ml-2 text-sm opacity-90">
-                              (-{cost} credits)
+                            <span className="ml-2 px-2.5 py-1 bg-gray-800 text-white text-sm font-medium rounded flex items-center gap-1.5">
+                              <Coins className="w-4 h-4" />
+                              <span>{cost}</span>
                             </span>
                           );
                         }
@@ -685,27 +461,6 @@ export default function MultiVariantAdsPage() {
                 </button>
               </div>
             </div>
-          </div>
-
-          {/* Showcase Section - Notion style design */}
-          <div className="border border-gray-100/80 bg-white/60 backdrop-blur-sm rounded-xl p-6 mt-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-6 h-6 bg-gray-900 rounded-md flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-xl font-medium text-gray-900 tracking-tight">
-                  See how entrepreneurs create viral ads with AI
-                </h3>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  Real examples from our community
-                </p>
-              </div>
-            </div>
-            <ShowcaseSection
-              workflowType="multi-variant-ads"
-              className="max-w-5xl mx-auto"
-            />
           </div>
         </div>
       );
@@ -792,13 +547,15 @@ export default function MultiVariantAdsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <VideoQualitySelector
                     selectedQuality={videoQuality}
-                    onQualityChange={setVideoQuality}
+                    onQualityChange={handleVideoQualityChange}
                     showIcon={true}
+                    disabledQualities={disabledQualities}
                   />
                   <VideoDurationSelector
                     selectedDuration={videoDuration}
-                    onDurationChange={setVideoDuration}
+                    onDurationChange={handleVideoDurationChange}
                     showIcon={true}
+                    disabledDurations={disabledDurations}
                   />
                 </div>
               )}
@@ -824,17 +581,9 @@ export default function MultiVariantAdsPage() {
                       showIcon={true}
                       className="col-span-1"
                       hiddenModels={['auto']}
+                      disabledModels={disabledModels as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>}
                       adsCount={elementsCount}
                     />
-                    {selectedModel === 'sora2' && (
-                      <div className="col-span-2 mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                        <p className="text-xs text-amber-800">
-                          <strong>Note:</strong> OpenAI currently does not support uploads of images containing photorealistic people.
-                          Please ensure your product images do not contain real human faces.
-                        </p>
-                      </div>
-                    )}
                   </>
                 )}
                 {!shouldGenerateVideo && (
@@ -875,123 +624,6 @@ export default function MultiVariantAdsPage() {
                 showIcon={true}
               />
 
-              {/* Ad Copy Configuration */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                    <Type className="w-4 h-4" />
-                    Ad Copy
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleGenerateAdCopy}
-                    disabled={isGeneratingAdCopy || !canUseAIHelpers}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
-                  >
-                    {isGeneratingAdCopy ? (
-                      <>
-                        <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
-                        Generating…
-                      </>
-                    ) : hasAIGeneratedAdCopy ? (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Regenerate
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5" />
-                        AI Generate
-                      </>
-                    )}
-                  </button>
-                </div>
-                <input
-                  id="ad-copy-text"
-                  type="text"
-                  value={adCopy}
-                  onChange={(e) => handleAdCopyChange(e.target.value)}
-                  placeholder="Enter ad copy (optional)..."
-                  maxLength={120}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
-                />
-                {adCopyError ? (
-                  <p className="text-xs text-red-500">{adCopyError}</p>
-                ) : (
-                  <p className="text-xs text-gray-500">If provided, all variations will use this ad copy.</p>
-                )}
-              </div>
-
-              {/* Watermark Configuration */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-base font-medium text-gray-900">
-                    <Type className="w-4 h-4" />
-                    Watermark
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                      Optional
-                    </span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleSuggestWatermark}
-                    disabled={isSuggestingWatermark || !canUseAIHelpers}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
-                  >
-                    {isSuggestingWatermark ? (
-                      <>
-                        <span className="h-3 w-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
-                        Analyzing…
-                      </>
-                    ) : hasAISuggestedWatermark ? (
-                      <>
-                        <Wand2 className="w-3.5 h-3.5" />
-                        Regenerate
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 className="w-3.5 h-3.5" />
-                        AI Suggest
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Watermark Text Input and Location Selector - Left Right Layout */}
-                <div className="flex gap-3">
-                  {/* Left: Text Input - increased proportion */}
-                  <div className="flex-[2]">
-                    <input
-                      id="watermark-text"
-                      type="text"
-                      value={textWatermark}
-                      onChange={(e) => handleWatermarkTextChange(e.target.value)}
-                      placeholder="Enter brand name or watermark text..."
-                      maxLength={50}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm shadow-sm"
-                    />
-                  </div>
-
-                  {/* Right: Location Selector - increased width */}
-                  <div className="relative w-40">
-                    <select
-                      id="watermark-location"
-                      value={textWatermarkLocation}
-                      onChange={(e) => handleWatermarkLocationChange(e.target.value)}
-                      className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white text-sm shadow-sm appearance-none cursor-pointer"
-                    >
-                      <option value="bottom left">Bottom Left</option>
-                      <option value="bottom right">Bottom Right</option>
-                      <option value="top left">Top Left</option>
-                      <option value="top right">Top Right</option>
-                      <option value="center bottom">Center Bottom</option>
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                  </div>
-                </div>
-                {watermarkError && <p className="text-xs text-red-500">{watermarkError}</p>}
-              </div>
-
               {/* Video Generation Option - moved after Ads */}
               <div className="space-y-3">
                 <label className="flex items-center gap-2 text-base font-medium text-gray-900">
@@ -1031,7 +663,7 @@ export default function MultiVariantAdsPage() {
               <div className="space-y-3">
                 <button
                   onClick={handleStartWorkflow}
-                  disabled={state.isLoading}
+                  disabled={state.isLoading || !selectedProduct || !selectedBrand}
                   className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium relative overflow-hidden group"
                 >
                   {state.isLoading ? (
@@ -1060,8 +692,9 @@ export default function MultiVariantAdsPage() {
                           // Paid generation models - show credit cost (× variants count)
                           const cost = getGenerationCost(actualModel, videoDuration, videoQuality) * elementsCount;
                           return (
-                            <span className="ml-2 text-sm opacity-90">
-                              (-{cost} credits)
+                            <span className="ml-2 px-2.5 py-1 bg-gray-800 text-white text-sm font-medium rounded flex items-center gap-1.5">
+                              <Coins className="w-4 h-4" />
+                              <span>{cost}</span>
                             </span>
                           );
                         }
@@ -1078,126 +711,7 @@ export default function MultiVariantAdsPage() {
     }
 
     // processing state is now handled by toast notification - no UI needed
-
-    // Show completed state with results
-    if (state.workflowStatus === 'completed') {
-      return (
-        <div className="max-w-7xl mx-auto space-y-8">
-          {/* Header */}
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900">
-              Your ad variations are ready!
-            </h3>
-            <p className="text-gray-600 text-lg">
-              {elementsCount} unique creative approaches for your product
-            </p>
-          </div>
-
-          {/* Results Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {state.instances.map((instance) => (
-              <div key={instance.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                {/* Header */}
-                <div className="p-4 border-b border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-gray-900">Variation</h4>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      {instance.status === 'completed' ? (
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full">Ready</span>
-                      ) : instance.status === 'failed' ? (
-                        <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full">Failed</span>
-                      ) : (
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">Processing</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-4 space-y-4">
-                  {/* Cover Image */}
-                  {instance.cover_image_url && (
-                    <div className="relative">
-                      <Image
-                        src={instance.cover_image_url}
-                        alt={`Cover`}
-                        width={400}
-                        height={300}
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
-                      <button
-                        onClick={() => handleDownload(instance.id, 'cover')}
-                        className="absolute top-2 right-2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-                        title="Download Cover"
-                      >
-                        <ImageIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Elements Preview (removed in no-batch design) */}
-
-                  {/* Download Buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDownload(instance.id, 'cover')}
-                      disabled={!instance.cover_image_url}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ImageIcon className="w-4 h-4" />
-                      Cover
-                    </button>
-                    {instance.elements_data?.generate_video !== false ? (
-                      <button
-                        onClick={() => handleDownload(instance.id, 'video')}
-                        disabled={!instance.video_url}
-                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
-                          instance.downloaded 
-                            ? 'bg-green-100 text-green-800 border border-green-300'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                      >
-                        <Play className="w-4 h-4" />
-                        {instance.downloaded ? 'Downloaded' : `Video (${instance.credits_cost})`}
-                      </button>
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
-                        <Play className="w-4 h-4" />
-                        Video skipped
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-8">
-            <button
-              onClick={handleResetWorkflow}
-              className="flex items-center justify-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium cursor-pointer"
-            >
-              <ArrowRight className="w-4 h-4" />
-              Create Another
-            </button>
-
-            <button
-              onClick={() => router.push('/dashboard/videos')}
-              className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors font-medium cursor-pointer"
-            >
-              <History className="w-4 h-4" />
-              View All Results
-            </button>
-          </div>
-        </div>
-      );
-    }
+    // completed state is also handled by navigation to /dashboard/videos
 
     // Failed state
     if (state.workflowStatus === 'failed') {
@@ -1289,7 +803,7 @@ export default function MultiVariantAdsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.24, ease: [0.22, 0.61, 0.36, 1] }}
-                className="relative bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm overflow-hidden"
+                className="relative bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm overflow-visible"
               >
                 {workflowContent}
               </motion.div>
