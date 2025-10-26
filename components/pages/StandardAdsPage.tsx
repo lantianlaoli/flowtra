@@ -8,7 +8,7 @@ import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
-import { ArrowRight, TrendingUp, Hash } from 'lucide-react';
+import { ArrowRight, TrendingUp } from 'lucide-react';
 
 // New components for redesigned UX
 import OutputModeToggle, { type OutputMode } from '@/components/ui/OutputModeToggle';
@@ -73,7 +73,8 @@ export default function StandardAdsPage() {
     sufficient: true,
     loading: true
   });
-  const [elementsCount, setElementsCount] = useState(1);
+  // Fixed to 1 - removed multi-ad generation
+  const elementsCount = 1;
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
@@ -365,84 +366,61 @@ export default function StandardAdsPage() {
                 product={selectedProduct}
               />
 
-              {/* Ads Count */}
-              <div>
-                <label className="flex items-center gap-2 text-base font-medium text-gray-900 mb-3">
-                  <Hash className="w-4 h-4" />
-                  Ads Count
-                </label>
-                <div className="relative inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm">
-                  {[1,2,3].map((val) => {
-                    const active = elementsCount === val;
-                    return (
-                      <button
-                        key={val}
-                        onClick={() => setElementsCount(val)}
-                        className={`relative px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
-                          active ? 'bg-gray-900 text-white' : 'text-gray-800 hover:bg-gray-50'
-                        } ${val !== 1 ? 'ml-1' : ''}`}
-                      >
-                        {val}
-                      </button>
-                    );
-                  })}
-                </div>
+              {/* Single Row: Language, Image Model (always), and Format */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <LanguageSelector
+                  selectedLanguage={selectedLanguage}
+                  onLanguageChange={setSelectedLanguage}
+                  showIcon={true}
+                />
+
+                <ImageModelSelector
+                  credits={userCredits || 0}
+                  selectedModel={selectedImageModel}
+                  onModelChange={handleImageModelChange}
+                  showIcon={true}
+                  hiddenModels={['auto']}
+                />
+
+                <FormatSelector
+                  outputMode={outputMode}
+                  selectedFormat={format}
+                  onFormatChange={setFormat}
+                />
               </div>
 
-              {/* Language Selection */}
-              <LanguageSelector
-                selectedLanguage={selectedLanguage}
-                onLanguageChange={setSelectedLanguage}
-                showIcon={true}
-              />
-
-              {/* Image Model (always shown for cover image) */}
-              <ImageModelSelector
-                credits={userCredits || 0}
-                selectedModel={selectedImageModel}
-                onModelChange={handleImageModelChange}
-                showIcon={true}
-                hiddenModels={['auto']}
-              />
-
-              {/* Video Configuration (only when outputMode === 'video') */}
+              {/* Video Configuration Row (only when outputMode === 'video') */}
               {outputMode === 'video' && (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <VideoQualitySelector
-                      selectedQuality={videoQuality}
-                      onQualityChange={handleVideoQualityChange}
-                      showIcon={true}
-                      disabledQualities={disabledQualities}
-                    />
-                    <VideoDurationSelector
-                      selectedDuration={videoDuration}
-                      onDurationChange={handleVideoDurationChange}
-                      showIcon={true}
-                      disabledDurations={disabledDurations}
-                    />
-                  </div>
-
-                  <VideoModelSelector
-                    credits={userCredits || 0}
-                    selectedModel={selectedModel}
-                    onModelChange={handleModelChange}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <VideoQualitySelector
+                    selectedQuality={videoQuality}
+                    onQualityChange={handleVideoQualityChange}
                     showIcon={true}
-                    hiddenModels={['auto']}
-                    disabledModels={disabledModels as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>}
-                    videoQuality={videoQuality}
-                    videoDuration={videoDuration}
-                    adsCount={elementsCount}
+                    disabledQualities={disabledQualities}
                   />
-                </>
+                  <VideoDurationSelector
+                    selectedDuration={videoDuration}
+                    onDurationChange={handleVideoDurationChange}
+                    showIcon={true}
+                    disabledDurations={disabledDurations}
+                  />
+                </div>
               )}
 
-              {/* Format Selector (dynamic based on output mode) */}
-              <FormatSelector
-                outputMode={outputMode}
-                selectedFormat={format}
-                onFormatChange={setFormat}
-              />
+              {/* Video Model (only when outputMode === 'video') */}
+              {outputMode === 'video' && (
+                <VideoModelSelector
+                  credits={userCredits || 0}
+                  selectedModel={selectedModel}
+                  onModelChange={handleModelChange}
+                  showIcon={true}
+                  hiddenModels={['auto']}
+                  disabledModels={disabledModels as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>}
+                  videoQuality={videoQuality}
+                  videoDuration={videoDuration}
+                  adsCount={1}
+                />
+              )}
 
               {/* Custom Prompt Input (only in custom mode) */}
               {generationMode === 'custom' && (
@@ -475,7 +453,7 @@ export default function StandardAdsPage() {
               disabled={!selectedProduct || !selectedBrand}
               className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad{elementsCount > 1 ? 's' : ''}
+              Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad
               <ArrowRight className="w-4 h-4" />
             </button>
 
