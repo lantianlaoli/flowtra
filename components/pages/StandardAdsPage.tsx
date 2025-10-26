@@ -310,7 +310,7 @@ export default function StandardAdsPage() {
     }
 
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         {/* Top Banner - Feature Introduction */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
@@ -403,6 +403,7 @@ export default function StandardAdsPage() {
                 outputMode={outputMode}
                 selectedFormat={format}
                 onFormatChange={setFormat}
+                imageModel={selectedImageModel}
               />
             </div>
           )}
@@ -434,7 +435,7 @@ export default function StandardAdsPage() {
           <button
             onClick={handleStartWorkflow}
             disabled={!selectedProduct || !selectedBrand}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad
             <ArrowRight className="w-4 h-4" />
@@ -461,7 +462,10 @@ export default function StandardAdsPage() {
             </div>
           </div>
 
-          {renderWorkflowContent()}
+          {/* Main Content with white background wrapper */}
+          <div className="relative bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm overflow-visible">
+            {renderWorkflowContent()}
+          </div>
         </div>
       </div>
     </div>

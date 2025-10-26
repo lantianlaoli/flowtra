@@ -299,7 +299,7 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
       return;
     }
 
-    // AUTO MODE: Simplified brand-driven workflow
+    // AUTO MODE: Brand-driven workflow with AI creative generation
     // Fetch brand information to use slogan directly
     let brandSlogan = request.adCopy || '';
     let description = '';
@@ -322,14 +322,15 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
       }
     }
 
-    // Use brand slogan as prompt directly (no AI description needed)
-    const prompts = {
-      videoPrompt: brandSlogan,
-      imagePrompt: description || brandSlogan,
-      language: getLanguagePromptName(request.language as LanguageCode)
-    };
+    // Generate full creative prompts using AI (required for video generation)
+    console.log('🤖 Generating creative video prompts from brand information...');
+    const prompts = await generateCreativePrompts(
+      description || brandSlogan,
+      brandSlogan,
+      request.language
+    );
 
-    console.log('🎯 Using brand-driven prompts:', prompts);
+    console.log('🎯 Generated creative prompts:', prompts);
 
     // Step 1: Start cover generation (using brand prompt directly)
     console.log('🎨 Starting cover generation...');
@@ -341,7 +342,7 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
       cover_task_id: coverTaskId,
       video_prompts: prompts,
       product_description: { description: description || brandSlogan },
-      image_prompt: description || brandSlogan,
+      image_prompt: (prompts.description as string) || description || brandSlogan,
       current_step: 'generating_cover' as const,
       progress_percentage: 30,
       last_processed_at: new Date().toISOString()
