@@ -1,6 +1,6 @@
 'use client';
 
-import { Image, Video } from 'lucide-react';
+import { Image as ImageIcon, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type OutputMode = 'image' | 'video';
@@ -32,7 +32,7 @@ export default function OutputModeToggle({
               : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
           )}
         >
-          <Image className="w-4 h-4" />
+          <ImageIcon className="w-4 h-4" />
           <span>Image</span>
         </button>
         <button

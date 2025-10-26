@@ -13,9 +13,9 @@ import { ArrowRight, TrendingUp } from 'lucide-react';
 // New components for redesigned UX
 import OutputModeToggle, { type OutputMode } from '@/components/ui/OutputModeToggle';
 import GenerationModeToggle, { type GenerationMode } from '@/components/ui/GenerationModeToggle';
-import BrandProductCard from '@/components/ui/BrandProductCard';
+import BrandProductSelector from '@/components/ui/BrandProductSelector';
 import CustomPromptInput from '@/components/ui/CustomPromptInput';
-import FormatSelector, { type Format, type ImageFormat, type VideoFormat } from '@/components/ui/FormatSelector';
+import FormatSelector, { type Format } from '@/components/ui/FormatSelector';
 
 // Existing components
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
@@ -23,7 +23,6 @@ import VideoQualitySelector from '@/components/ui/VideoQualitySelector';
 import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
-import ProductSelector from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 
 import {
@@ -34,7 +33,6 @@ import {
   getAvailableQualities,
   type VideoModel
 } from '@/lib/constants';
-import { AnimatePresence, motion } from 'framer-motion';
 import { UserProduct, UserBrand } from '@/lib/supabase';
 
 interface KieCreditsStatus {
@@ -49,9 +47,9 @@ const ALL_VIDEO_DURATIONS: Array<'8' | '10' | '15'> = ['8', '10', '15'];
 const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
 
 export default function StandardAdsPage() {
-  const { user, isLoaded } = useUser();
+  const { user } = useUser();
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
-  const { showSuccess, showError } = useToast();
+  const { showSuccess } = useToast();
 
   // NEW: Core mode states
   const [outputMode, setOutputMode] = useState<OutputMode>('video');
@@ -78,7 +76,6 @@ export default function StandardAdsPage() {
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
   const [showProductManager, setShowProductManager] = useState(false);
-  const [hasUserQueuedToast, setHasUserQueuedToast] = useState(false);
 
   const handleImageModelChange = (model: 'auto' | 'nano_banana' | 'seedream') => {
     if (model !== 'auto') {
@@ -109,10 +106,8 @@ export default function StandardAdsPage() {
   }, [generationMode, customPrompt, derivedAdCopy, selectedBrand, selectedProduct]);
 
   const {
-    state,
     startWorkflowWithConfig,
-    startWorkflowWithSelectedProduct,
-    resetWorkflow
+    startWorkflowWithSelectedProduct
   } = useStandardAdsWorkflow(
     user?.id,
     selectedModel,
@@ -240,7 +235,6 @@ export default function StandardAdsPage() {
       5000,
       { label: 'View Progress →', href: '/dashboard/videos' }
     );
-    setHasUserQueuedToast(true);
 
     const watermarkConfig = {
       enabled: derivedWatermark.trim().length > 0,
@@ -357,23 +351,13 @@ export default function StandardAdsPage() {
             />
           </div>
 
-          {/* NEW: Brand & Product Card with integrated selector */}
-          <div className="space-y-4">
-            <BrandProductCard
-              brand={selectedBrand}
-              product={selectedProduct}
-            />
-            <ProductSelector
-              selectedProduct={selectedProduct}
-              onProductSelect={(product) => {
-                setSelectedProduct(product);
-                // Extract brand from product if available
-                if (product && 'brand' in product && product.brand) {
-                  setSelectedBrand(product.brand as UserBrand);
-                }
-              }}
-            />
-          </div>
+          {/* Brand & Product Cascading Dropdowns */}
+          <BrandProductSelector
+            selectedBrand={selectedBrand}
+            selectedProduct={selectedProduct}
+            onBrandSelect={setSelectedBrand}
+            onProductSelect={setSelectedProduct}
+          />
 
           {/* Single Row: Language, Duration, Quality, Format (for video mode) */}
           {outputMode === 'video' ? (
