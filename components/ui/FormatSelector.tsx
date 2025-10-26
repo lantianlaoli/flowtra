@@ -38,9 +38,8 @@ const IMAGE_FORMATS: FormatOption[] = [
   { value: '4:3', label: 'Landscape', description: '4:3 ratio', icon: Monitor },
 ];
 
-// Format options for video mode
+// Format options for video mode (only 16:9 and 9:16 supported)
 const VIDEO_FORMATS: FormatOption[] = [
-  { value: '1:1', label: 'Square', description: '1:1 ratio', icon: Square },
   { value: '9:16', label: 'Portrait', description: '9:16 ratio', icon: Smartphone },
   { value: '16:9', label: 'Landscape', description: '16:9 ratio', icon: Monitor },
 ];
