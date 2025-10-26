@@ -73,12 +73,17 @@ export default function VideoModelSelector({
       return Math.round((videoDurationSeconds / unitSeconds) * baseCost);
     };
 
-    // Check if model is supported by current quality/duration config
+    // Check if model is supported by current quality/duration config or disabledModels list
     const isModelSupported = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
+      // First check disabledModels prop (takes precedence)
+      if (disabledModels.includes(model)) {
+        return false;
+      }
+      // Then check quality/duration config (for backwards compatibility)
       if (videoQuality && videoDuration) {
         return modelSupports(model, videoQuality, videoDuration);
       }
-      // If no quality/duration config, all models are supported
+      // If no constraints, all models are supported
       return true;
     };
 
@@ -136,7 +141,7 @@ export default function VideoModelSelector({
         supported: isModelSupported('veo3')
       },
     ];
-  }, [credits, videoDurationSeconds, videoQuality, videoDuration]);
+  }, [credits, videoDurationSeconds, videoQuality, videoDuration, disabledModels]);
 
   const visibleOptions = useMemo(
     () =>
