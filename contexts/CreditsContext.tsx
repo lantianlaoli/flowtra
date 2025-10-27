@@ -72,8 +72,10 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
           // Continue to next attempt
           continue;
         } else {
-          // Final failure after retries
-          if (isMountedRef.current) setCredits(0);
+          // Final failure after retries - keep undefined instead of setting to 0
+          // This prevents showing misleading "0 credits" when API is actually failing
+          console.error('Failed to fetch credits after all retries, keeping credits as undefined');
+          if (isMountedRef.current) setCredits(undefined);
         }
       }
 
