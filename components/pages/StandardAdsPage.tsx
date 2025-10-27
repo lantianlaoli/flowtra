@@ -8,7 +8,7 @@ import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import InsufficientCredits from '@/components/InsufficientCredits';
-import { ArrowRight, TrendingUp } from 'lucide-react';
+import { ArrowRight, TrendingUp, Coins } from 'lucide-react';
 
 // New components for redesigned UX
 import OutputModeToggle, { type OutputMode } from '@/components/ui/OutputModeToggle';
@@ -31,6 +31,9 @@ import {
   modelSupports,
   getAvailableDurations,
   getAvailableQualities,
+  getActualModel,
+  isFreeGenerationModel,
+  getGenerationCost,
   type VideoModel
 } from '@/lib/constants';
 import { UserProduct, UserBrand } from '@/lib/supabase';
@@ -437,8 +440,32 @@ export default function StandardAdsPage() {
             disabled={!selectedProduct || !selectedBrand}
             className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad
+            <span>Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad</span>
             <ArrowRight className="w-4 h-4" />
+            {outputMode === 'video' && (() => {
+              // Calculate credits for button display (only for video mode)
+              const actualModel = getActualModel(selectedModel, userCredits || 0);
+              if (!actualModel) return null;
+
+              const isFreeGen = isFreeGenerationModel(actualModel);
+              if (isFreeGen) {
+                // Free generation models - show FREE badge
+                return (
+                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
+                    FREE
+                  </span>
+                );
+              } else {
+                // Paid generation models - show credit cost
+                const cost = getGenerationCost(actualModel, videoDuration, videoQuality);
+                return (
+                  <span className="ml-2 px-2.5 py-1 bg-gray-800 text-white text-sm font-medium rounded flex items-center gap-1.5">
+                    <Coins className="w-4 h-4" />
+                    <span>{cost}</span>
+                  </span>
+                );
+              }
+            })()}
           </button>
         </div>
       </div>

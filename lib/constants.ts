@@ -264,14 +264,29 @@ export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' 
 }
 
 // Check if user has sufficient credits for a model
+// Version 3.0: Free generation models always affordable (generation is free)
+// Paid generation models require credits upfront
 export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'): boolean {
   if (model === 'auto') {
-    return userCredits >= CREDIT_COSTS.sora2  // Auto requires at least the cheapest model (Sora2: 6 credits)
+    // Auto mode: user needs credits for at least one model
+    // Since free-gen models are always available, auto is always affordable
+    return true
   }
+
+  // Free generation models: Always affordable (no credits needed for generation)
+  if (isFreeGenerationModel(model)) {
+    return true
+  }
+
+  // Paid generation models: Check if user has enough credits for generation
   if (model === 'sora2_pro') {
     return userCredits >= SORA2_PRO_CREDIT_COSTS.standard_10s  // Minimum Sora2 Pro cost (36 credits)
   }
-  return userCredits >= CREDIT_COSTS[model]
+  if (model === 'veo3') {
+    return userCredits >= GENERATION_COSTS.veo3
+  }
+
+  return true
 }
 
 // Get the actual model that will be used (resolves auto to specific model)
