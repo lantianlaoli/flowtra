@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { GiftIcon } from '@heroicons/react/24/outline';
-import { Download, Smartphone, User, Play, Lightbulb, Check, UserPlus } from 'lucide-react';
+import { Download, Play, Lightbulb, Check, UserPlus } from 'lucide-react';
 import { FaTiktok } from 'react-icons/fa6';
 import DemoVideoSchema from '@/components/seo/DemoVideoSchema';
 import Header from '@/components/layout/Header';
@@ -316,10 +316,6 @@ export default async function LandingPage() {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">{successCases[0].user}</h3>
-                      <div className="flex items-center gap-1.5 text-blue-600">
-                        <Smartphone className="w-4 h-4" />
-                        <span className="text-sm font-medium">Standard Ads</span>
-                      </div>
                     </div>
                   </div>
                   <a
@@ -337,14 +333,14 @@ export default async function LandingPage() {
 
                 {/* Quote */}
                 <div className="mb-6">
-                  <blockquote className="text-lg text-gray-700 font-medium leading-relaxed max-w-md mx-auto" style={{lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
+                  <blockquote className="text-lg text-gray-700 font-medium leading-relaxed max-w-3xl" style={{lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
                     &ldquo;{successCases[0].quote}&rdquo;
                   </blockquote>
                 </div>
 
                 {/* Before & After Showcase */}
                 {successCases[0].layout === 'input-to-output' ? (
-                  <div className="relative max-w-2xl mx-auto">
+                  <div className="relative max-w-3xl">
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6">
                       {/* Original Product Image */}
                       <div className="flex flex-col items-center">
@@ -421,10 +417,6 @@ export default async function LandingPage() {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">{successCases[1].user}</h3>
-                      <div className="flex items-center gap-1.5 text-purple-600">
-                        <User className="w-4 h-4" />
-                        <span className="text-sm font-medium">Character Ads</span>
-                      </div>
                     </div>
                   </div>
                   <a
@@ -442,15 +434,15 @@ export default async function LandingPage() {
 
                 {/* Quote */}
                 <div className="mb-6">
-                  <blockquote className="text-lg text-gray-700 font-medium leading-relaxed">
+                  <blockquote className="text-lg text-gray-700 font-medium leading-relaxed max-w-3xl">
                     &ldquo;{successCases[1].quote}&rdquo;
                   </blockquote>
                 </div>
 
                 {/* Multi-Input Showcase - Updated */}
                 {successCases[1].layout === 'multi-input-to-output' ? (
-                  <div className="w-full mx-auto max-w-7xl">
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
+                  <div className="w-full max-w-3xl px-2">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6">
                       {/* Character Image */}
                       <div className="flex flex-col items-center">
                         <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[140px] h-[187px] sm:w-[200px] sm:h-[267px]">

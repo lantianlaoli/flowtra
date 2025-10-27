@@ -19,7 +19,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
   ({
     src,
     className = '',
-    autoPlay = false,
+    autoPlay = true,
     loop = true,
     playsInline = true,
     showControls = false,
@@ -51,7 +51,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           muted={!audioEnabled}
           loop={loop}
           playsInline={playsInline}
-          preload="none"
+          preload="metadata"
           controls={showControls}
           aria-label={ariaLabel || "Product demonstration video"}
           onError={(e) => console.warn('Video error:', e)}

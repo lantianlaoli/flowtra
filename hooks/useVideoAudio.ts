@@ -52,8 +52,44 @@ export function useVideoAudio({ videoRef, instanceId }: UseVideoAudioOptions) {
     };
   }, []);
 
-  // Note: We removed auto-enable audio on load to prevent multiple videos playing simultaneously
-  // Audio will only be enabled on hover or click, managed by the global audio manager
+  // Auto-play video on mount (muted)
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    const video = videoRef.current;
+
+    const attemptAutoPlay = async () => {
+      try {
+        // Ensure video is muted for autoplay
+        video.muted = true;
+        const playPromise = video.play();
+
+        if (playPromise && typeof playPromise.then === 'function') {
+          await playPromise;
+          // Successfully auto-playing (muted)
+        }
+      } catch (error) {
+        // Autoplay failed - show click-to-play button
+        console.warn('Autoplay failed:', error);
+        setNeedsClickToEnable(true);
+      }
+    };
+
+    // Try to play when video is ready
+    if (video.readyState >= 3) {
+      // Video is already ready
+      attemptAutoPlay();
+    } else {
+      // Wait for video to be ready
+      video.addEventListener('loadeddata', attemptAutoPlay, { once: true });
+    }
+
+    return () => {
+      video.removeEventListener('loadeddata', attemptAutoPlay);
+    };
+  }, [videoRef]);
+
+  // Note: Audio will only be enabled on hover or click, managed by the global audio manager
 
   const handleHover = useCallback(() => {
     setIsHovered(true);
