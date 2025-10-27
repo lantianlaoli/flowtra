@@ -161,7 +161,7 @@ export default async function LandingPage() {
               <HeroPrimaryButton />
               {/* Tutorial Video Button */}
               <a
-                href="https://youtu.be/zCFmbZJaUws"
+                href="https://www.youtube.com/watch?v=pMxwEIh6ciQ"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="silk-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer"
