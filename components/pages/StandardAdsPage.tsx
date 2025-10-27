@@ -442,8 +442,17 @@ export default function StandardAdsPage() {
           >
             <span>Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad</span>
             <ArrowRight className="w-4 h-4" />
-            {outputMode === 'video' && (() => {
-              // Calculate credits for button display (only for video mode)
+            {(() => {
+              // Image mode: always FREE
+              if (outputMode === 'image') {
+                return (
+                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
+                    FREE
+                  </span>
+                );
+              }
+
+              // Video mode: calculate credits based on model
               const actualModel = getActualModel(selectedModel, userCredits || 0);
               if (!actualModel) return null;
 
