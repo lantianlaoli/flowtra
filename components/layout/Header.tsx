@@ -123,7 +123,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
         {/* Mobile menu with animation */}
         <div
           id="mobile-nav"
-          className={`md:hidden overflow-hidden border-t border-gray-200 transition-all duration-300 ease-out ${
+          className={`md:hidden overflow-hidden border-t border-gray-200 bg-white/95 backdrop-blur-md transition-all duration-300 ease-out ${
             mobileMenuOpen ? 'opacity-100 max-h-[420px] py-4' : 'opacity-0 max-h-0 py-0'
           }`}
           aria-hidden={!mobileMenuOpen}

@@ -328,6 +328,19 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
               );
             })}
           </nav>
+
+          {/* Feedback and Navigation */}
+          <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+            <FeedbackWidget />
+            <Link
+              href="/"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+            >
+              <Home className="w-5 h-5" />
+              <span>Back to Landing</span>
+            </Link>
+          </div>
         </div>
       </div>
     </>
