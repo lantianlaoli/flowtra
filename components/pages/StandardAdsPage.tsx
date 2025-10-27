@@ -447,7 +447,11 @@ export default function StandardAdsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar />
+      <Sidebar
+        credits={userCredits}
+        userEmail={user?.primaryEmailAddress?.emailAddress}
+        userImageUrl={user?.imageUrl}
+      />
       <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
         <div className="p-8 max-w-7xl mx-auto">
           {/* Page Header */}
