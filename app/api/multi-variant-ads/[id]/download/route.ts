@@ -47,13 +47,36 @@ export async function POST(
 
     // For cover downloads, no credit deduction needed (covers are free)
     if (contentType === 'cover') {
-      return NextResponse.json({
-        success: true,
-        downloadUrl: instance.cover_image_url,
-        contentType: 'cover',
-        creditsUsed: 0,
-        message: 'Cover download ready'
-      });
+      try {
+        console.log(`📥 Fetching cover from KIE: ${instance.cover_image_url}`);
+        const coverResponse = await fetch(instance.cover_image_url);
+
+        if (!coverResponse.ok) {
+          throw new Error(`Failed to fetch cover image: ${coverResponse.status} ${coverResponse.statusText}`);
+        }
+
+        const coverBuffer = await coverResponse.arrayBuffer();
+        const contentTypeHeader = coverResponse.headers.get('content-type') || 'image/jpeg';
+
+        // Determine file extension
+        const ext = contentTypeHeader.includes('png') ? 'png' :
+                    contentTypeHeader.includes('webp') ? 'webp' : 'jpg';
+
+        return new NextResponse(coverBuffer, {
+          status: 200,
+          headers: {
+            'Content-Type': contentTypeHeader,
+            'Content-Disposition': `attachment; filename="flowtra-multi-variant-cover-${id}.${ext}"`,
+            'Content-Length': coverBuffer.byteLength.toString(),
+          },
+        });
+      } catch (downloadError) {
+        console.error('💥 Failed to download cover image:', downloadError);
+        return NextResponse.json({
+          error: 'Failed to download cover image',
+          details: downloadError instanceof Error ? downloadError.message : 'Unknown error'
+        }, { status: 500 });
+      }
     }
 
     // ===== VERSION 3.0: MIXED BILLING - Download Phase =====
@@ -62,7 +85,6 @@ export async function POST(
     if (contentType === 'video') {
       const isFirstDownload = !instance.downloaded;
       const videoModel = instance.video_model as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
-      let creditsUsed = 0;
 
       if (isFirstDownload) {
         // Check if this model has download cost (free-generation models)
@@ -96,7 +118,6 @@ export async function POST(
             id
           );
 
-          creditsUsed = downloadCost;
           console.log(`[Download Billing] Charged ${downloadCost} credits for ${videoModel} download (user: ${instance.user_id})`);
         }
         // If paid-generation model, download is FREE (no credit deduction)
@@ -111,15 +132,32 @@ export async function POST(
           .eq('id', id);
       }
 
-      return NextResponse.json({
-        success: true,
-        downloadUrl: instance.video_url,
-        contentType: 'video',
-        creditsUsed,
-        message: creditsUsed > 0
-          ? `Download complete (${creditsUsed} credits charged)`
-          : 'Download complete (free download)'
-      });
+      // Download the video file from KIE and return it
+      try {
+        console.log(`📥 Fetching video from KIE: ${instance.video_url}`);
+        const videoResponse = await fetch(instance.video_url);
+
+        if (!videoResponse.ok) {
+          throw new Error(`Failed to fetch video: ${videoResponse.status} ${videoResponse.statusText}`);
+        }
+
+        const videoBuffer = await videoResponse.arrayBuffer();
+
+        return new NextResponse(videoBuffer, {
+          status: 200,
+          headers: {
+            'Content-Type': 'video/mp4',
+            'Content-Disposition': `attachment; filename="flowtra-multi-variant-video-${id}.mp4"`,
+            'Content-Length': videoBuffer.byteLength.toString(),
+          },
+        });
+      } catch (downloadError) {
+        console.error('💥 Failed to download video:', downloadError);
+        return NextResponse.json({
+          error: 'Failed to download video',
+          details: downloadError instanceof Error ? downloadError.message : 'Unknown error'
+        }, { status: 500 });
+      }
     }
 
   } catch (error) {

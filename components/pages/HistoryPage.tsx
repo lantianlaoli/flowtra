@@ -620,48 +620,40 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
         throw new Error(errorData.error || 'Failed to download content');
       }
 
-      const result = await response.json();
-      
-      if (result.success && result.downloadUrl) {
-        // For cover: fetch as blob to avoid any navigation; for video keep direct download flow
-        if (contentType === 'cover') {
-          const res2 = await fetch(result.downloadUrl, { mode: 'cors' });
-          const blob2 = await res2.blob();
-          const url2 = URL.createObjectURL(blob2);
-          const contentType2 = blob2.type || 'image/jpeg';
-          const ext2 = contentType2.includes('png') ? 'png' : contentType2.includes('webp') ? 'webp' : 'jpg';
-          const link2 = document.createElement('a');
-          link2.href = url2;
-          link2.download = `${contentType}-${instanceId}.${ext2}`;
-          link2.style.display = 'none';
-          document.body.appendChild(link2);
-          link2.click();
-          document.body.removeChild(link2);
-          URL.revokeObjectURL(url2);
-        } else {
-          // Fetch video as blob as well to avoid any chance of navigation
-          const res3 = await fetch(result.downloadUrl, { mode: 'cors' });
-          const blob3 = await res3.blob();
-          const url3 = URL.createObjectURL(blob3);
-          const link3 = document.createElement('a');
-          link3.href = url3;
-          link3.download = `${contentType}-${instanceId}.mp4`;
-          link3.style.display = 'none';
-          document.body.appendChild(link3);
-          link3.click();
-          document.body.removeChild(link3);
-          URL.revokeObjectURL(url3);
+      const responseContentType = response.headers.get('content-type');
+
+      // Check if response is a file (image or video)
+      if (responseContentType?.includes('image/') || responseContentType?.includes('video/mp4')) {
+        // Server returned file buffer directly
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+
+        // Determine file extension
+        let ext = 'jpg';
+        if (contentType === 'video') {
+          ext = 'mp4';
+        } else if (responseContentType.includes('png')) {
+          ext = 'png';
+        } else if (responseContentType.includes('webp')) {
+          ext = 'webp';
         }
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `flowtra-multi-variant-${contentType}-${instanceId}.${ext}`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
 
         // Show success state only for paid video
         if (contentType === 'video') {
           setDownloadStates(prev => ({ ...prev, [instanceId]: 'success' }));
-        }
 
-        // Update local state if it was a video download (paid content)
-        if (contentType === 'video' && result.creditsUsed > 0) {
+          // Update local state for video download
           setHistory(prevHistory =>
-            prevHistory.map(item => 
+            prevHistory.map(item =>
               item.id === instanceId && isMultiVariantAds(item)
                 ? { ...item, downloaded: true }
                 : item
@@ -669,17 +661,17 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
           );
 
           await refetchCredits();
-        }
 
-        // Reset to idle after 3 seconds (video only)
-        if (contentType === 'video') {
+          // Reset to idle after 3 seconds
           setTimeout(() => {
             setDownloadStates(prev => ({ ...prev, [instanceId]: 'idle' }));
           }, 3000);
         }
+      } else {
+        // Fallback: response is JSON (error case)
+        const result = await response.json();
+        throw new Error(result.error || 'Unexpected response format');
       }
-
-      return result;
     } catch (error) {
       console.error('Download failed:', error);
       alert(error instanceof Error ? error.message : 'Download failed');
