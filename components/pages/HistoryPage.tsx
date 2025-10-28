@@ -5,12 +5,13 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, ArrowUpRight, Volume2, CalendarClock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, ArrowUpRight, Volume2, CalendarClock, Send } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 
 interface StandardAdsItem {
   id: string;
@@ -170,6 +171,10 @@ export default function HistoryPage() {
   // Video UI transient state: 'packing' -> 'done' -> cleared
   const [videoStates, setVideoStates] = useState<Record<string, 'packing' | 'done' | null>>({});
   // Removed YouTube thumbnail transient state
+
+  // TikTok publish dialog state
+  const [tiktokDialogOpen, setTiktokDialogOpen] = useState(false);
+  const [selectedItemForTikTok, setSelectedItemForTikTok] = useState<HistoryItem | null>(null);
 
   // Helper function to get aspect ratio class
   const getAspectRatioClass = (aspectRatio?: string) => {
@@ -755,6 +760,12 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
 
   // Note: Cover button is always free and uses static icon in the UI.
 
+  // Handler for opening TikTok publish dialog
+  const handleTikTokPublish = (item: HistoryItem) => {
+    setSelectedItemForTikTok(item);
+    setTiktokDialogOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar
@@ -1277,6 +1288,20 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                       )}
                                     </button>
                                   )}
+
+                                  {/* TikTok Publish Button - Only for ads with videos */}
+                                  {'videoUrl' in item && item.videoUrl && (
+                                    <button
+                                      onClick={() => handleTikTokPublish(item)}
+                                      className={cn(
+                                        'w-full flex items-center justify-center gap-2 px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all border border-purple-500',
+                                        interactiveCardActionClasses
+                                      )}
+                                    >
+                                      <Send className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
+                                      <span className="font-medium">Post to TikTok</span>
+                                    </button>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -1380,6 +1405,21 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
           )}
         </div>
       </div>
+
+      {/* TikTok Publish Dialog */}
+      <TikTokPublishDialog
+        isOpen={tiktokDialogOpen}
+        onClose={() => {
+          setTiktokDialogOpen(false);
+          setSelectedItemForTikTok(null);
+        }}
+        historyId={selectedItemForTikTok?.id || ''}
+        coverImageUrl={
+          selectedItemForTikTok && 'coverImageUrl' in selectedItemForTikTok
+            ? selectedItemForTikTok.coverImageUrl
+            : undefined
+        }
+      />
     </div>
   );
 }
