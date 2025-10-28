@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Coins, User } from 'lucide-react';
+import { Coins, User, Link2, XCircle } from 'lucide-react';
 import { HiPlus, HiMinus, HiLightningBolt, HiClipboardList } from 'react-icons/hi';
 
 interface CreditTransaction {
@@ -15,10 +15,22 @@ interface CreditTransaction {
   created_at: string;
 }
 
+interface TikTokConnection {
+  display_name: string;
+  avatar_url: string | null;
+  connected_at: string;
+  scope: string;
+  tiktok_open_id: string;
+}
+
 export default function CreditsPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
+  const [tiktokConnection, setTiktokConnection] = useState<TikTokConnection | null>(null);
+  const [tiktokConnected, setTiktokConnected] = useState(false);
+  const [tiktokLoading, setTiktokLoading] = useState(true);
+  const [unbindingTiktok, setUnbindingTiktok] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -29,15 +41,15 @@ export default function CreditsPage() {
 
   useEffect(() => {
     // Credits are now managed by CreditsContext
-    
+
     // Fetch user transactions
     const fetchTransactions = async () => {
       if (!user?.id) return;
-      
+
       try {
         const response = await fetch('/api/credits/transactions');
         const data = await response.json();
-        
+
         if (data.success) {
           setTransactions(data.transactions);
         } else {
@@ -49,8 +61,47 @@ export default function CreditsPage() {
         setTransactions([]);
       }
     };
-    
+
+    // Fetch TikTok connection info
+    const fetchTikTokConnection = async () => {
+      if (!user?.id) return;
+
+      try {
+        const response = await fetch('/api/tiktok/user/info');
+        const data = await response.json();
+
+        if (data.connected) {
+          setTiktokConnected(true);
+          setTiktokConnection(data.connection);
+        } else {
+          setTiktokConnected(false);
+          setTiktokConnection(null);
+        }
+      } catch (error) {
+        console.error('Error fetching TikTok connection:', error);
+      } finally {
+        setTiktokLoading(false);
+      }
+    };
+
     fetchTransactions();
+    fetchTikTokConnection();
+
+    // Handle OAuth callback status messages
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tiktok_success') === 'true') {
+      // Refresh TikTok connection data
+      fetchTikTokConnection();
+      // Clean URL
+      window.history.replaceState({}, '', '/dashboard/account');
+    }
+    if (params.get('tiktok_error')) {
+      const error = params.get('tiktok_error');
+      console.error('TikTok connection error:', error);
+      alert(`Failed to connect TikTok: ${error}`);
+      // Clean URL
+      window.history.replaceState({}, '', '/dashboard/account');
+    }
   }, [user?.id]);
 
   // Loading state
@@ -103,6 +154,40 @@ export default function CreditsPage() {
     const model = modelMatch ? modelMatch[1] : undefined;
 
     return { feature, stage, model };
+  };
+
+  // Handle TikTok connection
+  const handleConnectTikTok = () => {
+    window.location.href = '/api/tiktok/auth/authorize';
+  };
+
+  // Handle TikTok disconnection
+  const handleDisconnectTikTok = async () => {
+    if (!confirm('Are you sure you want to disconnect your TikTok account?')) {
+      return;
+    }
+
+    setUnbindingTiktok(true);
+    try {
+      const response = await fetch('/api/tiktok/unbind', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTiktokConnected(false);
+        setTiktokConnection(null);
+        alert('TikTok account disconnected successfully');
+      } else {
+        alert('Failed to disconnect TikTok account');
+      }
+    } catch (error) {
+      console.error('Error disconnecting TikTok:', error);
+      alert('Failed to disconnect TikTok account');
+    } finally {
+      setUnbindingTiktok(false);
+    }
   };
 
   return (
@@ -175,6 +260,78 @@ export default function CreditsPage() {
                       .reduce((sum, t) => sum + t.amount, 0)
                       .toLocaleString()}
                   </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Connected Accounts Section */}
+          <div className="mb-8">
+            <h2 className="text-lg font-medium text-gray-900 mb-6">Connected Accounts</h2>
+
+            {/* TikTok Connection Card */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
+                    <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                    </svg>
+                  </div>
+
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-base font-semibold text-gray-900">TikTok</h3>
+                      {tiktokConnected && (
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
+                          Connected
+                        </span>
+                      )}
+                    </div>
+
+                    {tiktokLoading ? (
+                      <p className="text-sm text-gray-600">Loading...</p>
+                    ) : tiktokConnected && tiktokConnection ? (
+                      <div className="flex items-center gap-2">
+                        {tiktokConnection.avatar_url && (
+                          <img
+                            src={tiktokConnection.avatar_url}
+                            alt={tiktokConnection.display_name}
+                            className="w-6 h-6 rounded-full"
+                          />
+                        )}
+                        <p className="text-sm text-gray-600">
+                          Connected as <span className="font-medium text-gray-900">{tiktokConnection.display_name}</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-600">
+                        Connect your TikTok account to publish videos directly
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  {tiktokConnected ? (
+                    <button
+                      onClick={handleDisconnectTikTok}
+                      disabled={unbindingTiktok}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      {unbindingTiktok ? 'Disconnecting...' : 'Disconnect'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleConnectTikTok}
+                      disabled={tiktokLoading}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Link2 className="w-4 h-4" />
+                      Connect TikTok
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
