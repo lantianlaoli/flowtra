@@ -12,6 +12,7 @@ import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import TikTokPublishDialog from '@/components/TikTokPublishDialog';
+import { isTikTokFeatureEnabled } from '@/lib/utils/environment';
 
 interface StandardAdsItem {
   id: string;
@@ -1292,39 +1293,67 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                   {/* TikTok Publish Button - Only for ads with videos */}
                                   {'videoUrl' in item && item.videoUrl && (
                                     <button
-                                      onClick={() => handleTikTokPublish(item)}
+                                      onClick={() => isTikTokFeatureEnabled() && handleTikTokPublish(item)}
+                                      disabled={!isTikTokFeatureEnabled()}
                                       className={cn(
                                         'group relative w-full overflow-hidden rounded-lg transition-all duration-300',
-                                        interactiveCardActionClasses
+                                        interactiveCardActionClasses,
+                                        !isTikTokFeatureEnabled() && 'cursor-not-allowed opacity-60'
                                       )}
                                     >
                                       {/* Gradient background with animation */}
-                                      <div className="absolute inset-0 bg-gradient-to-r from-[#00f2ea] via-[#ff0050] to-[#00f2ea] bg-[length:200%_100%] animate-tiktok-shimmer" />
+                                      <div className={cn(
+                                        "absolute inset-0 bg-gradient-to-r from-[#00f2ea] via-[#ff0050] to-[#00f2ea] bg-[length:200%_100%]",
+                                        isTikTokFeatureEnabled() && "animate-tiktok-shimmer"
+                                      )} />
 
                                       {/* Dark overlay */}
-                                      <div className="absolute inset-0 bg-black/80 group-hover:bg-black/70 transition-colors" />
+                                      <div className={cn(
+                                        "absolute inset-0 bg-black/80 transition-colors",
+                                        isTikTokFeatureEnabled() && "group-hover:bg-black/70"
+                                      )} />
 
                                       {/* Content */}
                                       <div className="relative flex items-center justify-center gap-2 px-2 md:px-3 py-2 md:py-2.5">
                                         {/* TikTok icon with music note style */}
                                         <svg
-                                          className="w-4 h-4 md:w-5 md:h-5 fill-white group-hover:scale-110 transition-transform"
+                                          className={cn(
+                                            "w-4 h-4 md:w-5 md:h-5 fill-white transition-transform",
+                                            isTikTokFeatureEnabled() && "group-hover:scale-110"
+                                          )}
                                           viewBox="0 0 24 24"
                                         >
                                           <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
                                         </svg>
 
                                         {/* Text with gradient */}
-                                        <span className="text-xs md:text-sm font-bold bg-gradient-to-r from-[#00f2ea] to-[#ff0050] bg-clip-text text-transparent group-hover:from-[#ff0050] group-hover:to-[#00f2ea] transition-all duration-500">
+                                        <span className={cn(
+                                          "text-xs md:text-sm font-bold bg-gradient-to-r from-[#00f2ea] to-[#ff0050] bg-clip-text text-transparent transition-all duration-500",
+                                          isTikTokFeatureEnabled() && "group-hover:from-[#ff0050] group-hover:to-[#00f2ea]"
+                                        )}>
                                           Post to TikTok
                                         </span>
 
                                         {/* Arrow icon */}
-                                        <Send className="w-3 h-3 md:w-3.5 md:h-3.5 text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                        <Send className={cn(
+                                          "w-3 h-3 md:w-3.5 md:h-3.5 text-white transition-transform",
+                                          isTikTokFeatureEnabled() && "group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                                        )} />
                                       </div>
 
-                                      {/* Shine effect on hover */}
-                                      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                                      {/* Shine effect on hover - only if enabled */}
+                                      {isTikTokFeatureEnabled() && (
+                                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                                      )}
+
+                                      {/* Coming Soon Overlay - shown in production */}
+                                      {!isTikTokFeatureEnabled() && (
+                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[1px]">
+                                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500 text-white shadow-lg">
+                                            Coming Soon
+                                          </span>
+                                        </div>
+                                      )}
                                     </button>
                                   )}
                                 </>

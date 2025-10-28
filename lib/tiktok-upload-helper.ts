@@ -108,6 +108,8 @@ export async function uploadChunk(
   // Convert Buffer to Uint8Array for fetch compatibility
   const uint8Array = new Uint8Array(chunk);
 
+  console.log(`[uploadChunk] Uploading chunk ${chunkInfo.chunkIndex}: bytes ${start}-${end}/${totalSize} (${chunk.length} bytes)`);
+
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {
@@ -118,10 +120,15 @@ export async function uploadChunk(
     body: uint8Array
   });
 
+  console.log(`[uploadChunk] Chunk ${chunkInfo.chunkIndex} response status: ${response.status}`);
+
   if (!response.ok) {
     const errorText = await response.text();
+    console.error(`[uploadChunk] Chunk ${chunkInfo.chunkIndex} failed with status ${response.status}:`, errorText);
     throw new Error(`Chunk upload failed (${response.status}): ${errorText}`);
   }
+
+  console.log(`[uploadChunk] Chunk ${chunkInfo.chunkIndex} uploaded successfully`);
 }
 
 /**

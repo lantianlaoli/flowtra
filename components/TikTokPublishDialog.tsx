@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Loader2, Check, AlertCircle } from 'lucide-react';
+import { X, Loader2, Check, AlertCircle, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
@@ -24,7 +24,8 @@ export default function TikTokPublishDialog({
   coverImageUrl
 }: TikTokPublishDialogProps) {
   const [title, setTitle] = useState('');
-  const [privacyLevel, setPrivacyLevel] = useState<PrivacyLevel>('PUBLIC_TO_EVERYONE');
+  // Fixed to SELF_ONLY due to unaudited app restriction
+  const privacyLevel: PrivacyLevel = 'SELF_ONLY';
   const [disableDuet, setDisableDuet] = useState(false);
   const [disableComment, setDisableComment] = useState(false);
   const [disableStitch, setDisableStitch] = useState(false);
@@ -37,7 +38,6 @@ export default function TikTokPublishDialog({
   useEffect(() => {
     if (isOpen) {
       setTitle('');
-      setPrivacyLevel('PUBLIC_TO_EVERYONE');
       setDisableDuet(false);
       setDisableComment(false);
       setDisableStitch(false);
@@ -307,6 +307,21 @@ export default function TikTokPublishDialog({
               {/* Form */}
               {status === 'idle' && (
                 <div className="space-y-4">
+                  {/* Private Publish Warning */}
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-yellow-900">
+                          仅支持私密发布
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1 leading-relaxed">
+                          当前应用处于开发模式，发布的视频将自动设置为<strong>仅自己可见</strong>。如需公开发布，请联系管理员升级应用权限。
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Title */}
                   <div>
                     <label htmlFor="title" className="block text-sm font-semibold text-gray-900 mb-2">
@@ -331,63 +346,6 @@ export default function TikTokPublishDialog({
                       )}>
                         {title.length}/150
                       </p>
-                    </div>
-                  </div>
-
-                  {/* Privacy Level */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">
-                      Who can watch this video?
-                    </label>
-                    <div className="space-y-2.5">
-                      <label className={cn(
-                        "flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all hover:border-gray-300",
-                        privacyLevel === 'PUBLIC_TO_EVERYONE' ? "border-black bg-gray-50" : "border-gray-200"
-                      )}>
-                        <input
-                          type="radio"
-                          name="privacy"
-                          checked={privacyLevel === 'PUBLIC_TO_EVERYONE'}
-                          onChange={() => setPrivacyLevel('PUBLIC_TO_EVERYONE')}
-                          className="w-4 h-4 text-black border-gray-300"
-                        />
-                        <div className="flex-1">
-                          <span className="text-sm font-medium text-gray-900">Public</span>
-                          <p className="text-xs text-gray-500 mt-0.5">Everyone can watch</p>
-                        </div>
-                      </label>
-                      <label className={cn(
-                        "flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all hover:border-gray-300",
-                        privacyLevel === 'MUTUAL_FOLLOW_FRIENDS' ? "border-black bg-gray-50" : "border-gray-200"
-                      )}>
-                        <input
-                          type="radio"
-                          name="privacy"
-                          checked={privacyLevel === 'MUTUAL_FOLLOW_FRIENDS'}
-                          onChange={() => setPrivacyLevel('MUTUAL_FOLLOW_FRIENDS')}
-                          className="w-4 h-4 text-black border-gray-300"
-                        />
-                        <div className="flex-1">
-                          <span className="text-sm font-medium text-gray-900">Friends</span>
-                          <p className="text-xs text-gray-500 mt-0.5">Only friends can watch</p>
-                        </div>
-                      </label>
-                      <label className={cn(
-                        "flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all hover:border-gray-300",
-                        privacyLevel === 'SELF_ONLY' ? "border-black bg-gray-50" : "border-gray-200"
-                      )}>
-                        <input
-                          type="radio"
-                          name="privacy"
-                          checked={privacyLevel === 'SELF_ONLY'}
-                          onChange={() => setPrivacyLevel('SELF_ONLY')}
-                          className="w-4 h-4 text-black border-gray-300"
-                        />
-                        <div className="flex-1">
-                          <span className="text-sm font-medium text-gray-900">Private</span>
-                          <p className="text-xs text-gray-500 mt-0.5">Only you can watch</p>
-                        </div>
-                      </label>
                     </div>
                   </div>
 
