@@ -48,10 +48,12 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(authUrl.toString());
 
     // Store CSRF state in cookie for validation in callback
+    // Note: Using sameSite: 'none' and secure: true to support cross-site redirects
+    // from TikTok. This is required for OAuth callbacks, especially with tunnel domains.
     response.cookies.set('tiktok_oauth_state', csrfState, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,  // Always true for HTTPS (localtunnel, ngrok, production)
+      sameSite: 'none',  // Required for cross-site OAuth redirects
       maxAge: 600, // 10 minutes
       path: '/',
     });
@@ -59,8 +61,8 @@ export async function GET(request: NextRequest) {
     // Store user ID for callback
     response.cookies.set('tiktok_oauth_user', userId, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 600,
       path: '/',
     });

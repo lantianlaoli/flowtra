@@ -10,7 +10,8 @@ const isProtectedRoute = createRouteMatcher([
 
 // Define routes that should NOT be protected (no authentication required)
 const isPublicRoute = createRouteMatcher([
-  '/api/webhooks(.*)'
+  '/api/webhooks(.*)',
+  '/api/tiktok/auth/callback(.*)'  // TikTok OAuth callback must be public
 ])
 
 export default clerkMiddleware(async (auth, req) => {
