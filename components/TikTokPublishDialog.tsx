@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Check, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
 interface TikTokPublishDialogProps {
   isOpen: boolean;
@@ -222,25 +223,53 @@ export default function TikTokPublishDialog({
 
             {/* Content */}
             <div className="p-6">
-              <h3
-                id="dialog-title"
-                className="text-xl font-semibold text-gray-900 mb-4"
-              >
-                Post to TikTok
-              </h3>
+              {/* Title with TikTok branding */}
+              <div className="flex items-center gap-3 mb-6">
+                <div className="relative w-12 h-12 rounded-xl bg-black flex items-center justify-center overflow-hidden">
+                  {/* Animated gradient background */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#00f2ea] via-[#ff0050] to-[#00f2ea] opacity-20 animate-tiktok-shimmer bg-[length:200%_200%]" />
+
+                  {/* TikTok icon */}
+                  <svg
+                    className="w-7 h-7 fill-white relative z-10"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3
+                    id="dialog-title"
+                    className="text-xl font-bold text-gray-900"
+                  >
+                    Post to TikTok
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-0.5">Share your video with the world</p>
+                </div>
+              </div>
 
               {/* Status Message */}
               {status !== 'idle' && (
-                <div className="mb-4 p-4 rounded-lg border bg-gray-50 flex items-start gap-3">
+                <div className={cn(
+                  "mb-6 p-4 rounded-xl border flex items-start gap-3 transition-all",
+                  status === 'success' && "bg-green-50 border-green-200",
+                  status === 'failed' && "bg-red-50 border-red-200",
+                  (status === 'uploading' || status === 'processing') && "bg-blue-50 border-blue-200"
+                )}>
                   <div className="flex-shrink-0 mt-0.5">
                     {getStatusIcon()}
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className={cn(
+                      "text-sm font-semibold",
+                      status === 'success' && "text-green-900",
+                      status === 'failed' && "text-red-900",
+                      (status === 'uploading' || status === 'processing') && "text-blue-900"
+                    )}>
                       {getStatusText()}
                     </p>
                     {errorMessage && (
-                      <p className="text-sm text-red-600 mt-1">
+                      <p className="text-sm text-red-700 mt-1.5 leading-relaxed">
                         {errorMessage}
                       </p>
                     )}
@@ -249,9 +278,12 @@ export default function TikTokPublishDialog({
                         href={`https://www.tiktok.com/@me/video/${postId}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline mt-2 inline-block"
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 hover:text-green-800 mt-2 group"
                       >
-                        View on TikTok →
+                        <span>View on TikTok</span>
+                        <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        </svg>
                       </a>
                     )}
                   </div>
@@ -277,94 +309,120 @@ export default function TikTokPublishDialog({
                 <div className="space-y-4">
                   {/* Title */}
                   <div>
-                    <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                      Title <span className="text-red-500">*</span>
+                    <label htmlFor="title" className="block text-sm font-semibold text-gray-900 mb-2">
+                      Video Title <span className="text-red-500">*</span>
                     </label>
                     <input
                       id="title"
                       type="text"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Enter video title"
+                      placeholder="Make it catchy..."
                       maxLength={150}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-black transition-all text-sm"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      {title.length}/150 characters
-                    </p>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <p className="text-xs text-gray-500">
+                        Create an engaging title for your video
+                      </p>
+                      <p className={cn(
+                        "text-xs font-medium",
+                        title.length > 140 ? "text-orange-600" : "text-gray-400"
+                      )}>
+                        {title.length}/150
+                      </p>
+                    </div>
                   </div>
 
                   {/* Privacy Level */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Privacy Level
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      Who can watch this video?
                     </label>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="space-y-2.5">
+                      <label className={cn(
+                        "flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all hover:border-gray-300",
+                        privacyLevel === 'PUBLIC_TO_EVERYONE' ? "border-black bg-gray-50" : "border-gray-200"
+                      )}>
                         <input
                           type="radio"
                           name="privacy"
                           checked={privacyLevel === 'PUBLIC_TO_EVERYONE'}
                           onChange={() => setPrivacyLevel('PUBLIC_TO_EVERYONE')}
-                          className="w-4 h-4 text-blue-600"
+                          className="w-4 h-4 text-black border-gray-300"
                         />
-                        <span className="text-sm text-gray-700">Public</span>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">Public</span>
+                          <p className="text-xs text-gray-500 mt-0.5">Everyone can watch</p>
+                        </div>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
+                      <label className={cn(
+                        "flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all hover:border-gray-300",
+                        privacyLevel === 'MUTUAL_FOLLOW_FRIENDS' ? "border-black bg-gray-50" : "border-gray-200"
+                      )}>
                         <input
                           type="radio"
                           name="privacy"
                           checked={privacyLevel === 'MUTUAL_FOLLOW_FRIENDS'}
                           onChange={() => setPrivacyLevel('MUTUAL_FOLLOW_FRIENDS')}
-                          className="w-4 h-4 text-blue-600"
+                          className="w-4 h-4 text-black border-gray-300"
                         />
-                        <span className="text-sm text-gray-700">Friends</span>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">Friends</span>
+                          <p className="text-xs text-gray-500 mt-0.5">Only friends can watch</p>
+                        </div>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
+                      <label className={cn(
+                        "flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all hover:border-gray-300",
+                        privacyLevel === 'SELF_ONLY' ? "border-black bg-gray-50" : "border-gray-200"
+                      )}>
                         <input
                           type="radio"
                           name="privacy"
                           checked={privacyLevel === 'SELF_ONLY'}
                           onChange={() => setPrivacyLevel('SELF_ONLY')}
-                          className="w-4 h-4 text-blue-600"
+                          className="w-4 h-4 text-black border-gray-300"
                         />
-                        <span className="text-sm text-gray-700">Private</span>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">Private</span>
+                          <p className="text-xs text-gray-500 mt-0.5">Only you can watch</p>
+                        </div>
                       </label>
                     </div>
                   </div>
 
                   {/* Options */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Options
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      Interaction Settings
                     </label>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="space-y-2.5">
+                      <label className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                         <input
                           type="checkbox"
                           checked={disableDuet}
                           onChange={(e) => setDisableDuet(e.target.checked)}
-                          className="w-4 h-4 text-blue-600 rounded"
+                          className="w-4 h-4 text-black border-gray-300 rounded"
                         />
-                        <span className="text-sm text-gray-700">Disable Duet</span>
+                        <span className="text-sm text-gray-700">Turn off Duet</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
+                      <label className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                         <input
                           type="checkbox"
                           checked={disableComment}
                           onChange={(e) => setDisableComment(e.target.checked)}
-                          className="w-4 h-4 text-blue-600 rounded"
+                          className="w-4 h-4 text-black border-gray-300 rounded"
                         />
-                        <span className="text-sm text-gray-700">Disable Comments</span>
+                        <span className="text-sm text-gray-700">Turn off Comments</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
+                      <label className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                         <input
                           type="checkbox"
                           checked={disableStitch}
                           onChange={(e) => setDisableStitch(e.target.checked)}
-                          className="w-4 h-4 text-blue-600 rounded"
+                          className="w-4 h-4 text-black border-gray-300 rounded"
                         />
-                        <span className="text-sm text-gray-700">Disable Stitch</span>
+                        <span className="text-sm text-gray-700">Turn off Stitch</span>
                       </label>
                     </div>
                   </div>
@@ -372,36 +430,49 @@ export default function TikTokPublishDialog({
               )}
 
               {/* Actions */}
-              <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3">
+              <div className="mt-8 flex flex-col-reverse sm:flex-row gap-3">
                 {status === 'idle' ? (
                   <>
                     <button
                       onClick={handleClose}
-                      className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                      className="flex-1 px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all font-medium"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSubmit}
                       disabled={!title.trim()}
-                      className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="group relative flex-1 overflow-hidden rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Publish to TikTok
+                      {/* Gradient background */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-[#00f2ea] via-[#ff0050] to-[#00f2ea] bg-[length:200%_100%] animate-tiktok-shimmer" />
+
+                      {/* Dark overlay */}
+                      <div className="absolute inset-0 bg-black/80 group-hover:bg-black/70 transition-colors" />
+
+                      {/* Button content */}
+                      <div className="relative flex items-center justify-center gap-2 px-5 py-2.5">
+                        <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
+                          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                        </svg>
+                        <span className="font-bold text-white">Publish to TikTok</span>
+                      </div>
                     </button>
                   </>
                 ) : status === 'success' || status === 'failed' ? (
                   <button
                     onClick={handleClose}
-                    className="w-full px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+                    className="w-full px-5 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors font-semibold"
                   >
                     Close
                   </button>
                 ) : (
                   <button
                     disabled
-                    className="w-full px-4 py-2.5 bg-gray-100 text-gray-400 rounded-lg cursor-not-allowed font-medium"
+                    className="w-full px-5 py-3 bg-gray-100 text-gray-400 rounded-xl cursor-not-allowed font-semibold flex items-center justify-center gap-2"
                   >
-                    Publishing...
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Publishing...</span>
                   </button>
                 )}
               </div>

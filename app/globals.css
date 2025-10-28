@@ -103,6 +103,15 @@ body {
   }
 }
 
+@keyframes tiktok-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
 @keyframes float {
   0%, 100% {
     transform: translateY(0px);
@@ -257,6 +266,10 @@ body {
 
 .animate-slide-in-left {
   animation: slide-in-left 0.5s ease-out;
+}
+
+.animate-tiktok-shimmer {
+  animation: tiktok-shimmer 3s ease-in-out infinite;
 }
 
 /* Markdown content styles - Notion inspired */
