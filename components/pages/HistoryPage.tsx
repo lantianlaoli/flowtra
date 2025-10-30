@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, ArrowUpRight, Volume2, CalendarClock, Send } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send } from 'lucide-react';
 import { getCreditCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -1167,26 +1167,6 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                               {/* Watermark Removal: Only show video download (free) */}
                               {isWatermarkRemoval(item) ? (
                                 <>
-                                  {item.originalVideoUrl && (
-                                    <a
-                                      href={item.originalVideoUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={cn(
-                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors',
-                                        interactiveCardActionClasses
-                                      )}
-                                    >
-                                      <div className="flex items-center gap-1.5 md:gap-2">
-                                        <Play className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                        <span className="truncate">
-                                          <span className="md:hidden">Original</span>
-                                          <span className="hidden md:inline">Open Original Video</span>
-                                        </span>
-                                      </div>
-                                      <ArrowUpRight className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-600 flex-shrink-0" />
-                                    </a>
-                                  )}
                                   {item.videoUrl && (
                                     <button
                                       onClick={() => handleVideoClick(item)}
@@ -1199,12 +1179,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                       <div className="flex items-center gap-1.5 md:gap-2">
                                         <Download className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
                                         <span className="truncate">
-                                          {videoStates[item.id] ? getPackingText(videoStates[item.id]!) : (
-                                            <>
-                                              <span className="md:hidden">No Watermark</span>
-                                              <span className="hidden md:inline">Download Watermark-Free Video</span>
-                                            </>
-                                          )}
+                                          {videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Download'}
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-1 text-green-400 flex-shrink-0">

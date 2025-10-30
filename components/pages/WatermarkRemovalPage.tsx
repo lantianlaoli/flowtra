@@ -1,55 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
+import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Sparkles, Download, Loader2, CheckCircle, XCircle, Info, Video } from 'lucide-react';
-import VideoPlayer from '@/components/ui/VideoPlayer';
+import { Sparkles, Loader2, Info, Video, Coins } from 'lucide-react';
 import { WATERMARK_REMOVAL_COST } from '@/lib/constants';
-
-interface Project {
-  id: string;
-  status: 'processing' | 'completed' | 'failed';
-  videoUrl: string;
-  resultVideoUrl?: string;
-  errorMessage?: string;
-  createdAt: string;
-}
 
 export default function WatermarkRemovalPage() {
   const { user, isLoaded } = useUser();
   const { credits: userCredits, refetchCredits } = useCredits();
+  const { showSuccess } = useToast();
   const [videoUrl, setVideoUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-  // 添加悬停状态管理
-  const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
-
-  // Poll for status updates
-  useEffect(() => {
-    if (!currentProject || currentProject.status !== 'processing') return;
-
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/watermark-removal/${currentProject.id}/status`);
-        const data = await response.json();
-
-        if (data.success && data.project) {
-          setCurrentProject(data.project);
-
-          if (data.project.status === 'completed') {
-            await refetchCredits();
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch status:', error);
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [currentProject, refetchCredits]);
 
   const handleSubmit = async () => {
     if (!user?.id || !videoUrl.trim()) return;
@@ -70,15 +35,16 @@ export default function WatermarkRemovalPage() {
       const data = await response.json();
 
       if (data.success && data.projectId) {
-        // Start polling for status
-        const statusResponse = await fetch(`/api/watermark-removal/${data.projectId}/status`);
-        const statusData = await statusResponse.json();
+        // Show success toast and redirect to My Ads
+        showSuccess(
+          'Added to removal queue! Check My Ads for the watermark-free video.',
+          5000,
+          { label: 'View Progress →', href: '/dashboard/videos' }
+        );
 
-        if (statusData.success) {
-          setCurrentProject(statusData.project);
-          setVideoUrl('');
-          await refetchCredits();
-        }
+        // Clear form and refresh credits
+        setVideoUrl('');
+        await refetchCredits();
       } else {
         setErrorMsg(data.details || data.error || 'Failed to start watermark removal');
       }
@@ -86,37 +52,6 @@ export default function WatermarkRemovalPage() {
       setErrorMsg(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleDownload = async () => {
-    if (!currentProject || !user?.id) return;
-
-    try {
-      const response = await fetch('/api/watermark-removal/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: currentProject.id,
-          userId: user.id,
-        }),
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `flowtra-watermark-removed-${currentProject.id}.mp4`;
-        link.click();
-        window.URL.revokeObjectURL(url);
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Download failed');
-      }
-    } catch (error) {
-      console.error('Download error:', error);
-      alert('Failed to download video');
     }
   };
 
@@ -137,7 +72,7 @@ export default function WatermarkRemovalPage() {
       />
 
       <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
-        <div className="p-8 max-w-4xl mx-auto">
+        <div className="p-8 max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
@@ -163,8 +98,7 @@ export default function WatermarkRemovalPage() {
           </div>
 
           {/* Input Section */}
-          {!currentProject && (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Sora Video URL
               </label>
@@ -186,7 +120,7 @@ export default function WatermarkRemovalPage() {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !videoUrl.trim() || (userCredits || 0) < WATERMARK_REMOVAL_COST}
-                className="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
@@ -196,7 +130,11 @@ export default function WatermarkRemovalPage() {
                 ) : (
                   <>
                     <Sparkles className="w-5 h-5" />
-                    <span>Remove Watermark ({WATERMARK_REMOVAL_COST} Credits)</span>
+                    <span>Remove Watermark</span>
+                    <span className="ml-2 px-2.5 py-1 bg-gray-800 text-white text-sm font-medium rounded flex items-center gap-1.5">
+                      <Coins className="w-4 h-4" />
+                      <span>{WATERMARK_REMOVAL_COST}</span>
+                    </span>
                   </>
                 )}
               </button>
@@ -207,106 +145,6 @@ export default function WatermarkRemovalPage() {
                 </p>
               )}
             </div>
-          )}
-
-          {/* Result Section */}
-          {currentProject && (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              {currentProject.status === 'processing' && (
-                <div className="text-center py-8">
-                  <Loader2 className="w-12 h-12 animate-spin text-gray-900 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Removing watermark...</h3>
-                  <p className="text-gray-600">This usually takes 2-5 minutes, please wait</p>
-                </div>
-              )}
-
-              {currentProject.status === 'completed' && currentProject.resultVideoUrl && (
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <CheckCircle className="w-6 h-6 text-green-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Watermark removed successfully!</h3>
-                  </div>
-
-                  <div 
-                    className="aspect-video bg-gray-900 rounded-lg overflow-hidden mb-4 relative cursor-pointer"
-                    onMouseEnter={() => setHoveredVideo(currentProject.id)}
-                    onMouseLeave={() => setHoveredVideo(null)}
-                  >
-                    {hoveredVideo === currentProject.id ? (
-                      <>
-                        <VideoPlayer
-                          src={currentProject.resultVideoUrl}
-                          className="w-full h-full"
-                          autoPlay={true}
-                          loop={true}
-                          playsInline={true}
-                          showControls={false}
-                        />
-                        <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-sm">
-                          预览结果
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <VideoPlayer
-                          src={currentProject.videoUrl}
-                          className="w-full h-full"
-                          autoPlay={false}
-                          loop={false}
-                          playsInline={true}
-                          showControls={false}
-                        />
-                        <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-sm">
-                          悬停预览结果
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleDownload}
-                      className="flex-1 bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Download className="w-5 h-5" />
-                      <span>Download Video</span>
-                    </button>
-
-                    <button
-                      onClick={() => setCurrentProject(null)}
-                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
-                    >
-                      Back
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {currentProject.status === 'failed' && (
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <XCircle className="w-6 h-6 text-red-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Processing failed</h3>
-                  </div>
-
-                  <p className="text-gray-600 mb-4">
-                    {currentProject.errorMessage || 'Watermark removal failed, please try again'}
-                  </p>
-
-                  <p className="text-sm text-green-600 mb-4">
-                    Credits automatically refunded
-                  </p>
-
-                  <button
-                    onClick={() => setCurrentProject(null)}
-                    className="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-                  >
-                    Try Again
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
