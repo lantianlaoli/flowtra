@@ -25,9 +25,45 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
   
   const readingTime = calculateReadingTime(article.content);
   const publishDate = new Date(article.created_at);
+  const excerpt = extractExcerpt(article.content, 160);
+
+  // Schema.org structured data for SEO
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.title,
+    description: excerpt,
+    image: article.cover || 'https://www.flowtra.store/opengraph-image.jpg',
+    datePublished: article.created_at,
+    dateModified: article.created_at,
+    author: {
+      '@type': 'Organization',
+      name: 'Flowtra Team',
+      url: 'https://www.flowtra.store',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Flowtra',
+      url: 'https://www.flowtra.store',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://www.flowtra.store/logo.png',
+      },
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `https://www.flowtra.store/blog/${article.slug}`,
+    },
+  };
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Schema.org structured data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+
       {/* Header with back navigation */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <Link 

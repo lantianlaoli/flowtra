@@ -273,28 +273,35 @@ export async function getAllArticles(): Promise<Article[]> {
     .from('articles')
     .select('*')
     .order('created_at', { ascending: false })
-  
+
   if (error) {
     console.error('Error fetching articles:', error)
     return []
   }
-  
-  return data || []
+
+  // Defensively trim whitespace from slugs to prevent routing issues
+  return (data || []).map(article => ({
+    ...article,
+    slug: article.slug.trim()
+  }))
 }
 
 export async function getArticleBySlug(slug: string): Promise<Article | null> {
   const supabase = getSupabase()
+  // Trim whitespace from slug for defensive matching
+  const cleanSlug = slug.trim()
+
   const { data, error } = await supabase
     .from('articles')
     .select('*')
-    .eq('slug', slug)
+    .eq('slug', cleanSlug)
     .single()
-  
+
   if (error) {
     console.error('Error fetching article:', error)
     return null
   }
-  
+
   return data
 }
 
