@@ -13,6 +13,7 @@ import { HeroPrimaryButton } from '@/components/pages/landing/HeroPrimaryButton'
 import { PricingButton } from '@/components/pages/landing/PricingButton';
 import { StoreLinkCTA } from '@/components/pages/landing/StoreLinkCTA';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
+import BlackFridayBadge from '@/components/landing/BlackFridayBadge';
 
 const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
   loading: () => <div className="py-12 flex justify-center"><div className="text-gray-400">Loading...</div></div>
@@ -86,6 +87,9 @@ export default async function LandingPage() {
         <section id="hero" className="grid lg:grid-cols-5 items-center py-10 sm:py-12 lg:py-16 gap-6 sm:gap-8 lg:gap-12 scroll-mt-24">
           {/* Left Content */}
           <div className="lg:col-span-3 space-y-5 sm:space-y-6 lg:space-y-8">
+            {/* Black Friday Promotion Badge */}
+            <BlackFridayBadge />
+
             {/* Removed old badge; benefits moved under subtitle */}
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">

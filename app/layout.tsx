@@ -4,6 +4,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { PHProvider, PostHogPageView } from '@/providers/posthog';
+import { ToastProvider } from '@/contexts/ToastContext';
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -210,8 +211,10 @@ export default function RootLayout({
             `}
           </Script>
           <PHProvider>
-            <PostHogPageView />
-            {children}
+            <ToastProvider>
+              <PostHogPageView />
+              {children}
+            </ToastProvider>
           </PHProvider>
           <Analytics />
           <SpeedInsights />
