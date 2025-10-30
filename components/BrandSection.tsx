@@ -19,6 +19,7 @@ interface BrandSectionProps {
   onAddProductToBrand: (brandId: string, mode: 'create' | 'select') => void;
   onMoveProductFromBrand?: (productId: string) => void;
   defaultExpanded?: boolean;
+  deletingProductId?: string | null;
 }
 
 export default function BrandSection({
@@ -31,7 +32,8 @@ export default function BrandSection({
   onDeletePhoto,
   onAddProductToBrand,
   onMoveProductFromBrand,
-  defaultExpanded = false
+  defaultExpanded = false,
+  deletingProductId = null
 }: BrandSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isHovered, setIsHovered] = useState(false);
@@ -191,6 +193,7 @@ export default function BrandSection({
                     onPhotoUpload={onPhotoUpload}
                     onDeletePhoto={onDeletePhoto}
                     indented={true}
+                    isDeleting={deletingProductId === product.id}
                   />
                 ))
               )}

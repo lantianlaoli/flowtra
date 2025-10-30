@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Edit2, Trash2, Plus, X } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, Loader2 } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog from './ConfirmDialog';
@@ -14,6 +14,7 @@ interface ProductItemProps {
   onPhotoUpload: (productId: string, file: File) => void;
   onDeletePhoto: (productId: string, photoId: string) => void;
   indented?: boolean; // Whether to show indentation (when under a brand)
+  isDeleting?: boolean; // Whether this product is currently being deleted
 }
 
 export default function ProductItem({
@@ -22,7 +23,8 @@ export default function ProductItem({
   onDelete,
   onPhotoUpload,
   onDeletePhoto,
-  indented = true
+  indented = true,
+  isDeleting = false
 }: ProductItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -33,6 +35,7 @@ export default function ProductItem({
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isDeleting) return; // Prevent multiple deletes
     setShowDeleteDialog(true);
   };
 
@@ -220,10 +223,15 @@ export default function ProductItem({
             {/* Delete button - always visible on mobile, hover-based on desktop */}
             <button
               onClick={handleDelete}
-              className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors sm:hidden"
-              title="Delete product"
+              disabled={isDeleting}
+              className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors sm:hidden disabled:opacity-50 disabled:cursor-not-allowed"
+              title={isDeleting ? "Deleting..." : "Delete product"}
             >
-              <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              {isDeleting ? (
+                <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              )}
             </button>
 
             <AnimatePresence>
@@ -234,10 +242,15 @@ export default function ProductItem({
                   exit={{ opacity: 0, x: 10 }}
                   transition={{ duration: 0.15 }}
                   onClick={handleDelete}
-                  className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors hidden sm:block"
-                  title="Delete product"
+                  disabled={isDeleting}
+                  className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors hidden sm:block disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={isDeleting ? "Deleting..." : "Delete product"}
                 >
-                  <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  {isDeleting ? (
+                    <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  )}
                 </motion.button>
               )}
             </AnimatePresence>

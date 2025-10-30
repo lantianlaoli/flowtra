@@ -119,31 +119,78 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { id } = await params;
     const supabase = getSupabaseAdmin();
 
-    // Delete the product (photos will be deleted by CASCADE)
-    const { error } = await supabase
+    // First, check if the product exists and belongs to the user
+    const { data: product, error: fetchError } = await supabase
+      .from('user_products')
+      .select('id, product_name')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !product) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    // Count how many projects reference this product (for logging purposes)
+    const [standardAdsCount, multiVariantCount, characterAdsCount] = await Promise.all([
+      supabase.from('standard_ads_projects').select('id', { count: 'exact', head: true })
+        .eq('selected_product_id', id),
+      supabase.from('multi_variant_ads_projects').select('id', { count: 'exact', head: true })
+        .eq('selected_product_id', id),
+      supabase.from('character_ads_projects').select('id', { count: 'exact', head: true })
+        .eq('selected_product_id', id),
+    ]);
+
+    const totalReferencedProjects =
+      (standardAdsCount.count || 0) +
+      (multiVariantCount.count || 0) +
+      (characterAdsCount.count || 0);
+
+    // Delete the product
+    // Database foreign key constraints will automatically set selected_product_id to NULL
+    // in all referencing projects (ON DELETE SET NULL)
+    // Photos will also be deleted by CASCADE from user_product_photos table
+    const { error: deleteError } = await supabase
       .from('user_products')
       .delete()
       .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
+      .eq('user_id', userId);
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-      }
-      throw error;
+    if (deleteError) {
+      console.error('Error deleting product:', deleteError);
+      throw deleteError;
     }
+
+    // Log successful deletion with reference count
+    console.log(`Product "${product.product_name}" (${id}) deleted successfully.`,
+      totalReferencedProjects > 0
+        ? `${totalReferencedProjects} project(s) had their product reference cleared.`
+        : 'No projects were referencing this product.'
+    );
 
     // TODO: Delete photos from Supabase storage
     // This would require implementing storage deletion logic
 
     return NextResponse.json({
       success: true,
-      message: 'Product deleted successfully'
+      message: 'Product deleted successfully',
+      affectedProjects: totalReferencedProjects
     });
   } catch (error) {
     console.error('Error deleting product:', error);
+
+    // Check if it's a foreign key constraint error (shouldn't happen with ON DELETE SET NULL, but handle it anyway)
+    if (error && typeof error === 'object' && 'code' in error) {
+      const dbError = error as { code: string; message: string; details?: string };
+      if (dbError.code === '23503') {
+        return NextResponse.json({
+          error: 'Cannot delete product',
+          message: 'This product is still referenced by active projects. Please contact support if this error persists.',
+          details: dbError.details
+        }, { status: 409 });
+      }
+    }
+
     return NextResponse.json({
       error: 'Failed to delete product',
       details: error instanceof Error ? error.message : 'Unknown error'

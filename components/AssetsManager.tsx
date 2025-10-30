@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Loader2, Package, Tag, BarChart3 } from 'lucide-react';
 import { UserBrand, UserProduct } from '@/lib/supabase';
+import { useToast } from '@/contexts/ToastContext';
 import BrandSection from './BrandSection';
 import ProductItem from './ProductItem';
 import CreateBrandModal from './CreateBrandModal';
@@ -21,6 +22,7 @@ interface AssetsData {
 }
 
 export default function AssetsManager() {
+  const { showSuccess, showError } = useToast();
   const [assetsData, setAssetsData] = useState<AssetsData>({
     brands: [],
     unbrandedProducts: [],
@@ -28,6 +30,7 @@ export default function AssetsManager() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   // Modal states
   const [showCreateBrandModal, setShowCreateBrandModal] = useState(false);
@@ -172,12 +175,21 @@ export default function AssetsManager() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
+    if (deletingProductId) {
+      return; // Prevent multiple simultaneous deletes
+    }
+
     try {
+      setDeletingProductId(productId);
+
       const response = await fetch(`/api/user-products/${productId}`, {
         method: 'DELETE'
       });
 
+      const data = await response.json();
+
       if (response.ok) {
+        // Update local state
         setAssetsData(prev => ({
           ...prev,
           brands: prev.brands.map(b => ({
@@ -193,9 +205,31 @@ export default function AssetsManager() {
               : prev.stats.unbrandedCount
           }
         }));
+
+        // Show success message with affected projects count
+        const affectedCount = data.affectedProjects || 0;
+        if (affectedCount > 0) {
+          showSuccess(
+            `Product deleted. ${affectedCount} project(s) have been automatically unlinked.`,
+            5000
+          );
+        } else {
+          showSuccess('Product deleted successfully', 3000);
+        }
+      } else {
+        // Handle error response
+        const errorMessage = data.message || data.error || 'Failed to delete product';
+        console.error('Error deleting product:', data);
+        showError(errorMessage, 5000);
       }
     } catch (error) {
       console.error('Error deleting product:', error);
+      showError(
+        'An error occurred while deleting the product. Please try again.',
+        5000
+      );
+    } finally {
+      setDeletingProductId(null);
     }
   };
 
@@ -410,6 +444,7 @@ export default function AssetsManager() {
                 onAddProductToBrand={handleAddProductToBrand}
                 onMoveProductFromBrand={handleMoveProductFromBrand}
                 defaultExpanded={!!searchTerm}
+                deletingProductId={deletingProductId}
               />
             ))}
 
@@ -432,6 +467,7 @@ export default function AssetsManager() {
                       onPhotoUpload={handlePhotoUpload}
                       onDeletePhoto={handleDeletePhoto}
                       indented={false}
+                      isDeleting={deletingProductId === product.id}
                     />
                   ))}
                 </div>
