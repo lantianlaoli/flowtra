@@ -324,7 +324,7 @@ async function analyzeImage(imageUrl: string): Promise<Record<string, unknown>> 
   };
 
   const requestBody = JSON.stringify({
-    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
     messages: [
       {
         role: 'system',
@@ -436,7 +436,7 @@ ${adCopyInstruction}
 Generate ${elementsCount} sets of elements for this image.`;
 
   const requestBody = JSON.stringify({
-    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
@@ -614,7 +614,7 @@ Tertiary color: ${firstElement['Tertiary color']}
 IMPORTANT: The ad_copy "${firstElement.ad_copy}" was provided by the user and must be used EXACTLY as written in the final prompt. Do not modify, rephrase, or replace it.`;
 
   const requestBody = JSON.stringify({
-    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
@@ -1077,7 +1077,7 @@ Your output must match this level of specificity and detail. Do NOT use generic 
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001',
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
       messages: [
         {
           role: 'system',

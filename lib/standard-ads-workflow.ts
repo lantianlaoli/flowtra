@@ -377,7 +377,7 @@ async function describeImage(imageUrl: string): Promise<string> {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001',
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
       messages: [
         {
           role: 'user',
@@ -486,7 +486,7 @@ async function generateCreativePrompts(description: string, adCopy?: string, lan
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001',
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
       response_format: responseFormat,
       messages: [
         {

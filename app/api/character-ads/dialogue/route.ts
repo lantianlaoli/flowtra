@@ -85,7 +85,7 @@ Requirements:\n- Return exactly one spoken line (<= 200 characters) in ${languag
           'X-Title': 'Flowtra'
         },
         body: JSON.stringify({
-          model: process.env.OPENROUTER_DIALOGUE_MODEL || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+          model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: [{ type: 'text', text: systemPrompt }] },
             { role: 'user', content: userContent }

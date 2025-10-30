@@ -98,7 +98,7 @@ Important:
 - Provide detailed descriptions that will help generate realistic video prompts featuring the character with the product`;
 
   const requestBody = JSON.stringify({
-    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
     messages: [
       {
         role: 'user',
@@ -245,7 +245,7 @@ ${JSON.stringify(analysisResult, null, 2)}
 Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) plus 1 image scene.`;
 
   const requestBody = JSON.stringify({
-    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }

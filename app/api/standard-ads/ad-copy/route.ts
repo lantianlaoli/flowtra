@@ -9,13 +9,8 @@ interface AdCopyRequestPayload {
   language?: LanguageCode;
 }
 
-// Use vision-capable model when images are provided
-const FALLBACK_TEXT_MODEL =
-  process.env.OPENROUTER_AD_COPY_MODEL ||
-  process.env.OPENROUTER_MODEL ||
-  'openai/gpt-4o-mini';
-
-const VISION_MODEL = 'google/gemini-2.5-flash-preview-09-2025'; // Vision-capable model with structured output
+// Use unified model for both text and vision tasks
+const MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,9 +58,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Use vision model if images are provided, otherwise use text model
-    const selectedModel = cleanedImageUrls.length > 0 ? VISION_MODEL : FALLBACK_TEXT_MODEL;
-
     const response = await fetchWithRetry(
       'https://openrouter.ai/api/v1/chat/completions',
       {
@@ -77,7 +69,7 @@ export async function POST(request: NextRequest) {
           'X-Title': 'Flowtra'
         },
         body: JSON.stringify({
-          model: selectedModel,
+          model: MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userContent }
