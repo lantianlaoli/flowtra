@@ -26,7 +26,6 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://www.flowtra.store'),
   alternates: {
     canonical: '/sora2-watermark-removal',
   },
