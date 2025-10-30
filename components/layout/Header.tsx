@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/nextjs';
-import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 interface HeaderProps {
   showAuthButtons?: boolean;
@@ -13,6 +13,7 @@ interface HeaderProps {
 export default function Header({ showAuthButtons = true }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [featuresOpen, setFeaturesOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => {
@@ -55,14 +56,40 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           {/* Auth Buttons */}
           {showAuthButtons && (
             <div className="hidden md:flex items-center gap-6">
-              <Link 
-                href="/#features" 
-                className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50"
-              >
-                Features
-              </Link>
-              <Link 
-                href="/#pricing" 
+              {/* Features Dropdown */}
+              <div className="relative group">
+                <button className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50 flex items-center gap-1">
+                  Features
+                  <ChevronDownIcon className="w-4 h-4" />
+                </button>
+                <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-2">
+                    <Link
+                      href="/features/standard-ads"
+                      className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                    >
+                      <div className="font-semibold">Standard Ads</div>
+                      <div className="text-xs text-gray-500">Product images to videos</div>
+                    </Link>
+                    <Link
+                      href="/features/multi-variant-ads"
+                      className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                    >
+                      <div className="font-semibold">Multi-Variant Ads</div>
+                      <div className="text-xs text-gray-500">Multiple creative variants</div>
+                    </Link>
+                    <Link
+                      href="/features/character-ads"
+                      className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                    >
+                      <div className="font-semibold">Character Ads</div>
+                      <div className="text-xs text-gray-500">AI character-driven videos</div>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+              <Link
+                href="/#pricing"
                 className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50"
               >
                 Pricing
@@ -124,20 +151,51 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
         <div
           id="mobile-nav"
           className={`md:hidden overflow-hidden border-t border-gray-200 bg-white/95 backdrop-blur-md transition-all duration-300 ease-out ${
-            mobileMenuOpen ? 'opacity-100 max-h-[420px] py-4' : 'opacity-0 max-h-0 py-0'
+            mobileMenuOpen ? 'opacity-100 max-h-[600px] py-4' : 'opacity-0 max-h-0 py-0'
           }`}
           aria-hidden={!mobileMenuOpen}
         >
             <nav className="flex flex-col gap-5">
-              <Link 
-                href="/#features" 
-                className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Features
-              </Link>
-              <Link 
-                href="/#pricing" 
+              {/* Features Expandable */}
+              <div>
+                <button
+                  onClick={() => setFeaturesOpen(!featuresOpen)}
+                  className="w-full text-left text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50 flex items-center justify-between"
+                >
+                  <span>Features</span>
+                  <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${featuresOpen ? 'rotate-180' : ''}`} />
+                </button>
+                <div className={`overflow-hidden transition-all duration-200 ${featuresOpen ? 'max-h-60 mt-2' : 'max-h-0'}`}>
+                  <div className="pl-4 flex flex-col gap-2">
+                    <Link
+                      href="/features/standard-ads"
+                      className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <div className="font-semibold text-sm">Standard Ads</div>
+                      <div className="text-xs text-gray-500">Product images to videos</div>
+                    </Link>
+                    <Link
+                      href="/features/multi-variant-ads"
+                      className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <div className="font-semibold text-sm">Multi-Variant Ads</div>
+                      <div className="text-xs text-gray-500">Multiple creative variants</div>
+                    </Link>
+                    <Link
+                      href="/features/character-ads"
+                      className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <div className="font-semibold text-sm">Character Ads</div>
+                      <div className="text-xs text-gray-500">AI character-driven videos</div>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+              <Link
+                href="/#pricing"
                 className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
                 onClick={() => setMobileMenuOpen(false)}
               >

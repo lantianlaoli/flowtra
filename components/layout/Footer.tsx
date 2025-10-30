@@ -9,13 +9,13 @@ export default function Footer() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Logo and Description */}
-          <div className="col-span-1 md:col-span-3">
+          <div className="col-span-1 md:col-span-2">
             <Link href="/" className="flex items-center gap-3 mb-4">
-              <Image 
-                src="/android-chrome-512x512.png" 
-                alt="Flowtra Logo" 
-                width={32} 
-                height={32} 
+              <Image
+                src="/android-chrome-512x512.png"
+                alt="Flowtra Logo"
+                width={32}
+                height={32}
                 className=""
               />
               <span className="text-xl font-semibold text-gray-900">Flowtra</span>
@@ -23,6 +23,28 @@ export default function Footer() {
             <p className="text-gray-600 mb-4 max-w-md">
               AI transforms your product photos into professional video ads.
             </p>
+          </div>
+
+          {/* Features Links */}
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-4">Features</h3>
+            <ul className="space-y-3">
+              <li>
+                <Link href="/features/standard-ads" className="text-gray-600 hover:text-gray-900 transition-colors">
+                  Standard Ads
+                </Link>
+              </li>
+              <li>
+                <Link href="/features/multi-variant-ads" className="text-gray-600 hover:text-gray-900 transition-colors">
+                  Multi-Variant Ads
+                </Link>
+              </li>
+              <li>
+                <Link href="/features/character-ads" className="text-gray-600 hover:text-gray-900 transition-colors">
+                  Character Ads
+                </Link>
+              </li>
+            </ul>
           </div>
 
           {/* Support & Legal Links */}
