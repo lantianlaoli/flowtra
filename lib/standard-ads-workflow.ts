@@ -299,40 +299,17 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
       return;
     }
 
-    // AUTO MODE: Brand-driven workflow with AI creative generation
-    // Fetch brand information to use slogan directly
-    let brandSlogan = request.adCopy || '';
-    let description = '';
-
-    if (request.selectedBrandId) {
-      console.log('🏷️  Fetching brand information for auto mode...');
-      const { data: brand, error: brandError } = await supabase
-        .from('user_brands')
-        .select('brand_name, brand_slogan')
-        .eq('id', request.selectedBrandId)
-        .eq('user_id', request.userId)
-        .single();
-
-      if (!brandError && brand) {
-        brandSlogan = brand.brand_slogan || brand.brand_name || '';
-        description = `Brand: ${brand.brand_name}. ${brand.brand_slogan || ''}`;
-        console.log('✅ Using brand slogan:', brandSlogan);
-      } else {
-        console.warn('⚠️  Brand not found, using adCopy fallback');
-      }
-    }
-
-    // Generate full creative prompts using AI (required for video generation)
-    console.log('🤖 Generating creative video prompts from brand information...');
-    const prompts = await generateCreativePrompts(
-      description || brandSlogan,
-      brandSlogan,
+    // AUTO MODE: Image-driven workflow with AI creative generation
+    // Generate prompts based purely on visual analysis of the product image
+    console.log('🤖 Generating creative video prompts from product image...');
+    const prompts = await generateImageBasedPrompts(
+      request.imageUrl,
       request.language
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
 
-    // Step 1: Start cover generation (using brand prompt directly)
+    // Step 1: Start cover generation
     console.log('🎨 Starting cover generation...');
     const coverTaskId = await generateCover(request.imageUrl, prompts, request);
     console.log('🆔 Cover task ID:', coverTaskId);
@@ -341,13 +318,13 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     const updateData = {
       cover_task_id: coverTaskId,
       video_prompts: prompts,
-      product_description: { description: description || brandSlogan },
-      image_prompt: (prompts.description as string) || description || brandSlogan,
+      product_description: { description: prompts.description },
+      image_prompt: prompts.description as string,
       current_step: 'generating_cover' as const,
       progress_percentage: 30,
       last_processed_at: new Date().toISOString()
     };
-    console.log('💾 Updating project with brand-driven data');
+    console.log('💾 Updating project with image-driven data');
 
     const { data: updateResult, error: updateError } = await supabase
       .from('standard_ads_projects')
@@ -361,7 +338,7 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     }
 
     console.log('✅ Database updated successfully');
-    console.log('✅ Auto mode workflow started successfully (no AI pre-processing)');
+    console.log('✅ Auto mode workflow started successfully (image-based prompts)');
 
   } catch (error) {
     console.error('AI workflow error:', error);
@@ -404,9 +381,7 @@ async function describeImage(imageUrl: string): Promise<string> {
   return data.choices[0].message.content;
 }
 
-async function generateCreativePrompts(description: string, adCopy?: string, language?: string): Promise<Record<string, unknown>> {
-  const trimmedAdCopy = adCopy?.trim();
-
+async function generateImageBasedPrompts(imageUrl: string, language?: string): Promise<Record<string, unknown>> {
   // Define JSON schema for Structured Outputs - IMPORTANT: This must return a SINGLE object, not an array
   const responseFormat = {
     type: "json_schema",
@@ -491,24 +466,44 @@ async function generateCreativePrompts(description: string, adCopy?: string, lan
       messages: [
         {
           role: 'user',
-          content: `Based on this product description: "${description}"
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: imageUrl }
+            },
+            {
+              type: 'text',
+              text: `Analyze the product image and generate ONE creative video advertisement prompt based ONLY on the visual content.
 
-Generate ONE creative video advertisement prompt as a single JSON object with these elements:
-- description: Main scene description
-- setting: Location/environment
-- camera_type: Type of camera shot
-- camera_movement: Camera movement style
-- action: What happens in the scene
-- lighting: Lighting setup
-- dialogue: Spoken content/voiceover (in English)
-- music: Music style
-- ending: How the ad concludes
-- other_details: Additional creative elements
+Focus on:
+- Visual elements in the image (product appearance, colors, textures, design)
+- Product category and potential use cases you can infer from the visuals
+- Emotional appeal based on visual presentation
+- Natural scene settings that match the product aesthetics
+
+DO NOT include:
+- Brand names or slogans (unless visually present in the image)
+- Marketing copy or taglines
+- Pre-existing brand positioning or assumptions
+
+Generate a JSON object with these elements:
+- description: Main scene description based on product visuals
+- setting: Natural environment that suits the product
+- camera_type: Cinematic shot type that showcases the product best
+- camera_movement: Dynamic camera movement
+- action: Engaging product demonstration or lifestyle scene
+- lighting: Professional lighting setup that enhances the product
+- dialogue: Natural voiceover content focused on product benefits and features (in English, NO brand slogans)
+- music: Music style matching the mood and product category
+- ending: Natural ad conclusion (e.g., product close-up, lifestyle shot)
+- other_details: Creative visual elements that enhance the advertisement
 - language: The language name for voiceover generation (e.g., "English", "Urdu (Pakistan's national language)", "Punjabi")
-${trimmedAdCopy ? `\nUse this exact ad copy for dialogue and on-screen headline. Do not paraphrase: "${trimmedAdCopy}".` : ''}
 
 CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.
-IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in English. The 'language' field is metadata only to specify what language the video voiceover should use.`
+IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in English. The 'language' field is metadata only to specify what language the video voiceover should use.
+IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a brand slogan.`
+            }
+          ]
         }
       ]
     })
@@ -559,19 +554,12 @@ IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in 
       camera_movement: "Smooth pan",
       action: "Product showcase",
       lighting: "Soft professional lighting",
-      dialogue: trimmedAdCopy || "Highlighting key benefits",
+      dialogue: "Experience quality and innovation in every detail",
       music: "Upbeat commercial music",
       ending: "Call to action",
       other_details: "High-quality commercial style",
       language: language ? getLanguagePromptName(language as LanguageCode) : "English"
     };
-  }
-
-  // Override dialogue with adCopy if provided
-  if (trimmedAdCopy) {
-    parsed.dialogue = trimmedAdCopy;
-    parsed.ad_copy = trimmedAdCopy;
-    parsed.tagline = trimmedAdCopy;
   }
 
   // Set language metadata (AI should have generated it, but ensure it's set)

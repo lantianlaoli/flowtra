@@ -499,15 +499,8 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     throw new Error(`Invalid video_prompts: missing fields [${missingFields.join(', ')}]`);
   }
 
-  const providedAdCopyRaw =
-    typeof videoPrompt.ad_copy === 'string'
-      ? videoPrompt.ad_copy.trim()
-      : undefined;
-  const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
-  const dialogueContent = providedAdCopy || videoPrompt.dialogue;
-  const adCopyInstruction = providedAdCopy
-    ? `\nAd Copy (use verbatim): ${providedAdCopy}\nOn-screen Text: Display "${providedAdCopy}" prominently without paraphrasing.\nVoiceover: Speak "${providedAdCopy}" exactly as written.`
-    : '';
+  // Use the dialogue from AI-generated video prompts (purely image-based, no brand slogans)
+  const dialogueContent = videoPrompt.dialogue;
 
   // Get language information from video_prompts if available, fallback to record.language
   const languageFromPrompt = typeof videoPrompt.language === 'string' ? videoPrompt.language : undefined;
@@ -536,7 +529,7 @@ Lighting: ${videoPrompt.lighting}
 Dialogue: ${dialogueContent}
 Music: ${videoPrompt.music}
 Ending: ${videoPrompt.ending}
-Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
+Other details: ${videoPrompt.other_details}`;
 
   console.log('Generated video prompt:', fullPrompt);
 
