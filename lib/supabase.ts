@@ -55,6 +55,9 @@ export interface Article {
   content: string
   cover?: string
   created_at: string
+  meta_description?: string // Custom meta description for SEO (overrides auto-generated excerpt)
+  keywords?: string[] // Article-specific keywords for SEO
+  og_image?: string // Custom Open Graph image URL (overrides default)
 }
 
 // Database types for single_video_projects table (now standard_ads_projects)

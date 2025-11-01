@@ -25,7 +25,8 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
   
   const readingTime = calculateReadingTime(article.content);
   const publishDate = new Date(article.created_at);
-  const excerpt = extractExcerpt(article.content, 160);
+  const excerpt = article.meta_description || extractExcerpt(article.content, 160);
+  const ogImage = article.og_image || article.cover || 'https://www.flowtra.store/opengraph-image.jpg';
 
   // Schema.org structured data for SEO
   const structuredData = {
@@ -33,7 +34,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
     '@type': 'Article',
     headline: article.title,
     description: excerpt,
-    image: article.cover || 'https://www.flowtra.store/opengraph-image.jpg',
+    image: ogImage,
     datePublished: article.created_at,
     dateModified: article.created_at,
     author: {
@@ -146,9 +147,9 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
 
 export async function generateMetadata({ params }: BlogArticlePageProps): Promise<Metadata> {
   const { slug } = await params;
-  
+
   const article = await getArticleBySlug(slug);
-  
+
   if (!article) {
     return {
       title: 'Article Not Found | Flowtra Blog',
@@ -156,20 +157,26 @@ export async function generateMetadata({ params }: BlogArticlePageProps): Promis
     };
   }
 
-  const excerpt = extractExcerpt(article.content, 160);
-  
+  const excerpt = article.meta_description || extractExcerpt(article.content, 160);
+  const ogImage = article.og_image || article.cover || '/opengraph-image.jpg';
+
+  // Use article-specific keywords if available, otherwise use default keywords
+  const keywords = article.keywords && article.keywords.length > 0
+    ? article.keywords
+    : [
+        'AI marketing',
+        'video advertising',
+        'e-commerce',
+        'product marketing',
+        'AI-powered ads',
+        'Amazon advertising',
+        'Walmart marketplace'
+      ];
+
   return {
     title: `${article.title} | Flowtra Blog`,
     description: excerpt,
-    keywords: [
-      'AI marketing',
-      'video advertising',
-      'e-commerce',
-      'product marketing',
-      'AI-powered ads',
-      'Amazon advertising',
-      'Walmart marketplace'
-    ],
+    keywords,
     authors: [{ name: 'Flowtra Team' }],
     robots: {
       index: true,
@@ -189,7 +196,7 @@ export async function generateMetadata({ params }: BlogArticlePageProps): Promis
       siteName: 'Flowtra',
       images: [
         {
-          url: '/opengraph-image.jpg',
+          url: ogImage,
           width: 1200,
           height: 630,
           alt: `${article.title} - Flowtra Blog`,
@@ -203,7 +210,7 @@ export async function generateMetadata({ params }: BlogArticlePageProps): Promis
       card: 'summary_large_image',
       title: article.title,
       description: excerpt,
-      images: ['/twitter-image.jpg'],
+      images: [ogImage],
     },
     alternates: {
       canonical: `/blog/${slug}`,
