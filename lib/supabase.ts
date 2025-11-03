@@ -58,6 +58,10 @@ export interface Article {
   meta_description?: string // Custom meta description for SEO (overrides auto-generated excerpt)
   keywords?: string[] // Article-specific keywords for SEO
   og_image?: string // Custom Open Graph image URL (overrides default)
+  indexed_at?: string // Timestamp when article was last successfully indexed by Google
+  indexing_status?: 'pending' | 'success' | 'failed' // Current indexing status
+  indexing_error?: string // Error message if indexing failed
+  indexing_attempts?: number // Number of indexing attempts (max 3 retries)
 }
 
 // Database types for single_video_projects table (now standard_ads_projects)
@@ -572,3 +576,110 @@ export const deleteBrandLogoFromStorage = async (logoUrl: string): Promise<void>
 
   console.log(`[deleteBrandLogoFromStorage] Successfully deleted file: ${filePath}`);
 }
+
+// Google Indexing API helpers
+
+/**
+ * Get unindexed articles (pending or failed with < 3 attempts)
+ */
+export async function getUnindexedArticles(): Promise<Article[]> {
+  const supabase = getSupabase()
+
+  const { data, error } = await supabase
+    .from('articles')
+    .select('*')
+    .or('indexing_status.eq.pending,and(indexing_status.eq.failed,indexing_attempts.lt.3)')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[getUnindexedArticles] Error fetching unindexed articles:', error)
+    throw error
+  }
+
+  return (data || []).map(article => ({
+    ...article,
+    slug: article.slug.trim()
+  }))
+}
+
+/**
+ * Update article indexing status after submission
+ */
+export async function updateArticleIndexingStatus(
+  articleId: string,
+  status: 'pending' | 'success' | 'failed',
+  error?: string
+): Promise<void> {
+  const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
+
+  const updateData: any = {
+    indexing_status: status,
+    indexing_error: error || null,
+  }
+
+  if (status === 'success') {
+    updateData.indexed_at = new Date().toISOString()
+    updateData.indexing_attempts = 0 // Reset attempts on success
+  } else if (status === 'failed') {
+    // Increment attempts only on failure
+    const { data: article } = await supabase
+      .from('articles')
+      .select('indexing_attempts')
+      .eq('id', articleId)
+      .single()
+
+    updateData.indexing_attempts = (article?.indexing_attempts || 0) + 1
+  }
+
+  const { error: updateError } = await supabase
+    .from('articles')
+    .update(updateData)
+    .eq('id', articleId)
+
+  if (updateError) {
+    console.error('[updateArticleIndexingStatus] Error updating article:', updateError)
+    throw updateError
+  }
+
+  console.log(`[updateArticleIndexingStatus] Updated article ${articleId} to status: ${status}`)
+}
+
+/**
+ * Batch update multiple article indexing statuses
+ */
+export async function batchUpdateArticleIndexingStatus(
+  updates: Array<{ articleId: string; status: 'success' | 'failed'; error?: string }>
+): Promise<void> {
+  const supabase = getSupabaseAdmin()
+
+  // Process updates sequentially to ensure proper attempt counting
+  for (const update of updates) {
+    await updateArticleIndexingStatus(update.articleId, update.status, update.error)
+  }
+
+  console.log(`[batchUpdateArticleIndexingStatus] Updated ${updates.length} articles`)
+}
+
+/**
+ * Reset indexing status for an article (useful for manual retry)
+ */
+export async function resetArticleIndexingStatus(articleId: string): Promise<void> {
+  const supabase = getSupabaseAdmin()
+
+  const { error } = await supabase
+    .from('articles')
+    .update({
+      indexing_status: 'pending',
+      indexing_attempts: 0,
+      indexing_error: null,
+    })
+    .eq('id', articleId)
+
+  if (error) {
+    console.error('[resetArticleIndexingStatus] Error resetting article:', error)
+    throw error
+  }
+
+  console.log(`[resetArticleIndexingStatus] Reset indexing status for article ${articleId}`)
+}
+

@@ -108,17 +108,17 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
             );
           },
           ul: ({ children }) => (
-            <ul className="list-disc list-inside space-y-2 mb-4 text-gray-700">
+            <ul className="list-disc list-outside ml-6 space-y-3 mb-6 text-gray-700">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal list-inside space-y-2 mb-4 text-gray-700">
+            <ol className="list-decimal list-outside ml-6 space-y-3 mb-6 text-gray-700">
               {children}
             </ol>
           ),
           li: ({ children }) => (
-            <li className="leading-relaxed">
+            <li className="leading-relaxed pl-2">
               {children}
             </li>
           ),
