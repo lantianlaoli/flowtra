@@ -20,14 +20,13 @@ interface ChunkCalculationResult {
 
 const MIN_CHUNK_SIZE = 5 * 1024 * 1024;   // 5MB
 const MAX_CHUNK_SIZE = 64 * 1024 * 1024;  // 64MB
-const MAX_LAST_CHUNK = 128 * 1024 * 1024; // 128MB
 
 /**
  * Calculate chunk parameters for video upload
  *
  * Rules:
  * - Videos < 5MB must be uploaded as a single chunk
- * - Chunks must be 5MB-64MB (except last chunk can be up to 128MB)
+ * - Chunks must be 5MB-64MB
  * - Chunks must be uploaded sequentially
  * - Max 1000 chunks
  *

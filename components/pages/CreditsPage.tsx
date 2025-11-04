@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -295,10 +296,12 @@ export default function CreditsPage() {
                     ) : tiktokConnected && tiktokConnection ? (
                       <div className="flex items-center gap-2">
                         {tiktokConnection.avatar_url && (
-                          <img
+                          <Image
                             src={tiktokConnection.avatar_url}
                             alt={tiktokConnection.display_name}
-                            className="w-6 h-6 rounded-full"
+                            width={24}
+                            height={24}
+                            className="h-6 w-6 rounded-full object-cover"
                           />
                         )}
                         <p className="text-sm text-gray-600">

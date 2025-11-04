@@ -326,7 +326,7 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     };
     console.log('💾 Updating project with image-driven data');
 
-    const { data: updateResult, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from('standard_ads_projects')
       .update(updateData)
       .eq('id', projectId)
@@ -344,41 +344,6 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     console.error('AI workflow error:', error);
     throw error;
   }
-}
-
-async function describeImage(imageUrl: string): Promise<string> {
-  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Describe this product image in detail for advertising purposes. Focus on key features, benefits, and selling points that would appeal to potential customers.'
-            },
-            {
-              type: 'image_url',
-              image_url: { url: imageUrl }
-            }
-          ]
-        }
-      ]
-    })
-  }, 3, 30000);
-
-  if (!response.ok) {
-    throw new Error(`Image description failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
 }
 
 async function generateImageBasedPrompts(imageUrl: string, language?: string): Promise<Record<string, unknown>> {

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -13,7 +13,7 @@ const supabase = createClient(
  *
  * Removes the user's TikTok connection from the database.
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     // Check if user is authenticated
     const { userId } = await auth();

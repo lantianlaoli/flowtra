@@ -11,7 +11,10 @@
  * 4. Set environment variables: GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY
  */
 
-import { google } from 'googleapis';
+import { google, indexing_v3 } from 'googleapis';
+
+type PublishUrlResponse = indexing_v3.Schema$PublishUrlNotificationResponse;
+type UrlMetadataResponse = indexing_v3.Schema$UrlNotificationMetadata;
 
 const INDEXING_SCOPE = 'https://www.googleapis.com/auth/indexing';
 
@@ -50,7 +53,7 @@ function getAuthClient() {
 export async function submitUrlToIndex(
   url: string,
   type: 'URL_UPDATED' | 'URL_DELETED' = 'URL_UPDATED'
-): Promise<{ success: boolean; error?: string; data?: any }> {
+): Promise<{ success: boolean; error?: string; data?: PublishUrlResponse }> {
   try {
     const auth = getAuthClient();
     const indexing = google.indexing({ version: 'v3', auth });
@@ -68,12 +71,14 @@ export async function submitUrlToIndex(
       success: true,
       data: response.data,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`❌ Failed to submit URL to Google Indexing API: ${url}`, error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 
     return {
       success: false,
-      error: error.message || 'Unknown error occurred',
+      error: errorMessage,
     };
   }
 }
@@ -84,7 +89,7 @@ export async function submitUrlToIndex(
  * @param url - The full URL to check
  * @returns Metadata about the URL from Google Indexing API
  */
-export async function getIndexingStatus(url: string): Promise<{ success: boolean; error?: string; data?: any }> {
+export async function getIndexingStatus(url: string): Promise<{ success: boolean; error?: string; data?: UrlMetadataResponse }> {
   try {
     const auth = getAuthClient();
     const indexing = google.indexing({ version: 'v3', auth });
@@ -99,12 +104,14 @@ export async function getIndexingStatus(url: string): Promise<{ success: boolean
       success: true,
       data: response.data,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`❌ Failed to get indexing status for: ${url}`, error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 
     return {
       success: false,
-      error: error.message || 'Unknown error occurred',
+      error: errorMessage,
     };
   }
 }

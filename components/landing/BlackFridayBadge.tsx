@@ -61,7 +61,7 @@ export default function BlackFridayBadge() {
           behavior: 'smooth',
         })
       }, 500)
-    } catch (err) {
+    } catch {
       // Fallback: just scroll to pricing if clipboard fails
       showSuccess('Discount code: ' + discountCode, 3000)
       document.getElementById('pricing')?.scrollIntoView({

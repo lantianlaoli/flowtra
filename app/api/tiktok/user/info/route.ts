@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -14,7 +14,7 @@ const supabase = createClient(
  * Returns the current user's TikTok connection information if they have one.
  * Returns display_name, avatar_url, and connection status.
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Check if user is authenticated
     const { userId } = await auth();

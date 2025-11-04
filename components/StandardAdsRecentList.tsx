@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 interface StandardAdProject {
   id: string;
@@ -131,11 +132,15 @@ export function StandardAdsRecentList() {
               {project.coverImageUrl && (
                 <div className="flex flex-col gap-2">
                   <span className="text-sm font-medium text-neutral-700">Cover Image</span>
-                  <img
-                    src={project.coverImageUrl}
-                    alt="Cover image"
-                    className="h-48 w-full rounded-md object-cover"
-                  />
+                  <div className="relative h-48 w-full">
+                    <Image
+                      src={project.coverImageUrl}
+                      alt={`Cover image for project ${project.id}`}
+                      fill
+                      className="rounded-md object-cover"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -159,4 +164,3 @@ export function StandardAdsRecentList() {
 }
 
 export default StandardAdsRecentList;
-

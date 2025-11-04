@@ -612,7 +612,12 @@ export async function updateArticleIndexingStatus(
 ): Promise<void> {
   const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
 
-  const updateData: any = {
+  const updateData: {
+    indexing_status: 'pending' | 'success' | 'failed';
+    indexing_error: string | null;
+    indexed_at?: string;
+    indexing_attempts?: number;
+  } = {
     indexing_status: status,
     indexing_error: error || null,
   }
@@ -650,8 +655,6 @@ export async function updateArticleIndexingStatus(
 export async function batchUpdateArticleIndexingStatus(
   updates: Array<{ articleId: string; status: 'success' | 'failed'; error?: string }>
 ): Promise<void> {
-  const supabase = getSupabaseAdmin()
-
   // Process updates sequentially to ensure proper attempt counting
   for (const update of updates) {
     await updateArticleIndexingStatus(update.articleId, update.status, update.error)
@@ -682,4 +685,3 @@ export async function resetArticleIndexingStatus(articleId: string): Promise<voi
 
   console.log(`[resetArticleIndexingStatus] Reset indexing status for article ${articleId}`)
 }
-

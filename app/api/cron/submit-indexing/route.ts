@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
           failCount++;
           console.error(`❌ [Cron Submit Indexing] Failed: ${article.slug} - ${result.error}`);
         }
-      } catch (dbError: any) {
+      } catch (dbError: unknown) {
         console.error(`[Cron Submit Indexing] Database update error for ${article.slug}:`, dbError);
         failCount++;
       }
@@ -120,13 +120,15 @@ export async function POST(request: NextRequest) {
       articles: articleUrls.map(a => ({ slug: a.slug, url: a.url })),
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Cron Submit Indexing] Fatal error:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 
     return NextResponse.json(
       {
         error: 'Internal server error',
-        message: error.message || 'Unknown error occurred',
+        message: errorMessage,
         duration: Date.now() - startTime,
       },
       { status: 500 }

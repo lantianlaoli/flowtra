@@ -114,8 +114,6 @@ async function processInstance(instance: InstanceRecord) {
   const supabase = getSupabaseAdmin();
   console.log(`Processing instance ${instance.id}, status: ${instance.status}, step: ${instance.current_step}`);
 
-  let currentStatus = instance.status;
-  let currentStep = instance.current_step;
   let lastProcessedAt = instance.last_processed_at;
 
   const shouldGenerateVideo = (() => {
@@ -167,8 +165,6 @@ async function processInstance(instance: InstanceRecord) {
 
         console.log(`Started video generation for instance ${instance.id}, taskId: ${videoTaskId}`);
 
-        currentStatus = 'generating_video';
-        currentStep = 'generating_video';
         lastProcessedAt = new Date().toISOString();
       } else {
         await supabase
@@ -185,8 +181,6 @@ async function processInstance(instance: InstanceRecord) {
 
         console.log(`Workflow completed with images only for instance ${instance.id}`);
 
-        currentStatus = 'completed';
-        currentStep = 'completed';
         lastProcessedAt = new Date().toISOString();
       }
 
@@ -227,8 +221,6 @@ async function processInstance(instance: InstanceRecord) {
         })
         .eq('id', instance.id);
 
-      currentStatus = 'completed';
-      currentStep = 'completed';
       lastProcessedAt = new Date().toISOString();
 
     } else if (videoResult.status === 'FAILED') {

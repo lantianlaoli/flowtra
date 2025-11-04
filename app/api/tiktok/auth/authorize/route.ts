@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { randomBytes } from 'crypto';
 
@@ -8,7 +8,7 @@ import { randomBytes } from 'crypto';
  * Initiates the TikTok OAuth flow by redirecting users to TikTok's authorization page.
  * Generates a CSRF state token for security.
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Check if user is authenticated
     const { userId } = await auth();

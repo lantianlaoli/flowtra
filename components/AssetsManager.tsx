@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Loader2, Package, Tag, BarChart3 } from 'lucide-react';
+import { Search, Loader2, Package, Tag, BarChart3 } from 'lucide-react';
 import { UserBrand, UserProduct } from '@/lib/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import BrandSection from './BrandSection';
@@ -301,26 +301,6 @@ export default function AssetsManager() {
     }
   };
 
-  const handleMoveProductFromBrand = async (productId: string) => {
-    // TODO: Implement product movement modal
-    // For now, just set brand_id to null
-    if (confirm('Move this product to unbranded section?')) {
-      try {
-        const response = await fetch(`/api/user-products/${productId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brand_id: null })
-        });
-
-        if (response.ok) {
-          await loadAssets();
-        }
-      } catch (error) {
-        console.error('Error moving product:', error);
-      }
-    }
-  };
-
   // Search filtering
   const filteredBrands = assetsData.brands.filter(brand => {
     const brandMatch = brand.brand_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -442,7 +422,6 @@ export default function AssetsManager() {
                 onPhotoUpload={handlePhotoUpload}
                 onDeletePhoto={handleDeletePhoto}
                 onAddProductToBrand={handleAddProductToBrand}
-                onMoveProductFromBrand={handleMoveProductFromBrand}
                 defaultExpanded={!!searchTerm}
                 deletingProductId={deletingProductId}
               />

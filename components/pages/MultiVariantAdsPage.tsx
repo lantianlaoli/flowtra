@@ -8,7 +8,7 @@ import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { ArrowRight, History, Play, Image as ImageIcon, Hash, Layers, TrendingUp, AlertCircle, HelpCircle, Coins } from 'lucide-react';
+import { ArrowRight, Play, Hash, Layers, TrendingUp, AlertCircle, HelpCircle, Coins } from 'lucide-react';
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import VideoQualitySelector from '@/components/ui/VideoQualitySelector';
 import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
@@ -38,7 +38,7 @@ const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro
 
 export default function MultiVariantAdsPage() {
   const { user, isLoaded } = useUser();
-  const { credits: userCredits, refetchCredits } = useCredits();
+  const { credits: userCredits } = useCredits();
   const { showSuccess } = useToast();
   // NEW: Top-level video config state
   const [videoQuality, setVideoQuality] = useState<'standard' | 'high'>('standard');

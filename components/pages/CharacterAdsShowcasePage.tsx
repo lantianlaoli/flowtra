@@ -2,8 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   PlayCircleIcon,
-  ArrowRightIcon,
-  ChatBubbleLeftRightIcon
+  ArrowRightIcon
 } from '@heroicons/react/24/outline';
 import {
   Zap,

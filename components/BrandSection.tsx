@@ -17,7 +17,6 @@ interface BrandSectionProps {
   onPhotoUpload: (productId: string, file: File) => void;
   onDeletePhoto: (productId: string, photoId: string) => void;
   onAddProductToBrand: (brandId: string, mode: 'create' | 'select') => void;
-  onMoveProductFromBrand?: (productId: string) => void;
   defaultExpanded?: boolean;
   deletingProductId?: string | null;
 }
@@ -31,7 +30,6 @@ export default function BrandSection({
   onPhotoUpload,
   onDeletePhoto,
   onAddProductToBrand,
-  onMoveProductFromBrand,
   defaultExpanded = false,
   deletingProductId = null
 }: BrandSectionProps) {
