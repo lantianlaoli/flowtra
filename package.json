@@ -24,6 +24,7 @@
     "googleapis": "^164.1.0",
     "lucide-react": "^0.525.0",
     "next": "15.4.4",
+    "plaiceholder": "^3.0.0",
     "posthog-js": "^1.267.0",
     "posthog-node": "^5.9.1",
     "prettier": "^3.6.2",
@@ -36,6 +37,7 @@
     "rehype-slug": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "resend": "^6.1.0",
+    "sharp": "^0.34.4",
     "tailwind-merge": "^3.3.1",
     "unist-util-visit": "^5.0.0",
     "zod": "^3.23.8"

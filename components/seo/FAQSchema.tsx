@@ -1,5 +1,3 @@
-'use client';
-
 interface FAQItem {
   question: string;
   answer: string;

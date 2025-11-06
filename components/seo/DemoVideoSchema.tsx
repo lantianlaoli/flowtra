@@ -1,5 +1,3 @@
-'use client';
-
 interface DemoVideoSchemaProps {
   videoUrl: string;
   title: string;
