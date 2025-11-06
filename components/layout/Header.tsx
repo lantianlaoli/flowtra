@@ -55,7 +55,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
 
           {/* Auth Buttons */}
           {showAuthButtons && (
-            <div className="hidden md:flex items-center gap-6">
+            <nav className="hidden md:flex items-center gap-6" aria-label="Main navigation">
               {/* Features Dropdown */}
               <div className="relative group">
                 <button className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50 flex items-center gap-1">
@@ -94,8 +94,8 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               >
                 Pricing
               </Link>
-              <Link 
-                href="/#blog" 
+              <Link
+                href="/#blog"
                 className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50"
               >
                 Blog
@@ -120,15 +120,15 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                 </SignInButton>
               </SignedOut>
               <SignedIn>
-                <Link 
-                  href="/dashboard" 
+                <Link
+                  href="/dashboard"
                   className="bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors"
                 >
                   Dashboard
                 </Link>
                 <UserButton afterSignOutUrl="/" />
               </SignedIn>
-            </div>
+            </nav>
           )}
 
           {/* Mobile menu button */}

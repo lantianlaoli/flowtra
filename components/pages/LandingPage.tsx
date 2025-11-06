@@ -304,9 +304,9 @@ export default async function LandingPage() {
             <div className="grid grid-cols-1 lg:grid-cols-[5fr_7fr] gap-6 lg:gap-8">
 
               {/* Standard Ads Case */}
-              <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8 overflow-hidden">
+              <article className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8 overflow-hidden">
                 {/* Header */}
-                <div className="flex items-center justify-between gap-3 mb-4">
+                <header className="flex items-center justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-200">
                       <Image
@@ -316,7 +316,7 @@ export default async function LandingPage() {
                         height={48}
                         sizes="48px"
                         className="w-full h-full object-cover"
-                       
+
                       />
                     </div>
                     <div>
@@ -334,14 +334,14 @@ export default async function LandingPage() {
                     <span className="sm:hidden">View</span>
                     <span className="hidden sm:inline">{successCases[0].tiktokText}</span>
                   </a>
-                </div>
+                </header>
 
                 {/* Quote */}
-                <div className="mb-6">
+                <figure className="mb-6">
                   <blockquote className="text-lg text-gray-700 font-medium leading-relaxed max-w-3xl" style={{lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
                     &ldquo;{successCases[0].quote}&rdquo;
                   </blockquote>
-                </div>
+                </figure>
 
                 {/* Before & After Showcase */}
                 {successCases[0].layout === 'input-to-output' ? (
@@ -402,12 +402,12 @@ export default async function LandingPage() {
                     />
                   </div>
                 )}
-              </div>
+              </article>
 
               {/* Character Ads Case */}
-              <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8 overflow-hidden">
+              <article className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8 overflow-hidden">
                 {/* Header */}
-                <div className="flex items-center justify-between gap-3 mb-4">
+                <header className="flex items-center justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-200">
                       <Image
@@ -417,7 +417,7 @@ export default async function LandingPage() {
                         height={48}
                         sizes="48px"
                         className="w-full h-full object-cover"
-                       
+
                       />
                     </div>
                     <div>
@@ -435,14 +435,14 @@ export default async function LandingPage() {
                     <span className="sm:hidden">View</span>
                     <span className="hidden sm:inline">{successCases[1].tiktokText}</span>
                   </a>
-                </div>
+                </header>
 
                 {/* Quote */}
-                <div className="mb-6">
+                <figure className="mb-6">
                   <blockquote className="text-lg text-gray-700 font-medium leading-relaxed max-w-3xl">
                     &ldquo;{successCases[1].quote}&rdquo;
                   </blockquote>
-                </div>
+                </figure>
 
                 {/* Multi-Input Showcase - Updated */}
                 {successCases[1].layout === 'multi-input-to-output' ? (
@@ -518,7 +518,7 @@ export default async function LandingPage() {
                     />
                   </div>
                 )}
-              </div>
+              </article>
 
             </div>
           </div>
@@ -540,70 +540,76 @@ export default async function LandingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Standard Ads */}
-              <Link
-                href="/features/standard-ads"
-                className="group bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl transition-all duration-300 hover:border-gray-300"
-              >
-                <div className="space-y-4">
-                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors">
-                    <Play className="w-6 h-6" />
+              <article>
+                <Link
+                  href="/features/standard-ads"
+                  className="group bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl transition-all duration-300 hover:border-gray-300 block h-full"
+                >
+                  <div className="space-y-4">
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors" aria-hidden="true">
+                      <Play className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-black group-hover:text-gray-900">
+                      Standard Ads
+                    </h3>
+                    <p className="text-gray-600 leading-relaxed">
+                      Transform product images into engaging video ads with AI. Support for 50+ languages and custom WhatsApp display.
+                    </p>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 group-hover:text-black">
+                      Learn More
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </div>
-                  <h3 className="text-2xl font-bold text-black group-hover:text-gray-900">
-                    Standard Ads
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    Transform product images into engaging video ads with AI. Support for 50+ languages and custom WhatsApp display.
-                  </p>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 group-hover:text-black">
-                    Learn More
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </Link>
+                </Link>
+              </article>
 
               {/* Multi-Variant Ads */}
-              <Link
-                href="/features/multi-variant-ads"
-                className="group bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl transition-all duration-300 hover:border-gray-300"
-              >
-                <div className="space-y-4">
-                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors">
-                    <Lightbulb className="w-6 h-6" />
+              <article>
+                <Link
+                  href="/features/multi-variant-ads"
+                  className="group bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl transition-all duration-300 hover:border-gray-300 block h-full"
+                >
+                  <div className="space-y-4">
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors" aria-hidden="true">
+                      <Lightbulb className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-black group-hover:text-gray-900">
+                      Multi-Variant Ads
+                    </h3>
+                    <p className="text-gray-600 leading-relaxed">
+                      Generate multiple ad variants from one image. Perfect for A/B testing and diverse creative options.
+                    </p>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 group-hover:text-black">
+                      Learn More
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </div>
-                  <h3 className="text-2xl font-bold text-black group-hover:text-gray-900">
-                    Multi-Variant Ads
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    Generate multiple ad variants from one image. Perfect for A/B testing and diverse creative options.
-                  </p>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 group-hover:text-black">
-                    Learn More
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </Link>
+                </Link>
+              </article>
 
               {/* Character Ads */}
-              <Link
-                href="/features/character-ads"
-                className="group bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl transition-all duration-300 hover:border-gray-300"
-              >
-                <div className="space-y-4">
-                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors">
-                    <UserPlus className="w-6 h-6" />
+              <article>
+                <Link
+                  href="/features/character-ads"
+                  className="group bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl transition-all duration-300 hover:border-gray-300 block h-full"
+                >
+                  <div className="space-y-4">
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors" aria-hidden="true">
+                      <UserPlus className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-black group-hover:text-gray-900">
+                      Character Ads
+                    </h3>
+                    <p className="text-gray-600 leading-relaxed">
+                      Create character-driven video advertisements with realistic AI characters powered by Google Veo3.
+                    </p>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 group-hover:text-black">
+                      Learn More
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </div>
-                  <h3 className="text-2xl font-bold text-black group-hover:text-gray-900">
-                    Character Ads
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    Create character-driven video advertisements with realistic AI characters powered by Google Veo3.
-                  </p>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 group-hover:text-black">
-                    Learn More
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </Link>
+                </Link>
+              </article>
             </div>
           </div>
         </section>
@@ -685,87 +691,87 @@ export default async function LandingPage() {
             {/* Mobile: stacked Flowtra + n8n cards */}
             <div className="md:hidden space-y-5 sm:space-y-6">
               {/* Flowtra Card */}
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 sm:p-6">
-                <div className="flex items-center justify-between mb-3">
+              <article className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 sm:p-6">
+                <header className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-gray-900">Flowtra</h3>
                   <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-900 text-white">Best Choice</span>
-                </div>
-                <div className="text-sm border border-gray-100 rounded-md overflow-hidden">
+                </header>
+                <dl className="text-sm border border-gray-100 rounded-md overflow-hidden">
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                    <div className="text-gray-500">Core Focus</div>
-                    <div className="text-gray-900 font-medium">AI ads for retail</div>
+                    <dt className="text-gray-500">Core Focus</dt>
+                    <dd className="text-gray-900 font-medium">AI ads for retail</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                    <div className="text-gray-500">Ease of Use</div>
-                    <div className="text-gray-900 font-medium">Photo → Ad instantly</div>
+                    <dt className="text-gray-500">Ease of Use</dt>
+                    <dd className="text-gray-900 font-medium">Photo → Ad instantly</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                    <div className="text-gray-500">Cost</div>
-                    <div className="text-gray-900">FREE photos • Pay when satisfied • &lt;$1 per ad</div>
+                    <dt className="text-gray-500">Cost</dt>
+                    <dd className="text-gray-900">FREE photos • Pay when satisfied • &lt;$1 per ad</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                    <div className="text-gray-500">Platforms</div>
-                    <div className="text-gray-900">Amazon, Walmart, Gumroad, Stan, Payhip, TikTok, Instagram, Local screens</div>
+                    <dt className="text-gray-500">Platforms</dt>
+                    <dd className="text-gray-900">Amazon, Walmart, Gumroad, Stan, Payhip, TikTok, Instagram, Local screens</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                    <div className="text-gray-500">Learning</div>
-                    <div className="text-gray-900">Minutes</div>
+                    <dt className="text-gray-500">Learning</dt>
+                    <dd className="text-gray-900">Minutes</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                    <div className="text-gray-500">Maintenance</div>
-                    <div className="text-gray-900">No pipelines to maintain</div>
+                    <dt className="text-gray-500">Maintenance</dt>
+                    <dd className="text-gray-900">No pipelines to maintain</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                    <div className="text-gray-500">Timeline</div>
-                    <div className="text-gray-900">Seconds</div>
+                    <dt className="text-gray-500">Timeline</dt>
+                    <dd className="text-gray-900">Seconds</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                    <div className="text-gray-500">Best For</div>
-                    <div className="text-gray-900">E-commerce sellers & digital creators</div>
+                    <dt className="text-gray-500">Best For</dt>
+                    <dd className="text-gray-900">E-commerce sellers & digital creators</dd>
                   </div>
-                </div>
-              </div>
+                </dl>
+              </article>
 
               {/* n8n Card */}
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 sm:p-6">
-                <div className="flex items-center justify-between mb-3">
+              <article className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 sm:p-6">
+                <header className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-gray-900">n8n Workflow</h3>
-                </div>
-                <div className="text-sm border border-gray-100 rounded-md overflow-hidden">
+                </header>
+                <dl className="text-sm border border-gray-100 rounded-md overflow-hidden">
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                    <div className="text-gray-500">Core Focus</div>
-                    <div className="text-gray-900">Manual AI setup</div>
+                    <dt className="text-gray-500">Core Focus</dt>
+                    <dd className="text-gray-900">Manual AI setup</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                    <div className="text-gray-500">Ease of Use</div>
-                    <div className="text-gray-900">Needs dev skills</div>
+                    <dt className="text-gray-500">Ease of Use</dt>
+                    <dd className="text-gray-900">Needs dev skills</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                    <div className="text-gray-500">Cost</div>
-                    <div className="text-gray-900">$20+/month + API costs</div>
+                    <dt className="text-gray-500">Cost</dt>
+                    <dd className="text-gray-900">$20+/month + API costs</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                    <div className="text-gray-500">Integrations</div>
-                    <div className="text-gray-900">Requires custom integrations</div>
+                    <dt className="text-gray-500">Integrations</dt>
+                    <dd className="text-gray-900">Requires custom integrations</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                    <div className="text-gray-500">Learning</div>
-                    <div className="text-gray-900">Hours–days</div>
+                    <dt className="text-gray-500">Learning</dt>
+                    <dd className="text-gray-900">Hours–days</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                    <div className="text-gray-500">Maintenance</div>
-                    <div className="text-gray-900">Maintain flows, tokens, failures</div>
+                    <dt className="text-gray-500">Maintenance</dt>
+                    <dd className="text-gray-900">Maintain flows, tokens, failures</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                    <div className="text-gray-500">Timeline</div>
-                    <div className="text-gray-900">Hours–days</div>
+                    <dt className="text-gray-500">Timeline</dt>
+                    <dd className="text-gray-900">Hours–days</dd>
                   </div>
                   <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                    <div className="text-gray-500">Best For</div>
-                    <div className="text-gray-900">Dev teams</div>
+                    <dt className="text-gray-500">Best For</dt>
+                    <dd className="text-gray-900">Dev teams</dd>
                   </div>
-                </div>
-              </div>
+                </dl>
+              </article>
             </div>
           </div>
         </div>
@@ -779,119 +785,131 @@ export default async function LandingPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
             {/* Lite Plan */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Lite</h3>
+            <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col" itemScope itemType="https://schema.org/Offer">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2" itemProp="name">Lite</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
-                $9
+                <data itemProp="price" value="9">$9</data>
                 <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
+              <meta itemProp="priceCurrency" content="USD" />
+              <meta itemProp="availability" content="https://schema.org/InStock" />
+              <meta itemProp="url" content="https://www.flowtra.store/#pricing" />
+              <meta itemProp="description" content="500 credits. Approximately 25 Veo3 Fast videos. Includes Standard Ads, Multi-Variant Ads, and Character Ads. Mixed billing model with free image generation." />
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600"><span className="font-bold text-gray-900">500</span> credits</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{liteVideos}</span> Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Mixed billing model</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Always free image generation</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Character Ads</span>
                 </li>
               </ul>
               <PricingButton packageName="lite" />
-            </div>
+            </article>
 
             {/* Basic Plan (Recommended) */}
-            <div className="bg-white rounded-2xl border-2 border-gray-900 p-6 md:p-8 shadow-sm transform scale-105 flex flex-col">
+            <article className="bg-white rounded-2xl border-2 border-gray-900 p-6 md:p-8 shadow-sm transform scale-105 flex flex-col" itemScope itemType="https://schema.org/Offer">
               <div className="bg-gray-900 text-white px-3 py-1 rounded-md text-sm font-medium mb-4 inline-block">
                 Recommended
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Basic</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2" itemProp="name">Basic</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
-                $29
+                <data itemProp="price" value="29">$29</data>
                 <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
+              <meta itemProp="priceCurrency" content="USD" />
+              <meta itemProp="availability" content="https://schema.org/InStock" />
+              <meta itemProp="url" content="https://www.flowtra.store/#pricing" />
+              <meta itemProp="description" content="2,000 credits. Approximately 100 Veo3 Fast videos. Free unlimited downloads and image generation. Includes all features: Standard Ads, Multi-Variant Ads, Character Ads." />
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600"><span className="font-bold text-gray-900">2,000</span> credits</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{basicVideos}</span> Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Free unlimited downloads</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Free image generation</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Character Ads</span>
                 </li>
               </ul>
               <PricingButton packageName="basic" />
-            </div>
+            </article>
 
             {/* Pro Plan */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Pro</h3>
+            <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col" itemScope itemType="https://schema.org/Offer">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2" itemProp="name">Pro</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
-                $49
+                <data itemProp="price" value="49">$49</data>
                 <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
+              <meta itemProp="priceCurrency" content="USD" />
+              <meta itemProp="availability" content="https://schema.org/InStock" />
+              <meta itemProp="url" content="https://www.flowtra.store/#pricing" />
+              <meta itemProp="description" content="3,500 credits. Approximately 175 Veo3 Fast videos. Priority processing, mixed billing model, free image generation. Includes Standard Ads, Multi-Variant Ads, and Character Ads." />
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600"><span className="font-bold text-gray-900">3,500</span> credits</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{proVideos}</span> Veo3 Fast videos</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Mixed billing model</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Always free image generation</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Character Ads</span>
                 </li>
                 <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
                   <span className="text-gray-600">Priority processing</span>
                 </li>
               </ul>
               <PricingButton packageName="pro" />
-            </div>
+            </article>
           </div>
         </section>
 

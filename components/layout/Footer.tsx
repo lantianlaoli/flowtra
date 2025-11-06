@@ -9,7 +9,8 @@ export default function Footer() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Logo and Description */}
-          <div className="col-span-1 md:col-span-2">
+          <section className="col-span-1 md:col-span-2" aria-labelledby="footer-about">
+            <h2 id="footer-about" className="sr-only">About Flowtra</h2>
             <Link href="/" className="flex items-center gap-3 mb-4">
               <Image
                 src="/android-chrome-512x512.png"
@@ -23,11 +24,11 @@ export default function Footer() {
             <p className="text-gray-600 mb-4 max-w-md">
               AI transforms your product photos into professional video ads.
             </p>
-          </div>
+          </section>
 
           {/* Features Links */}
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-4">Features</h3>
+          <nav aria-labelledby="footer-features">
+            <h3 id="footer-features" className="font-semibold text-gray-900 mb-4">Features</h3>
             <ul className="space-y-3">
               <li>
                 <Link href="/features/standard-ads" className="text-gray-600 hover:text-gray-900 transition-colors">
@@ -45,11 +46,11 @@ export default function Footer() {
                 </Link>
               </li>
             </ul>
-          </div>
+          </nav>
 
           {/* Support & Legal Links */}
-          <div className="md:text-right">
-            <h3 className="font-semibold text-gray-900 mb-4">Support</h3>
+          <nav className="md:text-right" aria-labelledby="footer-support">
+            <h3 id="footer-support" className="font-semibold text-gray-900 mb-4">Support</h3>
             <ul className="space-y-3">
               <li>
                 <Link href="/terms" className="text-gray-600 hover:text-gray-900 transition-colors">
@@ -62,7 +63,7 @@ export default function Footer() {
                 </Link>
               </li>
             </ul>
-          </div>
+          </nav>
         </div>
 
         {/* Bottom Section */}
@@ -71,14 +72,14 @@ export default function Footer() {
             <p className="text-gray-500 text-sm mb-4 md:mb-0">
               &copy; 2025 Flowtra. All rights reserved.
             </p>
-            
+
             {/* Social Links */}
-            <div className="flex items-center gap-4">
+            <nav className="flex items-center gap-4" aria-label="Social media links">
               {/* Email */}
               <a
                 href={`mailto:${process.env.NEXT_PUBLIC_EMAIL || 'lantianlaoli@gmail.com'}`}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
-                title="Send Email"
+                aria-label="Send Email"
               >
                 <Mail className="w-5 h-5" />
               </a>
@@ -89,44 +90,44 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-gray-600 transition-colors"
-                title="Follow on X"
+                aria-label="Follow on X"
               >
                 <FaXTwitter className="w-5 h-5" />
               </a>
-              
+
               {/* LinkedIn */}
-              <a 
-                href={process.env.NEXT_PUBLIC_LINKEDIN ? `https://${process.env.NEXT_PUBLIC_LINKEDIN}` : "https://www.linkedin.com/in/laoli-lantian-5ab8632bb"} 
-                target="_blank" 
+              <a
+                href={process.env.NEXT_PUBLIC_LINKEDIN ? `https://${process.env.NEXT_PUBLIC_LINKEDIN}` : "https://www.linkedin.com/in/laoli-lantian-5ab8632bb"}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-gray-600 transition-colors"
-                title="Connect on LinkedIn"
+                aria-label="Connect on LinkedIn"
               >
                 <FaLinkedin className="w-5 h-5" />
               </a>
-              
+
               {/* TikTok */}
-              <a 
-                href={process.env.NEXT_PUBLIC_TIKTOK || "https://www.tiktok.com/@laolilantian"} 
-                target="_blank" 
+              <a
+                href={process.env.NEXT_PUBLIC_TIKTOK || "https://www.tiktok.com/@laolilantian"}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-gray-600 transition-colors"
-                title="Follow on TikTok"
+                aria-label="Follow on TikTok"
               >
                 <FaTiktok className="w-5 h-5" />
               </a>
-              
+
               {/* Threads */}
-              <a 
-                href={process.env.NEXT_PUBLIC_THREADS || "https://www.threads.com/@lantianlaoli"} 
-                target="_blank" 
+              <a
+                href={process.env.NEXT_PUBLIC_THREADS || "https://www.threads.com/@lantianlaoli"}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-gray-600 transition-colors"
-                title="Follow on Threads"
+                aria-label="Follow on Threads"
               >
                 <FaThreads className="w-5 h-5" />
               </a>
-            </div>
+            </nav>
           </div>
         </div>
       </div>
