@@ -490,3 +490,42 @@ body {
 .hljs-emphasis {
   font-style: italic;
 }
+
+/* Accessibility: Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Disable specific animations */
+  .animate-shimmer,
+  .animate-gradient-x,
+  .animate-float,
+  .animate-pulse-glow,
+  .animate-bounce-in,
+  .animate-slide-in-right,
+  .animate-slide-in-left,
+  .animate-tiktok-shimmer {
+    animation: none !important;
+  }
+
+  /* Disable silk button animation */
+  .silk-button::after {
+    display: none;
+  }
+
+  .silk-button:hover .silk-default {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  .silk-button:hover .silk-hover {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+}

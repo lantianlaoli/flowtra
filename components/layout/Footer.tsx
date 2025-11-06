@@ -78,7 +78,7 @@ export default function Footer() {
               {/* Email */}
               <a
                 href={`mailto:${process.env.NEXT_PUBLIC_EMAIL || 'lantianlaoli@gmail.com'}`}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-600 hover:text-gray-900 transition-colors"
                 aria-label="Send Email"
               >
                 <Mail className="w-5 h-5" />
@@ -89,7 +89,7 @@ export default function Footer() {
                 href={process.env.NEXT_PUBLIC_X || "https://x.com/lantianlaoli"}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-600 hover:text-gray-900 transition-colors"
                 aria-label="Follow on X"
               >
                 <FaXTwitter className="w-5 h-5" />
@@ -100,7 +100,7 @@ export default function Footer() {
                 href={process.env.NEXT_PUBLIC_LINKEDIN ? `https://${process.env.NEXT_PUBLIC_LINKEDIN}` : "https://www.linkedin.com/in/laoli-lantian-5ab8632bb"}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-600 hover:text-gray-900 transition-colors"
                 aria-label="Connect on LinkedIn"
               >
                 <FaLinkedin className="w-5 h-5" />
@@ -111,7 +111,7 @@ export default function Footer() {
                 href={process.env.NEXT_PUBLIC_TIKTOK || "https://www.tiktok.com/@laolilantian"}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-600 hover:text-gray-900 transition-colors"
                 aria-label="Follow on TikTok"
               >
                 <FaTiktok className="w-5 h-5" />
@@ -122,7 +122,7 @@ export default function Footer() {
                 href={process.env.NEXT_PUBLIC_THREADS || "https://www.threads.com/@lantianlaoli"}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-600 hover:text-gray-900 transition-colors"
                 aria-label="Follow on Threads"
               >
                 <FaThreads className="w-5 h-5" />

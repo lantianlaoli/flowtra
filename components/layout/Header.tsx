@@ -69,21 +69,21 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                       className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                     >
                       <div className="font-semibold">Standard Ads</div>
-                      <div className="text-xs text-gray-500">Product images to videos</div>
+                      <div className="text-xs text-gray-600">Product images to videos</div>
                     </Link>
                     <Link
                       href="/features/multi-variant-ads"
                       className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                     >
                       <div className="font-semibold">Multi-Variant Ads</div>
-                      <div className="text-xs text-gray-500">Multiple creative variants</div>
+                      <div className="text-xs text-gray-600">Multiple creative variants</div>
                     </Link>
                     <Link
                       href="/features/character-ads"
                       className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                     >
                       <div className="font-semibold">Character Ads</div>
-                      <div className="text-xs text-gray-500">AI character-driven videos</div>
+                      <div className="text-xs text-gray-600">AI character-driven videos</div>
                     </Link>
                   </div>
                 </div>
@@ -134,15 +134,16 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           {/* Mobile menu button */}
           <button
             type="button"
-            className="md:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+            className="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-nav"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
           >
             {mobileMenuOpen ? (
-              <XMarkIcon className="w-6 h-6" />
+              <XMarkIcon className="w-6 h-6" aria-hidden="true" />
             ) : (
-              <Bars3Icon className="w-6 h-6" />
+              <Bars3Icon className="w-6 h-6" aria-hidden="true" />
             )}
           </button>
         </div>
@@ -161,11 +162,17 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                 <button
                   onClick={() => setFeaturesOpen(!featuresOpen)}
                   className="w-full text-left text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50 flex items-center justify-between"
+                  aria-expanded={featuresOpen}
+                  aria-controls="mobile-features-menu"
                 >
                   <span>Features</span>
-                  <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${featuresOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${featuresOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                 </button>
-                <div className={`overflow-hidden transition-all duration-200 ${featuresOpen ? 'max-h-60 mt-2' : 'max-h-0'}`}>
+                <div
+                  id="mobile-features-menu"
+                  className={`overflow-hidden transition-all duration-200 ${featuresOpen ? 'max-h-60 mt-2' : 'max-h-0'}`}
+                  aria-hidden={!featuresOpen}
+                >
                   <div className="pl-4 flex flex-col gap-2">
                     <Link
                       href="/features/standard-ads"
@@ -173,7 +180,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <div className="font-semibold text-sm">Standard Ads</div>
-                      <div className="text-xs text-gray-500">Product images to videos</div>
+                      <div className="text-xs text-gray-600">Product images to videos</div>
                     </Link>
                     <Link
                       href="/features/multi-variant-ads"
@@ -181,7 +188,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <div className="font-semibold text-sm">Multi-Variant Ads</div>
-                      <div className="text-xs text-gray-500">Multiple creative variants</div>
+                      <div className="text-xs text-gray-600">Multiple creative variants</div>
                     </Link>
                     <Link
                       href="/features/character-ads"
@@ -189,7 +196,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <div className="font-semibold text-sm">Character Ads</div>
-                      <div className="text-xs text-gray-500">AI character-driven videos</div>
+                      <div className="text-xs text-gray-600">AI character-driven videos</div>
                     </Link>
                   </div>
                 </div>
