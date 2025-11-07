@@ -1,19 +1,72 @@
-# Google Indexing API 设置指南
+# Google + IndexNow 多渠道索引完整指南
 
-本指南将帮助你配置 Google Search Console Indexing API，使 Flowtra 能够自动提交新文章到 Google 进行索引。
+本指南将帮助你配置多个搜索引擎索引 API，实现自动提交文章索引请求并验证实际索引状态的完整流程。
 
 ## 架构概述
 
-- **Supabase pg_cron**: 每 6 小时自动触发一次索引任务
-- **Next.js API**: `/api/cron/submit-indexing` 接口处理索引逻辑
-- **Google Indexing API**: 向 Google 提交 URL 索引请求
-- **数据库**: `articles` 表追踪每篇文章的索引状态
+### 提交层（多 API 策略）
+
+**Google Indexing API**
+- **触发频率**: 每 6 小时（Supabase pg_cron）
+- **端点**: `/api/cron/submit-indexing`
+- **配额限制**: 200 次/天
+- **状态**: `pending` → `submitted` (提交成功) 或 `failed` (提交失败)
+- **优势**: 影响 Google Search 排名
+
+**IndexNow API**（新增）
+- **触发频率**: 每 6 小时（同上，双重提交）
+- **端点**: 同上（一次请求调用两个 API）
+- **配额限制**: 无限制 ✅
+- **支持搜索引擎**: Bing, Yandex, Seznam, Naver 等
+- **优势**: 免费无限、即时索引（几分钟到几小时）
+
+### 验证层（URL Inspection API）
+- **Supabase pg_cron**: 每天凌晨 2 点触发验证任务
+- **Next.js API**: `/api/cron/verify-indexing` 接口验证实际索引状态
+- **URL Inspection API**: 查询 URL 在 Google 索引中的真实状态
+- **状态**: `submitted` → `verified_indexed` (已索引) 或 `verified_not_indexed` (未索引)
+
+### 完整工作流程
+
+```
+新文章创建
+    ↓
+[pending] 待提交
+    ↓
+每 6 小时同时提交到：
+  ├─ Google Indexing API (200/天配额)
+  └─ IndexNow API (无限) ✅
+    ↓
+[submitted] 任一 API 成功即标记
+    ↓ (Bing/Yandex 几分钟内索引)
+    ↓ (Google 等待 3 天验证)
+URL Inspection API 验证 Google 状态 (每天一次)
+    ↓
+[verified_indexed] ✅ Google 确认已索引
+或
+[verified_not_indexed] ❌ Google 确认未索引
+```
+
+**重要区别**：
+- `submitted` 状态 = **至少一个 API 提交成功**
+- `verified_indexed` 状态 = **Google 真正索引**（通过 URL Inspection API 确认）
+- **Bing/Yandex** 通过 IndexNow 几分钟内就能索引，无需额外验证
+
+## 数据库字段说明
+
+- `indexed_at`: 提交请求的时间（NOT 实际索引时间）
+- `indexing_status`: 当前状态（pending/submitted/failed/verified_indexed/verified_not_indexed）
+- `indexing_error`: 提交或验证的错误信息
+- `indexing_attempts`: 提交重试次数（最多 3 次）
+- `indexing_verified_at`: 通过 URL Inspection API 验证的时间
+- `actual_indexing_state`: Google 返回的实际索引状态（coverageState）
 
 ## 前置要求
 
-- Google Cloud Console 账号
+- Google Cloud Console 账号（用于 Google APIs）
 - Google Search Console 访问权限（网站所有者）
 - Supabase 项目（已启用 pg_cron 和 pg_net 扩展）
+- IndexNow API 密钥文件（已放置在 public 目录）
 
 ---
 
@@ -25,12 +78,16 @@
 2. 点击顶部项目选择器
 3. 创建新项目或选择现有项目（推荐为 Flowtra 创建独立项目）
 
-### 2. 启用 Indexing API
+### 2. 启用必要的 APIs
 
 1. 在 Google Cloud Console 中，导航到 **APIs & Services** > **Library**
-2. 搜索 "Indexing API"
-3. 点击 "Indexing API"
-4. 点击 **Enable** 按钮
+2. 搜索并启用以下两个 API：
+   - **Indexing API**（用于提交索引请求）
+   - **Search Console API**（用于验证索引状态）
+3. 对每个 API：
+   - 点击 API 名称
+   - 点击 **Enable** 按钮
+   - 等待启用完成
 
 ### 3. 创建 Service Account
 
@@ -92,14 +149,51 @@
 
 ## 第三步：环境变量配置
 
-### 1. 在 Vercel/服务器上配置环境变量
+### 1. IndexNow API 配置（新增 - 推荐先做）
+
+IndexNow 是一个免费且无限制的索引协议，支持 Bing、Yandex 等搜索引擎。
+
+**步骤：**
+
+1. **验证密钥文件已存在**
+
+   你已经将密钥放在了 `public/8f4249852f0b4d99bfb56cb4d9b5a57c.txt`。验证文件内容：
+
+   ```bash
+   cat public/8f4249852f0b4d99bfb56cb4d9b5a57c.txt
+   # 应该输出：8f4249852f0b4d99bfb56cb4d9b5a57c
+   ```
+
+2. **确保文件可以公开访问**
+
+   部署后，访问以下 URL 应该能看到密钥：
+   ```
+   https://www.flowtra.store/8f4249852f0b4d99bfb56cb4d9b5a57c.txt
+   ```
+
+3. **添加环境变量**
+
+   在 `.env` 文件中添加：
+   ```bash
+   INDEXNOW_API_KEY=8f4249852f0b4d99bfb56cb4d9b5a57c
+   ```
+
+**注意**：
+- 密钥值、文件名和文件内容必须完全一致
+- 文件必须在 public 目录，可公开访问
+- 密钥应为 8-128 位十六进制字符
+
+### 2. Google Indexing API 配置
 
 将以下环境变量添加到 `.env` 文件（或 Vercel 环境变量设置）：
 
 ```bash
 # Google Indexing API (必需)
-GOOGLE_CLIENT_EMAIL=flwotra-ai-n8n-blog@flowtra.iam.gserviceaccount.com
+GOOGLE_CLIENT_EMAIL=flowtra-ai-n8n-blog@flowtra.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYourPrivateKeyHere\n-----END PRIVATE KEY-----\n"
+
+# IndexNow API (必需)
+INDEXNOW_API_KEY=8f4249852f0b4d99bfb56cb4d9b5a57c
 
 # Cron Security (可选)
 # 如果你想额外保护 cron 接口，可以设置此值
@@ -110,15 +204,17 @@ CRON_SECRET=
 **注意事项**:
 - `GOOGLE_PRIVATE_KEY` 必须用双引号包裹
 - 保留 `\n` 换行符（不要替换为实际换行）
+- `INDEXNOW_API_KEY` 必须与 public 目录中的文件名和内容一致
 - `CRON_SECRET` 是可选的，可以留空
 
-### 2. Vercel 环境变量设置
+### 3. Vercel 环境变量设置
 
 如果部署在 Vercel：
 1. 进入项目设置 > Environment Variables
-2. 添加以下两个必需的环境变量：
+2. 添加以下三个环境变量：
    - `GOOGLE_CLIENT_EMAIL`
    - `GOOGLE_PRIVATE_KEY`
+   - `INDEXNOW_API_KEY` ✅ 新增
 3. 选择 **Production**, **Preview**, **Development** 环境
 4. 点击 **Save**
 5. 重新部署项目使环境变量生效
@@ -127,33 +223,58 @@ CRON_SECRET=
 
 ---
 
-## 第四步：运行数据库 Migration
+## 第四步：运行数据库 Migrations
 
-### 1. 应用 Migration
+### 1. 应用 Migrations
 
-确保 migration 文件已应用到 Supabase 数据库：
+确保以下 migration 文件已应用到 Supabase 数据库：
+
+1. **基础索引字段** - `20251103000000_add_indexing_fields_to_articles.sql`
+2. **验证字段和状态更新** - `20251107000000_add_url_inspection_verification.sql`
+3. **验证 Cron 任务** - `20251107000001_add_verify_indexing_cron.sql`
+
+**应用方式**：
 
 ```bash
-# 本地开发环境
+# 方式 1: 本地开发环境（如果安装了 Supabase CLI）
 pnpm supabase db push
 
-# 或通过 Supabase Dashboard
+# 方式 2: 通过 Supabase Dashboard
 # 1. 进入 Supabase Dashboard > SQL Editor
-# 2. 打开 supabase/migrations/20251103000000_add_indexing_fields_to_articles.sql
+# 2. 依次打开上述 migration 文件
 # 3. 复制内容并执行
 ```
 
 ### 2. 验证字段已添加
 
-在 Supabase Dashboard > Table Editor > articles 表，检查以下新字段：
-- `indexed_at` (timestamptz)
-- `indexing_status` (text)
-- `indexing_error` (text)
-- `indexing_attempts` (integer)
+在 Supabase Dashboard > Table Editor > articles 表，检查以下字段：
+
+**基础字段**：
+- `indexed_at` (timestamptz) - 提交时间
+- `indexing_status` (text) - 状态
+- `indexing_error` (text) - 错误信息
+- `indexing_attempts` (integer) - 重试次数
+
+**验证字段**（新增）：
+- `indexing_verified_at` (timestamptz) - 验证时间
+- `actual_indexing_state` (text) - 实际索引状态
+
+### 3. 验证约束已更新
+
+运行以下 SQL 检查状态约束：
+
+```sql
+SELECT con.conname, pg_get_constraintdef(con.oid)
+FROM pg_constraint con
+JOIN pg_class rel ON rel.oid = con.conrelid
+WHERE rel.relname = 'articles' AND con.conname = 'articles_indexing_status_check';
+```
+
+应该看到约束包含新的状态值：`pending`, `submitted`, `failed`, `verified_indexed`, `verified_not_indexed`
 
 ---
 
-## 第五步：配置 Supabase Cron Job
+## 第五步：配置 Supabase Cron Jobs
 
 ### 1. 启用必要的扩展
 
@@ -167,12 +288,12 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 ```
 
-### 2. 创建 Cron Job
+### 2. 创建提交 Cron Job（每 6 小时）
 
 在 Supabase Dashboard > SQL Editor 中执行：
 
 ```sql
--- 创建每 6 小时执行一次的定时任务
+-- 创建每 6 小时执行一次的提交任务
 SELECT cron.schedule(
   'submit-google-indexing',           -- 任务名称
   '0 */6 * * *',                      -- Cron 表达式：每 6 小时
@@ -189,25 +310,58 @@ SELECT cron.schedule(
 );
 ```
 
+### 3. 创建验证 Cron Job（每天一次）
+
+在 Supabase Dashboard > SQL Editor 中执行：
+
+```sql
+-- 创建每天凌晨 2 点执行的验证任务
+SELECT cron.schedule(
+  'verify-indexing-status',           -- 任务名称
+  '0 2 * * *',                        -- Cron 表达式：每天 2:00 AM
+  $$
+  SELECT
+    net.http_post(
+      url := 'https://www.flowtra.store/api/cron/verify-indexing',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json'
+      ),
+      body := '{}'::jsonb
+    ) as request_id;
+  $$
+);
+```
+
 **注意**：
 - 确保 URL 为你的生产域名
+- 验证任务在凌晨 2 点执行，避开高峰期
 - CRON_SECRET 是可选的，Supabase cron 是内部调用，通常不需要额外认证
 
-### 3. 验证 Cron Job 已创建
+### 4. 验证 Cron Jobs 已创建
 
 ```sql
 -- 查看所有 cron 任务
-SELECT * FROM cron.job;
+SELECT jobid, jobname, schedule, active
+FROM cron.job
+ORDER BY jobname;
 
--- 应该能看到名为 'submit-google-indexing' 的任务
+-- 应该能看到两个任务：
+-- 1. submit-google-indexing (每 6 小时)
+-- 2. verify-indexing-status (每天一次)
 ```
 
-### 4. 查看 Cron Job 执行日志
+### 5. 查看 Cron Job 执行日志
 
 ```sql
--- 查看最近的执行记录
+-- 查看提交任务的执行记录
 SELECT * FROM cron.job_run_details
 WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'submit-google-indexing')
+ORDER BY start_time DESC
+LIMIT 10;
+
+-- 查看验证任务的执行记录
+SELECT * FROM cron.job_run_details
+WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'verify-indexing-status')
 ORDER BY start_time DESC
 LIMIT 10;
 ```
@@ -216,9 +370,9 @@ LIMIT 10;
 
 ## 第六步：测试配置
 
-### 1. 手动触发测试
+### 1. 测试提交端点
 
-使用 curl 或 Postman 手动触发 API：
+使用 curl 或 Postman 手动触发提交 API：
 
 ```bash
 curl -X POST https://www.flowtra.store/api/cron/submit-indexing \
@@ -233,7 +387,7 @@ curl -X POST https://www.flowtra.store/api/cron/submit-indexing \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 
-### 2. 检查响应
+### 2. 检查提交响应
 
 成功响应示例：
 
@@ -254,7 +408,7 @@ curl -X POST https://www.flowtra.store/api/cron/submit-indexing \
 }
 ```
 
-### 3. 验证数据库更新
+### 3. 验证数据库更新（提交）
 
 在 Supabase Dashboard 查询：
 
@@ -265,7 +419,65 @@ ORDER BY created_at DESC
 LIMIT 10;
 ```
 
-检查 `indexing_status` 是否已更新为 `success` 或 `failed`。
+检查 `indexing_status` 是否已更新为 `submitted` 或 `failed`。
+
+**重要**：`submitted` 状态只表示提交成功，并非已索引！需要等待验证任务确认。
+
+### 4. 测试验证端点（可选）
+
+等待 3 天后，或手动触发验证任务：
+
+```bash
+curl -X POST https://www.flowtra.store/api/cron/verify-indexing \
+  -H "Content-Type: application/json"
+```
+
+### 5. 检查验证响应
+
+成功响应示例：
+
+```json
+{
+  "success": true,
+  "message": "Verified 10 articles: 8 indexed, 2 not indexed, 0 failed",
+  "stats": {
+    "total": 10,
+    "indexed": 8,
+    "notIndexed": 2,
+    "failed": 0,
+    "duration": 6540
+  },
+  "results": [
+    {
+      "slug": "article-1",
+      "url": "https://www.flowtra.store/blog/article-1",
+      "status": "indexed",
+      "verdict": "PASS",
+      "lastCrawlTime": "2025-11-07T10:30:00Z"
+    },
+    ...
+  ]
+}
+```
+
+### 6. 验证数据库更新（验证）
+
+```sql
+SELECT
+  id,
+  title,
+  slug,
+  indexing_status,
+  indexed_at,
+  indexing_verified_at,
+  actual_indexing_state
+FROM articles
+WHERE indexing_status IN ('verified_indexed', 'verified_not_indexed')
+ORDER BY indexing_verified_at DESC
+LIMIT 10;
+```
+
+检查 `indexing_status` 是否更新为 `verified_indexed` 或 `verified_not_indexed`。
 
 ---
 
@@ -336,23 +548,85 @@ LIMIT 10;
 ### 1. 查看索引统计
 
 ```sql
+-- 整体状态分布
 SELECT
   indexing_status,
-  COUNT(*) as count
+  COUNT(*) as count,
+  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) as percentage
 FROM articles
-GROUP BY indexing_status;
+GROUP BY indexing_status
+ORDER BY count DESC;
+
+-- 预期结果：
+-- pending (待提交)
+-- submitted (已提交，待验证)
+-- failed (提交失败)
+-- verified_indexed (已确认索引) ✅
+-- verified_not_indexed (已确认未索引)
 ```
 
-### 2. 查看失败文章
+### 2. 查看验证效果
 
 ```sql
+-- 提交到实际索引的转化率
+SELECT
+  COUNT(*) FILTER (WHERE indexing_status = 'verified_indexed') as indexed_count,
+  COUNT(*) FILTER (WHERE indexing_status IN ('verified_indexed', 'verified_not_indexed')) as total_verified,
+  ROUND(
+    COUNT(*) FILTER (WHERE indexing_status = 'verified_indexed') * 100.0 /
+    NULLIF(COUNT(*) FILTER (WHERE indexing_status IN ('verified_indexed', 'verified_not_indexed')), 0),
+    2
+  ) as success_rate_pct
+FROM articles;
+
+-- 提交到索引的平均时间
+SELECT
+  AVG(EXTRACT(EPOCH FROM (indexing_verified_at - indexed_at)) / 86400) as avg_days,
+  MIN(EXTRACT(EPOCH FROM (indexing_verified_at - indexed_at)) / 86400) as min_days,
+  MAX(EXTRACT(EPOCH FROM (indexing_verified_at - indexed_at)) / 86400) as max_days
+FROM articles
+WHERE indexing_status = 'verified_indexed';
+```
+
+### 3. 查看失败文章
+
+```sql
+-- 提交失败的文章
 SELECT id, title, slug, indexing_attempts, indexing_error
 FROM articles
 WHERE indexing_status = 'failed'
 ORDER BY indexing_attempts DESC;
+
+-- 未被索引的文章（已验证）
+SELECT
+  id,
+  title,
+  slug,
+  indexed_at,
+  indexing_verified_at,
+  actual_indexing_state
+FROM articles
+WHERE indexing_status = 'verified_not_indexed'
+ORDER BY indexing_verified_at DESC;
 ```
 
-### 3. 手动重试失败文章
+### 4. 查看待验证文章
+
+```sql
+-- 已提交但尚未验证的文章
+SELECT
+  id,
+  title,
+  slug,
+  indexed_at,
+  EXTRACT(DAY FROM NOW() - indexed_at) as days_since_submission
+FROM articles
+WHERE indexing_status = 'submitted'
+  AND indexing_verified_at IS NULL
+ORDER BY indexed_at ASC;
+```
+
+### 5. 手动重试失败文章
 
 ```sql
 -- 重置单篇文章状态
@@ -361,20 +635,39 @@ SET indexing_status = 'pending',
     indexing_attempts = 0,
     indexing_error = NULL
 WHERE slug = 'your-article-slug';
+
+-- 批量重置所有失败文章（谨慎使用）
+UPDATE articles
+SET indexing_status = 'pending',
+    indexing_attempts = 0,
+    indexing_error = NULL
+WHERE indexing_status = 'failed';
 ```
 
-### 4. 修改 Cron 执行频率
+### 6. 修改 Cron 执行频率
 
 ```sql
--- 删除现有任务
+-- 删除现有提交任务
 SELECT cron.unschedule('submit-google-indexing');
 
 -- 创建新任务（例如每 12 小时）
 SELECT cron.schedule(
   'submit-google-indexing',
   '0 */12 * * *',  -- 每 12 小时
-  $$ ... $$  -- 保持原有的 HTTP 请求代码
+  $$
+  SELECT net.http_post(
+    url := 'https://www.flowtra.store/api/cron/submit-indexing',
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    body := '{}'::jsonb
+  );
+  $$
 );
+
+-- 删除验证任务
+SELECT cron.unschedule('verify-indexing-status');
+
+-- 重新创建（如需修改时间）
+-- ... 参考第五步
 ```
 
 ---
@@ -407,12 +700,35 @@ SELECT cron.schedule(
 
 ## 相关资源
 
+**Google APIs:**
 - [Google Indexing API 官方文档](https://developers.google.com/search/apis/indexing-api/v3/quickstart)
-- [Supabase pg_cron 文档](https://supabase.com/docs/guides/database/extensions/pg_cron)
+- [Google Search Console API 官方文档](https://developers.google.com/webmaster-tools/search-console-api-original)
+- [URL Inspection API 文档](https://developers.google.com/webmaster-tools/v1/urlInspection.index/inspect)
 - [Google Search Console](https://search.google.com/search-console)
+
+**IndexNow:**
+- [IndexNow 官方网站](https://www.indexnow.org/)
+- [IndexNow API 文档](https://www.indexnow.org/documentation)
+- [IndexNow FAQ](https://www.indexnow.org/faq)
+- [支持的搜索引擎列表](https://www.indexnow.org/index)
+
+**Supabase:**
+- [Supabase pg_cron 文档](https://supabase.com/docs/guides/database/extensions/pg_cron)
 
 ---
 
 ## 更新日志
 
+- **2025-11-07**:
+  - **新增 IndexNow API 集成** ✨
+    - 添加 Bing/Yandex 即时索引支持
+    - 免费无限制配额
+    - 双重提交策略（Google + IndexNow）
+    - 新增 `lib/indexnow.ts` 模块
+    - 更新 `submit-indexing` 端点同时调用两个 API
+  - 添加 URL Inspection API 验证层
+  - 新增 `verify-indexing` 端点和 cron 任务
+  - 更新状态命名：`success` → `submitted`
+  - 添加验证字段：`indexing_verified_at`, `actual_indexing_state`
+  - 完善监控查询和文档
 - **2025-11-03**: 初始版本，支持 Supabase cron + Google Indexing API 集成

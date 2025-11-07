@@ -45,8 +45,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const blogPages = articles.map(article => ({
     url: `${baseUrl}/blog/${article.slug}`,
     lastModified: new Date(article.created_at),
-    changeFrequency: 'monthly' as const,
-    priority: 0.6,
+    changeFrequency: 'weekly' as const,
+    priority: 0.8, // Higher priority for content pages to encourage indexing
   }))
   
   return [...staticPages, ...blogPages]

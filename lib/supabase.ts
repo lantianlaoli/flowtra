@@ -58,10 +58,12 @@ export interface Article {
   meta_description?: string // Custom meta description for SEO (overrides auto-generated excerpt)
   keywords?: string[] // Article-specific keywords for SEO
   og_image?: string // Custom Open Graph image URL (overrides default)
-  indexed_at?: string // Timestamp when article was last successfully indexed by Google
-  indexing_status?: 'pending' | 'success' | 'failed' // Current indexing status
-  indexing_error?: string // Error message if indexing failed
-  indexing_attempts?: number // Number of indexing attempts (max 3 retries)
+  indexed_at?: string // Timestamp when article was submitted to Google (NOT when actually indexed)
+  indexing_status?: 'pending' | 'submitted' | 'failed' | 'verified_indexed' | 'verified_not_indexed' // Current indexing status
+  indexing_error?: string // Error message if submission failed
+  indexing_attempts?: number // Number of submission attempts (max 3 retries)
+  indexing_verified_at?: string // Timestamp when indexing was verified via URL Inspection API
+  actual_indexing_state?: string // Actual indexing state from Google Search Console (coverageState)
 }
 
 // Database types for single_video_projects table (now standard_ads_projects)
@@ -607,13 +609,13 @@ export async function getUnindexedArticles(): Promise<Article[]> {
  */
 export async function updateArticleIndexingStatus(
   articleId: string,
-  status: 'pending' | 'success' | 'failed',
+  status: 'pending' | 'submitted' | 'failed' | 'verified_indexed' | 'verified_not_indexed',
   error?: string
 ): Promise<void> {
   const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
 
   const updateData: {
-    indexing_status: 'pending' | 'success' | 'failed';
+    indexing_status: 'pending' | 'submitted' | 'failed' | 'verified_indexed' | 'verified_not_indexed';
     indexing_error: string | null;
     indexed_at?: string;
     indexing_attempts?: number;
@@ -622,9 +624,9 @@ export async function updateArticleIndexingStatus(
     indexing_error: error || null,
   }
 
-  if (status === 'success') {
+  if (status === 'submitted') {
     updateData.indexed_at = new Date().toISOString()
-    updateData.indexing_attempts = 0 // Reset attempts on success
+    updateData.indexing_attempts = 0 // Reset attempts on successful submission
   } else if (status === 'failed') {
     // Increment attempts only on failure
     const { data: article } = await supabase
@@ -653,7 +655,7 @@ export async function updateArticleIndexingStatus(
  * Batch update multiple article indexing statuses
  */
 export async function batchUpdateArticleIndexingStatus(
-  updates: Array<{ articleId: string; status: 'success' | 'failed'; error?: string }>
+  updates: Array<{ articleId: string; status: 'submitted' | 'failed'; error?: string }>
 ): Promise<void> {
   // Process updates sequentially to ensure proper attempt counting
   for (const update of updates) {
@@ -684,4 +686,85 @@ export async function resetArticleIndexingStatus(articleId: string): Promise<voi
   }
 
   console.log(`[resetArticleIndexingStatus] Reset indexing status for article ${articleId}`)
+}
+
+// URL Inspection API (verification) helpers
+
+/**
+ * Get articles that need indexing verification
+ * Query articles that were submitted 3+ days ago but haven't been verified yet
+ *
+ * @param daysAgo - Number of days since submission (default: 3)
+ * @param limit - Maximum number of articles to return (default: 100)
+ */
+export async function getArticlesNeedingVerification(
+  daysAgo: number = 3,
+  limit: number = 100
+): Promise<Article[]> {
+  const supabase = getSupabase()
+
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - daysAgo)
+
+  const { data, error } = await supabase
+    .from('articles')
+    .select('*')
+    .eq('indexing_status', 'submitted')
+    .is('indexing_verified_at', null)
+    .lte('indexed_at', cutoffDate.toISOString())
+    .order('indexed_at', { ascending: true }) // Oldest first
+    .limit(limit)
+
+  if (error) {
+    console.error('[getArticlesNeedingVerification] Error fetching articles:', error)
+    throw error
+  }
+
+  return (data || []).map(article => ({
+    ...article,
+    slug: article.slug.trim()
+  }))
+}
+
+/**
+ * Update article verification status after checking with URL Inspection API
+ */
+export async function updateArticleVerificationStatus(
+  articleId: string,
+  isIndexed: boolean,
+  actualIndexingState?: string,
+  error?: string
+): Promise<void> {
+  const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
+
+  const updateData: {
+    indexing_status: 'verified_indexed' | 'verified_not_indexed';
+    indexing_verified_at: string;
+    actual_indexing_state: string | null;
+    indexing_error?: string | null;
+  } = {
+    indexing_status: isIndexed ? 'verified_indexed' : 'verified_not_indexed',
+    indexing_verified_at: new Date().toISOString(),
+    actual_indexing_state: actualIndexingState || null,
+  }
+
+  if (error) {
+    updateData.indexing_error = error
+  }
+
+  const { error: updateError } = await supabase
+    .from('articles')
+    .update(updateData)
+    .eq('id', articleId)
+
+  if (updateError) {
+    console.error('[updateArticleVerificationStatus] Error updating article:', updateError)
+    throw updateError
+  }
+
+  console.log(
+    `[updateArticleVerificationStatus] Updated article ${articleId} verification: ${
+      isIndexed ? 'INDEXED' : 'NOT INDEXED'
+    }`
+  )
 }

@@ -1,14 +1,26 @@
 /**
- * Google Indexing API Cron Job
+ * Multi-API Indexing Submission Cron Job
  *
  * This endpoint is triggered by Supabase pg_cron every 6 hours to submit
- * unindexed articles to Google Search Console Indexing API.
+ * unindexed articles to multiple search engine indexing APIs.
+ *
+ * APIs Used:
+ * 1. Google Indexing API - Requests crawling (200 requests/day quota)
+ * 2. IndexNow API - Instant notification to Bing/Yandex (unlimited)
  *
  * Workflow:
  * 1. Query unindexed articles (status: pending or failed with < 3 attempts)
  * 2. Build full URLs for each article
- * 3. Submit URLs to Google Indexing API
- * 4. Update indexing status in database
+ * 3. Submit URLs to both APIs simultaneously
+ * 4. Update status to 'submitted' if ANY API succeeds
+ *
+ * IMPORTANT: 'submitted' status means at least one API accepted the request,
+ * NOT that the page is actually indexed. Use /api/cron/verify-indexing to check
+ * actual Google indexing status via URL Inspection API.
+ *
+ * Benefits of dual submission:
+ * - Google: Better for Google Search visibility (verified later)
+ * - IndexNow: Instant indexing on Bing/Yandex, no quota limits
  *
  * Security:
  * - Validates CRON_SECRET header to prevent unauthorized access
@@ -18,6 +30,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUnindexedArticles, updateArticleIndexingStatus } from '@/lib/supabase';
 import { batchSubmitUrls } from '@/lib/google-indexing';
+import { batchSubmitToIndexNow } from '@/lib/indexnow';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -71,31 +84,61 @@ export async function POST(request: NextRequest) {
       url: `${BASE_URL}/blog/${article.slug}`,
     }));
 
-    // Step 3: Submit URLs to Google Indexing API
-    console.log('[Cron Submit Indexing] Submitting URLs to Google Indexing API...');
-    const submissionResult = await batchSubmitUrls(
-      articleUrls.map(a => a.url),
-      200 // 200ms delay between requests
+    // Step 3: Submit URLs to both APIs
+    const urls = articleUrls.map(a => a.url);
+
+    console.log('[Cron Submit Indexing] Submitting to Google Indexing API...');
+    const googleSubmissionPromise = batchSubmitUrls(
+      urls,
+      200 // 200ms delay between requests to respect rate limits
     );
+
+    console.log('[Cron Submit Indexing] Submitting to IndexNow API...');
+    const indexNowSubmissionPromise = batchSubmitToIndexNow(urls);
+
+    // Wait for both APIs to complete
+    const [googleResult, indexNowResult] = await Promise.all([
+      googleSubmissionPromise,
+      indexNowSubmissionPromise,
+    ]);
+
+    console.log('[Cron Submit Indexing] API Results:');
+    console.log(`  - Google: ${googleResult.successful}/${googleResult.total} successful`);
+    console.log(`  - IndexNow: ${indexNowResult.successful}/${indexNowResult.total} successful`);
 
     // Step 4: Update database with results
     console.log('[Cron Submit Indexing] Updating database with submission results...');
     let successCount = 0;
     let failCount = 0;
 
-    for (let i = 0; i < submissionResult.results.length; i++) {
-      const result = submissionResult.results[i];
+    for (let i = 0; i < articleUrls.length; i++) {
       const article = articleUrls[i];
+      const googleSuccess = googleResult.results[i]?.success || false;
+      const indexNowSuccess = indexNowResult.successful > 0; // IndexNow submits all URLs in batch
+
+      // Mark as submitted if ANY API succeeded
+      const anySuccess = googleSuccess || indexNowSuccess;
 
       try {
-        if (result.success) {
-          await updateArticleIndexingStatus(article.id, 'success');
+        if (anySuccess) {
+          await updateArticleIndexingStatus(article.id, 'submitted');
           successCount++;
-          console.log(`✅ [Cron Submit Indexing] Success: ${article.slug}`);
+
+          // Log which APIs succeeded
+          const apis = [];
+          if (googleSuccess) apis.push('Google');
+          if (indexNowSuccess) apis.push('IndexNow');
+          console.log(`✅ [Cron Submit Indexing] Submitted via ${apis.join(' + ')}: ${article.slug}`);
         } else {
-          await updateArticleIndexingStatus(article.id, 'failed', result.error);
+          // Both APIs failed
+          const errors = [];
+          if (googleResult.results[i]?.error) errors.push(`Google: ${googleResult.results[i].error}`);
+          if (indexNowResult.failed > 0) errors.push('IndexNow failed');
+
+          const combinedError = errors.join('; ');
+          await updateArticleIndexingStatus(article.id, 'failed', combinedError);
           failCount++;
-          console.error(`❌ [Cron Submit Indexing] Failed: ${article.slug} - ${result.error}`);
+          console.error(`❌ [Cron Submit Indexing] Both APIs failed for ${article.slug}: ${combinedError}`);
         }
       } catch (dbError: unknown) {
         console.error(`[Cron Submit Indexing] Database update error for ${article.slug}:`, dbError);
@@ -109,6 +152,16 @@ export async function POST(request: NextRequest) {
       successful: successCount,
       failed: failCount,
       duration,
+      apiResults: {
+        google: {
+          successful: googleResult.successful,
+          failed: googleResult.failed,
+        },
+        indexNow: {
+          successful: indexNowResult.successful,
+          failed: indexNowResult.failed,
+        },
+      },
     };
 
     console.log('[Cron Submit Indexing] Cron job completed successfully:', stats);
