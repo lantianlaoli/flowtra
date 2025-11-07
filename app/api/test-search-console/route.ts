@@ -37,10 +37,9 @@ export async function GET() {
       scopes: [SEARCH_CONSOLE_SCOPE],
     });
 
-    const authClient = await auth.getClient();
     const searchConsole = google.searchconsole({
       version: 'v1',
-      auth: authClient as any,
+      auth,
     });
 
     console.log('[Test Search Console] Fetching sites list...');
@@ -88,14 +87,20 @@ export async function GET() {
         : `Please go to Google Search Console (https://search.google.com/search-console) and:\n1. Select or add property: ${configuredSiteUrl}\n2. Go to Settings > Users and permissions\n3. Add user: ${clientEmail}\n4. Set permission level to: Owner\n5. Wait 5-10 minutes for changes to take effect`,
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Test Search Console] Error:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const errorCode = error && typeof error === 'object' && 'code' in error ? (error as { code?: string }).code : undefined;
+    const errorDetails = error && typeof error === 'object' && 'response' in error
+      ? (error as { response?: { data?: unknown } }).response?.data || String(error)
+      : String(error);
 
     return NextResponse.json({
       error: 'API Error',
-      message: error.message,
-      code: error.code,
-      details: error.response?.data || error.toString(),
+      message: errorMessage,
+      code: errorCode,
+      details: errorDetails,
     }, { status: 500 });
   }
 }
