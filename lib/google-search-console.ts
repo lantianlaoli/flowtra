@@ -17,8 +17,11 @@
 
 import { google } from 'googleapis';
 
-const SEARCH_CONSOLE_SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.flowtra.store/';
+// Note: URL Inspection API may require full 'webmasters' scope, not just 'readonly'
+// This is because inspection involves accessing detailed index information
+const SEARCH_CONSOLE_SCOPE = 'https://www.googleapis.com/auth/webmasters';
+// IMPORTANT: Must match Google Search Console property EXACTLY (no trailing slash for URL Prefix)
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.flowtra.store';
 
 /**
  * Initialize Google Auth for Search Console API
