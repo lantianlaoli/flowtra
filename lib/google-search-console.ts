@@ -20,8 +20,9 @@ import { google } from 'googleapis';
 // Note: URL Inspection API may require full 'webmasters' scope, not just 'readonly'
 // This is because inspection involves accessing detailed index information
 const SEARCH_CONSOLE_SCOPE = 'https://www.googleapis.com/auth/webmasters';
-// IMPORTANT: Must match Google Search Console property EXACTLY (no trailing slash for URL Prefix)
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.flowtra.store';
+// IMPORTANT: Must match Google Search Console property EXACTLY
+// Based on diagnostic results, the registered property is: https://www.flowtra.store/ (with trailing slash)
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.flowtra.store').replace(/\/?$/, '/'); // Ensure trailing slash
 
 /**
  * Initialize Google Auth for Search Console API
