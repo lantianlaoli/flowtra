@@ -27,29 +27,25 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 bg-transparent">
-      <div
-        className={`mx-auto transition-[max-width] duration-300 ease-out ${
-          compact ? 'max-w-4xl' : 'max-w-7xl'
-        } px-4 sm:px-6 lg:px-8`}
-      >
+      <div className="mx-auto max-w-[90rem] px-4 sm:px-6 lg:px-8">
         <div
-          className={`flex items-center justify-between h-16 transition-all duration-300 ${
+          className={`flex items-center justify-between h-16 ${
             compact
               ? 'rounded-lg border border-white/40 bg-white/60 backdrop-blur-md backdrop-saturate-150 ring-1 ring-black/5 px-4 shadow'
-              : 'border-b border-gray-200 bg-white px-0'
+              : 'bg-white px-0'
           }`}
         >
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3">
-            <Image 
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png" 
-              alt="Flowtra AI Logo" 
-              width={32} 
-              height={32} 
+            <Image
+              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png"
+              alt="Flowtra AI Logo"
+              width={32}
+              height={32}
               className=""
             />
-            <span className="text-[1.35rem] leading-none font-semibold font-serif tracking-wide text-gray-900">
-              Flowtra <span className="font-serif italic">AI</span>
+            <span className="text-xl font-semibold text-gray-900">
+              Flowtra <span className="italic">AI</span>
             </span>
           </Link>
 
