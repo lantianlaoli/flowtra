@@ -36,7 +36,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           }`}
         >
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3 cursor-pointer transition-opacity hover:opacity-80">
             <Image
               src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png"
               alt="Flowtra AI Logo"
@@ -110,7 +110,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               </Link>
               <SignedOut>
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button className="border border-gray-300 text-gray-700 px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors">
+                  <button className="border border-gray-300 text-gray-700 px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all cursor-pointer">
                     Login
                   </button>
                 </SignInButton>
@@ -231,7 +231,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                   <SignedOut>
                     <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                       <button
-                        className="block border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-center font-semibold w-full"
+                        className="block border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all text-center font-semibold w-full cursor-pointer"
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         Login
