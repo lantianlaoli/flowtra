@@ -7,6 +7,22 @@ interface PricingSectionProps {
 }
 
 export default function PricingSection({ liteVideos, basicVideos, proVideos }: PricingSectionProps) {
+  // Black Friday discount
+  const DISCOUNT_RATE = 0.2; // 20% off
+  const LITE_PRICE = 9;
+  const BASIC_PRICE = 29;
+  const PRO_PRICE = 49;
+
+  const calculateDiscount = (price: number) => ({
+    original: price,
+    discounted: (price * (1 - DISCOUNT_RATE)).toFixed(2),
+    savings: (price * DISCOUNT_RATE).toFixed(2)
+  });
+
+  const litePricing = calculateDiscount(LITE_PRICE);
+  const basicPricing = calculateDiscount(BASIC_PRICE);
+  const proPricing = calculateDiscount(PRO_PRICE);
+
   return (
     <section id="pricing" className="py-12 scroll-mt-24">
       <div className="text-center mb-8">
@@ -16,11 +32,26 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
         {/* Lite Plan */}
-        <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col" itemScope itemType="https://schema.org/Offer">
+        <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col relative" itemScope itemType="https://schema.org/Offer">
+          {/* Black Friday Badge */}
+          <div className="absolute -top-3 -right-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+            Save ${litePricing.savings}
+          </div>
+
           <h3 className="text-xl font-semibold text-gray-900 mb-2" itemProp="name">Lite</h3>
-          <div className="text-3xl font-bold text-gray-900 mb-4">
-            <data itemProp="price" value="9">$9</data>
-            <span className="text-lg font-normal text-gray-600">/package</span>
+
+          {/* Price with discount */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xl line-through text-gray-400">${litePricing.original}</span>
+              <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded">
+                -{DISCOUNT_RATE * 100}%
+              </span>
+            </div>
+            <div className="text-3xl font-bold text-gray-900">
+              <data itemProp="price" value={litePricing.discounted}>${litePricing.discounted}</data>
+              <span className="text-lg font-normal text-gray-600">/package</span>
+            </div>
           </div>
           <meta itemProp="priceCurrency" content="USD" />
           <meta itemProp="availability" content="https://schema.org/InStock" />
@@ -56,14 +87,29 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
         </article>
 
         {/* Basic Plan (Recommended) */}
-        <article className="bg-white rounded-2xl border-2 border-gray-900 p-6 md:p-8 shadow-sm transform scale-105 flex flex-col" itemScope itemType="https://schema.org/Offer">
+        <article className="bg-white rounded-2xl border-2 border-gray-900 p-6 md:p-8 shadow-sm transform scale-105 flex flex-col relative" itemScope itemType="https://schema.org/Offer">
+          {/* Black Friday Badge */}
+          <div className="absolute -top-3 -right-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+            Save ${basicPricing.savings}
+          </div>
+
           <div className="bg-gray-900 text-white px-3 py-1 rounded-md text-sm font-medium mb-4 inline-block">
             Recommended
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2" itemProp="name">Basic</h3>
-          <div className="text-3xl font-bold text-gray-900 mb-4">
-            <data itemProp="price" value="29">$29</data>
-            <span className="text-lg font-normal text-gray-600">/package</span>
+
+          {/* Price with discount */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xl line-through text-gray-400">${basicPricing.original}</span>
+              <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded">
+                -{DISCOUNT_RATE * 100}%
+              </span>
+            </div>
+            <div className="text-3xl font-bold text-gray-900">
+              <data itemProp="price" value={basicPricing.discounted}>${basicPricing.discounted}</data>
+              <span className="text-lg font-normal text-gray-600">/package</span>
+            </div>
           </div>
           <meta itemProp="priceCurrency" content="USD" />
           <meta itemProp="availability" content="https://schema.org/InStock" />
@@ -99,11 +145,26 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
         </article>
 
         {/* Pro Plan */}
-        <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col" itemScope itemType="https://schema.org/Offer">
+        <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col relative" itemScope itemType="https://schema.org/Offer">
+          {/* Black Friday Badge */}
+          <div className="absolute -top-3 -right-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+            Save ${proPricing.savings}
+          </div>
+
           <h3 className="text-xl font-semibold text-gray-900 mb-2" itemProp="name">Pro</h3>
-          <div className="text-3xl font-bold text-gray-900 mb-4">
-            <data itemProp="price" value="49">$49</data>
-            <span className="text-lg font-normal text-gray-600">/package</span>
+
+          {/* Price with discount */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xl line-through text-gray-400">${proPricing.original}</span>
+              <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded">
+                -{DISCOUNT_RATE * 100}%
+              </span>
+            </div>
+            <div className="text-3xl font-bold text-gray-900">
+              <data itemProp="price" value={proPricing.discounted}>${proPricing.discounted}</data>
+              <span className="text-lg font-normal text-gray-600">/package</span>
+            </div>
           </div>
           <meta itemProp="priceCurrency" content="USD" />
           <meta itemProp="availability" content="https://schema.org/InStock" />

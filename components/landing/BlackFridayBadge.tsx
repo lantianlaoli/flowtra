@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Ticket } from 'lucide-react'
+import { Ticket, Copy, Check } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 
 interface TimeLeft {
@@ -14,7 +14,15 @@ interface TimeLeft {
 export default function BlackFridayBadge() {
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
   const [isExpired, setIsExpired] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
   const { showSuccess } = useToast()
+
+  // Price information
+  const DISCOUNT_RATE = 0.2 // 20% off
+  const LITE_PRICE = 9
+  const LITE_DISCOUNTED = (LITE_PRICE * (1 - DISCOUNT_RATE)).toFixed(2)
+  const SAVINGS = (LITE_PRICE - parseFloat(LITE_DISCOUNTED)).toFixed(2)
+  const DISCOUNT_CODE = 'SQZPVT9QUJ'
 
   useEffect(() => {
     // Black Friday 2025: November 29, 2025 00:00:00 EST
@@ -48,22 +56,26 @@ export default function BlackFridayBadge() {
     return () => clearInterval(timer)
   }, [])
 
-  const handleClick = async () => {
-    // Copy discount code to clipboard
-    const discountCode = 'SQZPVT9QUJ'
+  const handleCopyCode = async () => {
     try {
-      await navigator.clipboard.writeText(discountCode)
-      showSuccess('Discount code copied! Redirecting to pricing...', 3000)
+      await navigator.clipboard.writeText(DISCOUNT_CODE)
+      setIsCopied(true)
+      showSuccess('Discount code copied!', 2000)
 
-      // Wait a moment then scroll to pricing
+      // Reset copied state after 2 seconds
+      setTimeout(() => {
+        setIsCopied(false)
+      }, 2000)
+
+      // Scroll to pricing
       setTimeout(() => {
         document.getElementById('pricing')?.scrollIntoView({
           behavior: 'smooth',
         })
       }, 500)
     } catch {
-      // Fallback: just scroll to pricing if clipboard fails
-      showSuccess('Discount code: ' + discountCode, 3000)
+      // Fallback: just show message and scroll
+      showSuccess('Code: ' + DISCOUNT_CODE, 3000)
       document.getElementById('pricing')?.scrollIntoView({
         behavior: 'smooth',
       })
@@ -87,34 +99,59 @@ export default function BlackFridayBadge() {
   }
 
   return (
-    <button
-      onClick={handleClick}
-      className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-full hover:bg-gray-200 transition-colors cursor-pointer text-sm sm:text-base"
-      aria-label="Black Friday promotion - Click to copy discount code and view pricing"
-    >
-      {/* Ticket icon */}
-      <Ticket className="w-4 h-4 text-[#2383e2]" />
+    <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 px-5 py-3 sm:py-3.5 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl shadow-sm">
+      {/* Black Friday Label */}
+      <div className="flex items-center gap-2">
+        <Ticket className="w-5 h-5 text-red-600" />
+        <span className="font-bold text-gray-900">Black Friday Sale</span>
+      </div>
 
-      {/* Black Friday label with discount */}
-      <span className="font-semibold text-gray-900">
-        Black Friday Sale: <span className="text-[#2383e2]">20% OFF</span>
-      </span>
+      {/* Separator - hidden on mobile */}
+      <div className="hidden sm:block text-gray-300">·</div>
 
-      {/* Separator */}
-      <span className="text-gray-400">·</span>
+      {/* Price Comparison */}
+      <div className="flex items-center gap-2 text-center sm:text-left">
+        <span className="text-sm text-gray-600">Lite Pack:</span>
+        <span className="line-through text-gray-400 text-sm">${LITE_PRICE}</span>
+        <span className="text-lg sm:text-xl font-bold text-red-600">${LITE_DISCOUNTED}</span>
+        <span className="text-xs sm:text-sm text-gray-600 bg-white px-2 py-0.5 rounded-md border border-gray-200">
+          Save ${SAVINGS}
+        </span>
+      </div>
+
+      {/* Separator - hidden on mobile */}
+      <div className="hidden sm:block text-gray-300">·</div>
+
+      {/* Discount Code with Copy Button */}
+      <div className="flex items-center gap-2">
+        <div className="font-mono text-sm bg-white px-3 py-1.5 rounded-md border border-gray-300 flex items-center gap-2">
+          <span className="text-gray-600">Code:</span>
+          <span className="font-bold text-blue-600">{DISCOUNT_CODE}</span>
+        </div>
+        <button
+          onClick={handleCopyCode}
+          className="p-1.5 hover:bg-white rounded-md transition-colors cursor-pointer"
+          aria-label="Copy discount code"
+          title="Copy code"
+        >
+          {isCopied ? (
+            <Check className="w-4 h-4 text-green-600" />
+          ) : (
+            <Copy className="w-4 h-4 text-gray-600 hover:text-blue-600" />
+          )}
+        </button>
+      </div>
+
+      {/* Separator - hidden on mobile */}
+      <div className="hidden sm:block text-gray-300">·</div>
 
       {/* Countdown */}
-      <span className="font-bold text-[#2383e2] tabular-nums">
-        {getTimeDisplay()}
-      </span>
-
-      {/* Separator */}
-      <span className="text-gray-400 hidden sm:inline">·</span>
-
-      {/* Call to action hint */}
-      <span className="text-gray-600 hidden sm:inline">
-        Click to copy code
-      </span>
-    </button>
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm text-gray-600">Ends in:</span>
+        <span className="font-bold text-red-600 tabular-nums text-sm sm:text-base">
+          {getTimeDisplay()}
+        </span>
+      </div>
+    </div>
   )
 }

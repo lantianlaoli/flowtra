@@ -2,6 +2,9 @@
 // Basic models: FREE generation, PAID download
 // Premium models: PAID generation, FREE download
 
+// ===== BLACK FRIDAY PROMOTION =====
+export const BLACK_FRIDAY_DISCOUNT = 0.2; // 20% off all packages
+
 // Model classification
 export const FREE_GENERATION_MODELS = ['veo3_fast', 'sora2'] as const;
 export const PAID_GENERATION_MODELS = ['veo3', 'sora2_pro'] as const;
