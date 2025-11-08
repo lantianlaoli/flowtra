@@ -2,7 +2,6 @@ import dynamic from 'next/dynamic';
 import DemoVideoSchema from '@/components/seo/DemoVideoSchema';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { CREDIT_COSTS } from '@/lib/constants';
 import BlogPreview from '@/components/sections/BlogPreview';
 import { getActivatedUserCount } from '@/lib/publicMetrics';
 import { demoVideos } from '@/lib/landing-data';
@@ -17,10 +16,6 @@ const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
 });
 
 export default async function LandingPage() {
-  // Video generation estimates (generation-time billing)
-  const liteVideos = Math.floor(500 / CREDIT_COSTS.veo3_fast);
-  const basicVideos = Math.floor(2000 / CREDIT_COSTS.veo3_fast);
-  const proVideos = Math.floor(3500 / CREDIT_COSTS.veo3_fast);
   const activatedUserCount = await getActivatedUserCount();
 
   return (
@@ -51,11 +46,7 @@ export default async function LandingPage() {
         <ComparisonSection />
 
         {/* Pricing Section */}
-        <PricingSection
-          liteVideos={liteVideos}
-          basicVideos={basicVideos}
-          proVideos={proVideos}
-        />
+        <PricingSection />
       </main>
 
       {/* Blog Preview Section */}

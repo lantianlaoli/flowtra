@@ -1,12 +1,6 @@
 import { PricingButton } from '@/components/pages/landing/PricingButton';
 
-interface PricingSectionProps {
-  liteVideos: number;
-  basicVideos: number;
-  proVideos: number;
-}
-
-export default function PricingSection({ liteVideos, basicVideos, proVideos }: PricingSectionProps) {
+export default function PricingSection() {
   // Black Friday discount
   const DISCOUNT_RATE = 0.2; // 20% off
   const LITE_PRICE = 9;
@@ -51,7 +45,7 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
           <meta itemProp="priceCurrency" content="USD" />
           <meta itemProp="availability" content="https://schema.org/InStock" />
           <meta itemProp="url" content="https://www.flowtra.store/#pricing" />
-          <meta itemProp="description" content="500 credits. Approximately 25 Veo3 Fast videos. Includes Standard Ads, Multi-Variant Ads, and Character Ads. Mixed billing model with free image generation." />
+          <meta itemProp="description" content="500 credits. Unlimited image generation and download. Unlimited video generation, pay only when satisfied. Approximately 83 video downloads." />
           <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
@@ -59,23 +53,15 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{liteVideos}</span> Veo3 Fast videos</span>
+              <span className="text-gray-600 font-bold text-gray-900">Unlimited image generation & download</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Mixed billing model</span>
+              <span className="text-gray-600 font-bold text-gray-900">Unlimited video generation, pay when satisfied</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Always free image generation</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Character Ads</span>
+              <span className="text-gray-600">≈ <span className="font-bold text-gray-900">83</span> video downloads</span>
             </li>
           </ul>
           <PricingButton packageName="lite" />
@@ -104,7 +90,7 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
           <meta itemProp="priceCurrency" content="USD" />
           <meta itemProp="availability" content="https://schema.org/InStock" />
           <meta itemProp="url" content="https://www.flowtra.store/#pricing" />
-          <meta itemProp="description" content="2,000 credits. Approximately 100 Veo3 Fast videos. Free unlimited downloads and image generation. Includes all features: Standard Ads, Multi-Variant Ads, Character Ads." />
+          <meta itemProp="description" content="2,000 credits. Unlimited image generation and download. Unlimited video generation, pay only when satisfied. Approximately 333 video downloads." />
           <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
@@ -112,23 +98,15 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{basicVideos}</span> Veo3 Fast videos</span>
+              <span className="text-gray-600 font-bold text-gray-900">Unlimited image generation & download</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Free unlimited downloads</span>
+              <span className="text-gray-600 font-bold text-gray-900">Unlimited video generation, pay when satisfied</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Free image generation</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-gray-900 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Character Ads</span>
+              <span className="text-gray-600">≈ <span className="font-bold text-gray-900">333</span> video downloads</span>
             </li>
           </ul>
           <PricingButton packageName="basic" />
@@ -154,7 +132,7 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
           <meta itemProp="priceCurrency" content="USD" />
           <meta itemProp="availability" content="https://schema.org/InStock" />
           <meta itemProp="url" content="https://www.flowtra.store/#pricing" />
-          <meta itemProp="description" content="3,500 credits. Approximately 175 Veo3 Fast videos. Priority processing, mixed billing model, free image generation. Includes Standard Ads, Multi-Variant Ads, and Character Ads." />
+          <meta itemProp="description" content="3,500 credits. Unlimited image generation and download. Unlimited video generation, pay only when satisfied. Approximately 583 video downloads. Priority processing." />
           <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
@@ -162,23 +140,15 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{proVideos}</span> Veo3 Fast videos</span>
+              <span className="text-gray-600 font-bold text-gray-900">Unlimited image generation & download</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Mixed billing model</span>
+              <span className="text-gray-600 font-bold text-gray-900">Unlimited video generation, pay when satisfied</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Always free image generation</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Standard Ads, Multi-Variant Ads</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
-              <span className="text-gray-600">Character Ads</span>
+              <span className="text-gray-600">≈ <span className="font-bold text-gray-900">583</span> video downloads</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-600 rounded-full" aria-hidden="true"></div>
