@@ -32,20 +32,15 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
         {/* Lite Plan */}
-        <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col relative" itemScope itemType="https://schema.org/Offer">
-          {/* Black Friday Badge */}
-          <div className="absolute -top-3 -right-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
-            Save ${litePricing.savings}
-          </div>
-
+        <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col" itemScope itemType="https://schema.org/Offer">
           <h3 className="text-xl font-semibold text-gray-900 mb-2" itemProp="name">Lite</h3>
 
           {/* Price with discount */}
           <div className="mb-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xl line-through text-gray-400">${litePricing.original}</span>
-              <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded">
-                -{DISCOUNT_RATE * 100}%
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg line-through text-[#9b9a97]">${litePricing.original}</span>
+              <span className="bg-[#f7f6f3] text-[#787774] text-xs font-medium px-2 py-1 rounded">
+                Save ${litePricing.savings}
               </span>
             </div>
             <div className="text-3xl font-bold text-gray-900">
@@ -87,12 +82,7 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
         </article>
 
         {/* Basic Plan (Recommended) */}
-        <article className="bg-white rounded-2xl border-2 border-gray-900 p-6 md:p-8 shadow-sm transform scale-105 flex flex-col relative" itemScope itemType="https://schema.org/Offer">
-          {/* Black Friday Badge */}
-          <div className="absolute -top-3 -right-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
-            Save ${basicPricing.savings}
-          </div>
-
+        <article className="bg-white rounded-2xl border-2 border-gray-900 p-6 md:p-8 shadow-sm transform scale-105 flex flex-col" itemScope itemType="https://schema.org/Offer">
           <div className="bg-gray-900 text-white px-3 py-1 rounded-md text-sm font-medium mb-4 inline-block">
             Recommended
           </div>
@@ -100,10 +90,10 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
 
           {/* Price with discount */}
           <div className="mb-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xl line-through text-gray-400">${basicPricing.original}</span>
-              <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded">
-                -{DISCOUNT_RATE * 100}%
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg line-through text-[#9b9a97]">${basicPricing.original}</span>
+              <span className="bg-[#f7f6f3] text-[#787774] text-xs font-medium px-2 py-1 rounded">
+                Save ${basicPricing.savings}
               </span>
             </div>
             <div className="text-3xl font-bold text-gray-900">
@@ -145,20 +135,15 @@ export default function PricingSection({ liteVideos, basicVideos, proVideos }: P
         </article>
 
         {/* Pro Plan */}
-        <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col relative" itemScope itemType="https://schema.org/Offer">
-          {/* Black Friday Badge */}
-          <div className="absolute -top-3 -right-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
-            Save ${proPricing.savings}
-          </div>
-
+        <article className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col" itemScope itemType="https://schema.org/Offer">
           <h3 className="text-xl font-semibold text-gray-900 mb-2" itemProp="name">Pro</h3>
 
           {/* Price with discount */}
           <div className="mb-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xl line-through text-gray-400">${proPricing.original}</span>
-              <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded">
-                -{DISCOUNT_RATE * 100}%
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg line-through text-[#9b9a97]">${proPricing.original}</span>
+              <span className="bg-[#f7f6f3] text-[#787774] text-xs font-medium px-2 py-1 rounded">
+                Save ${proPricing.savings}
               </span>
             </div>
             <div className="text-3xl font-bold text-gray-900">

@@ -99,58 +99,54 @@ export default function BlackFridayBadge() {
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 px-5 py-3 sm:py-3.5 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl shadow-sm">
-      {/* Black Friday Label */}
-      <div className="flex items-center gap-2">
-        <Ticket className="w-5 h-5 text-red-600" />
-        <span className="font-bold text-gray-900">Black Friday Sale</span>
+    <div className="max-w-2xl mx-auto bg-[#fafafa] border border-[#e9e9e7] rounded-lg p-6 sm:p-8">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-6">
+        <Ticket className="w-5 h-5 text-[#787774]" />
+        <span className="text-base font-semibold text-[#37352f]">Black Friday Special Offer</span>
       </div>
 
-      {/* Separator - hidden on mobile */}
-      <div className="hidden sm:block text-gray-300">·</div>
-
-      {/* Price Comparison */}
-      <div className="flex items-center gap-2 text-center sm:text-left">
-        <span className="text-sm text-gray-600">Lite Pack:</span>
-        <span className="line-through text-gray-400 text-sm">${LITE_PRICE}</span>
-        <span className="text-lg sm:text-xl font-bold text-red-600">${LITE_DISCOUNTED}</span>
-        <span className="text-xs sm:text-sm text-gray-600 bg-white px-2 py-0.5 rounded-md border border-gray-200">
-          Save ${SAVINGS}
-        </span>
-      </div>
-
-      {/* Separator - hidden on mobile */}
-      <div className="hidden sm:block text-gray-300">·</div>
-
-      {/* Discount Code with Copy Button */}
-      <div className="flex items-center gap-2">
-        <div className="font-mono text-sm bg-white px-3 py-1.5 rounded-md border border-gray-300 flex items-center gap-2">
-          <span className="text-gray-600">Code:</span>
-          <span className="font-bold text-blue-600">{DISCOUNT_CODE}</span>
+      {/* Main Content - Price Comparison */}
+      <div className="mb-6">
+        <div className="text-sm text-[#787774] mb-2">Lite Package</div>
+        <div className="flex items-baseline gap-3">
+          <span className="text-2xl line-through text-[#9b9a97]">${LITE_PRICE}</span>
+          <span className="text-3xl font-bold text-[#37352f]">${LITE_DISCOUNTED}</span>
+          <span className="text-base text-[#787774]">Save ${SAVINGS}</span>
         </div>
-        <button
-          onClick={handleCopyCode}
-          className="p-1.5 hover:bg-white rounded-md transition-colors cursor-pointer"
-          aria-label="Copy discount code"
-          title="Copy code"
-        >
-          {isCopied ? (
-            <Check className="w-4 h-4 text-green-600" />
-          ) : (
-            <Copy className="w-4 h-4 text-gray-600 hover:text-blue-600" />
-          )}
-        </button>
       </div>
 
-      {/* Separator - hidden on mobile */}
-      <div className="hidden sm:block text-gray-300">·</div>
+      {/* Secondary Info */}
+      <div className="space-y-3 pt-4 border-t border-[#e9e9e7]">
+        {/* Discount Code */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-[#787774]">Discount code</span>
+          <div className="flex items-center gap-2">
+            <code className="text-sm font-mono bg-white px-3 py-1.5 rounded border border-[#e9e9e7] text-[#37352f]">
+              {DISCOUNT_CODE}
+            </code>
+            <button
+              onClick={handleCopyCode}
+              className="p-2 hover:bg-white rounded transition-colors"
+              aria-label="Copy discount code"
+              title="Copy code"
+            >
+              {isCopied ? (
+                <Check className="w-4 h-4 text-[#787774]" />
+              ) : (
+                <Copy className="w-4 h-4 text-[#787774]" />
+              )}
+            </button>
+          </div>
+        </div>
 
-      {/* Countdown */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-sm text-gray-600">Ends in:</span>
-        <span className="font-bold text-red-600 tabular-nums text-sm sm:text-base">
-          {getTimeDisplay()}
-        </span>
+        {/* Countdown */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-[#787774]">Offer ends in</span>
+          <span className="text-sm font-medium text-[#37352f] tabular-nums">
+            {getTimeDisplay()}
+          </span>
+        </div>
       </div>
     </div>
   )
