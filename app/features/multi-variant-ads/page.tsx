@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Multi-Variant Ads - Generate Multiple Ad Versions | Flowtra',
     description: 'Generate multiple ad variants from one image with AI. Perfect for A/B testing.',
-    images: ['/twitter-image.jpg'],
+    images: ['/twitter-image.png'],
     creator: '@flowtra',
   },
   robots: {

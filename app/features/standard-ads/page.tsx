@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Standard Ads - AI Video Generator | Flowtra',
     description: 'Transform product images into engaging video ads with AI. Support 50+ languages.',
-    images: ['/twitter-image.jpg'],
+    images: ['/twitter-image.png'],
     creator: '@flowtra',
   },
   robots: {

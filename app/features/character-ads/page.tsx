@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Character Ads - AI Character-Driven Video Ads | Flowtra',
     description: 'Create realistic AI character-driven video ads with Google Veo3. Custom dialogue and professional quality.',
-    images: ['/twitter-image.jpg'],
+    images: ['/twitter-image.png'],
     creator: '@flowtra',
   },
   robots: {

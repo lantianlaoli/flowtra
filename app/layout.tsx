@@ -62,7 +62,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Flowtra AI - AI Video Generator for Etsy, Shopify & Gumroad Sellers',
     description: 'Generate scroll-stopping marketing videos and product images in minutes. Unlimited free generations and one-time plans starting at $9.',
-    images: ['/twitter-image.jpg'],
+    images: ['/twitter-image.png'],
     creator: '@flowtra',
   },
   robots: {

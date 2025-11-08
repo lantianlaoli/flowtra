@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Sora2 Watermark Removal - Remove ChatGPT Sora Video Watermarks',
     description: 'Remove watermarks from ChatGPT Sora2 videos instantly. Only 3 credits per video. Professional quality in 2-5 minutes.',
-    images: ['/twitter-image.jpg'],
+    images: ['/twitter-image.png'],
     creator: '@flowtra',
   },
   robots: {
