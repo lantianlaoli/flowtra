@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Ticket } from 'lucide-react'
+import { Ticket, Copy, Check } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
 
 interface TimeLeft {
   days: number
@@ -13,11 +14,14 @@ interface TimeLeft {
 export default function BlackFridayBadge() {
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
   const [isExpired, setIsExpired] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
+  const { showSuccess } = useToast()
 
   // Price information
   const DISCOUNT_RATE = 0.2 // 20% off
   const LITE_PRICE = 9
   const LITE_DISCOUNTED = (LITE_PRICE * (1 - DISCOUNT_RATE)).toFixed(2)
+  const DISCOUNT_CODE = 'SQZPVT9QUJ'
 
   useEffect(() => {
     // Black Friday 2025: November 29, 2025 00:00:00 EST
@@ -51,6 +55,32 @@ export default function BlackFridayBadge() {
     return () => clearInterval(timer)
   }, [])
 
+  const handleCopyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(DISCOUNT_CODE)
+      setIsCopied(true)
+      showSuccess('Discount code copied!', 2000)
+
+      // Reset copied state after 2 seconds
+      setTimeout(() => {
+        setIsCopied(false)
+      }, 2000)
+
+      // Scroll to pricing
+      setTimeout(() => {
+        document.getElementById('pricing')?.scrollIntoView({
+          behavior: 'smooth',
+        })
+      }, 500)
+    } catch {
+      // Fallback: just show message and scroll
+      showSuccess('Code: ' + DISCOUNT_CODE, 3000)
+      document.getElementById('pricing')?.scrollIntoView({
+        behavior: 'smooth',
+      })
+    }
+  }
+
   // Don't render if expired or still calculating
   if (isExpired || !timeLeft) return null
 
@@ -78,11 +108,40 @@ export default function BlackFridayBadge() {
       {/* Separator */}
       <div className="text-[#d9d9d7]">·</div>
 
+      {/* Discount Rate */}
+      <div className="flex items-center">
+        <span className="font-semibold text-[#37352f]">20% OFF</span>
+      </div>
+
+      {/* Separator */}
+      <div className="text-[#d9d9d7]">·</div>
+
       {/* Price Comparison */}
       <div className="flex items-center gap-2">
         <span className="line-through text-[#9b9a97]">${LITE_PRICE}</span>
         <span className="font-semibold text-[#37352f]">${LITE_DISCOUNTED}</span>
       </div>
+
+      {/* Separator */}
+      <div className="text-[#d9d9d7]">·</div>
+
+      {/* Copy Code Button */}
+      <button
+        onClick={handleCopyCode}
+        className="flex items-center gap-1.5 px-2.5 py-1 bg-[#37352f] text-white rounded-md hover:bg-[#2c2a26] transition-colors"
+      >
+        {isCopied ? (
+          <>
+            <Check className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">Copied!</span>
+          </>
+        ) : (
+          <>
+            <Copy className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">Copy Code</span>
+          </>
+        )}
+      </button>
 
       {/* Separator */}
       <div className="text-[#d9d9d7]">·</div>
