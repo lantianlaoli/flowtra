@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Bars3Icon } from '@heroicons/react/24/outline'
 import { type Article, calculateReadingTime, extractExcerpt } from '@/lib/supabase'
@@ -26,16 +26,6 @@ function BlogPageContent() {
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // Filter state
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(
-    searchParams.get('platforms')?.split(',').filter(Boolean) || []
-  )
-  const [selectedAudiences, setSelectedAudiences] = useState<string[]>(
-    searchParams.get('audiences')?.split(',').filter(Boolean) || []
-  )
-  const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1', 10))
-
   // Data state
   const [articles, setArticles] = useState<Article[]>([])
   const [total, setTotal] = useState(0)
@@ -45,80 +35,141 @@ function BlogPageContent() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch articles
-  const fetchArticles = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+  // Use ref to track abort controller for canceling stale requests
+  const abortControllerRef = useRef<AbortController | null>(null)
 
-    try {
-      const params = new URLSearchParams()
-      params.set('page', currentPage.toString())
-      params.set('limit', '9')
-      if (searchQuery) params.set('search', searchQuery)
-      if (selectedPlatforms.length > 0) params.set('platforms', selectedPlatforms.join(','))
-      if (selectedAudiences.length > 0) params.set('audiences', selectedAudiences.join(','))
-
-      const response = await fetch(`/api/articles?${params.toString()}`)
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch articles')
-      }
-
-      const data: ArticlesResponse = await response.json()
-
-      setArticles(data.articles)
-      setTotal(data.total)
-      setTotalPages(data.totalPages)
-      setPlatformCounts(data.platformCounts)
-      setAudienceCounts(data.audienceCounts)
-    } catch (err) {
-      console.error('Error fetching articles:', err)
-      setError('Failed to load articles. Please try again.')
-    } finally {
-      setIsLoading(false)
+  // Fetch articles when URL params change
+  useEffect(() => {
+    // Cancel any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
     }
-  }, [currentPage, searchQuery, selectedPlatforms, selectedAudiences])
+    abortControllerRef.current = new AbortController()
 
-  // Fetch articles when filters change
-  useEffect(() => {
+    const fetchArticles = async () => {
+      setIsLoading(true)
+      setError(null)
+
+      const currentPage = searchParams.get('page') || '1'
+      const searchQuery = searchParams.get('search') || ''
+      const platforms = searchParams.get('platforms') || ''
+      const audiences = searchParams.get('audiences') || ''
+
+      const pageNum = parseInt(currentPage, 10)
+      const platformsArray = platforms.split(',').filter(Boolean)
+      const audiencesArray = audiences.split(',').filter(Boolean)
+
+      try {
+        const params = new URLSearchParams()
+        params.set('page', pageNum.toString())
+        params.set('limit', '9')
+        if (searchQuery) params.set('search', searchQuery)
+        if (platformsArray.length > 0) params.set('platforms', platformsArray.join(','))
+        if (audiencesArray.length > 0) params.set('audiences', audiencesArray.join(','))
+
+        const response = await fetch(`/api/articles?${params.toString()}`, {
+          signal: abortControllerRef.current?.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch articles')
+        }
+
+        const data: ArticlesResponse = await response.json()
+
+        setArticles(data.articles)
+        setTotal(data.total)
+        setTotalPages(data.totalPages)
+        setPlatformCounts(data.platformCounts)
+        setAudienceCounts(data.audienceCounts)
+      } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === 'AbortError') {
+          return
+        }
+        console.error('Error fetching articles:', err)
+        setError('Failed to load articles. Please try again.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
     fetchArticles()
-  }, [fetchArticles])
 
-  // Update URL when filters change
-  useEffect(() => {
-    const params = new URLSearchParams()
-    if (searchQuery) params.set('search', searchQuery)
-    if (selectedPlatforms.length > 0) params.set('platforms', selectedPlatforms.join(','))
-    if (selectedAudiences.length > 0) params.set('audiences', selectedAudiences.join(','))
-    if (currentPage > 1) params.set('page', currentPage.toString())
+    // Cleanup function to abort on unmount
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [searchParams]) // Depend on searchParams to re-run when URL changes
+
+  // Derived values for rendering - computed directly without useMemo
+  const currentPage = parseInt(searchParams.get('page') || '1', 10)
+  const searchQuery = searchParams.get('search') || ''
+  const selectedPlatforms = searchParams.get('platforms')?.split(',').filter(Boolean) || []
+  const selectedAudiences = searchParams.get('audiences')?.split(',').filter(Boolean) || []
+
+  // Retry function for error state
+  const retryFetch = () => {
+    setError(null)
+    setIsLoading(true)
+    // Force a re-render by refreshing the router
+    router.refresh()
+  }
+
+  // Handle search change
+  const handleSearchChange = useCallback((value: string) => {
+    const params = new URLSearchParams(window.location.search)
+    if (value) {
+      params.set('search', value)
+    } else {
+      params.delete('search')
+    }
+    params.set('page', '1') // Reset to page 1
 
     const newUrl = params.toString() ? `/blog?${params.toString()}` : '/blog'
     router.push(newUrl, { scroll: false })
-  }, [searchQuery, selectedPlatforms, selectedAudiences, currentPage, router])
-
-  // Handle search change
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value)
-    setCurrentPage(1)
-  }
+  }, [router])
 
   // Handle platforms change
-  const handlePlatformsChange = (platforms: string[]) => {
-    setSelectedPlatforms(platforms)
-    setCurrentPage(1)
-  }
+  const handlePlatformsChange = useCallback((platforms: string[]) => {
+    const params = new URLSearchParams(window.location.search)
+    if (platforms.length > 0) {
+      params.set('platforms', platforms.join(','))
+    } else {
+      params.delete('platforms')
+    }
+    params.set('page', '1') // Reset to page 1
+
+    const newUrl = params.toString() ? `/blog?${params.toString()}` : '/blog'
+    router.push(newUrl, { scroll: false })
+  }, [router])
 
   // Handle audiences change
-  const handleAudiencesChange = (audiences: string[]) => {
-    setSelectedAudiences(audiences)
-    setCurrentPage(1)
-  }
+  const handleAudiencesChange = useCallback((audiences: string[]) => {
+    const params = new URLSearchParams(window.location.search)
+    if (audiences.length > 0) {
+      params.set('audiences', audiences.join(','))
+    } else {
+      params.delete('audiences')
+    }
+    params.set('page', '1') // Reset to page 1
+
+    const newUrl = params.toString() ? `/blog?${params.toString()}` : '/blog'
+    router.push(newUrl, { scroll: false })
+  }, [router])
 
   // Handle page change
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page)
+  const handlePageChange = useCallback((page: number) => {
+    const params = new URLSearchParams(window.location.search)
+    // Always set page parameter (including page 1) to maintain URL consistency
+    params.set('page', page.toString())
+
+    const newUrl = `/blog?${params.toString()}`
+    router.push(newUrl, { scroll: false })
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  }, [router])
 
   return (
     <div className="flex min-h-screen bg-white">
@@ -194,7 +245,7 @@ function BlogPageContent() {
                 <h3 className="text-base font-semibold text-[#37352f] mb-2">Error</h3>
                 <p className="text-sm text-[#787774] mb-4">{error}</p>
                 <button
-                  onClick={fetchArticles}
+                  onClick={retryFetch}
                   className="px-4 py-2 bg-[#37352f] text-white rounded text-sm hover:bg-[#2c2a26] transition"
                 >
                   Try Again
