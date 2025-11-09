@@ -15,9 +15,9 @@ export async function POST() {
     const { data: records, error } = await supabase
       .from('standard_ads_projects')
       .select('*')
-      .in('status', ['started', 'in_progress', 'processing', 'generating_cover', 'generating_brand_ending', 'generating_video'])
-      .or('cover_task_id.not.is.null,use_custom_script.eq.true') // Include records with cover_task_id OR custom script mode
-      .order('last_processed_at', { ascending: true })
+      .in('status', ['processing', 'generating_cover', 'generating_brand_ending', 'generating_video'])
+      .or('cover_task_id.not.is.null,use_custom_script.eq.true,current_step.eq.ready_for_video') // Include records with cover_task_id OR custom script mode OR ready for video
+      .order('last_processed_at', { ascending: true, nullsFirst: true }) // Process new records (null last_processed_at) first
       .limit(20); // Process max 20 records per run
 
     if (error) {

@@ -16,8 +16,8 @@ export async function POST() {
     const { data: instances, error } = await supabase
       .from('multi_variant_ads_projects')
       .select('*')
-      .in('status', ['generating_cover', 'generating_video'])
-      .order('last_processed_at', { ascending: true })
+      .in('status', ['analyzing_images', 'generating_elements', 'generating_cover_prompt', 'generating_cover', 'generating_video'])
+      .order('last_processed_at', { ascending: true, nullsFirst: true }) // Process new records first
       .limit(20); // Process max 20 instances per run
 
     if (error) {

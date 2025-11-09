@@ -203,10 +203,66 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
     }
 
     // Start optimized workflow that processes all projects together
-    // Pass the resolved imageUrl to the workflow
-    startOptimizedMultiVariantWorkflow(projectIds, { ...request, imageUrl }).catch((error: Error) => {
-      console.error('Optimized workflow failed:', error);
-    });
+    // Wrap in IIFE to ensure error handling is reliable
+    (async () => {
+      try {
+        await startOptimizedMultiVariantWorkflow(projectIds, { ...request, imageUrl });
+      } catch (error) {
+        console.error('❌ Optimized workflow failed:', error);
+        console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack available');
+        console.error('Context:', {
+          projectIds,
+          userId: request.userId,
+          totalGenerationCost,
+          photoOnly: request.photoOnly,
+          elementsCount
+        });
+
+        // REFUND credits on failure (only for paid generation models)
+        if (!request.photoOnly && totalGenerationCost > 0) {
+          console.log(`⚠️ Refunding ${totalGenerationCost} credits due to workflow failure`);
+          try {
+            await deductCredits(request.userId, -totalGenerationCost);
+            await recordCreditTransaction(
+              request.userId,
+              'refund',
+              totalGenerationCost,
+              `Multi-Variant Ads - Refund for failed workflow (${elementsCount} variants)`,
+              projectIds[0], // Use first project ID for reference
+              true
+            );
+            console.log(`✅ Successfully refunded ${totalGenerationCost} credits to user ${request.userId}`);
+          } catch (refundError) {
+            console.error('❌ CRITICAL: Refund failed:', refundError);
+            console.error('Refund error stack:', refundError instanceof Error ? refundError.stack : 'No stack available');
+            // TODO: This should trigger alerting - user paid but didn't get service
+          }
+        }
+
+        // Update all projects to failed status
+        try {
+          const { error: updateError } = await supabase
+            .from('multi_variant_ads_projects')
+            .update({
+              status: 'failed',
+              error_message: `Workflow failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              last_processed_at: new Date().toISOString()
+            })
+            .in('id', projectIds);
+
+          if (updateError) {
+            console.error('❌ CRITICAL: Failed to update projects status to failed:', updateError);
+            // TODO: This should trigger alerting - projects stuck in processing state
+          } else {
+            console.log(`✅ Marked ${projectIds.length} projects as failed`);
+          }
+        } catch (dbError) {
+          console.error('❌ CRITICAL: Database update exception:', dbError);
+          console.error('DB error stack:', dbError instanceof Error ? dbError.stack : 'No stack available');
+          // TODO: This should trigger alerting
+        }
+      }
+    })();
 
     return {
       success: true,
