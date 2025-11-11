@@ -18,6 +18,7 @@ import {
   X,
   Eraser
 } from 'lucide-react';
+import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { LayoutGroup, motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import FeedbackWidget from '@/components/FeedbackWidget';
@@ -26,52 +27,61 @@ interface SidebarProps {
   credits?: number;
   userEmail?: string;
   userImageUrl?: string;
+  onTriggerOnboarding?: () => void;
 }
 
 const navigation = [
   {
     name: 'Home',
     href: '/dashboard',
-    icon: Home
+    icon: Home,
+    onboardingId: 'sidebar-home'
   },
   {
     name: 'Standard Ads',
     href: '/dashboard/standard-ads',
-    icon: Sparkles
+    icon: Sparkles,
+    onboardingId: 'sidebar-standard-ads'
   },
   {
     name: 'Multi-Variant Ads',
     href: '/dashboard/multi-variant-ads',
-    icon: Layers
+    icon: Layers,
+    onboardingId: 'sidebar-multi-variant'
   },
   {
     name: 'Character Ads',
     href: '/dashboard/character-ads',
-    icon: Video
+    icon: Video,
+    onboardingId: 'sidebar-character-ads'
   },
   {
     name: 'Watermark Removal',
     href: '/dashboard/watermark-removal',
-    icon: Eraser
+    icon: Eraser,
+    onboardingId: 'sidebar-watermark'
   },
   {
     name: 'My Ads',
     href: '/dashboard/videos',
-    icon: Play
+    icon: Play,
+    onboardingId: 'sidebar-my-ads'
   },
   {
     name: 'Assets',
     href: '/dashboard/assets',
-    icon: Boxes
+    icon: Boxes,
+    onboardingId: 'sidebar-assets'
   },
   {
     name: 'Account',
     href: '/dashboard/account',
-    icon: User
+    icon: User,
+    onboardingId: 'sidebar-account'
   }
 ];
 
-export default function Sidebar({ credits = 0, userEmail, userImageUrl }: SidebarProps) {
+export default function Sidebar({ credits = 0, userEmail, userImageUrl, onTriggerOnboarding }: SidebarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -119,7 +129,10 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
 
         {/* Credits Display */}
         {credits !== undefined && (
-          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm hover:shadow-md transition-all duration-200">
+          <div
+            data-onboarding-id="sidebar-credits"
+            className="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm hover:shadow-md transition-all duration-200"
+          >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 bg-gradient-to-br from-gray-900 to-gray-700 rounded-lg flex items-center justify-center shadow-sm">
@@ -159,6 +172,7 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
                 <Link
                   key={item.name}
                   href={item.href}
+                  data-onboarding-id={'onboardingId' in item ? item.onboardingId : undefined}
                   className={cn(
                     'group relative flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden',
                     isActive ? 'text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -190,6 +204,16 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl }: Sideba
       
       {/* Feedback and Navigation */}
       <div className="p-6 border-t border-gray-200 space-y-2">
+        {/* Product Tour */}
+        {onTriggerOnboarding && (
+          <button
+            onClick={onTriggerOnboarding}
+            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors font-medium w-full"
+          >
+            <QuestionMarkCircleIcon className="w-5 h-5" />
+            <span>Product Tour</span>
+          </button>
+        )}
         <FeedbackWidget />
         <Link 
           href="/"

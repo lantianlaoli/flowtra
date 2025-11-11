@@ -4,6 +4,7 @@ import { HeroPrimaryButton } from '@/components/pages/landing/HeroPrimaryButton'
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 import BlackFridayBadge from '@/components/landing/BlackFridayBadge';
 import { Download } from 'lucide-react';
+import FounderCard from '@/components/ui/FounderCard';
 
 interface HeroSectionProps {
   activatedUserCount: number;
@@ -14,8 +15,11 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
     <section id="hero" className="grid lg:grid-cols-5 items-center py-10 sm:py-12 lg:py-16 gap-6 sm:gap-8 lg:gap-12 scroll-mt-24">
       {/* Left Content */}
       <div className="lg:col-span-3 space-y-5 sm:space-y-6 lg:space-y-8">
-        {/* Black Friday Promotion Badge */}
-        <BlackFridayBadge />
+        {/* Black Friday Promotion Badge + Founder Card */}
+        <div className="flex flex-wrap items-center gap-3">
+          <BlackFridayBadge />
+          <FounderCard variant="hero" showGreeting={false} className="hidden lg:inline-flex" />
+        </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
           Professional Ads for <u>Small Business</u>

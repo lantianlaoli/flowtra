@@ -6,16 +6,28 @@ import { useCredits } from '@/contexts/CreditsContext';
 import { Zap, TrendingUp, Hand, Volume2, VolumeX, Image as ImageIcon, Layers, Video as VideoIcon, BarChart3, Clock } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import { useRef, useMemo, useCallback } from 'react';
+import { useOnboarding } from '@/hooks/useOnboarding';
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
+import { OnboardingTrigger } from '@/components/onboarding/OnboardingTrigger';
 
 export default function HomePage() {
   const { user, isLoaded } = useUser();
   const { credits } = useCredits();
+  const { status, completeOnboarding, resetOnboarding } = useOnboarding();
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [stats, setStats] = useState({
     totalVideos: 0,
     thisMonth: 0,
     creditsUsed: 0,
     hoursSaved: 0,
   });
+
+  // Show onboarding if not completed
+  useEffect(() => {
+    if (!status.loading && !status.completed) {
+      setShowOnboarding(true);
+    }
+  }, [status.loading, status.completed]);
 
   // Fetch recent videos and stats
   useEffect(() => {
@@ -55,14 +67,47 @@ export default function HomePage() {
     return 'Guest';
   };
 
+  const handleCompleteOnboarding = async () => {
+    const success = await completeOnboarding();
+    if (success) {
+      setShowOnboarding(false);
+    }
+  };
+
+  const handleSkipOnboarding = async () => {
+    await completeOnboarding();
+    setShowOnboarding(false);
+  };
+
+  const handleTriggerOnboarding = async () => {
+    const success = await resetOnboarding();
+    if (success) {
+      setShowOnboarding(true);
+    }
+  };
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar 
-        credits={credits} 
+    <>
+      {/* Onboarding Tour */}
+      {showOnboarding && (
+        <OnboardingTour
+          onComplete={handleCompleteOnboarding}
+          onSkip={handleSkipOnboarding}
+        />
+      )}
+
+      {/* Onboarding Trigger Button */}
+      {!showOnboarding && status.completed && (
+        <OnboardingTrigger onTrigger={handleTriggerOnboarding} />
+      )}
+
+      <div className="min-h-screen bg-gray-50">
+      <Sidebar
+        credits={credits}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
+        onTriggerOnboarding={handleTriggerOnboarding}
       />
       
       <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
@@ -137,6 +182,7 @@ export default function HomePage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

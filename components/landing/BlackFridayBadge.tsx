@@ -20,7 +20,6 @@ export default function BlackFridayBadge() {
   // Price information
   const DISCOUNT_RATE = 0.2 // 20% off
   const LITE_PRICE = 9
-  const LITE_DISCOUNTED = (LITE_PRICE * (1 - DISCOUNT_RATE)).toFixed(2)
   const DISCOUNT_CODE = 'SQZPVT9QUJ'
 
   useEffect(() => {
@@ -98,7 +97,7 @@ export default function BlackFridayBadge() {
   }
 
   return (
-    <div className="inline-flex items-center gap-3 px-4 py-2 bg-[#fafafa] border border-[#e9e9e7] rounded-full text-sm">
+    <div className="inline-flex items-center gap-2.5 px-3.5 py-2 bg-[#fafafa] border border-[#e9e9e7] rounded-full text-sm">
       {/* Icon and Label */}
       <div className="flex items-center gap-1.5">
         <Ticket className="w-4 h-4 text-[#787774]" />
@@ -109,18 +108,7 @@ export default function BlackFridayBadge() {
       <div className="text-[#d9d9d7]">·</div>
 
       {/* Discount Rate */}
-      <div className="flex items-center">
-        <span className="font-semibold text-[#37352f]">20% OFF</span>
-      </div>
-
-      {/* Separator */}
-      <div className="text-[#d9d9d7]">·</div>
-
-      {/* Price Comparison */}
-      <div className="flex items-center gap-2">
-        <span className="line-through text-[#9b9a97]">${LITE_PRICE}</span>
-        <span className="font-semibold text-[#37352f]">${LITE_DISCOUNTED}</span>
-      </div>
+      <span className="font-semibold text-[#37352f]">20% OFF</span>
 
       {/* Separator */}
       <div className="text-[#d9d9d7]">·</div>
@@ -138,7 +126,7 @@ export default function BlackFridayBadge() {
         ) : (
           <>
             <Copy className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">Copy Code</span>
+            <span className="text-xs font-medium">Copy</span>
           </>
         )}
       </button>
@@ -148,8 +136,8 @@ export default function BlackFridayBadge() {
 
       {/* Countdown */}
       <div className="flex items-center gap-1.5">
-        <span className="text-[#787774]">Ends in</span>
-        <span className="font-medium text-[#37352f] tabular-nums">{getTimeDisplay()}</span>
+        <span className="text-[#787774] text-xs">Ends</span>
+        <span className="font-medium text-[#37352f] tabular-nums text-xs">{getTimeDisplay()}</span>
       </div>
     </div>
   )

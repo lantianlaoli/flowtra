@@ -66,9 +66,9 @@ export default function Footer() {
             </ul>
           </nav>
 
-          {/* Company Column */}
-          <nav aria-labelledby="footer-company">
-            <h3 id="footer-company" className="text-sm font-semibold text-white mb-4">Company</h3>
+          {/* Contact Column */}
+          <nav aria-labelledby="footer-contact">
+            <h3 id="footer-contact" className="text-sm font-semibold text-white mb-4">Contact</h3>
             <ul className="space-y-2.5">
               <li>
                 <a
@@ -116,6 +116,16 @@ export default function Footer() {
                   className="text-sm text-[#a0a0a0] hover:text-white transition-colors"
                 >
                   Threads
+                </a>
+              </li>
+              <li>
+                <a
+                  href={process.env.NEXT_PUBLIC_INSTAGRAM || "https://instagram.com"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-[#a0a0a0] hover:text-white transition-colors"
+                >
+                  Instagram
                 </a>
               </li>
             </ul>
