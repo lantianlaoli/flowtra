@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export async function GET() {
   try {
@@ -12,7 +12,8 @@ export async function GET() {
 
     console.log('📊 Fetching user stats for:', userId);
 
-    const supabase = getSupabase();
+    // Use admin client to bypass RLS (we're already checking Clerk auth)
+    const supabase = getSupabaseAdmin();
 
     // Get current month start and end dates
     const now = new Date();
@@ -158,9 +159,49 @@ export async function GET() {
 
     console.log('✅ Calculated stats:', stats);
 
+    // Query onboarding progress data
+    const { data: brands, error: brandsError } = await supabase
+      .from('user_brands')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (brandsError) {
+      console.error('❌ Error querying user_brands:', brandsError);
+    } else {
+      console.log('✅ Brands query result:', { count: brands?.length, brands });
+    }
+
+    const { data: products, error: productsError } = await supabase
+      .from('user_products')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (productsError) {
+      console.error('❌ Error querying user_products:', productsError);
+    } else {
+      console.log('✅ Products query result:', { count: products?.length, products });
+    }
+
+    // Calculate onboarding progress
+    const hasBrand = (brands?.length ?? 0) > 0;
+    const hasProduct = (products?.length ?? 0) > 0;
+    const hasCreatedAd = stats.totalVideos > 0;
+    const tasksCompleted = [hasBrand, hasProduct, hasCreatedAd].filter(Boolean).length;
+
+    const onboardingProgress = {
+      hasBrand,
+      hasProduct,
+      hasCreatedAd,
+      tasksCompleted,
+      totalTasks: 3
+    };
+
+    console.log('✅ Onboarding progress:', onboardingProgress);
+
     return NextResponse.json({
       success: true,
-      stats
+      stats,
+      onboardingProgress
     });
 
   } catch (error) {
@@ -175,9 +216,18 @@ export async function GET() {
       hoursSaved: 0,
     };
 
+    const fallbackProgress = {
+      hasBrand: false,
+      hasProduct: false,
+      hasCreatedAd: false,
+      tasksCompleted: 0,
+      totalTasks: 3
+    };
+
     return NextResponse.json({
       success: true,
-      stats: fallbackStats
+      stats: fallbackStats,
+      onboardingProgress: fallbackProgress
     });
   }
 }

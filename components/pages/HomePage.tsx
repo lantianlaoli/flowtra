@@ -8,12 +8,12 @@ import Sidebar from '@/components/layout/Sidebar';
 import { useRef, useMemo, useCallback } from 'react';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
-import { OnboardingTrigger } from '@/components/onboarding/OnboardingTrigger';
+import OnboardingProgress from '@/components/onboarding/OnboardingProgress';
 
 export default function HomePage() {
   const { user, isLoaded } = useUser();
   const { credits } = useCredits();
-  const { status, completeOnboarding, resetOnboarding } = useOnboarding();
+  const { status, completeOnboarding } = useOnboarding();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [stats, setStats] = useState({
     totalVideos: 0,
@@ -21,6 +21,13 @@ export default function HomePage() {
     creditsUsed: 0,
     hoursSaved: 0,
   });
+  const [onboardingProgress, setOnboardingProgress] = useState<{
+    hasBrand: boolean;
+    hasProduct: boolean;
+    hasCreatedAd: boolean;
+    tasksCompleted: number;
+    totalTasks: number;
+  } | null>(null);
 
   // Show onboarding if not completed
   useEffect(() => {
@@ -42,6 +49,7 @@ export default function HomePage() {
       if (response.ok) {
         const data = await response.json();
         setStats(data.stats || stats);
+        setOnboardingProgress(data.onboardingProgress || null);
       }
     } catch (error) {
       console.error('Failed to fetch stats:', error);
@@ -79,13 +87,6 @@ export default function HomePage() {
     setShowOnboarding(false);
   };
 
-  const handleTriggerOnboarding = async () => {
-    const success = await resetOnboarding();
-    if (success) {
-      setShowOnboarding(true);
-    }
-  };
-
 
   return (
     <>
@@ -97,17 +98,11 @@ export default function HomePage() {
         />
       )}
 
-      {/* Onboarding Trigger Button */}
-      {!showOnboarding && status.completed && (
-        <OnboardingTrigger onTrigger={handleTriggerOnboarding} />
-      )}
-
       <div className="min-h-screen bg-gray-50">
       <Sidebar
         credits={credits}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
-        onTriggerOnboarding={handleTriggerOnboarding}
       />
       
       <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
@@ -175,6 +170,14 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* Onboarding Progress Component */}
+          {onboardingProgress && (
+            <OnboardingProgress
+              progress={onboardingProgress}
+              className="mb-8"
+            />
+          )}
 
           {/* Discover Section - Pure media masonry grid */}
           <DiscoverSection />
