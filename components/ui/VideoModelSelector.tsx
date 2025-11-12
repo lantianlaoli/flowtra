@@ -241,7 +241,7 @@ export default function VideoModelSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-[400px] overflow-y-auto"
+            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-[280px] overflow-y-auto"
           >
             {visibleOptions.map((option) => {
               const disabledByConstraint = disabledModels.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro');

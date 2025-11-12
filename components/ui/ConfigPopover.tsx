@@ -129,7 +129,7 @@ export default function ConfigPopover({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="absolute right-0 bottom-full mb-2 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-[100] overflow-hidden"
+            className="absolute right-0 bottom-full mb-2 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-[100] overflow-visible"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
@@ -184,6 +184,7 @@ export default function ConfigPopover({
                 videoQuality={videoQuality}
                 label="AI Model"
                 showIcon
+                hiddenModels={['auto']}
               />
 
               {/* Language Selector */}
