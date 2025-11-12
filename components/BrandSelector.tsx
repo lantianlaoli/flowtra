@@ -9,13 +9,11 @@ import { motion } from 'framer-motion';
 interface BrandSelectorProps {
   selectedBrand: UserBrand | null;
   onBrandSelect: (brand: UserBrand | null) => void;
-  videoModel?: string;
 }
 
 export default function BrandSelector({
   selectedBrand,
-  onBrandSelect,
-  videoModel
+  onBrandSelect
 }: BrandSelectorProps) {
   const [brands, setBrands] = useState<UserBrand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,9 +35,6 @@ export default function BrandSelector({
       setIsLoading(false);
     }
   };
-
-  // Check if brand ending frame is supported for current video model
-  const isBrandEndingSupported = videoModel === 'veo3' || videoModel === 'veo3_fast';
 
   if (isLoading) {
     return (
@@ -69,14 +64,6 @@ export default function BrandSelector({
 
   return (
     <div className="space-y-3">
-      {!isBrandEndingSupported && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-xs text-blue-800">
-            <strong>Note:</strong> Brand ending frames are only available for Veo3 and Veo3 Fast models. Select one of these models to use brand endings.
-          </p>
-        </div>
-      )}
-
       <div className="space-y-2">
         {/* None option */}
         <button
@@ -92,7 +79,7 @@ export default function BrandSelector({
           </div>
           <div className="flex-1 text-left">
             <p className="text-sm font-medium text-gray-900">No Brand</p>
-            <p className="text-xs text-gray-600">Generate video without brand ending</p>
+            <p className="text-xs text-gray-600">Generate video without branded watermark</p>
           </div>
         </button>
 
@@ -105,10 +92,9 @@ export default function BrandSelector({
               selectedBrand?.id === brand.id
                 ? 'border-gray-900 bg-gray-50'
                 : 'border-gray-200 hover:border-gray-300 bg-white'
-            } ${!isBrandEndingSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!isBrandEndingSupported}
-            whileHover={isBrandEndingSupported ? { scale: 1.01 } : {}}
-            whileTap={isBrandEndingSupported ? { scale: 0.99 } : {}}
+            }`}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
           >
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
               <Image

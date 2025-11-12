@@ -83,41 +83,9 @@ Additional clauses:
 - **Image generation**: `generateCover` itself sends the KIE request (`https://api.kie.ai/api/v1/jobs/createTask`) using the mapped model (`IMAGE_MODELS`), the original product image as reference, and the size normalisation helper (`mapUiSizeToBanana`).
 - **Video**: the JSON from Step 2 is stored as `video_prompts` on the project and later drives video creation; downstream steps rely on these fields without further mutation.
 
-## Step 5 · Brand Ending Frame Generation (Optional)
+## Step 5 · Brand Ending Frame Generation (Deprecated)
 
-`generateBrandEndingFrame(brandId, productImageUrl, aspectRatio, imageModel?)` creates a professional brand ending frame by combining the product image with the brand logo.
-
-**Trigger conditions:**
-
-- Only available for `veo3` and `veo3_fast` video models
-- User must select a brand via the integrated ProductSelector → Brand Selection flow
-- Brand must have a valid `brand_logo_url`
-- Product cover image must be successfully generated first
-
-**Prompt template** (exact string from `lib/standard-ads-workflow.ts:607-626`):
-
-```jsx
-Create a professional brand ending frame for video advertisement by combining the product image and brand logo provided.
-
-Brand Information:
-- Brand Name: {brand.brand_name}
-{brand.brand_slogan ? `- Brand Slogan: "${brand.brand_slogan}"` : ''}
-
-Design Requirements:
-- Reference both the product image (first image) and brand logo (second image)
-- Create a cohesive ending frame that showcases the product with prominent brand identity
-- Position the brand logo strategically (bottom-third, corner, or integrated into the design)
-{brand.brand_slogan ? `- Display "${brand.brand_slogan}" in elegant, readable typography` : ''}
-- Maintain the product's visual appeal from the first image
-- Professional composition that combines product showcase with brand elements
-- Clean, premium aesthetic suitable for video conclusion
-- Aspect ratio: {aspectRatio}
-- Style: Modern, polished, memorable brand impression
-- Ensure brand logo is clearly visible and recognizable
-- Balance between product visibility and brand prominence
-- High contrast for readability
-- Professional color scheme that complements both product and brand identity
-```
+> **Update:** Standard Ads now rely on a single AI-generated cover image for video creation. The legacy brand ending frame step has been removed and the helper `generateBrandEndingFrame` is no longer used. Historical references to this flow are retained below for context but are inactive in production.
 
 **Key points:**
 

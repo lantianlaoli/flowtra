@@ -17,9 +17,7 @@ export default function BlackFridayBadge() {
   const [isCopied, setIsCopied] = useState(false)
   const { showSuccess } = useToast()
 
-  // Price information
-  const DISCOUNT_RATE = 0.2 // 20% off
-  const LITE_PRICE = 9
+  // Discount metadata
   const DISCOUNT_CODE = 'SQZPVT9QUJ'
 
   useEffect(() => {

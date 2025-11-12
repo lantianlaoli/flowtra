@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Maximize2, Square, Smartphone, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { OutputMode } from './OutputModeToggle';
 import type { LucideIcon } from 'lucide-react';
+
+type OutputMode = 'video' | 'image';
 
 // Image format types for nano_banana (aspect ratios)
 export type NanoBananaFormat = '1:1' | '9:16' | '16:9' | '3:4' | '4:3' | '3:2' | '2:3' | '5:4' | '4:5' | '21:9' | 'auto';

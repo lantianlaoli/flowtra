@@ -647,40 +647,12 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
     }
   }
 
-  // Map image_size for Nano Banana to ratio strings
-  const mapUiSizeToBanana = (val?: string): string | undefined => {
-    switch (val) {
-      case 'square':
-      case 'square_hd':
-        return '1:1';
-      case 'portrait_16_9':
-        return '9:16';
-      case 'landscape_16_9':
-        return '16:9';
-      case 'portrait_4_3':
-        return '3:4';
-      case 'landscape_4_3':
-        return '4:3';
-      case 'portrait_3_2':
-        return '2:3';
-      case 'landscape_3_2':
-        return '3:2';
-      case 'portrait_5_4':
-        return '4:5';
-      case 'landscape_5_4':
-        return '5:4';
-      case 'landscape_21_9':
-        return '21:9';
-      case 'auto':
-        // When image size is 'auto', match the video aspect ratio
-        return request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
-      case undefined:
-      case '':
-        return undefined;
-      default:
-        return undefined;
-    }
-  };
+  const targetAspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
+  const resolvedImageSize = actualImageModel === 'nano_banana'
+    ? targetAspectRatio
+    : targetAspectRatio === '9:16'
+      ? 'portrait_16_9'
+      : 'landscape_16_9';
 
   const requestBody = {
     model: kieModelName,
@@ -688,10 +660,7 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
       prompt: prompt,
       image_urls: [imageUrl],
       output_format: "png",
-      ...(actualImageModel === 'nano_banana'
-        ? (() => { const r = mapUiSizeToBanana(request.imageSize); return r ? { image_size: r } : {}; })()
-        : { image_size: request.imageSize === 'auto' ? (request.videoAspectRatio === '9:16' ? 'portrait_16_9' : 'landscape_16_9') : (request.imageSize || 'auto') }
-      )
+      image_size: resolvedImageSize
     }
   };
 
@@ -714,103 +683,5 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
     throw new Error(data.msg || 'Failed to generate cover');
   }
 
-  return data.data.taskId;
-}
-
-// NEW: Generate brand ending frame for video末帧
-export async function generateBrandEndingFrame(
-  brandId: string,
-  productImageUrl: string,
-  aspectRatio: '16:9' | '9:16',
-  imageModel?: 'nano_banana' | 'seedream'
-): Promise<string> {
-  const supabase = getSupabaseAdmin();
-
-  // Fetch brand data
-  const { data: brand, error: brandError } = await supabase
-    .from('user_brands')
-    .select('*')
-    .eq('id', brandId)
-    .single();
-
-  if (brandError || !brand) {
-    throw new Error(`Brand not found: ${brandError?.message || 'Unknown error'}`);
-  }
-
-  // Determine image model to use
-  const actualImageModel = imageModel || 'nano_banana';
-  const kieModelName = IMAGE_MODELS[actualImageModel];
-
-  // Build brand ending frame prompt - combining product and brand
-  const prompt = `Create a professional brand ending frame for video advertisement by combining the product image and brand logo provided.
-
-Brand Information:
-- Brand Name: ${brand.brand_name}
-${brand.brand_slogan ? `- Brand Slogan: "${brand.brand_slogan}"` : ''}
-
-Design Requirements:
-- Reference both the product image (first image) and brand logo (second image)
-- Create a cohesive ending frame that showcases the product with prominent brand identity
-- Position the brand logo strategically (bottom-third, corner, or integrated into the design)
-${brand.brand_slogan ? `- Display "${brand.brand_slogan}" in elegant, readable typography` : ''}
-- Maintain the product's visual appeal from the first image
-- Professional composition that combines product showcase with brand elements
-- Clean, premium aesthetic suitable for video conclusion
-- Aspect ratio: ${aspectRatio}
-- Style: Modern, polished, memorable brand impression
-- Ensure brand logo is clearly visible and recognizable
-- Balance between product visibility and brand prominence
-- High contrast for readability
-- Professional color scheme that complements both product and brand identity`;
-
-  // Map aspect ratio to KIE image size format
-  let imageSize: string;
-  if (actualImageModel === 'nano_banana') {
-    imageSize = aspectRatio; // nano_banana uses "16:9" or "9:16" directly
-  } else {
-    // seedream uses portrait_16_9 or landscape_16_9
-    imageSize = aspectRatio === '9:16' ? 'portrait_16_9' : 'landscape_16_9';
-  }
-
-  const requestBody = {
-    model: kieModelName,
-    input: {
-      prompt: prompt,
-      image_urls: [productImageUrl, brand.brand_logo_url], // Product image + brand logo
-      output_format: "png",
-      ...(actualImageModel === 'nano_banana'
-        ? { image_size: imageSize }
-        : { image_size: imageSize }
-      )
-    }
-  };
-
-  console.log('🎨 Generating brand ending frame for brand:', brand.brand_name);
-  console.log('🖼️  Product image:', productImageUrl);
-  console.log('🏷️  Brand logo:', brand.brand_logo_url);
-  console.log('📋 Request body:', JSON.stringify(requestBody, null, 2));
-
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody)
-  }, 5, 30000);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Brand ending frame generation failed:', response.status, errorText);
-    throw new Error(`Brand ending frame generation failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-
-  if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to generate brand ending frame');
-  }
-
-  console.log('✅ Brand ending frame task created:', data.data.taskId);
   return data.data.taskId;
 }

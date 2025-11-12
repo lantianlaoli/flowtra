@@ -154,10 +154,12 @@ export const useStandardAdsWorkflow = (
         throw new Error(result.error || 'Upload failed');
       }
 
+      const normalizedHistoryId = result.historyId || result.projectId || null;
+
       setState(prev => ({
         ...prev,
         isLoading: false,
-        historyId: result.historyId,
+        historyId: normalizedHistoryId,
         workflowStatus: result.workflowStarted ? 'workflow_initiated' : 'uploaded_waiting_config',
         data: {
           ...prev.data,
@@ -274,10 +276,12 @@ export const useStandardAdsWorkflow = (
         throw new Error(result.error || 'Failed to start workflow');
       }
 
+      const normalizedHistoryId = result.historyId || result.projectId || null;
+
       setState(prev => ({
         ...prev,
         isLoading: false,
-        historyId: result.historyId,
+        historyId: normalizedHistoryId,
         workflowStatus: 'workflow_initiated',
         workflowInitiatedCount: prev.workflowInitiatedCount + 1,
         data: {
@@ -293,6 +297,7 @@ export const useStandardAdsWorkflow = (
       }
 
       // No polling - workflow runs completely in background via monitor-tasks
+      return { ...result, historyId: normalizedHistoryId };
 
     } catch (error: any) {
       // Refetch credits in case of error (credits might have been refunded)
@@ -397,10 +402,12 @@ export const useStandardAdsWorkflow = (
         throw new Error(result.error || 'Failed to start workflow');
       }
 
+      const normalizedHistoryId = result.historyId || result.projectId || null;
+
       setState(prev => ({
         ...prev,
         isLoading: false,
-        historyId: result.historyId,
+        historyId: normalizedHistoryId,
         workflowStatus: 'workflow_initiated',
         workflowInitiatedCount: prev.workflowInitiatedCount + 1,
         data: {
@@ -416,6 +423,7 @@ export const useStandardAdsWorkflow = (
       }
 
       // No polling - workflow runs completely in background via monitor-tasks
+      return { ...result, historyId: normalizedHistoryId };
 
     } catch (error: any) {
       // Refetch credits in case of error (credits might have been refunded)
@@ -535,10 +543,12 @@ export const useStandardAdsWorkflow = (
         throw new Error(result.error || 'Failed to start workflow');
       }
 
+      const normalizedHistoryId = result.historyId || result.projectId || null;
+
       setState(prev => ({
         ...prev,
         isLoading: false,
-        historyId: result.historyId,
+        historyId: normalizedHistoryId,
         workflowStatus: 'workflow_initiated',
         workflowInitiatedCount: prev.workflowInitiatedCount + 1,
         data: {

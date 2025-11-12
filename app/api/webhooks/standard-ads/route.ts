@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { generateBrandEndingFrame } from '@/lib/standard-ads-workflow';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 
 interface KieCallbackData {
@@ -30,8 +29,6 @@ interface StandardAdsRecord {
   last_processed_at: string;
   photo_only?: boolean | null;
   selected_brand_id?: string;
-  brand_ending_frame_url?: string;
-  brand_ending_task_id?: string;
   image_model?: 'nano_banana' | 'seedream';
   language?: string;
   video_duration?: string | null;
@@ -104,11 +101,11 @@ export async function POST(request: NextRequest) {
 
 async function handleSuccessCallback(taskId: string, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
-    // Find the standard ads record by cover task ID or brand ending task ID
+    // Find the standard ads record by cover or video task ID
     const { data: records, error: findError } = await supabase
       .from('standard_ads_projects')
       .select('*')
-      .or(`cover_task_id.eq.${taskId},brand_ending_task_id.eq.${taskId}`);
+      .or(`cover_task_id.eq.${taskId},video_task_id.eq.${taskId}`);
 
     if (findError) {
       throw new Error(`Failed to find standard ads record: ${findError.message}`);
@@ -124,10 +121,10 @@ async function handleSuccessCallback(taskId: string, data: KieCallbackData, supa
 
     if (record.cover_task_id === taskId) {
       await handleCoverCompletion(record, data, supabase);
-    } else if (record.brand_ending_task_id === taskId) {
-      await handleBrandEndingCompletion(record, data, supabase);
+    } else if (record.video_task_id === taskId) {
+      await handleVideoCompletion(record, data, supabase);
     } else {
-      console.log(`⚠️ TaskId ${taskId} doesn't match cover or brand ending task for record ${record.id}`);
+      console.log(`⚠️ TaskId ${taskId} doesn't match cover or video task for record ${record.id}`);
     }
 
   } catch (error) {
@@ -169,46 +166,7 @@ async function handleCoverCompletion(record: StandardAdsRecord, data: KieCallbac
       return;
     }
 
-    // Check if brand ending frame should be generated
-    const shouldGenerateBrandEnding =
-      record.selected_brand_id &&
-      (record.video_model === 'veo3' || record.video_model === 'veo3_fast');
-
-    if (shouldGenerateBrandEnding) {
-      // Generate brand ending frame
-      console.log(`Generating brand ending frame for record ${record.id} with brand ${record.selected_brand_id}`);
-
-      try {
-        const brandEndingTaskId = await generateBrandEndingFrame(
-          record.selected_brand_id!,
-          coverImageUrl,
-          record.video_aspect_ratio || '16:9',
-          record.image_model
-        );
-
-        // Update database with brand ending task
-        await supabase
-          .from('standard_ads_projects')
-          .update({
-            cover_image_url: coverImageUrl,
-            brand_ending_task_id: brandEndingTaskId,
-            current_step: 'generating_brand_ending',
-            progress_percentage: 70,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', record.id);
-
-        console.log(`Started brand ending frame generation for record ${record.id}, taskId: ${brandEndingTaskId}`);
-        return;
-
-      } catch (brandError) {
-        console.error(`Failed to generate brand ending frame for record ${record.id}:`, brandError);
-        // Continue with single-image video generation as fallback
-        console.log(`Falling back to single-image video generation for record ${record.id}`);
-      }
-    }
-
-    // For standard ads, start video generation (with or without brand ending frame)
+    // For standard ads, start video generation using the generated cover image
     const videoTaskId = await startVideoGeneration(record, coverImageUrl);
 
     // Update database with cover completion and video start
@@ -242,57 +200,43 @@ async function handleCoverCompletion(record: StandardAdsRecord, data: KieCallbac
   }
 }
 
-async function handleBrandEndingCompletion(record: StandardAdsRecord, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
+async function handleVideoCompletion(record: StandardAdsRecord, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
-    // Extract brand ending frame URL from result
     const resultJson = JSON.parse(data.resultJson || '{}') as Record<string, unknown>;
     const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
       ? (resultJson as { resultUrls?: string[] }).resultUrls
       : undefined;
     const responseUrls = Array.isArray(data.response?.resultUrls) ? data.response?.resultUrls : undefined;
     const flatUrls = Array.isArray(data.resultUrls) ? data.resultUrls : undefined;
-    const brandEndingFrameUrl = (directUrls || responseUrls || flatUrls)?.[0];
+    const videoUrl = (directUrls || responseUrls || flatUrls)?.[0];
 
-    if (!brandEndingFrameUrl) {
-      throw new Error('No brand ending frame URL in success callback');
+    if (!videoUrl) {
+      throw new Error('No video URL in success callback');
     }
 
-    console.log(`Brand ending frame completed for record ${record.id}: ${brandEndingFrameUrl}`);
+    console.log(`Video completed for record ${record.id}: ${videoUrl}`);
 
-    // Start video generation with dual images (cover + brand ending)
-    if (!record.cover_image_url) {
-      throw new Error('Cover image URL not found for dual-image video generation');
-    }
-
-    const videoTaskId = await startVideoGeneration(
-      record,
-      record.cover_image_url,
-      brandEndingFrameUrl
-    );
-
-    // Update database with brand ending completion and video start
     await supabase
       .from('standard_ads_projects')
       .update({
-        brand_ending_frame_url: brandEndingFrameUrl,
-        video_task_id: videoTaskId,
-        current_step: 'generating_video',
-        progress_percentage: 85,
+        video_url: videoUrl,
+        status: 'completed',
+        current_step: 'completed',
+        progress_percentage: 100,
         last_processed_at: new Date().toISOString()
       })
       .eq('id', record.id);
 
-    console.log(`Started dual-image video generation for record ${record.id}, taskId: ${videoTaskId}`);
+    console.log(`Marked record ${record.id} as completed via webhook`);
 
   } catch (error) {
-    console.error(`Error handling brand ending completion for record ${record.id}:`, error);
+    console.error(`Error handling video completion for record ${record.id}:`, error);
 
-    // Mark record as failed
     await supabase
       .from('standard_ads_projects')
       .update({
         status: 'failed',
-        error_message: error instanceof Error ? error.message : 'Brand ending frame processing failed',
+        error_message: error instanceof Error ? error.message : 'Video completion processing failed',
         last_processed_at: new Date().toISOString()
       })
       .eq('id', record.id);
@@ -301,7 +245,7 @@ async function handleBrandEndingCompletion(record: StandardAdsRecord, data: KieC
   }
 }
 
-async function startVideoGeneration(record: StandardAdsRecord, coverImageUrl: string, brandEndingFrameUrl?: string): Promise<string> {
+async function startVideoGeneration(record: StandardAdsRecord, coverImageUrl: string): Promise<string> {
   if (!record.video_prompts) {
     throw new Error('No creative prompts available for video generation');
   }
@@ -356,15 +300,9 @@ Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
     ? 'https://api.kie.ai/api/v1/jobs/createTask'
     : 'https://api.kie.ai/api/v1/veo/generate';
 
-  // Determine if dual-image generation (veo3.1 with brand ending frame)
-  const isDualImage = !isSoraFamily && brandEndingFrameUrl && (videoModel === 'veo3' || videoModel === 'veo3_fast');
-  const imageUrls = isDualImage ? [coverImageUrl, brandEndingFrameUrl] : [coverImageUrl];
+  const imageUrls = [coverImageUrl];
 
-  console.log(`Video generation mode: ${isDualImage ? 'dual-image (veo3.1)' : 'single-image'}`);
-  if (isDualImage) {
-    console.log(`First frame: ${coverImageUrl}`);
-    console.log(`Last frame: ${brandEndingFrameUrl}`);
-  }
+  console.log('Video generation mode: single-image');
 
   const soraInput = {
     prompt: fullPrompt,
@@ -423,11 +361,11 @@ Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
 
 async function handleFailureCallback(taskId: string, data: KieCallbackData, supabase: ReturnType<typeof getSupabase>) {
   try {
-    // Find the standard ads record by cover task ID or brand ending task ID
+    // Find the standard ads record by cover or video task ID
     const { data: records, error: findError } = await supabase
       .from('standard_ads_projects')
       .select('*')
-      .or(`cover_task_id.eq.${taskId},brand_ending_task_id.eq.${taskId}`);
+      .or(`cover_task_id.eq.${taskId},video_task_id.eq.${taskId}`);
 
     if (findError) {
       throw new Error(`Failed to find standard ads record: ${findError.message}`);
@@ -442,33 +380,6 @@ async function handleFailureCallback(taskId: string, data: KieCallbackData, supa
     const failureMessage = data.failMsg || data.errorMessage || 'KIE task failed';
 
     console.log(`Standard ads task failed for record ${record.id}: ${failureMessage}`);
-
-    // If brand ending failed, fallback to single-image video generation
-    if (record.brand_ending_task_id === taskId && record.cover_image_url) {
-      console.log(`Brand ending frame failed for record ${record.id}, falling back to single-image video`);
-
-      try {
-        const videoTaskId = await startVideoGeneration(record, record.cover_image_url);
-
-        await supabase
-          .from('standard_ads_projects')
-          .update({
-            video_task_id: videoTaskId,
-            current_step: 'generating_video',
-            progress_percentage: 85,
-            error_message: `Brand ending frame failed (${failureMessage}), continuing with single-image video`,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', record.id);
-
-        console.log(`Fallback video generation started for record ${record.id}, taskId: ${videoTaskId}`);
-        return;
-
-      } catch (fallbackError) {
-        console.error(`Fallback video generation also failed for record ${record.id}:`, fallbackError);
-        // Continue to mark as failed below
-      }
-    }
 
     // Mark record as failed
     await supabase

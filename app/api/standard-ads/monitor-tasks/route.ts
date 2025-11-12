@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { generateBrandEndingFrame } from '@/lib/standard-ads-workflow';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 
 export async function POST() {
@@ -15,7 +14,7 @@ export async function POST() {
     const { data: records, error } = await supabase
       .from('standard_ads_projects')
       .select('*')
-      .in('status', ['processing', 'generating_cover', 'generating_brand_ending', 'generating_video'])
+      .in('status', ['processing', 'generating_cover', 'generating_video'])
       .or('cover_task_id.not.is.null,use_custom_script.eq.true,current_step.eq.ready_for_video') // Include records with cover_task_id OR custom script mode OR ready for video
       .order('last_processed_at', { ascending: true, nullsFirst: true }) // Process new records (null last_processed_at) first
       .limit(20); // Process max 20 records per run
@@ -120,8 +119,6 @@ interface HistoryRecord {
   image_prompt?: string | null;
   photo_only?: boolean | null;
   selected_brand_id?: string;
-  brand_ending_frame_url?: string;
-  brand_ending_task_id?: string;
   image_model?: 'nano_banana' | 'seedream';
   language?: string;
   // NEW: Custom script fields
@@ -189,49 +186,6 @@ async function processRecord(record: HistoryRecord) {
 
         console.log(`Completed image-only workflow for record ${record.id}`);
       } else {
-        // Check if brand ending frame should be generated
-        const shouldGenerateBrandEnding =
-          record.selected_brand_id &&
-          (record.video_model === 'veo3' || record.video_model === 'veo3_fast');
-
-        if (shouldGenerateBrandEnding) {
-          // Generate brand ending frame
-          console.log(`Generating brand ending frame for record ${record.id} with brand ${record.selected_brand_id}`);
-
-          try {
-            const brandEndingTaskId = await generateBrandEndingFrame(
-              record.selected_brand_id!,
-              coverResult.imageUrl, // Pass product cover image
-              (record.video_aspect_ratio as '16:9' | '9:16') || '16:9',
-              record.image_model
-            );
-
-            const { error: brandErr } = await supabase
-              .from('standard_ads_projects')
-              .update({
-                cover_image_url: coverResult.imageUrl,
-                brand_ending_task_id: brandEndingTaskId,
-                current_step: 'generating_brand_ending',
-                progress_percentage: 70,
-                last_processed_at: new Date().toISOString()
-              })
-              .eq('id', record.id);
-
-            if (brandErr) {
-              console.error(`Failed to update record ${record.id} after starting brand ending:`, brandErr);
-              throw new Error(`DB update failed for record ${record.id}`);
-            }
-
-            console.log(`Started brand ending frame generation for record ${record.id}, taskId: ${brandEndingTaskId}`);
-            return; // Exit early, will continue when brand frame completes
-
-          } catch (brandError) {
-            console.error(`Failed to generate brand ending frame for record ${record.id}:`, brandError);
-            // Continue with single-image video generation as fallback
-            console.log(`Falling back to single-image video generation for record ${record.id}`);
-          }
-        }
-
         // Cover completed, start video generation
         const videoTaskId = await startVideoGeneration(record, coverResult.imageUrl);
 
@@ -256,68 +210,6 @@ async function processRecord(record: HistoryRecord) {
 
     } else if (coverResult.status === 'FAILED') {
       throw new Error('Cover generation failed');
-    }
-  }
-
-  // Handle brand ending frame generation monitoring
-  if (record.current_step === 'generating_brand_ending' && record.brand_ending_task_id && !record.brand_ending_frame_url) {
-    const brandResult = await checkCoverStatus(record.brand_ending_task_id);
-
-    if (brandResult.status === 'SUCCESS' && brandResult.imageUrl) {
-      console.log(`Brand ending frame completed for record ${record.id}`);
-
-      if (!record.cover_image_url) {
-        throw new Error('Cover image URL not found for dual-image video generation');
-      }
-
-      // Start video generation with dual images
-      const videoTaskId = await startVideoGeneration(record, record.cover_image_url, brandResult.imageUrl);
-
-      const { error: vidStartErr } = await supabase
-        .from('standard_ads_projects')
-        .update({
-          brand_ending_frame_url: brandResult.imageUrl,
-          video_task_id: videoTaskId,
-          current_step: 'generating_video',
-          progress_percentage: 85,
-          last_processed_at: new Date().toISOString()
-        })
-        .eq('id', record.id);
-
-      if (vidStartErr) {
-        console.error(`Failed to update record ${record.id} after starting dual-image video:`, vidStartErr);
-        throw new Error(`DB update failed for record ${record.id}`);
-      }
-
-      console.log(`Started dual-image video generation for record ${record.id}, taskId: ${videoTaskId}`);
-
-    } else if (brandResult.status === 'FAILED') {
-      console.log(`Brand ending frame failed for record ${record.id}, falling back to single-image video`);
-
-      // Fallback to single-image video generation
-      if (!record.cover_image_url) {
-        throw new Error('Cover image URL not found for fallback video generation');
-      }
-
-      const videoTaskId = await startVideoGeneration(record, record.cover_image_url);
-
-      const { error: fallbackErr } = await supabase
-        .from('standard_ads_projects')
-        .update({
-          video_task_id: videoTaskId,
-          current_step: 'generating_video',
-          progress_percentage: 85,
-          error_message: 'Brand ending frame failed, continuing with single-image video',
-          last_processed_at: new Date().toISOString()
-        })
-        .eq('id', record.id);
-
-      if (fallbackErr) {
-        console.error(`Failed to update record ${record.id} after fallback video start:`, fallbackErr);
-        throw new Error(`DB update failed for record ${record.id}`);
-      }
-
-      console.log(`Fallback video generation started for record ${record.id}, taskId: ${videoTaskId}`);
     }
   }
 
@@ -362,7 +254,7 @@ async function processRecord(record: HistoryRecord) {
   }
 }
 
-async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string, brandEndingFrameUrl?: string): Promise<string> {
+async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string): Promise<string> {
   if (!record.video_prompts) {
     throw new Error('No creative prompts available for video generation');
   }
@@ -406,7 +298,7 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
       ? 'https://api.kie.ai/api/v1/jobs/createTask'
       : 'https://api.kie.ai/api/v1/veo/generate';
 
-    // Custom script mode doesn't support brand ending frame (single image only)
+    // Custom script mode always uses a single image input
     const imageUrls = [coverImageUrl];
 
     console.log('📽️  Custom script video generation - single image mode');
@@ -541,15 +433,9 @@ Other details: ${videoPrompt.other_details}`;
     ? 'https://api.kie.ai/api/v1/jobs/createTask'
     : 'https://api.kie.ai/api/v1/veo/generate';
 
-  // Determine if dual-image generation (veo3.1 with brand ending frame)
-  const isDualImage = !isSoraFamily && brandEndingFrameUrl && (videoModel === 'veo3' || videoModel === 'veo3_fast');
-  const imageUrls = isDualImage ? [coverImageUrl, brandEndingFrameUrl] : [coverImageUrl];
+  const imageUrls = [coverImageUrl];
 
-  console.log(`Video generation mode: ${isDualImage ? 'dual-image (veo3.1)' : 'single-image'}`);
-  if (isDualImage) {
-    console.log(`First frame: ${coverImageUrl}`);
-    console.log(`Last frame: ${brandEndingFrameUrl}`);
-  }
+  console.log('Video generation mode: single-image');
 
   const soraInput = {
     prompt: fullPrompt,

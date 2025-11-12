@@ -12,6 +12,7 @@ interface BrandProductSelectorProps {
   onBrandSelect: (brand: UserBrand | null) => void;
   onProductSelect: (product: UserProduct | null) => void;
   className?: string;
+  variant?: 'default' | 'compact';
 }
 
 export default function BrandProductSelector({
@@ -19,7 +20,8 @@ export default function BrandProductSelector({
   selectedProduct,
   onBrandSelect,
   onProductSelect,
-  className
+  className,
+  variant = 'default'
 }: BrandProductSelectorProps) {
   const [brands, setBrands] = useState<UserBrand[]>([]);
   const [allProducts, setAllProducts] = useState<Map<string, UserProduct[]>>(new Map());
@@ -122,6 +124,170 @@ export default function BrandProductSelector({
     onProductSelect(productWithBrand as UserProduct);
     setIsProductDropdownOpen(false);
   };
+
+  const getProductImage = (product?: UserProduct | null) => {
+    if (!product?.user_product_photos?.length) return null;
+    const primary = product.user_product_photos.find(photo => photo.is_primary);
+    return (primary || product.user_product_photos[0])?.photo_url ?? null;
+  };
+
+  const isCompact = variant === 'compact';
+
+  if (isCompact) {
+    return (
+      <div className={cn("flex items-center gap-2", className)}>
+        {/* Brand selector */}
+        <div className="relative" ref={brandDropdownRef}>
+          <button
+            type="button"
+            onClick={() => !isLoading && setIsBrandDropdownOpen(!isBrandDropdownOpen)}
+            disabled={isLoading}
+            className={cn(
+              "w-11 h-11 rounded-full border border-gray-200 bg-white flex items-center justify-center shadow-sm transition-colors cursor-pointer",
+              "hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent",
+              isLoading && "opacity-50 cursor-not-allowed",
+              selectedBrand && "border-gray-900"
+            )}
+            title={selectedBrand ? selectedBrand.brand_name : 'Select brand'}
+          >
+            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-gray-100">
+              {selectedBrand?.brand_logo_url ? (
+                <Image
+                  src={selectedBrand.brand_logo_url}
+                  alt={selectedBrand.brand_name}
+                  width={36}
+                  height={36}
+                  className="object-cover w-full h-full"
+                />
+              ) : (
+                <Building2 className="w-4 h-4 text-gray-500" />
+              )}
+            </div>
+          </button>
+
+            {isBrandDropdownOpen && !isLoading && brands.length > 0 && (
+              <div className="absolute z-50 w-72 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto bottom-full mb-2">
+                {brands.map((brand) => (
+                  <button
+                    key={brand.id}
+                    type="button"
+                    onClick={() => handleBrandSelect(brand)}
+                    className={cn(
+                      "w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0 cursor-pointer",
+                      selectedBrand?.id === brand.id && "bg-gray-50"
+                    )}
+                  >
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                    {brand.brand_logo_url ? (
+                      <Image
+                        src={brand.brand_logo_url}
+                        alt={brand.brand_name}
+                        width={40}
+                        height={40}
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <Building2 className="w-4 h-4 text-gray-500" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 truncate">{brand.brand_name}</div>
+                    <div className="text-xs text-gray-500 truncate">{brand.brand_slogan || 'No slogan'}</div>
+                  </div>
+                  {selectedBrand?.id === brand.id && (
+                    <Check className="w-4 h-4 text-gray-600" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Product selector */}
+        <div className="relative" ref={productDropdownRef}>
+          <button
+            type="button"
+            onClick={() => selectedBrand && setIsProductDropdownOpen(!isProductDropdownOpen)}
+            disabled={!selectedBrand || brandProducts.length === 0}
+            className={cn(
+              "w-11 h-11 rounded-full border border-gray-200 bg-white flex items-center justify-center shadow-sm transition-colors cursor-pointer",
+              "hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent",
+              (!selectedBrand || brandProducts.length === 0) && "opacity-50 cursor-not-allowed",
+              selectedProduct && "border-gray-900"
+            )}
+            title={
+              selectedProduct
+                ? selectedProduct.product_name
+                : selectedBrand
+                  ? 'Select product'
+                  : 'Select a brand first'
+            }
+          >
+            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-gray-100">
+              {selectedProduct ? (
+                (() => {
+                  const photoUrl = getProductImage(selectedProduct);
+                  return photoUrl ? (
+                    <Image
+                      src={photoUrl}
+                      alt={selectedProduct.product_name}
+                      width={36}
+                      height={36}
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    <Package className="w-4 h-4 text-gray-500" />
+                  );
+                })()
+              ) : (
+                <Package className="w-4 h-4 text-gray-500" />
+              )}
+            </div>
+          </button>
+
+            {isProductDropdownOpen && selectedBrand && brandProducts.length > 0 && (
+              <div className="absolute z-50 w-80 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto bottom-full mb-2">
+                {brandProducts.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => handleProductSelect(product)}
+                    className={cn(
+                      "w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0 cursor-pointer",
+                      selectedProduct?.id === product.id && "bg-gray-50"
+                    )}
+                  >
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                    {(() => {
+                      const photoUrl = getProductImage(product);
+                      return photoUrl ? (
+                        <Image
+                          src={photoUrl}
+                          alt={product.product_name}
+                          width={40}
+                          height={40}
+                          className="object-cover w-full h-full"
+                        />
+                      ) : (
+                        <Package className="w-4 h-4 text-gray-500" />
+                      );
+                    })()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 truncate">{product.product_name}</div>
+                    <div className="text-xs text-gray-500 truncate">{product.description || 'No description'}</div>
+                  </div>
+                  {selectedProduct?.id === product.id && (
+                    <Check className="w-4 h-4 text-gray-600" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("space-y-3", className)}>

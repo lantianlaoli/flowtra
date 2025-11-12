@@ -1,41 +1,32 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useStandardAdsWorkflow } from '@/hooks/useStandardAdsWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
-import MaintenanceMessage from '@/components/MaintenanceMessage';
-import InsufficientCredits from '@/components/InsufficientCredits';
-import { ArrowRight, TrendingUp, Coins } from 'lucide-react';
+import { Sparkles, Coins, TrendingUp } from 'lucide-react';
 
 // New components for redesigned UX
-import OutputModeToggle, { type OutputMode } from '@/components/ui/OutputModeToggle';
-import GenerationModeToggle, { type GenerationMode } from '@/components/ui/GenerationModeToggle';
+import PlatformSelector, { type Platform } from '@/components/ui/PlatformSelector';
 import BrandProductSelector from '@/components/ui/BrandProductSelector';
-import CustomPromptInput from '@/components/ui/CustomPromptInput';
-import FormatSelector, { type Format } from '@/components/ui/FormatSelector';
-
-// Existing components
-import VideoModelSelector from '@/components/ui/VideoModelSelector';
-import VideoQualitySelector from '@/components/ui/VideoQualitySelector';
-import VideoDurationSelector from '@/components/ui/VideoDurationSelector';
-import ImageModelSelector from '@/components/ui/ImageModelSelector';
-import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
-import ProductManager from '@/components/ProductManager';
+import RequirementsInput from '@/components/ui/RequirementsInput';
+import ConfigPopover from '@/components/ui/ConfigPopover';
+import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
 
 import {
+  PLATFORM_PRESETS,
   canAffordModel,
-  CREDIT_COSTS,
   modelSupports,
   getAvailableDurations,
   getAvailableQualities,
-  getActualModel,
   isFreeGenerationModel,
   getGenerationCost,
   type VideoModel
 } from '@/lib/constants';
+import { Format } from '@/components/ui/FormatSelector';
+import { LanguageCode } from '@/components/ui/LanguageSelector';
 import { UserProduct, UserBrand } from '@/lib/supabase';
 
 interface KieCreditsStatus {
@@ -45,28 +36,90 @@ interface KieCreditsStatus {
   threshold?: number;
 }
 
+const STEP_DESCRIPTIONS: Record<string, string> = {
+  generating_cover: 'Generating cover image…',
+  ready_for_video: 'Preparing video prompts…',
+  generating_video: 'Generating video…',
+  processing: 'Processing…',
+  completed: 'Completed',
+  failed: 'Failed'
+};
+
+const STATUS_MAP: Record<string, Generation['status']> = {
+  completed: 'completed',
+  failed: 'failed',
+  processing: 'processing',
+  generating_cover: 'processing',
+  ready_for_video: 'processing',
+  generating_video: 'processing'
+};
+
+type SessionGeneration = Generation & { projectId?: string };
+
+interface StandardAdsStatusPayload {
+  success?: boolean;
+  status?: string;
+  workflowStatus?: string;
+  isCompleted?: boolean;
+  isFailed?: boolean;
+  current_step?: string | null;
+  progress_percentage?: number;
+  progress?: number;
+  data?: {
+    videoUrl?: string | null;
+    coverImageUrl?: string | null;
+    videoModel?: VideoModel | null;
+    video_model?: VideoModel | null;
+    downloaded?: boolean;
+    errorMessage?: string | null;
+  };
+  error?: string;
+}
+
+const getStageLabel = (status: Generation['status'], step?: string | null) => {
+  const key = step?.toLowerCase() ?? '';
+  if (key && STEP_DESCRIPTIONS[key]) {
+    return STEP_DESCRIPTIONS[key];
+  }
+  if (status === 'completed') return 'Completed';
+  if (status === 'failed') return 'Failed';
+  if (status === 'processing') return 'Processing…';
+  return 'Queued';
+};
+
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
 const ALL_VIDEO_DURATIONS: Array<'8' | '10' | '15'> = ['8', '10', '15'];
 const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
+const SESSION_STORAGE_KEY = 'flowtra_standard_ads_generations';
 
 export default function StandardAdsPage() {
   const { user } = useUser();
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
+  const sidebarProps = {
+    credits: userCredits,
+    userEmail: user?.primaryEmailAddress?.emailAddress,
+    userImageUrl: user?.imageUrl
+  };
 
-  // NEW: Core mode states
-  const [outputMode, setOutputMode] = useState<OutputMode>('video');
-  const [generationMode, setGenerationMode] = useState<GenerationMode>('auto');
-  const [format, setFormat] = useState<Format>('16:9'); // Default video format
-  const [customPrompt, setCustomPrompt] = useState('');
+  // NEW: Platform state
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform>('tiktok');
 
-  // Video configuration states (only used when outputMode = 'video')
+  // NEW: Additional requirements input
+  const [additionalRequirements, setAdditionalRequirements] = useState('');
+
+  // NEW: Generation history
+  const [generations, setGenerations] = useState<SessionGeneration[]>([]);
+  const [downloadingProjects, setDownloadingProjects] = useState<Record<string, boolean>>({});
+
+  // Video configuration states
   const [videoQuality, setVideoQuality] = useState<'standard' | 'high'>('standard');
   const [videoDuration, setVideoDuration] = useState<'8' | '10' | '15'>('8');
   const [selectedModel, setSelectedModel] = useState<VideoModel>('veo3_fast');
+  const [format, setFormat] = useState<Format>('9:16');
 
-  // Image configuration states (always used for cover image)
-  const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('nano_banana');
+  // Image and language
+  const [selectedImageModel] = useState<'nano_banana' | 'seedream'>('nano_banana');
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
 
   // Other states
@@ -74,73 +127,255 @@ export default function StandardAdsPage() {
     sufficient: true,
     loading: true
   });
-  // Fixed to 1 - removed multi-ad generation
   const elementsCount = 1;
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
-  const [showProductManager, setShowProductManager] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const isMountedRef = useRef(true);
 
-  const handleImageModelChange = (model: 'auto' | 'nano_banana' | 'seedream') => {
-    if (model !== 'auto') {
-      setSelectedImageModel(model);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!saved) return;
+    try {
+      const parsed: SessionGeneration[] = JSON.parse(saved);
+      setGenerations(
+        parsed.map(gen => ({
+          ...gen,
+          timestamp: new Date(gen.timestamp),
+          downloaded: gen.downloaded ?? false
+        }))
+      );
+    } catch (error) {
+      console.error('Failed to restore Standard Ads session state:', error);
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     }
-  };
+  }, []);
 
-  // Auto-derive adCopy and watermark from brand
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!generations.length) {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      return;
+    }
+    try {
+      const serialized = generations.map(gen => ({
+        ...gen,
+        timestamp: gen.timestamp instanceof Date ? gen.timestamp.toISOString() : gen.timestamp
+      }));
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(serialized));
+    } catch (error) {
+      console.error('Failed to persist Standard Ads session state:', error);
+    }
+  }, [generations]);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Auto-derive brand info
   const derivedAdCopy = selectedBrand?.brand_slogan || '';
   const derivedWatermark = selectedBrand?.brand_name || '';
 
-  // Combine custom prompt with brand info for custom mode
+  // Build final prompt with additional requirements
   const buildFinalPrompt = useCallback(() => {
-    if (generationMode === 'auto') {
-      // Auto mode: use brand slogan
-      return derivedAdCopy;
-    } else {
-      // Custom mode: combine user prompt with brand info
-      const brandInfo = selectedBrand
-        ? `Brand: ${selectedBrand.brand_name}. ${selectedBrand.brand_slogan}.`
-        : '';
-      const productInfo = selectedProduct
-        ? `Product: ${selectedProduct.product_name || 'Product'}.`
-        : '';
-
-      return `${customPrompt}\n\n${brandInfo} ${productInfo}`.trim();
+    const basePrompt = derivedAdCopy;
+    if (!additionalRequirements.trim()) {
+      return basePrompt;
     }
-  }, [generationMode, customPrompt, derivedAdCopy, selectedBrand, selectedProduct]);
+    return `${basePrompt}\n\nAdditional requirements: ${additionalRequirements}`;
+  }, [derivedAdCopy, additionalRequirements]);
 
-  const {
-    startWorkflowWithConfig,
-    startWorkflowWithSelectedProduct
-  } = useStandardAdsWorkflow(
+  const { startWorkflowWithSelectedProduct } = useStandardAdsWorkflow(
     user?.id,
     selectedModel,
     selectedImageModel,
     updateCredits,
     refetchCredits,
     elementsCount,
-    format, // Pass format instead of imageSize
-    format as '16:9' | '9:16', // videoAspectRatio (temporary, will be cleaned in workflow)
+    format,
+    format as '16:9' | '9:16',
     videoQuality,
     videoDuration,
-    buildFinalPrompt(), // Use derived/combined prompt
+    buildFinalPrompt(),
     selectedLanguage,
-    generationMode === 'custom', // useCustomScript flag
-    generationMode === 'custom' ? buildFinalPrompt() : '' // customScript
+    false, // Always use auto mode now
+    ''
   );
 
-  // Handle output mode change
-  const handleOutputModeChange = useCallback((mode: OutputMode) => {
-    setOutputMode(mode);
+  const updateGenerationFromStatus = useCallback((projectId: string, payload: StandardAdsStatusPayload) => {
+    if (!payload?.success) return;
 
-    // Auto-switch format to appropriate default
-    if (mode === 'image') {
-      setFormat('1:1'); // Default image format
-    } else {
-      setFormat('16:9'); // Default video format
-    }
+    const normalized = (payload.status || payload.workflowStatus || '').toLowerCase();
+    const status = STATUS_MAP[normalized] ||
+      (payload.isCompleted ? 'completed' : payload.isFailed ? 'failed' : 'processing');
+
+    const stage = getStageLabel(status, payload.current_step);
+    const progress = typeof payload.progress_percentage === 'number'
+      ? payload.progress_percentage
+      : typeof payload.progress === 'number'
+        ? payload.progress
+        : status === 'completed'
+          ? 100
+          : status === 'failed'
+            ? 0
+            : 25;
+
+    setGenerations(prev => prev.map(gen => {
+      if (gen.projectId !== projectId) return gen;
+      return {
+        ...gen,
+        status,
+        stage,
+        progress,
+        videoUrl: payload.data?.videoUrl || gen.videoUrl,
+        coverUrl: payload.data?.coverImageUrl || gen.coverUrl,
+        videoModel: (payload.data?.videoModel as VideoModel) || (payload.data?.video_model as VideoModel) || gen.videoModel,
+        downloaded: typeof payload.data?.downloaded === 'boolean' ? payload.data.downloaded : gen.downloaded,
+        error: status === 'failed'
+          ? (payload.data?.errorMessage || payload.error || 'Video generation failed')
+          : undefined
+      };
+    }));
   }, []);
 
-  // Calculate available and disabled options based on current selection (for video mode)
+  const fetchStatusForProject = useCallback(async (projectId: string) => {
+    if (!projectId) return;
+    try {
+      const response = await fetch(`/api/standard-ads/${projectId}/status`, {
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch status for ${projectId}`);
+      }
+
+      const payload: StandardAdsStatusPayload = await response.json();
+      if (!isMountedRef.current) return;
+      updateGenerationFromStatus(projectId, payload);
+    } catch (error) {
+      if (isMountedRef.current) {
+        console.error('Failed to fetch project status:', error);
+      }
+    }
+  }, [updateGenerationFromStatus]);
+
+  const activeProjectIds = useMemo(() => {
+    const ids = generations
+      .filter(gen => (gen.status === 'pending' || gen.status === 'processing') && gen.projectId)
+      .map(gen => gen.projectId as string);
+    return Array.from(new Set(ids));
+  }, [generations]);
+
+  const displayedGenerations = useMemo(() =>
+    generations.map(gen => ({
+      ...gen,
+      isDownloading: gen.projectId ? !!downloadingProjects[gen.projectId] : false
+    })),
+  [generations, downloadingProjects]);
+
+  useEffect(() => {
+    if (!activeProjectIds.length) return;
+
+    const poll = () => {
+      activeProjectIds.forEach(projectId => {
+        fetchStatusForProject(projectId);
+      });
+    };
+
+    poll();
+    const interval = setInterval(poll, 8000);
+    return () => clearInterval(interval);
+  }, [activeProjectIds, fetchStatusForProject]);
+
+  const handleDownloadGeneration = useCallback(async (generation: SessionGeneration) => {
+    if (!user?.id) {
+      showError('Please sign in to download videos');
+      return;
+    }
+
+    const projectId = generation.projectId;
+    if (!projectId) {
+      showError('Video is still being prepared. Please try again shortly.');
+      return;
+    }
+
+    if (downloadingProjects[projectId]) {
+      return;
+    }
+
+    setDownloadingProjects(prev => ({ ...prev, [projectId]: true }));
+
+    try {
+      const response = await fetch('/api/download-video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ historyId: projectId, userId: user.id })
+      });
+
+      if (!response.ok) {
+        let message = 'Failed to download video';
+        try {
+          const data = await response.json();
+          message = data?.message || message;
+        } catch (err) {
+          console.error('Failed to parse download error response:', err);
+        }
+        throw new Error(message);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        throw new Error(data?.message || 'Failed to download video');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `flowtra-video-${projectId}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setGenerations(prev => prev.map(gen =>
+        gen.projectId === projectId
+          ? { ...gen, downloaded: true }
+          : gen
+      ));
+
+      if (refetchCredits) {
+        await refetchCredits();
+      }
+
+      showSuccess('Video download started');
+    } catch (error) {
+      console.error('Standard Ads download failed:', error);
+      showError(error instanceof Error ? error.message : 'Failed to download video');
+    } finally {
+      setDownloadingProjects(prev => {
+        const next = { ...prev };
+        delete next[projectId];
+        return next;
+      });
+    }
+  }, [user?.id, downloadingProjects, refetchCredits, showError, showSuccess]);
+
+  // Handle platform change - auto-set recommended config
+  const handlePlatformChange = useCallback((platform: Platform) => {
+    setSelectedPlatform(platform);
+    const preset = PLATFORM_PRESETS[platform];
+    setFormat(preset.format);
+    setVideoDuration(preset.duration);
+  }, []);
+
+  // Calculate available and disabled options
   const availableDurations = useMemo(
     () => getAvailableDurations(videoQuality),
     [videoQuality]
@@ -166,348 +401,299 @@ export default function StandardAdsPage() {
     [videoQuality, videoDuration]
   );
 
-  // Handle quality change with auto-adjustment of duration if needed
-  const handleVideoQualityChange = useCallback(
-    (quality: 'standard' | 'high') => {
-      const supportedDurations = getAvailableDurations(quality);
+  // Auto-adjust quality and duration when they become invalid
+  useEffect(() => {
+    if (!availableQualities.includes(videoQuality)) {
+      setVideoQuality(availableQualities[0]);
+    }
+  }, [videoQuality, availableQualities]);
 
-      if (!supportedDurations.includes(videoDuration)) {
-        const nextDuration = supportedDurations[0] ?? '10';
-        setVideoDuration(nextDuration);
+  useEffect(() => {
+    if (!availableDurations.includes(videoDuration)) {
+      setVideoDuration(availableDurations[0]);
+    }
+  }, [videoDuration, availableDurations]);
+
+  // Auto-switch model when it becomes disabled
+  useEffect(() => {
+    if (disabledModels.includes(selectedModel)) {
+      const firstAvailable = ALL_VIDEO_MODELS.find(m => !disabledModels.includes(m));
+      if (firstAvailable) {
+        setSelectedModel(firstAvailable);
       }
-
-      setVideoQuality(quality);
-    },
-    [videoDuration]
-  );
-
-  // Handle duration change with auto-adjustment of quality if needed
-  const handleVideoDurationChange = useCallback(
-    (duration: '8' | '10' | '15') => {
-      const supportedQualities = getAvailableQualities(duration);
-
-      if (!supportedQualities.includes(videoQuality)) {
-        const nextQuality = supportedQualities[0] ?? 'standard';
-        setVideoQuality(nextQuality);
-      }
-
-      setVideoDuration(duration);
-    },
-    [videoQuality]
-  );
-
-  // Handle model change with validation
-  const handleModelChange = useCallback(
-    (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
-      // Filter out 'auto' since our state doesn't support it
-      if (model !== 'auto' && modelSupports(model, videoQuality, videoDuration)) {
-        setSelectedModel(model);
-      }
-    },
-    [videoQuality, videoDuration]
-  );
+    }
+  }, [selectedModel, disabledModels]);
 
   // Check KIE API credits
   useEffect(() => {
     const checkKieCredits = async () => {
       try {
         const response = await fetch('/api/check-kie-credits');
-        const data = await response.json();
-
-        setKieCreditsStatus({
-          sufficient: data.sufficient,
-          loading: false,
-          currentCredits: data.currentCredits,
-          threshold: data.threshold
-        });
+        if (response.ok) {
+          const data = await response.json();
+          setKieCreditsStatus({
+            sufficient: data.sufficient,
+            loading: false,
+            currentCredits: data.currentCredits,
+            threshold: data.threshold
+          });
+        } else {
+          setKieCreditsStatus({ sufficient: false, loading: false });
+        }
       } catch (error) {
         console.error('Failed to check KIE credits:', error);
-        setKieCreditsStatus({
-          sufficient: true,
-          loading: false
-        });
+        setKieCreditsStatus({ sufficient: false, loading: false });
       }
     };
 
     checkKieCredits();
   }, []);
 
+  // Generate button handler
   const handleStartWorkflow = async () => {
-    showSuccess(
-      'Added to generation queue! Your ad is being created in the background.',
-      5000,
-      { label: 'View Progress →', href: '/dashboard/videos' }
-    );
+    if (!selectedProduct || !selectedBrand || isGenerating) return;
 
-    const watermarkConfig = {
-      enabled: derivedWatermark.trim().length > 0,
-      text: derivedWatermark.trim(),
-      location: 'bottom left' as const
+    setIsGenerating(true);
+
+    // Create new generation entry
+    const newGeneration: SessionGeneration = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      status: 'pending',
+      progress: 5,
+      stage: 'Initializing…',
+      platform: selectedPlatform,
+      brand: selectedBrand.brand_name,
+      product: selectedProduct.product_name,
+      videoModel: selectedModel,
+      downloaded: false
     };
 
-    if (selectedProduct) {
-      await startWorkflowWithSelectedProduct(
+    setGenerations(prev => [newGeneration, ...prev]);
+
+    try {
+      const watermarkConfig = {
+        enabled: true,
+        text: derivedWatermark,
+        location: 'bottom-right' as const,
+      };
+
+      const workflowResult = await startWorkflowWithSelectedProduct(
         selectedProduct.id,
         watermarkConfig,
         elementsCount,
         format,
-        outputMode === 'video', // shouldGenerateVideo
-        selectedBrand?.id
+        true, // shouldGenerateVideo - always true now
+        selectedBrand.id
       );
-    } else {
-      await startWorkflowWithConfig(
-        watermarkConfig,
-        elementsCount,
-        format,
-        outputMode === 'video', // shouldGenerateVideo
-        selectedBrand?.id
-      );
+
+      const projectId = workflowResult?.historyId || workflowResult?.projectId;
+
+      setGenerations(prev => prev.map(gen =>
+        gen.id === newGeneration.id
+          ? {
+              ...gen,
+              status: 'processing',
+              stage: STEP_DESCRIPTIONS.generating_cover,
+              progress: 20,
+              projectId: projectId || gen.projectId
+            }
+          : gen
+      ));
+
+      if (projectId) {
+        fetchStatusForProject(projectId);
+      }
+
+      showSuccess('Video generation started! Check progress above.');
+
+    } catch (error: unknown) {
+      console.error('Failed to start workflow:', error);
+      const message = error instanceof Error ? error.message : 'Failed to start generation';
+      showError(message);
+
+      // Update generation status to failed
+      setGenerations(prev => {
+        return prev.map(gen =>
+          gen.id === newGeneration.id
+            ? { ...gen, status: 'failed', stage: 'Failed', error: message }
+            : gen
+        );
+      });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
-  const features = [
-    {
-      title: 'Brand-Driven Creation',
-      description: 'All ads are built around your brand identity and product catalog'
-    },
-    {
-      title: 'Flexible Modes',
-      description: 'Auto mode for quick generation, Custom mode for precise control'
-    },
-    {
-      title: 'Professional Quality',
-      description: 'Studio-grade results for both image and video advertisements'
-    }
-  ];
+  // Calculate cost for generate button
+  const canGenerate = !isGenerating && selectedProduct && selectedBrand;
+  const generationCost = getGenerationCost(selectedModel, videoDuration.toString(), videoQuality);
+  const isFreeGen = isFreeGenerationModel(selectedModel);
+  const canAfford = canAffordModel(userCredits || 0, selectedModel);
 
-  const renderWorkflowContent = () => {
-    // Check KIE credits first - if insufficient, show maintenance interface
-    if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
-      return (
-        <div className="max-w-xl mx-auto">
-          <MaintenanceMessage />
-        </div>
-      );
-    }
-
-    // Check user credits - if insufficient for any model, show recharge guidance
-    if (userCredits !== undefined && !canAffordModel(userCredits, 'auto')) {
-      return <InsufficientCredits currentCredits={userCredits} requiredCredits={CREDIT_COSTS.veo3_fast} />;
-    }
-
-    // Product Manager interface
-    if (showProductManager) {
-      return (
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-6">
-            <button
-              onClick={() => setShowProductManager(false)}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              ← Back to Professional Ads
-            </button>
-          </div>
-          <ProductManager />
-        </div>
-      );
-    }
-
+  // Render insufficient credits or maintenance message
+  if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
     return (
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Top Banner - Feature Introduction */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            Professional Brand Ads
-          </h2>
-          <p className="text-sm text-gray-600 leading-relaxed mb-4">
-            Create brand-driven advertisements with AI-powered automation. Choose between auto generation or custom mode for precise control.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {features.map((feature, index) => (
-              <div key={index} className="flex items-start gap-3">
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900">{feature.title}</h4>
-                  <p className="text-xs text-gray-600">{feature.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Main Configuration */}
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-6">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-gray-700" />
-            <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
-          </div>
-
-          {/* NEW: Mode Toggles */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <OutputModeToggle
-              mode={outputMode}
-              onModeChange={handleOutputModeChange}
-            />
-            <GenerationModeToggle
-              mode={generationMode}
-              onModeChange={setGenerationMode}
-            />
-          </div>
-
-          {/* Brand & Product Cascading Dropdowns */}
-          <BrandProductSelector
-            selectedBrand={selectedBrand}
-            selectedProduct={selectedProduct}
-            onBrandSelect={setSelectedBrand}
-            onProductSelect={setSelectedProduct}
-          />
-
-          {/* Single Row: Language, Duration, Quality, Format (for video mode) */}
-          {outputMode === 'video' ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <LanguageSelector
-                selectedLanguage={selectedLanguage}
-                onLanguageChange={setSelectedLanguage}
-                showIcon={true}
-              />
-              <VideoDurationSelector
-                selectedDuration={videoDuration}
-                onDurationChange={handleVideoDurationChange}
-                showIcon={true}
-                disabledDurations={disabledDurations}
-              />
-              <VideoQualitySelector
-                selectedQuality={videoQuality}
-                onQualityChange={handleVideoQualityChange}
-                showIcon={true}
-                disabledQualities={disabledQualities}
-              />
-              <FormatSelector
-                outputMode={outputMode}
-                selectedFormat={format}
-                onFormatChange={setFormat}
-              />
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar {...sidebarProps} />
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-6xl mx-auto px-4 py-8">
+            <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">System Maintenance</h2>
+              <p className="text-gray-600">
+                Our system is currently under maintenance. Please try again later.
+              </p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <LanguageSelector
-                selectedLanguage={selectedLanguage}
-                onLanguageChange={setSelectedLanguage}
-                showIcon={true}
-              />
-              <ImageModelSelector
-                credits={userCredits || 0}
-                selectedModel={selectedImageModel}
-                onModelChange={handleImageModelChange}
-                showIcon={true}
-                hiddenModels={['auto']}
-              />
-              <FormatSelector
-                outputMode={outputMode}
-                selectedFormat={format}
-                onFormatChange={setFormat}
-                imageModel={selectedImageModel}
-              />
-            </div>
-          )}
-
-          {/* Video Model (only when outputMode === 'video') */}
-          {outputMode === 'video' && (
-            <VideoModelSelector
-              credits={userCredits || 0}
-              selectedModel={selectedModel}
-              onModelChange={handleModelChange}
-              showIcon={true}
-              hiddenModels={['auto']}
-              disabledModels={disabledModels as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>}
-              videoQuality={videoQuality}
-              videoDuration={videoDuration}
-              adsCount={1}
-            />
-          )}
-
-          {/* Custom Prompt Input (only in custom mode) */}
-          {generationMode === 'custom' && (
-            <CustomPromptInput
-              value={customPrompt}
-              onChange={setCustomPrompt}
-            />
-          )}
-
-          {/* Generate Button */}
-          <button
-            onClick={handleStartWorkflow}
-            disabled={!selectedProduct || !selectedBrand}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span>Generate {outputMode === 'video' ? 'Video' : 'Image'} Ad</span>
-            <ArrowRight className="w-4 h-4" />
-            {(() => {
-              // Image mode: always FREE
-              if (outputMode === 'image') {
-                return (
-                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
-                    FREE
-                  </span>
-                );
-              }
-
-              // Video mode: calculate credits based on model
-              const actualModel = getActualModel(selectedModel, userCredits || 0);
-              if (!actualModel) return null;
-
-              const isFreeGen = isFreeGenerationModel(actualModel);
-              if (isFreeGen) {
-                // Free generation models - show FREE badge
-                return (
-                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
-                    FREE
-                  </span>
-                );
-              } else {
-                // Paid generation models - show credit cost
-                const cost = getGenerationCost(actualModel, videoDuration, videoQuality);
-                return (
-                  <span className="ml-2 px-2.5 py-1 bg-gray-800 text-white text-sm font-medium rounded flex items-center gap-1.5">
-                    <Coins className="w-4 h-4" />
-                    <span>{cost}</span>
-                  </span>
-                );
-              }
-            })()}
-          </button>
-        </div>
+          </div>
+        </main>
       </div>
     );
-  };
+  }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar
-        credits={userCredits}
-        userEmail={user?.primaryEmailAddress?.emailAddress}
-        userImageUrl={user?.imageUrl}
-      />
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
-        <div className="p-8 max-w-7xl mx-auto">
-          {/* Page Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-gray-700" />
-              </div>
-              <h1 className="text-2xl font-semibold text-gray-900">
-                Professional Brand Ads
-              </h1>
+  if (!canAfford) {
+    return (
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar {...sidebarProps} />
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-6xl mx-auto px-4 py-8">
+            <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Insufficient Credits</h2>
+              <p className="text-gray-600 mb-2">
+                You need {generationCost} credits but only have {userCredits || 0} credits.
+              </p>
+              <p className="text-gray-600">
+                Please purchase more credits to continue using {selectedModel}.
+              </p>
             </div>
           </div>
+        </main>
+      </div>
+    );
+  }
 
-          {/* Main Content with white background wrapper */}
-          <div className="relative bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-sm overflow-visible">
-            {renderWorkflowContent()}
+  return (
+    <>
+    <div className="min-h-screen bg-gray-50">
+      <Sidebar {...sidebarProps} />
+      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen flex flex-col pt-14 md:pt-0 min-h-0">
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Page Header */}
+          <header className="px-6 sm:px-8 lg:px-10 py-6 sticky top-0 z-20 bg-gray-50/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+            <div className="max-w-7xl mx-auto flex items-center gap-3">
+              <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
+                <TrendingUp className="w-5 h-5 text-gray-700" />
+              </div>
+              <h1 className="text-2xl font-semibold text-gray-900">Standard Ads</h1>
+            </div>
+          </header>
+
+          {/* Main Content Area - Progress Display */}
+          <section className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-32 min-h-0">
+            <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
+              <div className="bg-white border border-gray-200 rounded-3xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
+                <div className="flex-1 overflow-hidden min-h-0">
+                  <GenerationProgressDisplay
+                    generations={displayedGenerations}
+                    onDownload={handleDownloadGeneration}
+                    onRetry={(gen) => {
+                      // TODO: Implement retry handler
+                      console.log('Retry:', gen);
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    {/* Bottom Composer */}
+    <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-4 sm:px-8 lg:px-10 pb-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-white/95 backdrop-blur border border-gray-200 rounded-[34px] shadow-xl px-4 sm:px-5 py-3 flex flex-wrap items-center gap-3">
+          {/* Left controls */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <PlatformSelector
+              selectedPlatform={selectedPlatform}
+              onPlatformChange={handlePlatformChange}
+              disabled={isGenerating}
+              label=""
+              variant="compact"
+            />
+
+            <BrandProductSelector
+              selectedBrand={selectedBrand}
+              selectedProduct={selectedProduct}
+              onBrandSelect={setSelectedBrand}
+              onProductSelect={setSelectedProduct}
+              className="flex items-center gap-2"
+              variant="compact"
+            />
+          </div>
+
+          {/* Conversational Input */}
+          <RequirementsInput
+            value={additionalRequirements}
+            onChange={setAdditionalRequirements}
+            disabled={isGenerating}
+            className="flex-1 min-w-[240px]"
+            textareaClassName="px-0"
+            variant="ghost"
+            hideCounter
+          />
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <ConfigPopover
+              videoDuration={videoDuration}
+              onDurationChange={setVideoDuration}
+              disabledDurations={disabledDurations}
+              videoQuality={videoQuality}
+              onQualityChange={setVideoQuality}
+              disabledQualities={disabledQualities}
+              selectedModel={selectedModel}
+              onModelChange={(model) => model !== 'auto' && setSelectedModel(model as VideoModel)}
+              userCredits={userCredits || 0}
+              selectedLanguage={selectedLanguage}
+              onLanguageChange={setSelectedLanguage}
+              format={format}
+              onFormatChange={setFormat}
+              disabled={isGenerating}
+              variant="minimal"
+            />
+
+            <button
+              onClick={handleStartWorkflow}
+              disabled={!canGenerate}
+              className={`
+                flex items-center gap-2 px-6 py-2.5 rounded-full cursor-pointer
+                font-semibold text-sm whitespace-nowrap
+                transition-all duration-200
+                ${canGenerate
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }
+              `}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Generate</span>
+              {!isFreeGen && generationCost > 0 && (
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded">
+                  <Coins className="w-3 h-3" />
+                  {generationCost}
+                </span>
+              )}
+              {isFreeGen && (
+                <span className="px-2 py-0.5 bg-green-500/20 text-green-100 rounded text-xs font-bold">
+                  FREE
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </div>
     </div>
+    </>
   );
 }
