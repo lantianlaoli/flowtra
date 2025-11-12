@@ -336,7 +336,8 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     console.log('🤖 Generating creative video prompts from product image...');
     const prompts = await generateImageBasedPrompts(
       request.imageUrl,
-      request.language
+      request.language,
+      parseInt(request.videoDuration || request.sora2ProDuration || '10', 10)
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
@@ -378,7 +379,10 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
   }
 }
 
-async function generateImageBasedPrompts(imageUrl: string, language?: string): Promise<Record<string, unknown>> {
+async function generateImageBasedPrompts(imageUrl: string, language?: string, videoDurationSeconds?: number): Promise<Record<string, unknown>> {
+  const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
+  const dialogueWordLimit = Math.max(12, Math.round(duration * 2.2));
+
   // Define JSON schema for Structured Outputs - IMPORTANT: This must return a SINGLE object, not an array
   const responseFormat = {
     type: "json_schema",
@@ -498,7 +502,8 @@ Generate a JSON object with these elements:
 
 CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.
 IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in English. The 'language' field is metadata only to specify what language the video voiceover should use.
-IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a brand slogan.`
+IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a brand slogan.
+CRITICAL: The dialogue must be concise enough to be spoken within ${duration} seconds. Keep it under ${dialogueWordLimit} words and avoid long sentences.`
             }
           ]
         }
