@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
+import { clampDialogueToWordLimit, getCharacterAdsDialogueWordLimit } from '@/lib/character-ads-dialogue';
 
 const accentLabelMap: Record<string, string> = {
   american: 'American',
@@ -25,6 +26,7 @@ interface DialogueRequestPayload {
   productDescription?: string;
   productImageUrls?: string[];
   language?: LanguageCode;
+  videoDurationSeconds?: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -37,7 +39,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as DialogueRequestPayload;
-    const { accent, productName, productDescription, productImageUrls = [], language = 'en' } = body;
+    const {
+      accent,
+      productName,
+      productDescription,
+      productImageUrls = [],
+      language = 'en',
+      videoDurationSeconds
+    } = body;
 
     if (!accent) {
       return NextResponse.json(
@@ -55,8 +64,12 @@ export async function POST(request: NextRequest) {
     const descriptionSnippet = productDescription?.trim() || 'A modern product that customers love.';
     const languageName = getLanguagePromptName(language);
 
+    const dialogueWordLimit = getCharacterAdsDialogueWordLimit(
+      typeof videoDurationSeconds === 'number' ? videoDurationSeconds : 16
+    );
+
     const systemPrompt = `You are an advertising dialogue writer for user-generated content spokesperson videos.\n
-Requirements:\n- Return exactly one spoken line (<= 200 characters) in ${languageName}.\n- Sound casual, enthusiastic, and authentic as if spoken on camera.\n- Blend a hook, the key benefit, and a friendly call-to-action.\n- Avoid hashtags, emojis, marketing buzzwords, or repeated punctuation.\n- Do not add quotes or surrounding characters.\n- Reflect the requested accent naturally in word choice or cadence.\n- Base the line on the product imagery and description provided.\n- The dialogue MUST be written in ${languageName}.`;
+Requirements:\n- Return exactly one spoken line capped at ${dialogueWordLimit} words in ${languageName}.\n- Sound casual, enthusiastic, and authentic as if spoken on camera.\n- Blend a hook, the key benefit, and a friendly call-to-action.\n- Avoid hashtags, emojis, marketing buzzwords, or repeated punctuation.\n- Do not add quotes or surrounding characters.\n- Reflect the requested accent naturally in word choice or cadence.\n- Base the line on the product imagery and description provided.\n- The dialogue MUST be written in ${languageName}.`;
 
     const userTextPrompt = `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\nAccent: ${accentLabel}\nLanguage: ${languageName}\nIf possible, reference standout visuals you observe. Respond with one spoken line in ${languageName} now.`;
 
@@ -123,9 +136,7 @@ Requirements:\n- Return exactly one spoken line (<= 200 characters) in ${languag
       .replace(/\s+/g, ' ')
       .trim();
 
-    const trimmedContent = cleanedContent.length > 200
-      ? cleanedContent.slice(0, 197).trimEnd() + '…'
-      : cleanedContent;
+    const trimmedContent = clampDialogueToWordLimit(cleanedContent, dialogueWordLimit);
 
     return NextResponse.json({ success: true, dialogue: trimmedContent });
   } catch (error) {

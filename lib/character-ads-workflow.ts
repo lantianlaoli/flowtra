@@ -719,7 +719,7 @@ async function checkKIEVideoTaskStatusByModel(taskId: string, videoModel: string
 }
 
 // fal.ai video merging integration
-async function mergeVideosWithFal(videoUrls: string[]): Promise<{ taskId: string }> {
+async function mergeVideosWithFal(videoUrls: string[], videoAspectRatio?: '16:9' | '9:16'): Promise<{ taskId: string }> {
   const { fal } = await import("@fal-ai/client");
 
   // Configure fal client
@@ -727,12 +727,22 @@ async function mergeVideosWithFal(videoUrls: string[]): Promise<{ taskId: string
     credentials: process.env.FAL_KEY
   });
 
+  // Map aspect ratio to FAL resolution parameter
+  const resolutionMap: Record<string, string> = {
+    '16:9': 'landscape_16_9',
+    '9:16': 'portrait_16_9'
+  };
+
+  const falResolution = videoAspectRatio
+    ? resolutionMap[videoAspectRatio]
+    : 'landscape_16_9'; // Default fallback
+
   try {
     const result = await fal.subscribe("fal-ai/ffmpeg-api/merge-videos", {
       input: {
         video_urls: videoUrls,
         target_fps: 30,
-        resolution: "landscape_16_9" // HD landscape resolution for better quality
+        resolution: falResolution
       },
       logs: true,
       onQueueUpdate: (update) => {
@@ -1261,7 +1271,10 @@ export async function processCharacterAdsProject(
           throw new Error('Generated videos not found');
         }
 
-        const { taskId } = await mergeVideosWithFal(project.generated_video_urls);
+        const { taskId } = await mergeVideosWithFal(
+          project.generated_video_urls,
+          project.video_aspect_ratio as '16:9' | '9:16'
+        );
 
         // Update project
         const { data: updatedProject, error } = await supabase

@@ -337,7 +337,8 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     const prompts = await generateImageBasedPrompts(
       request.imageUrl,
       request.language,
-      parseInt(request.videoDuration || request.sora2ProDuration || '10', 10)
+      parseInt(request.videoDuration || request.sora2ProDuration || '10', 10),
+      request.adCopy
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
@@ -379,7 +380,7 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
   }
 }
 
-async function generateImageBasedPrompts(imageUrl: string, language?: string, videoDurationSeconds?: number): Promise<Record<string, unknown>> {
+async function generateImageBasedPrompts(imageUrl: string, language?: string, videoDurationSeconds?: number, userRequirements?: string): Promise<Record<string, unknown>> {
   const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
   const dialogueWordLimit = Math.max(12, Math.round(duration * 2.2));
 
@@ -474,13 +475,13 @@ async function generateImageBasedPrompts(imageUrl: string, language?: string, vi
             },
             {
               type: 'text',
-              text: `Analyze the product image and generate ONE creative video advertisement prompt based ONLY on the visual content.
+              text: `Analyze the product image and generate ONE creative video advertisement prompt based on the visual content.${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nIMPORTANT: Incorporate these user requirements into all aspects of the video advertisement (description, setting, camera, action, dialogue, etc.). The requirements should guide the creative direction while staying true to the product visuals.` : ''}
 
 Focus on:
 - Visual elements in the image (product appearance, colors, textures, design)
 - Product category and potential use cases you can infer from the visuals
 - Emotional appeal based on visual presentation
-- Natural scene settings that match the product aesthetics
+- Natural scene settings that match the product aesthetics${userRequirements ? '\n- User-specified requirements and creative direction' : ''}
 
 DO NOT include:
 - Brand names or slogans (unless visually present in the image)
@@ -488,16 +489,16 @@ DO NOT include:
 - Pre-existing brand positioning or assumptions
 
 Generate a JSON object with these elements:
-- description: Main scene description based on product visuals
-- setting: Natural environment that suits the product
+- description: Main scene description based on product visuals${userRequirements ? ' and user requirements' : ''}
+- setting: Natural environment that suits the product${userRequirements ? ' (consider user preferences)' : ''}
 - camera_type: Cinematic shot type that showcases the product best
 - camera_movement: Dynamic camera movement
-- action: Engaging product demonstration or lifestyle scene
+- action: Engaging product demonstration or lifestyle scene${userRequirements ? ' (aligned with user vision)' : ''}
 - lighting: Professional lighting setup that enhances the product
-- dialogue: Natural voiceover content focused on product benefits and features (in English, NO brand slogans)
-- music: Music style matching the mood and product category
+- dialogue: Natural voiceover content focused on product benefits and features${userRequirements ? ', incorporating user messaging' : ''} (in English, NO brand slogans)
+- music: Music style matching the mood and product category${userRequirements ? ' and user preferences' : ''}
 - ending: Natural ad conclusion (e.g., product close-up, lifestyle shot)
-- other_details: Creative visual elements that enhance the advertisement
+- other_details: Creative visual elements that enhance the advertisement${userRequirements ? ', including user-specified elements' : ''}
 - language: The language name for voiceover generation (e.g., "English", "Urdu (Pakistan's national language)", "Punjabi")
 
 CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.

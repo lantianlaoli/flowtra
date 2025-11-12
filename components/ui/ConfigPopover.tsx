@@ -61,7 +61,26 @@ export default function ConfigPopover({
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const isMinimal = variant === 'minimal';
+
+  // Track viewport to render a mobile-friendly drawer
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = window.matchMedia('(max-width: 640px)');
+    const updateMatch = () => setIsMobile(mediaQuery.matches);
+    updateMatch();
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateMatch);
+      return () => mediaQuery.removeEventListener('change', updateMatch);
+    }
+
+    // Safari fallback
+    mediaQuery.addListener(updateMatch);
+    return () => mediaQuery.removeListener(updateMatch);
+  }, []);
 
   // Close popover when clicking outside
   useEffect(() => {
@@ -123,16 +142,34 @@ export default function ConfigPopover({
       {/* Popover */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            ref={popoverRef}
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="absolute right-0 bottom-full mb-2 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-[100] overflow-visible"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+          <>
+            {isMobile && (
+              <motion.button
+                aria-label="Close configuration drawer"
+                type="button"
+                onClick={() => setIsOpen(false)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="fixed inset-0 bg-black/20 z-[90]"
+              />
+            )}
+            <motion.div
+              ref={popoverRef}
+              initial={{ opacity: 0, y: isMobile ? 30 : 10, scale: isMobile ? 1 : 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: isMobile ? 30 : 10, scale: isMobile ? 1 : 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className={cn(
+                'bg-white rounded-lg shadow-2xl border border-gray-200 z-[100] overflow-visible',
+                isMobile
+                  ? 'fixed inset-x-4 bottom-4 max-h-[80vh] overflow-y-auto origin-bottom'
+                  : 'absolute right-0 bottom-full mb-2 w-96 origin-bottom-right'
+              )}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-gray-700" />
                 <h3 className="font-semibold text-gray-900">Video Configuration</h3>
@@ -202,7 +239,8 @@ export default function ConfigPopover({
                 These settings will be applied to your next generation
               </p>
             </div>
-          </motion.div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>

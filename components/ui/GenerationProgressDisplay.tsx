@@ -84,6 +84,12 @@ function GenerationCard({ generation, onDownload, onRetry }: GenerationCardProps
     return cost === 0 ? 'Free' : `${cost} credits`;
   }, [videoModel, downloaded]);
 
+  const downloadActionLabel = useMemo(() => {
+    if (isDownloading) return 'Downloading…';
+    if (downloaded) return 'Downloaded';
+    return `Download · ${downloadMetaLabel}`;
+  }, [isDownloading, downloaded, downloadMetaLabel]);
+
   const handlePlay = () => {
     if (!videoUrl) return;
     setIsPlaying(true);
@@ -139,7 +145,7 @@ function GenerationCard({ generation, onDownload, onRetry }: GenerationCardProps
     >
       <div className="p-4">
         {/* Header */}
-        <div className="flex items-start justify-between mb-3 gap-4">
+        <div className="flex flex-wrap items-start justify-between mb-3 gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               {getStatusIcon()}
@@ -147,7 +153,7 @@ function GenerationCard({ generation, onDownload, onRetry }: GenerationCardProps
                 {getStatusText()}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
               {platform && (
                 <span className="px-2 py-0.5 bg-gray-100 rounded capitalize">
                   {platform}
@@ -162,23 +168,23 @@ function GenerationCard({ generation, onDownload, onRetry }: GenerationCardProps
               onDownload ? (
                 <button
                   onClick={() => !isDownloading && !downloaded && onDownload(generation)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm transition-colors ${downloaded ? 'opacity-70 cursor-default' : isDownloading ? 'opacity-60 cursor-wait' : 'hover:border-gray-300 cursor-pointer'}`}
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm transition-colors whitespace-nowrap ${downloaded ? 'opacity-70 cursor-default' : isDownloading ? 'opacity-60 cursor-wait' : 'hover:border-gray-300 cursor-pointer'}`}
                   title={downloaded ? 'Already downloaded' : `Download (${downloadMetaLabel})`}
                   disabled={isDownloading || downloaded}
                 >
                   <Download className={`w-3.5 h-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
-                  <span>{isDownloading ? 'Downloading…' : downloadMetaLabel}</span>
+                  <span>{downloadActionLabel}</span>
                 </button>
               ) : (
                 <a
                   href={videoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm hover:border-gray-300 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm hover:border-gray-300 transition-colors cursor-pointer whitespace-nowrap"
                   title={`Download (${downloadMetaLabel})`}
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>{downloadMetaLabel}</span>
+                  <span>{downloadActionLabel}</span>
                 </a>
               )
             )}

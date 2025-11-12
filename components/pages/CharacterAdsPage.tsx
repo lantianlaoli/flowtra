@@ -21,6 +21,11 @@ import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { getActualModel, isFreeGenerationModel, getGenerationCost } from '@/lib/constants';
+import {
+  clampDialogueToWordLimit,
+  countDialogueWords,
+  getCharacterAdsDialogueWordLimit
+} from '@/lib/character-ads-dialogue';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -42,7 +47,7 @@ export default function CharacterAdsPage() {
   const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>('veo3_fast');
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('seedream');
   const [imageSize, setImageSize] = useState<string>('auto');
-  const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('9:16');
   const [selectedAccent, setSelectedAccent] = useState<AccentType>('american');
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
@@ -51,6 +56,15 @@ export default function CharacterAdsPage() {
   const [isGeneratingDialogue, setIsGeneratingDialogue] = useState(false);
   const [dialogueError, setDialogueError] = useState<string | null>(null);
   const [hasAIGeneratedDialogue, setHasAIGeneratedDialogue] = useState(false);
+
+  const dialogueWordLimit = useMemo(
+    () => getCharacterAdsDialogueWordLimit(videoDuration),
+    [videoDuration]
+  );
+  const dialogueWordCount = useMemo(
+    () => countDialogueWords(customDialogue),
+    [customDialogue]
+  );
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -101,6 +115,13 @@ export default function CharacterAdsPage() {
       setSelectedVideoModel('veo3_fast');
     }
   }, [selectedVideoModel]);
+
+  useEffect(() => {
+    setCustomDialogue(prev => {
+      const limited = clampDialogueToWordLimit(prev, dialogueWordLimit);
+      return limited === prev ? prev : limited;
+    });
+  }, [dialogueWordLimit]);
 
   // Show toast notification when generation starts
   useEffect(() => {
@@ -246,7 +267,8 @@ export default function CharacterAdsPage() {
           productName,
           productDescription,
           productImageUrls: productPhotoUrls,
-          language: selectedLanguage
+          language: selectedLanguage,
+          videoDurationSeconds: videoDuration
         })
       });
 
@@ -256,7 +278,8 @@ export default function CharacterAdsPage() {
         throw new Error(result?.error || 'Failed to generate dialogue.');
       }
 
-      setCustomDialogue(result.dialogue || '');
+      const limitedDialogue = clampDialogueToWordLimit(result.dialogue || '', dialogueWordLimit);
+      setCustomDialogue(limitedDialogue);
       setHasAIGeneratedDialogue(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate dialogue.';
@@ -268,7 +291,9 @@ export default function CharacterAdsPage() {
   };
 
   const handleCustomDialogueChange = (value: string) => {
-    setCustomDialogue(value);
+    const limitedValue = clampDialogueToWordLimit(value, dialogueWordLimit);
+    setCustomDialogue(limitedValue);
+    setDialogueError(null);
     if (hasAIGeneratedDialogue) {
       setHasAIGeneratedDialogue(false);
     }
@@ -526,16 +551,17 @@ export default function CharacterAdsPage() {
                               value={customDialogue}
                               onChange={(e) => handleCustomDialogueChange(e.target.value)}
                               placeholder="Add a short line the character will say. Think product hook + friendly CTA."
-                              maxLength={200}
                               rows={3}
                               className="w-full px-3 py-3 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 text-gray-900 transition"
                             />
                             <div className="flex items-center justify-between text-xs text-gray-500">
                               <div className="inline-flex items-center gap-1 text-gray-600">
                                 <Wand2 className="w-3.5 h-3.5" />
-                                Tip: keep it under 200 characters for the most natural delivery.
+                                Tip: aim for {dialogueWordLimit} words or less for a natural {videoDuration}s read.
                               </div>
-                              <span>{customDialogue.length}/200</span>
+                              <span className={dialogueWordCount >= dialogueWordLimit ? 'text-gray-900 font-semibold' : ''}>
+                                {dialogueWordCount}/{dialogueWordLimit} words
+                              </span>
                             </div>
                           </div>
                         </div>
