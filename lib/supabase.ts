@@ -99,6 +99,30 @@ export interface SingleVideoProject {
   video_generation_prompt?: Record<string, unknown> // JSONB field containing the prompt used for video generation
   video_duration?: string | null // Video duration in seconds (e.g., '8', '10', '15') - applicable to all video models
   video_quality?: 'standard' | 'high' | null // Video quality setting - applicable to all video models
+  is_segmented?: boolean // Whether this project uses segmented generation
+  segment_count?: number // Number of segments requested (default 1)
+  segment_duration_seconds?: number | null // Duration per segment (defaults to 8)
+  segment_plan?: Record<string, unknown> | null // Serialized segment plan data
+  segment_status?: Record<string, unknown> | null // Aggregated per-segment status payload
+  merged_video_url?: string | null // Final merged video URL for segmented workflows
+  fal_merge_task_id?: string | null // fal.ai merge task identifier
+  created_at: string
+  updated_at: string
+}
+
+export interface StandardAdsSegment {
+  id: string
+  project_id: string
+  segment_index: number
+  status: string
+  prompt?: Record<string, unknown> | null
+  first_frame_task_id?: string | null
+  first_frame_url?: string | null
+  closing_frame_task_id?: string | null
+  closing_frame_url?: string | null
+  video_task_id?: string | null
+  video_url?: string | null
+  error_message?: string | null
   created_at: string
   updated_at: string
 }
@@ -208,6 +232,11 @@ export type Database = {
         Row: SingleVideoProject
         Insert: Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>>
+      }
+      standard_ads_segments: {
+        Row: StandardAdsSegment
+        Insert: Omit<StandardAdsSegment, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<StandardAdsSegment, 'id' | 'created_at' | 'updated_at'>>
       }
       multi_variant_ads_projects: {
         Row: MultiVariantProject

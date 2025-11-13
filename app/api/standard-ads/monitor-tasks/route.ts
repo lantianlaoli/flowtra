@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
+import { startSegmentVideoTask, buildSegmentStatusPayload, type SegmentPrompt } from '@/lib/standard-ads-workflow';
+import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 
 export async function POST() {
   try {
@@ -15,7 +17,7 @@ export async function POST() {
       .from('standard_ads_projects')
       .select('*')
       .in('status', ['processing', 'generating_cover', 'generating_video'])
-      .or('cover_task_id.not.is.null,use_custom_script.eq.true,current_step.eq.ready_for_video') // Include records with cover_task_id OR custom script mode OR ready for video
+      .or('cover_task_id.not.is.null,use_custom_script.eq.true,current_step.eq.ready_for_video,is_segmented.eq.true') // Include records with cover_task_id OR custom script mode OR ready for video OR segmented mode
       .order('last_processed_at', { ascending: true, nullsFirst: true }) // Process new records (null last_processed_at) first
       .limit(20); // Process max 20 records per run
 
@@ -127,11 +129,22 @@ interface HistoryRecord {
   original_image_url?: string; // For custom script mode (use original image instead of generated cover)
   video_duration?: string | null;
   video_quality?: 'standard' | 'high' | null;
+  is_segmented?: boolean | null;
+  segment_count?: number | null;
+  segment_plan?: { segments?: SegmentPrompt[] } | Record<string, unknown> | null;
+  segment_status?: Record<string, unknown> | null;
+  fal_merge_task_id?: string | null;
+  merged_video_url?: string | null;
 }
 
 async function processRecord(record: HistoryRecord) {
   const supabase = getSupabaseAdmin();
   console.log(`Processing record ${record.id}, step: ${record.current_step}, status: ${record.status}`);
+
+  if (record.is_segmented) {
+    await processSegmentedRecord(record, supabase);
+    return;
+  }
 
   // Handle custom script mode - ready to generate video directly
   if (record.current_step === 'ready_for_video' && record.use_custom_script && record.cover_image_url && !record.video_task_id) {
@@ -252,6 +265,284 @@ async function processRecord(record: HistoryRecord) {
   if (now - lastProcessed > timeoutMinutes * 60 * 1000) {
     throw new Error(`Task timeout: no progress for ${timeoutMinutes} minutes`);
   }
+}
+
+async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnType<typeof getSupabaseAdmin>) {
+  let segments = await fetchSegments(record.id, supabase);
+
+  segments = await syncSegmentFrameTasks(record, segments, supabase);
+
+  if (!segments.length) {
+    console.warn(`No segments found for segmented record ${record.id}`);
+    return;
+  }
+
+  let videosStarted = false;
+  let videosUpdated = false;
+
+  for (const segment of segments) {
+    if (segment.video_task_id || segment.video_url) {
+      continue;
+    }
+
+    if (!segment.first_frame_url) {
+      continue;
+    }
+
+    const nextSegment = segments.find(s => s.segment_index === segment.segment_index + 1);
+    const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url;
+    if (!closingFrameUrl) continue;
+
+    const prompt = getSegmentPrompt(record, segment.segment_index);
+    const taskId = await startSegmentVideoTask(
+      record as unknown as SingleVideoProject,
+      prompt,
+      segment.first_frame_url,
+      closingFrameUrl,
+      segment.segment_index,
+      segments.length
+    );
+
+    await supabase
+      .from('standard_ads_segments')
+      .update({
+        video_task_id: taskId,
+        status: 'generating_video',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', segment.id);
+
+    segment.video_task_id = taskId;
+    segment.status = 'generating_video';
+    videosStarted = true;
+  }
+
+  if (videosStarted) {
+    await supabase
+      .from('standard_ads_projects')
+      .update({
+        current_step: 'generating_segment_videos',
+        progress_percentage: 70,
+        segment_status: buildSegmentStatusPayload(segments),
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', record.id);
+  }
+
+  for (const segment of segments) {
+    if (segment.video_task_id && !segment.video_url) {
+      const videoResult = await checkVideoStatus(segment.video_task_id, record.video_model);
+
+      if (videoResult.status === 'SUCCESS' && videoResult.videoUrl) {
+        await supabase
+          .from('standard_ads_segments')
+          .update({
+            video_url: videoResult.videoUrl,
+            status: 'video_ready',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', segment.id);
+
+        segment.video_url = videoResult.videoUrl;
+        segment.status = 'video_ready';
+        videosUpdated = true;
+      } else if (videoResult.status === 'FAILED') {
+        await supabase
+          .from('standard_ads_segments')
+          .update({
+            status: 'failed',
+            error_message: videoResult.errorMessage || 'Segment video generation failed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', segment.id);
+
+        await supabase
+          .from('standard_ads_projects')
+          .update({
+            status: 'failed',
+            error_message: videoResult.errorMessage || 'Segment video generation failed',
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', record.id);
+
+        throw new Error(`Segment ${segment.segment_index} video failed: ${videoResult.errorMessage || 'unknown error'}`);
+      }
+    }
+  }
+
+  if (videosUpdated) {
+    await supabase
+      .from('standard_ads_projects')
+      .update({
+        segment_status: buildSegmentStatusPayload(segments),
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', record.id);
+  }
+
+  const videosReady = segments.every(seg => !!seg.video_url);
+  if (videosReady && !record.fal_merge_task_id) {
+    const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+    const { taskId } = await mergeVideosWithFal(segments.map(seg => seg.video_url as string), aspectRatio);
+
+    await supabase
+      .from('standard_ads_projects')
+      .update({
+        fal_merge_task_id: taskId,
+        current_step: 'merging_segments',
+        progress_percentage: 95,
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', record.id);
+
+      record.fal_merge_task_id = taskId;
+    return;
+  }
+
+  if (record.fal_merge_task_id && record.current_step === 'merging_segments' && !record.video_url) {
+    const status = await checkFalTaskStatus(record.fal_merge_task_id);
+
+    if (status.status === 'COMPLETED' && status.resultUrl) {
+      await supabase
+        .from('standard_ads_projects')
+        .update({
+          video_url: status.resultUrl,
+          merged_video_url: status.resultUrl,
+          status: 'completed',
+          current_step: 'completed',
+          progress_percentage: 100,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
+    } else if (status.status === 'FAILED') {
+      throw new Error(status.error || 'Merge failed');
+    }
+  }
+}
+
+async function fetchSegments(projectId: string, supabase: ReturnType<typeof getSupabaseAdmin>): Promise<StandardAdsSegment[]> {
+  const { data, error } = await supabase
+    .from('standard_ads_segments')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('segment_index', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch segments: ${error.message}`);
+  }
+
+  return (data || []) as StandardAdsSegment[];
+}
+
+async function syncSegmentFrameTasks(
+  record: HistoryRecord,
+  segments: StandardAdsSegment[],
+  supabase: ReturnType<typeof getSupabaseAdmin>
+): Promise<StandardAdsSegment[]> {
+  let updated = false;
+  const now = new Date().toISOString();
+
+  for (const segment of segments) {
+    if (segment.first_frame_task_id && !segment.first_frame_url) {
+      const frameStatus = await checkCoverStatus(segment.first_frame_task_id);
+
+      if (frameStatus.status === 'SUCCESS' && frameStatus.imageUrl) {
+        await supabase
+          .from('standard_ads_segments')
+          .update({
+            first_frame_url: frameStatus.imageUrl,
+            status: 'first_frame_ready',
+            updated_at: now
+          })
+          .eq('id', segment.id);
+
+        segment.first_frame_url = frameStatus.imageUrl;
+        segment.status = 'first_frame_ready';
+        updated = true;
+
+        if (segment.segment_index === 0 && !record.cover_image_url) {
+          record.cover_image_url = frameStatus.imageUrl;
+        }
+
+        if (segment.segment_index > 0) {
+          const prev = segments.find(s => s.segment_index === segment.segment_index - 1);
+          if (prev && !prev.closing_frame_url) {
+            await supabase
+              .from('standard_ads_segments')
+              .update({
+                closing_frame_url: frameStatus.imageUrl,
+                updated_at: now
+              })
+              .eq('id', prev.id);
+
+            prev.closing_frame_url = frameStatus.imageUrl;
+            updated = true;
+          }
+        }
+      } else if (frameStatus.status === 'FAILED') {
+        throw new Error(`Segment ${segment.segment_index} first frame failed`);
+      }
+    }
+
+    const isLastSegment = segment.segment_index === segments.length - 1;
+    if (isLastSegment && segment.closing_frame_task_id && !segment.closing_frame_url) {
+      const closingStatus = await checkCoverStatus(segment.closing_frame_task_id);
+
+      if (closingStatus.status === 'SUCCESS' && closingStatus.imageUrl) {
+        await supabase
+          .from('standard_ads_segments')
+          .update({
+            closing_frame_url: closingStatus.imageUrl,
+            updated_at: now
+          })
+          .eq('id', segment.id);
+
+        segment.closing_frame_url = closingStatus.imageUrl;
+        updated = true;
+      } else if (closingStatus.status === 'FAILED') {
+        throw new Error(`Segment ${segment.segment_index} closing frame failed`);
+      }
+    }
+  }
+
+  if (updated) {
+    await supabase
+      .from('standard_ads_projects')
+      .update({
+        cover_image_url: record.cover_image_url,
+        segment_status: buildSegmentStatusPayload(segments),
+        last_processed_at: now
+      })
+      .eq('id', record.id);
+  }
+
+  return segments;
+}
+
+function getSegmentPrompt(record: HistoryRecord, index: number): SegmentPrompt {
+  const planSegments = (record.segment_plan as { segments?: SegmentPrompt[] })?.segments;
+  if (Array.isArray(planSegments) && planSegments[index]) {
+    return planSegments[index] as SegmentPrompt;
+  }
+
+  const fallback = (record.video_prompts || {}) as SegmentPrompt;
+  return {
+    description: fallback.description || 'Product hero shot',
+    setting: fallback.setting || 'Premium studio',
+    camera_type: fallback.camera_type || 'Wide cinematic shot',
+    camera_movement: fallback.camera_movement || 'Slow push-in',
+    action: fallback.action || 'Showcase product details',
+    lighting: fallback.lighting || 'Soft glam lighting',
+    dialogue: fallback.dialogue || 'Narrate core benefit',
+    music: fallback.music || 'Warm instrumental',
+    ending: fallback.ending || 'Product close-up',
+    other_details: fallback.other_details || '',
+    language: fallback.language || record.language || 'English',
+    segment_title: fallback.segment_title || `Segment ${index + 1}`,
+    segment_goal: fallback.segment_goal || `Highlight benefit ${index + 1}`,
+    first_frame_prompt: fallback.first_frame_prompt || fallback.description || 'Show product hero shot',
+    closing_frame_prompt: fallback.closing_frame_prompt || fallback.ending || 'End with product close-up'
+  };
 }
 
 async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string): Promise<string> {

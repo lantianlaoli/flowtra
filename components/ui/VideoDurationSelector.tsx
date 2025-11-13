@@ -1,18 +1,28 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { VideoDuration } from '@/lib/constants';
+
+export interface VideoDurationOption {
+  value: VideoDuration;
+  label: string;
+  description: string;
+  features: string;
+}
 
 interface VideoDurationSelectorProps {
-  selectedDuration: '8' | '10' | '15';
-  onDurationChange: (duration: '8' | '10' | '15') => void;
+  selectedDuration: VideoDuration;
+  onDurationChange: (duration: VideoDuration) => void;
   label?: string;
   className?: string;
   showIcon?: boolean;
   disabled?: boolean;
-  disabledDurations?: Array<'8' | '10' | '15'>;
+  disabledDurations?: VideoDuration[];
+  options?: VideoDurationOption[];
 }
 
 export default function VideoDurationSelector({
@@ -22,27 +32,47 @@ export default function VideoDurationSelector({
   className,
   showIcon = false,
   disabled = false,
-  disabledDurations = []
+  disabledDurations = [],
+  options
 }: VideoDurationSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const optionsRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
 
-  const durationOptions = [
+  const handlePortalWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    if (!portalRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = portalRef.current;
+    const isAtTop = scrollTop <= 0;
+    const isAtBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight;
+
+    if ((event.deltaY < 0 && isAtTop) || (event.deltaY > 0 && isAtBottom)) {
+      event.preventDefault();
+    }
+    event.stopPropagation();
+  }, []);
+
+  const durationOptions: VideoDurationOption[] = options ?? [
     {
-      value: '8' as const,
+      value: '8',
       label: '8 seconds',
       description: 'Standard short-form video',
       features: 'Perfect for quick product showcase'
     },
     {
-      value: '10' as const,
+      value: '10',
       label: '10 seconds',
       description: 'Extended presentation time',
       features: 'Ideal for detailed feature highlights'
     },
     {
-      value: '15' as const,
+      value: '15',
       label: '15 seconds',
       description: 'Full storytelling format',
       features: 'Comprehensive product narrative'
@@ -52,7 +82,10 @@ export default function VideoDurationSelector({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const inDropdown = dropdownRef.current?.contains(target);
+      const inPortal = portalRef.current?.contains(target);
+      if (!inDropdown && !inPortal) {
         setIsOpen(false);
       }
     };
@@ -61,30 +94,49 @@ export default function VideoDurationSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Adjust dropdown position to prevent overflow
-  useEffect(() => {
-    if (isOpen && optionsRef.current) {
-      const options = optionsRef.current;
-      const rect = options.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-
-      options.style.top = '';
-      options.style.bottom = '';
-      options.style.marginTop = '';
-      options.style.marginBottom = '';
-
-      if (rect.bottom > viewportHeight && rect.top > rect.height) {
-        options.style.top = 'auto';
-        options.style.bottom = '100%';
-        options.style.marginTop = '0';
-        options.style.marginBottom = '0.25rem';
-      }
+  // Track button position for portal dropdown
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setDropdownPosition(null);
+      return;
     }
+
+    const updatePosition = () => {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      const gap = 4;
+      const spaceBelow = window.innerHeight - rect.bottom - gap;
+      const spaceAbove = rect.top - gap;
+      const preferredHeight = 320;
+      const openUpwards = spaceBelow < 200 && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(
+        180,
+        Math.min(preferredHeight, openUpwards ? spaceAbove : spaceBelow)
+      );
+      const top = openUpwards
+        ? rect.top + window.scrollY - maxHeight - gap
+        : rect.bottom + window.scrollY + gap;
+
+      setDropdownPosition({
+        top: Math.max(8, top),
+        left: rect.left + window.scrollX,
+        width: rect.width,
+        maxHeight
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
   }, [isOpen]);
 
   const selectedOption = durationOptions.find(opt => opt.value === selectedDuration);
 
-  const handleOptionSelect = (value: '8' | '10' | '15') => {
+  const handleOptionSelect = (value: VideoDuration) => {
     if (disabledDurations.includes(value)) return;
     onDurationChange(value);
     setIsOpen(false);
@@ -99,6 +151,7 @@ export default function VideoDurationSelector({
       <div className="relative">
         {/* Dropdown Button */}
         <button
+          ref={buttonRef}
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
           className={cn(
@@ -124,59 +177,73 @@ export default function VideoDurationSelector({
         </button>
 
         {/* Dropdown Options */}
-        <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            ref={optionsRef}
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] overflow-hidden"
-          >
-            {durationOptions.map((option) => {
-              const isDisabled = disabledDurations.includes(option.value);
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => handleOptionSelect(option.value)}
-                  disabled={isDisabled}
-                  className={cn(
-                    "w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between border-b border-gray-100 last:border-b-0",
-                    isDisabled
-                      ? "cursor-not-allowed opacity-50 bg-gray-50"
-                      : "hover:bg-gray-100 cursor-pointer",
-                    selectedDuration === option.value
-                      ? "bg-gray-100 text-gray-900"
-                      : "text-gray-700"
-                  )}
-                >
-                  <div className="flex flex-1 flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <Clock className={cn(
-                        "w-4 h-4",
-                        isDisabled ? "text-gray-400" : "text-gray-500"
-                      )} />
-                      <span className="font-medium">{option.label}</span>
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      {option.description}
-                    </span>
-                    <span className="text-xs text-gray-600">
-                      {option.features}
-                    </span>
-                  </div>
-                  {selectedDuration === option.value && !isDisabled && (
-                    <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
-                      <Check className="h-2.5 w-2.5 text-white" />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </motion.div>
+        {typeof document !== 'undefined' && createPortal(
+          <AnimatePresence>
+            {isOpen && dropdownPosition && (
+              <motion.div
+                ref={portalRef}
+                onWheelCapture={handlePortalWheel}
+                onWheel={handlePortalWheel}
+                onMouseDown={(event) => event.stopPropagation()}
+                initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                className="fixed bg-white border border-gray-300 rounded-md shadow-2xl z-[9999] overflow-hidden"
+                style={{
+                  top: dropdownPosition.top,
+                  left: dropdownPosition.left,
+                  width: dropdownPosition.width,
+                  maxHeight: dropdownPosition.maxHeight,
+                  overflowY: 'auto'
+                }}
+              >
+                {durationOptions.map((option) => {
+                  const isDisabled = disabledDurations.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => handleOptionSelect(option.value)}
+                      onMouseDown={(event) => event.stopPropagation()}
+                      disabled={isDisabled}
+                      className={cn(
+                        "w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between border-b border-gray-100 last:border-b-0",
+                        isDisabled
+                          ? "cursor-not-allowed opacity-50 bg-gray-50"
+                          : "hover:bg-gray-100 cursor-pointer",
+                        selectedDuration === option.value
+                          ? "bg-gray-100 text-gray-900"
+                          : "text-gray-700"
+                      )}
+                    >
+                      <div className="flex flex-1 flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <Clock className={cn(
+                            "w-4 h-4",
+                            isDisabled ? "text-gray-400" : "text-gray-500"
+                          )} />
+                          <span className="font-medium">{option.label}</span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {option.description}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          {option.features}
+                        </span>
+                      </div>
+                      {selectedDuration === option.value && !isDisabled && (
+                        <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
+                          <Check className="h-2.5 w-2.5 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-        </AnimatePresence>
       </div>
     </div>
   );

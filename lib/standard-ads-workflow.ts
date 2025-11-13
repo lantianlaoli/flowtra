@@ -1,6 +1,14 @@
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getActualImageModel, IMAGE_MODELS, getAutoModeSelection, getGenerationCost, getLanguagePromptName, type LanguageCode } from '@/lib/constants';
+import {
+  getActualImageModel,
+  IMAGE_MODELS,
+  getAutoModeSelection,
+  getGenerationCost,
+  getLanguagePromptName,
+  getSegmentCountFromDuration,
+  type LanguageCode
+} from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 export interface StartWorkflowRequest {
@@ -25,7 +33,7 @@ export interface StartWorkflowRequest {
   sora2ProDuration?: '10' | '15';
   sora2ProQuality?: 'standard' | 'high';
   // Generic video params (applies to all models)
-  videoDuration?: '8' | '10' | '15';
+  videoDuration?: '8' | '10' | '15' | '16' | '24' | '32';
   videoQuality?: 'standard' | 'high';
   language?: string; // Language for AI-generated content
   // NEW: Custom Script mode
@@ -38,6 +46,51 @@ interface WorkflowResult {
   projectId?: string;
   error?: string;
   details?: string;
+}
+
+export type SegmentPrompt = {
+  description: string;
+  setting: string;
+  camera_type: string;
+  camera_movement: string;
+  action: string;
+  lighting: string;
+  dialogue: string;
+  music: string;
+  ending: string;
+  other_details: string;
+  language?: string;
+  voice_type?: string;
+  voice_tone?: string;
+  segment_title?: string;
+  segment_goal?: string;
+  first_frame_prompt?: string;
+  closing_frame_prompt?: string;
+};
+
+export interface SegmentStatusPayload {
+  total: number;
+  framesReady: number;
+  videosReady: number;
+  segments: Array<{
+    index: number;
+    status: string;
+    firstFrameUrl?: string | null;
+    closingFrameUrl?: string | null;
+    videoUrl?: string | null;
+  }>;
+  mergedVideoUrl?: string | null;
+}
+
+export const SEGMENTED_DURATIONS = new Set(['16', '24', '32']);
+
+export function isSegmentedVideoRequest(
+  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro',
+  videoDuration?: string | null
+): boolean {
+  if (!videoDuration) return false;
+  if (model !== 'veo3' && model !== 'veo3_fast') return false;
+  return SEGMENTED_DURATIONS.has(videoDuration);
 }
 
 export async function startWorkflowProcess(request: StartWorkflowRequest): Promise<WorkflowResult> {
@@ -99,6 +152,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     } else {
       actualVideoModel = request.videoModel;
     }
+
+    const isSegmented = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
+    const segmentCount = isSegmented ? getSegmentCountFromDuration(request.videoDuration) : 1;
 
     // ===== VERSION 3.0: MIXED BILLING - Generation Phase =====
     // Basic models (veo3_fast, sora2): FREE generation, paid download
@@ -179,8 +235,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         video_model: actualVideoModel,
         video_aspect_ratio: request.videoAspectRatio || '16:9',
         status: 'processing',
-        current_step: request.useCustomScript ? 'ready_for_video' : 'generating_cover',
-        progress_percentage: request.useCustomScript ? 50 : 20,
+        current_step: request.useCustomScript
+          ? 'ready_for_video'
+          : isSegmented
+            ? 'generating_segment_frames'
+            : 'generating_cover',
+        progress_percentage: request.useCustomScript ? 50 : isSegmented ? 25 : 20,
         credits_cost: generationCost, // Only generation cost (download cost charged separately)
         watermark_text: request.watermark?.text,
         watermark_location: request.watermark?.location || request.watermarkLocation,
@@ -195,6 +255,17 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         use_custom_script: request.useCustomScript || false,
         // DEPRECATED: download_credits_used (downloads are now free)
         download_credits_used: 0,
+        is_segmented: isSegmented,
+        segment_count: segmentCount,
+        segment_duration_seconds: isSegmented ? 8 : null,
+        segment_status: isSegmented
+          ? {
+              total: segmentCount,
+              framesReady: 0,
+              videosReady: 0,
+              segments: []
+            }
+          : null,
       })
       .select()
       .single();
@@ -334,14 +405,24 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     // AUTO MODE: Image-driven workflow with AI creative generation
     // Generate prompts based purely on visual analysis of the product image
     console.log('🤖 Generating creative video prompts from product image...');
+    const totalDurationSeconds = parseInt(request.videoDuration || request.sora2ProDuration || '10', 10);
+    const segmentedFlow = isSegmentedVideoRequest(request.videoModel, request.videoDuration);
+    const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration) : 1;
     const prompts = await generateImageBasedPrompts(
       request.imageUrl,
       request.language,
-      parseInt(request.videoDuration || request.sora2ProDuration || '10', 10),
-      request.adCopy
+      totalDurationSeconds,
+      request.adCopy,
+      segmentCount
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
+
+    if (segmentedFlow) {
+      console.log('🎬 Segmented workflow enabled - orchestrating multi-segment pipeline');
+      await startSegmentedWorkflow(projectId, request, prompts, segmentCount);
+      return;
+    }
 
     // Step 1: Start cover generation
     console.log('🎨 Starting cover generation...');
@@ -380,63 +461,103 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
   }
 }
 
-async function generateImageBasedPrompts(imageUrl: string, language?: string, videoDurationSeconds?: number, userRequirements?: string): Promise<Record<string, unknown>> {
+async function generateImageBasedPrompts(
+  imageUrl: string,
+  language?: string,
+  videoDurationSeconds?: number,
+  userRequirements?: string,
+  segmentCount = 1
+): Promise<Record<string, unknown>> {
   const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
-  const dialogueWordLimit = Math.max(12, Math.round(duration * 2.2));
+  const perSegmentDuration = Math.max(8, Math.round(duration / Math.max(1, segmentCount)));
+  const dialogueWordLimit = Math.max(12, Math.round(perSegmentDuration * 2.2));
 
-  // Define JSON schema for Structured Outputs - IMPORTANT: This must return a SINGLE object, not an array
-  const responseFormat = {
-    type: "json_schema",
-    json_schema: {
-      name: "video_advertisement_schema",
-      strict: true,
-      schema: {
+  const baseProperties = {
+    description: {
+      type: "string",
+      description: "Main scene description"
+    },
+    setting: {
+      type: "string",
+      description: "Location/environment"
+    },
+    camera_type: {
+      type: "string",
+      description: "Type of camera shot"
+    },
+    camera_movement: {
+      type: "string",
+      description: "Camera movement style"
+    },
+    action: {
+      type: "string",
+      description: "What happens in the scene"
+    },
+    lighting: {
+      type: "string",
+      description: "Lighting setup"
+    },
+    dialogue: {
+      type: "string",
+      description: "Spoken content/voiceover"
+    },
+    music: {
+      type: "string",
+      description: "Music style"
+    },
+    ending: {
+      type: "string",
+      description: "How the ad concludes"
+    },
+    other_details: {
+      type: "string",
+      description: "Additional creative elements"
+    },
+    language: {
+      type: "string",
+      description: "Language name for voiceover generation"
+    }
+  } as Record<string, unknown>;
+
+  const requiredFields = [
+    "description",
+    "setting",
+    "camera_type",
+    "camera_movement",
+    "action",
+    "lighting",
+    "dialogue",
+    "music",
+    "ending",
+    "other_details",
+    "language"
+  ];
+
+  if (segmentCount > 1) {
+    baseProperties.segments = {
+      type: "array",
+      description: `Breakdown of ${segmentCount} sequential segments`,
+      minItems: segmentCount,
+      maxItems: segmentCount,
+      items: {
         type: "object",
         properties: {
-          description: {
-            type: "string",
-            description: "Main scene description"
-          },
-          setting: {
-            type: "string",
-            description: "Location/environment"
-          },
-          camera_type: {
-            type: "string",
-            description: "Type of camera shot"
-          },
-          camera_movement: {
-            type: "string",
-            description: "Camera movement style"
-          },
-          action: {
-            type: "string",
-            description: "What happens in the scene"
-          },
-          lighting: {
-            type: "string",
-            description: "Lighting setup"
-          },
-          dialogue: {
-            type: "string",
-            description: "Spoken content/voiceover"
-          },
-          music: {
-            type: "string",
-            description: "Music style"
-          },
-          ending: {
-            type: "string",
-            description: "How the ad concludes"
-          },
-          other_details: {
-            type: "string",
-            description: "Additional creative elements"
-          },
-          language: {
-            type: "string",
-            description: "Language name for voiceover generation"
-          }
+          description: { type: "string" },
+          setting: { type: "string" },
+          camera_type: { type: "string" },
+          camera_movement: { type: "string" },
+          action: { type: "string" },
+          lighting: { type: "string" },
+          dialogue: { type: "string" },
+          music: { type: "string" },
+          ending: { type: "string" },
+          other_details: { type: "string" },
+          segment_title: { type: "string" },
+          segment_goal: { type: "string" },
+          first_frame_prompt: { type: "string" },
+          closing_frame_prompt: { type: "string" },
+          voice_type: { type: "string" },
+          voice_tone: { type: "string" }
         },
         required: [
           "description",
@@ -449,8 +570,29 @@ async function generateImageBasedPrompts(imageUrl: string, language?: string, vi
           "music",
           "ending",
           "other_details",
-          "language"
+          "segment_title",
+          "segment_goal",
+          "first_frame_prompt",
+          "closing_frame_prompt",
+          "voice_type",
+          "voice_tone"
         ],
+        additionalProperties: false
+      }
+    };
+    requiredFields.push("segments");
+  }
+
+  // Define JSON schema for Structured Outputs - IMPORTANT: This must return a SINGLE object
+  const responseFormat = {
+    type: "json_schema",
+    json_schema: {
+      name: "video_advertisement_schema",
+      strict: true,
+      schema: {
+        type: "object",
+        properties: baseProperties,
+        required: requiredFields,
         additionalProperties: false
       }
     }
@@ -482,6 +624,16 @@ Focus on:
 - Product category and potential use cases you can infer from the visuals
 - Emotional appeal based on visual presentation
 - Natural scene settings that match the product aesthetics${userRequirements ? '\n- User-specified requirements and creative direction' : ''}
+${segmentCount > 1 ? `- Maintain narrative continuity across ${segmentCount} segments (each approximately 8 seconds)` : ''}
+
+${segmentCount > 1 ? `Segment Plan Requirements:
+- Output EXACTLY ${segmentCount} segment objects in the "segments" array
+- Each segment needs its own "segment_title" and "segment_goal"
+- "first_frame_prompt" should paint the exact still image that opens the segment
+- "closing_frame_prompt" should describe the precise ending still image (for segments 1-${segmentCount - 1}, this will double as the next segment's starting frame)
+- Keep style, camera, and lighting consistent so stitched clips feel cohesive
+- Ensure every prompt keeps the product design identical to the supplied photo
+- Define one narrator voice that works for the entire ad and keep it identical for each segment. Include a "voice_type" (accent + gender) and "voice_tone" (mood/energy) for every segment and keep those values the same to guarantee continuity.` : ''}
 
 DO NOT include:
 - Brand names or slogans (unless visually present in the image)
@@ -504,7 +656,7 @@ Generate a JSON object with these elements:
 CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.
 IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in English. The 'language' field is metadata only to specify what language the video voiceover should use.
 IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a brand slogan.
-CRITICAL: The dialogue must be concise enough to be spoken within ${duration} seconds. Keep it under ${dialogueWordLimit} words and avoid long sentences.`
+CRITICAL: Keep each segment's dialogue concise enough for ~${perSegmentDuration} seconds of narration (under ${dialogueWordLimit} words). Avoid long sentences.`
             }
           ]
         }
@@ -687,6 +839,298 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
 
   if (data.code !== 200) {
     throw new Error(data.msg || 'Failed to generate cover');
+  }
+
+  return data.data.taskId;
+}
+
+async function startSegmentedWorkflow(
+  projectId: string,
+  request: StartWorkflowRequest & { imageUrl: string },
+  prompts: Record<string, unknown>,
+  segmentCount: number
+): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount);
+  const now = new Date().toISOString();
+
+  const segmentRows = normalizedSegments.map((segmentPrompt, index) => ({
+    project_id: projectId,
+    segment_index: index,
+    status: 'pending_first_frame',
+    prompt: segmentPrompt
+  }));
+
+  const { data: insertedSegments, error } = await supabase
+    .from('standard_ads_segments')
+    .insert(segmentRows)
+    .select();
+
+  if (error || !insertedSegments) {
+    console.error('Failed to insert segmented rows:', error);
+    throw new Error('Failed to initialize segment records');
+  }
+
+  const segments = insertedSegments as StandardAdsSegment[];
+
+  await supabase
+    .from('standard_ads_projects')
+    .update({
+      video_prompts: prompts,
+      product_description: { description: (prompts as { description?: string }).description },
+      segment_plan: { segments: normalizedSegments },
+      current_step: 'generating_segment_frames',
+      progress_percentage: 35,
+      last_processed_at: now,
+      segment_status: buildSegmentStatusPayload(segments)
+    })
+    .eq('id', projectId);
+
+  for (const segment of segments) {
+    const promptData = normalizedSegments[segment.segment_index];
+    const firstFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'first');
+
+    const { error: updateError } = await supabase
+      .from('standard_ads_segments')
+      .update({
+        first_frame_task_id: firstFrameTaskId,
+        status: 'generating_first_frame',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', segment.id)
+      .select();
+
+    if (updateError) {
+      console.error('Failed to update segment after keyframe start:', updateError);
+      throw new Error('Failed to update segment state');
+    }
+
+    segment.first_frame_task_id = firstFrameTaskId;
+    segment.status = 'generating_first_frame';
+
+    // Last segment gets a dedicated closing frame
+    if (segment.segment_index === normalizedSegments.length - 1) {
+      const closingFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'closing');
+
+      await supabase
+        .from('standard_ads_segments')
+        .update({
+          closing_frame_task_id: closingFrameTaskId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', segment.id);
+
+      segment.closing_frame_task_id = closingFrameTaskId;
+    }
+  }
+
+  await supabase
+    .from('standard_ads_projects')
+    .update({
+      segment_status: buildSegmentStatusPayload(segments),
+      last_processed_at: new Date().toISOString()
+    })
+    .eq('id', projectId);
+}
+
+function normalizeSegmentPrompts(prompts: Record<string, unknown>, segmentCount: number): SegmentPrompt[] {
+  const basePrompt = {
+    description: (prompts as { description?: string }).description || 'Product hero shot in premium environment',
+    setting: (prompts as { setting?: string }).setting || 'Studio lighting with branded backdrop',
+    camera_type: (prompts as { camera_type?: string }).camera_type || 'Wide cinematic shot',
+    camera_movement: (prompts as { camera_movement?: string }).camera_movement || 'Slow push-in',
+    action: (prompts as { action?: string }).action || 'Showcase product with lifestyle interaction',
+    lighting: (prompts as { lighting?: string }).lighting || 'Soft, high-key commercial lighting',
+    dialogue: (prompts as { dialogue?: string }).dialogue || 'Highlight product benefits naturally',
+    music: (prompts as { music?: string }).music || 'Warm, upbeat instrumental',
+    ending: (prompts as { ending?: string }).ending || 'Product close-up with CTA',
+    other_details: (prompts as { other_details?: string }).other_details || 'Include brand colors and typography elements',
+    language: (prompts as { language?: string }).language || 'English'
+  };
+
+  const rawSegments = Array.isArray((prompts as { segments?: SegmentPrompt[] }).segments)
+    ? ((prompts as { segments?: SegmentPrompt[] }).segments || [])
+    : [];
+
+  const baseVoiceType = (rawSegments[0] && rawSegments[0].voice_type) || (prompts as { voice_type?: string }).voice_type || 'Warm American female narrator';
+  const baseVoiceTone = (rawSegments[0] && rawSegments[0].voice_tone) || (prompts as { voice_tone?: string }).voice_tone || 'Friendly and confident';
+
+  const normalized: SegmentPrompt[] = [];
+
+  for (let index = 0; index < segmentCount; index++) {
+    const source = rawSegments[index] || rawSegments[rawSegments.length - 1] || {};
+    normalized.push({
+      ...basePrompt,
+      ...source,
+      segment_title: source.segment_title || `Segment ${index + 1}`,
+      segment_goal: source.segment_goal || `Highlight product benefit ${index + 1}`,
+      first_frame_prompt: source.first_frame_prompt || source.description || basePrompt.description,
+      closing_frame_prompt: source.closing_frame_prompt || source.ending || basePrompt.ending,
+      voice_type: source.voice_type || baseVoiceType,
+      voice_tone: source.voice_tone || baseVoiceTone
+    });
+  }
+
+  return normalized;
+}
+
+export function buildSegmentStatusPayload(
+  segments: StandardAdsSegment[],
+  mergedVideoUrl: string | null = null
+): SegmentStatusPayload {
+  const total = segments.length;
+  const framesReady = segments.filter(seg => !!seg.first_frame_url).length;
+  const videosReady = segments.filter(seg => !!seg.video_url).length;
+
+  return {
+    total,
+    framesReady,
+    videosReady,
+    segments: segments.map(seg => ({
+      index: seg.segment_index,
+      status: seg.status,
+      firstFrameUrl: seg.first_frame_url,
+      closingFrameUrl: seg.closing_frame_url,
+      videoUrl: seg.video_url
+    })),
+    mergedVideoUrl
+  };
+}
+
+async function createSegmentFrameTask(
+  request: StartWorkflowRequest & { imageUrl: string },
+  segmentPrompt: SegmentPrompt,
+  segmentIndex: number,
+  frameType: 'first' | 'closing'
+): Promise<string> {
+  const actualImageModel = getActualImageModel(request.imageModel || 'auto');
+  const kieModelName = IMAGE_MODELS[actualImageModel];
+  const targetAspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
+  const resolvedImageSize = actualImageModel === 'nano_banana'
+    ? targetAspectRatio
+    : targetAspectRatio === '9:16'
+      ? 'portrait_16_9'
+      : 'landscape_16_9';
+
+  const frameLabel = frameType === 'first' ? 'opening' : 'closing';
+  const prompt = `Segment ${segmentIndex + 1} ${frameLabel} frame for a premium product advertisement.
+
+Use the provided product image as the canonical reference. Maintain identical product proportions, textures, materials, and branding.
+
+Scene Focus:
+- Description: ${segmentPrompt.description}
+- Setting: ${segmentPrompt.setting}
+- Camera: ${segmentPrompt.camera_type} with ${segmentPrompt.camera_movement}
+- Lighting: ${segmentPrompt.lighting}
+
+Render Instructions:
+- ${frameType === 'first' ? segmentPrompt.first_frame_prompt : segmentPrompt.closing_frame_prompt}
+- Ensure composition seamlessly transitions ${frameType === 'first' ? 'into the upcoming motion clip' : 'out of the prior scene'}
+- No text overlays, no watermarks, no borders`;
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: kieModelName,
+      input: {
+        prompt,
+        image_urls: [request.imageUrl],
+        output_format: 'png',
+        image_size: resolvedImageSize
+      }
+    })
+  }, 5, 30000);
+
+  if (!response.ok) {
+    throw new Error(`Segment frame generation failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (data.code !== 200) {
+    throw new Error(data.msg || 'Failed to generate segment frame');
+  }
+
+  return data.data.taskId;
+}
+
+export async function startSegmentVideoTask(
+  project: SingleVideoProject,
+  segmentPrompt: SegmentPrompt,
+  firstFrameUrl: string,
+  closingFrameUrl: string,
+  segmentIndex: number,
+  totalSegments: number
+): Promise<string> {
+  const videoModel = (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast';
+
+  if (videoModel !== 'veo3' && videoModel !== 'veo3_fast') {
+    throw new Error(`Segmented workflow only supports VEO3 models. Received ${videoModel}`);
+  }
+
+  const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+  const languageCode = (project.language || 'en') as LanguageCode;
+  const languageName = getLanguagePromptName(languageCode);
+  const prompts = (project.video_prompts || {}) as { ad_copy?: string };
+  const providedAdCopyRaw = typeof prompts.ad_copy === 'string' ? prompts.ad_copy.trim() : undefined;
+  const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
+  const dialogueContent = providedAdCopy || segmentPrompt.dialogue;
+  const adCopyInstruction = providedAdCopy
+    ? `\nAd Copy (use verbatim): ${providedAdCopy}\nOn-screen Text: Display "${providedAdCopy}" prominently without paraphrasing.`
+    : '';
+
+  const languagePrefix = languageName !== 'English'
+    ? `"language": "${languageName}"\n\n`
+    : '';
+
+  const voiceDescriptor = segmentPrompt.voice_type || 'Calm professional narrator';
+  const voiceToneDescriptor = segmentPrompt.voice_tone || 'warm and confident';
+
+  const fullPrompt = `${languagePrefix}${segmentPrompt.description}
+
+Setting: ${segmentPrompt.setting}
+Camera: ${segmentPrompt.camera_type} with ${segmentPrompt.camera_movement}
+Action: ${segmentPrompt.action}
+Lighting: ${segmentPrompt.lighting}
+Dialogue: ${dialogueContent}
+Music: ${segmentPrompt.music}
+Ending: ${segmentPrompt.ending}
+Other details: ${segmentPrompt.other_details}
+Voice: This is segment ${segmentIndex + 1} of ${totalSegments}. Use the exact same narrator voice across all segments — ${voiceDescriptor} with a ${voiceToneDescriptor} tone. Match timbre, accent, gender, pacing, and energy perfectly so the audience cannot tell the clips were generated separately.${adCopyInstruction}`;
+
+  const requestBody = {
+    prompt: fullPrompt,
+    model: videoModel,
+    aspectRatio,
+    generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
+    imageUrls: [firstFrameUrl, closingFrameUrl],
+    enableAudio: true,
+    audioEnabled: true,
+    generateVoiceover: true,
+    includeDialogue: true,
+    enableTranslation: false
+  };
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody)
+  }, 5, 30000);
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to generate segment video: ${response.status} ${errorData}`);
+  }
+
+  const data = await response.json();
+  if (data.code !== 200) {
+    throw new Error(data.msg || 'Failed to generate segment video');
   }
 
   return data.data.taskId;

@@ -241,20 +241,28 @@ export function getGenerationCost(
   }
 
   if (model === 'veo3') {
-    return GENERATION_COSTS.veo3;
+    const segmentMultiplier = getSegmentCountFromDuration(videoDuration);
+    return GENERATION_COSTS.veo3 * segmentMultiplier;
   }
 
   return 0;
 }
 
 // Get download cost (0 for paid generation models)
-export function getDownloadCost(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'): number {
+export function getDownloadCost(
+  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro',
+  videoDuration?: string | null,
+  segmentCount?: number | null
+): number {
   if (isPaidGenerationModel(model)) {
     return 0; // Paid generation models have free downloads
   }
 
   if (model === 'veo3_fast') {
-    return DOWNLOAD_COSTS.veo3_fast;
+    const segments = segmentCount && segmentCount > 0
+      ? segmentCount
+      : getSegmentCountFromDuration(videoDuration);
+    return DOWNLOAD_COSTS.veo3_fast * segments;
   }
 
   if (model === 'sora2') {
@@ -433,7 +441,7 @@ export function getAutoImageSize(videoAspectRatio: '16:9' | '9:16', imageModel: 
 
 // Video model capabilities based on quality and duration
 export type VideoQuality = 'standard' | 'high';
-export type VideoDuration = '8' | '10' | '15';
+export type VideoDuration = '8' | '10' | '15' | '16' | '24' | '32';
 export type VideoModel = 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
 
 interface ModelCapabilities {
@@ -447,12 +455,12 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
   {
     model: 'veo3',
     supportedQualities: ['standard'],
-    supportedDurations: ['8']
+    supportedDurations: ['8', '16', '24', '32']
   },
   {
     model: 'veo3_fast',
     supportedQualities: ['standard'],
-    supportedDurations: ['8']
+    supportedDurations: ['8', '16', '24', '32']
   },
   {
     model: 'sora2',
@@ -504,7 +512,7 @@ export function getAvailableDurations(quality: VideoQuality): VideoDuration[] {
     }
   });
 
-  return Array.from(durations).sort();
+  return Array.from(durations).sort((a, b) => Number(a) - Number(b));
 }
 
 // Get available qualities for a given duration
@@ -518,6 +526,16 @@ export function getAvailableQualities(duration: VideoDuration): VideoQuality[] {
   });
 
   return Array.from(qualities);
+}
+
+export function getSegmentCountFromDuration(videoDuration?: string | null): number {
+  const duration = Number(videoDuration);
+  if (!Number.isFinite(duration) || duration <= 8) {
+    return 1;
+  }
+
+  const segments = Math.min(4, Math.round(duration / 8));
+  return Math.max(1, segments);
 }
 
 // Calculate cost for a model based on quality and duration

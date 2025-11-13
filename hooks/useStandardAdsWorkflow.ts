@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import type { VideoDuration } from '@/lib/constants';
 
 export type WorkflowStep = 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'complete';
 export type WorkflowStatus = 'started' | 'uploaded_waiting_config' | 'workflow_initiated' | 'in_progress' | 'completed' | 'failed';
@@ -45,7 +46,7 @@ export const useStandardAdsWorkflow = (
   imageSize: string = 'auto',
   videoAspectRatio: '16:9' | '9:16' = '16:9',
   videoQuality: 'standard' | 'high' = 'standard',
-  videoDuration: '8' | '10' | '15' = '8',
+  videoDuration: VideoDuration = '8',
   adCopy: string = '',
   selectedLanguage: string = 'en',
   useCustomScript: boolean = false,
@@ -98,14 +99,23 @@ export const useStandardAdsWorkflow = (
   }, [selectedModel]);
 
   const resolveVideoConfig = useCallback(() => {
-    const normalizedDuration = videoDuration === '15'
-      ? '15'
-      : videoDuration === '10'
-        ? '10'
-        : '8';
+    let normalizedDuration: VideoDuration = videoDuration;
+
+    if (selectedModel === 'sora2') {
+      normalizedDuration = '10';
+    } else if (selectedModel === 'sora2_pro') {
+      normalizedDuration = normalizedDuration === '15' ? '15' : '10';
+    } else if (selectedModel === 'veo3' || selectedModel === 'veo3_fast') {
+      const allowed: VideoDuration[] = ['8', '16', '24', '32'];
+      if (!allowed.includes(normalizedDuration)) {
+        normalizedDuration = '8';
+      }
+    } else if (normalizedDuration !== '8' && normalizedDuration !== '10' && normalizedDuration !== '15') {
+      normalizedDuration = '8';
+    }
 
     return { videoDuration: normalizedDuration, videoQuality } as const;
-  }, [videoDuration, videoQuality]);
+  }, [videoDuration, videoQuality, selectedModel]);
 
   const setLoading = useCallback((loading: boolean) => {
     setState(prev => ({ ...prev, isLoading: loading, error: null }));

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabase } from '@/lib/supabase';
-import { getDownloadCost, isFreeGenerationModel } from '@/lib/constants';
+import { getDownloadCost, getSegmentCountFromDuration, isFreeGenerationModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 interface DownloadVideoRequest {
@@ -59,10 +59,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     const isFirstDownload = !historyRecord.downloaded;
     const videoModel = historyRecord.video_model as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
 
+    let downloadCostApplied = 0;
+
     if (isFirstDownload) {
       // Check if this model has download cost (free-generation models)
       if (isFreeGenerationModel(videoModel)) {
-        const downloadCost = getDownloadCost(videoModel);
+        const segments = historyRecord.is_segmented
+          ? historyRecord.segment_count || getSegmentCountFromDuration(historyRecord.video_duration)
+          : undefined;
+        const downloadCost = getDownloadCost(videoModel, historyRecord.video_duration, segments);
+        downloadCostApplied = downloadCost;
 
         // Check if user has enough credits
         const creditCheck = await checkCredits(userId, downloadCost);
@@ -100,6 +106,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
         .from('standard_ads_projects')
         .update({
           downloaded: true,
+          download_credits_used: downloadCostApplied,
           last_processed_at: new Date().toISOString()
         })
         .eq('id', historyId);
@@ -128,6 +135,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
           'Content-Type': 'video/mp4',
           'Content-Disposition': `attachment; filename="flowtra-video-${historyId}.mp4"`,
           'Content-Length': videoBuffer.byteLength.toString(),
+          'x-flowtra-download-cost': downloadCostApplied.toString(),
         },
       });
     } catch (downloadError) {

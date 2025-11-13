@@ -14,6 +14,7 @@ import BrandProductSelector from '@/components/ui/BrandProductSelector';
 import RequirementsInput from '@/components/ui/RequirementsInput';
 import ConfigPopover from '@/components/ui/ConfigPopover';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
+import type { VideoDurationOption } from '@/components/ui/VideoDurationSelector';
 
 import {
   PLATFORM_PRESETS,
@@ -23,7 +24,9 @@ import {
   getAvailableQualities,
   isFreeGenerationModel,
   getGenerationCost,
-  type VideoModel
+  getSegmentCountFromDuration,
+  type VideoModel,
+  type VideoDuration
 } from '@/lib/constants';
 import { Format } from '@/components/ui/FormatSelector';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
@@ -38,6 +41,9 @@ interface KieCreditsStatus {
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
   generating_cover: 'Generating cover image…',
+  generating_segment_frames: 'Generating scene keyframes…',
+  generating_segment_videos: 'Rendering segmented clips…',
+  merging_segments: 'Stitching clips…',
   ready_for_video: 'Preparing video prompts…',
   generating_video: 'Generating video…',
   processing: 'Processing…',
@@ -50,6 +56,9 @@ const STATUS_MAP: Record<string, Generation['status']> = {
   failed: 'failed',
   processing: 'processing',
   generating_cover: 'processing',
+  generating_segment_frames: 'processing',
+  generating_segment_videos: 'processing',
+  merging_segments: 'processing',
   ready_for_video: 'processing',
   generating_video: 'processing'
 };
@@ -72,6 +81,10 @@ interface StandardAdsStatusPayload {
     video_model?: VideoModel | null;
     downloaded?: boolean;
     errorMessage?: string | null;
+    videoDuration?: string | null;
+    segmentCount?: number | null;
+    segmentDurationSeconds?: number | null;
+    isSegmented?: boolean | null;
   };
   error?: string;
 }
@@ -88,9 +101,48 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 };
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
-const ALL_VIDEO_DURATIONS: Array<'8' | '10' | '15'> = ['8', '10', '15'];
+const ALL_VIDEO_DURATIONS: VideoDuration[] = ['8', '10', '15', '16', '24', '32'];
 const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
 const SESSION_STORAGE_KEY = 'flowtra_standard_ads_generations';
+
+const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
+  {
+    value: '8',
+    label: '8 seconds',
+    description: 'Single-scene spotlight',
+    features: 'Perfect for quick hooks'
+  },
+  {
+    value: '10',
+    label: '10 seconds',
+    description: 'Extended presentation',
+    features: 'Great for highlights'
+  },
+  {
+    value: '15',
+    label: '15 seconds',
+    description: 'Longer script support',
+    features: 'Room for storytelling'
+  },
+  {
+    value: '16',
+    label: '16 seconds',
+    description: 'Dual-scene storyline',
+    features: 'Smooth two-beat arc'
+  },
+  {
+    value: '24',
+    label: '24 seconds',
+    description: 'Mid-length narrative arc',
+    features: 'Balanced multi-beat flow'
+  },
+  {
+    value: '32',
+    label: '32 seconds',
+    description: 'Full-funnel sequence',
+    features: 'Complete top-to-bottom story'
+  }
+];
 
 export default function StandardAdsPage() {
   const { user } = useUser();
@@ -114,7 +166,7 @@ export default function StandardAdsPage() {
 
   // Video configuration states
   const [videoQuality, setVideoQuality] = useState<'standard' | 'high'>('standard');
-  const [videoDuration, setVideoDuration] = useState<'8' | '10' | '15'>('8');
+  const [videoDuration, setVideoDuration] = useState<VideoDuration>('8');
   const [selectedModel, setSelectedModel] = useState<VideoModel>('veo3_fast');
   const [format, setFormat] = useState<Format>('9:16');
 
@@ -225,6 +277,17 @@ export default function StandardAdsPage() {
 
     setGenerations(prev => prev.map(gen => {
       if (gen.projectId !== projectId) return gen;
+      const nextSegmentCount = (() => {
+        if (payload.data) {
+          if (typeof payload.data.segmentCount === 'number' && payload.data.segmentCount > 0) {
+            return payload.data.segmentCount;
+          }
+          if (payload.data.isSegmented) {
+            return getSegmentCountFromDuration(payload.data.videoDuration);
+          }
+        }
+        return gen.segmentCount;
+      })();
       return {
         ...gen,
         status,
@@ -234,6 +297,8 @@ export default function StandardAdsPage() {
         coverUrl: payload.data?.coverImageUrl || gen.coverUrl,
         videoModel: (payload.data?.videoModel as VideoModel) || (payload.data?.video_model as VideoModel) || gen.videoModel,
         downloaded: typeof payload.data?.downloaded === 'boolean' ? payload.data.downloaded : gen.downloaded,
+        videoDuration: payload.data?.videoDuration || gen.videoDuration,
+        segmentCount: typeof nextSegmentCount === 'number' && nextSegmentCount > 0 ? nextSegmentCount : gen.segmentCount,
         error: status === 'failed'
           ? (payload.data?.errorMessage || payload.error || 'Video generation failed')
           : undefined
@@ -334,6 +399,10 @@ export default function StandardAdsPage() {
         throw new Error(data?.message || 'Failed to download video');
       }
 
+      const downloadCostHeader = response.headers.get('x-flowtra-download-cost');
+      const parsedDownloadCost = downloadCostHeader !== null ? Number(downloadCostHeader) : undefined;
+      const downloadCostApplied = Number.isFinite(parsedDownloadCost) ? Number(parsedDownloadCost) : undefined;
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -350,6 +419,10 @@ export default function StandardAdsPage() {
           : gen
       ));
 
+      if (typeof downloadCostApplied === 'number' && downloadCostApplied > 0 && typeof userCredits === 'number') {
+        updateCredits(Math.max(0, userCredits - downloadCostApplied));
+      }
+
       if (refetchCredits) {
         await refetchCredits();
       }
@@ -365,7 +438,7 @@ export default function StandardAdsPage() {
         return next;
       });
     }
-  }, [user?.id, downloadingProjects, refetchCredits, showError, showSuccess]);
+  }, [user?.id, downloadingProjects, refetchCredits, showError, showSuccess, userCredits, updateCredits]);
 
   // Handle platform change - auto-set recommended config
   const handlePlatformChange = useCallback((platform: Platform) => {
@@ -400,6 +473,7 @@ export default function StandardAdsPage() {
     () => ALL_VIDEO_MODELS.filter(m => !modelSupports(m, videoQuality, videoDuration)),
     [videoQuality, videoDuration]
   );
+
 
   // Auto-adjust quality and duration when they become invalid
   useEffect(() => {
@@ -455,6 +529,8 @@ export default function StandardAdsPage() {
 
     setIsGenerating(true);
 
+    const initialSegmentCount = getSegmentCountFromDuration(videoDuration);
+
     // Create new generation entry
     const newGeneration: SessionGeneration = {
       id: Date.now().toString(),
@@ -466,7 +542,9 @@ export default function StandardAdsPage() {
       brand: selectedBrand.brand_name,
       product: selectedProduct.product_name,
       videoModel: selectedModel,
-      downloaded: false
+      downloaded: false,
+      segmentCount: initialSegmentCount,
+      videoDuration
     };
 
     setGenerations(prev => [newGeneration, ...prev]);
@@ -649,6 +727,7 @@ export default function StandardAdsPage() {
               videoDuration={videoDuration}
               onDurationChange={setVideoDuration}
               disabledDurations={disabledDurations}
+              durationOptions={STANDARD_ADS_DURATION_OPTIONS}
               videoQuality={videoQuality}
               onQualityChange={setVideoQuality}
               disabledQualities={disabledQualities}
@@ -663,33 +742,35 @@ export default function StandardAdsPage() {
               variant="minimal"
             />
 
-            <button
-              onClick={handleStartWorkflow}
-              disabled={!canGenerate}
-              className={`
-                flex items-center gap-2 px-6 py-2.5 rounded-full cursor-pointer
-                font-semibold text-sm whitespace-nowrap
-                transition-all duration-200
-                ${canGenerate
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }
-              `}
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Generate</span>
-              {!isFreeGen && generationCost > 0 && (
-                <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded">
-                  <Coins className="w-3 h-3" />
-                  {generationCost}
-                </span>
-              )}
-              {isFreeGen && (
-                <span className="px-2 py-0.5 bg-green-500/20 text-green-100 rounded text-xs font-bold">
-                  FREE
-                </span>
-              )}
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button
+                onClick={handleStartWorkflow}
+                disabled={!canGenerate}
+                className={`
+                  flex items-center gap-2 px-6 py-2.5 rounded-full cursor-pointer
+                  font-semibold text-sm whitespace-nowrap
+                  transition-all duration-200
+                  ${canGenerate
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }
+                `}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Generate</span>
+                {!isFreeGen && generationCost > 0 && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded">
+                    <Coins className="w-3 h-3" />
+                    {generationCost}
+                  </span>
+                )}
+                {isFreeGen && (
+                  <span className="px-2 py-0.5 bg-green-500/20 text-green-100 rounded text-xs font-bold">
+                    FREE
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

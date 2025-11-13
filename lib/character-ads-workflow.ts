@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { IMAGE_MODELS, getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 // Events table removed: no tracking imports
 
 // Helper function to generate voice type based on accent and gender
@@ -718,116 +719,6 @@ async function checkKIEVideoTaskStatusByModel(taskId: string, videoModel: string
   }
 }
 
-// fal.ai video merging integration
-async function mergeVideosWithFal(videoUrls: string[], videoAspectRatio?: '16:9' | '9:16'): Promise<{ taskId: string }> {
-  const { fal } = await import("@fal-ai/client");
-
-  // Configure fal client
-  fal.config({
-    credentials: process.env.FAL_KEY
-  });
-
-  // Map aspect ratio to FAL resolution parameter
-  const resolutionMap: Record<string, string> = {
-    '16:9': 'landscape_16_9',
-    '9:16': 'portrait_16_9'
-  };
-
-  const falResolution = videoAspectRatio
-    ? resolutionMap[videoAspectRatio]
-    : 'landscape_16_9'; // Default fallback
-
-  try {
-    const result = await fal.subscribe("fal-ai/ffmpeg-api/merge-videos", {
-      input: {
-        video_urls: videoUrls,
-        target_fps: 30,
-        resolution: falResolution
-      },
-      logs: true,
-      onQueueUpdate: (update) => {
-        console.log(`Merge queue update: ${update.status}`);
-        if (update.status === "IN_PROGRESS") {
-          update.logs?.map((log) => log.message).forEach(console.log);
-        }
-      }
-    });
-
-    return {
-      taskId: result.requestId
-    };
-  } catch (error) {
-    console.error('fal.ai merge videos error:', error);
-    throw new Error(`Video merging failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-// Check fal.ai task status with retry mechanism
-async function checkFalTaskStatus(taskId: string, retryCount = 0): Promise<{
-  status: string;
-  result_url?: string;
-  error?: string;
-}> {
-  const { fal } = await import("@fal-ai/client");
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 2000; // 2 seconds
-
-  fal.config({
-    credentials: process.env.FAL_KEY
-  });
-
-  try {
-    const result = await fal.queue.status("fal-ai/ffmpeg-api/merge-videos", {
-      requestId: taskId
-    });
-
-    if (result.status === 'COMPLETED') {
-      // Get the actual result data
-      const actualResult = await fal.queue.result("fal-ai/ffmpeg-api/merge-videos", {
-        requestId: taskId
-      });
-      
-      return {
-        status: result.status,
-        result_url: (((actualResult as Record<string, unknown>)?.data as Record<string, unknown>)?.video as Record<string, unknown>)?.url as string
-      };
-    } else {
-      return {
-        status: result.status,
-        error: (result as unknown as Record<string, unknown>).error as string
-      };
-    }
-  } catch (error) {
-    console.error(`fal.ai status check error (attempt ${retryCount + 1}):`, error);
-    
-    // Check if it's a network-related error and we haven't exceeded max retries
-    const isNetworkError = error instanceof Error && (
-      error.message.includes('fetch failed') ||
-      error.message.includes('EAI_AGAIN') ||
-      error.message.includes('ENOTFOUND') ||
-      error.message.includes('ECONNRESET') ||
-      error.message.includes('timeout')
-    );
-
-    if (isNetworkError && retryCount < MAX_RETRIES) {
-      console.log(`Network error detected, retrying in ${RETRY_DELAY}ms... (${retryCount + 1}/${MAX_RETRIES})`);
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-      return checkFalTaskStatus(taskId, retryCount + 1);
-    }
-
-    // If it's a network error and we've exhausted retries, return a special status
-    if (isNetworkError) {
-      console.warn(`Network error persists after ${MAX_RETRIES} retries, marking as network_error`);
-      return {
-        status: 'NETWORK_ERROR',
-        error: `Network connectivity issue: ${error instanceof Error ? error.message : 'Unknown error'}`
-      };
-    }
-
-    throw new Error(`Status check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
 export async function processCharacterAdsProject(
   project: CharacterAdsProject,
   step: string,
@@ -1310,12 +1201,12 @@ export async function processCharacterAdsProject(
 
         const status = await checkFalTaskStatus(project.fal_merge_task_id);
 
-        if (status.status === 'COMPLETED' && status.result_url) {
+        if (status.status === 'COMPLETED' && status.resultUrl) {
           // Merge completed successfully
           const { data: updatedProject, error } = await supabase
             .from('character_ads_projects')
             .update({
-              merged_video_url: status.result_url,
+              merged_video_url: status.resultUrl,
               status: 'completed',
               current_step: 'completed',
               progress_percentage: 100,

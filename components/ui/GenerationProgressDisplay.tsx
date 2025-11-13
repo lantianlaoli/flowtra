@@ -20,6 +20,8 @@ export interface Generation {
   videoModel?: VideoModel;
   downloaded?: boolean;
   isDownloading?: boolean;
+  segmentCount?: number | null;
+  videoDuration?: string | null;
 }
 
 interface GenerationProgressDisplayProps {
@@ -71,7 +73,22 @@ interface GenerationCardProps {
 }
 
 function GenerationCard({ generation, onDownload, onRetry }: GenerationCardProps) {
-  const { status, progress = 0, stage, videoUrl, coverUrl, platform, brand, product, error, videoModel, isDownloading, downloaded } = generation;
+  const {
+    status,
+    progress = 0,
+    stage,
+    videoUrl,
+    coverUrl,
+    platform,
+    brand,
+    product,
+    error,
+    videoModel,
+    isDownloading,
+    downloaded,
+    segmentCount,
+    videoDuration
+  } = generation;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -80,9 +97,9 @@ function GenerationCard({ generation, onDownload, onRetry }: GenerationCardProps
     if (!videoModel) {
       return 'Cost pending';
     }
-    const cost = getDownloadCost(videoModel);
+    const cost = getDownloadCost(videoModel, videoDuration, segmentCount ?? undefined);
     return cost === 0 ? 'Free' : `${cost} credits`;
-  }, [videoModel, downloaded]);
+  }, [videoModel, downloaded, videoDuration, segmentCount]);
 
   const downloadActionLabel = useMemo(() => {
     if (isDownloading) return 'Downloading…';

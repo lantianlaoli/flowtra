@@ -4,20 +4,22 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import VideoDurationSelector from './VideoDurationSelector';
+import VideoDurationSelector, { type VideoDurationOption } from './VideoDurationSelector';
 import VideoQualitySelector from './VideoQualitySelector';
 import VideoModelSelector from './VideoModelSelector';
 import LanguageSelector, { LanguageCode } from './LanguageSelector';
 import FormatSelector, { type Format } from './FormatSelector';
+import type { VideoDuration } from '@/lib/constants';
 
 // VideoModel type from constants (including 'auto')
 type VideoModel = 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
 
 interface ConfigPopoverProps {
   // Duration props
-  videoDuration: '8' | '10' | '15';
-  onDurationChange: (duration: '8' | '10' | '15') => void;
-  disabledDurations?: Array<'8' | '10' | '15'>;
+  videoDuration: VideoDuration;
+  onDurationChange: (duration: VideoDuration) => void;
+  disabledDurations?: VideoDuration[];
+  durationOptions?: VideoDurationOption[];
 
   // Quality props
   videoQuality: 'standard' | 'high';
@@ -45,6 +47,7 @@ export default function ConfigPopover({
   videoDuration,
   onDurationChange,
   disabledDurations = [],
+  durationOptions,
   videoQuality,
   onQualityChange,
   disabledQualities = [],
@@ -201,6 +204,8 @@ export default function ConfigPopover({
                 disabledDurations={disabledDurations}
                 label="Duration"
                 showIcon
+                disabled={disabled}
+                options={durationOptions}
               />
 
               {/* Quality Selector */}
