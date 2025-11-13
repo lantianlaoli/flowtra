@@ -34,8 +34,9 @@ import {
 import { UserProduct, UserBrand } from '@/lib/supabase';
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
-const ALL_VIDEO_DURATIONS: Array<'8' | '10' | '15'> = ['8', '10', '15'];
-const isClassicDuration = (duration: VideoDuration): duration is '8' | '10' | '15' =>
+type LegacyDuration = '8' | '10' | '15';
+const ALL_VIDEO_DURATIONS: Array<LegacyDuration> = ['8', '10', '15'];
+const isClassicDuration = (duration: VideoDuration): duration is LegacyDuration =>
   duration === '8' || duration === '10' || duration === '15';
 const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
 
@@ -45,7 +46,7 @@ export default function MultiVariantAdsPage() {
   const { showSuccess } = useToast();
   // NEW: Top-level video config state
   const [videoQuality, setVideoQuality] = useState<'standard' | 'high'>('standard');
-  const [videoDuration, setVideoDuration] = useState<'8' | '10' | '15'>('10');
+  const [videoDuration, setVideoDuration] = useState<LegacyDuration>('10');
   const [selectedModel, setSelectedModel] = useState<'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto'>('veo3_fast');
   const [selectedImageModel, setSelectedImageModel] = useState<'nano_banana' | 'seedream'>('seedream');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('16:9');
@@ -94,8 +95,8 @@ export default function MultiVariantAdsPage() {
   );
 
   // Calculate available and disabled options based on current selection
-  const availableDurations = useMemo(
-    () => getAvailableDurations(videoQuality).filter(isClassicDuration),
+  const availableDurations = useMemo<Array<LegacyDuration>>(
+    () => getAvailableDurations(videoQuality).filter(isClassicDuration) as Array<LegacyDuration>,
     [videoQuality]
   );
 
@@ -122,7 +123,7 @@ export default function MultiVariantAdsPage() {
   // Handle quality change with auto-adjustment of duration if needed
   const handleVideoQualityChange = useCallback(
     (quality: 'standard' | 'high') => {
-      const supportedDurations = getAvailableDurations(quality);
+      const supportedDurations = getAvailableDurations(quality).filter(isClassicDuration) as Array<LegacyDuration>;
 
       if (!supportedDurations.includes(videoDuration)) {
         const nextDuration = supportedDurations[0] ?? '10';
@@ -136,7 +137,7 @@ export default function MultiVariantAdsPage() {
 
   // Handle duration change with auto-adjustment of quality if needed
   const handleVideoDurationChange = useCallback(
-    (duration: '8' | '10' | '15') => {
+    (duration: LegacyDuration) => {
       const supportedQualities = getAvailableQualities(duration);
 
       if (!supportedQualities.includes(videoQuality)) {
