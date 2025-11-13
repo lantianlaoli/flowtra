@@ -102,3 +102,8 @@ Most routes call into `lib/` modules for Supabase access, KIE orchestration, or 
 - Keep PRs focused; ensure `pnpm lint` and `pnpm type-check` pass before pushing.
 - Document pricing changes in `lib/constants.ts` first, then refresh corresponding UI copy and this handbook.
 
+### Build Parity Checklist
+- **Always run `pnpm install --frozen-lockfile` before CI-critical builds** to ensure no stale dependencies slip through.
+- **For any type union changes (e.g., `VideoDuration`) audit every setter/handler** that consumes the type; mismatched unions may compile locally but fail on Vercel.
+- **Before pushing, run `pnpm lint && pnpm build`** from a clean state (e.g., delete `.next` or run in CI) to mirror Vercel’s environment.
+- **If Vercel fails, capture the exact stack trace and add regression tests or type guards** so the same category of error cannot recur.
