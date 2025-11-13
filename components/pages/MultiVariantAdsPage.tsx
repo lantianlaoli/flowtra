@@ -137,15 +137,16 @@ export default function MultiVariantAdsPage() {
 
   // Handle duration change with auto-adjustment of quality if needed
   const handleVideoDurationChange = useCallback(
-    (duration: LegacyDuration) => {
-      const supportedQualities = getAvailableQualities(duration);
+    (duration: VideoDuration) => {
+      const normalizedDuration: LegacyDuration = isClassicDuration(duration) ? duration : '8';
+      const supportedQualities = getAvailableQualities(normalizedDuration);
 
       if (!supportedQualities.includes(videoQuality)) {
         const nextQuality = supportedQualities[0] ?? 'standard';
         setVideoQuality(nextQuality);
       }
 
-      setVideoDuration(duration);
+      setVideoDuration(normalizedDuration);
     },
     [videoQuality]
   );
