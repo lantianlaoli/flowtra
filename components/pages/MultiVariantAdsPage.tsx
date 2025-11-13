@@ -28,12 +28,15 @@ import {
   modelSupports,
   getAvailableDurations,
   getAvailableQualities,
-  type VideoModel
+  type VideoModel,
+  type VideoDuration
 } from '@/lib/constants';
 import { UserProduct, UserBrand } from '@/lib/supabase';
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
 const ALL_VIDEO_DURATIONS: Array<'8' | '10' | '15'> = ['8', '10', '15'];
+const isClassicDuration = (duration: VideoDuration): duration is '8' | '10' | '15' =>
+  duration === '8' || duration === '10' || duration === '15';
 const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
 
 export default function MultiVariantAdsPage() {
@@ -92,7 +95,7 @@ export default function MultiVariantAdsPage() {
 
   // Calculate available and disabled options based on current selection
   const availableDurations = useMemo(
-    () => getAvailableDurations(videoQuality),
+    () => getAvailableDurations(videoQuality).filter(isClassicDuration),
     [videoQuality]
   );
 
