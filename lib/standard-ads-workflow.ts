@@ -283,7 +283,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Wrap in IIFE to ensure error handling is reliable
     (async () => {
       try {
-        await startAIWorkflow(project.id, { ...request, imageUrl, videoModel: actualVideoModel });
+        await startAIWorkflow(project.id, { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel });
       } catch (workflowError) {
         console.error('❌ Background workflow error:', workflowError);
         console.error('Stack trace:', workflowError instanceof Error ? workflowError.stack : 'No stack available');
@@ -356,7 +356,13 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
   }
 }
 
-async function startAIWorkflow(projectId: string, request: StartWorkflowRequest & { imageUrl: string }): Promise<void> {
+async function startAIWorkflow(
+  projectId: string,
+  request: StartWorkflowRequest & {
+    imageUrl: string;
+    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+  }
+): Promise<void> {
   const supabase = getSupabaseAdmin();
 
   try {
@@ -406,7 +412,7 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     // Generate prompts based purely on visual analysis of the product image
     console.log('🤖 Generating creative video prompts from product image...');
     const totalDurationSeconds = parseInt(request.videoDuration || request.sora2ProDuration || '10', 10);
-    const segmentedFlow = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
+    const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
     const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration) : 1;
     const prompts = await generateImageBasedPrompts(
       request.imageUrl,
