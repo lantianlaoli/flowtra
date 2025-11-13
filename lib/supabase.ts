@@ -80,6 +80,7 @@ export interface SingleVideoProject {
   credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string
+  language?: string | null // Preferred language code for prompts and narration
   watermark_text?: string | null
   watermark_location?: string | null
   cover_image_aspect_ratio?: string | null // Aspect ratio of the cover image (e.g., "16:9", "9:16", "1:1")
@@ -156,6 +157,7 @@ export interface MultiVariantProject {
   photo_only: boolean
   video_duration?: string | null // Video duration in seconds (e.g., '8', '10', '15') - applicable to all video models
   video_quality?: 'standard' | 'high' | null // Video quality setting - applicable to all video models
+  language?: string | null // Preferred language code for prompts and narration
 }
 
 // Database types for user_photos table

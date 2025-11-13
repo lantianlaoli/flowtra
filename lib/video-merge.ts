@@ -1,4 +1,5 @@
-import type { Fal } from '@fal-ai/client';
+
+type FalClient = (typeof import('@fal-ai/client'))['fal'];
 
 type FalAspectRatio = '16:9' | '9:16';
 
@@ -7,7 +8,7 @@ const RESOLUTION_MAP: Record<FalAspectRatio, string> = {
   '9:16': 'portrait_16_9'
 };
 
-async function getFalClient(): Promise<Fal> {
+async function getFalClient(): Promise<FalClient> {
   const { fal } = await import('@fal-ai/client');
   fal.config({
     credentials: process.env.FAL_KEY
@@ -31,10 +32,14 @@ export async function mergeVideosWithFal(
         resolution
       },
       logs: true,
-      onQueueUpdate: (update) => {
+      onQueueUpdate: (update: { status?: string; logs?: { message?: string }[] | null }) => {
         console.log(`Merge queue update: ${update.status}`);
         if (update.status === 'IN_PROGRESS') {
-          update.logs?.map((log) => log.message).forEach(console.log);
+          update.logs?.forEach((log) => {
+            if (log?.message) {
+              console.log(log.message);
+            }
+          });
         }
       }
     });
