@@ -406,7 +406,7 @@ async function startAIWorkflow(projectId: string, request: StartWorkflowRequest 
     // Generate prompts based purely on visual analysis of the product image
     console.log('🤖 Generating creative video prompts from product image...');
     const totalDurationSeconds = parseInt(request.videoDuration || request.sora2ProDuration || '10', 10);
-    const segmentedFlow = isSegmentedVideoRequest(request.videoModel, request.videoDuration);
+    const segmentedFlow = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
     const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration) : 1;
     const prompts = await generateImageBasedPrompts(
       request.imageUrl,
