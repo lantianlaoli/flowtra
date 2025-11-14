@@ -163,9 +163,9 @@ export default function ProductItem({
                 {product.product_name}
               </h4>
             )}
-            {product.description && (
+            {(product.product_details || product.description) && (
               <p className="text-gray-600 text-xs md:text-sm line-clamp-2">
-                {product.description}
+                {product.product_details || product.description}
               </p>
             )}
 

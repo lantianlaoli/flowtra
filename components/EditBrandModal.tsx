@@ -21,6 +21,7 @@ export default function EditBrandModal({
 }: EditBrandModalProps) {
   const [brandName, setBrandName] = useState('');
   const [brandSlogan, setBrandSlogan] = useState('');
+  const [brandDetails, setBrandDetails] = useState('');
   const [newLogoFile, setNewLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -31,7 +32,8 @@ export default function EditBrandModal({
     if (isOpen && brand) {
       setBrandName(brand.brand_name);
       setBrandSlogan(brand.brand_slogan || '');
-      setLogoPreview(brand.brand_logo_url);
+      setBrandDetails(brand.brand_details || '');
+      setLogoPreview(brand.brand_logo_url ?? null);
       setNewLogoFile(null);
       setError(null);
       // Auto focus input after modal animation
@@ -93,6 +95,7 @@ export default function EditBrandModal({
       const hasChanges =
         brandName.trim() !== brand.brand_name ||
         brandSlogan.trim() !== (brand.brand_slogan || '') ||
+        brandDetails.trim() !== (brand.brand_details || '') ||
         newLogoFile !== null;
 
       if (!hasChanges) {
@@ -107,6 +110,7 @@ export default function EditBrandModal({
         const formData = new FormData();
         formData.append('brand_name', brandName.trim());
         formData.append('brand_slogan', brandSlogan.trim());
+        formData.append('brand_details', brandDetails.trim());
         formData.append('logo', newLogoFile);
 
         response = await fetch(`/api/user-brands/${brand.id}`, {
@@ -120,7 +124,8 @@ export default function EditBrandModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             brand_name: brandName.trim(),
-            brand_slogan: brandSlogan.trim()
+            brand_slogan: brandSlogan.trim(),
+            brand_details: brandDetails.trim()
           })
         });
       }
@@ -230,6 +235,23 @@ export default function EditBrandModal({
                   disabled={isUpdating}
                   maxLength={200}
                 />
+              </div>
+
+              {/* Brand Details Input */}
+              <div>
+                <label htmlFor="edit-brand-details-input" className="block text-sm font-medium text-gray-700 mb-2">
+                  Brand Details (Optional)
+                </label>
+                <textarea
+                  id="edit-brand-details-input"
+                  value={brandDetails}
+                  onChange={(e) => setBrandDetails(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors min-h-24"
+                  placeholder="Describe your brand, tone, audience, USPs, etc."
+                  disabled={isUpdating}
+                  maxLength={2000}
+                />
+                <p className="mt-1 text-xs text-gray-500">Used to provide precise context when generating ads.</p>
               </div>
 
               {/* Logo Upload */}

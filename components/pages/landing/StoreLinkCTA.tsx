@@ -5,6 +5,7 @@ import { Sparkles, LogIn } from 'lucide-react';
 import { SignInButton, useUser } from '@clerk/nextjs';
 
 export function StoreLinkCTA() {
+  const tiktokUrl = process.env.NEXT_PUBLIC_TIKTOK || '';
   const { isLoaded, isSignedIn } = useUser();
   const [storeUrl, setStoreUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -63,8 +64,21 @@ export function StoreLinkCTA() {
       <div className="max-w-6xl mx-auto bg-white border border-gray-200 rounded-lg p-5 md:p-6 shadow-sm">
         <div className="grid gap-4 md:gap-6 md:grid-cols-12 items-center">
           <div className="md:col-span-4">
-            <h3 className="text-2xl font-bold text-gray-900">Get free ad mockups</h3>
-            <p className="text-sm sm:text-base text-gray-600 mt-2">Paste your store link — we’ll email you sample ad visuals.</p>
+            <h3 className="text-2xl font-bold text-gray-900">Get featured on the founder’s TikTok</h3>
+            <p className="text-sm sm:text-base text-gray-600 mt-2">
+              Paste your store link — we’ll showcase your brand on our founder’s {tiktokUrl ? (
+                <a
+                  href={tiktokUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:no-underline text-gray-900"
+                >
+                  TikTok
+                </a>
+              ) : (
+                'TikTok'
+              )}.
+            </p>
           </div>
           <div className="md:col-span-8">
             <div className="flex flex-col sm:flex-row gap-3 items-stretch">

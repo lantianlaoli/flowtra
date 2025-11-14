@@ -20,6 +20,7 @@ export default function CreateProductModal({
   preselectedBrandId = null
 }: CreateProductModalProps) {
   const [productName, setProductName] = useState('');
+  const [productDetails, setProductDetails] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
@@ -30,6 +31,7 @@ export default function CreateProductModal({
   useEffect(() => {
     if (isOpen) {
       setProductName('');
+      setProductDetails('');
       setError(null);
       setUploadedImage(null);
       setImagePreview(null);
@@ -82,6 +84,7 @@ export default function CreateProductModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_name: productName.trim(),
+          product_details: productDetails.trim() || null,
           brand_id: preselectedBrandId
         })
       });
@@ -179,24 +182,41 @@ export default function CreateProductModal({
             {/* Form */}
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
               {/* Product Name Input */}
-              <div>
-                <label htmlFor="product-name-input" className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Name *
-                </label>
-                <input
-                  id="product-name-input"
-                  type="text"
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors"
-                  placeholder="Enter product name"
-                  disabled={isCreating}
-                  maxLength={100}
-                />
-                {error && (
-                  <p className="mt-1 text-sm text-red-600">{error}</p>
-                )}
-              </div>
+            <div>
+              <label htmlFor="product-name-input" className="block text-sm font-medium text-gray-700 mb-2">
+                Product Name *
+              </label>
+              <input
+                id="product-name-input"
+                type="text"
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors"
+                placeholder="Enter product name"
+                disabled={isCreating}
+                maxLength={100}
+              />
+              {error && (
+                <p className="mt-1 text-sm text-red-600">{error}</p>
+              )}
+            </div>
+
+            {/* Product Details Input */}
+            <div>
+              <label htmlFor="product-details-input" className="block text-sm font-medium text-gray-700 mb-2">
+                Product Details (Optional)
+              </label>
+              <textarea
+                id="product-details-input"
+                value={productDetails}
+                onChange={(e) => setProductDetails(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors min-h-24"
+                placeholder="Materials, features, sizing, use cases, target audience, etc."
+                disabled={isCreating}
+                maxLength={2000}
+              />
+              <p className="mt-1 text-xs text-gray-500">This context improves ad generation quality.</p>
+            </div>
 
               {/* Optional Image Upload */}
               <div>

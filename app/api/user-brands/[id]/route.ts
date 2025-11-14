@@ -74,13 +74,14 @@ export async function PUT(
     }
 
     const contentType = request.headers.get('content-type');
-    const updateData: { brand_name?: string; brand_slogan?: string | null; brand_logo_url?: string } = {};
+    const updateData: { brand_name?: string; brand_slogan?: string | null; brand_details?: string | null; brand_logo_url?: string | null } = {};
 
     // Handle multipart/form-data (when uploading new logo)
     if (contentType?.includes('multipart/form-data')) {
       const formData = await request.formData();
       const brandName = formData.get('brand_name') as string | null;
       const brandSlogan = formData.get('brand_slogan') as string | null;
+      const brandDetails = formData.get('brand_details') as string | null;
       const newLogoFile = formData.get('logo') as File | null;
 
       if (brandName) {
@@ -89,6 +90,10 @@ export async function PUT(
 
       if (brandSlogan !== null) {
         updateData.brand_slogan = brandSlogan.trim() || null;
+      }
+
+      if (brandDetails !== null) {
+        updateData.brand_details = (brandDetails || '').toString().trim() || null;
       }
 
       // Handle logo replacement
@@ -131,6 +136,10 @@ export async function PUT(
 
       if (body.brand_slogan !== undefined) {
         updateData.brand_slogan = body.brand_slogan?.trim() || null;
+      }
+
+      if (body.brand_details !== undefined) {
+        updateData.brand_details = body.brand_details?.toString().trim() || null;
       }
     }
 
@@ -207,9 +216,11 @@ export async function DELETE(
       );
     }
 
-    // Delete logo from storage
+    // Delete logo from storage if present
     try {
-      await deleteBrandLogoFromStorage(brand.brand_logo_url);
+      if (brand.brand_logo_url) {
+        await deleteBrandLogoFromStorage(brand.brand_logo_url);
+      }
     } catch (storageError) {
       console.warn('Failed to delete logo from storage (brand already deleted from DB):', storageError);
       // Continue anyway since the database record is already deleted

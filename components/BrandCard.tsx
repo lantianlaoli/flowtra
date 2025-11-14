@@ -61,14 +61,20 @@ export default function BrandCard({
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
       {/* Brand Logo */}
-      <div className="relative aspect-video bg-gray-50">
-        <Image
-          src={brand.brand_logo_url}
-          alt={brand.brand_name}
-          fill
-          className="object-contain p-4"
-          sizes="(max-width: 768px) 100vw, 33vw"
-        />
+      <div className="relative aspect-video bg-gray-50 flex items-center justify-center overflow-hidden">
+        {brand.brand_logo_url ? (
+          <Image
+            src={brand.brand_logo_url}
+            alt={brand.brand_name}
+            fill
+            className="object-contain p-4"
+            sizes="(max-width: 768px) 100vw, 33vw"
+          />
+        ) : (
+          <span className="text-3xl font-semibold text-gray-400">
+            {brand.brand_name.charAt(0).toUpperCase()}
+          </span>
+        )}
       </div>
 
       {/* Brand Info */}
@@ -78,9 +84,9 @@ export default function BrandCard({
             <h3 className="font-semibold text-gray-900 text-lg truncate">
               {brand.brand_name}
             </h3>
-            {brand.brand_slogan && (
+            {(brand.brand_slogan || brand.brand_details) && (
               <p className="text-gray-600 text-sm line-clamp-2 mt-1">
-                {brand.brand_slogan}
+                {brand.brand_slogan || brand.brand_details}
               </p>
             )}
           </div>

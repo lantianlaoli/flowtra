@@ -129,7 +129,7 @@ export default function ProductSelector({
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">{brand.brand_name}</div>
-                  <div className="text-xs text-gray-500 truncate">{brand.brand_slogan || 'No slogan'}</div>
+                  <div className="text-xs text-gray-500 truncate">{brand.brand_slogan || brand.brand_details || 'No slogan'}</div>
                 </div>
                 <ChevronRight className="h-4 w-4 text-gray-400" />
               </div>
@@ -193,8 +193,8 @@ export default function ProductSelector({
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-900 truncate">{product.product_name}</div>
-                    {product.description && (
-                      <div className="text-xs text-gray-500 truncate">{product.description}</div>
+                    {(product.product_details || product.description) && (
+                      <div className="text-xs text-gray-500 truncate">{product.product_details || product.description}</div>
                     )}
                   </div>
                   <ChevronRight className="h-4 w-4 text-gray-400" />
@@ -243,8 +243,8 @@ export default function ProductSelector({
             )}
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-gray-900">{selectedProduct.product_name}</div>
-              {selectedProduct.description && (
-                <div className="mt-1 text-xs text-gray-600 line-clamp-2">{selectedProduct.description}</div>
+              {(selectedProduct.product_details || selectedProduct.description) && (
+                <div className="mt-1 text-xs text-gray-600 line-clamp-2">{selectedProduct.product_details || selectedProduct.description}</div>
               )}
             </div>
           </div>

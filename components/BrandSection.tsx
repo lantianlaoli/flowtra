@@ -83,14 +83,20 @@ export default function BrandSection({
           </button>
 
           {/* Brand Logo */}
-          <div className="relative w-12 h-12 md:w-16 md:h-16 flex-shrink-0 bg-gray-50 rounded-lg overflow-hidden">
-            <Image
-              src={brand.brand_logo_url}
-              alt={brand.brand_name}
-              fill
-              className="object-contain p-1.5 md:p-2"
-              sizes="(max-width: 768px) 48px, 64px"
-            />
+          <div className="relative w-12 h-12 md:w-16 md:h-16 flex-shrink-0 bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center">
+            {brand.brand_logo_url ? (
+              <Image
+                src={brand.brand_logo_url}
+                alt={brand.brand_name}
+                fill
+                className="object-contain p-1.5 md:p-2"
+                sizes="(max-width: 768px) 48px, 64px"
+              />
+            ) : (
+              <span className="text-gray-500 font-semibold">
+                {brand.brand_name.charAt(0).toUpperCase()}
+              </span>
+            )}
           </div>
 
           {/* Brand Info */}
@@ -98,9 +104,9 @@ export default function BrandSection({
             <h3 className="font-semibold text-gray-900 text-base md:text-lg truncate">
               {brand.brand_name}
             </h3>
-            {brand.brand_slogan && (
+            {(brand.brand_slogan || brand.brand_details) && (
               <p className="text-gray-600 text-xs md:text-sm line-clamp-1 mt-0.5">
-                {brand.brand_slogan}
+                {brand.brand_slogan || brand.brand_details}
               </p>
             )}
             <div className="flex items-center gap-1.5 md:gap-2 mt-1">

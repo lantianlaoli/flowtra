@@ -97,18 +97,22 @@ export default function BrandSelector({
             whileTap={{ scale: 0.99 }}
           >
             <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-              <Image
-                src={brand.brand_logo_url}
-                alt={brand.brand_name}
-                width={40}
-                height={40}
-                className="object-contain"
-              />
+              {brand.brand_logo_url ? (
+                <Image
+                  src={brand.brand_logo_url}
+                  alt={brand.brand_name}
+                  width={40}
+                  height={40}
+                  className="object-contain"
+                />
+              ) : (
+                <Tag className="w-5 h-5 text-gray-400" />
+              )}
             </div>
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">{brand.brand_name}</p>
-              {brand.brand_slogan && (
-                <p className="text-xs text-gray-600 truncate">{brand.brand_slogan}</p>
+              {(brand.brand_slogan || (brand as any).brand_details) && (
+                <p className="text-xs text-gray-600 truncate">{brand.brand_slogan || (brand as any).brand_details}</p>
               )}
             </div>
             {selectedBrand?.id === brand.id && (

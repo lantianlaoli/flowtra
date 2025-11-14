@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const brandName = formData.get('brand_name') as string;
     const brandSlogan = formData.get('brand_slogan') as string | null;
+    const brandDetails = formData.get('brand_details') as string | null;
     const logoFile = formData.get('logo') as File | null;
 
     // Validation
@@ -70,31 +71,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Brand name is required' }, { status: 400 });
     }
 
-    if (!logoFile) {
-      return NextResponse.json({ error: 'Brand logo is required' }, { status: 400 });
-    }
+    let logoUrl: string | null = null;
+    if (logoFile) {
+      // Validate file type
+      if (!logoFile.type.startsWith('image/')) {
+        return NextResponse.json({ error: 'Logo must be an image file' }, { status: 400 });
+      }
 
-    // Validate file type
-    if (!logoFile.type.startsWith('image/')) {
-      return NextResponse.json({ error: 'Logo must be an image file' }, { status: 400 });
-    }
+      // Validate file size (max 5MB)
+      if (logoFile.size > 5 * 1024 * 1024) {
+        return NextResponse.json({ error: 'Logo file size must be less than 5MB' }, { status: 400 });
+      }
 
-    // Validate file size (max 5MB)
-    if (logoFile.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: 'Logo file size must be less than 5MB' }, { status: 400 });
-    }
-
-    // Upload logo to storage
-    let logoUrl: string;
-    try {
-      const uploadResult = await uploadBrandLogoToStorage(logoFile, userId);
-      logoUrl = uploadResult.publicUrl;
-    } catch (uploadError) {
-      console.error('Logo upload error:', uploadError);
-      return NextResponse.json(
-        { error: 'Failed to upload logo', details: uploadError instanceof Error ? uploadError.message : 'Unknown error' },
-        { status: 500 }
-      );
+      // Upload logo to storage
+      try {
+        const uploadResult = await uploadBrandLogoToStorage(logoFile, userId);
+        logoUrl = uploadResult.publicUrl;
+      } catch (uploadError) {
+        console.error('Logo upload error:', uploadError);
+        return NextResponse.json(
+          { error: 'Failed to upload logo', details: uploadError instanceof Error ? uploadError.message : 'Unknown error' },
+          { status: 500 }
+        );
+      }
     }
 
     // Create brand record in database
@@ -105,6 +104,7 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         brand_name: brandName.trim(),
         brand_slogan: brandSlogan?.trim() || null,
+        brand_details: brandDetails?.toString().trim() || null,
         brand_logo_url: logoUrl
       })
       .select()

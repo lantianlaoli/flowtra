@@ -176,8 +176,9 @@ export interface UserBrand {
   id: string
   user_id: string
   brand_name: string
-  brand_logo_url: string
+  brand_logo_url?: string | null
   brand_slogan?: string
+  brand_details?: string | null
   created_at: string
   updated_at: string
 }
@@ -188,6 +189,7 @@ export interface UserProduct {
   user_id: string
   product_name: string
   description?: string
+  product_details?: string | null
   brand_id?: string
   created_at: string
   updated_at: string

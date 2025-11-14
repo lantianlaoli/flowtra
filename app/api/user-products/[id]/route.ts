@@ -55,7 +55,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
-    const { product_name, description, brand_id } = body;
+    const { product_name, description, brand_id, product_details } = body;
 
     // Build update object dynamically to handle partial updates
     const updateData: Record<string, string | null> = {};
@@ -69,6 +69,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (description !== undefined) {
       updateData.description = description || null;
+    }
+
+    if (product_details !== undefined) {
+      updateData.product_details = product_details || null;
     }
 
     if (brand_id !== undefined) {

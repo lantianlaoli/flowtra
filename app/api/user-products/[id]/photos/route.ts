@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin, uploadProductPhotoToStorage } from '@/lib/supabase';
+import sharp from 'sharp';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -69,6 +70,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Validate file type
     if (!file.type.startsWith('image/')) {
       return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
+    }
+
+    // Validate image dimensions (> 300px for both width and height)
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const metadata = await sharp(buffer).metadata();
+      const width = metadata.width || 0;
+      const height = metadata.height || 0;
+      if (width <= 300 || height <= 300) {
+        return NextResponse.json(
+          { error: 'Image too small. Minimum size is greater than 300x300px.' },
+          { status: 400 }
+        );
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid image file' }, { status: 400 });
     }
 
     // Upload to storage using product photo utility

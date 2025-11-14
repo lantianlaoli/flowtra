@@ -19,6 +19,7 @@ export default function CreateBrandModal({
 }: CreateBrandModalProps) {
   const [brandName, setBrandName] = useState('');
   const [brandSlogan, setBrandSlogan] = useState('');
+  const [brandDetails, setBrandDetails] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -29,6 +30,7 @@ export default function CreateBrandModal({
     if (isOpen) {
       setBrandName('');
       setBrandSlogan('');
+      setBrandDetails('');
       setLogoFile(null);
       setLogoPreview(null);
       setError(null);
@@ -81,11 +83,6 @@ export default function CreateBrandModal({
       return;
     }
 
-    if (!logoFile) {
-      setError('Brand logo is required');
-      return;
-    }
-
     setIsCreating(true);
     setError(null);
 
@@ -95,7 +92,12 @@ export default function CreateBrandModal({
       if (brandSlogan.trim()) {
         formData.append('brand_slogan', brandSlogan.trim());
       }
-      formData.append('logo', logoFile);
+      if (brandDetails.trim()) {
+        formData.append('brand_details', brandDetails.trim());
+      }
+      if (logoFile) {
+        formData.append('logo', logoFile);
+      }
 
       const response = await fetch('/api/user-brands', {
         method: 'POST',
@@ -159,7 +161,7 @@ export default function CreateBrandModal({
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Create New Brand</h3>
-                  <p className="text-sm text-gray-600">Add a brand with logo and slogan</p>
+                  <p className="text-sm text-gray-600">Add a brand. Logo optional. Details help improve ad context.</p>
                 </div>
               </div>
               <button
@@ -207,10 +209,27 @@ export default function CreateBrandModal({
                 />
               </div>
 
+              {/* Brand Details Input */}
+              <div>
+                <label htmlFor="brand-details-input" className="block text-sm font-medium text-gray-700 mb-2">
+                  Brand Details (Optional)
+                </label>
+                <textarea
+                  id="brand-details-input"
+                  value={brandDetails}
+                  onChange={(e) => setBrandDetails(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors min-h-24"
+                  placeholder="Describe your brand, tone, audience, USPs, etc."
+                  disabled={isCreating}
+                  maxLength={2000}
+                />
+                <p className="mt-1 text-xs text-gray-500">Used to provide precise context when generating ads.</p>
+              </div>
+
               {/* Logo Upload */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Brand Logo *
+                  Brand Logo (Optional)
                 </label>
                 <div className="space-y-3">
                   {logoPreview ? (
@@ -272,7 +291,7 @@ export default function CreateBrandModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={isCreating || !brandName.trim() || !logoFile}
+                  disabled={isCreating || !brandName.trim()}
                   className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {isCreating && (
