@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, clerkClient } from '@clerk/nextjs/server'
 import { sendEmail } from '@/lib/resend'
 
 export async function POST(req: Request) {
   try {
     const { userId } = await auth()
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+    }
     const body = await req.json().catch(() => ({}))
     const storeUrl = typeof body?.storeUrl === 'string' ? body.storeUrl.trim() : ''
     const platform = typeof body?.platform === 'string' ? body.platform.trim() : ''
@@ -26,19 +29,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Email not configured' }, { status: 500 })
     }
 
+    // Fetch user email for admin notification
+    let userEmail: string | null = null
+    try {
+      // Some environments export clerkClient as a function
+      const client = typeof (clerkClient as any) === 'function' ? await (clerkClient as any)() : clerkClient
+      const user = await client.users.getUser(userId)
+      userEmail = user?.emailAddresses?.[0]?.emailAddress || null
+    } catch (e) {
+      console.warn('Failed to load Clerk user for email in store-link lead:', e)
+    }
+
     const subject = 'New store link submitted'
     const html = `
       <div>
         <h2>New store link submitted</h2>
         <p><strong>URL:</strong> <a href="${storeUrl}" target="_blank" rel="noopener noreferrer">${storeUrl}</a></p>
         ${platform ? `<p><strong>Platform:</strong> ${platform}</p>` : ''}
-        ${userId ? `<p><strong>Clerk User ID:</strong> ${userId}</p>` : ''}
+        <p><strong>Submitted By (Clerk User ID):</strong> ${userId}</p>
+        ${userEmail ? `<p><strong>Submitted Email:</strong> ${userEmail}</p>` : ''}
         <p>Timestamp: ${new Date().toISOString()}</p>
       </div>
     `
     const text = `New store link submitted\nURL: ${storeUrl}\n` +
       (platform ? `Platform: ${platform}\n` : '') +
-      (userId ? `Clerk User ID: ${userId}\n` : '') +
+      `Submitted By (Clerk User ID): ${userId}\n` +
+      (userEmail ? `Submitted Email: ${userEmail}\n` : '') +
       `Timestamp: ${new Date().toISOString()}`
 
     await sendEmail({ to: notifyTo, subject, html, text })
@@ -48,4 +64,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
   }
 }
-

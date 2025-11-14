@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type LanguageCode = 'en' | 'zh' | 'es' | 'fr' | 'de' | 'ur' | 'pa';
+export type LanguageCode = 'en' | 'zh' | 'es' | 'fr' | 'de' | 'nl' | 'ur' | 'pa';
 
 interface LanguageSelectorProps {
   selectedLanguage: LanguageCode;
@@ -25,6 +25,7 @@ const LANGUAGE_OPTIONS: Array<{
   { value: 'es', label: 'Spanish', nativeName: 'Español' },
   { value: 'fr', label: 'French', nativeName: 'Français' },
   { value: 'de', label: 'German', nativeName: 'Deutsch' },
+  { value: 'nl', label: 'Dutch', nativeName: 'Nederlands' },
   { value: 'ur', label: 'Urdu', nativeName: 'اردو' },
   { value: 'pa', label: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
 ];

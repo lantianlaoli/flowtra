@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
-import { useUser } from '@clerk/nextjs';
+import { Sparkles, LogIn } from 'lucide-react';
+import { SignInButton, useUser } from '@clerk/nextjs';
 
 export function StoreLinkCTA() {
-  const { isLoaded } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
   const [storeUrl, setStoreUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -13,6 +13,11 @@ export function StoreLinkCTA() {
 
   const handleSubmit = async () => {
     setError(null);
+
+    if (!isSignedIn) {
+      setError('Please sign in to submit your store link.');
+      return;
+    }
     const url = storeUrl.trim();
 
     if (!url) {
@@ -69,20 +74,36 @@ export function StoreLinkCTA() {
                 onChange={(e) => setStoreUrl(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
                 placeholder="https://yourstore.example.com"
-                className="min-w-0 flex-1 border border-gray-300 rounded-lg px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                className="min-w-0 flex-1 border border-gray-300 rounded-lg px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
                 inputMode="url"
                 aria-label="Store URL"
+                disabled={!isSignedIn}
               />
-              <button
-                onClick={handleSubmit}
-                disabled={!isLoaded || submitting}
-                className="shrink-0 bg-gray-900 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
-                aria-live="polite"
-              >
-                <Sparkles className="w-5 h-5" />
-                {submitting ? 'Submitting…' : 'Submit'}
-              </button>
+              {isSignedIn ? (
+                <button
+                  onClick={handleSubmit}
+                  disabled={!isLoaded || submitting}
+                  className="shrink-0 bg-gray-900 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
+                  aria-live="polite"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  {submitting ? 'Submitting…' : 'Submit'}
+                </button>
+              ) : (
+                <SignInButton mode="modal">
+                  <button
+                    type="button"
+                    className="shrink-0 bg-gray-900 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer w-full sm:w-auto"
+                  >
+                    <LogIn className="w-5 h-5" />
+                    Sign in to submit
+                  </button>
+                </SignInButton>
+              )}
             </div>
+            {!isSignedIn && (
+              <div className="text-sm text-gray-600 mt-2">Please sign in to submit your store for free ad mockups.</div>
+            )}
             {error && (
               <div className="text-sm text-red-600 mt-2">{error}</div>
             )}

@@ -579,7 +579,7 @@ export function getRecommendedModel(
 
 // ===== LANGUAGE SUPPORT =====
 
-export type LanguageCode = 'en' | 'zh' | 'es' | 'fr' | 'de' | 'ur' | 'pa';
+export type LanguageCode = 'en' | 'zh' | 'es' | 'fr' | 'de' | 'nl' | 'ur' | 'pa';
 
 // Language code to display name mapping
 export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
@@ -588,6 +588,7 @@ export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   'es': 'Spanish',
   'fr': 'French',
   'de': 'German',
+  'nl': 'Dutch',
   'ur': 'Urdu',
   'pa': 'Punjabi'
 } as const;
@@ -599,6 +600,7 @@ export const LANGUAGE_NATIVE_NAMES: Record<LanguageCode, string> = {
   'es': 'Español',
   'fr': 'Français',
   'de': 'Deutsch',
+  'nl': 'Nederlands',
   'ur': 'اردو',
   'pa': 'ਪੰਜਾਬੀ'
 } as const;
@@ -610,6 +612,7 @@ export const LANGUAGE_PROMPT_NAMES: Record<LanguageCode, string> = {
   'es': 'Spanish (Español)',
   'fr': 'French (Français)',
   'de': 'German (Deutsch)',
+  'nl': 'Dutch (Nederlands)',
   'ur': 'Urdu (اردو)',
   'pa': 'Punjabi (ਪੰਜਾਬੀ)'
 } as const;
