@@ -579,16 +579,30 @@ export function getRecommendedModel(
 
 // ===== LANGUAGE SUPPORT =====
 
-export type LanguageCode = 'en' | 'zh' | 'es' | 'fr' | 'de' | 'nl' | 'ur' | 'pa';
+export type LanguageCode =
+  | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl' | 'sv' | 'no' | 'da'
+  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa';
 
 // Language code to display name mapping
 export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   'en': 'English',
-  'zh': 'Chinese',
   'es': 'Spanish',
   'fr': 'French',
   'de': 'German',
+  'it': 'Italian',
+  'pt': 'Portuguese',
   'nl': 'Dutch',
+  'sv': 'Swedish',
+  'no': 'Norwegian',
+  'da': 'Danish',
+  'fi': 'Finnish',
+  'pl': 'Polish',
+  'ru': 'Russian',
+  'el': 'Greek',
+  'tr': 'Turkish',
+  'cs': 'Czech',
+  'ro': 'Romanian',
+  'zh': 'Chinese',
   'ur': 'Urdu',
   'pa': 'Punjabi'
 } as const;
@@ -596,11 +610,23 @@ export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
 // Language code to native name mapping
 export const LANGUAGE_NATIVE_NAMES: Record<LanguageCode, string> = {
   'en': 'English',
-  'zh': '中文',
   'es': 'Español',
   'fr': 'Français',
   'de': 'Deutsch',
+  'it': 'Italiano',
+  'pt': 'Português',
   'nl': 'Nederlands',
+  'sv': 'Svenska',
+  'no': 'Norsk',
+  'da': 'Dansk',
+  'fi': 'Suomi',
+  'pl': 'Polski',
+  'ru': 'Русский',
+  'el': 'Ελληνικά',
+  'tr': 'Türkçe',
+  'cs': 'Čeština',
+  'ro': 'Română',
+  'zh': '中文',
   'ur': 'اردو',
   'pa': 'ਪੰਜਾਬੀ'
 } as const;
@@ -608,11 +634,23 @@ export const LANGUAGE_NATIVE_NAMES: Record<LanguageCode, string> = {
 // Language code to natural language name for AI prompts
 export const LANGUAGE_PROMPT_NAMES: Record<LanguageCode, string> = {
   'en': 'English',
-  'zh': 'Chinese (中文)',
   'es': 'Spanish (Español)',
   'fr': 'French (Français)',
   'de': 'German (Deutsch)',
+  'it': 'Italian (Italiano)',
+  'pt': 'Portuguese (Português)',
   'nl': 'Dutch (Nederlands)',
+  'sv': 'Swedish (Svenska)',
+  'no': 'Norwegian (Norsk)',
+  'da': 'Danish (Dansk)',
+  'fi': 'Finnish (Suomi)',
+  'pl': 'Polish (Polski)',
+  'ru': 'Russian (Русский)',
+  'el': 'Greek (Ελληνικά)',
+  'tr': 'Turkish (Türkçe)',
+  'cs': 'Czech (Čeština)',
+  'ro': 'Romanian (Română)',
+  'zh': 'Chinese (中文)',
   'ur': 'Urdu (اردو)',
   'pa': 'Punjabi (ਪੰਜਾਬੀ)'
 } as const;
@@ -642,4 +680,33 @@ export function getLanguagePromptName(code: LanguageCode): string {
   }
 
   return name;
+}
+
+// Get language-specific voice style for video generation
+// Maps language codes to appropriate accent descriptions for AI voice generation
+export function getLanguageVoiceStyle(code: LanguageCode): string {
+  const voiceStyleMap: Record<LanguageCode, string> = {
+    'en': 'English accent',
+    'es': 'Spanish accent',
+    'fr': 'French accent',
+    'de': 'German accent',
+    'it': 'Italian accent',
+    'pt': 'Portuguese accent',
+    'nl': 'Dutch accent',
+    'sv': 'Swedish accent',
+    'no': 'Norwegian accent',
+    'da': 'Danish accent',
+    'fi': 'Finnish accent',
+    'pl': 'Polish accent',
+    'ru': 'Russian accent',
+    'el': 'Greek accent',
+    'tr': 'Turkish accent',
+    'cs': 'Czech accent',
+    'ro': 'Romanian accent',
+    'zh': 'Chinese accent',
+    'ur': 'Urdu accent',
+    'pa': 'Punjabi accent'
+  };
+
+  return voiceStyleMap[code] || 'English accent'; // fallback to English
 }

@@ -1,32 +1,15 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { IMAGE_MODELS, getLanguagePromptName, type LanguageCode } from '@/lib/constants';
+import { IMAGE_MODELS, getLanguagePromptName, getLanguageVoiceStyle, type LanguageCode } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 // Events table removed: no tracking imports
 
-// Helper function to generate voice type based on accent and gender
-function generateVoiceType(accent: string, isMale: boolean): string {
-  const accentMap: Record<string, string> = {
-    american: 'American',
-    canadian: 'Canadian',
-    british: 'British',
-    irish: 'Irish',
-    scottish: 'Scottish',
-    australian: 'Australian',
-    new_zealand: 'New Zealand',
-    indian: 'Indian',
-    singaporean: 'Singaporean',
-    filipino: 'Filipino',
-    south_african: 'South African',
-    nigerian: 'Nigerian',
-    kenyan: 'Kenyan',
-    latin_american: 'Latin American'
-  };
-
-  const accentName = accentMap[accent] || 'American';
+// Helper function to generate voice type based on language and gender
+function generateVoiceTypeFromLanguage(language: string, isMale: boolean): string {
+  const languageCode = (language || 'en') as LanguageCode;
+  const voiceStyle = getLanguageVoiceStyle(languageCode);
   const voiceGender = isMale ? 'deep male voice' : 'deep female voice';
-
-  return `${accentName} accent, ${voiceGender}`;
+  return `${voiceStyle}, ${voiceGender}`;
 }
 
 interface CharacterAdsProject {
@@ -39,7 +22,6 @@ interface CharacterAdsProject {
   image_size?: string;
   video_model: string;
   video_aspect_ratio?: string;
-  accent: string;
   custom_dialogue?: string;
   language?: string;
   status: string;
@@ -152,7 +134,6 @@ Important:
 async function generatePrompts(
   analysisResult: Record<string, unknown>,
   videoDurationSeconds: number,
-  accent: string,
   videoModel: 'veo3' | 'veo3_fast' | 'sora2',
   language?: string,
   productContext?: { product_details?: string; brand_name?: string; brand_slogan?: string; brand_details?: string }
@@ -185,7 +166,8 @@ async function generatePrompts(
     characterInfo.toLowerCase().includes(' his ')
   );
 
-  const voiceType = generateVoiceType(accent, isCharacterMale);
+  // Generate voice type based on language and gender
+  const voiceType = generateVoiceTypeFromLanguage(language || 'en', isCharacterMale);
 
   // Get language name for prompts
   const languageCode = (language || 'en') as LanguageCode;
@@ -842,7 +824,6 @@ export async function processCharacterAdsProject(
         const prompts = await generatePrompts(
           analysisWithDialogue,
           project.video_duration_seconds,
-          project.accent,
           (project.video_model as 'veo3' | 'veo3_fast' | 'sora2'),
           project.language,
           productContext

@@ -10,7 +10,6 @@ import CharacterAdsDurationSelector from '@/components/ui/CharacterAdsDurationSe
 import VideoModelSelector from '@/components/ui/VideoModelSelector';
 import ImageModelSelector from '@/components/ui/ImageModelSelector';
 import SizeSelector from '@/components/ui/SizeSelector';
-import AccentSelector, { AccentType } from '@/components/ui/AccentSelector';
 import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
 import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
@@ -48,7 +47,6 @@ export default function CharacterAdsPage() {
   const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('seedream');
   const [imageSize, setImageSize] = useState<string>('auto');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('9:16');
-  const [selectedAccent, setSelectedAccent] = useState<AccentType>('american');
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
@@ -190,7 +188,6 @@ export default function CharacterAdsPage() {
       formData.append('image_size', imageSize);
       formData.append('video_model', selectedVideoModel);
       formData.append('video_aspect_ratio', videoAspectRatio);
-      formData.append('accent', selectedAccent);
       formData.append('language', selectedLanguage);
       if (customDialogue && customDialogue.trim()) {
         formData.append('custom_dialogue', customDialogue.trim());
@@ -224,7 +221,6 @@ export default function CharacterAdsPage() {
     setPersonImages([]);
     setSelectedPersonPhotoUrl('');
     setSelectedProduct(null);
-    setSelectedAccent('australian');
     setCustomDialogue('');
     setDialogueError(null);
     setHasAIGeneratedDialogue(false);
@@ -264,7 +260,6 @@ export default function CharacterAdsPage() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          accent: selectedAccent,
           productName,
           productDescription,
           productImageUrls: productPhotoUrls,
@@ -483,15 +478,6 @@ export default function CharacterAdsPage() {
                             showIcon={true}
                           />
                         </div>
-                      </div>
-
-                      {/* Voice Accent Selection */}
-                      <div>
-                        <AccentSelector
-                          selectedAccent={selectedAccent}
-                          onAccentChange={setSelectedAccent}
-                          showIcon={true}
-                        />
                       </div>
 
                       {/* Language Selection */}

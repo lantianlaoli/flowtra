@@ -5,7 +5,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type LanguageCode = 'en' | 'zh' | 'es' | 'fr' | 'de' | 'nl' | 'ur' | 'pa';
+export type LanguageCode =
+  | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl' | 'sv' | 'no' | 'da'
+  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa';
 
 interface LanguageSelectorProps {
   selectedLanguage: LanguageCode;
@@ -22,12 +24,24 @@ const LANGUAGE_OPTIONS: Array<{
 }> = [
   { value: 'en', label: 'English', nativeName: 'English' },
   { value: 'zh', label: 'Chinese', nativeName: '中文' },
-  { value: 'es', label: 'Spanish', nativeName: 'Español' },
+  { value: 'cs', label: 'Czech', nativeName: 'Čeština' },
+  { value: 'da', label: 'Danish', nativeName: 'Dansk' },
+  { value: 'nl', label: 'Dutch', nativeName: 'Nederlands' },
+  { value: 'fi', label: 'Finnish', nativeName: 'Suomi' },
   { value: 'fr', label: 'French', nativeName: 'Français' },
   { value: 'de', label: 'German', nativeName: 'Deutsch' },
-  { value: 'nl', label: 'Dutch', nativeName: 'Nederlands' },
-  { value: 'ur', label: 'Urdu', nativeName: 'اردو' },
+  { value: 'el', label: 'Greek', nativeName: 'Ελληνικά' },
+  { value: 'it', label: 'Italian', nativeName: 'Italiano' },
+  { value: 'no', label: 'Norwegian', nativeName: 'Norsk' },
+  { value: 'pl', label: 'Polish', nativeName: 'Polski' },
+  { value: 'pt', label: 'Portuguese', nativeName: 'Português' },
   { value: 'pa', label: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
+  { value: 'ro', label: 'Romanian', nativeName: 'Română' },
+  { value: 'ru', label: 'Russian', nativeName: 'Русский' },
+  { value: 'es', label: 'Spanish', nativeName: 'Español' },
+  { value: 'sv', label: 'Swedish', nativeName: 'Svenska' },
+  { value: 'tr', label: 'Turkish', nativeName: 'Türkçe' },
+  { value: 'ur', label: 'Urdu', nativeName: 'اردو' },
 ];
 
 export default function LanguageSelector({

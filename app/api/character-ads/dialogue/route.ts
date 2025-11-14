@@ -3,25 +3,7 @@ import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import { clampDialogueToWordLimit, getCharacterAdsDialogueWordLimit } from '@/lib/character-ads-dialogue';
 
-const accentLabelMap: Record<string, string> = {
-  american: 'American',
-  canadian: 'Canadian',
-  british: 'British',
-  irish: 'Irish',
-  scottish: 'Scottish',
-  australian: 'Australian',
-  new_zealand: 'New Zealand',
-  indian: 'Indian',
-  singaporean: 'Singaporean',
-  filipino: 'Filipino',
-  south_african: 'South African',
-  nigerian: 'Nigerian',
-  kenyan: 'Kenyan',
-  latin_american: 'Latin American'
-};
-
 interface DialogueRequestPayload {
-  accent: string;
   productName?: string;
   productDescription?: string;
   productImageUrls?: string[];
@@ -40,7 +22,6 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as DialogueRequestPayload;
     const {
-      accent,
       productName,
       productDescription,
       productImageUrls = [],
@@ -48,18 +29,10 @@ export async function POST(request: NextRequest) {
       videoDurationSeconds
     } = body;
 
-    if (!accent) {
-      return NextResponse.json(
-        { error: 'Accent is required.' },
-        { status: 400 }
-      );
-    }
-
     const cleanedImageUrls = productImageUrls
       .filter((url) => typeof url === 'string' && /^https?:\/\//i.test(url))
       .slice(0, 3);
 
-    const accentLabel = accentLabelMap[accent] || 'American';
     const nameSnippet = productName?.trim() || 'the product';
     const descriptionSnippet = productDescription?.trim() || 'A modern product that customers love.';
     const languageName = getLanguagePromptName(language);
@@ -69,9 +42,9 @@ export async function POST(request: NextRequest) {
     );
 
     const systemPrompt = `You are an advertising dialogue writer for user-generated content spokesperson videos.\n
-Requirements:\n- Return exactly one spoken line capped at ${dialogueWordLimit} words in ${languageName}.\n- Sound casual, enthusiastic, and authentic as if spoken on camera.\n- Blend a hook, the key benefit, and a friendly call-to-action.\n- Avoid hashtags, emojis, marketing buzzwords, or repeated punctuation.\n- Do not add quotes or surrounding characters.\n- Reflect the requested accent naturally in word choice or cadence.\n- Base the line on the product imagery and description provided.\n- The dialogue MUST be written in ${languageName}.`;
+Requirements:\n- Return exactly one spoken line capped at ${dialogueWordLimit} words in ${languageName}.\n- Sound casual, enthusiastic, and authentic as if spoken on camera.\n- Blend a hook, the key benefit, and a friendly call-to-action.\n- Avoid hashtags, emojis, marketing buzzwords, or repeated punctuation.\n- Do not add quotes or surrounding characters.\n- Base the line on the product imagery and description provided.\n- The dialogue MUST be written in ${languageName}.`;
 
-    const userTextPrompt = `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\nAccent: ${accentLabel}\nLanguage: ${languageName}\nIf possible, reference standout visuals you observe. Respond with one spoken line in ${languageName} now.`;
+    const userTextPrompt = `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\nLanguage: ${languageName}\nIf possible, reference standout visuals you observe. Respond with one spoken line in ${languageName} now.`;
 
     const userContent: Array<
       | { type: 'text'; text: string }

@@ -23,16 +23,15 @@ export async function POST(request: NextRequest) {
     const imageModel = formData.get('image_model') as string;
     const imageSize = formData.get('image_size') as string;
     const videoModel = formData.get('video_model') as string;
-    const accent = formData.get('accent') as string;
     const customDialogue = (formData.get('custom_dialogue') as string) || '';
     const videoAspectRatio = (formData.get('video_aspect_ratio') as '16:9' | '9:16') || '16:9';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const selectedProductId = formData.get('selected_product_id') as string;
     const language = (formData.get('language') as string) || 'en';
 
-    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, imageSize, videoModel, accent, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId });
+    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, imageSize, videoModel, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId, language });
 
-    if (!userId || !videoDurationSeconds || !imageModel || !videoModel || !accent) {
+    if (!userId || !videoDurationSeconds || !imageModel || !videoModel) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -47,14 +46,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate models and accent
+    // Validate models
     const validImageModels = ['auto', 'nano_banana', 'seedream'];
     const validVideoModels = ['auto', 'veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
-    const validAccents = [
-      'american', 'canadian', 'british', 'irish', 'scottish',
-      'australian', 'new_zealand', 'indian', 'singaporean', 'filipino',
-      'south_african', 'nigerian', 'kenyan', 'latin_american'
-    ];
 
     if (!validImageModels.includes(imageModel)) {
       return NextResponse.json(
@@ -81,13 +75,6 @@ export async function POST(request: NextRequest) {
     if (!isSora2Duration && videoModel === 'sora2') {
       return NextResponse.json(
         { error: 'Sora2 supports 10s/20s/30s durations only' },
-        { status: 400 }
-      );
-    }
-
-    if (!validAccents.includes(accent)) {
-      return NextResponse.json(
-        { error: 'Invalid accent' },
         { status: 400 }
       );
     }
@@ -300,7 +287,6 @@ export async function POST(request: NextRequest) {
         image_size: imageSize,
         video_model: resolvedVideoModel,
         video_aspect_ratio: videoAspectRatio,
-        accent: accent,
         custom_dialogue: customDialogue || null,
         language: language, // Language for AI-generated content
         credits_cost: totalCredits,
