@@ -192,7 +192,7 @@ export default function BrandProductSelector({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-900 truncate">{brand.brand_name}</div>
-                    <div className="text-xs text-gray-500 truncate">{brand.brand_slogan || (brand as any).brand_details || 'No slogan'}</div>
+                    <div className="text-xs text-gray-500 truncate">{brand.brand_slogan || brand.brand_details || 'No slogan'}</div>
                   </div>
                   {selectedBrand?.id === brand.id && (
                     <Check className="w-4 h-4 text-gray-600" />
@@ -334,7 +334,7 @@ export default function BrandProductSelector({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-900 truncate">{selectedBrand.brand_name}</div>
-                    <div className="text-xs text-gray-500 truncate">{selectedBrand.brand_slogan || (selectedBrand as any).brand_details || 'No slogan'}</div>
+                    <div className="text-xs text-gray-500 truncate">{selectedBrand.brand_slogan || selectedBrand.brand_details || 'No slogan'}</div>
                   </div>
                 </>
               ) : (

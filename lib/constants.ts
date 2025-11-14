@@ -629,5 +629,17 @@ export function getLanguageNativeName(code: LanguageCode): string {
 
 // Get language name for AI prompts
 export function getLanguagePromptName(code: LanguageCode): string {
-  return LANGUAGE_PROMPT_NAMES[code];
+  const name = LANGUAGE_PROMPT_NAMES[code];
+
+  // Defensive check: log if undefined
+  if (!name) {
+    console.error(`❌ getLanguagePromptName: No mapping found for language code "${code}"`);
+    console.error(`Type of code: ${typeof code}, Value: ${JSON.stringify(code)}`);
+    console.error(`Available codes: ${Object.keys(LANGUAGE_PROMPT_NAMES).join(', ')}`);
+
+    // Fallback to English to prevent undefined
+    return 'English';
+  }
+
+  return name;
 }

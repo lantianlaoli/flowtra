@@ -112,6 +112,8 @@ export async function POST(request: NextRequest) {
     // Handle product images - either from selected product or uploaded files
     const productImageUrls: string[] = [];
     const productFiles: File[] = [];
+    // Collect product context for AI prompt (future enhancement - not yet integrated into workflow)
+    // const productContext = { product_details: '', brand_name: '', brand_slogan: '', brand_details: '' };
 
     if (selectedProductId) {
       // Check if it's a temporary product (starts with "temp:")
@@ -121,30 +123,48 @@ export async function POST(request: NextRequest) {
         console.log('Using temporary product URL:', tempUrl);
         productImageUrls.push(tempUrl);
       } else {
-        // Get product images from database via user_product_photos table
+        // Get product with brand information from database
         const supabase = getSupabaseAdmin();
-        const { data: productPhotos, error: productError } = await supabase
-          .from('user_product_photos')
-          .select('photo_url')
-          .eq('product_id', selectedProductId)
-          .eq('user_id', userId);
+        const { data: product, error: productError } = await supabase
+          .from('user_products')
+          .select(`
+            *,
+            user_product_photos (*),
+            brand:user_brands (
+              id,
+              brand_name,
+              brand_slogan,
+              brand_details
+            )
+          `)
+          .eq('id', selectedProductId)
+          .eq('user_id', userId)
+          .single();
 
         if (productError) {
-          console.error('Error fetching product photos:', productError);
+          console.error('Error fetching product:', productError);
           return NextResponse.json(
-            { error: 'Failed to fetch product photos' },
+            { error: 'Failed to fetch product' },
             { status: 400 }
           );
         }
 
-        if (!productPhotos || productPhotos.length === 0) {
+        if (!product || !product.user_product_photos || product.user_product_photos.length === 0) {
           return NextResponse.json(
             { error: 'No photos found for selected product' },
             { status: 400 }
           );
         }
 
-        productImageUrls.push(...productPhotos.map(photo => photo.photo_url));
+        productImageUrls.push(...product.user_product_photos.map((photo: { photo_url: string }) => photo.photo_url));
+
+        // Store product and brand context for AI prompt (future enhancement - not yet integrated into workflow)
+        // productContext = {
+        //   product_details: product.product_details || '',
+        //   brand_name: product.brand?.brand_name || '',
+        //   brand_slogan: product.brand?.brand_slogan || '',
+        //   brand_details: product.brand?.brand_details || ''
+        // };
       }
     } else {
       for (const [key, value] of formData.entries()) {

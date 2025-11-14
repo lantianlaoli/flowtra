@@ -149,7 +149,14 @@ Important:
 }
 
 // Generate prompts based on analysis and long_ads.md specifications
-async function generatePrompts(analysisResult: Record<string, unknown>, videoDurationSeconds: number, accent: string, videoModel: 'veo3' | 'veo3_fast' | 'sora2'): Promise<Record<string, unknown>> {
+async function generatePrompts(
+  analysisResult: Record<string, unknown>,
+  videoDurationSeconds: number,
+  accent: string,
+  videoModel: 'veo3' | 'veo3_fast' | 'sora2',
+  language?: string,
+  productContext?: { product_details?: string; brand_name?: string; brand_slogan?: string; brand_details?: string }
+): Promise<Record<string, unknown>> {
   const unitSeconds = videoModel === 'sora2' ? 10 : 8;
   const videoScenes = videoDurationSeconds / unitSeconds; // Scene length depends on model
   const userDialogue = (analysisResult as { user_dialogue?: string })?.user_dialogue || '';
@@ -180,11 +187,15 @@ async function generatePrompts(analysisResult: Record<string, unknown>, videoDur
 
   const voiceType = generateVoiceType(accent, isCharacterMale);
 
+  // Get language name for prompts
+  const languageCode = (language || 'en') as LanguageCode;
+  const languageName = getLanguagePromptName(languageCode);
+
   const systemPrompt = `
 UGC Image + Video Prompt Generator 🎥🖼️
 Have Scene 0 as the image prompt and Scenes 1 onward are the video prompts
 
-Your task: Create 1 image prompt and ${videoScenes} video prompts as guided by your system guidelines. Scene 0 will be the image prompt, and Scenes 1 onward will be the video prompts.
+Your task: Create 1 image prompt and ${videoScenes} video prompts as guided by your system guidelines. Scene 0 will be the image prompt, and Scenes 1 onward will be the video prompts.${productContext && (productContext.product_details || productContext.brand_name) ? `\n\nProduct & Brand Context from Database:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\nIMPORTANT: Use this authentic product and brand context to enhance the video prompts. The brand identity and product features should guide the creative direction.` : ''}
 
 Use **UGC - style casual realism** principles:
 - Everyday realism with authentic, relatable environments
@@ -201,6 +212,8 @@ For Scene 0 (image prompt):
 For Scene 1+ (video prompts):
 - Each scene is ${unitSeconds} seconds long
 - Include dialogue with casual, spontaneous tone (under 150 characters)
+- IMPORTANT: Write ALL dialogue in ENGLISH. The 'language' field is metadata that tells the video generation API what language to use for voiceover. The actual dialogue text should always be in English.
+- CRITICAL LANGUAGE NOTE: The character will speak ${languageName} in the final video (handled automatically by the video generation API based on the 'language' field), but you must write the dialogue text in English.
 - Describe accent and voice style consistently
 - Prefix video prompts with: "dialogue, the character in the video says:"
 - Use ${voiceType}
@@ -238,7 +251,14 @@ Return in JSON format:
     }
     // ... additional video scenes based on duration
   ]
-}`;
+}
+
+CRITICAL INSTRUCTIONS FOR DIALOGUE:
+- Write ALL dialogue text in ENGLISH, regardless of the target language (${languageName})
+- The video generation API will automatically convert the English dialogue to ${languageName} voiceover
+- Do NOT attempt to translate the dialogue yourself - write it in natural, conversational English
+- Keep dialogue concise (under 150 characters) and casual
+${userDialogue ? `- For Scene 1, use the exact user-provided dialogue: "${userDialogue.replace(/"/g, '\\"')}"` : ''}`;
 
   const userPrompt = `Description of the reference images are given below:
 ${JSON.stringify(analysisResult, null, 2)}
@@ -282,6 +302,7 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
 
     console.log('Cleaned prompts content for parsing:', cleanedContent);
     const parsed: { scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> } = JSON.parse(cleanedContent);
+
     // Enforce exact user dialogue for Scene 1 if provided
     if (userDialogue && Array.isArray(parsed.scenes)) {
       const scenes: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> = parsed.scenes;
@@ -298,6 +319,15 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
         }
       }
     }
+
+    // CRITICAL: Ensure language field is set correctly at the top level
+    // This is used by generateVideoWithKIE to add language metadata
+    const languageCode = (language || 'en') as LanguageCode;
+    const languageName = getLanguagePromptName(languageCode);
+    (parsed as Record<string, unknown>)['language'] = languageName;
+
+    console.log(`✅ Prompts generated with language: ${languageName} (code: ${languageCode})`);
+
     return parsed;
   } catch (error) {
     console.error('Failed to parse prompts result:', content);
@@ -441,12 +471,29 @@ async function generateVideoWithKIE(
   videoAspectRatio?: '16:9' | '9:16',
   language?: string
 ): Promise<{ taskId: string }> {
+  // Debug logging
+  console.log('🎬 generateVideoWithKIE called with:');
+  console.log('  - videoModel:', videoModel);
+  console.log('  - language parameter:', language);
+  console.log('  - language type:', typeof language);
+
   // Convert prompt object to string for API
   const basePrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
 
   // Add language metadata if not English (simple format for VEO3 API)
   const lang = (language || 'en') as LanguageCode;
+  console.log('  - resolved lang:', lang);
+
   const languageName = getLanguagePromptName(lang);
+  console.log('  - languageName from getLanguagePromptName:', languageName);
+
+  // Defensive check: ensure languageName is valid
+  if (!languageName) {
+    console.error(`❌ getLanguagePromptName returned undefined for language code: "${lang}"`);
+    console.error(`Available language codes: en, zh, es, fr, de, nl, ur, pa`);
+    throw new Error(`Invalid language code: ${lang}`);
+  }
+
   const languagePrefix = languageName !== 'English'
     ? `"language": "${languageName}"\n\n`
     : '';
@@ -779,11 +826,17 @@ export async function processCharacterAdsProject(
           analysisWithDialogue['user_dialogue'] = project.custom_dialogue;
         }
 
+        // Extract product context from project (typed safely)
+        const projectData = project as CharacterAdsProject & { product_context?: { product_details?: string; brand_name?: string; brand_slogan?: string; brand_details?: string } };
+        const productContext = projectData.product_context;
+
         const prompts = await generatePrompts(
           analysisWithDialogue,
           project.video_duration_seconds,
           project.accent,
-          (project.video_model as 'veo3' | 'veo3_fast' | 'sora2')
+          (project.video_model as 'veo3' | 'veo3_fast' | 'sora2'),
+          project.language,
+          productContext
         );
 
         // Create scene records
@@ -961,6 +1014,7 @@ export async function processCharacterAdsProject(
       case 'generate_videos': {
         // Step 4: Generate video scenes using KIE
         console.log('Generating videos for project:', project.id);
+        console.log('📊 Project language field:', project.language);
 
         if (!project.generated_image_url) {
           throw new Error('Generated image not found - required for video generation');
