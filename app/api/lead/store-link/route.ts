@@ -29,13 +29,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Email not configured' }, { status: 500 })
     }
 
-    // Fetch user email for admin notification
+    // Fetch user email for admin notification (support both client instance and getter)
+    type ClerkUsersApi = { getUser: (id: string) => Promise<{ emailAddresses?: Array<{ emailAddress: string }> }> }
+    type ClerkLike = { users: ClerkUsersApi }
     let userEmail: string | null = null
     try {
-      // Retrieve user from Clerk (handle both function and object exports)
-      const client: any = typeof (clerkClient as any) === 'function' ? await (clerkClient as any)() : (clerkClient as any)
-      const user = await client.users.getUser(userId)
-      userEmail = user?.emailAddresses?.[0]?.emailAddress || null
+      const maybeFn = clerkClient as unknown
+      const resolved: unknown = typeof maybeFn === 'function' ? await (maybeFn as () => Promise<unknown>)() : maybeFn
+      const hasUsers = (obj: unknown): obj is ClerkLike => !!obj && typeof (obj as { users?: unknown }).users === 'object' && typeof (obj as ClerkLike).users.getUser === 'function'
+      if (hasUsers(resolved)) {
+        const user = await resolved.users.getUser(userId)
+        userEmail = user?.emailAddresses?.[0]?.emailAddress || null
+      }
     } catch (e) {
       console.warn('Failed to load Clerk user for email in store-link lead:', e)
     }

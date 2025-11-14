@@ -557,8 +557,9 @@ async function checkKIEImageTaskStatus(taskId: string): Promise<{
     : undefined;
   const result_url = (directUrls || responseUrls || flatUrls)?.[0];
 
-  const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!result_url && (state === undefined));
-  const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+  const stateLower = state?.toLowerCase();
+  const isSuccess = (stateLower === 'success') || successFlag === 1 || (!!result_url && (stateLower === undefined));
+  const isFailed = (stateLower === 'failed' || stateLower === 'fail' || stateLower === 'error') || successFlag === 2 || successFlag === 3;
 
   if (isSuccess) {
     return { 
@@ -631,13 +632,13 @@ async function checkKIEVideoTaskStatus(taskId: string): Promise<{
       result_url: undefined,
       error: taskData.errorMessage || taskData.failureReason || 'Video generation failed'
     };
-  } else if (state === 'success') {
+  } else if (state === 'success' || state === 'SUCCESS') {
     return {
       status: 'completed',
       result_url,
       error: undefined
     };
-  } else if (state === 'failed') {
+  } else if (state === 'failed' || state === 'fail' || state === 'error') {
     return {
       status: 'failed',
       result_url: undefined,
@@ -701,8 +702,9 @@ async function checkKIEVideoTaskStatusByModel(taskId: string, videoModel: string
         : undefined;
       const result_url = (directUrls || responseUrls || flatUrls)?.[0];
 
-      const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!result_url && (state === undefined));
-      const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+      const stateLower2 = state?.toLowerCase();
+      const isSuccess = (stateLower2 === 'success') || successFlag === 1 || (!!result_url && (stateLower2 === undefined));
+      const isFailed = (stateLower2 === 'failed' || stateLower2 === 'fail' || stateLower2 === 'error') || successFlag === 2 || successFlag === 3;
 
       if (isSuccess) return { status: 'completed', result_url };
       if (isFailed) return { status: 'failed', error: taskData.failMsg || taskData.errorMessage || 'Video generation failed' };

@@ -186,7 +186,8 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
       }
 
     } else if (imageResult.status === 'FAILED') {
-      throw new Error('Image generation failed');
+      // Surface detailed KIE failure reason when available
+      throw new Error(imageResult.reason || 'Image generation failed');
     }
     // If still generating, update progress
     else if (imageResult.status === 'GENERATING') {
@@ -288,7 +289,7 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
   }
 }
 
-async function checkKieImageStatus(taskId: string): Promise<{status: string, imageUrl?: string}> {
+async function checkKieImageStatus(taskId: string): Promise<{status: string, imageUrl?: string, reason?: string}> {
   const response = await fetchWithRetry(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
     method: 'GET',
     headers: {
@@ -333,14 +334,15 @@ async function checkKieImageStatus(taskId: string): Promise<{status: string, ima
     : undefined;
   const imageUrl = (directUrls || responseUrls || flatUrls)?.[0];
 
-  const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!imageUrl && (state === undefined));
-  const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+  const stateLower = state?.toLowerCase();
+  const isSuccess = (stateLower === 'success') || successFlag === 1 || (!!imageUrl && (stateLower === undefined));
+  const isFailed = (stateLower === 'failed' || stateLower === 'fail' || stateLower === 'error') || successFlag === 2 || successFlag === 3;
 
   if (isSuccess) {
     return { status: 'SUCCESS', imageUrl };
   }
   if (isFailed) {
-    return { status: 'FAILED' };
+    return { status: 'FAILED', reason: taskData.failMsg || taskData.errorMessage || taskData.failureReason };
   }
   return { status: 'GENERATING' };
 }
