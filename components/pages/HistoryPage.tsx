@@ -12,7 +12,6 @@ import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import TikTokPublishDialog from '@/components/TikTokPublishDialog';
-import { isTikTokFeatureEnabled } from '@/lib/utils/environment';
 
 interface StandardAdsItem {
   id: string;
@@ -1268,24 +1267,22 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                   {/* TikTok Publish Button - Only for ads with videos */}
                                   {'videoUrl' in item && item.videoUrl && (
                                     <button
-                                      onClick={() => isTikTokFeatureEnabled() && handleTikTokPublish(item)}
-                                      disabled={!isTikTokFeatureEnabled()}
+                                      onClick={() => handleTikTokPublish(item)}
                                       className={cn(
                                         'group relative w-full overflow-hidden rounded-lg transition-all duration-300',
-                                        interactiveCardActionClasses,
-                                        !isTikTokFeatureEnabled() && 'cursor-not-allowed opacity-60'
+                                        interactiveCardActionClasses
                                       )}
                                     >
                                       {/* Gradient background with animation */}
                                       <div className={cn(
                                         "absolute inset-0 bg-gradient-to-r from-[#00f2ea] via-[#ff0050] to-[#00f2ea] bg-[length:200%_100%]",
-                                        isTikTokFeatureEnabled() && "animate-tiktok-shimmer"
+                                        "animate-tiktok-shimmer"
                                       )} />
 
                                       {/* Dark overlay */}
                                       <div className={cn(
                                         "absolute inset-0 bg-black/80 transition-colors",
-                                        isTikTokFeatureEnabled() && "group-hover:bg-black/70"
+                                        "group-hover:bg-black/70"
                                       )} />
 
                                       {/* Content */}
@@ -1294,7 +1291,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                         <svg
                                           className={cn(
                                             "w-4 h-4 md:w-5 md:h-5 fill-white transition-transform",
-                                            isTikTokFeatureEnabled() && "group-hover:scale-110"
+                                            "group-hover:scale-110"
                                           )}
                                           viewBox="0 0 24 24"
                                         >
@@ -1304,7 +1301,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                         {/* Text with gradient */}
                                         <span className={cn(
                                           "text-xs md:text-sm font-bold bg-gradient-to-r from-[#00f2ea] to-[#ff0050] bg-clip-text text-transparent transition-all duration-500",
-                                          isTikTokFeatureEnabled() && "group-hover:from-[#ff0050] group-hover:to-[#00f2ea]"
+                                          "group-hover:from-[#ff0050] group-hover:to-[#00f2ea]"
                                         )}>
                                           Post to TikTok
                                         </span>
@@ -1312,23 +1309,13 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                         {/* Arrow icon */}
                                         <Send className={cn(
                                           "w-3 h-3 md:w-3.5 md:h-3.5 text-white transition-transform",
-                                          isTikTokFeatureEnabled() && "group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                                          "group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                                         )} />
                                       </div>
 
                                       {/* Shine effect on hover - only if enabled */}
-                                      {isTikTokFeatureEnabled() && (
-                                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                                      )}
+                                      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-                                      {/* Coming Soon Overlay - shown in production */}
-                                      {!isTikTokFeatureEnabled() && (
-                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[1px]">
-                                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500 text-white shadow-lg">
-                                            Coming Soon
-                                          </span>
-                                        </div>
-                                      )}
                                     </button>
                                   )}
                                 </>

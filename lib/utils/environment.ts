@@ -15,14 +15,6 @@ export const isProduction = (): boolean => {
 };
 
 /**
- * Check if TikTok integration features should be enabled
- * @returns true in development/local environments, false in production
- */
-export const isTikTokFeatureEnabled = (): boolean => {
-  return !isProduction();
-};
-
-/**
  * Get environment display name for debugging
  * @returns 'Production' | 'Development'
  */

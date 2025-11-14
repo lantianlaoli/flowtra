@@ -7,7 +7,6 @@ import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import { Coins, User, Link2, XCircle } from 'lucide-react';
 import { HiPlus, HiMinus, HiLightningBolt, HiClipboardList } from 'react-icons/hi';
-import { isTikTokFeatureEnabled } from '@/lib/utils/environment';
 
 interface CreditTransaction {
   id: string;
@@ -320,7 +319,7 @@ export default function CreditsPage() {
                   {tiktokConnected ? (
                     <button
                       onClick={handleDisconnectTikTok}
-                      disabled={unbindingTiktok || !isTikTokFeatureEnabled()}
+                      disabled={unbindingTiktok}
                       className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <XCircle className="w-4 h-4" />
@@ -329,7 +328,7 @@ export default function CreditsPage() {
                   ) : (
                     <button
                       onClick={handleConnectTikTok}
-                      disabled={tiktokLoading || !isTikTokFeatureEnabled()}
+                      disabled={tiktokLoading}
                       className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Link2 className="w-4 h-4" />
@@ -337,12 +336,6 @@ export default function CreditsPage() {
                     </button>
                   )}
 
-                  {/* Coming Soon Badge - shown in production */}
-                  {!isTikTokFeatureEnabled() && (
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                      Coming Soon
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
