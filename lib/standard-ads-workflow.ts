@@ -99,12 +99,19 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     // Handle product selection - get the image URL from the selected product
     let imageUrl = request.imageUrl;
+    let productContext = { product_details: '', brand_name: '', brand_slogan: '', brand_details: '' };
     if (request.selectedProductId && !imageUrl) {
       const { data: product, error: productError } = await supabase
         .from('user_products')
         .select(`
           *,
-          user_product_photos (*)
+          user_product_photos (*),
+          brand:user_brands (
+            id,
+            brand_name,
+            brand_slogan,
+            brand_details
+          )
         `)
         .eq('id', request.selectedProductId)
         .eq('user_id', request.userId)
@@ -134,6 +141,14 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
 
       imageUrl = selectedPhoto.photo_url;
+
+      // Store product and brand context for AI prompt
+      productContext = {
+        product_details: product.product_details || '',
+        brand_name: product.brand?.brand_name || '',
+        brand_slogan: product.brand?.brand_slogan || '',
+        brand_details: product.brand?.brand_details || ''
+      };
     }
 
     if (!imageUrl) {
@@ -283,7 +298,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Wrap in IIFE to ensure error handling is reliable
     (async () => {
       try {
-        await startAIWorkflow(project.id, { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel });
+        await startAIWorkflow(project.id, { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel }, productContext);
       } catch (workflowError) {
         console.error('❌ Background workflow error:', workflowError);
         console.error('Stack trace:', workflowError instanceof Error ? workflowError.stack : 'No stack available');
@@ -361,7 +376,8 @@ async function startAIWorkflow(
   request: StartWorkflowRequest & {
     imageUrl: string;
     resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
-  }
+  },
+  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string }
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
@@ -419,7 +435,8 @@ async function startAIWorkflow(
       request.language,
       totalDurationSeconds,
       request.adCopy,
-      segmentCount
+      segmentCount,
+      productContext
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
@@ -472,7 +489,8 @@ async function generateImageBasedPrompts(
   language?: string,
   videoDurationSeconds?: number,
   userRequirements?: string,
-  segmentCount = 1
+  segmentCount = 1,
+  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string }
 ): Promise<Record<string, unknown>> {
   const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
   const perSegmentDuration = Math.max(8, Math.round(duration / Math.max(1, segmentCount)));
@@ -623,13 +641,13 @@ async function generateImageBasedPrompts(
             },
             {
               type: 'text',
-              text: `Analyze the product image and generate ONE creative video advertisement prompt based on the visual content.${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nIMPORTANT: Incorporate these user requirements into all aspects of the video advertisement (description, setting, camera, action, dialogue, etc.). The requirements should guide the creative direction while staying true to the product visuals.` : ''}
+              text: `Analyze the product image and generate ONE creative video advertisement prompt based on the visual content.${productContext && (productContext.product_details || productContext.brand_name) ? `\n\nProduct & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\nIMPORTANT: Use this context to enhance the advertisement while staying true to the product visuals. The brand identity and product features should guide the creative direction.` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nIMPORTANT: Incorporate these user requirements into all aspects of the video advertisement (description, setting, camera, action, dialogue, etc.). The requirements should guide the creative direction while staying true to the product visuals.` : ''}
 
 Focus on:
 - Visual elements in the image (product appearance, colors, textures, design)
 - Product category and potential use cases you can infer from the visuals
 - Emotional appeal based on visual presentation
-- Natural scene settings that match the product aesthetics${userRequirements ? '\n- User-specified requirements and creative direction' : ''}
+- Natural scene settings that match the product aesthetics${productContext && (productContext.product_details || productContext.brand_name) ? '\n- Product details and brand identity provided above' : ''}${userRequirements ? '\n- User-specified requirements and creative direction' : ''}
 ${segmentCount > 1 ? `- Maintain narrative continuity across ${segmentCount} segments (each approximately 8 seconds)` : ''}
 
 ${segmentCount > 1 ? `Segment Plan Requirements:

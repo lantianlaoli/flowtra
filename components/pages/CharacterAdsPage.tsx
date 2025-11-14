@@ -191,6 +191,7 @@ export default function CharacterAdsPage() {
       formData.append('video_model', selectedVideoModel);
       formData.append('video_aspect_ratio', videoAspectRatio);
       formData.append('accent', selectedAccent);
+      formData.append('language', selectedLanguage);
       if (customDialogue && customDialogue.trim()) {
         formData.append('custom_dialogue', customDialogue.trim());
       }

@@ -44,12 +44,19 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
   try {
     // Handle product selection - get the image URL from the selected product
     let imageUrl = request.imageUrl;
+    let productContext = { product_details: '', brand_name: '', brand_slogan: '', brand_details: '' };
     if (request.selectedProductId && !imageUrl) {
       const { data: product, error: productError } = await supabase
         .from('user_products')
         .select(`
           *,
-          user_product_photos (*)
+          user_product_photos (*),
+          brand:user_brands (
+            id,
+            brand_name,
+            brand_slogan,
+            brand_details
+          )
         `)
         .eq('id', request.selectedProductId)
         .single();
@@ -74,6 +81,14 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
       }
 
       imageUrl = selectedPhoto.photo_url;
+
+      // Store product and brand context for AI prompt
+      productContext = {
+        product_details: product.product_details || '',
+        brand_name: product.brand?.brand_name || '',
+        brand_slogan: product.brand?.brand_slogan || '',
+        brand_details: product.brand?.brand_details || ''
+      };
     }
 
     if (!imageUrl) {
@@ -175,6 +190,8 @@ export async function startMultiVariantItems(request: MultiVariantAdsRequest): P
           video_quality: request.videoQuality || request.sora2ProQuality || 'standard',
           // DEPRECATED: download_credits_used (downloads are now free)
           download_credits_used: 0,
+          // Store product/brand context for later use
+          product_context: productContext,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -1069,8 +1086,9 @@ export async function generateVideoDesignFromCover(coverImageUrl: string, elemen
     throw new Error('Project not found');
   }
 
-  // Extract product description from project
+  // Extract product description and context from project
   const productDescription = project.product_description as Record<string, unknown> | undefined;
+  const productContext = (project.product_context || {}) as { product_details?: string; brand_name?: string; brand_slogan?: string; brand_details?: string };
 
   // Extract element details for richer context
   const product = elementsData.product || 'the product';
@@ -1090,7 +1108,7 @@ PRODUCT INFORMATION:
 - Ad Copy/Main Message: ${adCopy}
 - Visual Style Guide: ${visualGuide}
 - Color Palette: Primary ${primaryColor}, Secondary ${secondaryColor}, Tertiary ${tertiaryColor}
-- Product Analysis: ${productDescription ? JSON.stringify(productDescription, null, 2) : 'See cover image for product details'}
+- Product Analysis: ${productDescription ? JSON.stringify(productDescription, null, 2) : 'See cover image for product details'}${productContext && (productContext.product_details || productContext.brand_name) ? `\n\nProduct & Brand Context from Database:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\nIMPORTANT: Use this authentic product and brand context to enhance the video script. The brand identity and product features should guide the creative direction.` : ''}
 
 REQUIREMENTS:
 Create a cinematic, professional advertisement video script that:

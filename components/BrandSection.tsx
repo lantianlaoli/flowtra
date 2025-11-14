@@ -5,17 +5,16 @@ import Image from 'next/image';
 import { Edit2, Trash2, ChevronDown, ChevronRight, Plus, Package } from 'lucide-react';
 import { UserBrand, UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import ProductItem from './ProductItem';
+import ProductCard from './ProductCard';
 import ConfirmDialog from './ConfirmDialog';
 
 interface BrandSectionProps {
   brand: UserBrand & { products?: UserProduct[] };
   onEditBrand: (brand: UserBrand) => void;
   onDeleteBrand: (brandId: string) => void;
-  onEditProduct: (productId: string, newName: string) => void;
+  onViewProduct: (product: UserProduct) => void;
+  onEditProduct: (product: UserProduct) => void;
   onDeleteProduct: (productId: string) => void;
-  onPhotoUpload: (productId: string, file: File) => void;
-  onDeletePhoto: (productId: string, photoId: string) => void;
   onAddProductToBrand: (brandId: string, mode: 'create' | 'select') => void;
   defaultExpanded?: boolean;
   deletingProductId?: string | null;
@@ -25,10 +24,9 @@ export default function BrandSection({
   brand,
   onEditBrand,
   onDeleteBrand,
+  onViewProduct,
   onEditProduct,
   onDeleteProduct,
-  onPhotoUpload,
-  onDeletePhoto,
   onAddProductToBrand,
   defaultExpanded = false,
   deletingProductId = null
@@ -175,9 +173,9 @@ export default function BrandSection({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-3 md:px-4 pb-3 md:pb-4 pt-2 space-y-3 border-t border-gray-100">
+            <div className="px-3 md:px-4 pb-3 md:pb-4 pt-2 border-t border-gray-100">
               {products.length === 0 ? (
-                <div className="ml-4 md:ml-8 text-center py-6 md:py-8 text-gray-400">
+                <div className="text-center py-6 md:py-8 text-gray-400">
                   <Package className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-2 text-gray-300" />
                   <p className="text-xs md:text-sm">No products in this brand yet</p>
                   <button
@@ -188,18 +186,19 @@ export default function BrandSection({
                   </button>
                 </div>
               ) : (
-                products.map((product) => (
-                  <ProductItem
-                    key={product.id}
-                    product={product}
-                    onEdit={onEditProduct}
-                    onDelete={onDeleteProduct}
-                    onPhotoUpload={onPhotoUpload}
-                    onDeletePhoto={onDeletePhoto}
-                    indented={true}
-                    isDeleting={deletingProductId === product.id}
-                  />
-                ))
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                  {products.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onView={onViewProduct}
+                      onEditClick={onEditProduct}
+                      onDelete={onDeleteProduct}
+                      isDeleting={deletingProductId === product.id}
+                      mode="compact"
+                    />
+                  ))}
+                </div>
               )}
             </div>
           </motion.div>

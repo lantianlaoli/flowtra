@@ -197,7 +197,7 @@ export default function ProductManager({
                 onDeletePhoto={handleDeletePhoto}
                 onSelect={onProductSelect}
                 isSelected={selectedProductId === product.id}
-                selectable={selectable}
+                mode={selectable ? 'selectable' : 'full'}
               />
             ))}
           </div>

@@ -5,9 +5,11 @@ import { Search, Loader2, Package, Tag, BarChart3 } from 'lucide-react';
 import { UserBrand, UserProduct } from '@/lib/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import BrandSection from './BrandSection';
-import ProductItem from './ProductItem';
+import ProductCard from './ProductCard';
+import ProductDetailModal from './ProductDetailModal';
 import CreateBrandModal from './CreateBrandModal';
 import EditBrandModal from './EditBrandModal';
+import EditProductModal from './EditProductModal';
 import CreateProductModal from './CreateProductModal';
 import SelectProductToBrandModal from './SelectProductToBrandModal';
 
@@ -37,6 +39,8 @@ export default function AssetsManager() {
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
   const [showSelectProductModal, setShowSelectProductModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<UserBrand | null>(null);
+  const [editingProduct, setEditingProduct] = useState<UserProduct | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<UserProduct | null>(null);
   const [selectedBrandIdForProduct, setSelectedBrandIdForProduct] = useState<string | null>(null);
   const [selectedBrandForProductSelection, setSelectedBrandForProductSelection] = useState<UserBrand | null>(null);
 
@@ -128,50 +132,26 @@ export default function AssetsManager() {
     }
   };
 
-  const handleEditProduct = async (productId: string, newName: string) => {
-    try {
-      // Find the product to get its current data
-      let product: UserProduct | undefined;
-      for (const brand of assetsData.brands) {
-        product = brand.products?.find(p => p.id === productId);
-        if (product) break;
-      }
-      if (!product) {
-        product = assetsData.unbrandedProducts.find(p => p.id === productId);
-      }
-      if (!product) return;
+  const handleEditProduct = (product: UserProduct) => {
+    setEditingProduct(product);
+  };
 
-      // Update local state immediately
-      const updateProductInState = (p: UserProduct) =>
-        p.id === productId ? { ...p, product_name: newName } : p;
+  const handleViewProduct = (product: UserProduct) => {
+    setViewingProduct(product);
+  };
 
-      setAssetsData(prev => ({
-        ...prev,
-        brands: prev.brands.map(b => ({
-          ...b,
-          products: b.products?.map(updateProductInState)
-        })),
-        unbrandedProducts: prev.unbrandedProducts.map(updateProductInState)
-      }));
-
-      // Update on server
-      const response = await fetch(`/api/user-products/${productId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_name: newName,
-          description: product.description
-        })
-      });
-
-      if (!response.ok) {
-        // Revert on error
-        await loadAssets();
-        throw new Error('Failed to update product name');
-      }
-    } catch (error) {
-      console.error('Error updating product:', error);
-    }
+  const handleProductUpdated = (updatedProduct: UserProduct) => {
+    setAssetsData(prev => ({
+      ...prev,
+      brands: prev.brands.map(b => ({
+        ...b,
+        products: b.products?.map(p => p.id === updatedProduct.id ? updatedProduct : p)
+      })),
+      unbrandedProducts: prev.unbrandedProducts.map(p =>
+        p.id === updatedProduct.id ? updatedProduct : p
+      )
+    }));
+    showSuccess('Product updated successfully');
   };
 
   const handleDeleteProduct = async (productId: string) => {
@@ -440,10 +420,9 @@ export default function AssetsManager() {
                 brand={brand}
                 onEditBrand={handleEditBrand}
                 onDeleteBrand={handleDeleteBrand}
+                onViewProduct={handleViewProduct}
                 onEditProduct={handleEditProduct}
                 onDeleteProduct={handleDeleteProduct}
-                onPhotoUpload={handlePhotoUpload}
-                onDeletePhoto={handleDeletePhoto}
                 onAddProductToBrand={handleAddProductToBrand}
                 defaultExpanded={!!searchTerm}
                 deletingProductId={deletingProductId}
@@ -459,17 +438,16 @@ export default function AssetsManager() {
                     Unbranded Products ({filteredUnbrandedProducts.length})
                   </h3>
                 </div>
-                <div className="space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                   {filteredUnbrandedProducts.map((product) => (
-                    <ProductItem
+                    <ProductCard
                       key={product.id}
                       product={product}
-                      onEdit={handleEditProduct}
+                      onView={handleViewProduct}
+                      onEditClick={handleEditProduct}
                       onDelete={handleDeleteProduct}
-                      onPhotoUpload={handlePhotoUpload}
-                      onDeletePhoto={handleDeletePhoto}
-                      indented={false}
                       isDeleting={deletingProductId === product.id}
+                      mode="compact"
                     />
                   ))}
                 </div>
@@ -509,6 +487,13 @@ export default function AssetsManager() {
         onBrandUpdated={handleBrandUpdated}
       />
 
+      <EditProductModal
+        isOpen={!!editingProduct}
+        product={editingProduct}
+        onClose={() => setEditingProduct(null)}
+        onProductUpdated={handleProductUpdated}
+      />
+
       <CreateProductModal
         isOpen={showCreateProductModal}
         onClose={() => {
@@ -528,6 +513,17 @@ export default function AssetsManager() {
         brandName={selectedBrandForProductSelection?.brand_name || ''}
         availableProducts={assetsData.unbrandedProducts}
         onProductsSelected={handleProductsSelectedForBrand}
+      />
+
+      <ProductDetailModal
+        isOpen={!!viewingProduct}
+        onClose={() => setViewingProduct(null)}
+        product={viewingProduct}
+        onEdit={handleEditProduct}
+        onDelete={handleDeleteProduct}
+        onPhotoUpload={handlePhotoUpload}
+        onDeletePhoto={handleDeletePhoto}
+        isDeleting={deletingProductId === viewingProduct?.id}
       />
     </div>
   );

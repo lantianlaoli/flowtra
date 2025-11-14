@@ -89,6 +89,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Invalid image file' }, { status: 400 });
     }
 
+    // Check if product already has a photo (single photo per product constraint)
+    const { data: existingPhotos, error: photoCheckError } = await supabase
+      .from('user_product_photos')
+      .select('id')
+      .eq('product_id', id)
+      .eq('user_id', userId);
+
+    if (photoCheckError) {
+      throw photoCheckError;
+    }
+
+    if (existingPhotos && existingPhotos.length > 0) {
+      return NextResponse.json(
+        { error: 'This product already has a photo. Please delete the existing photo before uploading a new one.' },
+        { status: 400 }
+      );
+    }
+
     // Upload to storage using product photo utility
     const uploadResult = await uploadProductPhotoToStorage(file, userId);
 
