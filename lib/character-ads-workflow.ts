@@ -214,6 +214,7 @@ For Scene 1+ (video prompts):
 - Include dialogue with casual, spontaneous tone (under 150 characters)
 - IMPORTANT: Write ALL dialogue in ENGLISH. The 'language' field is metadata that tells the video generation API what language to use for voiceover. The actual dialogue text should always be in English.
 - CRITICAL LANGUAGE NOTE: The character will speak ${languageName} in the final video (handled automatically by the video generation API based on the 'language' field), but you must write the dialogue text in English.
+- DO NOT include a "language" field inside individual scene prompts - language is set at the top level only
 - Describe accent and voice style consistently
 - Prefix video prompts with: "dialogue, the character in the video says:"
 - Use ${voiceType}
@@ -477,8 +478,16 @@ async function generateVideoWithKIE(
   console.log('  - language parameter:', language);
   console.log('  - language type:', typeof language);
 
+  // DEFENSIVE: Remove any "language" field from prompt object (should only be in prefix)
+  const cleanedPrompt = { ...prompt };
+  if ('language' in cleanedPrompt) {
+    console.warn('⚠️ Removing "language" field from prompt object (it should only be in the prefix)');
+    console.warn('  - Removed value:', cleanedPrompt.language);
+    delete cleanedPrompt.language;
+  }
+
   // Convert prompt object to string for API
-  const basePrompt = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
+  const basePrompt = typeof cleanedPrompt === 'string' ? cleanedPrompt : JSON.stringify(cleanedPrompt);
 
   // Add language metadata if not English (simple format for VEO3 API)
   const lang = (language || 'en') as LanguageCode;
@@ -1065,6 +1074,10 @@ export async function processCharacterAdsProject(
         for (let i = 1; i <= videoScenes; i++) {
           const videoPrompt = (project.generated_prompts?.scenes as Array<{prompt: unknown}>)?.[i]?.prompt;
 
+          console.log(`\n🎬 Generating video for scene ${i}/${videoScenes}:`);
+          console.log('  - Project language field:', project.language);
+          console.log('  - Video prompt object:', JSON.stringify(videoPrompt, null, 2));
+
           const { taskId } = await generateVideoWithKIE(
             videoPrompt as Record<string, unknown>,
             actualVideoModel, // Use actual video model (sora2 if detected)
@@ -1072,6 +1085,8 @@ export async function processCharacterAdsProject(
             project.video_aspect_ratio as '16:9' | '9:16' | undefined,
             project.language // Pass language for video prompt
           );
+
+          console.log(`  ✅ Scene ${i} video task created: ${taskId}\n`);
 
           videoTaskIds.push(taskId);
 
