@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 import { CheckCircle, XCircle, Loader2, Download, Play, X } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 
@@ -250,10 +251,12 @@ function GenerationCard({ generation, onDownload, onRetry }: GenerationCardProps
                   onEnded={handleStop}
                 />
               ) : coverUrl ? (
-                <img
+                <Image
                   src={coverUrl}
                   alt="Video cover"
-                  className="w-full h-full object-contain"
+                  fill
+                  unoptimized
+                  className="object-contain"
                 />
               ) : (
                 <div className="w-full h-full bg-gray-900" />

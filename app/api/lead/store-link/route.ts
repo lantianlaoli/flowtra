@@ -32,8 +32,8 @@ export async function POST(req: Request) {
     // Fetch user email for admin notification
     let userEmail: string | null = null
     try {
-      // Some environments export clerkClient as a function
-      const client = typeof (clerkClient as any) === 'function' ? await (clerkClient as any)() : clerkClient
+      // Retrieve user from Clerk (handle both function and object exports)
+      const client: any = typeof (clerkClient as any) === 'function' ? await (clerkClient as any)() : (clerkClient as any)
       const user = await client.users.getUser(userId)
       userEmail = user?.emailAddresses?.[0]?.emailAddress || null
     } catch (e) {
