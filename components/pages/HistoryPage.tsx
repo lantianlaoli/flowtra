@@ -1264,8 +1264,9 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                     </button>
                                   )}
 
+                                  {/* TikTok feature temporarily disabled - can be re-enabled by removing "false &&" */}
                                   {/* TikTok Publish Button - Only for ads with videos */}
-                                  {'videoUrl' in item && item.videoUrl && (
+                                  {false && 'videoUrl' in item && item.videoUrl && (
                                     <button
                                       onClick={() => handleTikTokPublish(item)}
                                       className={cn(
@@ -1422,7 +1423,9 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
         </div>
       </div>
 
+      {/* TikTok feature temporarily disabled - can be re-enabled by removing "false &&" */}
       {/* TikTok Publish Dialog */}
+      {false && (
       <TikTokPublishDialog
         isOpen={tiktokDialogOpen}
         onClose={() => {
@@ -1431,11 +1434,12 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
         }}
         historyId={selectedItemForTikTok?.id || ''}
         coverImageUrl={
-          selectedItemForTikTok && 'coverImageUrl' in selectedItemForTikTok
-            ? selectedItemForTikTok.coverImageUrl
+          (selectedItemForTikTok && 'coverImageUrl' in (selectedItemForTikTok || {}))
+            ? (selectedItemForTikTok as StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem).coverImageUrl
             : undefined
         }
       />
+      )}
     </div>
   );
 }

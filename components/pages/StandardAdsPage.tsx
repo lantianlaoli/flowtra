@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { useStandardAdsWorkflow } from '@/hooks/useStandardAdsWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Sparkles, Coins, TrendingUp } from 'lucide-react';
+import { Sparkles, Coins, TrendingUp, AlertCircle, Boxes } from 'lucide-react';
 
 // New components for redesigned UX
 import PlatformSelector, { type Platform } from '@/components/ui/PlatformSelector';
@@ -184,6 +185,34 @@ export default function StandardAdsPage() {
   const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const isMountedRef = useRef(true);
+
+  // Modal and banner states for user guidance
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [validationMessage, setValidationMessage] = useState('');
+  const [hasAvailableAssets, setHasAvailableAssets] = useState(true);
+
+  // Check if user has selected assets (simplified approach)
+  useEffect(() => {
+    const hasAssets = selectedBrand !== null || selectedProduct !== null;
+    setHasAvailableAssets(hasAssets);
+  }, [selectedBrand, selectedProduct]);
+
+  // Show welcome modal for first-time visitors with no selections
+  useEffect(() => {
+    const hasSeenWelcome = localStorage.getItem('flowtra_standard_ads_welcome_seen');
+    const hasNoSelections = !selectedBrand && !selectedProduct;
+
+    if (!hasSeenWelcome && hasNoSelections && generations.length === 0) {
+      // Wait a bit before showing to let the page load
+      const timer = setTimeout(() => {
+        setShowWelcomeModal(true);
+        localStorage.setItem('flowtra_standard_ads_welcome_seen', 'true');
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [selectedBrand, selectedProduct, generations.length]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -525,7 +554,21 @@ export default function StandardAdsPage() {
 
   // Generate button handler
   const handleStartWorkflow = async () => {
-    if (!selectedProduct || !selectedBrand || isGenerating) return;
+    // Validation: Check if brand is selected
+    if (!selectedBrand) {
+      setValidationMessage('Please select a brand before generating. Go to Assets page to create one if needed.');
+      setShowValidationModal(true);
+      return;
+    }
+
+    // Validation: Check if product is selected
+    if (!selectedProduct) {
+      setValidationMessage('Please select a product before generating. Go to Assets page to create one if needed.');
+      setShowValidationModal(true);
+      return;
+    }
+
+    if (isGenerating) return;
 
     setIsGenerating(true);
 
@@ -665,6 +708,26 @@ export default function StandardAdsPage() {
             </div>
           </header>
 
+          {/* No Assets Warning Banner */}
+          {!hasAvailableAssets && (
+            <div className="px-6 sm:px-8 lg:px-10 mb-4">
+              <div className="max-w-7xl mx-auto p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                  <p className="text-sm text-yellow-800">
+                    <strong>Action Required:</strong> You need to create brands and products before generating videos.
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard/assets"
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  Go to Assets
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Main Content Area - Progress Display */}
           <section className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-32 min-h-0">
             <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
@@ -775,6 +838,68 @@ export default function StandardAdsPage() {
         </div>
       </div>
     </div>
+
+    {/* Welcome Modal - First time visitors with no assets */}
+    {showWelcomeModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <Boxes className="w-6 h-6 text-blue-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">Welcome to Standard Ads!</h3>
+          </div>
+          <p className="text-gray-600 mb-6">
+            To create amazing videos, you need to set up your brands and products first.
+            Would you like to go to the Assets page now?
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowWelcomeModal(false)}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Maybe Later
+            </button>
+            <Link
+              href="/dashboard/assets"
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center font-medium"
+            >
+              Go to Assets
+            </Link>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Validation Modal - Missing brand/product selection */}
+    {showValidationModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6 text-yellow-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">Configuration Required</h3>
+          </div>
+          <p className="text-gray-600 mb-6">{validationMessage}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowValidationModal(false)}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Got it
+            </button>
+            <Link
+              href="/dashboard/assets"
+              onClick={() => setShowValidationModal(false)}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center font-medium"
+            >
+              Go to Assets
+            </Link>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

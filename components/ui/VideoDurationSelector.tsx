@@ -114,23 +114,33 @@ export default function VideoDurationSelector({
         Math.min(preferredHeight, openUpwards ? spaceAbove : spaceBelow)
       );
       const top = openUpwards
-        ? rect.top + window.scrollY - maxHeight - gap
-        : rect.bottom + window.scrollY + gap;
+        ? rect.top - maxHeight - gap
+        : rect.bottom + gap;
 
       setDropdownPosition({
         top: Math.max(8, top),
-        left: rect.left + window.scrollX,
+        left: rect.left,
         width: rect.width,
         maxHeight
       });
     };
 
     updatePosition();
+
+    // Close dropdown on external scroll (but not when scrolling inside the dropdown itself)
+    const handleScroll = (event: Event) => {
+      // Don't close if scrolling inside the dropdown portal
+      if (portalRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setIsOpen(false);
+    };
+
     window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('scroll', handleScroll, true);
     return () => {
       window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('scroll', handleScroll, true);
     };
   }, [isOpen]);
 

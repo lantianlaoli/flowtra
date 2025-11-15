@@ -3,7 +3,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
-import { CheckCircle, XCircle, Loader2, Download, Play, X } from 'lucide-react';
+import Link from 'next/link';
+import { CheckCircle, XCircle, Loader2, Download, Play, X, Boxes } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 
 export interface Generation {
@@ -43,12 +44,54 @@ export default function GenerationProgressDisplay({
         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
           <Play className="w-10 h-10 text-gray-400" />
         </div>
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">
-          Ready to Create Amazing Videos
+        <h3 className="text-xl font-semibold text-gray-900 mb-4">
+          Get Started in 3 Easy Steps
         </h3>
-        <p className="text-gray-500 max-w-md">
-          Select your platform, brand, product, and hit generate to create your first video.
-        </p>
+
+        {/* Step-by-step guide */}
+        <ol className="text-left space-y-3 mb-6 max-w-md">
+          <li className="flex items-start gap-3">
+            <span className="text-lg">📦</span>
+            <div>
+              <strong className="text-gray-900">Step 1:</strong>
+              <span className="text-gray-600"> Create your brands & products in Assets</span>
+            </div>
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="text-lg">🎯</span>
+            <div>
+              <strong className="text-gray-900">Step 2:</strong>
+              <span className="text-gray-600"> Select platform, brand, and product above</span>
+            </div>
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="text-lg">✨</span>
+            <div>
+              <strong className="text-gray-900">Step 3:</strong>
+              <span className="text-gray-600"> Click Generate to create your video</span>
+            </div>
+          </li>
+        </ol>
+
+        {/* Tutorial button */}
+        <a
+          href="https://www.tiktok.com/@laolilantian/video/7572766914779319559?lang=en"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm mb-3"
+        >
+          <Play className="w-4 h-4" />
+          Watch Tutorial
+        </a>
+
+        {/* Go to Assets button */}
+        <Link
+          href="/dashboard/assets"
+          className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+        >
+          <Boxes className="w-4 h-4" />
+          Go to Assets
+        </Link>
       </div>
     );
   }

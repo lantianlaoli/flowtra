@@ -9,6 +9,7 @@ import HeroSection from '@/components/pages/landing/sections/HeroSection';
 import SuccessStoriesSection from '@/components/pages/landing/sections/SuccessStoriesSection';
 import FeaturesSection from '@/components/pages/landing/sections/FeaturesSection';
 import ComparisonSection from '@/components/pages/landing/sections/ComparisonSection';
+import ModelPricingSection from '@/components/pages/landing/sections/ModelPricingSection';
 import PricingSection from '@/components/pages/landing/sections/PricingSection';
 
 const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
@@ -44,6 +45,9 @@ export default async function LandingPage() {
 
         {/* Comparison Section */}
         <ComparisonSection />
+
+        {/* Model Pricing Section */}
+        <ModelPricingSection />
 
         {/* Pricing Section */}
         <PricingSection />

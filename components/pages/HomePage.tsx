@@ -408,11 +408,15 @@ function DiscoverSection() {
                     onClick={(e) => { e.stopPropagation(); toggleVolumeClick(item.id); }}
                     className="absolute top-2 right-2 p-2 rounded-full bg-black/50 text-white opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   >
-                    {audibleId === item.id ? (
-                      <Volume2 className="w-4 h-4" />
-                    ) : (
-                      <VolumeX className="w-4 h-4" />
-                    )}
+                    {(() => {
+                      const el = videoRefs.current[item.id];
+                      const isMuted = !el || el.muted;
+                      return isMuted ? (
+                        <VolumeX className="w-4 h-4" />
+                      ) : (
+                        <Volume2 className="w-4 h-4" />
+                      );
+                    })()}
                   </button>
                 )}
               </div>
