@@ -12,6 +12,7 @@ import { Sparkles, Coins, TrendingUp, AlertCircle, Boxes } from 'lucide-react';
 // New components for redesigned UX
 import PlatformSelector, { type Platform } from '@/components/ui/PlatformSelector';
 import BrandProductSelector from '@/components/ui/BrandProductSelector';
+import CompetitorAdSelector from '@/components/ui/CompetitorAdSelector';
 import RequirementsInput from '@/components/ui/RequirementsInput';
 import ConfigPopover from '@/components/ui/ConfigPopover';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
@@ -31,7 +32,7 @@ import {
 } from '@/lib/constants';
 import { Format } from '@/components/ui/FormatSelector';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
-import { UserProduct, UserBrand } from '@/lib/supabase';
+import { UserProduct, UserBrand, CompetitorAd } from '@/lib/supabase';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -170,6 +171,7 @@ export default function StandardAdsPage() {
   const [videoDuration, setVideoDuration] = useState<VideoDuration>('8');
   const [selectedModel, setSelectedModel] = useState<VideoModel>('veo3_fast');
   const [format, setFormat] = useState<Format>('9:16');
+  const [watermarkEnabled, setWatermarkEnabled] = useState(true); // NEW: Watermark toggle
 
   // Image and language
   const [selectedImageModel] = useState<'nano_banana' | 'seedream'>('nano_banana');
@@ -183,20 +185,14 @@ export default function StandardAdsPage() {
   const elementsCount = 1;
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
+  const [selectedCompetitorAd, setSelectedCompetitorAd] = useState<CompetitorAd | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const isMountedRef = useRef(true);
 
-  // Modal and banner states for user guidance
+  // Modal states for user guidance
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
-  const [hasAvailableAssets, setHasAvailableAssets] = useState(true);
-
-  // Check if user has selected assets (simplified approach)
-  useEffect(() => {
-    const hasAssets = selectedBrand !== null || selectedProduct !== null;
-    setHasAvailableAssets(hasAssets);
-  }, [selectedBrand, selectedProduct]);
 
   // Show welcome modal for first-time visitors with no selections
   useEffect(() => {
@@ -293,6 +289,15 @@ export default function StandardAdsPage() {
     const status = STATUS_MAP[normalized] ||
       (payload.isCompleted ? 'completed' : payload.isFailed ? 'failed' : 'processing');
 
+    console.log(`[StandardAdsPage] Updating project ${projectId}:`, {
+      normalized,
+      status,
+      isCompleted: payload.isCompleted,
+      isFailed: payload.isFailed,
+      current_step: payload.current_step,
+      error_message: payload.data?.errorMessage
+    });
+
     const stage = getStageLabel(status, payload.current_step);
     const progress = typeof payload.progress_percentage === 'number'
       ? payload.progress_percentage
@@ -358,7 +363,11 @@ export default function StandardAdsPage() {
 
   const activeProjectIds = useMemo(() => {
     const ids = generations
-      .filter(gen => (gen.status === 'pending' || gen.status === 'processing') && gen.projectId)
+      .filter(gen => {
+        // Poll if pending, processing, or if status just changed to failed/completed (to ensure final status is fetched)
+        const shouldPoll = (gen.status === 'pending' || gen.status === 'processing') && gen.projectId;
+        return shouldPoll;
+      })
       .map(gen => gen.projectId as string);
     return Array.from(new Set(ids));
   }, [generations]);
@@ -593,9 +602,13 @@ export default function StandardAdsPage() {
     setGenerations(prev => [newGeneration, ...prev]);
 
     try {
-      const watermarkConfig = {
+      const watermarkConfig = watermarkEnabled ? {
         enabled: true,
         text: derivedWatermark,
+        location: 'bottom-right' as const,
+      } : {
+        enabled: false,
+        text: '',
         location: 'bottom-right' as const,
       };
 
@@ -605,7 +618,8 @@ export default function StandardAdsPage() {
         elementsCount,
         format,
         true, // shouldGenerateVideo - always true now
-        selectedBrand.id
+        selectedBrand.id,
+        selectedCompetitorAd?.id || null // Pass competitor ad ID
       );
 
       const projectId = workflowResult?.historyId || workflowResult?.projectId;
@@ -708,26 +722,6 @@ export default function StandardAdsPage() {
             </div>
           </header>
 
-          {/* No Assets Warning Banner */}
-          {!hasAvailableAssets && (
-            <div className="px-6 sm:px-8 lg:px-10 mb-4">
-              <div className="max-w-7xl mx-auto p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-                  <p className="text-sm text-yellow-800">
-                    <strong>Action Required:</strong> You need to create brands and products before generating videos.
-                  </p>
-                </div>
-                <Link
-                  href="/dashboard/assets"
-                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors text-sm font-medium whitespace-nowrap"
-                >
-                  Go to Assets
-                </Link>
-              </div>
-            </div>
-          )}
-
           {/* Main Content Area - Progress Display */}
           <section className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-32 min-h-0">
             <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
@@ -801,6 +795,8 @@ export default function StandardAdsPage() {
               onLanguageChange={setSelectedLanguage}
               format={format}
               onFormatChange={setFormat}
+              watermarkEnabled={watermarkEnabled}
+              onWatermarkEnabledChange={setWatermarkEnabled}
               disabled={isGenerating}
               variant="minimal"
             />
@@ -838,6 +834,20 @@ export default function StandardAdsPage() {
         </div>
       </div>
     </div>
+
+    {/* Competitor Ad Selector - Shows below composer when brand is selected */}
+    {selectedBrand && (
+      <div className="fixed bottom-[calc(80px)] left-0 right-0 md:left-72 z-30 px-4 sm:px-8 lg:px-10 pb-4">
+        <div className="max-w-7xl mx-auto">
+          <CompetitorAdSelector
+            brandId={selectedBrand.id}
+            brandName={selectedBrand.brand_name}
+            selectedCompetitorAd={selectedCompetitorAd}
+            onSelect={setSelectedCompetitorAd}
+          />
+        </div>
+      </div>
+    )}
 
     {/* Welcome Modal - First time visitors with no assets */}
     {showWelcomeModal && (

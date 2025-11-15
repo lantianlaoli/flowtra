@@ -226,7 +226,8 @@ export const useStandardAdsWorkflow = (
     currentElementsCount?: number,
     currentImageSize?: string,
     generateVideo?: boolean,
-    selectedBrandId?: string
+    selectedBrandId?: string,
+    competitorAdId?: string | null
   ) => {
     const previousStatus = state.workflowStatus;
 
@@ -265,6 +266,7 @@ export const useStandardAdsWorkflow = (
         sora2ProQuality: selectedModel === 'sora2_pro' ? resolvedQuality : undefined,
         adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
         selectedBrandId: selectedBrandId,
+        competitorAdId: competitorAdId || undefined, // Add competitor ad ID
         language: selectedLanguage,
         useCustomScript: useCustomScript,
         customScript: customScript?.trim() ? customScript.trim() : undefined

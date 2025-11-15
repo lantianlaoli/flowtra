@@ -15,6 +15,7 @@ export interface StartWorkflowRequest {
   imageUrl?: string;
   selectedProductId?: string;
   selectedBrandId?: string; // NEW: Brand selection for ending frame
+  competitorAdId?: string; // NEW: Competitor ad reference for creative direction
   userId: string;
   videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   imageModel?: 'auto' | 'nano_banana' | 'seedream';
@@ -159,6 +160,30 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       };
     }
 
+    // Load competitor ad if provided (optional reference for creative direction)
+    let competitorAdContext: { file_url: string; file_type: 'image' | 'video'; competitor_name: string } | undefined;
+    if (request.competitorAdId) {
+      console.log(`🎯 Loading competitor ad: ${request.competitorAdId}`);
+      const { data: competitorAd, error: competitorError } = await supabase
+        .from('competitor_ads')
+        .select('ad_file_url, file_type, competitor_name')
+        .eq('id', request.competitorAdId)
+        .eq('user_id', request.userId)
+        .single();
+
+      if (competitorAd && !competitorError) {
+        competitorAdContext = {
+          file_url: competitorAd.ad_file_url,
+          file_type: competitorAd.file_type as 'image' | 'video',
+          competitor_name: competitorAd.competitor_name
+        };
+        console.log(`✅ Competitor ad loaded: ${competitorAdContext.competitor_name} (${competitorAdContext.file_type})`);
+      } else {
+        console.warn(`⚠️ Competitor ad not found or access denied: ${request.competitorAdId}`, competitorError);
+        // Don't fail the workflow if competitor ad is not found, just proceed without it
+      }
+    }
+
     // Convert 'auto' to specific model
     let actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
     if (request.videoModel === 'auto') {
@@ -247,6 +272,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         original_image_url: imageUrl,
         selected_product_id: request.selectedProductId,
         selected_brand_id: request.selectedBrandId, // NEW: Brand selection
+        competitor_ad_id: request.competitorAdId || null, // NEW: Competitor ad reference
         video_model: actualVideoModel,
         video_aspect_ratio: request.videoAspectRatio || '16:9',
         status: 'processing',
@@ -298,7 +324,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Wrap in IIFE to ensure error handling is reliable
     (async () => {
       try {
-        await startAIWorkflow(project.id, { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel }, productContext);
+        await startAIWorkflow(
+          project.id,
+          { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel },
+          productContext,
+          competitorAdContext // Pass competitor ad context for reference
+        );
       } catch (workflowError) {
         console.error('❌ Background workflow error:', workflowError);
         console.error('Stack trace:', workflowError instanceof Error ? workflowError.stack : 'No stack available');
@@ -377,7 +408,8 @@ async function startAIWorkflow(
     imageUrl: string;
     resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   },
-  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string }
+  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
+  competitorAdContext?: { file_url: string; file_type: 'image' | 'video'; competitor_name: string }
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
@@ -436,7 +468,8 @@ async function startAIWorkflow(
       totalDurationSeconds,
       request.adCopy,
       segmentCount,
-      productContext
+      productContext,
+      competitorAdContext // Pass competitor ad as reference
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
@@ -484,14 +517,79 @@ async function startAIWorkflow(
   }
 }
 
+async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
+  try {
+    console.log(`[fetchVideoAsBase64] Starting download: ${videoUrl}`);
+    const startTime = Date.now();
+
+    // Set timeout for video download (60 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    const response = await fetch(videoUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const downloadTime = Date.now() - startTime;
+    const sizeInMB = (arrayBuffer.byteLength / (1024 * 1024)).toFixed(2);
+
+    console.log(`[fetchVideoAsBase64] Downloaded ${sizeInMB}MB in ${downloadTime}ms`);
+
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+
+    // Detect mime type from URL extension
+    let mimeType = 'video/mp4';
+    if (videoUrl.endsWith('.webm')) mimeType = 'video/webm';
+    else if (videoUrl.endsWith('.mov')) mimeType = 'video/mov';
+    else if (videoUrl.endsWith('.mpeg')) mimeType = 'video/mpeg';
+
+    const base64Url = `data:${mimeType};base64,${base64}`;
+    const base64SizeInMB = (base64Url.length / (1024 * 1024)).toFixed(2);
+    console.log(`[fetchVideoAsBase64] Base64 size: ${base64SizeInMB}MB`);
+
+    return base64Url;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('[fetchVideoAsBase64] Download timeout after 60 seconds');
+      throw new Error('Video download timeout (60s limit exceeded)');
+    }
+    console.error('[fetchVideoAsBase64] Error fetching video:', error);
+    throw error;
+  }
+}
+
 async function generateImageBasedPrompts(
   imageUrl: string,
   language?: string,
   videoDurationSeconds?: number,
   userRequirements?: string,
   segmentCount = 1,
-  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string }
+  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
+  competitorAdContext?: { file_url: string; file_type: 'image' | 'video'; competitor_name: string }
 ): Promise<Record<string, unknown>> {
+  // Convert competitor video to base64 if needed (Gemini only accepts YouTube URLs or base64 for videos)
+  let processedCompetitorContext = competitorAdContext;
+  if (competitorAdContext && competitorAdContext.file_type === 'video') {
+    console.log(`[generateImageBasedPrompts] Converting competitor video to base64: ${competitorAdContext.file_url}`);
+    try {
+      const base64VideoUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
+      processedCompetitorContext = {
+        ...competitorAdContext,
+        file_url: base64VideoUrl
+      };
+      console.log(`[generateImageBasedPrompts] Video converted to base64 successfully`);
+    } catch (error) {
+      console.error('[generateImageBasedPrompts] Failed to convert video to base64:', error);
+      // Fallback: skip competitor video if conversion fails
+      processedCompetitorContext = undefined;
+    }
+  }
+
   const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
   const perSegmentDuration = Math.max(8, Math.round(duration / Math.max(1, segmentCount)));
   const dialogueWordLimit = Math.max(12, Math.round(perSegmentDuration * 2.2));
@@ -639,15 +737,51 @@ async function generateImageBasedPrompts(
               type: 'image_url',
               image_url: { url: imageUrl }
             },
+            // Add competitor ad as reference if provided
+            ...(processedCompetitorContext ? (
+              processedCompetitorContext.file_type === 'video'
+                ? [{
+                    type: 'video_url' as const,
+                    video_url: { url: processedCompetitorContext.file_url }
+                  }]
+                : [{
+                    type: 'image_url' as const,
+                    image_url: { url: processedCompetitorContext.file_url }
+                  }]
+            ) : []),
             {
               type: 'text',
-              text: `Analyze the product image and generate ONE creative video advertisement prompt based on the visual content.${productContext && (productContext.product_details || productContext.brand_name) ? `\n\nProduct & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\nIMPORTANT: Use this context to enhance the advertisement while staying true to the product visuals. The brand identity and product features should guide the creative direction.` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nIMPORTANT: Incorporate these user requirements into all aspects of the video advertisement (description, setting, camera, action, dialogue, etc.). The requirements should guide the creative direction while staying true to the product visuals.` : ''}
+              text: `Analyze the product image${processedCompetitorContext ? ` and competitor ${processedCompetitorContext.file_type}` : ''} and generate ONE creative video advertisement prompt.
+
+${processedCompetitorContext ? `
+📺 COMPETITOR AD REFERENCE (${processedCompetitorContext.file_type.toUpperCase()}):
+The competitor ${processedCompetitorContext.file_type} is from "${processedCompetitorContext.competitor_name}". This is provided as a REFERENCE for creative inspiration.
+
+IMPORTANT INSTRUCTIONS FOR USING COMPETITOR REFERENCE:
+1. Study the competitor ad's:
+   - Visual style and aesthetics (colors, composition, lighting)
+   - Storytelling approach and narrative structure
+   - Camera angles, movements, and shot types
+   - Tone and emotional appeal
+   - Pacing and transitions${processedCompetitorContext.file_type === 'video' ? '' : ' (if applicable)'}
+
+2. Generate an advertisement that:
+   - Uses SIMILAR creative techniques and visual style
+   - Matches the TONE and production quality
+   - Follows a COMPARABLE storytelling structure
+   - BUT showcases OUR product (from the product image) instead
+   - Maintains the same level of engagement and professionalism
+
+3. DO NOT copy exact elements, but learn from their approach to create an equally compelling ad for OUR product.
+` : ''}
+
+${productContext && (productContext.product_details || productContext.brand_name) ? `\nProduct & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\nIMPORTANT: Use this context to enhance the advertisement while staying true to the product visuals. The brand identity and product features should guide the creative direction.` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nIMPORTANT: Incorporate these user requirements into all aspects of the video advertisement (description, setting, camera, action, dialogue, etc.). The requirements should guide the creative direction while staying true to the product visuals.` : ''}
 
 Focus on:
-- Visual elements in the image (product appearance, colors, textures, design)
+- Visual elements in the ${processedCompetitorContext ? 'product' : ''} image (product appearance, colors, textures, design)
 - Product category and potential use cases you can infer from the visuals
 - Emotional appeal based on visual presentation
-- Natural scene settings that match the product aesthetics${productContext && (productContext.product_details || productContext.brand_name) ? '\n- Product details and brand identity provided above' : ''}${userRequirements ? '\n- User-specified requirements and creative direction' : ''}
+- Natural scene settings that match the product aesthetics${productContext && (productContext.product_details || productContext.brand_name) ? '\n- Product details and brand identity provided above' : ''}${userRequirements ? '\n- User-specified requirements and creative direction' : ''}${processedCompetitorContext ? '\n- Creative techniques and style from the competitor reference' : ''}
 ${segmentCount > 1 ? `- Maintain narrative continuity across ${segmentCount} segments (each approximately 8 seconds)` : ''}
 
 ${segmentCount > 1 ? `Segment Plan Requirements:
@@ -665,7 +799,7 @@ DO NOT include:
 - Pre-existing brand positioning or assumptions
 
 Generate a JSON object with these elements:
-- description: Main scene description based on product visuals${userRequirements ? ' and user requirements' : ''}
+- description: Main scene description based on product visuals${userRequirements ? ' and user requirements' : ''}${processedCompetitorContext ? ' (inspired by competitor reference style)' : ''}
 - setting: Natural environment that suits the product${userRequirements ? ' (consider user preferences)' : ''}
 - camera_type: Cinematic shot type that showcases the product best
 - camera_movement: Dynamic camera movement

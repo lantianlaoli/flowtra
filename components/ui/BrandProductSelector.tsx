@@ -35,20 +35,24 @@ export default function BrandProductSelector({
 
   // Load all brands and their products on mount
   useEffect(() => {
+    console.log('[BrandProductSelector] Component mounted, calling loadAllData');
     loadAllData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update displayed products when brand changes (instant, from cache)
   useEffect(() => {
     if (selectedBrand) {
       const products = allProducts.get(selectedBrand.id) || [];
+      console.log('[BrandProductSelector] Brand selected:', selectedBrand.brand_name, '| Products found:', products.length);
       setBrandProducts(products);
     } else {
+      console.log('[BrandProductSelector] No brand selected');
       setBrandProducts([]);
       onProductSelect(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBrand?.id, allProducts]);
+  }, [selectedBrand, allProducts]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -66,6 +70,7 @@ export default function BrandProductSelector({
   }, []);
 
   const loadAllData = async () => {
+    console.log('[BrandProductSelector] Loading brands and products...');
     setIsLoading(true);
     try {
       // Step 1: Load all brands
@@ -73,11 +78,12 @@ export default function BrandProductSelector({
       const brandsData = await brandsResponse.json();
 
       if (!brandsData.success || !Array.isArray(brandsData.brands)) {
-        console.error('Failed to load brands');
+        console.error('[BrandProductSelector] Failed to load brands');
         return;
       }
 
       const loadedBrands = brandsData.brands;
+      console.log('[BrandProductSelector] Loaded brands:', loadedBrands.length);
       setBrands(loadedBrands);
 
       // Step 2: Load products for all brands in parallel
@@ -87,11 +93,12 @@ export default function BrandProductSelector({
           const data = await response.json();
 
           if (data.success && Array.isArray(data.products)) {
+            console.log(`[BrandProductSelector] Brand "${brand.brand_name}" has ${data.products.length} products`);
             return { brandId: brand.id, products: data.products };
           }
           return { brandId: brand.id, products: [] };
         } catch (error) {
-          console.error(`Error loading products for brand ${brand.id}:`, error);
+          console.error(`[BrandProductSelector] Error loading products for brand ${brand.id}:`, error);
           return { brandId: brand.id, products: [] };
         }
       });
@@ -104,21 +111,24 @@ export default function BrandProductSelector({
         productsMap.set(brandId, products);
       });
 
+      console.log('[BrandProductSelector] Products map built with', productsMap.size, 'brands');
       setAllProducts(productsMap);
     } catch (error) {
-      console.error('Error loading brands and products:', error);
+      console.error('[BrandProductSelector] Error loading brands and products:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleBrandSelect = (brand: UserBrand) => {
+    console.log('[BrandProductSelector] Brand selected:', brand.brand_name, 'ID:', brand.id);
     onBrandSelect(brand);
     onProductSelect(null); // Reset product when changing brand
     setIsBrandDropdownOpen(false);
   };
 
   const handleProductSelect = (product: UserProduct) => {
+    console.log('[BrandProductSelector] Product selected:', product.product_name, 'ID:', product.id);
     // Attach brand to product
     const productWithBrand = { ...product, brand: selectedBrand };
     onProductSelect(productWithBrand as UserProduct);
@@ -140,7 +150,16 @@ export default function BrandProductSelector({
         <div className="relative" ref={brandDropdownRef}>
           <button
             type="button"
-            onClick={() => !isLoading && setIsBrandDropdownOpen(!isBrandDropdownOpen)}
+            onClick={() => {
+              console.log('[BrandProductSelector] Brand button clicked');
+              console.log('  - isLoading:', isLoading);
+              console.log('  - brands.length:', brands.length);
+              console.log('  - isBrandDropdownOpen:', isBrandDropdownOpen);
+              console.log('  - Will toggle to:', !isBrandDropdownOpen);
+              if (!isLoading) {
+                setIsBrandDropdownOpen(!isBrandDropdownOpen);
+              }
+            }}
             disabled={isLoading}
             className={cn(
               "w-11 h-11 rounded-full border border-gray-200 bg-white flex items-center justify-center shadow-sm transition-colors cursor-pointer",
@@ -166,7 +185,7 @@ export default function BrandProductSelector({
           </button>
 
             {isBrandDropdownOpen && !isLoading && brands.length > 0 && (
-              <div className="absolute z-50 w-72 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto bottom-full mb-2">
+              <div className="absolute left-0 bottom-full mb-2 z-[100] w-72 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto">
                 {brands.map((brand) => (
                   <button
                     key={brand.id}
@@ -207,7 +226,12 @@ export default function BrandProductSelector({
         <div className="relative" ref={productDropdownRef}>
           <button
             type="button"
-            onClick={() => selectedBrand && setIsProductDropdownOpen(!isProductDropdownOpen)}
+            onClick={() => {
+              console.log('[BrandProductSelector] Product button clicked, selectedBrand:', selectedBrand?.brand_name, 'products count:', brandProducts.length, 'dropdown open:', isProductDropdownOpen);
+              if (selectedBrand) {
+                setIsProductDropdownOpen(!isProductDropdownOpen);
+              }
+            }}
             disabled={!selectedBrand || brandProducts.length === 0}
             className={cn(
               "w-11 h-11 rounded-full border border-gray-200 bg-white flex items-center justify-center shadow-sm transition-colors cursor-pointer",
@@ -246,7 +270,7 @@ export default function BrandProductSelector({
           </button>
 
             {isProductDropdownOpen && selectedBrand && brandProducts.length > 0 && (
-              <div className="absolute z-50 w-80 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto bottom-full mb-2">
+              <div className="absolute left-0 bottom-full mb-2 z-[100] w-80 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto">
                 {brandProducts.map((product) => (
                   <button
                     key={product.id}

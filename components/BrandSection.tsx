@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Edit2, Trash2, ChevronDown, ChevronRight, Plus, Package } from 'lucide-react';
+import { Edit2, Trash2, ChevronDown, ChevronRight, Plus, Package, Target } from 'lucide-react';
 import { UserBrand, UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProductCard from './ProductCard';
 import ConfirmDialog from './ConfirmDialog';
+import CompetitorAdsList from './CompetitorAdsList';
 
 interface BrandSectionProps {
   brand: UserBrand & { products?: UserProduct[] };
@@ -34,6 +35,7 @@ export default function BrandSection({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isHovered, setIsHovered] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<'products' | 'competitors'>('products');
   const products = brand.products || [];
 
   const handleDeleteBrand = (e: React.MouseEvent) => {
@@ -163,7 +165,7 @@ export default function BrandSection({
         </div>
       </motion.div>
 
-      {/* Products List (Collapsible) */}
+      {/* Content Tabs (Collapsible) */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -173,33 +175,73 @@ export default function BrandSection({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-3 md:px-4 pb-3 md:pb-4 pt-2 border-t border-gray-100">
-              {products.length === 0 ? (
-                <div className="text-center py-6 md:py-8 text-gray-400">
-                  <Package className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-2 text-gray-300" />
-                  <p className="text-xs md:text-sm">No products in this brand yet</p>
-                  <button
-                    onClick={handleAddProduct}
-                    className="mt-2 md:mt-3 text-xs md:text-sm text-gray-600 hover:text-gray-900 underline"
-                  >
-                    Add your first product
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-                  {products.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onView={onViewProduct}
-                      onEditClick={onEditProduct}
-                      onDelete={onDeleteProduct}
-                      isDeleting={deletingProductId === product.id}
-                      mode="compact"
-                    />
-                  ))}
-                </div>
-              )}
+            <div className="border-t border-gray-100">
+              {/* Tab Navigation */}
+              <div className="flex border-b border-gray-200 px-3 md:px-4">
+                <button
+                  onClick={() => setActiveTab('products')}
+                  className={`
+                    flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+                    ${activeTab === 'products'
+                      ? 'border-gray-900 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                  `}
+                >
+                  <Package className="w-4 h-4" />
+                  Products ({products.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('competitors')}
+                  className={`
+                    flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+                    ${activeTab === 'competitors'
+                      ? 'border-purple-600 text-purple-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                  `}
+                >
+                  <Target className="w-4 h-4" />
+                  Competitors
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="px-3 md:px-4 py-3 md:py-4">
+                {activeTab === 'products' ? (
+                  /* Products Content */
+                  products.length === 0 ? (
+                    <div className="text-center py-6 md:py-8 text-gray-400">
+                      <Package className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-2 text-gray-300" />
+                      <p className="text-xs md:text-sm">No products in this brand yet</p>
+                      <button
+                        onClick={handleAddProduct}
+                        className="mt-2 md:mt-3 text-xs md:text-sm text-gray-600 hover:text-gray-900 underline"
+                      >
+                        Add your first product
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                      {products.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          onView={onViewProduct}
+                          onEditClick={onEditProduct}
+                          onDelete={onDeleteProduct}
+                          isDeleting={deletingProductId === product.id}
+                          mode="compact"
+                        />
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  /* Competitors Content */
+                  <CompetitorAdsList
+                    brandId={brand.id}
+                    brandName={brand.brand_name}
+                  />
+                )}
+              </div>
             </div>
           </motion.div>
         )}

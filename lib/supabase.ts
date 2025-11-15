@@ -209,6 +209,20 @@ export interface UserProductPhoto {
   updated_at: string
 }
 
+// Database types for competitor_ads table
+export interface CompetitorAd {
+  id: string
+  user_id: string
+  brand_id: string
+  competitor_name: string
+  platform: string // 'Facebook', 'Instagram', 'TikTok', 'YouTube', etc.
+  ad_file_url: string
+  file_type: 'image' | 'video'
+  created_at: string
+  updated_at: string
+  brand?: UserBrand // Joined data when fetching with brand relationship
+}
+
 // Database types for sora2_watermark_removal_tasks table
 export interface Sora2WatermarkRemovalTask {
   id: string
@@ -611,6 +625,96 @@ export const deleteBrandLogoFromStorage = async (logoUrl: string): Promise<void>
 
   console.log(`[deleteBrandLogoFromStorage] Successfully deleted file: ${filePath}`);
 }
+
+// Upload competitor ad file (image or video) to storage
+export const uploadCompetitorAdToStorage = async (
+  file: File,
+  brandId: string,
+  competitorName: string
+) => {
+  console.log(`[uploadCompetitorAdToStorage] Starting upload for brand: ${brandId}, competitor: ${competitorName}, file: ${file.name} (${file.size} bytes)`);
+
+  // Validate file type
+  const isImage = file.type.startsWith('image/');
+  const isVideo = file.type.startsWith('video/');
+
+  if (!isImage && !isVideo) {
+    throw new Error('File must be an image or video');
+  }
+
+  // Validate file size (max 100MB for videos, 10MB for images)
+  const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+  if (file.size > maxSize) {
+    throw new Error(`File size must be less than ${isVideo ? '100MB' : '10MB'}`);
+  }
+
+  const fileExt = file.name.split('.').pop();
+  const timestamp = Date.now();
+  const fileName = `${timestamp}_${competitorName.toLowerCase().replace(/\s+/g, '_')}.${fileExt}`;
+  const filePath = `${brandId}/${competitorName}/${fileName}`;
+
+  const supabase = getSupabase();
+
+  // Upload to competitor_videos bucket
+  console.log(`[uploadCompetitorAdToStorage] Uploading to storage path: ${filePath}`);
+  const { data, error } = await supabase.storage
+    .from('competitor_videos')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (error) {
+    console.error(`[uploadCompetitorAdToStorage] Storage upload error:`, {
+      error: error.message,
+      filePath,
+      fileName: file.name
+    });
+    throw new Error(`Storage upload failed: ${error.message}`);
+  }
+
+  console.log(`[uploadCompetitorAdToStorage] Storage upload successful, path: ${data.path}`);
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('competitor_videos')
+    .getPublicUrl(filePath);
+
+  console.log(`[uploadCompetitorAdToStorage] Generated public URL: ${publicUrl}`);
+
+  return {
+    path: data.path,
+    publicUrl,
+    fullUrl: publicUrl,
+    fileType: isVideo ? 'video' : 'image'
+  };
+};
+
+// Delete competitor ad file from storage
+export const deleteCompetitorAdFromStorage = async (adFileUrl: string): Promise<void> => {
+  const supabase = getSupabase();
+
+  // Extract file path from URL
+  // Format: https://{project}.supabase.co/storage/v1/object/public/competitor_videos/{brand_id}/{competitor_name}/{filename}
+  const urlParts = adFileUrl.split('/competitor_videos/');
+  if (urlParts.length < 2) {
+    console.error(`[deleteCompetitorAdFromStorage] Invalid ad file URL format: ${adFileUrl}`);
+    return;
+  }
+
+  const filePath = urlParts[1];
+  console.log(`[deleteCompetitorAdFromStorage] Deleting file at path: ${filePath}`);
+
+  const { error } = await supabase.storage
+    .from('competitor_videos')
+    .remove([filePath]);
+
+  if (error) {
+    console.error(`[deleteCompetitorAdFromStorage] Error deleting file:`, error);
+    throw new Error(`Failed to delete competitor ad file: ${error.message}`);
+  }
+
+  console.log(`[deleteCompetitorAdFromStorage] Successfully deleted file: ${filePath}`);
+};
 
 // Google Indexing API helpers
 

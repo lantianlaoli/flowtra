@@ -17,7 +17,14 @@ export async function POST() {
       .from('standard_ads_projects')
       .select('*')
       .in('status', ['processing', 'generating_cover', 'generating_video'])
-      .or('cover_task_id.not.is.null,use_custom_script.eq.true,current_step.eq.ready_for_video,is_segmented.eq.true') // Include records with cover_task_id OR custom script mode OR ready for video OR segmented mode
+      .or(
+        // Include any of these conditions:
+        'cover_task_id.not.is.null,' +           // Has cover task
+        'use_custom_script.eq.true,' +           // Custom script mode
+        'current_step.eq.ready_for_video,' +    // Ready for video
+        'is_segmented.eq.true,' +                // Segmented workflow
+        'current_step.eq.generating_cover'       // Generating cover (even if task_id is null - might be stuck)
+      )
       .order('last_processed_at', { ascending: true, nullsFirst: true }) // Process new records (null last_processed_at) first
       .limit(20); // Process max 20 records per run
 
@@ -102,6 +109,7 @@ type VideoPrompt = {
 interface HistoryRecord {
   id: string;
   user_id: string;
+  created_at: string;
   current_step: string;
   status: string;
   cover_task_id: string;
@@ -170,6 +178,38 @@ async function processRecord(record: HistoryRecord) {
 
     console.log(`✅ Started custom script video generation for record ${record.id}, taskId: ${videoTaskId}`);
     return;
+  }
+
+  // Handle stuck records: generating_cover but no cover_task_id (workflow failed before calling generateCover)
+  if (record.current_step === 'generating_cover' && !record.cover_task_id) {
+    const createdAt = new Date(record.created_at);
+    const now = new Date();
+    const ageInMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+
+    // If record is older than 5 minutes and still has no cover_task_id, mark as failed
+    if (ageInMinutes > 5) {
+      console.error(`❌ Record ${record.id} stuck in generating_cover for ${ageInMinutes.toFixed(1)} minutes without cover_task_id`);
+
+      const { error: failErr } = await supabase
+        .from('standard_ads_projects')
+        .update({
+          status: 'failed',
+          error_message: 'Workflow timeout: Failed to start cover generation (possible AI prompt generation failure or video download timeout)',
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
+
+      if (failErr) {
+        console.error(`Failed to mark stuck record ${record.id} as failed:`, failErr);
+        throw new Error(`DB update failed for stuck record ${record.id}`);
+      }
+
+      console.log(`✅ Marked stuck record ${record.id} as failed`);
+      return;
+    } else {
+      console.log(`⏳ Record ${record.id} is ${ageInMinutes.toFixed(1)} minutes old, waiting for cover_task_id (will timeout at 5min)`);
+      return; // Still within timeout window, skip for now
+    }
   }
 
   // Handle cover generation monitoring

@@ -73,25 +73,26 @@ export default function GenerationProgressDisplay({
           </li>
         </ol>
 
-        {/* Tutorial button */}
-        <a
-          href="https://www.tiktok.com/@laolilantian/video/7572766914779319559?lang=en"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm mb-3"
-        >
-          <Play className="w-4 h-4" />
-          Watch Tutorial
-        </a>
+        {/* Action buttons */}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <a
+            href="https://www.tiktok.com/@laolilantian/video/7572766914779319559?lang=en"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <Play className="w-4 h-4" />
+            Watch Tutorial
+          </a>
 
-        {/* Go to Assets button */}
-        <Link
-          href="/dashboard/assets"
-          className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-        >
-          <Boxes className="w-4 h-4" />
-          Go to Assets
-        </Link>
+          <Link
+            href="/dashboard/assets"
+            className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+          >
+            <Boxes className="w-4 h-4" />
+            Go to Assets
+          </Link>
+        </div>
       </div>
     );
   }
