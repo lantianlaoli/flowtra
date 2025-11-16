@@ -1,7 +1,7 @@
 # Standard Ads Workflow - Prompt Documentation
 
 **Last Updated:** 2025-01-16
-**Version:** 2.1 (Enhanced Safety Restrictions)
+**Version:** 2.2 (Multi-Layer Safety Defense)
 
 ## Overview
 
@@ -66,6 +66,33 @@ Standard Ads workflow支持两种不同的广告生成模式：
 
 ## 安全限制 (Safety Restrictions)
 
+### 1. AI Prompt生成阶段限制
+
+**适用范围**: AI生成广告脚本和描述时（`generateImageBasedPrompts`函数），适用于两种模式
+
+**传统模式和竞品引用模式共享的安全规则**:
+```
+🚫 CRITICAL CONTENT SAFETY RESTRICTIONS:
+- DO NOT include children, minors, babies, toddlers, or anyone under 18 years old in ANY part of the advertisement
+- DO NOT describe scenes with children or young people in the description, action, dialogue, or any other field
+- DO NOT use words like "baby", "child", "kid", "toddler", "infant", "minor", "young people", "teen", "teenager" in any content
+- If the product is designed for children (toys, baby products, etc.), show ONLY the product itself or adults demonstrating it
+- Focus on product-only compositions, abstract scenes, or adult models only
+- This restriction applies to ALL generated content including: description, setting, action, dialogue, first_frame_prompt, closing_frame_prompt, segment descriptions, and all other fields
+```
+
+**竞品引用模式额外规则**:
+```
+- If the competitor ad contains children, REPLACE them with adults or product-only scenes
+```
+
+**说明**:
+- 这是**第一道防线**，在AI生成prompt阶段就阻止儿童/婴儿内容
+- 即使产品是婴儿玩具，AI也必须生成纯产品展示或成人演示的场景
+- 竞品引用模式：如果竞品广告包含儿童，必须替换为成人或纯产品场景
+
+### 2. 图片生成阶段限制
+
 **适用范围**: 所有图片生成（封面、分段关键帧），无论选择的视频时长或模型
 
 **图片生成安全规则** (应用于所有duration和所有视频模型):
@@ -88,10 +115,30 @@ Sora2 Safety Requirements:
 ```
 
 **说明**:
+- 这是**第二道防线**，在图片实际生成时再次强调安全限制
 - 基础限制适用于所有模型，确保不出现儿童和清晰人脸特写
 - Sora2模型有更严格的限制，完全禁止真实人类
 - 封面生成 (`generateCover`) 和分段帧生成 (`createSegmentFrameTask`) 都遵循相同规则
 - 无论视频时长（8s/10s/16s/24s/32s），所有生成的图片都应用此限制
+
+### 3. 多层防御策略
+
+**为什么需要两层限制？**
+
+1. **AI Prompt生成阶段** (第一道防线):
+   - 阻止AI在描述和脚本中包含儿童/婴儿
+   - 确保生成的JSON prompt本身就是政策合规的
+   - 适用于所有下游使用此prompt的操作
+
+2. **图片生成阶段** (第二道防线):
+   - 即使prompt通过了第一道防线，图片生成时再次强调限制
+   - 防止KIE图片生成API误解prompt
+   - 最终确保生成的图片符合Google Veo3的内容策略
+
+**实际效果**:
+- Google Veo3视频生成会拒绝包含未成年人的内容
+- 两层防御确保在视频生成之前就已经完全排除了此类内容
+- 降低因内容策略违规导致的生成失败率
 
 ---
 
@@ -337,6 +384,18 @@ IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a 
 ---
 
 ## 版本历史
+
+### Version 2.2 (2025-01-16)
+- **关键修复**：在AI prompt生成阶段添加完整安全限制（第一道防线）
+- 问题发现：Version 2.1只在图片生成阶段添加限制，但AI仍然生成包含婴儿的描述
+- 解决方案：在`generateImageBasedPrompts()`函数中明确禁止生成包含儿童/婴儿的内容
+- 适用于两种模式：
+  - 传统模式：禁止在所有字段中使用"baby", "child", "kid"等词汇
+  - 竞品引用模式：如果竞品包含儿童，必须替换为成人或纯产品场景
+- 多层防御策略：
+  - 第一道防线：AI生成prompt时就排除儿童内容
+  - 第二道防线：图片生成时再次强调限制
+- 改进OpenRouter API错误处理，增加详细日志
 
 ### Version 2.1 (2025-01-16)
 - 增强安全限制，禁止所有图片生成中出现真实人脸特写
