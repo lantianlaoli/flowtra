@@ -46,16 +46,41 @@ export async function POST() {
           processed++;
         } catch (error) {
           console.error(`Error processing record ${record.id}:`, error);
-          // Mark record as failed for this run; retry logic removed (no persistent retry_count)
-          await supabase
-            .from('standard_ads_projects')
-            .update({
-              status: 'failed',
-              error_message: error instanceof Error ? error.message : 'Processing error',
-              last_processed_at: new Date().toISOString()
-            })
-            .eq('id', record.id);
-          failed++;
+
+          // Check if it's a retryable error (connection timeout, network issues)
+          const isRetryableError = error instanceof Error && (
+            error.message.includes('connection timeout') ||
+            error.message.includes('Connect Timeout') ||
+            error.message.includes('UND_ERR_CONNECT_TIMEOUT') ||
+            error.message.includes('fal.ai service may be slow') ||
+            error.message.includes('fetch failed') ||
+            error.message.includes('ECONNRESET') ||
+            error.message.includes('ETIMEDOUT')
+          );
+
+          if (isRetryableError) {
+            // For retryable errors, don't mark as failed - just log and let it retry on next monitor run
+            console.warn(`⚠️ Retryable error for record ${record.id}, will retry on next monitor run: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            // Update last_processed_at to track retry attempts
+            await supabase
+              .from('standard_ads_projects')
+              .update({
+                last_processed_at: new Date().toISOString()
+              })
+              .eq('id', record.id);
+          } else {
+            // For non-retryable errors, mark as failed immediately
+            console.error(`❌ Non-retryable error for record ${record.id}, marking as failed`);
+            await supabase
+              .from('standard_ads_projects')
+              .update({
+                status: 'failed',
+                error_message: error instanceof Error ? error.message : 'Processing error',
+                last_processed_at: new Date().toISOString()
+              })
+              .eq('id', record.id);
+            failed++;
+          }
         }
 
         // Small delay to avoid overwhelming APIs
@@ -440,6 +465,24 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
   }
 
   if (record.fal_merge_task_id && record.current_step === 'merging_segments' && !record.video_url) {
+    // Check if merging has been running too long (timeout protection)
+    const lastProcessedTime = new Date(record.last_processed_at || record.created_at);
+    const mergeTimeoutMinutes = 15; // 15 minutes timeout for video merging
+    const ageInMinutes = (new Date().getTime() - lastProcessedTime.getTime()) / (1000 * 60);
+
+    if (ageInMinutes > mergeTimeoutMinutes) {
+      console.error(`❌ Record ${record.id} stuck in merging_segments for ${ageInMinutes.toFixed(1)} minutes, marking as failed`);
+      await supabase
+        .from('standard_ads_projects')
+        .update({
+          status: 'failed',
+          error_message: `Video merging timeout after ${ageInMinutes.toFixed(1)} minutes. Please retry.`,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
+      return;
+    }
+
     const status = await checkFalTaskStatus(record.fal_merge_task_id);
 
     if (status.status === 'COMPLETED' && status.resultUrl) {
@@ -456,6 +499,15 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
         .eq('id', record.id);
     } else if (status.status === 'FAILED') {
       throw new Error(status.error || 'Merge failed');
+    } else if (status.status === 'NETWORK_ERROR') {
+      // Network error - will retry on next monitor run
+      console.warn(`⚠️ Network error checking merge status for record ${record.id}, will retry: ${status.error}`);
+      await supabase
+        .from('standard_ads_projects')
+        .update({
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
     }
   }
 }

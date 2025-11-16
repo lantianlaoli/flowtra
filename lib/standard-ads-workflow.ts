@@ -803,15 +803,6 @@ DO NOT include:
 - Marketing copy or taglines
 - Pre-existing brand positioning or assumptions
 
-🚫 CRITICAL CONTENT SAFETY RESTRICTIONS:
-- DO NOT include children, minors, babies, toddlers, or anyone under 18 years old in ANY part of the advertisement
-- DO NOT describe scenes with children or young people in the description, action, dialogue, or any other field
-- DO NOT use words like "baby", "child", "kid", "toddler", "infant", "minor", "young people", "teen", "teenager" in any content
-- If the product is designed for children (toys, baby products, etc.), show ONLY the product itself or adults demonstrating it
-- If the competitor ad contains children, REPLACE them with adults or product-only scenes
-- Focus on product-only compositions, abstract scenes, or adult models only
-- This restriction applies to ALL generated content including: description, setting, action, dialogue, first_frame_prompt, closing_frame_prompt, segment descriptions, and all other fields
-
 ${segmentCount > 1 ? `Segment Plan Requirements:
 - Output EXACTLY ${segmentCount} segment objects in the "segments" array
 - Each segment needs its own "segment_title" and "segment_goal"
@@ -873,14 +864,6 @@ DO NOT include:
 - Brand names or slogans (unless visually present in the image)
 - Marketing copy or taglines
 - Pre-existing brand positioning or assumptions
-
-🚫 CRITICAL CONTENT SAFETY RESTRICTIONS:
-- DO NOT include children, minors, babies, toddlers, or anyone under 18 years old in ANY part of the advertisement
-- DO NOT describe scenes with children or young people in the description, action, dialogue, or any other field
-- DO NOT use words like "baby", "child", "kid", "toddler", "infant", "minor", "young people", "teen", "teenager" in any content
-- If the product is designed for children (toys, baby products, etc.), show ONLY the product itself or adults demonstrating it
-- Focus on product-only compositions, abstract scenes, or adult models only
-- This restriction applies to ALL generated content including: description, setting, action, dialogue, first_frame_prompt, closing_frame_prompt, segment descriptions, and all other fields
 
 Generate a JSON object with these elements:
 - description: ${processedCompetitorContext ? 'Main scene description based on competitor structure, with our product' : `Main scene description based on product visuals${userRequirements ? ' and user requirements' : ''}`}
@@ -1017,6 +1000,16 @@ Requirements:
 - Preserve all distinctive design features and details
 - Only enhance lighting, background, or add subtle marketing elements
 - The product must remain visually identical to the original
+
+⚠️ CRITICAL IMAGE-ONLY TRANSFORMATION:
+The video prompt may describe people (children, babies, adults) interacting with the product.
+For THIS IMAGE, you MUST transform any human interaction into product-focused composition:
+- If prompt mentions "baby playing with toy" → Show the toy alone in an appealing display
+- If prompt mentions "child wearing clothing" → Show the clothing displayed or on a mannequin
+- If prompt mentions "parent demonstrating product" → Show the product with clear feature highlights
+- If prompt describes human actions → Replace with product showcasing the same features
+- Maintain the SCENE, LIGHTING, and STYLE from the prompt, but remove all people
+- The goal: Create a visually appealing product image that conveys the same message WITHOUT human subjects
 
 CRITICAL SAFETY RESTRICTION:
 - DO NOT include children, minors, or anyone who appears to be under 18 years old
@@ -1301,6 +1294,14 @@ Scene Focus:
 - Setting: ${segmentPrompt.setting}
 - Camera: ${segmentPrompt.camera_type} with ${segmentPrompt.camera_movement}
 - Lighting: ${segmentPrompt.lighting}
+
+⚠️ CRITICAL IMAGE-ONLY TRANSFORMATION:
+The segment prompt may describe people (children, babies, adults) interacting with the product.
+For THIS KEYFRAME IMAGE, you MUST transform any human interaction into product-focused composition:
+- If segment describes people with product → Show product alone in the same setting
+- If segment shows human actions → Illustrate product features without people
+- Maintain the SCENE, LIGHTING, CAMERA ANGLE, and STYLE, but remove all people
+- Create a product-focused still frame that matches the segment's visual intent WITHOUT human subjects
 
 CRITICAL SAFETY RESTRICTION:
 - DO NOT include children, minors, or anyone who appears to be under 18 years old

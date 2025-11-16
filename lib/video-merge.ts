@@ -24,6 +24,8 @@ export async function mergeVideosWithFal(
 
   const resolution = RESOLUTION_MAP[videoAspectRatio] || RESOLUTION_MAP['16:9'];
 
+  console.log(`🎬 Starting fal.ai video merge for ${videoUrls.length} videos with resolution ${resolution}`);
+
   try {
     const result = await fal.subscribe('fal-ai/ffmpeg-api/merge-videos', {
       input: {
@@ -32,6 +34,8 @@ export async function mergeVideosWithFal(
         resolution
       },
       logs: true,
+      timeout: 300000, // 5 minutes timeout for video merging
+      connectionTimeout: 60000, // 60 seconds connection timeout (increased from default 10s)
       onQueueUpdate: (update: { status?: string; logs?: { message?: string }[] | null }) => {
         console.log(`Merge queue update: ${update.status}`);
         if (update.status === 'IN_PROGRESS') {
@@ -44,9 +48,19 @@ export async function mergeVideosWithFal(
       }
     });
 
+    console.log(`✅ Video merge task created successfully: ${result.requestId}`);
     return { taskId: result.requestId };
   } catch (error) {
-    console.error('fal.ai merge videos error:', error);
+    console.error('❌ fal.ai merge videos error:', error);
+
+    // Check if it's a connection timeout error
+    const isConnectionTimeout = error instanceof Error &&
+      (error.message.includes('Connect Timeout') || error.message.includes('UND_ERR_CONNECT_TIMEOUT'));
+
+    if (isConnectionTimeout) {
+      throw new Error('Video merging connection timeout - fal.ai service may be slow. Please retry in a moment.');
+    }
+
     throw new Error(`Video merging failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
