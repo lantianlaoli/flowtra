@@ -60,13 +60,16 @@ export default function CompetitorAdCard({
               <video
                 src={competitorAd.ad_file_url}
                 className="w-full h-full object-contain"
-                muted
                 loop
                 playsInline
-                onMouseEnter={(e) => e.currentTarget.play()}
+                onMouseEnter={(e) => {
+                  e.currentTarget.muted = false;
+                  e.currentTarget.play();
+                }}
                 onMouseLeave={(e) => {
                   e.currentTarget.pause();
                   e.currentTarget.currentTime = 0;
+                  e.currentTarget.muted = true;
                 }}
                 onError={() => setVideoError(true)}
               />
@@ -76,15 +79,6 @@ export default function CompetitorAdCard({
               </div>
             )}
           </>
-        )}
-
-        {/* Play Icon Overlay for Videos */}
-        {competitorAd.file_type === 'video' && !videoError && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="bg-black/50 rounded-full p-3">
-              <PlayCircle className="w-8 h-8 text-white" />
-            </div>
-          </div>
         )}
 
         {/* Selected Indicator */}
