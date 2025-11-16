@@ -1,7 +1,7 @@
 # Standard Ads Workflow - Prompt Documentation
 
 **Last Updated:** 2025-01-16
-**Version:** 2.0 (Dual-Mode Support)
+**Version:** 2.1 (Enhanced Safety Restrictions)
 
 ## Overview
 
@@ -61,6 +61,37 @@ Standard Ads workflow支持两种不同的广告生成模式：
 - 记录镜头运动和转场效果
 - 捕捉色彩风格和视觉美学
 - 将竞品的所有创意元素应用于我们的产品
+
+---
+
+## 安全限制 (Safety Restrictions)
+
+**适用范围**: 所有图片生成（封面、分段关键帧），无论选择的视频时长或模型
+
+**图片生成安全规则** (应用于所有duration和所有视频模型):
+```
+CRITICAL SAFETY RESTRICTION:
+- DO NOT include children, minors, or anyone who appears to be under 18 years old
+- DO NOT include babies, toddlers, or young people
+- DO NOT include photorealistic human faces with clear, identifiable facial features
+- DO NOT show close-up shots of faces or detailed facial characteristics
+- If humans are necessary, only show silhouettes, blurred figures, or distant people without visible facial details
+- Focus on product-only composition or depersonalized scenes
+```
+
+**Sora2额外限制** (仅当选择Sora2或Sora2 Pro视频模型时):
+```
+Sora2 Safety Requirements:
+- Do not include photorealistic humans, faces, or bodies
+- Focus entirely on the product, typography, or abstract environments without people
+- Maintain a people-free composition that still feels dynamic and premium
+```
+
+**说明**:
+- 基础限制适用于所有模型，确保不出现儿童和清晰人脸特写
+- Sora2模型有更严格的限制，完全禁止真实人类
+- 封面生成 (`generateCover`) 和分段帧生成 (`createSegmentFrameTask`) 都遵循相同规则
+- 无论视频时长（8s/10s/16s/24s/32s），所有生成的图片都应用此限制
 
 ---
 
@@ -306,6 +337,13 @@ IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a 
 ---
 
 ## 版本历史
+
+### Version 2.1 (2025-01-16)
+- 增强安全限制，禁止所有图片生成中出现真实人脸特写
+- 适用于所有视频时长（8s/10s/16s/24s/32s）和所有视频模型
+- 更新 `generateCover()` 和 `createSegmentFrameTask()` 安全提示
+- 保留Sora2的额外严格限制（完全禁止真实人类）
+- 允许模糊人影、剪影或远景人物，但不能有清晰面部特征
 
 ### Version 2.0 (2025-01-16)
 - 实现双模式支持：传统模式 + 竞品引用模式

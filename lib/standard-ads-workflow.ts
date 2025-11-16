@@ -945,7 +945,10 @@ Requirements:
 CRITICAL SAFETY RESTRICTION:
 - DO NOT include children, minors, or anyone who appears to be under 18 years old
 - DO NOT include babies, toddlers, or young people
-- Focus on product-only composition or adult models only (if humans are necessary)`;
+- DO NOT include photorealistic human faces with clear, identifiable facial features
+- DO NOT show close-up shots of faces or detailed facial characteristics
+- If humans are necessary, only show silhouettes, blurred figures, or distant people without visible facial details
+- Focus on product-only composition or depersonalized scenes`;
 
   // Extract watermark information from request
   const watermarkText = request.watermark?.text?.trim();
@@ -1226,7 +1229,10 @@ Scene Focus:
 CRITICAL SAFETY RESTRICTION:
 - DO NOT include children, minors, or anyone who appears to be under 18 years old
 - DO NOT include babies, toddlers, or young people
-- Focus on product-only composition or adult models only (if humans are necessary)
+- DO NOT include photorealistic human faces with clear, identifiable facial features
+- DO NOT show close-up shots of faces or detailed facial characteristics
+- If humans are necessary, only show silhouettes, blurred figures, or distant people without visible facial details
+- Focus on product-only composition or depersonalized scenes
 
 Render Instructions:
 - ${frameType === 'first' ? segmentPrompt.first_frame_prompt : segmentPrompt.closing_frame_prompt}
