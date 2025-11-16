@@ -249,3 +249,122 @@ getDownloadCost(model): number // Get download cost (0 for paid models)
 
 **Related Documentation:**
 - `documents/local/pricing-and-billing-rules.md` - Should be updated to Version 3.0
+
+---
+
+### Dual-Mode Standard Ads Workflow (Version 2.0)
+
+**Implementation Date**: 2025-01-16
+
+**Overview:**
+Standard Ads workflow now supports two distinct generation modes:
+- **Traditional Auto-Generation Mode**: AI deeply analyzes product photos to create original creative content
+- **Competitor Reference Mode**: AI analyzes competitor ads to clone creative structure for our product
+
+The mode is automatically determined based on whether the user selects a competitor ad.
+
+**Key Changes:**
+
+1. **Workflow Path Separation** (`lib/standard-ads-workflow.ts`):
+   - Modified `generateImageBasedPrompts()` function to support dual modes
+   - Mode detection: `if (competitorAdContext)` → Competitor Reference Mode
+   - Different prompt strategies for each mode
+
+2. **Traditional Mode** (No competitor selected):
+   ```
+   Product Photo → Deep AI Analysis → Extract Product Features → Generate Original Creative → Cover & Video
+   ```
+   - AI analyzes product appearance, colors, textures, design
+   - Infers product category and use cases
+   - Generates completely original advertising creative
+   - Product photo is the primary input for analysis
+
+3. **Competitor Reference Mode** (Competitor selected):
+   ```
+   Competitor Video/Image → Extract Creative Structure → Apply to Our Product → Cover & Video
+   ```
+   - AI analyzes competitor's complete ad structure:
+     - Complete video script and narrative flow
+     - First frame composition (for cover generation)
+     - Camera movements and transitions
+     - Color palette and visual aesthetics
+   - Product photo is used ONLY as "replacement material"
+   - AI clones competitor structure but replaces their product with ours
+
+**Modified Files:**
+- `lib/standard-ads-workflow.ts` - Core prompt generation logic (lines 754-854)
+- `prompts/standard-ads-workflow.md` - Complete documentation of both modes
+- `CLAUDE.md` - This implementation note
+
+**Prompt Strategy Differences:**
+
+| Aspect | Traditional Mode | Competitor Reference Mode |
+|--------|-----------------|---------------------------|
+| Product Photo Role | Deep analysis for features & selling points | Visual reference for product replacement only |
+| Creative Source | AI original generation | Clone competitor structure |
+| Analysis Focus | Product appearance, category, use cases | Competitor script, cameras, style |
+| Prompt Generation | Based on product features | Based on competitor structure |
+
+**Technical Implementation:**
+
+**Competitor Video Processing:**
+- Gemini only accepts YouTube URLs or base64 for videos
+- Use `fetchVideoAsBase64()` to download and convert competitor videos
+- 60-second timeout limit
+- Auto-detect MIME type (mp4/webm/mov)
+
+**Prompt Structure (Competitor Mode):**
+```
+1. Upload competitor video/image (video_url or image_url)
+2. Upload product photo (image_url)
+3. Text instructions:
+   - 🎯 COMPETITOR REFERENCE MODE
+   - Extract complete video script and narrative structure
+   - Analyze first frame composition and visual elements
+   - Document camera movements and transitions
+   - Capture color palette and lighting style
+   - CRITICAL: Clone structure, replace product
+```
+
+**Prompt Structure (Traditional Mode):**
+```
+1. Upload product photo (image_url)
+2. Text instructions:
+   - 🤖 TRADITIONAL AUTO-GENERATION MODE
+   - Analyze product visual elements
+   - Infer product category and use cases
+   - Generate original creative content
+   - Consider brand identity and user requirements
+```
+
+**JSON Output Compatibility:**
+- Both modes use identical JSON schema
+- Ensures downstream workflow steps (cover generation, video generation) work without modification
+- Same fields: description, setting, camera_type, action, dialogue, etc.
+
+**Technical Decisions:**
+- **Why dual mode?** Users need both original creativity AND ability to reference successful ads
+- **Why auto-switching?** Simplifies UX - selecting competitor automatically enables reference mode
+- **Why same JSON format?** Ensures no changes needed in cover/video generation logic
+- **Why video-to-base64?** Gemini limitation requires YouTube URLs or base64 format
+
+**Benefits:**
+- Original creativity for unique product differentiation
+- Proven creative structures from successful competitor ads
+- Seamless mode switching without UI changes
+- Product replacement accuracy maintained in both modes
+
+**Known Limitations:**
+- Video-to-base64 conversion limited to 60 seconds (large files may timeout)
+- Gemini API may have rate limits on video analysis
+- Quality of competitor cloning depends on AI's ability to extract structure
+
+**Testing Considerations:**
+- Test traditional mode: verify creative originality
+- Test competitor mode with video: verify structure cloning
+- Test competitor mode with image: verify style adaptation
+- Test product replacement accuracy in both modes
+- Verify JSON format consistency across modes
+
+**Related Documentation:**
+- `prompts/standard-ads-workflow.md` - Complete prompt templates for both modes

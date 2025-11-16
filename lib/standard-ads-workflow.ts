@@ -751,37 +751,74 @@ async function generateImageBasedPrompts(
             ) : []),
             {
               type: 'text',
-              text: `Analyze the product image${processedCompetitorContext ? ` and competitor ${processedCompetitorContext.file_type}` : ''} and generate ONE creative video advertisement prompt.
+              text: processedCompetitorContext
+                ? // === COMPETITOR REFERENCE MODE ===
+                  // Analyze competitor ad structure and adapt it for our product
+                  `🎯 COMPETITOR REFERENCE MODE
 
-${processedCompetitorContext ? `
-📺 COMPETITOR AD REFERENCE (${processedCompetitorContext.file_type.toUpperCase()}):
-The competitor ${processedCompetitorContext.file_type} is from "${processedCompetitorContext.competitor_name}". This is provided as a REFERENCE for creative inspiration.
+You are analyzing a competitor advertisement to create a similar ad for OUR product.
 
-IMPORTANT INSTRUCTIONS FOR USING COMPETITOR REFERENCE:
-1. Study the competitor ad's:
-   - Visual style and aesthetics (colors, composition, lighting)
-   - Storytelling approach and narrative structure
-   - Camera angles, movements, and shot types
-   - Tone and emotional appeal
-   - Pacing and transitions${processedCompetitorContext.file_type === 'video' ? '' : ' (if applicable)'}
+📺 COMPETITOR AD (${processedCompetitorContext.file_type.toUpperCase()}):
+From: "${processedCompetitorContext.competitor_name}"
 
-2. Generate an advertisement that:
-   - Uses SIMILAR creative techniques and visual style
-   - Matches the TONE and production quality
-   - Follows a COMPARABLE storytelling structure
-   - BUT showcases OUR product (from the product image) instead
-   - Maintains the same level of engagement and professionalism
+TASK: Analyze the competitor ${processedCompetitorContext.file_type} and extract its complete creative structure:
 
-3. DO NOT copy exact elements, but learn from their approach to create an equally compelling ad for OUR product.
+1. **Complete Video Script Analysis**:
+   - Extract all dialogue, voiceover, and text content
+   - Document the narrative flow and storytelling structure
+   - Note pacing, transitions, and segment timing
+
+2. **Visual Structure Analysis**:
+   - First frame composition and visual elements
+   - Camera angles, movements, and shot types throughout
+   - Scene transitions and progression
+   - Color palette, lighting style, and visual aesthetics
+
+3. **Technical Specifications**:
+   - Camera movements (pan, zoom, tracking, etc.)
+   - Lighting setup and mood
+   - Music style and emotional tone
+   - Overall production quality and style
+
+📸 OUR PRODUCT:
+The second image shows our product that should REPLACE the competitor's product in the advertisement.
+
+🎬 GENERATION REQUIREMENTS:
+Generate a JSON advertisement prompt that:
+- **CLONES the competitor's complete creative structure** (script, timing, camera work, style)
+- **REPLACES the competitor's product with ours** from the product image
+- **MAINTAINS identical narrative flow** and storytelling approach
+- **PRESERVES the visual style** (colors, lighting, aesthetics)
+- **KEEPS the same tone and pacing** for equivalent engagement
+
+⚠️ CRITICAL:
+- DO NOT analyze the product image deeply - it's only for visual reference to replace the competitor's product
+- Focus on extracting and replicating the competitor's creative approach
+- The output should feel like the same ad, just with our product instead
+
+${productContext && (productContext.product_details || productContext.brand_name) ? `\nProduct & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\n(Use only to ensure product placement accuracy)` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nNote: Apply these requirements while maintaining the competitor's core creative structure.` : ''}`
+                : // === TRADITIONAL AI AUTO-GENERATION MODE ===
+                  // Deep product analysis for original creative generation
+                  `🤖 TRADITIONAL AUTO-GENERATION MODE
+
+Analyze the product image and generate ONE creative video advertisement prompt.
+
+${productContext && (productContext.product_details || productContext.brand_name) ? `
+Product & Brand Context:
+${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}
+IMPORTANT: Use this context to enhance the advertisement while staying true to the product visuals. The brand identity and product features should guide the creative direction.
+` : ''}${userRequirements ? `
+User Requirements:
+${userRequirements}
+
+IMPORTANT: Incorporate these user requirements into all aspects of the video advertisement (description, setting, camera, action, dialogue, etc.). The requirements should guide the creative direction while staying true to the product visuals.
 ` : ''}
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `\nProduct & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\nIMPORTANT: Use this context to enhance the advertisement while staying true to the product visuals. The brand identity and product features should guide the creative direction.` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nIMPORTANT: Incorporate these user requirements into all aspects of the video advertisement (description, setting, camera, action, dialogue, etc.). The requirements should guide the creative direction while staying true to the product visuals.` : ''}
-
 Focus on:
-- Visual elements in the ${processedCompetitorContext ? 'product' : ''} image (product appearance, colors, textures, design)
+- Visual elements in the product image (appearance, colors, textures, design)
 - Product category and potential use cases you can infer from the visuals
 - Emotional appeal based on visual presentation
-- Natural scene settings that match the product aesthetics${productContext && (productContext.product_details || productContext.brand_name) ? '\n- Product details and brand identity provided above' : ''}${userRequirements ? '\n- User-specified requirements and creative direction' : ''}${processedCompetitorContext ? '\n- Creative techniques and style from the competitor reference' : ''}
+- Natural scene settings that match the product aesthetics${productContext && (productContext.product_details || productContext.brand_name) ? '\n- Product details and brand identity provided above' : ''}${userRequirements ? '\n- User-specified requirements and creative direction' : ''}
 ${segmentCount > 1 ? `- Maintain narrative continuity across ${segmentCount} segments (each approximately 8 seconds)` : ''}
 
 ${segmentCount > 1 ? `Segment Plan Requirements:
@@ -799,16 +836,16 @@ DO NOT include:
 - Pre-existing brand positioning or assumptions
 
 Generate a JSON object with these elements:
-- description: Main scene description based on product visuals${userRequirements ? ' and user requirements' : ''}${processedCompetitorContext ? ' (inspired by competitor reference style)' : ''}
-- setting: Natural environment that suits the product${userRequirements ? ' (consider user preferences)' : ''}
-- camera_type: Cinematic shot type that showcases the product best
-- camera_movement: Dynamic camera movement
-- action: Engaging product demonstration or lifestyle scene${userRequirements ? ' (aligned with user vision)' : ''}
-- lighting: Professional lighting setup that enhances the product
-- dialogue: Natural voiceover content focused on product benefits and features${userRequirements ? ', incorporating user messaging' : ''} (in English, NO brand slogans)
-- music: Music style matching the mood and product category${userRequirements ? ' and user preferences' : ''}
-- ending: Natural ad conclusion (e.g., product close-up, lifestyle shot)
-- other_details: Creative visual elements that enhance the advertisement${userRequirements ? ', including user-specified elements' : ''}
+- description: ${processedCompetitorContext ? 'Main scene description based on competitor structure, with our product' : `Main scene description based on product visuals${userRequirements ? ' and user requirements' : ''}`}
+- setting: ${processedCompetitorContext ? 'Environment matching competitor ad style' : `Natural environment that suits the product${userRequirements ? ' (consider user preferences)' : ''}`}
+- camera_type: ${processedCompetitorContext ? 'Shot type matching competitor ad' : 'Cinematic shot type that showcases the product best'}
+- camera_movement: ${processedCompetitorContext ? 'Camera movement from competitor ad' : 'Dynamic camera movement'}
+- action: ${processedCompetitorContext ? 'Action sequence based on competitor structure, with our product' : `Engaging product demonstration or lifestyle scene${userRequirements ? ' (aligned with user vision)' : ''}`}
+- lighting: ${processedCompetitorContext ? 'Lighting style from competitor ad' : 'Professional lighting setup that enhances the product'}
+- dialogue: ${processedCompetitorContext ? 'Voiceover content adapted from competitor script, for our product (in English)' : `Natural voiceover content focused on product benefits and features${userRequirements ? ', incorporating user messaging' : ''} (in English, NO brand slogans)`}
+- music: ${processedCompetitorContext ? 'Music style matching competitor ad' : `Music style matching the mood and product category${userRequirements ? ' and user preferences' : ''}`}
+- ending: ${processedCompetitorContext ? 'Conclusion style from competitor ad, with our product' : 'Natural ad conclusion (e.g., product close-up, lifestyle shot)'}
+- other_details: ${processedCompetitorContext ? 'Creative elements from competitor ad applied to our product' : `Creative visual elements that enhance the advertisement${userRequirements ? ', including user-specified elements' : ''}`}
 - language: The language name for voiceover generation (e.g., "English", "Urdu (Pakistan's national language)", "Punjabi")
 
 CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.
@@ -903,7 +940,12 @@ Requirements:
 - Maintain all original colors, textures, and materials
 - Preserve all distinctive design features and details
 - Only enhance lighting, background, or add subtle marketing elements
-- The product must remain visually identical to the original`;
+- The product must remain visually identical to the original
+
+CRITICAL SAFETY RESTRICTION:
+- DO NOT include children, minors, or anyone who appears to be under 18 years old
+- DO NOT include babies, toddlers, or young people
+- Focus on product-only composition or adult models only (if humans are necessary)`;
 
   // Extract watermark information from request
   const watermarkText = request.watermark?.text?.trim();
@@ -1180,6 +1222,11 @@ Scene Focus:
 - Setting: ${segmentPrompt.setting}
 - Camera: ${segmentPrompt.camera_type} with ${segmentPrompt.camera_movement}
 - Lighting: ${segmentPrompt.lighting}
+
+CRITICAL SAFETY RESTRICTION:
+- DO NOT include children, minors, or anyone who appears to be under 18 years old
+- DO NOT include babies, toddlers, or young people
+- Focus on product-only composition or adult models only (if humans are necessary)
 
 Render Instructions:
 - ${frameType === 'first' ? segmentPrompt.first_frame_prompt : segmentPrompt.closing_frame_prompt}
