@@ -861,7 +861,7 @@ export default function StandardAdsPage() {
 
     {/* Competitor Ad Selector - Shows above composer when brand is selected */}
     {selectedBrand && (
-      <div className="fixed bottom-[88px] sm:bottom-[76px] left-0 right-0 md:left-72 z-50 px-4 sm:px-8 lg:px-10">
+      <div className="fixed bottom-[108px] left-0 right-0 md:left-72 z-45 px-4 sm:px-8 lg:px-10">
         <div className="max-w-7xl mx-auto">
           <CompetitorAdSelector
             brandId={selectedBrand.id}

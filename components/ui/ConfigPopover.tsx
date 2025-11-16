@@ -171,7 +171,7 @@ export default function ConfigPopover({
               exit={{ opacity: 0, y: isMobile ? 30 : 10, scale: isMobile ? 1 : 0.95 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className={cn(
-                'bg-white rounded-lg shadow-2xl border border-gray-200 z-[100] overflow-visible',
+                'bg-white rounded-lg shadow-2xl border border-gray-200 z-[110] overflow-visible',
                 isMobile
                   ? 'fixed inset-x-4 bottom-4 max-h-[80vh] overflow-y-auto origin-bottom'
                   : 'absolute right-0 bottom-full mb-2 w-96 origin-bottom-right'
