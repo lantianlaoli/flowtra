@@ -441,7 +441,7 @@ export function getAutoImageSize(videoAspectRatio: '16:9' | '9:16', imageModel: 
 
 // Video model capabilities based on quality and duration
 export type VideoQuality = 'standard' | 'high';
-export type VideoDuration = '8' | '10' | '15' | '16' | '24' | '32';
+export type VideoDuration = '8' | '10' | '15' | '16' | '24' | '32' | '40' | '48' | '56' | '64';
 export type VideoModel = 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
 
 interface ModelCapabilities {
@@ -455,12 +455,12 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
   {
     model: 'veo3',
     supportedQualities: ['standard'],
-    supportedDurations: ['8', '16', '24', '32']
+    supportedDurations: ['8', '16', '24', '32', '40', '48', '56', '64']
   },
   {
     model: 'veo3_fast',
     supportedQualities: ['standard'],
-    supportedDurations: ['8', '16', '24', '32']
+    supportedDurations: ['8', '16', '24', '32', '40', '48', '56', '64']
   },
   {
     model: 'sora2',
@@ -534,7 +534,7 @@ export function getSegmentCountFromDuration(videoDuration?: string | null): numb
     return 1;
   }
 
-  const segments = Math.min(4, Math.round(duration / 8));
+  const segments = Math.min(8, Math.round(duration / 8));  // Support up to 8 segments (64s)
   return Math.max(1, segments);
 }
 

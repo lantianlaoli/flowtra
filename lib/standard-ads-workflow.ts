@@ -83,7 +83,7 @@ export interface SegmentStatusPayload {
   mergedVideoUrl?: string | null;
 }
 
-export const SEGMENTED_DURATIONS = new Set(['16', '24', '32']);
+export const SEGMENTED_DURATIONS = new Set(['16', '24', '32', '40', '48', '56', '64']);
 
 export function isSegmentedVideoRequest(
   model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro',
@@ -858,7 +858,7 @@ ${segmentCount > 1 ? `Segment Plan Requirements:
 - "closing_frame_prompt" should describe the precise ending still image (for segments 1-${segmentCount - 1}, this will double as the next segment's starting frame)
 - Keep style, camera, and lighting consistent so stitched clips feel cohesive
 - Ensure every prompt keeps the product design identical to the supplied photo
-- Define one narrator voice that works for the entire ad and keep it identical for each segment. Include a "voice_type" (accent + gender) and "voice_tone" (mood/energy) for every segment and keep those values the same to guarantee continuity.` : ''}
+- **CRITICAL VOICE CONSISTENCY**: Define one narrator voice that works for the entire ad. Include "voice_type" (accent + gender) and "voice_tone" (mood/energy) ONLY in the FIRST segment. All subsequent segments MUST NOT include voice_type or voice_tone fields - the voice will be automatically unified across all segments to guarantee perfect continuity.` : ''}
 
 DO NOT include:
 - Brand names or slogans (unless visually present in the image)
@@ -1238,8 +1238,8 @@ function normalizeSegmentPrompts(prompts: Record<string, unknown>, segmentCount:
       segment_goal: source.segment_goal || `Highlight product benefit ${index + 1}`,
       first_frame_prompt: source.first_frame_prompt || source.description || basePrompt.description,
       closing_frame_prompt: source.closing_frame_prompt || source.ending || basePrompt.ending,
-      voice_type: source.voice_type || baseVoiceType,
-      voice_tone: source.voice_tone || baseVoiceTone
+      voice_type: baseVoiceType,  // Force unified voice across all segments
+      voice_tone: baseVoiceTone   // Force unified tone across all segments
     });
   }
 

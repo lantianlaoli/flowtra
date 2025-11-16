@@ -103,7 +103,7 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 };
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
-const ALL_VIDEO_DURATIONS: VideoDuration[] = ['8', '10', '15', '16', '24', '32'];
+const ALL_VIDEO_DURATIONS: VideoDuration[] = ['8', '10', '15', '16', '24', '32', '40', '48', '56', '64'];
 const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
 const SESSION_STORAGE_KEY = 'flowtra_standard_ads_generations';
 
@@ -143,6 +143,30 @@ const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
     label: '32 seconds',
     description: 'Full-funnel sequence',
     features: 'Complete top-to-bottom story'
+  },
+  {
+    value: '40',
+    label: '40 seconds',
+    description: 'Extended narrative',
+    features: 'Rich storytelling arc'
+  },
+  {
+    value: '48',
+    label: '48 seconds',
+    description: 'Comprehensive showcase',
+    features: 'Full product journey'
+  },
+  {
+    value: '56',
+    label: '56 seconds',
+    description: 'Long-form content',
+    features: 'Deep engagement'
+  },
+  {
+    value: '64',
+    label: '64 seconds',
+    description: 'Full commercial',
+    features: 'Complete brand story'
   }
 ];
 
@@ -837,7 +861,7 @@ export default function StandardAdsPage() {
 
     {/* Competitor Ad Selector - Shows above composer when brand is selected */}
     {selectedBrand && (
-      <div className="fixed bottom-[88px] sm:bottom-[76px] left-0 right-0 md:left-72 z-30 px-4 sm:px-8 lg:px-10">
+      <div className="fixed bottom-[88px] sm:bottom-[76px] left-0 right-0 md:left-72 z-50 px-4 sm:px-8 lg:px-10">
         <div className="max-w-7xl mx-auto">
           <CompetitorAdSelector
             brandId={selectedBrand.id}
