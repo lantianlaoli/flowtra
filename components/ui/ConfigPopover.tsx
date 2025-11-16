@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -71,6 +72,7 @@ export default function ConfigPopover({
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
   const isMinimal = variant === 'minimal';
 
   // Track viewport to render a mobile-friendly drawer
@@ -124,6 +126,13 @@ export default function ConfigPopover({
     }
   }, [isOpen]);
 
+  // Update button position when opening popover
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      setButtonRect(buttonRef.current.getBoundingClientRect());
+    }
+  }, [isOpen]);
+
   return (
     <div className="relative">
       {/* Config Button */}
@@ -149,8 +158,8 @@ export default function ConfigPopover({
       </button>
 
       {/* Popover */}
-      <AnimatePresence>
-        {isOpen && (
+      {isOpen && buttonRect && typeof window !== 'undefined' && createPortal(
+        <AnimatePresence>
           <>
             {isMobile && (
               <motion.button
@@ -170,11 +179,16 @@ export default function ConfigPopover({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: isMobile ? 30 : 10, scale: isMobile ? 1 : 0.95 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              style={isMobile ? {} : {
+                position: 'fixed',
+                right: `${window.innerWidth - buttonRect.right}px`,
+                bottom: `${window.innerHeight - buttonRect.top + 8}px`,
+              }}
               className={cn(
                 'bg-white rounded-lg shadow-2xl border border-gray-200 z-[110] overflow-visible',
                 isMobile
                   ? 'fixed inset-x-4 bottom-4 max-h-[80vh] overflow-y-auto origin-bottom'
-                  : 'absolute right-0 bottom-full mb-2 w-96 origin-bottom-right'
+                  : 'w-96 origin-bottom-right'
               )}
             >
               {/* Header */}
@@ -287,8 +301,9 @@ export default function ConfigPopover({
             </div>
             </motion.div>
           </>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
