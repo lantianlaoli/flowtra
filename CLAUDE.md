@@ -82,7 +82,8 @@ The application implements three main AI workflows:
 
 ### Environment Variables
 Required environment variables (check existing code for complete list):
-- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY` (server-side only, for admin operations)
 - `KIE_API_KEY`, `OPENROUTER_API_KEY`
 - `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - Webhook URLs: `KIE_STANDARD_ADS_CALLBACK_URL`, etc.

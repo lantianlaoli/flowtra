@@ -61,8 +61,8 @@ Most routes call into `lib/` modules for Supabase access, KIE orchestration, or 
 1. Install dependencies: `pnpm install`.
 2. Copy environment template: `cp .env.example .env` and populate the following keys:
    - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `SUPABASE_SECRET_KEY`
    - `NEXT_PUBLIC_APP_URL`
    - `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
    - `KIE_API_KEY`, optional `KIE_CREDIT_THRESHOLD`

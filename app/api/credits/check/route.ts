@@ -8,7 +8,7 @@ export async function GET() {
   // Ensure this route is dynamic and not statically evaluated at build time
   try {
     // Safe dev fallback when Supabase env is not configured
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
       return NextResponse.json({
         success: true,
         credits: 0,
@@ -77,7 +77,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     // Safe dev fallback when Supabase env is not configured
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
       const { requiredCredits } = await request.json()
       const currentCredits = 0
       return NextResponse.json({

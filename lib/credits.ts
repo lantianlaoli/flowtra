@@ -373,7 +373,7 @@ export async function recordCreditTransaction(
   error?: string
 }> {
   try {
-    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const hasServiceKey = !!process.env.SUPABASE_SECRET_KEY;
     // Prefer admin client when requested and available; otherwise fallback to public client
     const usedAdmin = useAdminClient && hasServiceKey;
     const primaryClient = usedAdmin ? getSupabaseAdmin() : getSupabase();

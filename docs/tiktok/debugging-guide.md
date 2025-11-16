@@ -534,7 +534,7 @@ const response = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
   - [ ] `TIKTOK_CLIENT_SECRET`
   - [ ] `TIKTOK_TOKEN_ENCRYPTION_KEY` 或 `TIKTOK_CLIENT_SECRET`
   - [ ] `NEXT_PUBLIC_SUPABASE_URL`
-  - [ ] `SUPABASE_SERVICE_ROLE_KEY`
+  - [ ] `SUPABASE_SECRET_KEY`
 - [ ] 有至少一个已完成的视频项目可供测试
 - [ ] 浏览器开发者工具已打开（查看前端日志）
 - [ ] 终端窗口可见（查看后端日志）
