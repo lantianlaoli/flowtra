@@ -796,7 +796,46 @@ Generate a JSON advertisement prompt that:
 - Focus on extracting and replicating the competitor's creative approach
 - The output should feel like the same ad, just with our product instead
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `\nProduct & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\n(Use only to ensure product placement accuracy)` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nNote: Apply these requirements while maintaining the competitor's core creative structure.` : ''}`
+${productContext && (productContext.product_details || productContext.brand_name) ? `\nProduct & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\n(Use only to ensure product placement accuracy)` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nNote: Apply these requirements while maintaining the competitor's core creative structure.` : ''}
+
+DO NOT include:
+- Brand names or slogans (unless visually present in the image)
+- Marketing copy or taglines
+- Pre-existing brand positioning or assumptions
+
+🚫 CRITICAL CONTENT SAFETY RESTRICTIONS:
+- DO NOT include children, minors, babies, toddlers, or anyone under 18 years old in ANY part of the advertisement
+- DO NOT describe scenes with children or young people in the description, action, dialogue, or any other field
+- DO NOT use words like "baby", "child", "kid", "toddler", "infant", "minor", "young people", "teen", "teenager" in any content
+- If the product is designed for children (toys, baby products, etc.), show ONLY the product itself or adults demonstrating it
+- If the competitor ad contains children, REPLACE them with adults or product-only scenes
+- Focus on product-only compositions, abstract scenes, or adult models only
+- This restriction applies to ALL generated content including: description, setting, action, dialogue, first_frame_prompt, closing_frame_prompt, segment descriptions, and all other fields
+
+${segmentCount > 1 ? `Segment Plan Requirements:
+- Output EXACTLY ${segmentCount} segment objects in the "segments" array
+- Each segment needs its own "segment_title" and "segment_goal"
+- "first_frame_prompt" should paint the exact still image that opens the segment
+- "closing_frame_prompt" should describe the precise ending still image
+- Keep style, camera, and lighting consistent so stitched clips feel cohesive
+- Define one narrator voice that works for the entire ad and keep it identical for each segment
+` : ''}
+Generate a JSON object with these elements:
+- description: Main scene description based on competitor structure, with our product
+- setting: Environment matching competitor ad style
+- camera_type: Shot type matching competitor ad
+- camera_movement: Camera movement from competitor ad
+- action: Action sequence based on competitor structure, with our product
+- lighting: Lighting style from competitor ad
+- dialogue: Voiceover content adapted from competitor script, for our product (in English)
+- music: Music style matching competitor ad
+- ending: Conclusion style from competitor ad, with our product
+- other_details: Creative elements from competitor ad applied to our product
+- language: The language name for voiceover generation
+
+CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.
+IMPORTANT: All text content must be in English. The 'language' field specifies voiceover language only.
+CRITICAL: Keep each segment's dialogue concise (under ${dialogueWordLimit} words for ~${perSegmentDuration} seconds).`
                 : // === TRADITIONAL AI AUTO-GENERATION MODE ===
                   // Deep product analysis for original creative generation
                   `🤖 TRADITIONAL AUTO-GENERATION MODE
@@ -835,6 +874,14 @@ DO NOT include:
 - Marketing copy or taglines
 - Pre-existing brand positioning or assumptions
 
+🚫 CRITICAL CONTENT SAFETY RESTRICTIONS:
+- DO NOT include children, minors, babies, toddlers, or anyone under 18 years old in ANY part of the advertisement
+- DO NOT describe scenes with children or young people in the description, action, dialogue, or any other field
+- DO NOT use words like "baby", "child", "kid", "toddler", "infant", "minor", "young people", "teen", "teenager" in any content
+- If the product is designed for children (toys, baby products, etc.), show ONLY the product itself or adults demonstrating it
+- Focus on product-only compositions, abstract scenes, or adult models only
+- This restriction applies to ALL generated content including: description, setting, action, dialogue, first_frame_prompt, closing_frame_prompt, segment descriptions, and all other fields
+
 Generate a JSON object with these elements:
 - description: ${processedCompetitorContext ? 'Main scene description based on competitor structure, with our product' : `Main scene description based on product visuals${userRequirements ? ' and user requirements' : ''}`}
 - setting: ${processedCompetitorContext ? 'Environment matching competitor ad style' : `Natural environment that suits the product${userRequirements ? ' (consider user preferences)' : ''}`}
@@ -859,12 +906,41 @@ CRITICAL: Keep each segment's dialogue concise enough for ~${perSegmentDuration}
     })
   }, 3, 30000);
 
+  // Read response text first to handle both success and error cases
+  const responseText = await response.text();
+
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Prompt generation failed: ${response.status} - ${errorText}`);
+    console.error('❌ OpenRouter API error:', {
+      status: response.status,
+      statusText: response.statusText,
+      responseText: responseText.substring(0, 500)
+    });
+    throw new Error(`Prompt generation failed: ${response.status} - ${responseText}`);
   }
 
-  const data = await response.json();
+  // Log successful response for debugging
+  console.log('✅ OpenRouter API response received:', {
+    status: response.status,
+    responseLength: responseText.length,
+    preview: responseText.substring(0, 200)
+  });
+
+  // Parse JSON from text
+  let data: any;
+  try {
+    data = JSON.parse(responseText);
+  } catch (parseError) {
+    console.error('❌ Failed to parse OpenRouter response as JSON:', parseError);
+    console.error('Response text:', responseText.substring(0, 1000));
+    throw new Error(`OpenRouter returned invalid JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+  }
+
+  // Validate response structure
+  if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+    console.error('❌ OpenRouter response missing expected structure:', data);
+    throw new Error('OpenRouter response missing choices[0].message.content');
+  }
+
   const content = data.choices[0].message.content;
 
   // With Structured Outputs, the response is guaranteed to match our schema
