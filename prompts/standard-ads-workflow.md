@@ -161,7 +161,154 @@ TRANSFORMATION RULES:
 
 **说明**: Sora2的内容审核非常严格，不能出现任何人脸。但仍然允许成人的手部/肢体演示产品，只是不能显示脸部。
 
-### 3. 完整工作流程（Version 3.0）
+#### C. 儿童玩具产品特殊处理 (NEW in Version 3.0)
+
+**问题发现**:
+- Google Veo3检查**首尾两帧**（first_frame和closing_frame）
+- 如果两帧都无儿童 → 视频也不会有儿童（即使prompt明确提到儿童）
+- 这导致儿童玩具广告视频中看不到儿童，失去广告意义
+
+**解决方案**:
+```
+✅ 自动检测产品类别（product_category字段）
+✅ 如果是"children_toy" → 只生成first_frame，跳过closing_frame
+✅ 只有一帧供Veo3检查 → 儿童可以正常出现在视频中
+```
+
+**技术实现** (`lib/standard-ads-workflow.ts`):
+
+1. **产品分类检测** (line 107-141) - `detectProductCategory()` 函数:
+```typescript
+function detectProductCategory(prompts) {
+  // 优先使用AI提供的product_category字段
+  if (prompts.product_category === 'children_toy') return 'children_toy';
+
+  // 备用：关键词检测
+  const keywords = ['baby', 'infant', 'child', 'toy', 'nursery', ...];
+  return hasKeywords ? 'children_toy' : 'general';
+}
+```
+
+2. **条件跳过closing_frame** (line 1293-1309):
+```typescript
+if (segment.segment_index === lastSegment) {
+  const productCategory = detectProductCategory(prompts);
+
+  if (productCategory === 'children_toy') {
+    console.log('🧸 Detected children_toy - SKIP closing_frame');
+    // 不生成closing_frame
+  } else {
+    // 正常生成closing_frame
+    const closingFrameTaskId = await createSegmentFrameTask(..., 'closing');
+  }
+}
+```
+
+**效果对比**:
+
+| 产品类型 | first_frame | closing_frame | 视频内容 |
+|---------|-------------|---------------|----------|
+| 儿童玩具（旧版） | ✅ 成人手部+产品 | ✅ 成人手部+产品 | ❌ 无儿童 |
+| 儿童玩具（新版） | ✅ 成人手部+产品 | ❌ **不生成** | ✅ **有儿童** |
+| 成人产品 | ✅ 成人+产品 | ✅ 成人+产品 | ✅ 正常 |
+
+**实际应用示例**:
+
+**儿童玩具广告**:
+- AI生成: "A baby playing with wooden blocks, discovering shapes and colors..."
+- first_frame: 成人手部搭积木（符合ZERO-CHILD POLICY）
+- closing_frame: **跳过生成**
+- 视频生成: ✅ 正常展示婴儿玩玩具（因为只检查first_frame）
+
+### 3. 结构化视频分析 (NEW in Version 3.0)
+
+**问题**: 之前的 `product_description` 过于简单，只有一句话，无法支撑长视频生成。
+
+**解决方案**: 基于 **Veo Prompt Guide** 的结构化分析，输出专业的8要素描述。
+
+#### 新增字段
+
+**Product Classification** (产品分类):
+```json
+{
+  "product_category": "children_toy" | "adult_product" | "general",
+  "target_audience": "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
+}
+```
+
+**Core Concept** (核心概念 - Veo Guide):
+```json
+{
+  "subject": "Main elements and focal points",
+  "context": "Environment, background, setting",
+  "action": "What is happening, product interaction"
+}
+```
+
+**Visual Style** (视觉风格 - Veo Guide):
+```json
+{
+  "style": "Overall visual style and artistic direction",
+  "camera_type": "Shot type (e.g., Medium shot, Close-up)",
+  "camera_movement": "Camera movements (e.g., Slow tracking shot)",
+  "composition": "Framing and shot composition",
+  "ambiance": "Color palette, lighting, mood"
+}
+```
+
+**Full Description** (完整描述 - NEW):
+```json
+{
+  "full_description": "200-500 word comprehensive narrative description combining all elements, suitable for 60s+ video generation. Includes subject, context, action, visual style, camera work, lighting, audio, and narrative flow."
+}
+```
+
+**完整示例输出**:
+```json
+{
+  "product_category": "children_toy",
+  "target_audience": "babies (0-2)",
+  "subject": "Wooden sensory activity box with colorful blocks",
+  "context": "Bright, minimalist playroom with soft natural lighting",
+  "action": "Baby discovering shapes, colors, and textures through hands-on exploration",
+  "style": "Modern, clean, Montessori-inspired educational aesthetic",
+  "camera_type": "Medium shot",
+  "camera_movement": "Gentle overhead shots, smooth close-ups of hands",
+  "composition": "Close-ups highlighting product details, POV angles",
+  "ambiance": "Warm, nurturing, developmentally focused with pastel tones",
+  "full_description": "A Lovevery-style educational advertisement showcasing a premium wooden activity toy... [详细200-500字描述]",
+  "description": "Baby exploring wooden activity toy",
+  "setting": "Modern playroom",
+  "lighting": "Soft natural lighting",
+  "dialogue": "Every discovery builds their future",
+  "music": "Gentle piano music",
+  "ending": "Product close-up with baby and toy in harmony",
+  "other_details": "Natural wood furniture, neutral walls",
+  "language": "English"
+}
+```
+
+#### 应用位置
+
+1. **竞品引用模式prompt** (line 764-854):
+   - 要求AI按Veo Guide结构分析竞品视频
+   - 输出包含product_category等结构化字段
+
+2. **传统模式prompt** (line 876-928):
+   - 要求AI分析产品并输出结构化描述
+   - 包含产品分类和完整的Veo Guide要素
+
+#### 技术优势
+
+| 方面 | 旧版 | 新版 (Version 3.0) |
+|------|------|-------------------|
+| product_description | 一句话 | 结构化8要素 + 完整描述 |
+| 产品分类 | 无 | 自动检测children_toy |
+| 视频描述长度 | ~50字 | 200-500字 |
+| 支持视频长度 | 8-10s | 60s+ |
+| Veo Guide兼容 | 否 | 完全兼容 |
+
+### 4. 完整工作流程（Version 3.0）
 
 #### 普通模型（Veo3, Veo3 Fast）
 ```
@@ -472,6 +619,42 @@ IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a 
 ---
 
 ## 版本历史
+
+### Version 3.1 (2025-01-16)
+- **关键突破**：解决儿童玩具视频无法展示儿童的问题 + 结构化视频分析
+- **核心变更**：
+  - **儿童产品特殊处理**：自动检测children_toy产品，跳过closing_frame生成
+  - **结构化视频分析**：基于Veo Prompt Guide的8要素专业分析输出
+  - **产品分类系统**：AI自动分类product_category ("children_toy" | "adult_product" | "general")
+- **问题发现与解决**：
+  - **问题**：Version 3.0的ZERO-CHILD POLICY导致first_frame和closing_frame都无儿童 → 视频也无儿童
+  - **发现**：Google Veo3检查首尾两帧，如果两帧都无儿童→视频不会生成儿童（即使prompt提到）
+  - **解决**：儿童玩具只生成first_frame，跳过closing_frame → 只检查一帧 → 儿童正常出现
+- **技术实现**：
+  - 新增 `detectProductCategory()` 函数 (line 107-141) - 检测产品类别
+  - 修改segment frames生成逻辑 (line 1293-1309) - 条件跳过closing_frame
+  - 改进AI prompt - 要求输出Veo Guide结构化字段 (line 764-854, 876-928)
+  - 新增字段：product_category, target_audience, subject, context, composition, ambiance, full_description
+- **应用场景**：
+  - 儿童玩具（NEW）：
+    * first_frame: 成人手部+产品（ZERO-CHILD POLICY）
+    * closing_frame: **不生成**
+    * 视频: ✅ **儿童正常出现**（因为只检查first_frame）
+  - 成人产品：
+    * first_frame: 成人+产品
+    * closing_frame: 成人+产品
+    * 视频: ✅ 正常展示
+- **结构化分析优势**：
+  - **描述长度**：从一句话 → 200-500字完整叙事
+  - **支持时长**：从8-10s → 60s+ 长视频
+  - **Veo兼容**：完全符合Veo Prompt Guide标准
+  - **自动分类**：AI自动识别产品类别，触发特殊处理
+- **文件修改**：
+  - `lib/standard-ads-workflow.ts` (line 107-141) - detectProductCategory()函数
+  - `lib/standard-ads-workflow.ts` (line 1293-1309) - 条件跳过closing_frame
+  - `lib/standard-ads-workflow.ts` (line 764-854) - 竞品引用模式结构化prompt
+  - `lib/standard-ads-workflow.ts` (line 876-928) - 传统模式结构化prompt
+  - `prompts/standard-ads-workflow.md` - 完整文档更新到Version 3.1
 
 ### Version 3.0 (2025-01-16)
 - **重大策略转变**：从"Relaxed人物限制"转向"Zero-Child Policy + Adult-Friendly"

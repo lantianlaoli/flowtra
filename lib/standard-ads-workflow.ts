@@ -94,6 +94,52 @@ export function isSegmentedVideoRequest(
   return SEGMENTED_DURATIONS.has(videoDuration);
 }
 
+/**
+ * Detect product category from AI-generated prompts to determine if closing_frame should be generated
+ * @param prompts - The video prompts object returned from AI
+ * @returns Product category: 'children_toy' | 'adult_product' | 'general'
+ *
+ * CRITICAL: For children's toys, we should NOT generate closing_frame because:
+ * - Google Veo3 checks both first_frame and closing_frame
+ * - If both frames have NO children → Video also won't have children (even if prompt mentions children)
+ * - Solution: Only generate first_frame for children's products → Children can appear in video
+ */
+function detectProductCategory(prompts: Record<string, unknown>): 'children_toy' | 'adult_product' | 'general' {
+  // Method 1: Check if AI explicitly provided product_category (recommended)
+  if (typeof prompts.product_category === 'string') {
+    const category = prompts.product_category.toLowerCase();
+    if (category === 'children_toy') return 'children_toy';
+    if (category === 'adult_product') return 'adult_product';
+    return 'general';
+  }
+
+  // Method 2: Keyword detection as fallback
+  const childrenKeywords = [
+    'baby', 'babies', 'infant', 'toddler', 'child', 'children', 'kid', 'kids',
+    'toy', 'toys', 'nursery', 'playmat', 'stroller', 'crib', 'diaper',
+    'preschool', 'kindergarten', '0-2', '3-12', 'newborn'
+  ];
+
+  // Search in multiple fields
+  const searchText = JSON.stringify({
+    description: prompts.description,
+    subject: prompts.subject,
+    context: prompts.context,
+    action: prompts.action,
+    target_audience: prompts.target_audience,
+    full_description: prompts.full_description
+  }).toLowerCase();
+
+  const hasChildrenKeywords = childrenKeywords.some(keyword => searchText.includes(keyword));
+
+  if (hasChildrenKeywords) {
+    console.log('🔍 Detected children_toy product based on keywords');
+    return 'children_toy';
+  }
+
+  return 'general';
+}
+
 export async function startWorkflowProcess(request: StartWorkflowRequest): Promise<WorkflowResult> {
   try {
     const supabase = getSupabaseAdmin();
@@ -761,24 +807,35 @@ You are analyzing a competitor advertisement to create a similar ad for OUR prod
 📺 COMPETITOR AD (${processedCompetitorContext.file_type.toUpperCase()}):
 From: "${processedCompetitorContext.competitor_name}"
 
-TASK: Analyze the competitor ${processedCompetitorContext.file_type} and extract its complete creative structure:
+TASK: Analyze the competitor ${processedCompetitorContext.file_type} and extract its complete creative structure following Veo prompt guide principles:
 
-1. **Complete Video Script Analysis**:
+1. **Product Classification (CRITICAL)**:
+   - Identify product_category: "children_toy" | "adult_product" | "general"
+     * "children_toy" if video shows babies/children (0-12 years) using the product
+     * "adult_product" if for adult use only
+     * "general" if unclear or all-ages
+   - Identify target_audience: "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
+
+2. **Core Concept (Veo Guide: Subject + Context + Action)**:
+   - Subject: Main elements and focal points in the video
+   - Context: Environment, background, setting, time of day
+   - Action: What is happening, movement, interaction with product
+
+3. **Visual Style (Veo Guide: Style + Camera + Composition + Ambiance)**:
+   - Style: Overall visual style and artistic direction
+   - Camera Motion: Camera movements (pan, zoom, tracking, POV shots, etc.)
+   - Composition: Shot types (close-up, medium shot, wide shot, angles)
+   - Ambiance: Color palette, lighting setup, mood, atmosphere
+
+4. **Complete Video Script Analysis**:
    - Extract all dialogue, voiceover, and text content
    - Document the narrative flow and storytelling structure
    - Note pacing, transitions, and segment timing
 
-2. **Visual Structure Analysis**:
-   - First frame composition and visual elements
-   - Camera angles, movements, and shot types throughout
-   - Scene transitions and progression
-   - Color palette, lighting style, and visual aesthetics
-
-3. **Technical Specifications**:
-   - Camera movements (pan, zoom, tracking, etc.)
-   - Lighting setup and mood
+5. **Audio Elements**:
+   - Dialogue/voiceover content and delivery style
    - Music style and emotional tone
-   - Overall production quality and style
+   - Sound effects and ambient audio
 
 📸 OUR PRODUCT:
 The second image shows our product that should REPLACE the competitor's product in the advertisement.
@@ -812,17 +869,35 @@ ${segmentCount > 1 ? `Segment Plan Requirements:
 - Define one narrator voice that works for the entire ad and keep it identical for each segment
 ` : ''}
 Generate a JSON object with these elements:
+
+**Product Classification (REQUIRED)**:
+- product_category: "children_toy" | "adult_product" | "general" (CRITICAL for determining closing_frame generation)
+- target_audience: "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
+
+**Core Concept (Veo Guide)**:
+- subject: Main elements and focal points (extracted from competitor)
+- context: Environment and setting (matching competitor ad style)
+- action: Action sequence based on competitor structure, with our product
+
+**Visual Style (Veo Guide)**:
+- style: Overall visual style and artistic direction (from competitor)
+- camera_type: Shot type matching competitor ad (e.g., "Medium shot", "Close-up", "Wide shot")
+- camera_movement: Camera movement from competitor ad (e.g., "Slow tracking shot", "Static with gentle zoom")
+- composition: Framing and shot composition (from competitor)
+- ambiance: Color palette, lighting, and mood (matching competitor)
+
+**Standard Fields (for compatibility)**:
 - description: Main scene description based on competitor structure, with our product
 - setting: Environment matching competitor ad style
-- camera_type: Shot type matching competitor ad
-- camera_movement: Camera movement from competitor ad
-- action: Action sequence based on competitor structure, with our product
 - lighting: Lighting style from competitor ad
 - dialogue: Voiceover content adapted from competitor script, for our product (in English)
 - music: Music style matching competitor ad
 - ending: Conclusion style from competitor ad, with our product
 - other_details: Creative elements from competitor ad applied to our product
 - language: The language name for voiceover generation
+
+**Full Description (for long-form video - NEW)**:
+- full_description: A comprehensive 200-500 word narrative description combining all elements above, suitable for 60s+ video generation. Include detailed subject description, environmental context, complete action sequence, visual style notes, camera work details, lighting and color information, audio elements, and narrative flow. This should be detailed enough to guide multi-segment video generation.
 
 CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.
 IMPORTANT: All text content must be in English. The 'language' field specifies voiceover language only.
@@ -845,8 +920,10 @@ IMPORTANT: Incorporate these user requirements into all aspects of the video adv
 ` : ''}
 
 Focus on:
+- **Product Classification**: Determine if product is for children (toys, baby products) or adults
 - Visual elements in the product image (appearance, colors, textures, design)
 - Product category and potential use cases you can infer from the visuals
+- Target audience demographics (babies, children, teens, adults)
 - Emotional appeal based on visual presentation
 - Natural scene settings that match the product aesthetics${productContext && (productContext.product_details || productContext.brand_name) ? '\n- Product details and brand identity provided above' : ''}${userRequirements ? '\n- User-specified requirements and creative direction' : ''}
 ${segmentCount > 1 ? `- Maintain narrative continuity across ${segmentCount} segments (each approximately 8 seconds)` : ''}
@@ -866,17 +943,35 @@ DO NOT include:
 - Pre-existing brand positioning or assumptions
 
 Generate a JSON object with these elements:
-- description: ${processedCompetitorContext ? 'Main scene description based on competitor structure, with our product' : `Main scene description based on product visuals${userRequirements ? ' and user requirements' : ''}`}
-- setting: ${processedCompetitorContext ? 'Environment matching competitor ad style' : `Natural environment that suits the product${userRequirements ? ' (consider user preferences)' : ''}`}
-- camera_type: ${processedCompetitorContext ? 'Shot type matching competitor ad' : 'Cinematic shot type that showcases the product best'}
-- camera_movement: ${processedCompetitorContext ? 'Camera movement from competitor ad' : 'Dynamic camera movement'}
-- action: ${processedCompetitorContext ? 'Action sequence based on competitor structure, with our product' : `Engaging product demonstration or lifestyle scene${userRequirements ? ' (aligned with user vision)' : ''}`}
-- lighting: ${processedCompetitorContext ? 'Lighting style from competitor ad' : 'Professional lighting setup that enhances the product'}
-- dialogue: ${processedCompetitorContext ? 'Voiceover content adapted from competitor script, for our product (in English)' : `Natural voiceover content focused on product benefits and features${userRequirements ? ', incorporating user messaging' : ''} (in English, NO brand slogans)`}
-- music: ${processedCompetitorContext ? 'Music style matching competitor ad' : `Music style matching the mood and product category${userRequirements ? ' and user preferences' : ''}`}
-- ending: ${processedCompetitorContext ? 'Conclusion style from competitor ad, with our product' : 'Natural ad conclusion (e.g., product close-up, lifestyle shot)'}
-- other_details: ${processedCompetitorContext ? 'Creative elements from competitor ad applied to our product' : `Creative visual elements that enhance the advertisement${userRequirements ? ', including user-specified elements' : ''}`}
-- language: The language name for voiceover generation (e.g., "English", "Urdu (Pakistan's national language)", "Punjabi")
+
+**Product Classification (REQUIRED)**:
+- product_category: "children_toy" | "adult_product" | "general" (CRITICAL - classify based on product visuals and intended use)
+- target_audience: "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
+
+**Core Concept (Veo Guide)**:
+- subject: Main elements and focal points in the advertisement
+- context: Environment and setting suitable for the product
+- action: Product demonstration or lifestyle scene showing product use
+
+**Visual Style (Veo Guide)**:
+- style: Overall visual style and artistic direction appropriate for product
+- camera_type: Cinematic shot type that showcases the product best (e.g., "Medium shot", "Close-up")
+- camera_movement: Dynamic camera movement (e.g., "Slow push-in", "Tracking shot")
+- composition: Framing and shot composition style
+- ambiance: Color palette, lighting mood, and atmosphere
+
+**Standard Fields (for compatibility)**:
+- description: Main scene description based on product visuals${userRequirements ? ' and user requirements' : ''}
+- setting: Natural environment that suits the product${userRequirements ? ' (consider user preferences)' : ''}
+- lighting: Professional lighting setup that enhances the product
+- dialogue: Natural voiceover content focused on product benefits and features${userRequirements ? ', incorporating user messaging' : ''} (in English, NO brand slogans)
+- music: Music style matching the mood and product category${userRequirements ? ' and user preferences' : ''}
+- ending: Natural ad conclusion (e.g., product close-up, lifestyle shot)
+- other_details: Creative visual elements that enhance the advertisement${userRequirements ? ', including user-specified elements' : ''}
+- language: The language name for voiceover generation (e.g., "English", "Urdu", "Punjabi")
+
+**Full Description (for long-form video - NEW)**:
+- full_description: A comprehensive 200-500 word narrative description combining all elements above, suitable for 60s+ video generation. Include detailed subject description, environmental context, complete action sequence, visual style notes, camera work details, lighting and color information, audio elements, and narrative flow.
 
 CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.
 IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in English. The 'language' field is metadata only to specify what language the video voiceover should use.
@@ -1190,18 +1285,28 @@ async function startSegmentedWorkflow(
     segment.status = 'generating_first_frame';
 
     // Last segment gets a dedicated closing frame
+    // CRITICAL: Skip closing_frame for children_toy products to allow children to appear in video
+    // Reason: Google Veo3 checks both first_frame and closing_frame
+    // - If both have NO children → video won't have children even if prompt mentions them
+    // - If only first_frame (no closing_frame) → children can appear in video
     if (segment.segment_index === normalizedSegments.length - 1) {
-      const closingFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'closing');
+      const productCategory = detectProductCategory(prompts);
 
-      await supabase
-        .from('standard_ads_segments')
-        .update({
-          closing_frame_task_id: closingFrameTaskId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', segment.id);
+      if (productCategory === 'children_toy') {
+        console.log('🧸 Detected children_toy product - SKIPPING closing_frame generation to allow children in video');
+      } else {
+        const closingFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'closing');
 
-      segment.closing_frame_task_id = closingFrameTaskId;
+        await supabase
+          .from('standard_ads_segments')
+          .update({
+            closing_frame_task_id: closingFrameTaskId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', segment.id);
+
+        segment.closing_frame_task_id = closingFrameTaskId;
+      }
     }
   }
 
