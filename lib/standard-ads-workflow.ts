@@ -909,7 +909,7 @@ CRITICAL: Keep each segment's dialogue concise enough for ~${perSegmentDuration}
   });
 
   // Parse JSON from text
-  let data: any;
+  let data: unknown;
   try {
     data = JSON.parse(responseText);
   } catch (parseError) {
@@ -919,12 +919,13 @@ CRITICAL: Keep each segment's dialogue concise enough for ~${perSegmentDuration}
   }
 
   // Validate response structure
-  if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+  const apiResponse = data as { choices?: Array<{ message?: { content?: string } }> };
+  if (!apiResponse.choices || !apiResponse.choices[0] || !apiResponse.choices[0].message || !apiResponse.choices[0].message.content) {
     console.error('❌ OpenRouter response missing expected structure:', data);
     throw new Error('OpenRouter response missing choices[0].message.content');
   }
 
-  const content = data.choices[0].message.content;
+  const content = apiResponse.choices[0].message.content;
 
   // With Structured Outputs, the response is guaranteed to match our schema
   let parsed: Record<string, unknown>;
@@ -1001,23 +1002,29 @@ Requirements:
 - Only enhance lighting, background, or add subtle marketing elements
 - The product must remain visually identical to the original
 
-⚠️ CRITICAL IMAGE-ONLY TRANSFORMATION:
-The video prompt may describe people (children, babies, adults) interacting with the product.
-For THIS IMAGE, you MUST transform any human interaction into product-focused composition:
-- If prompt mentions "baby playing with toy" → Show the toy alone in an appealing display
-- If prompt mentions "child wearing clothing" → Show the clothing displayed or on a mannequin
-- If prompt mentions "parent demonstrating product" → Show the product with clear feature highlights
-- If prompt describes human actions → Replace with product showcasing the same features
-- Maintain the SCENE, LIGHTING, and STYLE from the prompt, but remove all people
-- The goal: Create a visually appealing product image that conveys the same message WITHOUT human subjects
+⚠️ ZERO-CHILD POLICY (ALL MODELS):
 
-CRITICAL SAFETY RESTRICTION:
-- DO NOT include children, minors, or anyone who appears to be under 18 years old
-- DO NOT include babies, toddlers, or young people
-- DO NOT include photorealistic human faces with clear, identifiable facial features
-- DO NOT show close-up shots of faces or detailed facial characteristics
-- If humans are necessary, only show silhouettes, blurred figures, or distant people without visible facial details
-- Focus on product-only composition or depersonalized scenes`;
+PROHIBITED Elements:
+❌ Absolutely NO children/minors (under 18) in ANY form:
+   - No child faces, hands, limbs, or body parts
+   - No child silhouettes, back views, or blurred figures
+   - No recognizable children in any way
+
+ALLOWED Human Elements (Adults 18+ ONLY):
+✅ Adults: FULLY ALLOWED in all forms
+   - Clear frontal faces with visible facial features
+   - Close-up face shots and detailed portraits
+   - Multiple people with visible faces in the same frame
+   - Hands/arms showing product interaction
+   - Body parts demonstrating product use
+   - Blurred background figures, silhouettes, back views
+   - All forms of adult human presence
+
+TRANSFORMATION RULES:
+- If original prompt has children → Replace with adults OR product-only display
+- Adults can be shown naturally without face restrictions
+- Maintain SCENE, LIGHTING, and STYLE from original prompt
+- Focus on product presentation and authentic use cases`;
 
   // Extract watermark information from request
   const watermarkText = request.watermark?.text?.trim();
@@ -1041,10 +1048,12 @@ CRITICAL SAFETY RESTRICTION:
   }
 
   const includeSoraSafety = request.shouldGenerateVideo !== false && (request.videoModel === 'sora2' || request.videoModel === 'sora2_pro');
-  const soraSafetySection = `\n\nSora2 Safety Requirements:
-- Do not include photorealistic humans, faces, or bodies
-- Focus entirely on the product, typography, or abstract environments without people
-- Maintain a people-free composition that still feels dynamic and premium`;
+  const soraSafetySection = `\n\nSora2 STRICT Safety Requirements (Very Important):
+❌ NO children/minors (under 18) in ANY form (same as above)
+❌ NO human faces of any age - Sora2 content moderation is extremely strict
+✅ Allowed for adults: hands/limbs, body parts, blurred figures, silhouettes, back views
+✅ Highlight product using hands-on demonstration WITHOUT showing any faces
+✅ Use side views, back views, or obscured angles for human presence if needed`;
 
   if (includeSoraSafety) {
     prompt += soraSafetySection;
@@ -1295,21 +1304,29 @@ Scene Focus:
 - Camera: ${segmentPrompt.camera_type} with ${segmentPrompt.camera_movement}
 - Lighting: ${segmentPrompt.lighting}
 
-⚠️ CRITICAL IMAGE-ONLY TRANSFORMATION:
-The segment prompt may describe people (children, babies, adults) interacting with the product.
-For THIS KEYFRAME IMAGE, you MUST transform any human interaction into product-focused composition:
-- If segment describes people with product → Show product alone in the same setting
-- If segment shows human actions → Illustrate product features without people
-- Maintain the SCENE, LIGHTING, CAMERA ANGLE, and STYLE, but remove all people
-- Create a product-focused still frame that matches the segment's visual intent WITHOUT human subjects
+⚠️ ZERO-CHILD POLICY (ALL MODELS):
 
-CRITICAL SAFETY RESTRICTION:
-- DO NOT include children, minors, or anyone who appears to be under 18 years old
-- DO NOT include babies, toddlers, or young people
-- DO NOT include photorealistic human faces with clear, identifiable facial features
-- DO NOT show close-up shots of faces or detailed facial characteristics
-- If humans are necessary, only show silhouettes, blurred figures, or distant people without visible facial details
-- Focus on product-only composition or depersonalized scenes
+PROHIBITED Elements:
+❌ Absolutely NO children/minors (under 18) in ANY form:
+   - No child faces, hands, limbs, or body parts
+   - No child silhouettes, back views, or blurred figures
+   - No recognizable children in any way
+
+ALLOWED Human Elements (Adults 18+ ONLY):
+✅ Adults: FULLY ALLOWED in all forms
+   - Clear frontal faces with visible facial features
+   - Close-up face shots and detailed portraits
+   - Multiple people with visible faces in the same frame
+   - Hands/arms showing product interaction
+   - Body parts demonstrating product use
+   - Blurred background figures, silhouettes, back views
+   - All forms of adult human presence
+
+TRANSFORMATION RULES:
+- If segment describes children → Replace with adults OR product-only display
+- Adults can be shown naturally without face restrictions
+- Maintain SCENE, LIGHTING, CAMERA ANGLE, and STYLE from original segment
+- Create product-focused keyframe that shows authentic use cases
 
 Render Instructions:
 - ${frameType === 'first' ? segmentPrompt.first_frame_prompt : segmentPrompt.closing_frame_prompt}

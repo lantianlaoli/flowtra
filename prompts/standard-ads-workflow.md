@@ -1,7 +1,7 @@
 # Standard Ads Workflow - Prompt Documentation
 
 **Last Updated:** 2025-01-16
-**Version:** 2.3 (Video-Image Separation Strategy)
+**Version:** 3.0 (Adult-Friendly, Zero-Child Policy)
 
 ## Overview
 
@@ -66,27 +66,30 @@ Standard Ads workflow支持两种不同的广告生成模式：
 
 ## 安全限制 (Safety Restrictions)
 
-### Version 2.3: Video-Image Separation Strategy
+### Version 3.0: Adult-Friendly, Zero-Child Policy
 
-**核心原则**: 视频prompt可以包含儿童/婴儿，但图片生成必须转换为纯产品展示
+**核心原则**:
+1. **完全禁止儿童**：图片中不能出现任何儿童元素（包括手部、肢体、剪影等）
+2. **成人完全允许**：成人可以自由出现，包括清晰人脸特写
+3. **Sora2特殊处理**：Sora2模型仍需避免人脸（内容审核更严格）
 
-**为什么需要分离策略？**
-- **业务需求**: 销售婴儿玩具的视频广告必须展示婴儿与产品互动，否则广告无意义
-- **技术限制**: Google Veo3检查的是**输入图片**而非视频prompt，只要图片不含儿童即可通过
-- **解决方案**: AI生成完整prompt（含儿童）→ 视频使用完整prompt → 图片智能转换为产品展示
+**为什么需要Zero-Child Policy？**
+- **安全合规**: 完全避免涉及未成年人的内容审核风险
+- **策略简化**: 明确的"零儿童"规则，更容易理解和执行
+- **成人友好**: 放开成人限制，允许更真实的产品展示（人脸特写、模特展示等）
 
 ### 1. AI Prompt生成阶段 (无限制)
 
 **适用范围**: `generateImageBasedPrompts()`函数
 
-**Version 2.3变更**:
-- ❌ 移除Version 2.2的所有AI生成限制
-- ✅ AI可以自由生成包含儿童/婴儿的广告脚本
+**策略**:
+- ✅ AI可以自由生成包含儿童/成人的广告脚本
+- ✅ 视频可以展示儿童与产品互动（因为Veo3只检查输入图片）
 - ✅ 适用于传统模式和竞品引用模式
 
 **原因**:
-- 婴儿玩具广告需要展示婴儿与产品互动
-- 儿童服装广告需要展示儿童穿着效果
+- 婴儿玩具广告的视频仍可展示婴儿与产品互动
+- 图片生成阶段会智能转换（儿童→成人或纯产品）
 - 视频生成不受儿童内容限制（只要图片合规）
 
 **示例prompt输出**:
@@ -97,80 +100,133 @@ Standard Ads workflow支持两种不同的广告生成模式：
   "dialogue": "Watch your little one discover the joy of learning..."
 }
 ```
+> 注意：视频可以用这个prompt，但图片生成会转换为成人或产品展示
 
-### 2. 图片生成阶段限制 (智能转换)
+### 2. 图片生成阶段限制
 
 **适用范围**: 所有图片生成（封面、分段关键帧）
 
-#### A. 图片转换策略
+#### A. 通用限制（适用所有模型）
 
-**关键实现**: `⚠️ CRITICAL IMAGE-ONLY TRANSFORMATION` 部分
+**关键实现**: `⚠️ ZERO-CHILD POLICY (ALL MODELS)` 部分
+
+**禁止的元素**:
+```
+PROHIBITED Elements:
+❌ Absolutely NO children/minors (under 18) in ANY form:
+   - No child faces, hands, limbs, or body parts
+   - No child silhouettes, back views, or blurred figures
+   - No recognizable children in any way
+```
+
+**允许的元素（成人18+）**:
+```
+ALLOWED Human Elements (Adults 18+ ONLY):
+✅ Adults: FULLY ALLOWED in all forms
+   - Clear frontal faces with visible facial features
+   - Close-up face shots and detailed portraits
+   - Multiple people with visible faces in the same frame
+   - Hands/arms showing product interaction
+   - Body parts demonstrating product use
+   - Blurred background figures, silhouettes, back views
+   - All forms of adult human presence
+```
 
 **转换规则**:
 ```
-The video prompt may describe people (children, babies, adults) interacting with the product.
-For THIS IMAGE, you MUST transform any human interaction into product-focused composition:
-- If prompt mentions "baby playing with toy" → Show the toy alone in an appealing display
-- If prompt mentions "child wearing clothing" → Show the clothing displayed or on a mannequin
-- If prompt mentions "parent demonstrating product" → Show the product with clear feature highlights
-- If prompt describes human actions → Replace with product showcasing the same features
-- Maintain the SCENE, LIGHTING, and STYLE from the prompt, but remove all people
-- The goal: Create a visually appealing product image that conveys the same message WITHOUT human subjects
+TRANSFORMATION RULES:
+- If original prompt has children → Replace with adults OR product-only display
+- Adults can be shown naturally without face restrictions
+- Maintain SCENE, LIGHTING, and STYLE from original prompt
+- Focus on product presentation and authentic use cases
 ```
 
 **应用位置**:
-- `generateCover()` - 封面图生成 (lines 1004-1012)
-- `createSegmentFrameTask()` - 分段关键帧生成 (lines 1298-1304)
+- `generateCover()` - 封面图生成 (lines 1004-1026)
+- `createSegmentFrameTask()` - 分段关键帧生成 (lines 1306-1328)
 
-#### B. 图片安全限制
+#### B. Sora2模型额外限制
 
-**基础限制** (应用于所有模型和时长):
+**Sora2 STRICT Safety Requirements** (仅Sora2/Sora2 Pro):
 ```
-CRITICAL SAFETY RESTRICTION:
-- DO NOT include children, minors, or anyone who appears to be under 18 years old
-- DO NOT include babies, toddlers, or young people
-- DO NOT include photorealistic human faces with clear, identifiable facial features
-- DO NOT show close-up shots of faces or detailed facial characteristics
-- If humans are necessary, only show silhouettes, blurred figures, or distant people without visible facial details
-- Focus on product-only composition or depersonalized scenes
+❌ NO children/minors (under 18) in ANY form (same as above)
+❌ NO human faces of any age - Sora2 content moderation is extremely strict
+✅ Allowed for adults: hands/limbs, body parts, blurred figures, silhouettes, back views
+✅ Highlight product using hands-on demonstration WITHOUT showing any faces
+✅ Use side views, back views, or obscured angles for human presence if needed
 ```
 
-**Sora2额外限制** (仅Sora2/Sora2 Pro):
-```
-Sora2 Safety Requirements:
-- Do not include photorealistic humans, faces, or bodies
-- Focus entirely on the product, typography, or abstract environments without people
-- Maintain a people-free composition that still feels dynamic and premium
-```
+**应用位置**:
+- `generateCover()` - 封面图生成时Sora2检测 (lines 1049-1055)
 
-### 3. 完整工作流程
+**说明**: Sora2的内容审核非常严格，不能出现任何人脸。但仍然允许成人的手部/肢体演示产品，只是不能显示脸部。
 
+### 3. 完整工作流程（Version 3.0）
+
+#### 普通模型（Veo3, Veo3 Fast）
 ```
-用户上传婴儿玩具照片
+用户上传儿童玩具照片
         ↓
-AI生成广告prompt（包含"baby playing with toy"等描述）
+AI生成广告prompt（可能包含"child playing with toy"）
         ↓
     ┌─────────┴─────────┐
     ↓                   ↓
 图片生成              视频生成
-(转换为纯产品)      (使用完整prompt含婴儿)
+(转换为成人或纯产品)  (使用完整prompt含儿童)
     ↓                   ↓
-玩具单独展示图      婴儿玩玩具视频
-(Google Veo3接受)   (有意义的广告内容)
+成人手部玩玩具图      儿童玩玩具视频
+(成人可见人脸)       (有意义的广告内容)
 ```
 
-### 4. 技术优势
+#### Sora2模型
+```
+用户上传智能手表照片
+        ↓
+AI生成广告prompt（包含成人佩戴展示）
+        ↓
+    ┌─────────┴─────────┐
+    ↓                   ↓
+图片生成              视频生成 (Sora2)
+(成人手腕，无人脸)    (使用完整prompt)
+    ↓                   ↓
+手腕特写展示          完整广告视频
+(无人脸，符合Sora2要求)
+```
 
-**相比Version 2.2的改进**:
-- ✅ 视频内容真实有意义（婴儿玩具广告有婴儿）
-- ✅ 图片符合Google Veo3政策（无儿童面孔）
-- ✅ 最大化广告效果（不牺牲内容质量）
-- ✅ 智能转换而非简单限制（保持场景美感）
+### 4. Version 3.0 的关键变化
 
-**实际效果**:
-- 视频: "一个婴儿坐在游戏垫上打开礼物盒，露出惊喜的表情..."
-- 封面: 相同场景的游戏垫和礼物盒，但无婴儿，光线和构图保持一致
-- 结果: Google Veo3接受封面图，生成有婴儿的视频内容
+**相比 Version 2.4 (Relaxed) 的变化**:
+
+| 方面 | Version 2.4 | Version 3.0 |
+|------|-------------|-------------|
+| **儿童手部/肢体** | ✅ 允许（无人脸） | ❌ 完全禁止 |
+| **儿童剪影/背影** | ✅ 允许 | ❌ 完全禁止 |
+| **成人正面人脸** | ❌ 禁止 | ✅ 完全允许 |
+| **成人多人合影** | ❌ 禁止 | ✅ 完全允许 |
+| **成人面部特写** | ❌ 禁止 | ✅ 完全允许 |
+| **Sora2成人人脸** | ❌ 禁止 | ❌ 仍然禁止 |
+
+**实际效果示例**:
+
+**儿童玩具广告（普通模型）**:
+- ❌ 旧版: 儿童手部搭积木，背景模糊儿童轮廓
+- ✅ 新版: **成人手部**搭积木 或 纯产品展示
+- 结果: 完全避免儿童元素，使用成人演示
+
+**智能手表广告（普通模型）**:
+- ❌ 旧版: 手腕特写，禁止显示人脸
+- ✅ 新版: 手腕特写 + **成人完整人脸**都允许
+- 结果: 更真实的产品展示，可以看到佩戴者表情
+
+**服装广告（普通模型）**:
+- ❌ 旧版: 模特背影，避免人脸
+- ✅ 新版: **成人模特正面**展示服装
+- 结果: 完整展示穿着效果，包括面部搭配
+
+**化妆品广告（Sora2模型）**:
+- 策略: **成人手部**涂抹产品特写（无人脸）
+- 或者: 纯产品展示 + 手部演示
+- 结果: 符合Sora2严格审核，但仍能展示使用场景
 
 ---
 
@@ -416,6 +472,43 @@ IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a 
 ---
 
 ## 版本历史
+
+### Version 3.0 (2025-01-16)
+- **重大策略转变**：从"Relaxed人物限制"转向"Zero-Child Policy + Adult-Friendly"
+- **核心变更**：
+  - **完全禁止儿童**：图片生成中不能出现任何儿童元素（包括手部、肢体、剪影等）
+  - **完全允许成人**：放开成人限制，允许清晰人脸特写、多人合影等所有形式
+  - **Sora2特殊处理**：Sora2模型仍禁止人脸（内容审核极严格），但允许手部/肢体演示
+- **问题解决**：Version 2.4的"允许儿童手部"策略仍存在未成年人内容审核风险
+- **技术实现**：
+  - 修改 `generateCover()` 通用限制 → `⚠️ ZERO-CHILD POLICY (ALL MODELS)`
+  - 修改 `generateCover()` Sora2限制 → `Sora2 STRICT Safety Requirements`
+  - 修改 `createSegmentFrameTask()` 限制 → 同样的Zero-Child Policy
+  - AI prompt生成阶段保持无限制（视频仍可展示儿童）
+- **应用场景**：
+  - 儿童玩具：视频展示儿童玩耍，**封面改为成人手部演示**或纯产品
+  - 智能手表：视频和封面都可展示**成人完整人脸**（Version 2.4禁止）
+  - 服装广告：封面可以**成人模特正面**展示（Version 2.4只能背影）
+  - 化妆品（Sora2）：封面展示**成人手部涂抹**（无人脸，符合Sora2要求）
+- **策略优势**：
+  - **安全合规**：完全避免未成年人相关的内容审核风险
+  - **简化规则**：明确的"零儿童"政策，更容易理解和执行
+  - **成人友好**：真实展示成人使用场景（人脸特写、情绪表达等）
+  - **差异化处理**：普通模型完全放开，Sora2保持严格（适应不同审核标准）
+- **文件修改**：
+  - `lib/standard-ads-workflow.ts` (line 1004-1026) - generateCover()通用限制
+  - `lib/standard-ads-workflow.ts` (line 1049-1055) - generateCover() Sora2额外限制
+  - `lib/standard-ads-workflow.ts` (line 1306-1328) - createSegmentFrameTask()限制
+  - `prompts/standard-ads-workflow.md` - 完整文档更新到Version 3.0
+
+### Version 2.4 (2025-01-16) [已废弃 - 儿童风险]
+- **策略名称**：Relaxed人物限制策略
+- **核心特点**：允许儿童手部/肢体（无人脸），禁止所有成人人脸
+- **废弃原因**：
+  - 儿童手部/肢体仍可能触发未成年人内容审核
+  - 成人人脸禁令过于严格，限制真实产品展示
+  - 需要更明确的"零儿童"策略以彻底规避风险
+- **改进方向**：Version 3.0采用Zero-Child Policy + Adult-Friendly策略
 
 ### Version 2.3 (2025-01-16)
 - **重大战略调整**：从多层防御转向视频-图片分离策略

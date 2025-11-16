@@ -35,7 +35,6 @@ export async function mergeVideosWithFal(
       },
       logs: true,
       timeout: 300000, // 5 minutes timeout for video merging
-      connectionTimeout: 60000, // 60 seconds connection timeout (increased from default 10s)
       onQueueUpdate: (update: { status?: string; logs?: { message?: string }[] | null }) => {
         console.log(`Merge queue update: ${update.status}`);
         if (update.status === 'IN_PROGRESS') {
