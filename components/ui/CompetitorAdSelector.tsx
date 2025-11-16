@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Target, Loader2, Info, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import { CompetitorAd } from '@/lib/supabase';
@@ -25,6 +26,9 @@ export default function CompetitorAdSelector({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [expandedAdId, setExpandedAdId] = useState<string | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
 
   // Detect mobile on mount and window resize
   useEffect(() => {
@@ -46,6 +50,46 @@ export default function CompetitorAdSelector({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brandId]);
+
+  // Close when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        contentRef.current &&
+        !contentRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setIsExpanded(false);
+      }
+    };
+
+    if (isExpanded) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isExpanded]);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsExpanded(false);
+      }
+    };
+
+    if (isExpanded) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isExpanded]);
+
+  // Update button position when opening
+  useEffect(() => {
+    if (isExpanded && buttonRef.current) {
+      setButtonRect(buttonRef.current.getBoundingClientRect());
+    }
+  }, [isExpanded]);
 
   const loadCompetitorAds = async () => {
     if (!brandId) return;
@@ -115,9 +159,48 @@ export default function CompetitorAdSelector({
 
   return (
     <div className={`bg-purple-50 border border-purple-200 rounded-xl overflow-hidden relative ${className}`}>
-      {/* Expandable Content - Render ABOVE header */}
-      {isExpanded && (
-        <div className="absolute left-0 right-0 bottom-full mb-1 bg-white border border-purple-200 rounded-xl shadow-lg overflow-hidden">
+      {/* Header - Always visible */}
+      <button
+        ref={buttonRef}
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-purple-100 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Target className="w-5 h-5 text-purple-600" />
+          <div className="text-left">
+            <h3 className="text-sm font-semibold text-purple-900">
+              Reference Competitor Ad (Optional)
+            </h3>
+            <p className="text-xs text-purple-700">
+              {selectedCompetitorAd
+                ? `Selected: ${selectedCompetitorAd.competitor_name}`
+                : `${competitorAds.length} competitor ${competitorAds.length === 1 ? 'ad' : 'ads'} available`}
+            </p>
+          </div>
+        </div>
+        <svg
+          className={`w-5 h-5 text-purple-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Expandable Content - Render via Portal */}
+      {isExpanded && buttonRect && typeof window !== 'undefined' && createPortal(
+        <div
+          ref={contentRef}
+          style={{
+            position: 'fixed',
+            left: `${buttonRect.left}px`,
+            right: `${window.innerWidth - buttonRect.right}px`,
+            bottom: `${window.innerHeight - buttonRect.top + 8}px`,
+            maxHeight: '50vh',
+          }}
+          className="bg-white border border-purple-200 rounded-xl shadow-lg overflow-hidden z-[110]"
+        >
           <div className="p-4">
             <div className="mb-3">
               <p className="text-xs text-gray-600">
@@ -255,36 +338,9 @@ export default function CompetitorAdSelector({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-
-      {/* Header - Always visible at bottom */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-purple-100 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Target className="w-5 h-5 text-purple-600" />
-          <div className="text-left">
-            <h3 className="text-sm font-semibold text-purple-900">
-              Reference Competitor Ad (Optional)
-            </h3>
-            <p className="text-xs text-purple-700">
-              {selectedCompetitorAd
-                ? `Selected: ${selectedCompetitorAd.competitor_name}`
-                : `${competitorAds.length} competitor ${competitorAds.length === 1 ? 'ad' : 'ads'} available`}
-            </p>
-          </div>
-        </div>
-        <svg
-          className={`w-5 h-5 text-purple-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
     </div>
   );
 }

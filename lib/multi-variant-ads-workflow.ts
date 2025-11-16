@@ -877,10 +877,11 @@ async function generateMultiVariantCover(request: MultiVariantAdsRequest): Promi
 
   const requestedVideoModel = request.requestedVideoModel || request.videoModel;
   const includeSoraSafety = request.generateVideo !== false && requestedVideoModel === 'sora2';
-  const soraSafetySection = `\n\nSora2 Safety Requirements:
-- Remove photorealistic humans, faces, and bodies from the scene
-- Highlight the product using abstract design, typography, or stylised environments without people
-- If characters are unavoidable, use simplified silhouettes without realistic facial detail`;
+  const soraSafetySection = `\n\nSora2 Relaxed Safety Requirements:
+- Remove clear photorealistic faces from the scene
+- Allowed: hands, limbs, blurred background people, silhouettes, back views
+- Highlight product using hands-on interaction or partial human presence without visible faces
+- Use abstract design, stylized environments, or depersonalized human elements`;
 
   if (includeSoraSafety) {
     prompt += soraSafetySection;
