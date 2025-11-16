@@ -45,13 +45,13 @@ export default function CompetitorAdCard({
       onClick={handleClick}
     >
       {/* Media Preview */}
-      <div className="relative aspect-video bg-gray-100">
+      <div className="relative aspect-video bg-gray-900">
         {competitorAd.file_type === 'image' ? (
           <Image
             src={competitorAd.ad_file_url}
             alt={`${competitorAd.competitor_name} ad`}
             fill
-            className="object-cover"
+            className="object-contain"
             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
           />
         ) : (
@@ -59,7 +59,7 @@ export default function CompetitorAdCard({
             {!videoError ? (
               <video
                 src={competitorAd.ad_file_url}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
                 muted
                 loop
                 playsInline
