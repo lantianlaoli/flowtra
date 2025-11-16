@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Target, Loader2, Info } from 'lucide-react';
+import { Target, Loader2, Info, ChevronRight } from 'lucide-react';
+import Image from 'next/image';
 import { CompetitorAd } from '@/lib/supabase';
 import CompetitorAdCard from '../CompetitorAdCard';
 
@@ -22,6 +23,19 @@ export default function CompetitorAdSelector({
   const [competitorAds, setCompetitorAds] = useState<CompetitorAd[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [expandedAdId, setExpandedAdId] = useState<string | null>(null);
+
+  // Detect mobile on mount and window resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     if (brandId) {
@@ -54,9 +68,18 @@ export default function CompetitorAdSelector({
     if (selectedCompetitorAd?.id === ad.id) {
       // Deselect if clicking the same ad
       onSelect(null);
+      setExpandedAdId(null);
     } else {
       onSelect(ad);
+      // On mobile, collapse the expanded preview after selection
+      if (isMobile) {
+        setExpandedAdId(null);
+      }
     }
+  };
+
+  const toggleAdExpansion = (adId: string) => {
+    setExpandedAdId(expandedAdId === adId ? null : adId);
   };
 
   if (!brandId) {
@@ -129,20 +152,123 @@ export default function CompetitorAdSelector({
             </p>
           </div>
 
-          {/* Competitor Ads Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {competitorAds.map((ad) => (
-              <CompetitorAdCard
-                key={ad.id}
-                competitorAd={ad}
-                onEdit={() => {}} // No edit in selector mode
-                onDelete={() => {}} // No delete in selector mode
-                onSelect={handleSelect}
-                isSelected={selectedCompetitorAd?.id === ad.id}
-                mode="select"
-              />
-            ))}
-          </div>
+          {/* Desktop: Grid View */}
+          {!isMobile ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {competitorAds.map((ad) => (
+                <CompetitorAdCard
+                  key={ad.id}
+                  competitorAd={ad}
+                  onEdit={() => {}} // No edit in selector mode
+                  onDelete={() => {}} // No delete in selector mode
+                  onSelect={handleSelect}
+                  isSelected={selectedCompetitorAd?.id === ad.id}
+                  mode="select"
+                />
+              ))}
+            </div>
+          ) : (
+            /* Mobile: Compact List with Click-to-Expand */
+            <div className="space-y-2">
+              {competitorAds.map((ad) => (
+                <div key={ad.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Compact Header - Always Visible */}
+                  <button
+                    onClick={() => toggleAdExpansion(ad.id)}
+                    className="w-full px-3 py-2.5 flex items-center justify-between bg-white hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {/* Small Thumbnail */}
+                      <div className="w-12 h-12 flex-shrink-0 bg-gray-900 rounded overflow-hidden relative">
+                        {ad.file_type === 'image' ? (
+                          <Image
+                            src={ad.ad_file_url}
+                            alt={ad.competitor_name}
+                            fill
+                            className="object-cover"
+                            sizes="48px"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M6 4a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2H6zm1 9a1 1 0 100-2 1 1 0 000 2zm5-1a1 1 0 11-2 0 1 1 0 012 0zm-5-5a1 1 0 100-2 1 1 0 000 2zm5-1a1 1 0 11-2 0 1 1 0 012 0z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Ad Info */}
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {ad.competitor_name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-gray-500">{ad.platform}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                            ad.file_type === 'video'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {ad.file_type === 'video' ? 'Video' : 'Image'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Selected Indicator */}
+                      {selectedCompetitorAd?.id === ad.id && (
+                        <div className="flex-shrink-0 bg-blue-500 text-white rounded-full p-1">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Expand/Collapse Icon */}
+                    <ChevronRight
+                      className={`w-5 h-5 text-gray-400 flex-shrink-0 ml-2 transition-transform ${
+                        expandedAdId === ad.id ? 'rotate-90' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {/* Expanded Preview - Only show when expanded */}
+                  {expandedAdId === ad.id && (
+                    <div className="border-t border-gray-200 bg-gray-50 p-3">
+                      <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden mb-3">
+                        {ad.file_type === 'image' ? (
+                          <Image
+                            src={ad.ad_file_url}
+                            alt={ad.competitor_name}
+                            fill
+                            className="object-contain"
+                            sizes="(max-width: 768px) 100vw, 50vw"
+                          />
+                        ) : (
+                          <video
+                            src={ad.ad_file_url}
+                            className="w-full h-full object-contain"
+                            controls
+                            playsInline
+                          />
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleSelect(ad)}
+                        className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                          selectedCompetitorAd?.id === ad.id
+                            ? 'bg-blue-500 text-white hover:bg-blue-600'
+                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                        }`}
+                      >
+                        {selectedCompetitorAd?.id === ad.id ? 'Selected' : 'Select This Ad'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Clear Selection Button */}
           {selectedCompetitorAd && (
