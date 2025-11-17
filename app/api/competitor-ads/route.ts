@@ -176,48 +176,40 @@ export async function POST(request: NextRequest) {
     } catch (analysisError) {
       console.error(`[POST /api/competitor-ads] ❌ Analysis failed for ${competitorAd.id}:`, analysisError);
 
-      // ROLLBACK STRATEGY: Delete database record and uploaded file
-      console.log(`[POST /api/competitor-ads] Initiating rollback for ${competitorAd.id}...`);
+      // PRESERVE FAILED RECORDS: Mark as failed but keep record and file
+      // User can retry analysis later via /api/competitor-ads/[id]/reanalyze
+      const errorMessage = analysisError instanceof Error ? analysisError.message : 'Unknown analysis error';
 
-      // Delete database record
-      const { error: deleteDbError } = await supabase
+      const { data: failedAd, error: markFailedError } = await supabase
         .from('competitor_ads')
-        .delete()
-        .eq('id', competitorAd.id);
+        .update({
+          analysis_status: 'failed',
+          analysis_error: errorMessage
+        })
+        .eq('id', competitorAd.id)
+        .select()
+        .single();
 
-      if (deleteDbError) {
-        console.error(`[POST /api/competitor-ads] Failed to delete database record during rollback:`, deleteDbError);
-      } else {
-        console.log(`[POST /api/competitor-ads] ✓ Database record deleted`);
+      if (markFailedError) {
+        console.error(`[POST /api/competitor-ads] Failed to mark record as failed:`, markFailedError);
+        // Even if update fails, return the original record
+        return NextResponse.json({
+          success: true,
+          competitorAd: {
+            ...competitorAd,
+            analysis_status: 'failed',
+            analysis_error: errorMessage
+          },
+          warning: 'Analysis failed but record was preserved. You can retry later.'
+        }, { status: 201 });
       }
 
-      // Delete uploaded file from storage
-      try {
-        const filePath = uploadResult.publicUrl.split('/').slice(-2).join('/'); // Extract path from URL
-        const { error: deleteFileError } = await supabase.storage
-          .from('competitor-ads')
-          .remove([filePath]);
-
-        if (deleteFileError) {
-          console.error(`[POST /api/competitor-ads] Failed to delete file during rollback:`, deleteFileError);
-        } else {
-          console.log(`[POST /api/competitor-ads] ✓ File deleted from storage`);
-        }
-      } catch (fileDeleteError) {
-        console.error(`[POST /api/competitor-ads] Error during file deletion:`, fileDeleteError);
-      }
-
-      console.log(`[POST /api/competitor-ads] ❌ Rollback complete`);
-
-      // Return error to user
-      return NextResponse.json(
-        {
-          error: 'Failed to analyze competitor ad',
-          details: analysisError instanceof Error ? analysisError.message : 'Unknown analysis error',
-          rollback: 'Record and file have been removed'
-        },
-        { status: 500 }
-      );
+      console.log(`[POST /api/competitor-ads] ⚠️ Competitor ad ${competitorAd.id} saved with failed analysis status`);
+      return NextResponse.json({
+        success: true,
+        competitorAd: failedAd,
+        warning: 'Analysis failed but record was preserved. You can retry later.'
+      }, { status: 201 });
     }
   } catch (error) {
     console.error('POST /api/competitor-ads error:', error);
