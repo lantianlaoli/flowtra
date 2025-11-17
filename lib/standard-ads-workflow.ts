@@ -610,6 +610,18 @@ async function startAIWorkflow(
     const totalDurationSeconds = parseInt(request.videoDuration || request.sora2ProDuration || '10', 10);
     const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
     const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration) : 1;
+
+    // TWO-STEP PROCESS for competitor reference mode
+    let competitorDescription: Record<string, unknown> | undefined;
+    if (competitorAdContext) {
+      // Step 1: Analyze competitor ad independently (pure analysis)
+      console.log('📺 Step 1: Analyzing competitor ad...');
+      competitorDescription = await analyzeCompetitorAd(competitorAdContext);
+      console.log('✅ Step 1 complete: Competitor analysis ready');
+    }
+
+    // Step 2: Generate prompts for our product
+    console.log(competitorDescription ? '🎯 Step 2: Generating prompts (competitor reference mode)...' : '🎨 Generating prompts (traditional mode)...');
     const prompts = await generateImageBasedPrompts(
       request.imageUrl,
       request.language,
@@ -617,14 +629,14 @@ async function startAIWorkflow(
       request.adCopy,
       segmentCount,
       productContext,
-      competitorAdContext // Pass competitor ad as reference
+      competitorDescription // Pass competitor analysis result (not raw context)
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
 
     if (segmentedFlow) {
       console.log('🎬 Segmented workflow enabled - orchestrating multi-segment pipeline');
-      await startSegmentedWorkflow(projectId, request, prompts, segmentCount);
+      await startSegmentedWorkflow(projectId, request, prompts, segmentCount, competitorDescription);
       return;
     }
 
@@ -637,13 +649,14 @@ async function startAIWorkflow(
     const updateData = {
       cover_task_id: coverTaskId,
       video_prompts: prompts,
-      product_description: prompts, // Store complete AI response with all structured fields
+      product_description: prompts, // Store complete AI response with all structured fields (final prompt for our product)
+      competitor_description: competitorDescription || null, // Store competitor analysis (Veo Guide 8 elements) if available
       image_prompt: prompts.description as string,
       current_step: 'generating_cover' as const,
       progress_percentage: 30,
       last_processed_at: new Date().toISOString()
     };
-    console.log('💾 Updating project with image-driven data');
+    console.log('💾 Updating project with image-driven data' + (competitorDescription ? ' (competitor reference mode)' : ''));
 
     const { error: updateError } = await supabase
       .from('standard_ads_projects')
@@ -711,6 +724,172 @@ async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
   }
 }
 
+/**
+ * Step 1: Analyze competitor ad independently (First API call)
+ *
+ * This function ONLY analyzes the competitor ad/video using Veo Guide 8 elements.
+ * It does NOT consider our product at all - pure competitor analysis.
+ *
+ * @param competitorAdContext - Competitor ad file URL and type
+ * @returns competitor_description - Veo Guide 8-element analysis
+ */
+async function analyzeCompetitorAd(
+  competitorAdContext: { file_url: string; file_type: 'image' | 'video'; competitor_name: string }
+): Promise<Record<string, unknown>> {
+  console.log(`[analyzeCompetitorAd] Step 1: Analyzing competitor ad from ${competitorAdContext.competitor_name}`);
+
+  // Convert video to base64 if needed
+  let processedFileUrl = competitorAdContext.file_url;
+  if (competitorAdContext.file_type === 'video') {
+    console.log(`[analyzeCompetitorAd] Converting competitor video to base64`);
+    try {
+      processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
+      console.log(`[analyzeCompetitorAd] Video converted successfully`);
+    } catch (error) {
+      console.error('[analyzeCompetitorAd] Failed to convert video:', error);
+      throw new Error('Failed to process competitor video');
+    }
+  }
+
+  // Define JSON schema for competitor analysis (Veo Guide 8 elements)
+  const responseFormat = {
+    type: "json_schema",
+    json_schema: {
+      name: "competitor_analysis_schema",
+      strict: true,
+      schema: {
+        type: "object",
+        properties: {
+          subject: {
+            type: "string",
+            description: "Main elements and focal points in the ad (what is shown)"
+          },
+          context: {
+            type: "string",
+            description: "Environment, background, setting, time of day"
+          },
+          action: {
+            type: "string",
+            description: "What is happening, movement, interactions"
+          },
+          style: {
+            type: "string",
+            description: "Overall visual style and artistic direction"
+          },
+          camera_motion: {
+            type: "string",
+            description: "Camera movements (pan, zoom, tracking, POV, etc.)"
+          },
+          composition: {
+            type: "string",
+            description: "Shot types (close-up, medium shot, wide shot, angles)"
+          },
+          ambiance: {
+            type: "string",
+            description: "Color palette, lighting setup, mood, atmosphere"
+          },
+          audio: {
+            type: "string",
+            description: "Dialogue, voiceover, music style, sound effects"
+          }
+        },
+        required: ["subject", "context", "action", "style", "camera_motion", "composition", "ambiance", "audio"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+      response_format: responseFormat,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            competitorAdContext.file_type === 'video'
+              ? {
+                  type: 'video_url' as const,
+                  video_url: { url: processedFileUrl }
+                }
+              : {
+                  type: 'image_url' as const,
+                  image_url: { url: processedFileUrl }
+                },
+            {
+              type: 'text',
+              text: `📺 COMPETITOR AD ANALYSIS - Step 1 (Independent Analysis)
+
+You are analyzing a competitor advertisement ${competitorAdContext.file_type === 'video' ? 'video' : 'image'} from "${competitorAdContext.competitor_name}".
+
+TASK: Analyze this ad using the Veo Prompt Guide's 8 core elements. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
+
+Analyze and describe each element in detail:
+
+1. **Subject (主体)**: What objects, people, animals, or scenes appear? What are the main focal points?
+
+2. **Context (环境/背景)**: What is the environment? Indoor/outdoor? Time of day? Background elements?
+
+3. **Action (动作)**: What movements or actions are happening? How do subjects interact?
+
+4. **Style (风格)**: What is the overall visual or artistic style? (e.g., cinematic, minimalist, retro, modern, cartoon-like)
+
+5. **Camera Motion (摄像机运动)**: How does the camera move? (e.g., static, pan left/right, zoom in/out, tracking shot, POV, crane shot)
+
+6. **Composition (构图)**: What are the shot types and framing? (e.g., close-up, medium shot, wide shot, extreme close-up, angles)
+
+7. **Ambiance (氛围/色彩)**: What is the color palette? Lighting? Mood? Atmosphere? (e.g., warm tones, cold blue, high-key lighting, moody shadows)
+
+8. **Audio (音频)**: What audio elements are present or suggested? Dialogue? Voiceover? Music style? Sound effects?
+
+IMPORTANT:
+- Be detailed and specific in each description
+- Focus ONLY on what you observe in this ad
+- Do not make suggestions or modifications
+- This analysis will be used as reference for creating a similar ad later
+
+Return a JSON object with these 8 elements.`
+            }
+          ]
+        }
+      ]
+    })
+  });
+
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch (error) {
+    console.error('[analyzeCompetitorAd] JSON parse error:', error);
+    throw new Error('Failed to parse competitor analysis response');
+  }
+
+  const apiResponse = data as { choices?: Array<{ message?: { content?: string } }> };
+  if (!apiResponse.choices?.[0]?.message?.content) {
+    console.error('[analyzeCompetitorAd] Invalid API response structure:', data);
+    throw new Error('Invalid competitor analysis response format');
+  }
+
+  const analysis = JSON.parse(apiResponse.choices[0].message.content) as Record<string, unknown>;
+  console.log('[analyzeCompetitorAd] ✅ Competitor analysis complete:', analysis);
+
+  return analysis;
+}
+
+/**
+ * Step 2: Generate prompts for our product (Second API call)
+ *
+ * If competitorDescription is provided, it will be used as a system prompt
+ * to guide the generation in competitor reference mode.
+ *
+ * @param imageUrl - Our product image
+ * @param competitorDescription - Optional competitor analysis from Step 1 (used as system prompt)
+ */
 async function generateImageBasedPrompts(
   imageUrl: string,
   language?: string,
@@ -718,25 +897,9 @@ async function generateImageBasedPrompts(
   userRequirements?: string,
   segmentCount = 1,
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
-  competitorAdContext?: { file_url: string; file_type: 'image' | 'video'; competitor_name: string }
+  competitorDescription?: Record<string, unknown> // Changed: Now receives analysis result, not raw context
 ): Promise<Record<string, unknown>> {
-  // Convert competitor video to base64 if needed (Gemini only accepts YouTube URLs or base64 for videos)
-  let processedCompetitorContext = competitorAdContext;
-  if (competitorAdContext && competitorAdContext.file_type === 'video') {
-    console.log(`[generateImageBasedPrompts] Converting competitor video to base64: ${competitorAdContext.file_url}`);
-    try {
-      const base64VideoUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
-      processedCompetitorContext = {
-        ...competitorAdContext,
-        file_url: base64VideoUrl
-      };
-      console.log(`[generateImageBasedPrompts] Video converted to base64 successfully`);
-    } catch (error) {
-      console.error('[generateImageBasedPrompts] Failed to convert video to base64:', error);
-      // Fallback: skip competitor video if conversion fails
-      processedCompetitorContext = undefined;
-    }
-  }
+  console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${competitorDescription ? ' (competitor reference mode)' : ' (traditional mode)'}`);
 
   const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
   const perSegmentDuration = Math.max(8, Math.round(duration / Math.max(1, segmentCount)));
@@ -877,148 +1040,109 @@ async function generateImageBasedPrompts(
     body: JSON.stringify({
       model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
       response_format: responseFormat,
-      messages: [
-        {
-          role: 'user',
-          content: [
+      messages: competitorDescription
+        ? // === COMPETITOR REFERENCE MODE (Step 2) ===
+          // Use competitor analysis as system prompt
+          [
             {
-              type: 'image_url',
-              image_url: { url: imageUrl }
+              role: 'system',
+              content: `You are an expert advertisement creator. You have been provided with a detailed analysis of a competitor's advertisement.
+
+**COMPETITOR ANALYSIS** (Veo Guide 8 Elements):
+${JSON.stringify(competitorDescription, null, 2)}
+
+Your task is to create a similar advertisement for OUR product (shown in the user's image) by:
+1. CLONING the competitor's creative structure, style, and approach
+2. REPLACING the competitor's product with our product
+3. MAINTAINING the same narrative flow, visual style, and tone
+4. PRESERVING the camera work, composition, and ambiance
+
+Remember: The user's image is OUR product - adapt the competitor's ad to showcase OUR product instead.`
             },
-            // Add competitor ad as reference if provided
-            ...(processedCompetitorContext ? (
-              processedCompetitorContext.file_type === 'video'
-                ? [{
-                    type: 'video_url' as const,
-                    video_url: { url: processedCompetitorContext.file_url }
-                  }]
-                : [{
-                    type: 'image_url' as const,
-                    image_url: { url: processedCompetitorContext.file_url }
-                  }]
-            ) : []),
             {
-              type: 'text',
-              text: processedCompetitorContext
-                ? // === COMPETITOR REFERENCE MODE ===
-                  // Analyze competitor ad structure and adapt it for our product
-                  `🎯 COMPETITOR REFERENCE MODE
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: { url: imageUrl }
+                },
+                {
+                  type: 'text',
+                  text: `📸 OUR PRODUCT IMAGE (above)
 
-You are analyzing a competitor advertisement to create a similar ad for OUR product.
+Based on the competitor analysis provided in the system message, generate an advertisement for OUR product.
 
-📺 COMPETITOR AD (${processedCompetitorContext.file_type.toUpperCase()}):
-From: "${processedCompetitorContext.competitor_name}"
-
-TASK: Analyze the competitor ${processedCompetitorContext.file_type} and extract its complete creative structure following Veo prompt guide principles:
-
-1. **Product Classification (CRITICAL)**:
-   - Identify product_category: "children_toy" | "adult_product" | "general"
-     * "children_toy" if video shows babies/children (0-12 years) using the product
-     * "adult_product" if for adult use only
-     * "general" if unclear or all-ages
-   - Identify target_audience: "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
-
-2. **Core Concept (Veo Guide: Subject + Context + Action)**:
-   - Subject: Main elements and focal points in the video
-   - Context: Environment, background, setting, time of day
-   - Action: What is happening, movement, interaction with product
-
-3. **Visual Style (Veo Guide: Style + Camera + Composition + Ambiance)**:
-   - Style: Overall visual style and artistic direction
-   - Camera Motion: Camera movements (pan, zoom, tracking, POV shots, etc.)
-   - Composition: Shot types (close-up, medium shot, wide shot, angles)
-   - Ambiance: Color palette, lighting setup, mood, atmosphere
-
-4. **Complete Video Script Analysis**:
-   - Extract all dialogue, voiceover, and text content
-   - Document the narrative flow and storytelling structure
-   - Note pacing, transitions, and segment timing
-
-5. **Audio Elements**:
-   - Dialogue/voiceover content and delivery style
-   - Music style and emotional tone
-   - Sound effects and ambient audio
-
-📸 OUR PRODUCT:
-The second image shows our product that should REPLACE the competitor's product in the advertisement.
-
-🎬 GENERATION REQUIREMENTS:
-Generate a JSON advertisement prompt that:
-- **CLONES the competitor's complete creative structure** (script, timing, camera work, style)
-- **REPLACES the competitor's product with ours** from the product image
-- **MAINTAINS identical narrative flow** and storytelling approach
-- **PRESERVES the visual style** (colors, lighting, aesthetics)
-- **KEEPS the same tone and pacing** for equivalent engagement
-
-⚠️ CRITICAL:
-- DO NOT analyze the product image deeply - it's only for visual reference to replace the competitor's product
-- Focus on extracting and replicating the competitor's creative approach
-- The output should feel like the same ad, just with our product instead
-
-${productContext && (productContext.product_details || productContext.brand_name) ? `\nProduct & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\n(Use only to ensure product placement accuracy)` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\nNote: Apply these requirements while maintaining the competitor's core creative structure.` : ''}
-
-DO NOT include:
-- Brand names or slogans (unless visually present in the image)
-- Marketing copy or taglines
-- Pre-existing brand positioning or assumptions
+${productContext && (productContext.product_details || productContext.brand_name) ? `
+Product & Brand Context:
+${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}
+(Use this to ensure accurate product replacement)` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\n(Apply these while maintaining the competitor's core structure)` : ''}
 
 ${segmentCount > 1 ? `Segment Plan Requirements:
 - Output EXACTLY ${segmentCount} segment objects in the "segments" array
-- Each segment needs its own "segment_title" and "segment_goal"
-- "first_frame_prompt" should paint the exact still image that opens the segment
-- "closing_frame_prompt" should describe the precise ending still image
-- Keep style, camera, and lighting consistent so stitched clips feel cohesive
-- Define one narrator voice that works for the entire ad and keep it identical for each segment
+- Each segment: "segment_title", "segment_goal", "first_frame_prompt", "closing_frame_prompt"
+- Keep style consistent across segments
+- Define one narrator voice for the entire ad
 ` : ''}
 Generate a JSON object with these elements:
 
 **Product Classification (REQUIRED)**:
-- product_category: "children_toy" | "adult_product" | "general" (CRITICAL for determining closing_frame generation)
+- product_category: "children_toy" | "adult_product" | "general"
 - target_audience: "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
 
 **Core Concept (Veo Guide)**:
-- subject: Main elements and focal points (extracted from competitor)
-- context: Environment and setting (matching competitor ad style)
-- action: Action sequence based on competitor structure, with our product
+- subject: Main elements (from competitor, adapted to our product)
+- context: Environment and setting (matching competitor)
+- action: Action sequence (competitor structure + our product)
 
 **Visual Style (Veo Guide)**:
-- style: Overall visual style and artistic direction (from competitor)
-- camera_type: Shot type matching competitor ad (e.g., "Medium shot", "Close-up", "Wide shot")
-- camera_movement: Camera movement from competitor ad (e.g., "Slow tracking shot", "Static with gentle zoom")
-- composition: Framing and shot composition (from competitor)
-- ambiance: Color palette, lighting, and mood (matching competitor)
+- style: Visual style (from competitor)
+- camera_type: Shot type (from competitor)
+- camera_movement: Camera movement (from competitor)
+- composition: Framing (from competitor)
+- ambiance: Color, lighting, mood (from competitor)
 
-**Standard Fields (for compatibility)**:
-- description: Main scene description based on competitor structure, with our product
-- setting: Environment matching competitor ad style
-- lighting: Lighting style from competitor ad
-- dialogue: Voiceover content adapted from competitor script, for our product (in English)
-- music: Music style matching competitor ad
-- ending: Conclusion style from competitor ad, with our product
-- other_details: Creative elements from competitor ad applied to our product
-- language: The language name for voiceover generation
+**Standard Fields**:
+- description: Scene description (competitor structure + our product)
+- setting: Environment (from competitor)
+- lighting: Lighting style (from competitor)
+- dialogue: Voiceover (adapted from competitor, in English)
+- music: Music style (from competitor)
+- ending: Conclusion (competitor style + our product)
+- other_details: Creative elements (from competitor)
+- language: Language name for voiceover
 
-**Full Description (for long-form video - NEW)**:
-- full_description: A comprehensive 200-500 word narrative description combining all elements above, suitable for 60s+ video generation. Include detailed subject description, environmental context, complete action sequence, visual style notes, camera work details, lighting and color information, audio elements, and narrative flow. This should be detailed enough to guide multi-segment video generation.
+**Full Description**:
+- full_description: 200-500 word narrative for 60s+ videos
 
-CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of objects.
-IMPORTANT: All text content must be in English. The 'language' field specifies voiceover language only.
-CRITICAL: Keep each segment's dialogue concise (under ${dialogueWordLimit} words for ~${perSegmentDuration} seconds).`
-                : // === TRADITIONAL AI AUTO-GENERATION MODE ===
-                  // Deep product analysis for original creative generation
-                  `🤖 TRADITIONAL AUTO-GENERATION MODE
+CRITICAL: Return ONE object. All text in English. Dialogue under ${dialogueWordLimit} words per segment.`
+                }
+              ]
+            }
+          ]
+        : // === TRADITIONAL AUTO-GENERATION MODE ===
+          [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: { url: imageUrl }
+                },
+                {
+                  type: 'text',
+                  text: `🤖 TRADITIONAL AUTO-GENERATION MODE
 
 Analyze the product image and generate ONE creative video advertisement prompt.
 
 ${productContext && (productContext.product_details || productContext.brand_name) ? `
 Product & Brand Context:
 ${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}
-IMPORTANT: Use this context to enhance the advertisement while staying true to the product visuals. The brand identity and product features should guide the creative direction.
+IMPORTANT: Use this context to enhance the advertisement while staying true to the product visuals.
 ` : ''}${userRequirements ? `
 User Requirements:
 ${userRequirements}
 
-IMPORTANT: Incorporate these user requirements into all aspects of the video advertisement (description, setting, camera, action, dialogue, etc.). The requirements should guide the creative direction while staying true to the product visuals.
+IMPORTANT: Incorporate these requirements into all aspects of the advertisement.
 ` : ''}
 
 Focus on:
@@ -1326,7 +1450,8 @@ async function startSegmentedWorkflow(
   projectId: string,
   request: StartWorkflowRequest & { imageUrl: string },
   prompts: Record<string, unknown>,
-  segmentCount: number
+  segmentCount: number,
+  competitorDescription?: Record<string, unknown> // Add competitor analysis parameter
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
   const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount);
@@ -1355,7 +1480,8 @@ async function startSegmentedWorkflow(
     .from('standard_ads_projects')
     .update({
       video_prompts: prompts,
-      product_description: prompts, // Store complete AI response with all structured fields
+      product_description: prompts, // Store complete AI response with all structured fields (final prompt for our product)
+      competitor_description: competitorDescription || null, // Store competitor analysis (Veo Guide 8 elements) if available
       segment_plan: { segments: normalizedSegments },
       current_step: 'generating_segment_frames',
       progress_percentage: 35,
@@ -1395,27 +1521,26 @@ async function startSegmentedWorkflow(
     segment.first_frame_task_id = firstFrameTaskId;
     segment.status = 'generating_first_frame';
 
-    // Last segment gets a dedicated closing frame
     // CRITICAL: Skip closing_frame for children_toy products to allow children to appear in video
-    // Reason: Google Veo3 checks both first_frame and closing_frame
-    // - If both have NO children → video won't have children even if prompt mentions them
-    // - If only first_frame (no closing_frame) → children can appear in video
-    if (segment.segment_index === normalizedSegments.length - 1) {
-      if (productCategory === 'children_toy') {
-        console.log('🧸 Detected children_toy product - SKIPPING closing_frame generation to allow children in video');
-      } else {
-        const closingFrameTaskId = await createSegmentFrameTask(request, safePromptData, segment.segment_index, 'closing');
+    // Reason: Google Veo3 checks EACH segment's first_frame and closing_frame
+    // - If a segment has both frames with NO children → that segment's video won't have children
+    // - Solution: For children_toy, ALL segments skip closing_frame (not just the last one)
+    if (productCategory === 'children_toy') {
+      console.log(`🧸 Segment ${segment.segment_index}: SKIPPING closing_frame (children_toy product)`);
+      // No closing_frame for ANY segment of children_toy products
+    } else if (segment.segment_index === normalizedSegments.length - 1) {
+      // For non-children products, only the last segment gets a closing frame
+      const closingFrameTaskId = await createSegmentFrameTask(request, safePromptData, segment.segment_index, 'closing');
 
-        await supabase
-          .from('standard_ads_segments')
-          .update({
-            closing_frame_task_id: closingFrameTaskId,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', segment.id);
+      await supabase
+        .from('standard_ads_segments')
+        .update({
+          closing_frame_task_id: closingFrameTaskId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', segment.id);
 
-        segment.closing_frame_task_id = closingFrameTaskId;
-      }
+      segment.closing_frame_task_id = closingFrameTaskId;
     }
   }
 
