@@ -433,9 +433,8 @@ export default function CreateCompetitorAdModal({
                           );
                         })()}
 
-                        {/* @ts-expect-error - Type assertion for scene_elements array is safe */}
                         {/* Scene Elements */}
-                        {analysisResult.scene_elements && Array.isArray(analysisResult.scene_elements) && (
+                        {Array.isArray(analysisResult.scene_elements) && analysisResult.scene_elements.length > 0 && (
                           <div className="border border-gray-200 rounded-lg overflow-hidden">
                             <button
                               onClick={() => toggleSection('scene_elements')}

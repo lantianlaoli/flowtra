@@ -309,12 +309,21 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     }
 
     // Load competitor ad if provided (optional reference for creative direction)
-    let competitorAdContext: { file_url: string; file_type: 'image' | 'video'; competitor_name: string } | undefined;
+    // Extended type to include existing analysis and language for performance optimization
+    let competitorAdContext: {
+      file_url: string;
+      file_type: 'image' | 'video';
+      competitor_name: string;
+      existing_analysis?: Record<string, unknown> | null;
+      analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
+      language?: string | null;
+    } | undefined;
+
     if (request.competitorAdId) {
       console.log(`🎯 Loading competitor ad: ${request.competitorAdId}`);
       const { data: competitorAd, error: competitorError } = await supabase
         .from('competitor_ads')
-        .select('ad_file_url, file_type, competitor_name')
+        .select('ad_file_url, file_type, competitor_name, analysis_result, analysis_status, language')
         .eq('id', request.competitorAdId)
         .eq('user_id', request.userId)
         .single();
@@ -323,9 +332,15 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         competitorAdContext = {
           file_url: competitorAd.ad_file_url,
           file_type: competitorAd.file_type as 'image' | 'video',
-          competitor_name: competitorAd.competitor_name
+          competitor_name: competitorAd.competitor_name,
+          existing_analysis: competitorAd.analysis_result,
+          analysis_status: competitorAd.analysis_status as 'pending' | 'analyzing' | 'completed' | 'failed' | undefined,
+          language: competitorAd.language
         };
         console.log(`✅ Competitor ad loaded: ${competitorAdContext.competitor_name} (${competitorAdContext.file_type})`);
+        console.log(`📊 Analysis status: ${competitorAdContext.analysis_status || 'unknown'}`);
+        console.log(`🔍 Has existing analysis: ${!!competitorAdContext.existing_analysis}`);
+        console.log(`🌍 Detected language: ${competitorAdContext.language || 'none'}`);
       } else {
         console.warn(`⚠️ Competitor ad not found or access denied: ${request.competitorAdId}`, competitorError);
         // Don't fail the workflow if competitor ad is not found, just proceed without it
@@ -557,7 +572,14 @@ async function startAIWorkflow(
     resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   },
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
-  competitorAdContext?: { file_url: string; file_type: 'image' | 'video'; competitor_name: string }
+  competitorAdContext?: {
+    file_url: string;
+    file_type: 'image' | 'video';
+    competitor_name: string;
+    existing_analysis?: Record<string, unknown> | null;
+    analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
+    language?: string | null;
+  }
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
@@ -611,13 +633,48 @@ async function startAIWorkflow(
     const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
     const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration) : 1;
 
-    // TWO-STEP PROCESS for competitor reference mode
+    // TWO-STEP PROCESS for competitor reference mode (with intelligent caching)
     let competitorDescription: Record<string, unknown> | undefined;
     if (competitorAdContext) {
-      // Step 1: Analyze competitor ad independently (pure analysis)
-      console.log('📺 Step 1: Analyzing competitor ad...');
-      competitorDescription = await analyzeCompetitorAd(competitorAdContext);
-      console.log('✅ Step 1 complete: Competitor analysis ready');
+      // Check if we can reuse existing analysis from database
+      if (competitorAdContext.analysis_status === 'completed' && competitorAdContext.existing_analysis) {
+        // Performance optimization: Reuse cached analysis
+        console.log('✅ Using existing competitor analysis from database (cached)');
+        console.log(`   - Competitor: ${competitorAdContext.competitor_name}`);
+        console.log(`   - Language: ${competitorAdContext.language || 'not detected'}`);
+        console.log(`   - Skipping API call to OpenRouter (saving time & cost)`);
+
+        competitorDescription = competitorAdContext.existing_analysis as Record<string, unknown>;
+
+        // Optional: Validate analysis structure
+        const requiredFields = ['subject', 'context', 'action', 'style', 'camera_motion', 'composition', 'ambiance', 'audio'];
+        const hasAllFields = requiredFields.every(field => field in competitorDescription!);
+
+        if (!hasAllFields) {
+          console.warn('⚠️ Existing analysis incomplete or invalid, re-analyzing...');
+          competitorDescription = await analyzeCompetitorAd({
+            file_url: competitorAdContext.file_url,
+            file_type: competitorAdContext.file_type,
+            competitor_name: competitorAdContext.competitor_name
+          });
+        }
+      } else {
+        // No existing analysis or analysis failed/pending - perform fresh analysis
+        const statusReason = !competitorAdContext.existing_analysis
+          ? 'no existing analysis found'
+          : `status is ${competitorAdContext.analysis_status}`;
+
+        console.log(`🔄 Performing fresh competitor analysis (${statusReason})...`);
+        console.log('📺 Step 1: Analyzing competitor ad...');
+
+        competitorDescription = await analyzeCompetitorAd({
+          file_url: competitorAdContext.file_url,
+          file_type: competitorAdContext.file_type,
+          competitor_name: competitorAdContext.competitor_name
+        });
+
+        console.log('✅ Step 1 complete: Fresh competitor analysis ready');
+      }
     }
 
     // Step 2: Generate prompts for our product

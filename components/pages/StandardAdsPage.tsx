@@ -234,6 +234,14 @@ export default function StandardAdsPage() {
     }
   }, [selectedBrand, selectedProduct, generations.length]);
 
+  // Auto-switch language when competitor ad with language is selected
+  useEffect(() => {
+    if (selectedCompetitorAd?.language && selectedCompetitorAd.language !== selectedLanguage) {
+      console.log(`🌍 Auto-switching language from ${selectedLanguage} to ${selectedCompetitorAd.language}`);
+      setSelectedLanguage(selectedCompetitorAd.language as LanguageCode);
+    }
+  }, [selectedCompetitorAd, selectedLanguage]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const saved = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
