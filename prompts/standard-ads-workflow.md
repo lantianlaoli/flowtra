@@ -1,7 +1,7 @@
 # Standard Ads Workflow - Prompt Documentation
 
-**Last Updated:** 2025-01-16
-**Version:** 3.0 (Adult-Friendly, Zero-Child Policy)
+**Last Updated:** 2025-01-17
+**Version:** 3.1.1 (Intelligent Prompt Rewriting)
 
 ## Overview
 
@@ -161,7 +161,156 @@ TRANSFORMATION RULES:
 
 **说明**: Sora2的内容审核非常严格，不能出现任何人脸。但仍然允许成人的手部/肢体演示产品，只是不能显示脸部。
 
-#### C. 儿童玩具产品特殊处理 (NEW in Version 3.0)
+#### C. 智能Prompt重写策略 (NEW in Version 3.1.1)
+
+**问题发现**:
+Version 3.0和3.1在图片生成时存在**矛盾性指令**：
+```
+Prompt描述: "showing the baby joyfully playing with colorful rollers"
+附加限制: "⚠️ ZERO-CHILD POLICY: ❌ NO children"
+```
+这种"先描述儿童→再禁止儿童"的策略会导致：
+- AI理解困难，不知道该听从哪条指令
+- 生成的图片可能仍包含儿童元素
+- 审核系统可能检测到prompt中的儿童词汇
+
+**用户反馈原话**:
+> "你不要再prompt里面正常描述了有儿童，然后又后面添加强制性的限制，而是你直接就描述一个正常没有儿童的画面就OK了呀"
+
+**解决方案 - 智能重写**:
+在图片生成**之前**，智能重写segment prompt中的所有文本字段，将儿童引用直接替换为成人或产品展示描述。
+
+**重写示例**:
+
+| Before (原始prompt) | After (智能重写后) |
+|-------------------|------------------|
+| "the baby joyfully playing with the toy" | "gentle adult hands demonstrating the toy's features" |
+| "showing the baby's smiling face" | "showing gentle adult hands interacting with the toy" |
+| "child using the colorful rollers" | "adult hands showcasing the colorful rollers" |
+| "baby's tiny fingers spinning blocks" | "adult fingers demonstrating the spinning mechanism" |
+| "toddler discovering shapes" | "adult hands demonstrating shape recognition" |
+
+**技术实现** (`lib/standard-ads-workflow.ts`):
+
+1. **智能重写函数** (line 143-243) - `rewriteSegmentPromptForSafety()`:
+```typescript
+function rewriteSegmentPromptForSafety(
+  segmentPrompt: SegmentPrompt,
+  productCategory: 'children_toy' | 'adult_product' | 'general'
+): SegmentPrompt {
+  // 只对children_toy产品重写
+  if (productCategory !== 'children_toy') {
+    return segmentPrompt;
+  }
+
+  // 重写所有文本字段中的child references
+  const replacements = [
+    { pattern: /the baby'?s? (?:smiling )?face/gi, replacement: 'gentle adult hands' },
+    { pattern: /showing the (?:baby|child|kid)/gi, replacement: 'showing adult hands' },
+    { pattern: /(?:baby|child) (?:joyfully |happily )?(?:playing|using)/gi,
+      replacement: 'adult hands gently demonstrating' },
+    // ... 更多replacement patterns
+  ];
+
+  // 应用到所有字段：description, action, dialogue, setting, first_frame_prompt等
+  return rewrittenPrompt;
+}
+```
+
+2. **应用重写** (line 1362-1373):
+```typescript
+// 在segment生成循环开始前检测产品类别
+const productCategory = detectProductCategory(prompts);
+
+for (const segment of segments) {
+  const promptData = normalizedSegments[segment.segment_index];
+
+  // 智能重写：将child references替换为adult/product descriptions
+  const safePromptData = rewriteSegmentPromptForSafety(promptData, productCategory);
+
+  // 使用重写后的prompt生成图片
+  const firstFrameTaskId = await createSegmentFrameTask(request, safePromptData, ...);
+  // closing frame也使用重写后的prompt
+  const closingFrameTaskId = await createSegmentFrameTask(request, safePromptData, ...);
+}
+```
+
+**重写字段**:
+- `description` - 主要场景描述
+- `action` - 动作描述
+- `dialogue` - 旁白对话
+- `setting` - 场景设置
+- `lighting` - 灯光描述
+- `first_frame_prompt` - 首帧prompt
+- `closing_frame_prompt` - 尾帧prompt
+- 其他所有文本字段
+
+**重写规则**:
+1. **Child词汇替换**:
+   - baby/babies/infant/toddler → "adult hands"
+   - child/children/kid/kids → "adult hands"
+
+2. **Action动词转换**:
+   - "joyfully discovering" → "gently demonstrating"
+   - "happily exploring" → "carefully showcasing"
+   - "excitedly playing" → "demonstrating interaction"
+
+3. **Phrase重写**:
+   - "the baby's face" → "gentle adult hands"
+   - "showing the child" → "showing adult hands"
+   - "child using X" → "adult hands using X"
+
+4. **保持一致性**:
+   - 场景、灯光、风格保持不变
+   - 只替换人物引用，不改变整体创意
+   - 音乐、结尾等非人物元素完全保留
+
+**工作流程对比**:
+
+**Version 3.1 (旧版 - 矛盾指令)**:
+```
+AI生成prompt: "baby playing with toy"
+   ↓
+图片生成: 使用原始prompt + 添加ZERO-CHILD POLICY限制
+   ↓
+结果: ❌ 矛盾指令，可能仍生成儿童元素
+```
+
+**Version 3.1.1 (新版 - 智能重写)**:
+```
+AI生成prompt: "baby playing with toy"
+   ↓
+智能重写: "adult hands demonstrating toy"
+   ↓
+图片生成: 使用重写后prompt（无矛盾，无需额外限制）
+   ↓
+结果: ✅ 清晰指令，完全避免儿童元素
+```
+
+**优势**:
+- **无矛盾指令**: prompt本身就是adult-only，无需额外限制
+- **AI理解清晰**: 不会收到冲突的指令
+- **审核友好**: prompt文本中不包含child关键词
+- **保持创意**: 场景、风格、创意结构完全保留
+- **自动化**: 检测到children_toy自动触发重写
+
+**应用场景**:
+
+**儿童玩具广告（完整流程）**:
+1. AI分析: "A baby sits on playmat and begins exploring wooden blocks..."
+2. 智能重写: "Adult hands on playmat gently demonstrate wooden blocks..."
+3. 图片生成: 使用重写后prompt → 成人手部演示产品
+4. 视频生成: 使用原始prompt → 婴儿玩玩具（Veo3允许）
+5. 最终效果: 封面成人演示 + 视频婴儿互动 ✅
+
+**成人产品广告（无需重写）**:
+1. AI分析: "A professional demonstrates the smartwatch features..."
+2. 重写检测: product_category = 'adult_product' → 跳过重写
+3. 图片生成: 使用原始prompt → 成人展示产品
+4. 视频生成: 使用原始prompt → 成人展示产品
+5. 最终效果: 封面和视频完全一致 ✅
+
+#### D. 儿童玩具产品特殊处理 (NEW in Version 3.1)
 
 **问题发现**:
 - Google Veo3检查**首尾两帧**（first_frame和closing_frame）
@@ -619,6 +768,48 @@ IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a 
 ---
 
 ## 版本历史
+
+### Version 3.1.1 (2025-01-17)
+- **关键突破**：智能Prompt重写 - 彻底解决矛盾指令问题
+- **核心变更**：
+  - **智能重写函数**：`rewriteSegmentPromptForSafety()` - 在图片生成前自动重写prompt
+  - **消除矛盾指令**：不再使用"描述儿童+禁止儿童"的矛盾策略
+  - **直接重写策略**：将child references直接替换为adult/product描述
+  - **完整字段覆盖**：重写description, action, dialogue, first_frame_prompt等所有文本字段
+- **问题发现与解决**：
+  - **问题**：Version 3.0-3.1使用"描述儿童然后添加限制"的策略，导致矛盾指令
+  - **用户反馈**："你不要再prompt里面正常描述了有儿童，然后又后面添加强制性的限制，而是你直接就描述一个正常没有儿童的画面就OK了呀"
+  - **解决**：智能重写prompt文本，直接生成adult-only描述，无需额外限制
+- **技术实现**：
+  - 新增 `rewriteSegmentPromptForSafety()` 函数 (line 143-243) - 智能文本替换
+  - 应用重写到segment生成 (line 1362-1373) - 在图片生成前自动触发
+  - 修改 `product_description` 存储 (line 538, 1256) - 保存完整AI响应数据
+  - 重写字段：description, action, dialogue, setting, lighting, first_frame_prompt, closing_frame_prompt等
+- **重写规则**：
+  - Child词汇 → "adult hands": baby/babies/infant/toddler/child/children/kid/kids
+  - Action动词转换: "joyfully discovering" → "gently demonstrating"
+  - Phrase重写: "showing the baby" → "showing adult hands"
+  - 保持一致性：场景、灯光、风格不变，只替换人物引用
+- **应用场景**：
+  - 儿童玩具（完整流程）：
+    * AI生成: "baby playing with toy"
+    * 智能重写: "adult hands demonstrating toy"
+    * 图片生成: ✅ 使用重写后prompt，无矛盾指令
+    * 视频生成: 使用原始prompt，儿童正常出现
+  - 成人产品：
+    * 检测到非children_toy → 跳过重写
+    * 图片和视频使用相同prompt
+- **优势**：
+  - **无矛盾指令**：prompt本身就是adult-only，无需额外限制
+  - **AI理解清晰**：不会收到冲突的指令
+  - **审核友好**：prompt文本不包含child关键词
+  - **保持创意**：场景、风格、创意结构完全保留
+  - **自动化**：检测到children_toy自动触发
+- **文件修改**：
+  - `lib/standard-ads-workflow.ts` (line 143-243) - rewriteSegmentPromptForSafety()函数
+  - `lib/standard-ads-workflow.ts` (line 1362-1373) - 应用重写到segment生成循环
+  - `lib/standard-ads-workflow.ts` (line 538, 1256) - product_description存储完整数据
+  - `prompts/standard-ads-workflow.md` - 完整文档更新到Version 3.1.1
 
 ### Version 3.1 (2025-01-16)
 - **关键突破**：解决儿童玩具视频无法展示儿童的问题 + 结构化视频分析

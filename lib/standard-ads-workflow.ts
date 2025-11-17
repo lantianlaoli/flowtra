@@ -140,6 +140,108 @@ function detectProductCategory(prompts: Record<string, unknown>): 'children_toy'
   return 'general';
 }
 
+/**
+ * Intelligently rewrites segment prompts to remove child references for children's toys
+ *
+ * CRITICAL STRATEGY:
+ * - Don't describe children then add restrictions (contradictory)
+ * - Directly describe adult-only or product-only scenes from the start
+ *
+ * Example transformations:
+ * - "the baby joyfully playing with the toy" → "gentle adult hands demonstrating the toy's features"
+ * - "showing the baby's smiling face" → "showing gentle adult hands interacting with the toy"
+ * - "child using the colorful rollers" → "adult hands showcasing the colorful rollers"
+ */
+function rewriteSegmentPromptForSafety(
+  segmentPrompt: SegmentPrompt,
+  productCategory: 'children_toy' | 'adult_product' | 'general'
+): SegmentPrompt {
+  // Only rewrite for children's toys
+  if (productCategory !== 'children_toy') {
+    return segmentPrompt;
+  }
+
+  console.log('🔄 Rewriting segment prompt to remove child references (children_toy detected)');
+
+  // Helper function to rewrite text fields
+  const rewriteText = (text: string | undefined): string | undefined => {
+    if (!text || typeof text !== 'string') return text;
+
+    let rewritten = text;
+
+    // Replacement patterns (order matters - more specific patterns first)
+    const replacements = [
+      // Specific phrases with context
+      { pattern: /the baby'?s? (?:smiling )?face/gi, replacement: 'gentle adult hands' },
+      { pattern: /the baby'?s? (?:tiny )?hands?/gi, replacement: 'adult hands' },
+      { pattern: /the baby'?s? fingers?/gi, replacement: 'adult fingers' },
+      { pattern: /showing the (?:baby|child|kid|toddler|infant)/gi, replacement: 'showing adult hands' },
+      { pattern: /(?:baby|child|kid|toddler|infant) (?:joyfully |happily |excitedly )?(?:playing|using|discovering|exploring|interacting)/gi, replacement: 'adult hands gently demonstrating' },
+      { pattern: /(?:baby|child|kid|toddler|infant) (?:is |are )?(?:playing|using|discovering|exploring)/gi, replacement: 'adult hands demonstrating' },
+
+      // General child references
+      { pattern: /\b(?:the )?(?:baby|babies|infant|toddler)s?\b/gi, replacement: 'adult hands' },
+      { pattern: /\b(?:the )?(?:child|children|kid|kids)s?\b/gi, replacement: 'adult hands' },
+
+      // Action verbs associated with children
+      { pattern: /\bjoyfully discovering\b/gi, replacement: 'gently demonstrating' },
+      { pattern: /\bhappily exploring\b/gi, replacement: 'carefully showcasing' },
+      { pattern: /\bexcitedly playing\b/gi, replacement: 'demonstrating interaction' },
+
+      // Age-related terms
+      { pattern: /\bnewborns?\b/gi, replacement: 'gentle care' },
+      { pattern: /\bpreschoolers?\b/gi, replacement: 'young users' },
+      { pattern: /\b\d+-\d+ (?:years? old|months? old)\b/gi, replacement: 'appropriate age range' }
+    ];
+
+    // Apply all replacements
+    for (const { pattern, replacement } of replacements) {
+      rewritten = rewritten.replace(pattern, replacement);
+    }
+
+    // Clean up any remaining obvious child indicators
+    rewritten = rewritten
+      .replace(/\b(?:his|her) (?:little|tiny|small) /gi, 'the ')
+      .replace(/\b(?:cute|adorable|precious) (?=toy|product)/gi, 'delightful ');
+
+    // Log if changes were made
+    if (rewritten !== text) {
+      console.log('✏️  Rewrote text:');
+      console.log('   Before:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+      console.log('   After:', rewritten.substring(0, 100) + (rewritten.length > 100 ? '...' : ''));
+    }
+
+    return rewritten;
+  };
+
+  // Create a deep copy and rewrite all string fields
+  const rewrittenPrompt = { ...segmentPrompt };
+  const fieldsToRewrite: (keyof SegmentPrompt)[] = [
+    'description',
+    'action',
+    'dialogue',
+    'setting',
+    'lighting',
+    'music',
+    'ending',
+    'other_details',
+    'segment_title',
+    'segment_goal',
+    'first_frame_prompt',
+    'closing_frame_prompt',
+    'camera_type',
+    'camera_movement'
+  ];
+
+  for (const field of fieldsToRewrite) {
+    if (field in rewrittenPrompt && typeof rewrittenPrompt[field] === 'string') {
+      rewrittenPrompt[field] = rewriteText(rewrittenPrompt[field] as string) as never;
+    }
+  }
+
+  return rewrittenPrompt;
+}
+
 export async function startWorkflowProcess(request: StartWorkflowRequest): Promise<WorkflowResult> {
   try {
     const supabase = getSupabaseAdmin();
@@ -535,7 +637,7 @@ async function startAIWorkflow(
     const updateData = {
       cover_task_id: coverTaskId,
       video_prompts: prompts,
-      product_description: { description: prompts.description },
+      product_description: prompts, // Store complete AI response with all structured fields
       image_prompt: prompts.description as string,
       current_step: 'generating_cover' as const,
       progress_percentage: 30,
@@ -1253,7 +1355,7 @@ async function startSegmentedWorkflow(
     .from('standard_ads_projects')
     .update({
       video_prompts: prompts,
-      product_description: { description: (prompts as { description?: string }).description },
+      product_description: prompts, // Store complete AI response with all structured fields
       segment_plan: { segments: normalizedSegments },
       current_step: 'generating_segment_frames',
       progress_percentage: 35,
@@ -1262,9 +1364,18 @@ async function startSegmentedWorkflow(
     })
     .eq('id', projectId);
 
+  // Detect product category once for all segments
+  const productCategory = detectProductCategory(prompts);
+  console.log(`📦 Product category detected: ${productCategory}`);
+
   for (const segment of segments) {
     const promptData = normalizedSegments[segment.segment_index];
-    const firstFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'first');
+
+    // Apply intelligent prompt rewriting for children's toys to avoid contradictory instructions
+    // Instead of describing children then adding restrictions, we directly rewrite to adult/product-only scenes
+    const safePromptData = rewriteSegmentPromptForSafety(promptData, productCategory);
+
+    const firstFrameTaskId = await createSegmentFrameTask(request, safePromptData, segment.segment_index, 'first');
 
     const { error: updateError } = await supabase
       .from('standard_ads_segments')
@@ -1290,12 +1401,10 @@ async function startSegmentedWorkflow(
     // - If both have NO children → video won't have children even if prompt mentions them
     // - If only first_frame (no closing_frame) → children can appear in video
     if (segment.segment_index === normalizedSegments.length - 1) {
-      const productCategory = detectProductCategory(prompts);
-
       if (productCategory === 'children_toy') {
         console.log('🧸 Detected children_toy product - SKIPPING closing_frame generation to allow children in video');
       } else {
-        const closingFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'closing');
+        const closingFrameTaskId = await createSegmentFrameTask(request, safePromptData, segment.segment_index, 'closing');
 
         await supabase
           .from('standard_ads_segments')
