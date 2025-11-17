@@ -924,6 +924,261 @@ Return a JSON object with all 10 elements.`
 }
 
 /**
+ * Analyze competitor ad with automatic language detection
+ *
+ * This function extends analyzeCompetitorAd by adding automatic language detection
+ * during the analysis process. The detected language is returned as a short code
+ * matching the LanguageCode type ('en', 'zh', 'es', etc.).
+ *
+ * @param competitorAdContext - Competitor ad metadata including file URL and type
+ * @returns Object with { analysis: {...}, language: 'en' }
+ */
+export async function analyzeCompetitorAdWithLanguage(
+  competitorAdContext: {
+    file_url: string;
+    file_type: 'video' | 'image';
+    competitor_name?: string;
+  }
+): Promise<{ analysis: Record<string, unknown>; language: LanguageCode }> {
+  console.log('[analyzeCompetitorAdWithLanguage] 🔍 Starting competitor analysis with language detection...');
+  console.log('[analyzeCompetitorAdWithLanguage] File type:', competitorAdContext.file_type);
+  console.log('[analyzeCompetitorAdWithLanguage] File URL:', competitorAdContext.file_url);
+
+  // Process video to base64 if needed (Gemini requirement)
+  let processedFileUrl = competitorAdContext.file_url;
+  if (competitorAdContext.file_type === 'video') {
+    try {
+      processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
+      console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
+    } catch (error) {
+      console.error('[analyzeCompetitorAdWithLanguage] Video processing failed:', error);
+      throw new Error('Failed to process competitor video');
+    }
+  }
+
+  // Extended JSON schema with language detection
+  const responseFormat = {
+    type: "json_schema",
+    json_schema: {
+      name: "competitor_analysis_with_language_schema",
+      strict: true,
+      schema: {
+        type: "object",
+        properties: {
+          subject: {
+            type: "string",
+            description: "Main elements and focal points in the ad (what is shown)"
+          },
+          context: {
+            type: "string",
+            description: "Environment, background, setting, time of day"
+          },
+          action: {
+            type: "string",
+            description: "What is happening, movement, interactions"
+          },
+          style: {
+            type: "string",
+            description: "Overall visual style and artistic direction"
+          },
+          camera_motion: {
+            type: "string",
+            description: "Camera movements (pan, zoom, tracking, POV, etc.)"
+          },
+          composition: {
+            type: "string",
+            description: "Shot types (close-up, medium shot, wide shot, angles)"
+          },
+          ambiance: {
+            type: "string",
+            description: "Color palette, lighting setup, mood, atmosphere"
+          },
+          audio: {
+            type: "string",
+            description: "Dialogue, voiceover, music style, sound effects"
+          },
+          scene_elements: {
+            type: "array",
+            description: "List of all visible background elements with their positions (furniture, plants, floor type, walls, props)",
+            items: {
+              type: "object",
+              properties: {
+                element: {
+                  type: "string",
+                  description: "Name of the element (e.g., 'monstera plant', 'white chair', 'hardwood floor')"
+                },
+                position: {
+                  type: "string",
+                  description: "Position in frame (e.g., 'left background', 'right side', 'bottom', 'center background')"
+                },
+                details: {
+                  type: "string",
+                  description: "Visual details (color, material, size, style)"
+                }
+              },
+              required: ["element", "position", "details"],
+              additionalProperties: false
+            }
+          },
+          first_frame_composition: {
+            type: "string",
+            description: "Detailed description of the first frame's spatial layout and visual hierarchy"
+          },
+          detected_language: {
+            type: "string",
+            description: "Detected primary language as a short code (e.g., 'en', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'ur', 'pa')"
+          }
+        },
+        required: ["subject", "context", "action", "style", "camera_motion", "composition", "ambiance", "audio", "scene_elements", "first_frame_composition", "detected_language"],
+        additionalProperties: false
+      }
+    }
+  };
+
+  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+      response_format: responseFormat,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            competitorAdContext.file_type === 'video'
+              ? {
+                  type: 'video_url' as const,
+                  video_url: { url: processedFileUrl }
+                }
+              : {
+                  type: 'image_url' as const,
+                  image_url: { url: processedFileUrl }
+                },
+            {
+              type: 'text',
+              text: `📺 COMPETITOR AD ANALYSIS WITH LANGUAGE DETECTION
+
+You are analyzing a competitor advertisement ${competitorAdContext.file_type === 'video' ? 'video' : 'image'}${competitorAdContext.competitor_name ? ` from "${competitorAdContext.competitor_name}"` : ''}.
+
+TASK: Analyze this ad using the Veo Prompt Guide's 8 core elements PLUS detailed scene reconstruction data AND automatic language detection. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
+
+Analyze and describe each element in detail:
+
+1. **Subject (主体)**: What objects, people, animals, or scenes appear? What are the main focal points?
+
+2. **Context (环境/背景)**: What is the environment? Indoor/outdoor? Time of day? Background elements?
+
+3. **Action (动作)**: What movements or actions are happening? How do subjects interact?
+
+4. **Style (风格)**: What is the overall visual or artistic style? (e.g., cinematic, minimalist, retro, modern, cartoon-like)
+
+5. **Camera Motion (摄像机运动)**: How does the camera move? (e.g., static, pan left/right, zoom in/out, tracking shot, POV, crane shot)
+
+6. **Composition (构图)**: What are the shot types and framing? (e.g., close-up, medium shot, wide shot, extreme close-up, angles)
+
+7. **Ambiance (氛围/色彩)**: What is the color palette? Lighting? Mood? Atmosphere? (e.g., warm tones, cold blue, high-key lighting, moody shadows)
+
+8. **Audio (音频)**: What audio elements are present or suggested? Dialogue? Voiceover? Music style? Sound effects?
+
+9. **Scene Elements (场景元素)**: List EVERY visible background element with precise details:
+   - Furniture (chairs, tables, shelves, etc.) - specify color, material, style
+   - Plants (type, size, position)
+   - Floor type (hardwood, carpet, tile, pattern)
+   - Wall features (color, texture, decorations)
+   - Props and decorative items
+   - For each element, specify its EXACT position in the frame (left/right/center, foreground/background)
+
+10. **First Frame Composition (首帧构图)**: Describe the ${competitorAdContext.file_type === 'video' ? 'opening frame' : 'image'}'s spatial layout in detail:
+    - What is in the foreground vs background?
+    - How is the space divided (left/center/right)?
+    - What is the visual hierarchy (what draws the eye first)?
+    - Depth perception and layering of elements
+    - Negative space and framing
+
+11. **Detected Language (检测语言)**: Analyze the PRIMARY language used in this ad:
+    - Check text overlays, subtitles, captions
+    - Listen to voiceover, dialogue, or narration (if video)
+    - Consider cultural and regional context
+    - Return the language as a SHORT CODE using this mapping:
+
+      Language Mapping (Full Name → Code):
+      - English → "en"
+      - Spanish (Español) → "es"
+      - French (Français) → "fr"
+      - German (Deutsch) → "de"
+      - Italian (Italiano) → "it"
+      - Portuguese (Português) → "pt"
+      - Dutch (Nederlands) → "nl"
+      - Swedish (Svenska) → "sv"
+      - Norwegian (Norsk) → "no"
+      - Danish (Dansk) → "da"
+      - Finnish (Suomi) → "fi"
+      - Polish (Polski) → "pl"
+      - Russian (Русский) → "ru"
+      - Greek (Ελληνικά) → "el"
+      - Turkish (Türkçe) → "tr"
+      - Czech (Čeština) → "cs"
+      - Romanian (Română) → "ro"
+      - Chinese (中文) → "zh"
+      - Urdu (اردو) → "ur"
+      - Punjabi (ਪੰਜਾਬੀ) → "pa"
+
+      IMPORTANT:
+      - Return ONLY the short code (e.g., "en", "zh", "es"), NOT the full name
+      - If no clear language is detected or it's mostly visual, default to "en"
+      - If multiple languages appear, choose the DOMINANT one
+
+CRITICAL FOR SCENE REPLICATION:
+- Be extremely detailed and specific for scene_elements and first_frame_composition
+- Include colors, materials, sizes, and exact positions
+- Think like you're instructing someone to recreate the exact scene from scratch
+- These details will be used to generate an identical scene with a different product
+
+Return a JSON object with all 11 elements (including detected_language as a short code).`
+            }
+          ]
+        }
+      ]
+    })
+  });
+
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch (error) {
+    console.error('[analyzeCompetitorAdWithLanguage] JSON parse error:', error);
+    throw new Error('Failed to parse competitor analysis response');
+  }
+
+  const apiResponse = data as { choices?: Array<{ message?: { content?: string } }> };
+  if (!apiResponse.choices?.[0]?.message?.content) {
+    console.error('[analyzeCompetitorAdWithLanguage] Invalid API response structure:', data);
+    throw new Error('Invalid competitor analysis response format');
+  }
+
+  const result = JSON.parse(apiResponse.choices[0].message.content) as Record<string, unknown>;
+
+  // Extract language and validate it's a valid LanguageCode
+  const detectedLanguage = result.detected_language as string;
+  const validLanguageCodes: LanguageCode[] = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'zh', 'ur', 'pa'];
+  const language: LanguageCode = validLanguageCodes.includes(detectedLanguage as LanguageCode)
+    ? (detectedLanguage as LanguageCode)
+    : 'en'; // Default to English if invalid
+
+  // Remove detected_language from analysis (it's returned separately)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { detected_language, ...analysis } = result;
+
+  console.log('[analyzeCompetitorAdWithLanguage] ✅ Analysis complete');
+  console.log('[analyzeCompetitorAdWithLanguage] 🌍 Detected language:', language);
+
+  return { analysis, language };
+}
+
+/**
  * Step 2: Generate prompts for our product (Second API call)
  *
  * If competitorDescription is provided, it will be used as a system prompt

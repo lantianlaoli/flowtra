@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, uploadCompetitorAdToStorage } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
+import { analyzeCompetitorAdWithLanguage } from '@/lib/standard-ads-workflow';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create competitor ad record in database
+    // Create competitor ad record in database with pending analysis status
     const { data: competitorAd, error: dbError } = await supabase
       .from('competitor_ads')
       .insert({
@@ -115,7 +116,8 @@ export async function POST(request: NextRequest) {
         competitor_name: competitorName.trim(),
         platform: platform.trim(),
         ad_file_url: uploadResult.publicUrl,
-        file_type: uploadResult.fileType as 'image' | 'video'
+        file_type: uploadResult.fileType as 'image' | 'video',
+        analysis_status: 'analyzing' // Start analyzing immediately
       })
       .select()
       .single();
@@ -129,7 +131,94 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, competitorAd }, { status: 201 });
+    console.log(`[POST /api/competitor-ads] Created competitor ad ${competitorAd.id}, starting analysis...`);
+
+    // Perform synchronous AI analysis with language detection
+    try {
+      const { analysis, language } = await analyzeCompetitorAdWithLanguage({
+        file_url: uploadResult.publicUrl,
+        file_type: uploadResult.fileType as 'video' | 'image',
+        competitor_name: competitorName.trim()
+      });
+
+      console.log(`[POST /api/competitor-ads] Analysis complete for ${competitorAd.id}, language: ${language}`);
+
+      // Update record with analysis results
+      const { data: updatedAd, error: updateError } = await supabase
+        .from('competitor_ads')
+        .update({
+          analysis_result: analysis,
+          language: language,
+          analysis_status: 'completed',
+          analyzed_at: new Date().toISOString()
+        })
+        .eq('id', competitorAd.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error(`[POST /api/competitor-ads] Failed to update analysis for ${competitorAd.id}:`, updateError);
+        // Analysis succeeded but update failed - mark as failed to allow retry
+        await supabase
+          .from('competitor_ads')
+          .update({
+            analysis_status: 'failed',
+            analysis_error: `Update failed: ${updateError.message}`
+          })
+          .eq('id', competitorAd.id);
+
+        return NextResponse.json({ success: true, competitorAd }, { status: 201 });
+      }
+
+      console.log(`[POST /api/competitor-ads] ✅ Competitor ad ${competitorAd.id} created with complete analysis`);
+      return NextResponse.json({ success: true, competitorAd: updatedAd }, { status: 201 });
+
+    } catch (analysisError) {
+      console.error(`[POST /api/competitor-ads] ❌ Analysis failed for ${competitorAd.id}:`, analysisError);
+
+      // ROLLBACK STRATEGY: Delete database record and uploaded file
+      console.log(`[POST /api/competitor-ads] Initiating rollback for ${competitorAd.id}...`);
+
+      // Delete database record
+      const { error: deleteDbError } = await supabase
+        .from('competitor_ads')
+        .delete()
+        .eq('id', competitorAd.id);
+
+      if (deleteDbError) {
+        console.error(`[POST /api/competitor-ads] Failed to delete database record during rollback:`, deleteDbError);
+      } else {
+        console.log(`[POST /api/competitor-ads] ✓ Database record deleted`);
+      }
+
+      // Delete uploaded file from storage
+      try {
+        const filePath = uploadResult.publicUrl.split('/').slice(-2).join('/'); // Extract path from URL
+        const { error: deleteFileError } = await supabase.storage
+          .from('competitor-ads')
+          .remove([filePath]);
+
+        if (deleteFileError) {
+          console.error(`[POST /api/competitor-ads] Failed to delete file during rollback:`, deleteFileError);
+        } else {
+          console.log(`[POST /api/competitor-ads] ✓ File deleted from storage`);
+        }
+      } catch (fileDeleteError) {
+        console.error(`[POST /api/competitor-ads] Error during file deletion:`, fileDeleteError);
+      }
+
+      console.log(`[POST /api/competitor-ads] ❌ Rollback complete`);
+
+      // Return error to user
+      return NextResponse.json(
+        {
+          error: 'Failed to analyze competitor ad',
+          details: analysisError instanceof Error ? analysisError.message : 'Unknown analysis error',
+          rollback: 'Record and file have been removed'
+        },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('POST /api/competitor-ads error:', error);
     return NextResponse.json(

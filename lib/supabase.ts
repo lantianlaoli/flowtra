@@ -221,6 +221,12 @@ export interface CompetitorAd {
   created_at: string
   updated_at: string
   brand?: UserBrand // Joined data when fetching with brand relationship
+  // Analysis fields (added in migration 20251117000000)
+  analysis_result?: Record<string, unknown> | null // 10 Veo elements analysis
+  language?: string | null // Language short code (e.g., 'en', 'zh', 'es')
+  analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed'
+  analysis_error?: string | null
+  analyzed_at?: string | null
 }
 
 // Database types for sora2_watermark_removal_tasks table
