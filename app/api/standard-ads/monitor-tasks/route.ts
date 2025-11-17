@@ -354,9 +354,11 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
       continue;
     }
 
+    // For children_toy products, closing_frame_url will be null for all segments
+    // For other products, use next segment's first frame as fallback for continuity
     const nextSegment = segments.find(s => s.segment_index === segment.segment_index + 1);
-    const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url;
-    if (!closingFrameUrl) continue;
+    const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url || null;
+    // Don't skip if closingFrameUrl is null - startSegmentVideoTask will handle single-frame mode
 
     const prompt = getSegmentPrompt(record, segment.segment_index);
     const taskId = await startSegmentVideoTask(

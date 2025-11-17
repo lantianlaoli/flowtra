@@ -642,7 +642,7 @@ async function startAIWorkflow(
 
     // Step 1: Start cover generation
     console.log('🎨 Starting cover generation...');
-    const coverTaskId = await generateCover(request.imageUrl, prompts, request);
+    const coverTaskId = await generateCover(request.imageUrl, prompts, request, competitorDescription);
     console.log('🆔 Cover task ID:', coverTaskId);
 
     // Update project with cover task ID and prompts
@@ -751,7 +751,7 @@ async function analyzeCompetitorAd(
     }
   }
 
-  // Define JSON schema for competitor analysis (Veo Guide 8 elements)
+  // Define JSON schema for competitor analysis (Veo Guide 8 elements + Scene Details)
   const responseFormat = {
     type: "json_schema",
     json_schema: {
@@ -791,9 +791,36 @@ async function analyzeCompetitorAd(
           audio: {
             type: "string",
             description: "Dialogue, voiceover, music style, sound effects"
+          },
+          scene_elements: {
+            type: "array",
+            description: "List of all visible background elements with their positions (furniture, plants, floor type, walls, props)",
+            items: {
+              type: "object",
+              properties: {
+                element: {
+                  type: "string",
+                  description: "Name of the element (e.g., 'monstera plant', 'white chair', 'hardwood floor')"
+                },
+                position: {
+                  type: "string",
+                  description: "Position in frame (e.g., 'left background', 'right side', 'bottom', 'center background')"
+                },
+                details: {
+                  type: "string",
+                  description: "Visual details (color, material, size, style)"
+                }
+              },
+              required: ["element", "position", "details"],
+              additionalProperties: false
+            }
+          },
+          first_frame_composition: {
+            type: "string",
+            description: "Detailed description of the first frame's spatial layout and visual hierarchy"
           }
         },
-        required: ["subject", "context", "action", "style", "camera_motion", "composition", "ambiance", "audio"],
+        required: ["subject", "context", "action", "style", "camera_motion", "composition", "ambiance", "audio", "scene_elements", "first_frame_composition"],
         additionalProperties: false
       }
     }
@@ -827,7 +854,7 @@ async function analyzeCompetitorAd(
 
 You are analyzing a competitor advertisement ${competitorAdContext.file_type === 'video' ? 'video' : 'image'} from "${competitorAdContext.competitor_name}".
 
-TASK: Analyze this ad using the Veo Prompt Guide's 8 core elements. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
+TASK: Analyze this ad using the Veo Prompt Guide's 8 core elements PLUS detailed scene reconstruction data. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
 
 Analyze and describe each element in detail:
 
@@ -847,13 +874,28 @@ Analyze and describe each element in detail:
 
 8. **Audio (音频)**: What audio elements are present or suggested? Dialogue? Voiceover? Music style? Sound effects?
 
-IMPORTANT:
-- Be detailed and specific in each description
-- Focus ONLY on what you observe in this ad
-- Do not make suggestions or modifications
-- This analysis will be used as reference for creating a similar ad later
+9. **Scene Elements (场景元素)**: List EVERY visible background element with precise details:
+   - Furniture (chairs, tables, shelves, etc.) - specify color, material, style
+   - Plants (type, size, position)
+   - Floor type (hardwood, carpet, tile, pattern)
+   - Wall features (color, texture, decorations)
+   - Props and decorative items
+   - For each element, specify its EXACT position in the frame (left/right/center, foreground/background)
 
-Return a JSON object with these 8 elements.`
+10. **First Frame Composition (首帧构图)**: Describe the ${competitorAdContext.file_type === 'video' ? 'opening frame' : 'image'}'s spatial layout in detail:
+    - What is in the foreground vs background?
+    - How is the space divided (left/center/right)?
+    - What is the visual hierarchy (what draws the eye first)?
+    - Depth perception and layering of elements
+    - Negative space and framing
+
+CRITICAL FOR SCENE REPLICATION:
+- Be extremely detailed and specific for scene_elements and first_frame_composition
+- Include colors, materials, sizes, and exact positions
+- Think like you're instructing someone to recreate the exact scene from scratch
+- These details will be used to generate an identical scene with a different product
+
+Return a JSON object with all 10 elements.`
             }
           ]
         }
@@ -1303,7 +1345,12 @@ CRITICAL: Keep each segment's dialogue concise enough for ~${perSegmentDuration}
   return parsed;
 }
 
-async function generateCover(imageUrl: string, prompts: Record<string, unknown>, request: StartWorkflowRequest): Promise<string> {
+async function generateCover(
+  imageUrl: string,
+  prompts: Record<string, unknown>,
+  request: StartWorkflowRequest,
+  competitorDescription?: Record<string, unknown>
+): Promise<string> {
   // Get the actual image model to use
   const actualImageModel = getActualImageModel(request.imageModel || 'auto');
   const kieModelName = IMAGE_MODELS[actualImageModel];
@@ -1311,16 +1358,49 @@ async function generateCover(imageUrl: string, prompts: Record<string, unknown>,
   // Build prompt that preserves original product appearance
   const baseDescription = prompts.description as string || "Professional product advertisement";
 
+  // COMPETITOR REFERENCE MODE: Extract detailed scene elements
+  let sceneReplicationSection = '';
+  if (competitorDescription) {
+    const sceneElements = competitorDescription.scene_elements as Array<{ element: string; position: string; details: string }> | undefined;
+    const firstFrameComp = competitorDescription.first_frame_composition as string | undefined;
+
+    if (sceneElements && sceneElements.length > 0) {
+      const elementsList = sceneElements.map(el =>
+        `- ${el.element} (${el.position}): ${el.details}`
+      ).join('\n');
+
+      sceneReplicationSection = `
+🎯 SCENE REPLICATION MODE (CRITICAL - EXACT MATCH REQUIRED)
+
+You are recreating a competitor's advertisement scene with our product. The scene must be IDENTICAL except for the product.
+
+**SCENE ELEMENTS TO REPLICATE EXACTLY:**
+${elementsList}
+
+**SPATIAL LAYOUT (First Frame Composition):**
+${firstFrameComp || 'Maintain original composition'}
+
+**REPLICATION RULES:**
+1. Every background element listed above MUST appear in the exact position
+2. Colors, materials, and sizes must match the descriptions precisely
+3. Lighting direction and quality must be identical
+4. Only the product should be different - all scene elements stay the same
+5. Think: "I'm placing our product into their exact scene"
+
+`;
+    }
+  }
+
   // Create a prompt that explicitly instructs to maintain original product appearance
   let prompt = `IMPORTANT: Use the provided product image as the EXACT BASE. Maintain the original product's exact visual appearance, shape, design, colors, textures, and all distinctive features. DO NOT change the product itself.
 
-Based on the provided product image, create an enhanced advertising version that keeps the EXACT SAME product while only improving the presentation for marketing purposes. ${baseDescription}
+${sceneReplicationSection}Based on the provided product image, create an enhanced advertising version that keeps the EXACT SAME product while only improving the presentation for marketing purposes. ${baseDescription}
 
 Requirements:
 - Keep the original product's exact shape, size, and proportions
 - Maintain all original colors, textures, and materials
 - Preserve all distinctive design features and details
-- Only enhance lighting, background, or add subtle marketing elements
+${competitorDescription ? '- CRITICAL: Replicate the exact scene elements and spatial layout described above' : '- Only enhance lighting, background, or add subtle marketing elements'}
 - The product must remain visually identical to the original
 
 ⚠️ ZERO-CHILD POLICY (ALL MODELS):
@@ -1454,7 +1534,13 @@ async function startSegmentedWorkflow(
   competitorDescription?: Record<string, unknown> // Add competitor analysis parameter
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
-  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount);
+
+  // CRITICAL: Detect product category BEFORE normalizing segments
+  // This ensures children_toy products don't get closing_frame_prompt in database
+  const productCategory = detectProductCategory(prompts);
+  console.log(`📦 Product category detected: ${productCategory}`);
+
+  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, productCategory);
   const now = new Date().toISOString();
 
   const segmentRows = normalizedSegments.map((segmentPrompt, index) => ({
@@ -1489,10 +1575,6 @@ async function startSegmentedWorkflow(
       segment_status: buildSegmentStatusPayload(segments)
     })
     .eq('id', projectId);
-
-  // Detect product category once for all segments
-  const productCategory = detectProductCategory(prompts);
-  console.log(`📦 Product category detected: ${productCategory}`);
 
   for (const segment of segments) {
     const promptData = normalizedSegments[segment.segment_index];
@@ -1553,7 +1635,11 @@ async function startSegmentedWorkflow(
     .eq('id', projectId);
 }
 
-function normalizeSegmentPrompts(prompts: Record<string, unknown>, segmentCount: number): SegmentPrompt[] {
+function normalizeSegmentPrompts(
+  prompts: Record<string, unknown>,
+  segmentCount: number,
+  productCategory?: 'children_toy' | 'adult_product' | 'general'
+): SegmentPrompt[] {
   const basePrompt = {
     description: (prompts as { description?: string }).description || 'Product hero shot in premium environment',
     setting: (prompts as { setting?: string }).setting || 'Studio lighting with branded backdrop',
@@ -1579,13 +1665,20 @@ function normalizeSegmentPrompts(prompts: Record<string, unknown>, segmentCount:
 
   for (let index = 0; index < segmentCount; index++) {
     const source = rawSegments[index] || rawSegments[rawSegments.length - 1] || {};
+
+    // CRITICAL: For children_toy products, do NOT generate closing_frame_prompt
+    // This prevents the prompt from being stored in database and triggering any closing frame logic
+    const closingFramePrompt = productCategory === 'children_toy'
+      ? '' // Empty for children products - prevents any closing frame processing
+      : (source.closing_frame_prompt || source.ending || basePrompt.ending);
+
     normalized.push({
       ...basePrompt,
       ...source,
       segment_title: source.segment_title || `Segment ${index + 1}`,
       segment_goal: source.segment_goal || `Highlight product benefit ${index + 1}`,
       first_frame_prompt: source.first_frame_prompt || source.description || basePrompt.description,
-      closing_frame_prompt: source.closing_frame_prompt || source.ending || basePrompt.ending,
+      closing_frame_prompt: closingFramePrompt, // Use conditional value
       voice_type: baseVoiceType,  // Force unified voice across all segments
       voice_tone: baseVoiceTone   // Force unified tone across all segments
     });
@@ -1705,7 +1798,7 @@ export async function startSegmentVideoTask(
   project: SingleVideoProject,
   segmentPrompt: SegmentPrompt,
   firstFrameUrl: string,
-  closingFrameUrl: string,
+  closingFrameUrl: string | null | undefined,
   segmentIndex: number,
   totalSegments: number
 ): Promise<string> {
@@ -1745,12 +1838,20 @@ Ending: ${segmentPrompt.ending}
 Other details: ${segmentPrompt.other_details}
 Voice: This is segment ${segmentIndex + 1} of ${totalSegments}. Use the exact same narrator voice across all segments — ${voiceDescriptor} with a ${voiceToneDescriptor} tone. Match timbre, accent, gender, pacing, and energy perfectly so the audience cannot tell the clips were generated separately.${adCopyInstruction}`;
 
+  // CRITICAL: Determine imageUrls based on whether closing frame exists
+  // For children_toy products, closing_frame_url will be null → only pass first frame
+  // generationType remains 'FIRST_AND_LAST_FRAMES_2_VIDEO' but with 1 or 2 images
+  const hasClosingFrame = !!closingFrameUrl && closingFrameUrl !== firstFrameUrl;
+  const imageUrls = hasClosingFrame ? [firstFrameUrl, closingFrameUrl] : [firstFrameUrl];
+
+  console.log(`🎬 Segment ${segmentIndex + 1}: Images count = ${imageUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
+
   const requestBody = {
     prompt: fullPrompt,
     model: videoModel,
     aspectRatio,
     generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
-    imageUrls: [firstFrameUrl, closingFrameUrl],
+    imageUrls,
     enableAudio: true,
     audioEnabled: true,
     generateVoiceover: true,

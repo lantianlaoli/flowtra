@@ -717,9 +717,11 @@ async function maybeTriggerSegmentVideos(
     if (seg.video_task_id || seg.video_url) continue;
     if (!seg.first_frame_url) continue;
 
+    // For children_toy products, closing_frame_url will be null for all segments
+    // For other products, use next segment's first frame as fallback for continuity
     const nextSegment = segments.find(s => s.segment_index === seg.segment_index + 1);
-    const closingFrameUrl = seg.closing_frame_url || nextSegment?.first_frame_url;
-    if (!closingFrameUrl) continue;
+    const closingFrameUrl = seg.closing_frame_url || nextSegment?.first_frame_url || null;
+    // Don't skip if closingFrameUrl is null - startSegmentVideoTask will handle single-frame mode
 
     const segmentPrompt = getSegmentPromptFromProject(project, seg.segment_index);
     const taskId = await startSegmentVideoTask(
