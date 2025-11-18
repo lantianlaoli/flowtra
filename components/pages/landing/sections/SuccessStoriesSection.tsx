@@ -19,7 +19,7 @@ export default function SuccessStoriesSection() {
       {/* Side-by-Side TikTok Style Cards */}
       <div className="max-w-[100rem] mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-[5fr_7fr] gap-6 lg:gap-8">
-          {successCases.map((successCase, index) => (
+          {successCases.map((successCase) => (
             <article key={successCase.id} className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8">
               {/* Header */}
               <header className="flex items-center justify-between gap-3 mb-4">

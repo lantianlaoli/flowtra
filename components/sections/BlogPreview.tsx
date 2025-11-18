@@ -48,62 +48,63 @@ export default function BlogPreview() {
           </Link>
         </div>
 
-        {loading ? (
-          <div className="text-center py-10 text-gray-500">Loading…</div>
+        {(loading || articles.length === 0) ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((index) => (
+              <div key={index} className="bg-gray-50 border border-gray-200 rounded-xl p-6 animate-pulse space-y-4">
+                <div className="h-44 w-full bg-white/70 rounded-lg" />
+                <div className="h-4 bg-white/80 rounded w-2/3" />
+                <div className="h-4 bg-white/70 rounded w-1/2" />
+                <div className="h-4 bg-white/60 rounded w-full" />
+                <div className="h-4 bg-white/60 rounded w-5/6" />
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {articles.length === 0 ? (
-              <div className="sm:col-span-2 lg:col-span-3">
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No articles yet</h3>
-                  <p className="text-gray-600">Check back later for new AI marketing insights and guides.</p>
-                </div>
-              </div>
-            ) : (
-              articles.map((article) => {
-                const publishDate = new Date(article.created_at);
-                const readingTime = calculateReadingTime(article.content);
-                const excerpt = extractExcerpt(article.content, 100);
-                return (
-                  <article key={article.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
-                    {article.cover ? (
-                      <Image
-                        src={article.cover}
-                        alt={article.title}
-                        width={800}
-                        height={600}
-                        className="h-44 w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-44 bg-gray-100 flex items-center justify-center">
-                        <span className="text-gray-400 text-sm">No Image</span>
+            {articles.map((article) => {
+              const publishDate = new Date(article.created_at);
+              const readingTime = calculateReadingTime(article.content);
+              const excerpt = extractExcerpt(article.content, 100);
+              return (
+                <article key={article.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                  {article.cover ? (
+                    <Image
+                      src={article.cover}
+                      alt={article.title}
+                      width={800}
+                      height={600}
+                      className="h-44 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-44 bg-gray-100 flex items-center justify-center">
+                      <span className="text-gray-400 text-sm">No Image</span>
+                    </div>
+                  )}
+                  <div className="p-5 flex flex-col flex-1">
+                    <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
+                      <div className="flex items-center gap-1">
+                        <CalendarIcon className="w-4 h-4" />
+                        {publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                       </div>
-                    )}
-                    <div className="p-5 flex flex-col flex-1">
-                      <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
-                        <div className="flex items-center gap-1">
-                          <CalendarIcon className="w-4 h-4" />
-                          {publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <ClockIcon className="w-4 h-4" />
-                          {readingTime}
-                        </div>
-                      </div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2 hover:text-gray-700">
-                        <Link href={`/blog/${article.slug}`}>{article.title}</Link>
-                      </h3>
-                      <p className="text-gray-600 mb-3 line-clamp-2">{excerpt}</p>
-                      <div className="mt-auto">
-                        <Link href={`/blog/${article.slug}`} className="text-gray-900 font-medium hover:underline">
-                          Read More →
-                        </Link>
+                      <div className="flex items-center gap-1">
+                        <ClockIcon className="w-4 h-4" />
+                        {readingTime}
                       </div>
                     </div>
-                  </article>
-                );
-              })
-            )}
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2 hover:text-gray-700">
+                      <Link href={`/blog/${article.slug}`}>{article.title}</Link>
+                    </h3>
+                    <p className="text-gray-600 mb-3 line-clamp-2">{excerpt}</p>
+                    <div className="mt-auto">
+                      <Link href={`/blog/${article.slug}`} className="text-gray-900 font-medium hover:underline">
+                        Read More →
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
 

@@ -1,10 +1,21 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, Upload, Loader2, Target, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
-import { formatLanguage } from '@/lib/language-utils';
+import {
+  FaFacebookF,
+  FaInstagram,
+  FaTiktok,
+  FaYoutube,
+  FaXTwitter,
+  FaLinkedin,
+  FaSnapchat,
+  FaPinterestP
+} from 'react-icons/fa6';
+import { LuGlobe } from 'react-icons/lu';
 
 interface CreateCompetitorAdModalProps {
   isOpen: boolean;
@@ -14,17 +25,17 @@ interface CreateCompetitorAdModalProps {
   onCompetitorAdCreated: (competitorAd: CompetitorAd) => void;
 }
 
-const PLATFORMS = [
-  'Facebook',
-  'Instagram',
-  'TikTok',
-  'YouTube',
-  'Twitter/X',
-  'LinkedIn',
-  'Snapchat',
-  'Pinterest',
-  'Other'
-];
+const PLATFORM_OPTIONS = [
+  { value: 'Facebook', label: 'Facebook', icon: FaFacebookF, accent: 'text-[#0866ff]', bg: 'bg-[#e8f0ff]' },
+  { value: 'Instagram', label: 'Instagram', icon: FaInstagram, accent: 'text-[#E1306C]', bg: 'bg-[#fce5ef]' },
+  { value: 'TikTok', label: 'TikTok', icon: FaTiktok, accent: 'text-black', bg: 'bg-gray-100' },
+  { value: 'YouTube', label: 'YouTube', icon: FaYoutube, accent: 'text-[#ff0000]', bg: 'bg-[#ffe6e6]' },
+  { value: 'Twitter/X', label: 'Twitter / X', icon: FaXTwitter, accent: 'text-black', bg: 'bg-gray-100' },
+  { value: 'LinkedIn', label: 'LinkedIn', icon: FaLinkedin, accent: 'text-[#0A66C2]', bg: 'bg-[#e6f0fb]' },
+  { value: 'Snapchat', label: 'Snapchat', icon: FaSnapchat, accent: 'text-[#FFFC00]', bg: 'bg-[#fffad1]' },
+  { value: 'Pinterest', label: 'Pinterest', icon: FaPinterestP, accent: 'text-[#E60023]', bg: 'bg-[#ffe5ea]' },
+  { value: 'Other', label: 'Other', icon: LuGlobe, accent: 'text-gray-600', bg: 'bg-gray-100' }
+] as const;
 
 type AnalysisStatus = 'idle' | 'analyzing' | 'completed' | 'failed';
 
@@ -35,6 +46,7 @@ export default function CreateCompetitorAdModal({
   brandName,
   onCompetitorAdCreated
 }: CreateCompetitorAdModalProps) {
+  const router = useRouter();
   // Form state
   const [competitorName, setCompetitorName] = useState('');
   const [platform, setPlatform] = useState('Facebook');
@@ -50,9 +62,9 @@ export default function CreateCompetitorAdModal({
   // Analysis state
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('idle');
   const [analysisResult, setAnalysisResult] = useState<Record<string, unknown> | null>(null);
-  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [createdAdId, setCreatedAdId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // UI state
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -72,7 +84,6 @@ export default function CreateCompetitorAdModal({
       setWarning(null);
       setAnalysisStatus('idle');
       setAnalysisResult(null);
-      setDetectedLanguage(null);
       setAnalysisError(null);
       setCreatedAdId(null);
       setExpandedSection(null);
@@ -110,8 +121,7 @@ export default function CreateCompetitorAdModal({
 
             if (ad.analysis_status === 'completed') {
               setAnalysisStatus('completed');
-              setAnalysisResult(ad.analysis_result);
-              setDetectedLanguage(ad.language);
+        setAnalysisResult(ad.analysis_result);
               clearInterval(pollingInterval.current!);
               pollingInterval.current = null;
             } else if (ad.analysis_status === 'failed') {
@@ -166,11 +176,19 @@ export default function CreateCompetitorAdModal({
     }
   };
 
+  const canSelectFile = !isUploading && analysisStatus === 'idle';
+  const triggerFileInput = () => {
+    if (!canSelectFile) {
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!competitorName.trim()) {
-      setError('Competitor name is required');
+      setError('Ad name is required');
       return;
     }
 
@@ -207,7 +225,6 @@ export default function CreateCompetitorAdModal({
         } else if (ad.analysis_status === 'completed') {
           setAnalysisStatus('completed');
           setAnalysisResult(ad.analysis_result);
-          setDetectedLanguage(ad.language);
         } else if (ad.analysis_status === 'failed') {
           setAnalysisStatus('failed');
           setAnalysisError(ad.analysis_error);
@@ -245,9 +262,24 @@ export default function CreateCompetitorAdModal({
 
   const canClose = !isUploading;
   const canSubmit = !isUploading && competitorName.trim() && adFile;
+  const hasUploadedAd = Boolean(createdAdId);
+
+  const handleGoToStandardAds = () => {
+    onClose();
+    router.push('/dashboard/standard-ads');
+  };
 
   return (
     <AnimatePresence>
+      <input
+        ref={fileInputRef}
+        id="ad-file"
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={handleFileUpload}
+        disabled={!canSelectFile}
+      />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         {/* Backdrop */}
         <motion.div
@@ -290,17 +322,39 @@ export default function CreateCompetitorAdModal({
             {/* Left Column: Preview + Analysis (60%) */}
             <div className="w-full md:w-3/5 border-r border-gray-200 overflow-y-auto p-6 bg-gray-50">
               {!filePreview ? (
-                // Upload prompt
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <Upload className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 text-sm">
-                      Upload a file to see preview and analysis
-                    </p>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={triggerFileInput}
+                  disabled={!canSelectFile}
+                  className="w-full h-full min-h-[320px] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl bg-white shadow-sm hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Upload className="w-14 h-14 text-gray-300 mb-4" />
+                  <p className="text-lg font-medium text-gray-800 mb-2">Upload a file</p>
+                  <p className="text-sm text-gray-500">Choose a competitor image or video to preview and analyze.</p>
+                  <p className="text-xs text-gray-400 mt-3">
+                    Images: max 10MB · Videos: max 100MB
+                  </p>
+                  {!canSelectFile && (
+                    <p className="text-xs text-gray-500 mt-2">Finish the current upload before adding another file.</p>
+                  )}
+                </button>
               ) : (
                 <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-gray-500">Current file</p>
+                      <p className="text-sm font-medium text-gray-900 truncate max-w-xs">{adFile?.name}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={triggerFileInput}
+                      disabled={!canSelectFile}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Replace file
+                    </button>
+                  </div>
                   {/* Media Preview */}
                   <div className="bg-white rounded-lg shadow-sm overflow-hidden">
                     {fileType === 'image' ? (
@@ -318,6 +372,9 @@ export default function CreateCompetitorAdModal({
                       />
                     )}
                   </div>
+                  <p className="text-xs text-gray-500 text-center">
+                    Supported formats: JPG, PNG, MP4, MOV, WEBM
+                  </p>
 
                   {/* Analysis Progress */}
                   {analysisStatus === 'analyzing' && (
@@ -341,11 +398,6 @@ export default function CreateCompetitorAdModal({
                       <div className="flex items-center gap-3 mb-4">
                         <CheckCircle className="w-6 h-6 text-green-600" />
                         <h3 className="font-semibold text-gray-900">Analysis Complete</h3>
-                        {detectedLanguage && (
-                          <span className="ml-auto text-sm px-3 py-1 bg-blue-100 text-blue-800 rounded-full">
-                            {formatLanguage(detectedLanguage)}
-                          </span>
-                        )}
                       </div>
 
                       {/* 10 Veo Elements Display */}
@@ -486,21 +538,24 @@ export default function CreateCompetitorAdModal({
             {/* Right Column: Form (40%) */}
             <div className="w-full md:w-2/5 overflow-y-auto p-6">
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Competitor Name */}
+                {/* Ad Name */}
                 <div>
                   <label htmlFor="competitor-name" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Competitor Name <span className="text-red-500">*</span>
+                    Ad Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="competitor-name"
                     type="text"
                     value={competitorName}
                     onChange={(e) => setCompetitorName(e.target.value)}
-                    placeholder="e.g., Lovevery, Montessori Toys"
+                    placeholder="e.g., Summer Splash 15s"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     disabled={isUploading || analysisStatus !== 'idle'}
                     required
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Use the actual title of the competitor advertisement so it&apos;s easy to find later.
+                  </p>
                 </div>
 
                 {/* Platform */}
@@ -508,59 +563,36 @@ export default function CreateCompetitorAdModal({
                   <label htmlFor="platform" className="block text-sm font-medium text-gray-700 mb-1.5">
                     Platform <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    id="platform"
-                    value={platform}
-                    onChange={(e) => setPlatform(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    disabled={isUploading || analysisStatus !== 'idle'}
-                    required
-                  >
-                    {PLATFORMS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* File Upload Button */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Advertisement File <span className="text-red-500">*</span>
-                  </label>
-                  <label
-                    htmlFor="ad-file"
-                    className="flex flex-col items-center justify-center w-full h-24 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex flex-col items-center justify-center">
-                      <Upload className="w-6 h-6 text-gray-400 mb-1" />
-                      <p className="text-sm text-gray-600">
-                        {adFile ? adFile.name : 'Click to upload'}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Images: max 10MB | Videos: max 100MB
-                      </p>
-                    </div>
-                    <input
-                      id="ad-file"
-                      type="file"
-                      accept="image/*,video/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      disabled={isUploading || analysisStatus !== 'idle'}
-                    />
-                  </label>
-                </div>
-
-                {/* Language Display (if detected) */}
-                {detectedLanguage && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="text-sm text-blue-900">
-                      <strong>Detected Language:</strong> {formatLanguage(detectedLanguage)}
-                    </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PLATFORM_OPTIONS.map((option) => {
+                      const Icon = option.icon;
+                      const isSelected = platform === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setPlatform(option.value)}
+                          disabled={isUploading || analysisStatus !== 'idle'}
+                          className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
+                            isSelected ? 'border-purple-500 bg-purple-50 text-purple-900' : 'border-gray-200 bg-white text-gray-800'
+                          } ${isUploading || analysisStatus !== 'idle' ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-300'}`}
+                          aria-pressed={isSelected}
+                        >
+                          <span className={`flex h-9 w-9 items-center justify-center rounded-full ${option.bg}`}>
+                            <Icon className={`w-4 h-4 ${option.accent}`} />
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium leading-tight">{option.label}</p>
+                            <p className="text-[11px] text-gray-500">
+                              {option.value === 'Other' ? 'Upload from other networks' : 'Optimized for this network'}
+                            </p>
+                          </div>
+                          {isSelected && <CheckCircle className="w-4 h-4 text-purple-600" />}
+                        </button>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
 
                 {/* Error Message */}
                 {error && (
@@ -577,38 +609,50 @@ export default function CreateCompetitorAdModal({
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={handleCloseWithAnalyzing}
-                    disabled={!canClose}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {analysisStatus === 'analyzing' ? 'Save & Close' : 'Cancel'}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!canSubmit}
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : analysisStatus !== 'idle' ? (
-                      'Saved'
-                    ) : (
-                      'Upload & Analyze'
-                    )}
-                  </button>
-                </div>
-
-                {/* Background analysis notice */}
-                {analysisStatus === 'analyzing' && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-900">
-                    💡 <strong>Tip:</strong> You can close this window. Analysis will continue in the background.
+                {hasUploadedAd ? (
+                  <div className="pt-4">
+                    <button
+                      type="button"
+                      onClick={handleGoToStandardAds}
+                      className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 font-semibold"
+                    >
+                      Recreate this competitor ad →
+                    </button>
                   </div>
+                ) : (
+                  <>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={handleCloseWithAnalyzing}
+                        disabled={!canClose}
+                        className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {analysisStatus === 'analyzing' ? 'Save & Close' : 'Cancel'}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={!canSubmit}
+                        className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {isUploading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          'Upload & Analyze'
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Background analysis notice */}
+                    {analysisStatus === 'analyzing' && (
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-900">
+                        💡 <strong>Tip:</strong> You can close this window. Analysis will continue in the background.
+                      </div>
+                    )}
+                  </>
                 )}
               </form>
             </div>

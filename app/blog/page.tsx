@@ -109,6 +109,11 @@ function BlogPageContent() {
   const searchQuery = searchParams.get('search') || ''
   const selectedPlatforms = searchParams.get('platforms')?.split(',').filter(Boolean) || []
   const selectedAudiences = searchParams.get('audiences')?.split(',').filter(Boolean) || []
+  const hasActiveFilters = Boolean(
+    searchQuery ||
+    selectedPlatforms.length > 0 ||
+    selectedAudiences.length > 0
+  )
 
   // Retry function for error state
   const retryFetch = () => {
@@ -256,22 +261,35 @@ function BlogPageContent() {
 
           {/* Empty State */}
           {!isLoading && !error && articles.length === 0 && (
-            <div className="text-center py-16">
-              <div className="bg-[#f7f6f3] rounded-lg p-8 max-w-md mx-auto">
-                <h3 className="text-base font-semibold text-[#37352f] mb-2">
-                  {searchQuery || selectedPlatforms.length > 0 || selectedAudiences.length > 0
-                    ? 'No articles match your filters'
-                    : 'No articles yet'
-                  }
-                </h3>
-                <p className="text-sm text-[#787774]">
-                  {searchQuery || selectedPlatforms.length > 0 || selectedAudiences.length > 0
-                    ? 'Try different filters or clear your selection.'
-                    : 'Check back later for new content.'
-                  }
+            hasActiveFilters ? (
+              <div className="text-center py-16">
+                <div className="bg-[#f7f6f3] rounded-lg p-8 max-w-md mx-auto">
+                  <h3 className="text-base font-semibold text-[#37352f] mb-2">
+                    No articles match your filters
+                  </h3>
+                  <p className="text-sm text-[#787774]">
+                    Try different filters or clear your selection.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="py-16">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[1, 2, 3].map((index) => (
+                    <div key={index} className="p-6 border border-[#f0efeb] rounded-2xl bg-[#f7f6f3] animate-pulse space-y-4">
+                      <div className="h-40 bg-white/60 rounded-xl" />
+                      <div className="h-4 bg-white/70 rounded w-2/3" />
+                      <div className="h-4 bg-white/70 rounded w-1/2" />
+                      <div className="h-4 bg-white/60 rounded w-full" />
+                      <div className="h-4 bg-white/60 rounded w-5/6" />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-center text-sm text-[#787774] mt-8">
+                  Loading articles…
                 </p>
               </div>
-            </div>
+            )
           )}
 
           {/* Articles Grid */}
