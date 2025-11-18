@@ -14,6 +14,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compact, setCompact] = useState(false);
   const [featuresOpen, setFeaturesOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => {
@@ -26,13 +27,13 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 bg-transparent">
-      <div className="mx-auto max-w-[90rem] px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 bg-transparent pt-[env(safe-area-inset-top)]">
+      <div className="mx-auto max-w-[90rem] px-4 sm:px-6 lg:px-8 py-2 sm:py-3">
         <div
-          className={`flex items-center justify-between h-16 ${
+          className={`flex items-center justify-between min-h-[4rem] w-full ${
             compact
-              ? 'rounded-lg border border-white/40 bg-white/60 backdrop-blur-md backdrop-saturate-150 ring-1 ring-black/5 px-4 shadow'
-              : 'bg-white px-0'
+              ? 'rounded-2xl border border-white/50 bg-white/70 backdrop-blur-md backdrop-saturate-150 ring-1 ring-black/5 px-4 shadow'
+              : 'rounded-2xl border border-gray-200/80 bg-white/95 px-4 shadow-sm'
           }`}
         >
           {/* Logo */}
@@ -54,12 +55,12 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
             <nav className="hidden md:flex items-center gap-6" aria-label="Main navigation">
               {/* Features Dropdown */}
               <div className="relative group">
-                <button className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50 flex items-center gap-1">
+                <button className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1.5 rounded-md hover:bg-gray-50 flex items-center gap-1">
                   Features
                   <ChevronDownIcon className="w-4 h-4" />
                 </button>
-                <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                  <div className="py-2">
+                <div className="absolute left-0 top-full mt-1 w-60 bg-white border border-gray-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-3">
                     <Link
                       href="/features/standard-ads"
                       className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
@@ -84,6 +85,24 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                   </div>
                 </div>
               </div>
+              {/* Tools Dropdown */}
+              <div className="relative group">
+                <button className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1.5 rounded-md hover:bg-gray-50 flex items-center gap-1">
+                  Tools
+                  <ChevronDownIcon className="w-4 h-4" />
+                </button>
+                <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-3">
+                    <Link
+                      href="/sora2-watermark-removal"
+                      className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                    >
+                      <div className="font-semibold">Sora2 Watermark Removal</div>
+                      <div className="text-xs text-gray-600">Clean up legacy Sora2 clips</div>
+                    </Link>
+                  </div>
+                </div>
+              </div>
               <Link
                 href="/#pricing"
                 className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50"
@@ -101,12 +120,6 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                 className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50"
               >
                 FAQ
-              </Link>
-              <Link
-                href="/sora2-watermark-removal"
-                className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-50"
-              >
-                Sora2 Watermark Removal
               </Link>
               <SignedOut>
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard">
@@ -197,6 +210,37 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                   </div>
                 </div>
               </div>
+              {/* Tools Expandable */}
+              <div>
+                <button
+                  onClick={() => setToolsOpen(!toolsOpen)}
+                  className="w-full text-left text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50 flex items-center justify-between"
+                  aria-expanded={toolsOpen}
+                  aria-controls="mobile-tools-menu"
+                >
+                  <span>Tools</span>
+                  <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${toolsOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                </button>
+                <div
+                  id="mobile-tools-menu"
+                  className={`overflow-hidden transition-all duration-200 ${toolsOpen ? 'max-h-40 mt-2' : 'max-h-0'}`}
+                  aria-hidden={!toolsOpen}
+                >
+                  <div className="pl-4 flex flex-col gap-2">
+                    <Link
+                      href="/sora2-watermark-removal"
+                      className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setToolsOpen(false);
+                      }}
+                    >
+                      <div className="font-semibold text-sm">Sora2 Watermark Removal</div>
+                      <div className="text-xs text-gray-600">Remove old Sora2 logos</div>
+                    </Link>
+                  </div>
+                </div>
+              </div>
               <Link
                 href="/#pricing"
                 className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
@@ -217,13 +261,6 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 FAQ
-              </Link>
-              <Link
-                href="/sora2-watermark-removal"
-                className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Sora2 Watermark Removal
               </Link>
 
               {showAuthButtons && (

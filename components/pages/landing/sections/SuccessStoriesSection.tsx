@@ -20,7 +20,7 @@ export default function SuccessStoriesSection() {
       <div className="max-w-[100rem] mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-[5fr_7fr] gap-6 lg:gap-8">
           {successCases.map((successCase, index) => (
-            <article key={successCase.id} className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8 overflow-hidden">
+            <article key={successCase.id} className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 md:p-8">
               {/* Header */}
               <header className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3">
@@ -54,28 +54,25 @@ export default function SuccessStoriesSection() {
 
               {/* Quote */}
               <figure className="mb-6">
-                <blockquote
-                  className="text-lg text-gray-700 font-medium leading-relaxed max-w-3xl"
-                  style={index === 0 ? {lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'} : {}}
-                >
+                <blockquote className="text-lg text-gray-700 font-medium leading-relaxed max-w-3xl">
                   &ldquo;{successCase.quote}&rdquo;
                 </blockquote>
               </figure>
 
               {/* Before & After Showcase */}
               {successCase.layout === 'input-to-output' ? (
-                <div className="relative max-w-3xl">
+                <div className="relative max-w-3xl mx-auto">
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6">
                     {/* Original Product Image */}
-                    <div className="flex flex-col items-center">
-                      <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[160px] h-[213px] sm:w-[200px] sm:h-[267px]">
+                    <div className="flex flex-col items-center w-full max-w-[220px] sm:max-w-[240px]">
+                      <div className="aspect-[3/4] w-full bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg">
                         <Image
                           src={successCase.content.inputImage!}
                           alt="Original product photo"
                           width={200}
                           height={267}
-                          sizes="200px"
-                          className="w-full h-full object-cover"
+                          sizes="(max-width: 640px) 220px, 240px"
+                          className="w-full h-full object-cover object-center"
                           loading="lazy"
                         />
                       </div>
@@ -91,10 +88,10 @@ export default function SuccessStoriesSection() {
                     </div>
 
                     {/* Generated Video */}
-                    <div className="flex flex-col items-center">
+                    <div className="flex flex-col items-center w-full max-w-[220px] sm:max-w-[240px]">
                       <LazyVideoPlayer
-                        wrapperClassName="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[160px] h-[213px] sm:w-[200px] sm:h-[267px]"
-                        className="h-full w-full rounded-2xl"
+                        wrapperClassName="aspect-[3/4] w-full bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl"
+                        className="h-full w-full rounded-2xl object-cover"
                         src={successCase.content.videoUrl}
                         ariaLabel="Standard Ads success story: video created with Flowtra AI"
                       />
@@ -111,18 +108,18 @@ export default function SuccessStoriesSection() {
                   </div>
                 </div>
               ) : (
-                <div className="w-full max-w-3xl px-2">
+                <div className="w-full max-w-3xl px-2 mx-auto">
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6">
                     {/* Character Image */}
-                    <div className="flex flex-col items-center">
-                      <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[140px] h-[187px] sm:w-[200px] sm:h-[267px]">
+                    <div className="flex flex-col items-center w-full max-w-[180px] sm:max-w-[210px]">
+                      <div className="aspect-[3/4] w-full bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg">
                         <Image
                           src={successCase.content.characterImage!}
                           alt="Character photo"
                           width={200}
                           height={267}
-                          sizes="200px"
-                          className="w-full h-full object-cover"
+                          sizes="(max-width: 640px) 180px, 220px"
+                          className="w-full h-full object-cover object-center"
                           loading="lazy"
                         />
                       </div>
@@ -138,15 +135,15 @@ export default function SuccessStoriesSection() {
                     </div>
 
                     {/* Product Image */}
-                    <div className="flex flex-col items-center">
-                      <div className="aspect-[3/4] bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg w-[140px] h-[187px] sm:w-[200px] sm:h-[267px]">
+                    <div className="flex flex-col items-center w-full max-w-[180px] sm:max-w-[210px]">
+                      <div className="aspect-[3/4] w-full bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg">
                         <Image
                           src={successCase.content.productImage!}
                           alt="Product photo"
                           width={200}
                           height={267}
-                          sizes="200px"
-                          className="w-full h-full object-cover"
+                          sizes="(max-width: 640px) 180px, 220px"
+                          className="w-full h-full object-cover object-center"
                           loading="lazy"
                         />
                       </div>
@@ -162,10 +159,10 @@ export default function SuccessStoriesSection() {
                     </div>
 
                     {/* Generated Video */}
-                    <div className="flex flex-col items-center">
+                    <div className="flex flex-col items-center w-full max-w-[180px] sm:max-w-[210px]">
                       <LazyVideoPlayer
-                        wrapperClassName="aspect-[3/4] bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl w-[140px] h-[187px] sm:w-[200px] sm:h-[267px]"
-                        className="h-full w-full rounded-2xl"
+                        wrapperClassName="aspect-[3/4] w-full bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl"
+                        className="h-full w-full rounded-2xl object-cover"
                         src={successCase.content.videoUrl}
                         ariaLabel="Character Ads success story: personalized video created with character and product"
                       />
