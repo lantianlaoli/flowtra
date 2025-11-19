@@ -378,14 +378,17 @@ export default function MultiVariantAdsPage() {
                     selectedModel={selectedImageModel}
                     onModelChange={handleImageModelChange}
                     showIcon={true}
-                    hiddenModels={['auto', 'grok']}
+                    hiddenModels={['auto']}
                   />
                   {shouldGenerateVideo && (
                     <>
                       <VideoModelSelector
                         credits={userCredits || 0}
                         selectedModel={selectedModel}
-                        onModelChange={handleModelChange}
+                        onModelChange={(model) => {
+                          if (model === 'grok') return;
+                          handleModelChange(model);
+                        }}
                         videoQuality={videoQuality}
                         videoDuration={videoDuration}
                         showIcon={true}
@@ -573,14 +576,17 @@ export default function MultiVariantAdsPage() {
                   onModelChange={handleImageModelChange}
                   showIcon={true}
                   className="col-span-1"
-                  hiddenModels={['auto', 'grok']}
+                  hiddenModels={['auto']}
                 />
                 {shouldGenerateVideo && (
                   <>
                     <VideoModelSelector
                       credits={userCredits || 0}
                       selectedModel={selectedModel}
-                      onModelChange={handleModelChange}
+                      onModelChange={(model) => {
+                        if (model === 'grok') return;
+                        handleModelChange(model);
+                      }}
                       videoQuality={videoQuality}
                       videoDuration={videoDuration}
                       showIcon={true}

@@ -427,14 +427,17 @@ export default function CharacterAdsPage() {
                             selectedModel={selectedImageModel}
                             onModelChange={setSelectedImageModel}
                             showIcon={true}
-                            hiddenModels={['auto', 'grok']}
+                            hiddenModels={['auto']}
                           />
                         </div>
                         <div className="relative space-y-3">
                           <VideoModelSelector
                             credits={userCredits || 0}
                             selectedModel={selectedVideoModel}
-                            onModelChange={(m) => setSelectedVideoModel(m)}
+                            onModelChange={(m) => {
+                              if (m === 'grok') return;
+                              setSelectedVideoModel(m);
+                            }}
                             showIcon={true}
                             disabledModels={disabledVideoModels}
                             hiddenModels={['auto', 'grok']}
