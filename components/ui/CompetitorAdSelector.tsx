@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Target, Loader2, Info, ChevronRight } from 'lucide-react';
+import { Target, Loader2, Info, ChevronRight, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
 import { CompetitorAd } from '@/lib/supabase';
 import CompetitorAdCard from '../CompetitorAdCard';
@@ -176,6 +176,10 @@ export default function CompetitorAdSelector({
                 ? `Selected: ${selectedCompetitorAd.competitor_name}`
                 : `${competitorAds.length} competitor ${competitorAds.length === 1 ? 'ad' : 'ads'} available`}
             </p>
+            <div className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-orange-700 bg-orange-100 border border-orange-200">
+              <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+              <span>If the first frame shows kids, use Grok with 6s (or multiples).</span>
+            </div>
           </div>
         </div>
         <svg
@@ -201,12 +205,14 @@ export default function CompetitorAdSelector({
           }}
           className="bg-white border border-purple-200 rounded-xl shadow-lg overflow-hidden z-[110]"
         >
-          <div className="p-4">
-            <div className="mb-3">
-              <p className="text-xs text-gray-600">
-                Select a competitor ad to use as creative reference. The AI will analyze its style and generate a similar ad for your product.
-              </p>
+          <div className="p-4 space-y-3">
+            <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 shadow-sm text-xs text-orange-900">
+              <AlertTriangle className="w-4 h-4 text-orange-500" />
+              <span>If the competitor’s first frame includes children, select Grok with 6s (or multiples) to avoid generation failures.</span>
             </div>
+            <p className="text-xs text-gray-600">
+              Select a competitor ad to use as creative reference. The AI will analyze its style and generate a similar ad for your product.
+            </p>
 
             {/* Desktop: Grid View */}
             {!isMobile ? (

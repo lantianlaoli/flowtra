@@ -96,7 +96,7 @@ export default function MultiVariantAdsPage() {
 
   // Calculate available and disabled options based on current selection
   const availableDurations = useMemo<Array<LegacyDuration>>(
-    () => getAvailableDurations(videoQuality).filter(isClassicDuration) as Array<LegacyDuration>,
+    () => getAvailableDurations(videoQuality, ALL_VIDEO_MODELS).filter(isClassicDuration) as Array<LegacyDuration>,
     [videoQuality]
   );
 
@@ -123,7 +123,7 @@ export default function MultiVariantAdsPage() {
   // Handle quality change with auto-adjustment of duration if needed
   const handleVideoQualityChange = useCallback(
     (quality: 'standard' | 'high') => {
-      const supportedDurations = getAvailableDurations(quality).filter(isClassicDuration) as Array<LegacyDuration>;
+      const supportedDurations = getAvailableDurations(quality, ALL_VIDEO_MODELS).filter(isClassicDuration) as Array<LegacyDuration>;
 
       if (!supportedDurations.includes(videoDuration)) {
         const nextDuration = supportedDurations[0] ?? '10';
@@ -378,7 +378,7 @@ export default function MultiVariantAdsPage() {
                     selectedModel={selectedImageModel}
                     onModelChange={handleImageModelChange}
                     showIcon={true}
-                    hiddenModels={['auto']}
+                    hiddenModels={['auto', 'grok']}
                   />
                   {shouldGenerateVideo && (
                     <>
@@ -389,7 +389,7 @@ export default function MultiVariantAdsPage() {
                         videoQuality={videoQuality}
                         videoDuration={videoDuration}
                         showIcon={true}
-                        hiddenModels={['auto']}
+                        hiddenModels={['auto', 'grok']}
                         disabledModels={disabledModels as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>}
                         adsCount={elementsCount}
                       />
@@ -573,7 +573,7 @@ export default function MultiVariantAdsPage() {
                   onModelChange={handleImageModelChange}
                   showIcon={true}
                   className="col-span-1"
-                  hiddenModels={['auto']}
+                  hiddenModels={['auto', 'grok']}
                 />
                 {shouldGenerateVideo && (
                   <>
@@ -585,7 +585,7 @@ export default function MultiVariantAdsPage() {
                       videoDuration={videoDuration}
                       showIcon={true}
                       className="col-span-1"
-                      hiddenModels={['auto']}
+                      hiddenModels={['auto', 'grok']}
                       disabledModels={disabledModels as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>}
                       adsCount={elementsCount}
                     />

@@ -91,6 +91,18 @@ interface StandardAdsStatusPayload {
   error?: string;
 }
 
+const STEP_PROGRESS_HINTS: Record<string, number> = {
+  generating_cover: 20,
+  ready_for_video: 50,
+  generating_segment_frames: 25,
+  generating_segment_videos: 70,
+  merging_segments: 80,
+  generating_video: 85,
+  processing: 25,
+  completed: 100,
+  failed: 0
+};
+
 const getStageLabel = (status: Generation['status'], step?: string | null) => {
   const key = step?.toLowerCase() ?? '';
   if (key && STEP_DESCRIPTIONS[key]) {
@@ -103,11 +115,17 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 };
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
-const ALL_VIDEO_DURATIONS: VideoDuration[] = ['8', '10', '15', '16', '24', '32', '40', '48', '56', '64'];
-const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
+const ALL_VIDEO_DURATIONS: VideoDuration[] = ['6', '8', '10', '12', '15', '16', '18', '24', '30', '32', '36', '40', '42', '48', '54', '56', '60', '64'];
+const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'grok', 'sora2', 'sora2_pro'];
 const SESSION_STORAGE_KEY = 'flowtra_standard_ads_generations';
 
 const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
+  {
+    value: '6',
+    label: '6 seconds',
+    description: 'Micro Grok hook',
+    features: 'Single rapid-fire beat'
+  },
   {
     value: '8',
     label: '8 seconds',
@@ -119,6 +137,12 @@ const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
     label: '10 seconds',
     description: 'Extended presentation',
     features: 'Great for highlights'
+  },
+  {
+    value: '12',
+    label: '12 seconds',
+    description: 'Two Grok segments',
+    features: 'Double-beat comparison'
   },
   {
     value: '15',
@@ -133,10 +157,22 @@ const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
     features: 'Smooth two-beat arc'
   },
   {
+    value: '18',
+    label: '18 seconds',
+    description: 'Three Grok segments',
+    features: 'Layered demo flow'
+  },
+  {
     value: '24',
     label: '24 seconds',
     description: 'Mid-length narrative arc',
     features: 'Balanced multi-beat flow'
+  },
+  {
+    value: '30',
+    label: '30 seconds',
+    description: 'Five Grok segments',
+    features: 'Extended benefit breakdown'
   },
   {
     value: '32',
@@ -145,10 +181,22 @@ const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
     features: 'Complete top-to-bottom story'
   },
   {
+    value: '36',
+    label: '36 seconds',
+    description: 'Six segment arc',
+    features: 'Deep dive walkthrough'
+  },
+  {
     value: '40',
     label: '40 seconds',
     description: 'Extended narrative',
     features: 'Rich storytelling arc'
+  },
+  {
+    value: '42',
+    label: '42 seconds',
+    description: 'Seven segment path',
+    features: 'High-detail comparison'
   },
   {
     value: '48',
@@ -157,10 +205,22 @@ const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
     features: 'Full product journey'
   },
   {
+    value: '54',
+    label: '54 seconds',
+    description: 'Nine segment campaign',
+    features: 'Education-first pacing'
+  },
+  {
     value: '56',
     label: '56 seconds',
     description: 'Long-form content',
     features: 'Deep engagement'
+  },
+  {
+    value: '60',
+    label: '60 seconds',
+    description: 'Ten segment Grok story',
+    features: 'Broadcast-ready spot'
   },
   {
     value: '64',
@@ -331,15 +391,18 @@ export default function StandardAdsPage() {
     });
 
     const stage = getStageLabel(status, payload.current_step);
+    const normalizedStep = payload.current_step?.toLowerCase() ?? '';
     const progress = typeof payload.progress_percentage === 'number'
       ? payload.progress_percentage
       : typeof payload.progress === 'number'
         ? payload.progress
+        : normalizedStep && STEP_PROGRESS_HINTS[normalizedStep] !== undefined
+          ? STEP_PROGRESS_HINTS[normalizedStep]
         : status === 'completed'
           ? 100
           : status === 'failed'
             ? 0
-            : 25;
+            : STEP_PROGRESS_HINTS.processing;
 
     setGenerations(prev => prev.map(gen => {
       if (gen.projectId !== projectId) return gen;
@@ -349,7 +412,7 @@ export default function StandardAdsPage() {
             return payload.data.segmentCount;
           }
           if (payload.data.isSegmented) {
-            return getSegmentCountFromDuration(payload.data.videoDuration);
+            return getSegmentCountFromDuration(payload.data.videoDuration, payload.data?.videoModel as VideoModel | undefined);
           }
         }
         return gen.segmentCount;
@@ -613,7 +676,7 @@ export default function StandardAdsPage() {
 
     setIsGenerating(true);
 
-    const initialSegmentCount = getSegmentCountFromDuration(videoDuration);
+    const initialSegmentCount = getSegmentCountFromDuration(videoDuration, selectedModel);
 
     // Create new generation entry
     const newGeneration: SessionGeneration = {
@@ -746,7 +809,7 @@ export default function StandardAdsPage() {
         <div className="flex-1 flex flex-col min-h-0">
           {/* Page Header */}
           <header className="px-6 sm:px-8 lg:px-10 py-6 sticky top-0 z-50 bg-gray-50/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
-            <div className="max-w-7xl mx-auto flex items-center gap-3 ml-20 md:ml-0">
+            <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-3 ml-20 md:ml-0">
               <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
                 <TrendingUp className="w-5 h-5 text-gray-700" />
               </div>
@@ -811,7 +874,7 @@ export default function StandardAdsPage() {
           />
 
           {/* Actions */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
             <ConfigPopover
               videoDuration={videoDuration}
               onDurationChange={setVideoDuration}

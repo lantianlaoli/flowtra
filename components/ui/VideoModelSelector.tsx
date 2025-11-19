@@ -18,8 +18,8 @@ import {
 
 interface VideoModelSelectorProps {
   credits: number;
-  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
-  onModelChange: (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => void;
+  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+  onModelChange: (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok') => void;
   // NEW: Top-level quality and duration filters (optional for backwards compatibility)
   videoQuality?: VideoQuality;
   videoDuration?: VideoDuration;
@@ -27,8 +27,8 @@ interface VideoModelSelectorProps {
   className?: string;
   showIcon?: boolean;
   hideCredits?: boolean;
-  disabledModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>;
-  hiddenModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>;
+  disabledModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'>;
+  hiddenModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'>;
   adsCount?: number;
   videoDurationSeconds?: number;
 }
@@ -58,7 +58,7 @@ export default function VideoModelSelector({
     const autoSelection = getAutoModeSelection(credits);
 
     // Helper function to calculate duration-based cost for character ads
-    const calculateDurationCost = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'): number => {
+    const calculateDurationCost = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'): number => {
       if (!videoDurationSeconds) {
         // Use new config-based cost calculation (if quality/duration provided)
         if (videoQuality && videoDuration) {
@@ -68,13 +68,18 @@ export default function VideoModelSelector({
         return CREDIT_COSTS[model as keyof typeof CREDIT_COSTS] || 0;
       }
       // Legacy character ads duration-based cost
-      const unitSeconds = model === 'sora2' || model === 'sora2_pro' ? 10 : 8;
+      const unitSeconds =
+        model === 'sora2' || model === 'sora2_pro'
+          ? 10
+          : model === 'grok'
+            ? 6
+            : 8;
       const baseCost = CREDIT_COSTS[model as keyof typeof CREDIT_COSTS] || 0;
       return Math.round((videoDurationSeconds / unitSeconds) * baseCost);
     };
 
     // Check if model is supported by current quality/duration config or disabledModels list
-    const isModelSupported = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro') => {
+    const isModelSupported = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok') => {
       // First check disabledModels prop (takes precedence)
       if (disabledModels.includes(model)) {
         return false;
@@ -119,6 +124,16 @@ export default function VideoModelSelector({
         supported: isModelSupported('veo3_fast')
       },
       {
+        value: 'grok',
+        label: 'Grok',
+        description: '',
+        cost: calculateDurationCost('grok'),
+        processingTime: getProcessingTime('grok'),
+        affordable: canAffordModel(credits, 'grok'),
+        features: '6s segments, up to 60s',
+        supported: isModelSupported('grok')
+      },
+      {
         value: 'sora2_pro',
         label: 'Sora2 Pro',
         description: '',
@@ -146,7 +161,7 @@ export default function VideoModelSelector({
   const visibleOptions = useMemo(
     () =>
       modelOptions.filter(
-        (option) => !hiddenModels?.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro')
+        (option) => !hiddenModels?.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok')
       ),
     [modelOptions, hiddenModels]
   );
@@ -155,7 +170,7 @@ export default function VideoModelSelector({
     if (hiddenModels?.includes(selectedModel)) {
       const fallback = visibleOptions[0];
       if (fallback && fallback.value !== selectedModel) {
-        onModelChange(fallback.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro');
+        onModelChange(fallback.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok');
       }
     }
   }, [hiddenModels, selectedModel, visibleOptions, onModelChange]);
@@ -195,7 +210,7 @@ export default function VideoModelSelector({
 
   const selectedOption = visibleOptions.find(opt => opt.value === selectedModel) || visibleOptions[0];
 
-  const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro', affordable: boolean) => {
+  const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok', affordable: boolean) => {
     if (!affordable) return;
     onModelChange(value);
     try {
@@ -244,13 +259,13 @@ export default function VideoModelSelector({
             className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-[280px] overflow-y-auto"
           >
             {visibleOptions.map((option) => {
-              const disabledByConstraint = disabledModels.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro');
+              const disabledByConstraint = disabledModels.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok');
               const disabledByConfig = !option.supported; // NEW: Disable if not supported by quality/duration
               const isDisabled = !option.affordable || disabledByConstraint || disabledByConfig;
               return (
               <button
                 key={option.value}
-                onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro', !isDisabled)}
+                onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok', !isDisabled)}
                 disabled={isDisabled}
                 className={cn(
                   "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between",
@@ -296,7 +311,7 @@ export default function VideoModelSelector({
                     </span>
                   )}
                   {!hideCredits && (() => {
-                    const model = option.value as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto';
+                    const model = option.value as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto' | 'grok';
                     const isFreeGen = model !== 'auto' && isFreeGenerationModel(model);
 
                     return (

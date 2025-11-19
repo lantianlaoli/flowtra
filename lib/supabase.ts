@@ -76,7 +76,7 @@ export interface SingleVideoProject {
   product_description?: Record<string, unknown> // JSONB field containing { description: string }
   video_prompts?: Record<string, unknown>
   image_prompt?: Record<string, unknown> // JSONB field containing the prompt used for cover generation
-  video_model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'
+  video_model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'
   credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string

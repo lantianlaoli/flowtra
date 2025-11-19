@@ -102,272 +102,24 @@ Standard Ads workflow支持两种不同的广告生成模式：
 ```
 > 注意：视频可以用这个prompt，但图片生成会转换为成人或产品展示
 
-### 2. 图片生成阶段限制
+### 2. Image generation safeguards
 
-**适用范围**: 所有图片生成（封面、分段关键帧）
+**Scope**: Cover generation and segmented keyframes
 
-#### A. 通用限制（适用所有模型）
+#### A. Children toy detection (new flow)
 
-**关键实现**: `⚠️ ZERO-CHILD POLICY (ALL MODELS)` 部分
+- We no longer inject the ZERO-CHILD policy into prompts. The creative returned from `generateImageBasedPrompts()` is preserved.
+- If the AI classifies the product as `children_toy`, we immediately trigger **two** cover generation tasks back-to-back. The workflow keeps the second task ID so monitor-tasks can pick up the freshest output.
+- Segmented workflows also retain both first and closing frames for the final segment, regardless of product category.
 
-**禁止的元素**:
-```
-PROHIBITED Elements:
-❌ Absolutely NO children/minors (under 18) in ANY form:
-   - No child faces, hands, limbs, or body parts
-   - No child silhouettes, back views, or blurred figures
-   - No recognizable children in any way
-```
+**Why**:
+- Allowing the original prompt gives Grok/Veo the full context so children can appear naturally in videos.
+- Running a second cover attempt for children's toys noticeably increases the chance of receiving an on-brand variant without moderation stalls.
 
-**允许的元素（成人18+）**:
-```
-ALLOWED Human Elements (Adults 18+ ONLY):
-✅ Adults: FULLY ALLOWED in all forms
-   - Clear frontal faces with visible facial features
-   - Close-up face shots and detailed portraits
-   - Multiple people with visible faces in the same frame
-   - Hands/arms showing product interaction
-   - Body parts demonstrating product use
-   - Blurred background figures, silhouettes, back views
-   - All forms of adult human presence
-```
+#### B. General creative guidance
 
-**转换规则**:
-```
-TRANSFORMATION RULES:
-- If original prompt has children → Replace with adults OR product-only display
-- Adults can be shown naturally without face restrictions
-- Maintain SCENE, LIGHTING, and STYLE from original prompt
-- Focus on product presentation and authentic use cases
-```
-
-**应用位置**:
-- `generateCover()` - 封面图生成 (lines 1004-1026)
-- `createSegmentFrameTask()` - 分段关键帧生成 (lines 1306-1328)
-
-#### B. Sora2模型额外限制
-
-**Sora2 STRICT Safety Requirements** (仅Sora2/Sora2 Pro):
-```
-❌ NO children/minors (under 18) in ANY form (same as above)
-❌ NO human faces of any age - Sora2 content moderation is extremely strict
-✅ Allowed for adults: hands/limbs, body parts, blurred figures, silhouettes, back views
-✅ Highlight product using hands-on demonstration WITHOUT showing any faces
-✅ Use side views, back views, or obscured angles for human presence if needed
-```
-
-**应用位置**:
-- `generateCover()` - 封面图生成时Sora2检测 (lines 1049-1055)
-
-**说明**: Sora2的内容审核非常严格，不能出现任何人脸。但仍然允许成人的手部/肢体演示产品，只是不能显示脸部。
-
-#### C. 智能Prompt重写策略 (NEW in Version 3.1.1)
-
-**问题发现**:
-Version 3.0和3.1在图片生成时存在**矛盾性指令**：
-```
-Prompt描述: "showing the baby joyfully playing with colorful rollers"
-附加限制: "⚠️ ZERO-CHILD POLICY: ❌ NO children"
-```
-这种"先描述儿童→再禁止儿童"的策略会导致：
-- AI理解困难，不知道该听从哪条指令
-- 生成的图片可能仍包含儿童元素
-- 审核系统可能检测到prompt中的儿童词汇
-
-**用户反馈原话**:
-> "你不要再prompt里面正常描述了有儿童，然后又后面添加强制性的限制，而是你直接就描述一个正常没有儿童的画面就OK了呀"
-
-**解决方案 - 智能重写**:
-在图片生成**之前**，智能重写segment prompt中的所有文本字段，将儿童引用直接替换为成人或产品展示描述。
-
-**重写示例**:
-
-| Before (原始prompt) | After (智能重写后) |
-|-------------------|------------------|
-| "the baby joyfully playing with the toy" | "gentle adult hands demonstrating the toy's features" |
-| "showing the baby's smiling face" | "showing gentle adult hands interacting with the toy" |
-| "child using the colorful rollers" | "adult hands showcasing the colorful rollers" |
-| "baby's tiny fingers spinning blocks" | "adult fingers demonstrating the spinning mechanism" |
-| "toddler discovering shapes" | "adult hands demonstrating shape recognition" |
-
-**技术实现** (`lib/standard-ads-workflow.ts`):
-
-1. **智能重写函数** (line 143-243) - `rewriteSegmentPromptForSafety()`:
-```typescript
-function rewriteSegmentPromptForSafety(
-  segmentPrompt: SegmentPrompt,
-  productCategory: 'children_toy' | 'adult_product' | 'general'
-): SegmentPrompt {
-  // 只对children_toy产品重写
-  if (productCategory !== 'children_toy') {
-    return segmentPrompt;
-  }
-
-  // 重写所有文本字段中的child references
-  const replacements = [
-    { pattern: /the baby'?s? (?:smiling )?face/gi, replacement: 'gentle adult hands' },
-    { pattern: /showing the (?:baby|child|kid)/gi, replacement: 'showing adult hands' },
-    { pattern: /(?:baby|child) (?:joyfully |happily )?(?:playing|using)/gi,
-      replacement: 'adult hands gently demonstrating' },
-    // ... 更多replacement patterns
-  ];
-
-  // 应用到所有字段：description, action, dialogue, setting, first_frame_prompt等
-  return rewrittenPrompt;
-}
-```
-
-2. **应用重写** (line 1362-1373):
-```typescript
-// 在segment生成循环开始前检测产品类别
-const productCategory = detectProductCategory(prompts);
-
-for (const segment of segments) {
-  const promptData = normalizedSegments[segment.segment_index];
-
-  // 智能重写：将child references替换为adult/product descriptions
-  const safePromptData = rewriteSegmentPromptForSafety(promptData, productCategory);
-
-  // 使用重写后的prompt生成图片
-  const firstFrameTaskId = await createSegmentFrameTask(request, safePromptData, ...);
-  // closing frame也使用重写后的prompt
-  const closingFrameTaskId = await createSegmentFrameTask(request, safePromptData, ...);
-}
-```
-
-**重写字段**:
-- `description` - 主要场景描述
-- `action` - 动作描述
-- `dialogue` - 旁白对话
-- `setting` - 场景设置
-- `lighting` - 灯光描述
-- `first_frame_prompt` - 首帧prompt
-- `closing_frame_prompt` - 尾帧prompt
-- 其他所有文本字段
-
-**重写规则**:
-1. **Child词汇替换**:
-   - baby/babies/infant/toddler → "adult hands"
-   - child/children/kid/kids → "adult hands"
-
-2. **Action动词转换**:
-   - "joyfully discovering" → "gently demonstrating"
-   - "happily exploring" → "carefully showcasing"
-   - "excitedly playing" → "demonstrating interaction"
-
-3. **Phrase重写**:
-   - "the baby's face" → "gentle adult hands"
-   - "showing the child" → "showing adult hands"
-   - "child using X" → "adult hands using X"
-
-4. **保持一致性**:
-   - 场景、灯光、风格保持不变
-   - 只替换人物引用，不改变整体创意
-   - 音乐、结尾等非人物元素完全保留
-
-**工作流程对比**:
-
-**Version 3.1 (旧版 - 矛盾指令)**:
-```
-AI生成prompt: "baby playing with toy"
-   ↓
-图片生成: 使用原始prompt + 添加ZERO-CHILD POLICY限制
-   ↓
-结果: ❌ 矛盾指令，可能仍生成儿童元素
-```
-
-**Version 3.1.1 (新版 - 智能重写)**:
-```
-AI生成prompt: "baby playing with toy"
-   ↓
-智能重写: "adult hands demonstrating toy"
-   ↓
-图片生成: 使用重写后prompt（无矛盾，无需额外限制）
-   ↓
-结果: ✅ 清晰指令，完全避免儿童元素
-```
-
-**优势**:
-- **无矛盾指令**: prompt本身就是adult-only，无需额外限制
-- **AI理解清晰**: 不会收到冲突的指令
-- **审核友好**: prompt文本中不包含child关键词
-- **保持创意**: 场景、风格、创意结构完全保留
-- **自动化**: 检测到children_toy自动触发重写
-
-**应用场景**:
-
-**儿童玩具广告（完整流程）**:
-1. AI分析: "A baby sits on playmat and begins exploring wooden blocks..."
-2. 智能重写: "Adult hands on playmat gently demonstrate wooden blocks..."
-3. 图片生成: 使用重写后prompt → 成人手部演示产品
-4. 视频生成: 使用原始prompt → 婴儿玩玩具（Veo3允许）
-5. 最终效果: 封面成人演示 + 视频婴儿互动 ✅
-
-**成人产品广告（无需重写）**:
-1. AI分析: "A professional demonstrates the smartwatch features..."
-2. 重写检测: product_category = 'adult_product' → 跳过重写
-3. 图片生成: 使用原始prompt → 成人展示产品
-4. 视频生成: 使用原始prompt → 成人展示产品
-5. 最终效果: 封面和视频完全一致 ✅
-
-#### D. 儿童玩具产品特殊处理 (NEW in Version 3.1)
-
-**问题发现**:
-- Google Veo3检查**首尾两帧**（first_frame和closing_frame）
-- 如果两帧都无儿童 → 视频也不会有儿童（即使prompt明确提到儿童）
-- 这导致儿童玩具广告视频中看不到儿童，失去广告意义
-
-**解决方案**:
-```
-✅ 自动检测产品类别（product_category字段）
-✅ 如果是"children_toy" → 只生成first_frame，跳过closing_frame
-✅ 只有一帧供Veo3检查 → 儿童可以正常出现在视频中
-```
-
-**技术实现** (`lib/standard-ads-workflow.ts`):
-
-1. **产品分类检测** (line 107-141) - `detectProductCategory()` 函数:
-```typescript
-function detectProductCategory(prompts) {
-  // 优先使用AI提供的product_category字段
-  if (prompts.product_category === 'children_toy') return 'children_toy';
-
-  // 备用：关键词检测
-  const keywords = ['baby', 'infant', 'child', 'toy', 'nursery', ...];
-  return hasKeywords ? 'children_toy' : 'general';
-}
-```
-
-2. **条件跳过closing_frame** (line 1293-1309):
-```typescript
-if (segment.segment_index === lastSegment) {
-  const productCategory = detectProductCategory(prompts);
-
-  if (productCategory === 'children_toy') {
-    console.log('🧸 Detected children_toy - SKIP closing_frame');
-    // 不生成closing_frame
-  } else {
-    // 正常生成closing_frame
-    const closingFrameTaskId = await createSegmentFrameTask(..., 'closing');
-  }
-}
-```
-
-**效果对比**:
-
-| 产品类型 | first_frame | closing_frame | 视频内容 |
-|---------|-------------|---------------|----------|
-| 儿童玩具（旧版） | ✅ 成人手部+产品 | ✅ 成人手部+产品 | ❌ 无儿童 |
-| 儿童玩具（新版） | ✅ 成人手部+产品 | ❌ **不生成** | ✅ **有儿童** |
-| 成人产品 | ✅ 成人+产品 | ✅ 成人+产品 | ✅ 正常 |
-
-**实际应用示例**:
-
-**儿童玩具广告**:
-- AI生成: "A baby playing with wooden blocks, discovering shapes and colors..."
-- first_frame: 成人手部搭积木（符合ZERO-CHILD POLICY）
-- closing_frame: **跳过生成**
-- 视频生成: ✅ 正常展示婴儿玩玩具（因为只检查first_frame）
+- Prompts still emphasize "match the original product exactly" so Banana/Seedream preserve SKU fidelity.
+- Watermark instructions and optional ad copy overlays remain unchanged.
 
 ### 3. 结构化视频分析 (NEW in Version 3.0)
 
@@ -768,6 +520,18 @@ IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a 
 ---
 
 ## 版本历史
+
+### Version 3.2 (2025-02-??)
+- **New Grok model**: 6-second segments, configurable up to 60 seconds (10 clips). Charges 20 credits per segment at generation time.
+- **UI support**: Standard Ads duration selector now exposes 6/12/18/.../60s presets. Model selector shows Grok next to Veo3/Veo3 Fast.
+- **Workflow updates**:
+  - Segmented pipeline reuses the existing monitor/merge flow. `startSegmentVideoTask()` now calls `grok-imagine/image-to-video` when the project uses Grok.
+  - `checkVideoStatus()` treats Grok tasks like Sora tasks (jobs endpoint instead of `/veo/record-info`).
+  - `getSegmentCountFromDuration()` accepts the model name so Grok uses 6-second segments while Veo3 stays on 8s.
+- **Child-content policy change**:
+  - Removed the ZERO-CHILD prompt injection and the `rewriteSegmentPromptForSafety()` helper. Prompts from `generateImageBasedPrompts()` are sent directly to Banana/Seedream.
+  - When `product_category === 'children_toy'`, we launch two cover-generation tasks back-to-back and keep the second task ID so monitor-tasks always tracks the freshest attempt.
+  - Closing frames are now generated for the last segment regardless of product category (so Grok clips have consistent bookends).
 
 ### Version 3.1.1 (2025-01-17)
 - **关键突破**：智能Prompt重写 - 彻底解决矛盾指令问题

@@ -24,7 +24,7 @@ export interface WorkflowState {
     };
     errorMessage?: string;
     creditsUsed?: number;
-    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
     watermark?: {
       enabled: boolean;
       text: string;
@@ -38,7 +38,7 @@ export interface WorkflowState {
 
 export const useStandardAdsWorkflow = (
   userId?: string | null,
-  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' = 'veo3_fast',
+  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' = 'veo3_fast',
   selectedImageModel: 'auto' | 'nano_banana' | 'seedream' = 'nano_banana',
   updateCredits?: (newCredits: number) => void,
   refetchCredits?: () => Promise<void>,
@@ -106,9 +106,14 @@ export const useStandardAdsWorkflow = (
     } else if (selectedModel === 'sora2_pro') {
       normalizedDuration = normalizedDuration === '15' ? '15' : '10';
     } else if (selectedModel === 'veo3' || selectedModel === 'veo3_fast') {
-      const allowed: VideoDuration[] = ['8', '16', '24', '32'];
+      const allowed: VideoDuration[] = ['8', '16', '24', '32', '40', '48', '56', '64'];
       if (!allowed.includes(normalizedDuration)) {
         normalizedDuration = '8';
+      }
+    } else if (selectedModel === 'grok') {
+      const allowed: VideoDuration[] = ['6', '12', '18', '24', '30', '36', '42', '48', '54', '60'];
+      if (!allowed.includes(normalizedDuration)) {
+        normalizedDuration = '6';
       }
     } else if (normalizedDuration !== '8' && normalizedDuration !== '10' && normalizedDuration !== '15') {
       normalizedDuration = '8';

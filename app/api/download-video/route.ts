@@ -57,7 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     // FREE generation models (veo3_fast, sora2): Charge at download
     // PAID generation models (veo3, sora2_pro): Download is FREE (already paid at generation)
     const isFirstDownload = !historyRecord.downloaded;
-    const videoModel = historyRecord.video_model as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+    const videoModel = historyRecord.video_model as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
 
     let downloadCostApplied = 0;
 
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       // Check if this model has download cost (free-generation models)
       if (isFreeGenerationModel(videoModel)) {
         const segments = historyRecord.is_segmented
-          ? historyRecord.segment_count || getSegmentCountFromDuration(historyRecord.video_duration)
+          ? historyRecord.segment_count || getSegmentCountFromDuration(historyRecord.video_duration, videoModel)
           : undefined;
         const downloadCost = getDownloadCost(videoModel, historyRecord.video_duration, segments);
         downloadCostApplied = downloadCost;

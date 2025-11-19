@@ -13,7 +13,7 @@ import FormatSelector, { type Format } from './FormatSelector';
 import type { VideoDuration } from '@/lib/constants';
 
 // VideoModel type from constants (including 'auto')
-type VideoModel = 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+type VideoModel = 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
 
 interface ConfigPopoverProps {
   // Duration props

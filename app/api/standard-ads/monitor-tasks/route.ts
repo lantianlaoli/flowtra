@@ -354,7 +354,6 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
       continue;
     }
 
-    // For children_toy products, closing_frame_url will be null for all segments
     // For other products, use next segment's first frame as fallback for continuity
     const nextSegment = segments.find(s => s.segment_index === segment.segment_index + 1);
     const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url || null;
@@ -675,11 +674,11 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     console.log('Generated custom script video prompt (first 300 chars):', fullPrompt.substring(0, 300));
 
     // Skip to API call section below (continue with existing API logic)
-    const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+    const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
     const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-    const isSoraFamily = videoModel === 'sora2' || videoModel === 'sora2_pro';
-    const apiEndpoint = isSoraFamily
+    const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok';
+    const apiEndpoint = usesJobsEndpoint
       ? 'https://api.kie.ai/api/v1/jobs/createTask'
       : 'https://api.kie.ai/api/v1/veo/generate';
 
@@ -688,34 +687,46 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
 
     console.log('📽️  Custom script video generation - single image mode');
 
-    const soraInput = {
-      prompt: fullPrompt,
-      image_urls: imageUrls,
-      aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
-    } as Record<string, unknown>;
-
-    if (videoModel === 'sora2_pro') {
-      soraInput.n_frames = record.video_duration === '15' ? '15' : '10';
-      soraInput.size = record.video_quality === 'high' ? 'high' : 'standard';
-      soraInput.remove_watermark = true;
-    }
-
-    const requestBody = isSoraFamily
-      ? {
-          model: videoModel === 'sora2_pro' ? 'sora-2-pro-image-to-video' : 'sora-2-image-to-video',
-          input: soraInput
-        }
-      : {
+    let requestBody: Record<string, unknown>;
+    if (videoModel === 'grok') {
+      requestBody = {
+        model: 'grok-imagine/image-to-video',
+        input: {
+          image_urls: imageUrls,
           prompt: fullPrompt,
-          model: videoModel,
-          aspectRatio,
-          imageUrls: imageUrls,
-          enableAudio: true,
-          audioEnabled: true,
-          generateVoiceover: true,
-          includeDialogue: true,
-          enableTranslation: false
-        };
+          mode: 'normal'
+        }
+      };
+    } else if (videoModel === 'sora2' || videoModel === 'sora2_pro') {
+      const soraInput = {
+        prompt: fullPrompt,
+        image_urls: imageUrls,
+        aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
+      } as Record<string, unknown>;
+
+      if (videoModel === 'sora2_pro') {
+        soraInput.n_frames = record.video_duration === '15' ? '15' : '10';
+        soraInput.size = record.video_quality === 'high' ? 'high' : 'standard';
+        soraInput.remove_watermark = true;
+      }
+
+      requestBody = {
+        model: videoModel === 'sora2_pro' ? 'sora-2-pro-image-to-video' : 'sora-2-image-to-video',
+        input: soraInput
+      };
+    } else {
+      requestBody = {
+        prompt: fullPrompt,
+        model: videoModel,
+        aspectRatio,
+        imageUrls: imageUrls,
+        enableAudio: true,
+        audioEnabled: true,
+        generateVoiceover: true,
+        includeDialogue: true,
+        enableTranslation: false
+      };
+    }
 
     console.log('Video API endpoint:', apiEndpoint);
     console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
@@ -810,11 +821,11 @@ Other details: ${videoPrompt.other_details}`;
 
   console.log('Generated video prompt:', fullPrompt);
 
-  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
   const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-  const isSoraFamily = videoModel === 'sora2' || videoModel === 'sora2_pro';
-  const apiEndpoint = isSoraFamily
+  const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok';
+  const apiEndpoint = usesJobsEndpoint
     ? 'https://api.kie.ai/api/v1/jobs/createTask'
     : 'https://api.kie.ai/api/v1/veo/generate';
 
@@ -822,34 +833,46 @@ Other details: ${videoPrompt.other_details}`;
 
   console.log('Video generation mode: single-image');
 
-  const soraInput = {
-    prompt: fullPrompt,
-    image_urls: [coverImageUrl],
-    aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
-  } as Record<string, unknown>;
-
-  if (videoModel === 'sora2_pro') {
-    soraInput.n_frames = record.video_duration === '15' ? '15' : '10';
-    soraInput.size = record.video_quality === 'high' ? 'high' : 'standard';
-    soraInput.remove_watermark = true;
-  }
-
-  const requestBody = isSoraFamily
-    ? {
-        model: videoModel === 'sora2_pro' ? 'sora-2-pro-image-to-video' : 'sora-2-image-to-video',
-        input: soraInput
-      }
-    : {
+  let requestBody: Record<string, unknown>;
+  if (videoModel === 'grok') {
+    requestBody = {
+      model: 'grok-imagine/image-to-video',
+      input: {
+        image_urls: imageUrls,
         prompt: fullPrompt,
-        model: videoModel,
-        aspectRatio,
-        imageUrls: imageUrls,
-        enableAudio: true,
-        audioEnabled: true,
-        generateVoiceover: true,
-        includeDialogue: true,
-        enableTranslation: false
-      };
+        mode: 'normal'
+      }
+    };
+  } else if (videoModel === 'sora2' || videoModel === 'sora2_pro') {
+    const soraInput = {
+      prompt: fullPrompt,
+      image_urls: [coverImageUrl],
+      aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
+    } as Record<string, unknown>;
+
+    if (videoModel === 'sora2_pro') {
+      soraInput.n_frames = record.video_duration === '15' ? '15' : '10';
+      soraInput.size = record.video_quality === 'high' ? 'high' : 'standard';
+      soraInput.remove_watermark = true;
+    }
+
+    requestBody = {
+      model: videoModel === 'sora2_pro' ? 'sora-2-pro-image-to-video' : 'sora-2-image-to-video',
+      input: soraInput
+    };
+  } else {
+    requestBody = {
+      prompt: fullPrompt,
+      model: videoModel,
+      aspectRatio,
+      imageUrls: imageUrls,
+      enableAudio: true,
+      audioEnabled: true,
+      generateVoiceover: true,
+      includeDialogue: true,
+      enableTranslation: false
+    };
+  }
 
   console.log('Video API endpoint:', apiEndpoint);
   console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
@@ -951,8 +974,8 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
 }
 
 async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{status: string, videoUrl?: string, errorMessage?: string}> {
-  const isSoraFamily = videoModel === 'sora2' || videoModel === 'sora2_pro';
-  const endpoint = isSoraFamily
+  const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok';
+  const endpoint = usesJobsEndpoint
     ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
     : `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`;
 
@@ -978,7 +1001,7 @@ async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{s
     return { status: 'GENERATING' };
   }
 
-  if (isSoraFamily) {
+  if (usesJobsEndpoint) {
     let resultJson: Record<string, unknown> = {};
     try {
       resultJson = JSON.parse(taskData.resultJson || '{}');

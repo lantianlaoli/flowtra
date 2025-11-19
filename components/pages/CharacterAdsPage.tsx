@@ -427,7 +427,7 @@ export default function CharacterAdsPage() {
                             selectedModel={selectedImageModel}
                             onModelChange={setSelectedImageModel}
                             showIcon={true}
-                            hiddenModels={['auto']}
+                            hiddenModels={['auto', 'grok']}
                           />
                         </div>
                         <div className="relative space-y-3">
@@ -437,7 +437,7 @@ export default function CharacterAdsPage() {
                             onModelChange={(m) => setSelectedVideoModel(m)}
                             showIcon={true}
                             disabledModels={disabledVideoModels}
-                            hiddenModels={['auto']}
+                            hiddenModels={['auto', 'grok']}
                             videoDurationSeconds={videoDuration}
                           />
                           {['sora2', 'sora2_pro'].includes(selectedVideoModel) && (personImages.length > 0 || selectedPersonPhotoUrl) && (

@@ -17,7 +17,7 @@ export interface StartWorkflowRequest {
   selectedBrandId?: string; // NEW: Brand selection for ending frame
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
   userId: string;
-  videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+  videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
   imageModel?: 'auto' | 'nano_banana' | 'seedream';
   watermark?: {
     text: string;
@@ -45,6 +45,8 @@ export interface StartWorkflowRequest {
 interface WorkflowResult {
   success: boolean;
   projectId?: string;
+  remainingCredits?: number;
+  creditsUsed?: number;
   error?: string;
   details?: string;
 }
@@ -86,10 +88,14 @@ export interface SegmentStatusPayload {
 export const SEGMENTED_DURATIONS = new Set(['16', '24', '32', '40', '48', '56', '64']);
 
 export function isSegmentedVideoRequest(
-  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro',
+  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok',
   videoDuration?: string | null
 ): boolean {
   if (!videoDuration) return false;
+  if (model === 'grok') {
+    const duration = Number(videoDuration);
+    return Number.isFinite(duration) && duration > 6;
+  }
   if (model !== 'veo3' && model !== 'veo3_fast') return false;
   return SEGMENTED_DURATIONS.has(videoDuration);
 }
@@ -140,107 +146,6 @@ function detectProductCategory(prompts: Record<string, unknown>): 'children_toy'
   return 'general';
 }
 
-/**
- * Intelligently rewrites segment prompts to remove child references for children's toys
- *
- * CRITICAL STRATEGY:
- * - Don't describe children then add restrictions (contradictory)
- * - Directly describe adult-only or product-only scenes from the start
- *
- * Example transformations:
- * - "the baby joyfully playing with the toy" → "gentle adult hands demonstrating the toy's features"
- * - "showing the baby's smiling face" → "showing gentle adult hands interacting with the toy"
- * - "child using the colorful rollers" → "adult hands showcasing the colorful rollers"
- */
-function rewriteSegmentPromptForSafety(
-  segmentPrompt: SegmentPrompt,
-  productCategory: 'children_toy' | 'adult_product' | 'general'
-): SegmentPrompt {
-  // Only rewrite for children's toys
-  if (productCategory !== 'children_toy') {
-    return segmentPrompt;
-  }
-
-  console.log('🔄 Rewriting segment prompt to remove child references (children_toy detected)');
-
-  // Helper function to rewrite text fields
-  const rewriteText = (text: string | undefined): string | undefined => {
-    if (!text || typeof text !== 'string') return text;
-
-    let rewritten = text;
-
-    // Replacement patterns (order matters - more specific patterns first)
-    const replacements = [
-      // Specific phrases with context
-      { pattern: /the baby'?s? (?:smiling )?face/gi, replacement: 'gentle adult hands' },
-      { pattern: /the baby'?s? (?:tiny )?hands?/gi, replacement: 'adult hands' },
-      { pattern: /the baby'?s? fingers?/gi, replacement: 'adult fingers' },
-      { pattern: /showing the (?:baby|child|kid|toddler|infant)/gi, replacement: 'showing adult hands' },
-      { pattern: /(?:baby|child|kid|toddler|infant) (?:joyfully |happily |excitedly )?(?:playing|using|discovering|exploring|interacting)/gi, replacement: 'adult hands gently demonstrating' },
-      { pattern: /(?:baby|child|kid|toddler|infant) (?:is |are )?(?:playing|using|discovering|exploring)/gi, replacement: 'adult hands demonstrating' },
-
-      // General child references
-      { pattern: /\b(?:the )?(?:baby|babies|infant|toddler)s?\b/gi, replacement: 'adult hands' },
-      { pattern: /\b(?:the )?(?:child|children|kid|kids)s?\b/gi, replacement: 'adult hands' },
-
-      // Action verbs associated with children
-      { pattern: /\bjoyfully discovering\b/gi, replacement: 'gently demonstrating' },
-      { pattern: /\bhappily exploring\b/gi, replacement: 'carefully showcasing' },
-      { pattern: /\bexcitedly playing\b/gi, replacement: 'demonstrating interaction' },
-
-      // Age-related terms
-      { pattern: /\bnewborns?\b/gi, replacement: 'gentle care' },
-      { pattern: /\bpreschoolers?\b/gi, replacement: 'young users' },
-      { pattern: /\b\d+-\d+ (?:years? old|months? old)\b/gi, replacement: 'appropriate age range' }
-    ];
-
-    // Apply all replacements
-    for (const { pattern, replacement } of replacements) {
-      rewritten = rewritten.replace(pattern, replacement);
-    }
-
-    // Clean up any remaining obvious child indicators
-    rewritten = rewritten
-      .replace(/\b(?:his|her) (?:little|tiny|small) /gi, 'the ')
-      .replace(/\b(?:cute|adorable|precious) (?=toy|product)/gi, 'delightful ');
-
-    // Log if changes were made
-    if (rewritten !== text) {
-      console.log('✏️  Rewrote text:');
-      console.log('   Before:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
-      console.log('   After:', rewritten.substring(0, 100) + (rewritten.length > 100 ? '...' : ''));
-    }
-
-    return rewritten;
-  };
-
-  // Create a deep copy and rewrite all string fields
-  const rewrittenPrompt = { ...segmentPrompt };
-  const fieldsToRewrite: (keyof SegmentPrompt)[] = [
-    'description',
-    'action',
-    'dialogue',
-    'setting',
-    'lighting',
-    'music',
-    'ending',
-    'other_details',
-    'segment_title',
-    'segment_goal',
-    'first_frame_prompt',
-    'closing_frame_prompt',
-    'camera_type',
-    'camera_movement'
-  ];
-
-  for (const field of fieldsToRewrite) {
-    if (field in rewrittenPrompt && typeof rewrittenPrompt[field] === 'string') {
-      rewrittenPrompt[field] = rewriteText(rewrittenPrompt[field] as string) as never;
-    }
-  }
-
-  return rewrittenPrompt;
-}
 
 export async function startWorkflowProcess(request: StartWorkflowRequest): Promise<WorkflowResult> {
   try {
@@ -348,16 +253,17 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     }
 
     // Convert 'auto' to specific model
-    let actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+    let actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
     if (request.videoModel === 'auto') {
       const autoSelection = getAutoModeSelection(0); // Get cheapest model
-      actualVideoModel = autoSelection || 'sora2'; // Fallback to cheapest
+        actualVideoModel = autoSelection || 'sora2'; // Fallback to cheapest
     } else {
       actualVideoModel = request.videoModel;
     }
 
     const isSegmented = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
-    const segmentCount = isSegmented ? getSegmentCountFromDuration(request.videoDuration) : 1;
+    const segmentCount = isSegmented ? getSegmentCountFromDuration(request.videoDuration, actualVideoModel) : 1;
+    let remainingCreditsAfterDeduction: number | undefined;
 
     // ===== VERSION 3.0: MIXED BILLING - Generation Phase =====
     // Basic models (veo3_fast, sora2): FREE generation, paid download
@@ -402,6 +308,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             details: deductResult.error || 'Credit deduction failed'
           };
         }
+        remainingCreditsAfterDeduction = deductResult.remainingCredits;
 
         // Record the transaction
         await recordCreditTransaction(
@@ -461,7 +368,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         download_credits_used: 0,
         is_segmented: isSegmented,
         segment_count: segmentCount,
-        segment_duration_seconds: isSegmented ? 8 : null,
+        segment_duration_seconds: isSegmented ? (actualVideoModel === 'grok' ? 6 : 8) : null,
         segment_status: isSegmented
           ? {
               total: segmentCount,
@@ -552,7 +459,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     return {
       success: true,
-      projectId: project.id
+      projectId: project.id,
+      remainingCredits: remainingCreditsAfterDeduction,
+      creditsUsed: generationCost
     };
 
   } catch (error) {
@@ -569,7 +478,7 @@ async function startAIWorkflow(
   projectId: string,
   request: StartWorkflowRequest & {
     imageUrl: string;
-    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
   },
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
   competitorAdContext?: {
@@ -631,7 +540,7 @@ async function startAIWorkflow(
     console.log('🤖 Generating creative video prompts from product image...');
     const totalDurationSeconds = parseInt(request.videoDuration || request.sora2ProDuration || '10', 10);
     const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
-    const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration) : 1;
+    const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel) : 1;
 
     // TWO-STEP PROCESS for competitor reference mode (with intelligent caching)
     let competitorDescription: Record<string, unknown> | undefined;
@@ -690,6 +599,8 @@ async function startAIWorkflow(
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
+    const productCategory = detectProductCategory(prompts);
+    console.log(`📦 Product category detected: ${productCategory}`);
 
     if (segmentedFlow) {
       console.log('🎬 Segmented workflow enabled - orchestrating multi-segment pipeline');
@@ -702,9 +613,16 @@ async function startAIWorkflow(
     const coverTaskId = await generateCover(request.imageUrl, prompts, request, competitorDescription);
     console.log('🆔 Cover task ID:', coverTaskId);
 
+    let finalCoverTaskId = coverTaskId;
+    if (productCategory === 'children_toy') {
+      console.log('🧸 Children toy product detected — running second cover generation pass');
+      finalCoverTaskId = await generateCover(request.imageUrl, prompts, request, competitorDescription);
+      console.log('🆔 Secondary cover task ID:', finalCoverTaskId);
+    }
+
     // Update project with cover task ID and prompts
     const updateData = {
-      cover_task_id: coverTaskId,
+      cover_task_id: finalCoverTaskId,
       video_prompts: prompts,
       product_description: prompts, // Store complete AI response with all structured fields (final prompt for our product)
       competitor_description: competitorDescription || null, // Store competitor analysis (Veo Guide 8 elements) if available
@@ -1713,31 +1631,7 @@ Requirements:
 - Maintain all original colors, textures, and materials
 - Preserve all distinctive design features and details
 ${competitorDescription ? '- CRITICAL: Replicate the exact scene elements and spatial layout described above' : '- Only enhance lighting, background, or add subtle marketing elements'}
-- The product must remain visually identical to the original
-
-⚠️ ZERO-CHILD POLICY (ALL MODELS):
-
-PROHIBITED Elements:
-❌ Absolutely NO children/minors (under 18) in ANY form:
-   - No child faces, hands, limbs, or body parts
-   - No child silhouettes, back views, or blurred figures
-   - No recognizable children in any way
-
-ALLOWED Human Elements (Adults 18+ ONLY):
-✅ Adults: FULLY ALLOWED in all forms
-   - Clear frontal faces with visible facial features
-   - Close-up face shots and detailed portraits
-   - Multiple people with visible faces in the same frame
-   - Hands/arms showing product interaction
-   - Body parts demonstrating product use
-   - Blurred background figures, silhouettes, back views
-   - All forms of adult human presence
-
-TRANSFORMATION RULES:
-- If original prompt has children → Replace with adults OR product-only display
-- Adults can be shown naturally without face restrictions
-- Maintain SCENE, LIGHTING, and STYLE from original prompt
-- Focus on product presentation and authentic use cases`;
+- The product must remain visually identical to the original`;
 
   // Extract watermark information from request
   const watermarkText = request.watermark?.text?.trim();
@@ -1758,18 +1652,6 @@ TRANSFORMATION RULES:
 - Prominently include the headline text "${escapedAdCopy}" in the design
 - Keep typography clean and highly legible against the background
 - Use the provided text exactly as written without paraphrasing`;
-  }
-
-  const includeSoraSafety = request.shouldGenerateVideo !== false && (request.videoModel === 'sora2' || request.videoModel === 'sora2_pro');
-  const soraSafetySection = `\n\nSora2 STRICT Safety Requirements (Very Important):
-❌ NO children/minors (under 18) in ANY form (same as above)
-❌ NO human faces of any age - Sora2 content moderation is extremely strict
-✅ Allowed for adults: hands/limbs, body parts, blurred figures, silhouettes, back views
-✅ Highlight product using hands-on demonstration WITHOUT showing any faces
-✅ Use side views, back views, or obscured angles for human presence if needed`;
-
-  if (includeSoraSafety) {
-    prompt += soraSafetySection;
   }
 
   // Ensure prompt doesn't exceed KIE API's 5000 character limit
@@ -1794,9 +1676,6 @@ Based on the provided product image, create an enhanced advertising version that
     prompt = `${criticalInstructions} ${truncatedDescription}
 
 Requirements: Keep exact product appearance, only enhance presentation.${watermarkSection}`;
-    if (includeSoraSafety) {
-      prompt += soraSafetySection;
-    }
   }
 
   const targetAspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
@@ -1847,12 +1726,7 @@ async function startSegmentedWorkflow(
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
-  // CRITICAL: Detect product category BEFORE normalizing segments
-  // This ensures children_toy products don't get closing_frame_prompt in database
-  const productCategory = detectProductCategory(prompts);
-  console.log(`📦 Product category detected: ${productCategory}`);
-
-  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, productCategory);
+  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount);
   const now = new Date().toISOString();
 
   const segmentRows = normalizedSegments.map((segmentPrompt, index) => ({
@@ -1891,11 +1765,7 @@ async function startSegmentedWorkflow(
   for (const segment of segments) {
     const promptData = normalizedSegments[segment.segment_index];
 
-    // Apply intelligent prompt rewriting for children's toys to avoid contradictory instructions
-    // Instead of describing children then adding restrictions, we directly rewrite to adult/product-only scenes
-    const safePromptData = rewriteSegmentPromptForSafety(promptData, productCategory);
-
-    const firstFrameTaskId = await createSegmentFrameTask(request, safePromptData, segment.segment_index, 'first');
+    const firstFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'first');
 
     const { error: updateError } = await supabase
       .from('standard_ads_segments')
@@ -1915,16 +1785,9 @@ async function startSegmentedWorkflow(
     segment.first_frame_task_id = firstFrameTaskId;
     segment.status = 'generating_first_frame';
 
-    // CRITICAL: Skip closing_frame for children_toy products to allow children to appear in video
-    // Reason: Google Veo3 checks EACH segment's first_frame and closing_frame
-    // - If a segment has both frames with NO children → that segment's video won't have children
-    // - Solution: For children_toy, ALL segments skip closing_frame (not just the last one)
-    if (productCategory === 'children_toy') {
-      console.log(`🧸 Segment ${segment.segment_index}: SKIPPING closing_frame (children_toy product)`);
-      // No closing_frame for ANY segment of children_toy products
-    } else if (segment.segment_index === normalizedSegments.length - 1) {
+    if (segment.segment_index === normalizedSegments.length - 1) {
       // For non-children products, only the last segment gets a closing frame
-      const closingFrameTaskId = await createSegmentFrameTask(request, safePromptData, segment.segment_index, 'closing');
+      const closingFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'closing');
 
       await supabase
         .from('standard_ads_segments')
@@ -1949,8 +1812,7 @@ async function startSegmentedWorkflow(
 
 function normalizeSegmentPrompts(
   prompts: Record<string, unknown>,
-  segmentCount: number,
-  productCategory?: 'children_toy' | 'adult_product' | 'general'
+  segmentCount: number
 ): SegmentPrompt[] {
   const basePrompt = {
     description: (prompts as { description?: string }).description || 'Product hero shot in premium environment',
@@ -1978,19 +1840,13 @@ function normalizeSegmentPrompts(
   for (let index = 0; index < segmentCount; index++) {
     const source = rawSegments[index] || rawSegments[rawSegments.length - 1] || {};
 
-    // CRITICAL: For children_toy products, do NOT generate closing_frame_prompt
-    // This prevents the prompt from being stored in database and triggering any closing frame logic
-    const closingFramePrompt = productCategory === 'children_toy'
-      ? '' // Empty for children products - prevents any closing frame processing
-      : (source.closing_frame_prompt || source.ending || basePrompt.ending);
-
     normalized.push({
       ...basePrompt,
       ...source,
       segment_title: source.segment_title || `Segment ${index + 1}`,
       segment_goal: source.segment_goal || `Highlight product benefit ${index + 1}`,
       first_frame_prompt: source.first_frame_prompt || source.description || basePrompt.description,
-      closing_frame_prompt: closingFramePrompt, // Use conditional value
+      closing_frame_prompt: source.closing_frame_prompt || source.ending || basePrompt.ending,
       voice_type: baseVoiceType,  // Force unified voice across all segments
       voice_tone: baseVoiceTone   // Force unified tone across all segments
     });
@@ -2047,27 +1903,7 @@ Scene Focus:
 - Setting: ${segmentPrompt.setting}
 - Camera: ${segmentPrompt.camera_type} with ${segmentPrompt.camera_movement}
 - Lighting: ${segmentPrompt.lighting}
-
-⚠️ ZERO-CHILD POLICY (ALL MODELS):
-
-PROHIBITED Elements:
-❌ Absolutely NO children/minors (under 18) in ANY form:
-   - No child faces, hands, limbs, or body parts
-   - No child silhouettes, back views, or blurred figures
-   - No recognizable children in any way
-
-ALLOWED Human Elements (Adults 18+ ONLY):
-✅ Adults: FULLY ALLOWED in all forms
-   - Clear frontal faces with visible facial features
-   - Close-up face shots and detailed portraits
-   - Multiple people with visible faces in the same frame
-   - Hands/arms showing product interaction
-   - Body parts demonstrating product use
-   - Blurred background figures, silhouettes, back views
-   - All forms of adult human presence
-
-TRANSFORMATION RULES:
-- If segment describes children → Replace with adults OR product-only display
+- Keep the product proportions and styling perfectly matched to the supplied reference
 - Adults can be shown naturally without face restrictions
 - Maintain SCENE, LIGHTING, CAMERA ANGLE, and STYLE from original segment
 - Create product-focused keyframe that shows authentic use cases
@@ -2114,10 +1950,10 @@ export async function startSegmentVideoTask(
   segmentIndex: number,
   totalSegments: number
 ): Promise<string> {
-  const videoModel = (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast';
+  const videoModel = (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'grok';
 
-  if (videoModel !== 'veo3' && videoModel !== 'veo3_fast') {
-    throw new Error(`Segmented workflow only supports VEO3 models. Received ${videoModel}`);
+  if (videoModel !== 'veo3' && videoModel !== 'veo3_fast' && videoModel !== 'grok') {
+    throw new Error(`Segmented workflow only supports Veo3 or Grok models. Received ${videoModel}`);
   }
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
@@ -2157,6 +1993,38 @@ Voice: This is segment ${segmentIndex + 1} of ${totalSegments}. Use the exact sa
   const imageUrls = hasClosingFrame ? [firstFrameUrl, closingFrameUrl] : [firstFrameUrl];
 
   console.log(`🎬 Segment ${segmentIndex + 1}: Images count = ${imageUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
+
+  if (videoModel === 'grok') {
+    const grokRequest = {
+      model: 'grok-imagine/image-to-video',
+      input: {
+        image_urls: [firstFrameUrl],
+        prompt: fullPrompt,
+        mode: 'normal'
+      }
+    };
+
+    const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(grokRequest)
+    }, 5, 30000);
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Failed to generate Grok segment video: ${response.status} ${errorData}`);
+    }
+
+    const data = await response.json();
+    if (data.code !== 200) {
+      throw new Error(data.msg || 'Failed to generate Grok segment video');
+    }
+
+    return data.data.taskId;
+  }
 
   const requestBody = {
     prompt: fullPrompt,

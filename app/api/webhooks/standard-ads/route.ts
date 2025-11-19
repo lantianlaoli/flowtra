@@ -324,7 +324,7 @@ Other details: ${videoPrompt.other_details}${adCopyInstruction}`;
 
   console.log('Generated video prompt:', fullPrompt);
 
-  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
   const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
   const isSoraFamily = videoModel === 'sora2' || videoModel === 'sora2_pro';
@@ -717,7 +717,6 @@ async function maybeTriggerSegmentVideos(
     if (seg.video_task_id || seg.video_url) continue;
     if (!seg.first_frame_url) continue;
 
-    // For children_toy products, closing_frame_url will be null for all segments
     // For other products, use next segment's first frame as fallback for continuity
     const nextSegment = segments.find(s => s.segment_index === seg.segment_index + 1);
     const closingFrameUrl = seg.closing_frame_url || nextSegment?.first_frame_url || null;
