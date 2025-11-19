@@ -200,8 +200,9 @@ export async function POST(request: NextRequest) {
       resolvedVideoModel = videoModel === 'sora2_pro' ? 'sora2_pro' : 'sora2';
     } else {
       const actualVideoModel = getActualModel(videoModel as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro', 1000) || (videoModel === 'auto' ? 'veo3_fast' : (videoModel as 'veo3' | 'veo3_fast' | 'sora2_pro'));
+      const normalizedVideoModel = actualVideoModel === 'grok' ? 'veo3_fast' : actualVideoModel;
       // Guard against sora2/sora2_pro sneaking in for 8/16/24
-      resolvedVideoModel = (actualVideoModel === 'sora2' || actualVideoModel === 'sora2_pro') ? 'veo3_fast' : actualVideoModel;
+      resolvedVideoModel = (normalizedVideoModel === 'sora2' || normalizedVideoModel === 'sora2_pro') ? 'veo3_fast' : normalizedVideoModel;
     }
     
     // Calculate credits cost using constants (use actual model for cost calculation)

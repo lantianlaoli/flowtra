@@ -1,4 +1,5 @@
-import { Zap, Sparkles, Star, Crown, Check, Lightbulb } from 'lucide-react';
+import { Zap, Check } from 'lucide-react';
+import { SiGoogle, SiOpenai, SiX } from 'react-icons/si';
 
 export default function ModelPricingSection() {
   // Credit to USD conversion rate
@@ -8,8 +9,8 @@ export default function ModelPricingSection() {
     {
       name: 'Veo3 Fast',
       description: 'Quick generation for rapid testing',
-      icon: Zap,
-      badge: null,
+      icon: SiGoogle,
+      badge: 'Popular',
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
       durationRange: '8-32s',
@@ -24,8 +25,8 @@ export default function ModelPricingSection() {
     {
       name: 'Sora2',
       description: 'Standard quality for most use cases',
-      icon: Sparkles,
-      badge: 'Popular',
+      icon: SiOpenai,
+      badge: null,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       durationRange: '10s',
@@ -37,7 +38,7 @@ export default function ModelPricingSection() {
     {
       name: 'Veo3',
       description: 'High-quality professional content',
-      icon: Star,
+      icon: SiGoogle,
       badge: null,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
@@ -53,7 +54,7 @@ export default function ModelPricingSection() {
     {
       name: 'Sora2 Pro',
       description: 'Premium quality with flexible options',
-      icon: Crown,
+      icon: SiOpenai,
       badge: 'Premium',
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
@@ -64,6 +65,28 @@ export default function ModelPricingSection() {
         { duration: '15s Standard', credits: 54, unit: 'Standard quality' },
         { duration: '10s HD', credits: 80, unit: 'HD quality' },
         { duration: '15s HD', credits: 160, unit: 'HD quality' },
+      ],
+    },
+    {
+      name: 'Grok',
+      description: 'Grok’s kid-safe pipeline supports 6-second segments up to 60s',
+      icon: SiX,
+      badge: 'New',
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
+      durationRange: '6-60s',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { duration: '6s', credits: 20, unit: 'per 6s segment' },
+        { duration: '12s', credits: 40, unit: 'per 6s segment' },
+        { duration: '18s', credits: 60, unit: 'per 6s segment' },
+        { duration: '24s', credits: 80, unit: 'per 6s segment' },
+        { duration: '30s', credits: 100, unit: 'per 6s segment' },
+        { duration: '36s', credits: 120, unit: 'per 6s segment' },
+        { duration: '42s', credits: 140, unit: 'per 6s segment' },
+        { duration: '48s', credits: 160, unit: 'per 6s segment' },
+        { duration: '54s', credits: 180, unit: 'per 6s segment' },
+        { duration: '60s', credits: 200, unit: 'per 6s segment' },
       ],
     },
   ];
@@ -119,7 +142,7 @@ export default function ModelPricingSection() {
                       <td className="px-6 py-5" rowSpan={rowSpan}>
                         <div className="flex items-start gap-3">
                           <div className={`p-2 rounded-lg ${model.bgColor} mt-0.5`}>
-                            <Icon className={`w-5 h-5 ${model.color}`} />
+                            <Icon className={`w-6 h-6 ${model.color}`} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -220,7 +243,7 @@ export default function ModelPricingSection() {
               {/* Header */}
               <div className="flex items-start gap-3 mb-4">
                 <div className={`p-2 rounded-lg ${model.bgColor}`}>
-                  <Icon className={`w-5 h-5 ${model.color}`} />
+                  <Icon className={`w-6 h-6 ${model.color}`} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -288,9 +311,8 @@ export default function ModelPricingSection() {
 
                 {/* Download billing notice for free-generation models */}
                 {model.billingType === 'download' && (
-                  <div className="flex items-start gap-2 text-xs text-blue-600 bg-blue-50 rounded p-2">
-                    <Lightbulb className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                    <span>仅在首次下载满意的广告时扣除积分</span>
+                  <div className="text-xs text-blue-700 bg-blue-50 rounded p-2 leading-snug">
+                    Credits are deducted only on the first successful download you keep.
                   </div>
                 )}
               </div>
@@ -311,6 +333,10 @@ export default function ModelPricingSection() {
             <li className="flex items-start gap-2">
               <span className="text-gray-400 mt-0.5">•</span>
               <span><strong>Sora2 Pro:</strong> 4 quality tiers available - Standard/HD quality at 10s/15s durations.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-gray-400 mt-0.5">•</span>
+              <span><strong>Grok:</strong> Charged per 6-second segment, ideal for safer kid-focused storyboards (6s to 60s).</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-gray-400 mt-0.5">•</span>
