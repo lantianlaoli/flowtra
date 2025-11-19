@@ -80,6 +80,9 @@ Most routes call into `lib/` modules for Supabase access, KIE orchestration, or 
 - `pnpm type-check` – TypeScript project validation.
 - `npx playwright test` – End-to-end tests (see `tests/` when present).
 
+## Mandatory Verification Before Build/Deploy
+- Always run `pnpm lint` and `pnpm type-check` (or equivalent) before running `pnpm build` or shipping changes. Builds alone are insufficient; ensure linting and type checks pass locally to mirror CI.
+
 ## Coding Standards
 - TypeScript everywhere. Prefer server components and `use server` utilities for backend operations.
 - Two-space indentation, retain existing import orderings.
