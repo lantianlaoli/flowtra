@@ -6,13 +6,12 @@
 export const BLACK_FRIDAY_DISCOUNT = 0.2; // 20% off all packages
 
 // Model classification
-export const FREE_GENERATION_MODELS = ['veo3_fast', 'sora2'] as const;
-export const PAID_GENERATION_MODELS = ['veo3', 'sora2_pro', 'grok'] as const;
+export const FREE_GENERATION_MODELS = ['veo3_fast', 'sora2', 'grok'] as const;
+export const PAID_GENERATION_MODELS = ['veo3', 'sora2_pro'] as const;
 
 // Generation costs (only for PAID generation models)
 export const GENERATION_COSTS = {
   'veo3': 150,        // Veo3 High Quality: 150 credits at generation
-  'grok': 20          // Grok: 20 credits per 6s segment
   // Sora2 Pro: See SORA2_PRO_CREDIT_COSTS (36-160 credits)
 } as const;
 
@@ -20,6 +19,7 @@ export const GENERATION_COSTS = {
 export const DOWNLOAD_COSTS = {
   'veo3_fast': 20,    // Veo3 Fast: 20 credits at download
   'sora2': 6,         // Sora2: 6 credits at download
+  'grok': 20          // Grok: 20 credits per 6s segment at download
 } as const;
 
 // DEPRECATED: Legacy CREDIT_COSTS for backwards compatibility
@@ -249,11 +249,6 @@ export function getGenerationCost(
     return GENERATION_COSTS.veo3 * segmentMultiplier;
   }
 
-  if (model === 'grok') {
-    const segmentMultiplier = getSegmentCountFromDuration(videoDuration, 'grok');
-    return GENERATION_COSTS.grok * segmentMultiplier;
-  }
-
   return 0;
 }
 
@@ -276,6 +271,13 @@ export function getDownloadCost(
 
   if (model === 'sora2') {
     return DOWNLOAD_COSTS.sora2;
+  }
+
+  if (model === 'grok') {
+    const segments = segmentCount && segmentCount > 0
+      ? segmentCount
+      : getSegmentCountFromDuration(videoDuration, 'grok');
+    return DOWNLOAD_COSTS.grok * segments;
   }
 
   return 0;
@@ -331,9 +333,6 @@ export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 've
   }
   if (model === 'veo3') {
     return userCredits >= GENERATION_COSTS.veo3
-  }
-  if (model === 'grok') {
-    return userCredits >= GENERATION_COSTS.grok
   }
 
   return true
@@ -594,7 +593,7 @@ export function getModelCostByConfig(
   if (model === 'veo3') return CREDIT_COSTS.veo3 * getSegmentCountFromDuration(duration, 'veo3');
   if (model === 'veo3_fast') return CREDIT_COSTS.veo3_fast;
   if (model === 'sora2') return CREDIT_COSTS.sora2;
-  if (model === 'grok') return GENERATION_COSTS.grok * getSegmentCountFromDuration(duration, 'grok');
+  if (model === 'grok') return DOWNLOAD_COSTS.grok * getSegmentCountFromDuration(duration, 'grok');
 
   return 0;
 }

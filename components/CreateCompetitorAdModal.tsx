@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Upload, Loader2, Target, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Upload, Loader2, Target, CheckCircle, XCircle, ChevronDown, ChevronUp, Languages } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
+import { getLanguageDisplayInfo } from '@/lib/language';
 import {
   FaFacebookF,
   FaInstagram,
@@ -62,6 +63,7 @@ export default function CreateCompetitorAdModal({
   // Analysis state
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('idle');
   const [analysisResult, setAnalysisResult] = useState<Record<string, unknown> | null>(null);
+  const [analysisLanguage, setAnalysisLanguage] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [createdAdId, setCreatedAdId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -84,6 +86,7 @@ export default function CreateCompetitorAdModal({
       setWarning(null);
       setAnalysisStatus('idle');
       setAnalysisResult(null);
+      setAnalysisLanguage(null);
       setAnalysisError(null);
       setCreatedAdId(null);
       setExpandedSection(null);
@@ -121,7 +124,8 @@ export default function CreateCompetitorAdModal({
 
             if (ad.analysis_status === 'completed') {
               setAnalysisStatus('completed');
-        setAnalysisResult(ad.analysis_result);
+              setAnalysisResult(ad.analysis_result);
+              setAnalysisLanguage(ad.language || null);
               clearInterval(pollingInterval.current!);
               pollingInterval.current = null;
             } else if (ad.analysis_status === 'failed') {
@@ -218,6 +222,7 @@ export default function CreateCompetitorAdModal({
       if (response.ok) {
         const ad = data.competitorAd;
         setCreatedAdId(ad.id);
+        setAnalysisLanguage(ad.language || null);
 
         // Check immediate analysis status
         if (ad.analysis_status === 'analyzing') {
@@ -225,6 +230,7 @@ export default function CreateCompetitorAdModal({
         } else if (ad.analysis_status === 'completed') {
           setAnalysisStatus('completed');
           setAnalysisResult(ad.analysis_result);
+          setAnalysisLanguage(ad.language || null);
         } else if (ad.analysis_status === 'failed') {
           setAnalysisStatus('failed');
           setAnalysisError(ad.analysis_error);
@@ -257,6 +263,8 @@ export default function CreateCompetitorAdModal({
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);
   };
+
+  const languageDisplay = useMemo(() => getLanguageDisplayInfo(analysisLanguage), [analysisLanguage]);
 
   if (!isOpen) return null;
 
@@ -399,6 +407,19 @@ export default function CreateCompetitorAdModal({
                         <CheckCircle className="w-6 h-6 text-green-600" />
                         <h3 className="font-semibold text-gray-900">Analysis Complete</h3>
                       </div>
+                      {languageDisplay && (
+                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                          <Languages className="w-4 h-4 text-gray-500" />
+                          <span className="font-semibold text-gray-900">{languageDisplay.label}</span>
+                          {languageDisplay.native && languageDisplay.native !== languageDisplay.label && (
+                            <span className="text-gray-500">({languageDisplay.native})</span>
+                          )}
+                          <span className="text-xs uppercase tracking-wide text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+                            {languageDisplay.code.toUpperCase()}
+                          </span>
+                          <span className="text-gray-500">detected</span>
+                        </div>
+                      )}
 
                       {/* 10 Veo Elements Display */}
                       <div className="space-y-3">

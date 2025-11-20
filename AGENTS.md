@@ -3,6 +3,7 @@
 ## Quick Rules
 - Use `pnpm` for every dependency, build, and tooling command.
 - Application code, documentation, and inline comments must be written in English. (Conversations can happen in Chinese.)
+- All UI copy (labels, placeholders, toasts, buttons, etc.) must remain in English to keep the product consistent.
 - Never commit secrets. Copy `.env.example` to `.env` locally and keep credentials out of source control.
 
 ## Architecture Overview

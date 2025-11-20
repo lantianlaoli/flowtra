@@ -1,9 +1,10 @@
 'use client';
 
 import { CompetitorAd } from '@/lib/supabase';
-import { PlayCircle, Edit2, Trash2, Loader2 } from 'lucide-react';
+import { PlayCircle, Edit2, Trash2, Loader2, BadgeCheck, AlertTriangle, Languages, Clock3 } from 'lucide-react';
 import Image from 'next/image';
 import { useState } from 'react';
+import { getLanguageDisplayInfo } from '@/lib/language';
 
 interface CompetitorAdCardProps {
   competitorAd: CompetitorAd;
@@ -26,6 +27,44 @@ export default function CompetitorAdCard({
 }: CompetitorAdCardProps) {
   const [showActions, setShowActions] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const languageDisplay = getLanguageDisplayInfo(competitorAd.language);
+  const analysisStatus = competitorAd.analysis_status || 'pending';
+
+  const renderAnalysisBadge = () => {
+    const configMap = {
+      completed: {
+        label: 'Analyzed',
+        className: 'bg-green-50 text-green-700 border-green-200',
+        icon: BadgeCheck
+      },
+      analyzing: {
+        label: 'Analyzing',
+        className: 'bg-amber-50 text-amber-700 border-amber-200',
+        icon: Clock3
+      },
+      pending: {
+        label: 'Pending',
+        className: 'bg-gray-100 text-gray-700 border-gray-200',
+        icon: Clock3
+      },
+      failed: {
+        label: 'Failed',
+        className: 'bg-red-50 text-red-700 border-red-200',
+        icon: AlertTriangle
+      }
+    } as const;
+
+    const status = (analysisStatus in configMap ? analysisStatus : 'pending') as keyof typeof configMap;
+    const config = configMap[status];
+    const Icon = config.icon;
+
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${config.className}`}>
+        <Icon className="w-3 h-3" />
+        {config.label}
+      </span>
+    );
+  };
 
   const handleClick = () => {
     if (mode === 'select' && onSelect) {
@@ -96,18 +135,25 @@ export default function CompetitorAdCard({
         <h4 className="font-medium text-gray-900 text-sm truncate">
           {competitorAd.competitor_name}
         </h4>
-        <p className="text-xs text-gray-500 mt-1 truncate">
-          {competitorAd.platform}
-        </p>
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+            {competitorAd.platform}
+          </span>
           <span className={`
-            text-xs px-2 py-0.5 rounded-full
+            px-2 py-0.5 rounded-full
             ${competitorAd.file_type === 'video'
               ? 'bg-purple-100 text-purple-700'
               : 'bg-blue-100 text-blue-700'}
           `}>
             {competitorAd.file_type === 'video' ? 'Video' : 'Image'}
           </span>
+          {languageDisplay && analysisStatus === 'completed' && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+              <Languages className="w-3 h-3" />
+              {languageDisplay.label}
+            </span>
+          )}
+          {renderAnalysisBadge()}
         </div>
       </div>
 

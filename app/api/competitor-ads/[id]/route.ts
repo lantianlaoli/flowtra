@@ -58,12 +58,12 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { competitor_name, platform } = body;
+    const { competitor_name, platform, language } = body;
 
     // Validation
-    if (!competitor_name && !platform) {
+    if (!competitor_name && !platform && !language) {
       return NextResponse.json(
-        { error: 'At least one field (competitor_name or platform) is required' },
+        { error: 'At least one field (competitor_name, platform, or language) is required' },
         { status: 400 }
       );
     }
@@ -71,7 +71,7 @@ export async function PUT(
     const supabase = getSupabaseAdmin();
 
     // Build update object
-    const updateData: { competitor_name?: string; platform?: string; updated_at: string } = {
+    const updateData: { competitor_name?: string; platform?: string; language?: string | null; updated_at: string } = {
       updated_at: new Date().toISOString()
     };
 
@@ -81,6 +81,12 @@ export async function PUT(
 
     if (platform) {
       updateData.platform = platform.trim();
+    }
+
+    if (typeof language === 'string') {
+      updateData.language = language.trim();
+    } else if (language === null) {
+      updateData.language = null;
     }
 
     // Update competitor ad

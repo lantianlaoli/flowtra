@@ -390,7 +390,7 @@ export default function StandardAdsPage() {
       error_message: payload.data?.errorMessage
     });
 
-    const stage = getStageLabel(status, payload.current_step);
+    const stageLabel = getStageLabel(status, payload.current_step);
     const normalizedStep = payload.current_step?.toLowerCase() ?? '';
     const progress = typeof payload.progress_percentage === 'number'
       ? payload.progress_percentage
@@ -398,11 +398,16 @@ export default function StandardAdsPage() {
         ? payload.progress
         : normalizedStep && STEP_PROGRESS_HINTS[normalizedStep] !== undefined
           ? STEP_PROGRESS_HINTS[normalizedStep]
-        : status === 'completed'
-          ? 100
-          : status === 'failed'
-            ? 0
-            : STEP_PROGRESS_HINTS.processing;
+          : status === 'completed'
+            ? 100
+            : status === 'failed'
+              ? 0
+              : STEP_PROGRESS_HINTS.processing;
+
+    const hasVideoReady = Boolean(payload.data?.videoUrl);
+    const resolvedStatus = hasVideoReady ? 'completed' as Generation['status'] : status;
+    const resolvedStage = hasVideoReady ? 'Completed' : stageLabel;
+    const resolvedProgress = hasVideoReady ? 100 : progress;
 
     setGenerations(prev => prev.map(gen => {
       if (gen.projectId !== projectId) return gen;
@@ -419,16 +424,16 @@ export default function StandardAdsPage() {
       })();
       return {
         ...gen,
-        status,
-        stage,
-        progress,
+        status: resolvedStatus,
+        stage: resolvedStage,
+        progress: resolvedProgress,
         videoUrl: payload.data?.videoUrl || gen.videoUrl,
         coverUrl: payload.data?.coverImageUrl || gen.coverUrl,
         videoModel: (payload.data?.videoModel as VideoModel) || (payload.data?.video_model as VideoModel) || gen.videoModel,
         downloaded: typeof payload.data?.downloaded === 'boolean' ? payload.data.downloaded : gen.downloaded,
         videoDuration: payload.data?.videoDuration || gen.videoDuration,
         segmentCount: typeof nextSegmentCount === 'number' && nextSegmentCount > 0 ? nextSegmentCount : gen.segmentCount,
-        error: status === 'failed'
+        error: resolvedStatus === 'failed'
           ? (payload.data?.errorMessage || payload.error || 'Video generation failed')
           : undefined
       };
@@ -809,7 +814,7 @@ export default function StandardAdsPage() {
         <div className="flex-1 flex flex-col min-h-0">
           {/* Page Header */}
           <header className="px-6 sm:px-8 lg:px-10 py-6 sticky top-0 z-50 bg-gray-50/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
-            <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-3 ml-20 md:ml-0">
+            <div className="max-w-7xl mx-auto flex w-full flex-wrap items-center gap-3">
               <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
                 <TrendingUp className="w-5 h-5 text-gray-700" />
               </div>

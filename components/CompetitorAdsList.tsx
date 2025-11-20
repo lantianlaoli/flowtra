@@ -47,6 +47,9 @@ export default function CompetitorAdsList({ brandId, brandName }: CompetitorAdsL
     setCompetitorAds(prev =>
       prev.map(ad => ad.id === updatedCompetitorAd.id ? updatedCompetitorAd : ad)
     );
+    setEditingCompetitorAd(current =>
+      current && current.id === updatedCompetitorAd.id ? updatedCompetitorAd : current
+    );
   };
 
   const handleDelete = async (id: string) => {
