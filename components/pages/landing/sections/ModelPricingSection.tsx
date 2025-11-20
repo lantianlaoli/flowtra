@@ -69,24 +69,24 @@ export default function ModelPricingSection() {
     },
     {
       name: 'Grok',
-      description: 'Grok’s kid-safe pipeline supports 6-second segments up to 60s',
+      description: 'Kid-safe pipeline (6-second segments up to 60s), free to generate and billed on download',
       icon: SiX,
       badge: 'New',
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-50',
       durationRange: '6-60s',
-      billingType: 'generation' as const,
+      billingType: 'download' as const,
       pricingOptions: [
-        { duration: '6s', credits: 20, unit: 'per 6s segment' },
-        { duration: '12s', credits: 40, unit: 'per 6s segment' },
-        { duration: '18s', credits: 60, unit: 'per 6s segment' },
-        { duration: '24s', credits: 80, unit: 'per 6s segment' },
-        { duration: '30s', credits: 100, unit: 'per 6s segment' },
-        { duration: '36s', credits: 120, unit: 'per 6s segment' },
-        { duration: '42s', credits: 140, unit: 'per 6s segment' },
-        { duration: '48s', credits: 160, unit: 'per 6s segment' },
-        { duration: '54s', credits: 180, unit: 'per 6s segment' },
-        { duration: '60s', credits: 200, unit: 'per 6s segment' },
+        { duration: '6s', credits: 20, unit: 'per 6s segment download' },
+        { duration: '12s', credits: 40, unit: 'per 6s segment download' },
+        { duration: '18s', credits: 60, unit: 'per 6s segment download' },
+        { duration: '24s', credits: 80, unit: 'per 6s segment download' },
+        { duration: '30s', credits: 100, unit: 'per 6s segment download' },
+        { duration: '36s', credits: 120, unit: 'per 6s segment download' },
+        { duration: '42s', credits: 140, unit: 'per 6s segment download' },
+        { duration: '48s', credits: 160, unit: 'per 6s segment download' },
+        { duration: '54s', credits: 180, unit: 'per 6s segment download' },
+        { duration: '60s', credits: 200, unit: 'per 6s segment download' },
       ],
     },
   ];
@@ -336,11 +336,11 @@ export default function ModelPricingSection() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-gray-400 mt-0.5">•</span>
-              <span><strong>Grok:</strong> Charged per 6-second segment, ideal for safer kid-focused storyboards (6s to 60s).</span>
+              <span><strong>Grok:</strong> Free to generate, billed per 6-second segment only when you download (6s to 60s).</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-gray-400 mt-0.5">•</span>
-              <span><strong>Download Billing (Veo3 Fast, Sora2):</strong> Credits are deducted only when you download a video you&apos;re satisfied with, and only on first download. Re-downloading is free.</span>
+              <span><strong>Download Billing (Veo3 Fast, Sora2, Grok):</strong> Credits are deducted only when you download a video you&apos;re satisfied with, and only on first download. Re-downloading is free.</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-gray-400 mt-0.5">•</span>
