@@ -284,7 +284,7 @@ const formatDurationLabel = (seconds: number) => {
         product: selectedProductName || undefined,
         videoModel: DEFAULT_VIDEO_MODEL,
         videoDuration: `${videoDuration}`,
-        coverUrl: null,
+        coverUrl: undefined,
         videoUrl: undefined,
         downloaded: false
       };
@@ -302,6 +302,13 @@ const formatDurationLabel = (seconds: number) => {
     }
   };
 
+  const selectedBrandName = selectedProduct?.brand?.brand_name;
+  const selectedProductName = selectedProduct?.product_name;
+  const hasPersonPhoto = Boolean(selectedPersonPhotoUrl);
+  const showMaintenance = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
+  const composerVisible = !showMaintenance && !showProductManager;
+  const composerDisabled = !canStartGeneration || isGenerating;
+
   const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
   const handlePersonPickerSelect = (photoUrl: string) => {
     setSelectedPersonPhotoUrl(photoUrl);
@@ -313,12 +320,6 @@ const formatDurationLabel = (seconds: number) => {
     setIsProductPickerOpen(false);
   };
 
-  const showMaintenance = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
-  const composerVisible = !showMaintenance && !showProductManager;
-  const selectedBrandName = selectedProduct?.brand?.brand_name;
-  const selectedProductName = selectedProduct?.product_name;
-  const hasPersonPhoto = Boolean(selectedPersonPhotoUrl);
-  const composerDisabled = !canStartGeneration || isGenerating;
   const configPanelRef = useRef<HTMLDivElement | null>(null);
   const durationMenuRef = useRef<HTMLDivElement | null>(null);
   const aspectMenuRef = useRef<HTMLDivElement | null>(null);

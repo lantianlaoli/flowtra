@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { Buffer } from 'buffer'
 
 // Lazily initialize clients to avoid evaluating env vars during build time
 let browserClient: SupabaseClient | null = null
@@ -526,15 +527,19 @@ export const uploadProductPhotoToStorage = async (file: File, userId: string) =>
   console.log(`[uploadProductPhotoToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes)`);
   const fileName = `${userId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
   const filePath = `product/${fileName}`
-  const supabase = getSupabase()
+  const supabase = getSupabaseAdmin()
+
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
 
   // Upload to storage
   console.log(`[uploadProductPhotoToStorage] Uploading to storage path: ${filePath}`);
   const { data, error } = await supabase.storage
     .from('images')
-    .upload(filePath, file, {
+    .upload(filePath, buffer, {
       cacheControl: '3600',
-      upsert: false
+      upsert: false,
+      contentType: file.type || 'image/jpeg'
     })
 
   if (error) {
@@ -561,6 +566,31 @@ export const uploadProductPhotoToStorage = async (file: File, userId: string) =>
   }
 }
 
+export const deleteProductPhotoFromStorage = async (photoUrl: string | null | undefined) => {
+  if (!photoUrl) return
+
+  const supabase = getSupabaseAdmin()
+  const urlParts = photoUrl.split('/images/')
+  if (urlParts.length < 2) {
+    console.warn(`[deleteProductPhotoFromStorage] Invalid photo URL format: ${photoUrl}`)
+    return
+  }
+
+  const filePath = urlParts[1]
+  console.log(`[deleteProductPhotoFromStorage] Deleting file at path: ${filePath}`)
+
+  const { error } = await supabase.storage
+    .from('images')
+    .remove([filePath])
+
+  if (error) {
+    console.error(`[deleteProductPhotoFromStorage] Error deleting file:`, error)
+    throw new Error(`Failed to delete product photo: ${error.message}`)
+  }
+
+  console.log(`[deleteProductPhotoFromStorage] Successfully deleted file: ${filePath}`)
+}
+
 // Upload brand logo to storage in brands folder
 export const uploadBrandLogoToStorage = async (file: File, userId: string) => {
   console.log(`[uploadBrandLogoToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes)`);
@@ -570,15 +600,18 @@ export const uploadBrandLogoToStorage = async (file: File, userId: string) => {
   const fileName = `${uuid}_logo.${fileExt}`
   const filePath = `brands/${userId}/${fileName}`
 
-  const supabase = getSupabase()
+  const supabase = getSupabaseAdmin()
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
 
   // Upload to storage
   console.log(`[uploadBrandLogoToStorage] Uploading to storage path: ${filePath}`);
   const { data, error } = await supabase.storage
     .from('images')
-    .upload(filePath, file, {
+    .upload(filePath, buffer, {
       cacheControl: '3600',
-      upsert: false
+      upsert: false,
+      contentType: file.type || 'image/png'
     })
 
   if (error) {
@@ -606,8 +639,10 @@ export const uploadBrandLogoToStorage = async (file: File, userId: string) => {
 }
 
 // Delete brand logo from storage
-export const deleteBrandLogoFromStorage = async (logoUrl: string): Promise<void> => {
-  const supabase = getSupabase()
+export const deleteBrandLogoFromStorage = async (logoUrl: string | null | undefined): Promise<void> => {
+  if (!logoUrl) return
+
+  const supabase = getSupabaseAdmin()
 
   // Extract file path from URL
   // Format: https://{project}.supabase.co/storage/v1/object/public/images/brands/{userId}/{filename}
@@ -659,15 +694,18 @@ export const uploadCompetitorAdToStorage = async (
   const fileName = `${timestamp}_${competitorName.toLowerCase().replace(/\s+/g, '_')}.${fileExt}`;
   const filePath = `${brandId}/${competitorName}/${fileName}`;
 
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
 
   // Upload to competitor_videos bucket
   console.log(`[uploadCompetitorAdToStorage] Uploading to storage path: ${filePath}`);
   const { data, error } = await supabase.storage
     .from('competitor_videos')
-    .upload(filePath, file, {
+    .upload(filePath, buffer, {
       cacheControl: '3600',
-      upsert: false
+      upsert: false,
+      contentType: file.type
     });
 
   if (error) {
@@ -696,8 +734,9 @@ export const uploadCompetitorAdToStorage = async (
 };
 
 // Delete competitor ad file from storage
-export const deleteCompetitorAdFromStorage = async (adFileUrl: string): Promise<void> => {
-  const supabase = getSupabase();
+export const deleteCompetitorAdFromStorage = async (adFileUrl: string | null | undefined): Promise<void> => {
+  if (!adFileUrl) return
+  const supabase = getSupabaseAdmin();
 
   // Extract file path from URL
   // Format: https://{project}.supabase.co/storage/v1/object/public/competitor_videos/{brand_id}/{competitor_name}/{filename}

@@ -39,34 +39,63 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  type CreateProductRequest = {
+    product_name?: string;
+    description?: string | null;
+    brand_id?: string | null;
+    product_details?: string | null;
+  };
+
+  let requestBody: CreateProductRequest | null = null;
+  let userId: string | null = null;
+
   try {
-    const { userId } = await auth();
+    const authResult = await auth();
+    userId = authResult.userId ?? null;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
+    const body = (await req.json()) as CreateProductRequest;
+    requestBody = body;
     const { product_name, description, brand_id, product_details } = body;
+
+    console.log('[POST /api/user-products] Incoming request', {
+      userId,
+      hasName: Boolean(product_name),
+      hasDetails: Boolean(product_details),
+      brandId: brand_id || null
+    });
 
     if (!product_name) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from('user_products')
-      .insert({
-        user_id: userId,
-        product_name,
-        description: description || null,
-        product_details: product_details || null,
-        brand_id: brand_id || null
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
+    let data;
+    try {
+      const response = await supabase
+        .from('user_products')
+        .insert({
+          user_id: userId,
+          product_name,
+          description: description || null,
+          product_details: product_details || null,
+          brand_id: brand_id || null
+        })
+        .select()
+        .single();
+      data = response.data;
+      if (response.error) {
+        console.error('[POST /api/user-products] Supabase insert error', response.error);
+        throw response.error;
+      }
+    } catch (supabaseError) {
+      console.error('[POST /api/user-products] Supabase request failed', {
+        userId,
+        error: supabaseError instanceof Error ? supabaseError.message : supabaseError
+      });
+      throw supabaseError;
     }
 
     return NextResponse.json({
@@ -74,7 +103,11 @@ export async function POST(req: NextRequest) {
       product: data
     }, { status: 201 });
   } catch (error) {
-    console.error('Error creating product:', error);
+    console.error('[POST /api/user-products] Error creating product:', {
+      userId,
+      payload: requestBody,
+      error
+    });
     return NextResponse.json({
       error: 'Failed to create product',
       details: error instanceof Error ? error.message : 'Unknown error'

@@ -7,9 +7,23 @@ import {
   getGenerationCost,
   getLanguagePromptName,
   getSegmentCountFromDuration,
+  REPLICA_PHOTO_CREDITS,
   type LanguageCode
 } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+
+const KIE_PROMPT_LIMIT = 5000;
+const truncateText = (value: string | undefined | null, limit: number) => {
+  if (!value) return '';
+  if (value.length <= limit) return value;
+  return `${value.slice(0, Math.max(0, limit - 3))}...`;
+};
+const clampPromptLength = (value: string) => {
+  if (value.length <= KIE_PROMPT_LIMIT) {
+    return value;
+  }
+  return `${value.slice(0, KIE_PROMPT_LIMIT - 3)}...`;
+};
 
 export interface StartWorkflowRequest {
   imageUrl?: string;
@@ -18,7 +32,7 @@ export interface StartWorkflowRequest {
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
   userId: string;
   videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
-  imageModel?: 'auto' | 'nano_banana' | 'seedream';
+  imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
   watermark?: {
     text: string;
     location: string;
@@ -30,6 +44,11 @@ export interface StartWorkflowRequest {
   shouldGenerateVideo?: boolean;
   videoAspectRatio?: '16:9' | '9:16';
   adCopy?: string;
+  referenceImageUrls?: string[];
+  photoAspectRatio?: string;
+  photoResolution?: '1K' | '2K' | '4K';
+  photoOutputFormat?: 'png' | 'jpg';
+  replicaMode?: boolean;
   // NEW: Sora2 Pro params
   sora2ProDuration?: '10' | '15';
   sora2ProQuality?: 'standard' | 'high';
@@ -40,6 +59,7 @@ export interface StartWorkflowRequest {
   // NEW: Custom Script mode
   customScript?: string; // User-provided video script for direct video generation
   useCustomScript?: boolean; // Flag to enable custom script mode
+  resolvedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
 }
 
 interface WorkflowResult {
@@ -216,6 +236,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Load competitor ad if provided (optional reference for creative direction)
     // Extended type to include existing analysis and language for performance optimization
     let competitorAdContext: {
+      id?: string;
       file_url: string;
       file_type: 'image' | 'video';
       competitor_name: string;
@@ -235,6 +256,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
       if (competitorAd && !competitorError) {
         competitorAdContext = {
+          id: request.competitorAdId,
           file_url: competitorAd.ad_file_url,
           file_type: competitorAd.file_type as 'image' | 'video',
           competitor_name: competitorAd.competitor_name,
@@ -264,6 +286,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     const isSegmented = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
     const segmentCount = isSegmented ? getSegmentCountFromDuration(request.videoDuration, actualVideoModel) : 1;
     let remainingCreditsAfterDeduction: number | undefined;
+    const isReplicaMode = Boolean(
+      request.replicaMode &&
+      request.photoOnly &&
+      Array.isArray(request.referenceImageUrls) &&
+      request.referenceImageUrls.length > 0
+    );
 
     // ===== VERSION 3.0: MIXED BILLING - Generation Phase =====
     // Basic models (veo3_fast, sora2): FREE generation, paid download
@@ -271,7 +299,45 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     let generationCost = 0;
     const duration = request.videoDuration || request.sora2ProDuration;
     const quality = request.videoQuality || request.sora2ProQuality;
-    if (!request.photoOnly) {
+    if (isReplicaMode) {
+      generationCost = REPLICA_PHOTO_CREDITS;
+
+      const creditCheck = await checkCredits(request.userId, generationCost);
+      if (!creditCheck.success) {
+        return {
+          success: false,
+          error: 'Failed to check credits',
+          details: creditCheck.error || 'Credit check failed'
+        };
+      }
+
+      if (!creditCheck.hasEnoughCredits) {
+        return {
+          success: false,
+          error: 'Insufficient credits',
+          details: `Need ${generationCost} credits for replica photo mode, have ${creditCheck.currentCredits || 0}`
+        };
+      }
+
+      const deductResult = await deductCredits(request.userId, generationCost);
+      if (!deductResult.success) {
+        return {
+          success: false,
+          error: 'Failed to deduct credits',
+          details: deductResult.error || 'Credit deduction failed'
+        };
+      }
+      remainingCreditsAfterDeduction = deductResult.remainingCredits;
+
+      await recordCreditTransaction(
+        request.userId,
+        'usage',
+        generationCost,
+        'Standard Ads - Replica photo generation (Nano Banana Pro)',
+        undefined,
+        true
+      );
+    } else if (!request.photoOnly) {
       // Calculate generation cost based on model
       generationCost = getGenerationCost(
         actualVideoModel,
@@ -327,7 +393,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     // Determine actual cover_image_aspect_ratio (resolve 'auto' to actual value)
     let actualCoverAspectRatio: string;
-    if (request.imageSize === 'auto' || !request.imageSize) {
+    if (isReplicaMode && request.photoAspectRatio) {
+      actualCoverAspectRatio = request.photoAspectRatio;
+    } else if (request.imageSize === 'auto' || !request.imageSize) {
       // When image size is 'auto', use the video aspect ratio
       actualCoverAspectRatio = request.videoAspectRatio || '16:9';
     } else {
@@ -394,12 +462,21 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Wrap in IIFE to ensure error handling is reliable
     (async () => {
       try {
-        await startAIWorkflow(
-          project.id,
-          { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel },
-          productContext,
-          competitorAdContext // Pass competitor ad context for reference
-        );
+        if (isReplicaMode) {
+          await startReplicaWorkflow(
+            project.id,
+            { ...request, imageUrl, resolvedVideoModel: actualVideoModel },
+            productContext,
+            competitorAdContext
+          );
+        } else {
+          await startAIWorkflow(
+            project.id,
+            { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel },
+            productContext,
+            competitorAdContext // Pass competitor ad context for reference
+          );
+        }
       } catch (workflowError) {
         console.error('❌ Background workflow error:', workflowError);
         console.error('Stack trace:', workflowError instanceof Error ? workflowError.stack : 'No stack available');
@@ -408,11 +485,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           userId: request.userId,
           videoModel: actualVideoModel,
           generationCost,
-          photoOnly: request.photoOnly
+          photoOnly: request.photoOnly,
+          isReplicaMode
         });
 
         // REFUND credits on failure (only for paid generation models)
-        if (!request.photoOnly && generationCost > 0) {
+        if (generationCost > 0) {
           console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure`);
           try {
             await deductCredits(request.userId, -generationCost); // Negative = refund
@@ -420,7 +498,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
               request.userId,
               'refund',
               generationCost,
-              `Standard Ads - Refund for failed ${actualVideoModel.toUpperCase()} generation`,
+              isReplicaMode
+                ? 'Standard Ads - Refund for failed replica photo generation'
+                : `Standard Ads - Refund for failed ${actualVideoModel.toUpperCase()} generation`,
               project.id,
               true
             );
@@ -482,6 +562,7 @@ async function startAIWorkflow(
   },
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
   competitorAdContext?: {
+    id?: string;
     file_url: string;
     file_type: 'image' | 'video';
     competitor_name: string;
@@ -651,6 +732,198 @@ async function startAIWorkflow(
     console.error('AI workflow error:', error);
     throw error;
   }
+}
+
+async function startReplicaWorkflow(
+  projectId: string,
+  request: StartWorkflowRequest & {
+    imageUrl: string;
+    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+  },
+  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
+  competitorAdContext?: {
+    id?: string;
+    file_url: string;
+    file_type: 'image' | 'video';
+    competitor_name: string;
+    existing_analysis?: Record<string, unknown> | null;
+    analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
+    language?: string | null;
+  }
+): Promise<void> {
+  const supabase = getSupabaseAdmin();
+
+  if (!request.referenceImageUrls || request.referenceImageUrls.length === 0) {
+    throw new Error('Replica workflow requires reference images');
+  }
+
+  let competitorDescription: Record<string, unknown> | undefined;
+  let detectedLanguage: LanguageCode = (request.language as LanguageCode) || 'en';
+
+  if (competitorAdContext) {
+    if (competitorAdContext.analysis_status === 'completed' && competitorAdContext.existing_analysis) {
+      competitorDescription = competitorAdContext.existing_analysis as Record<string, unknown>;
+      detectedLanguage = (competitorAdContext.language as LanguageCode | undefined) || detectedLanguage;
+    } else {
+      const { analysis, language } = await analyzeCompetitorAdWithLanguage({
+        file_url: competitorAdContext.file_url,
+        file_type: competitorAdContext.file_type,
+        competitor_name: competitorAdContext.competitor_name
+      });
+      competitorDescription = analysis;
+      detectedLanguage = language;
+
+      if (competitorAdContext.id) {
+        await supabase
+          .from('competitor_ads')
+          .update({
+            analysis_result: analysis,
+            analysis_status: 'completed',
+            language
+          })
+          .eq('id', competitorAdContext.id);
+      }
+    }
+  }
+
+  const prompt = buildReplicaPrompt({
+    competitorDescription,
+    productContext,
+    language: detectedLanguage,
+    additionalRequirements: request.adCopy
+  });
+
+  const taskId = await generateReplicaPhoto({
+    prompt,
+    referenceImages: request.referenceImageUrls,
+    aspectRatio: request.photoAspectRatio,
+    resolution: request.photoResolution,
+    outputFormat: request.photoOutputFormat
+  });
+
+  const updateData = {
+    cover_task_id: taskId,
+    video_prompts: { replica_prompt: prompt },
+    product_description: {
+      brand_name: productContext?.brand_name,
+      brand_slogan: productContext?.brand_slogan,
+      brand_details: productContext?.brand_details,
+      product_details: productContext?.product_details
+    },
+    competitor_description: competitorDescription || null,
+    current_step: 'generating_cover' as const,
+    progress_percentage: 35,
+    last_processed_at: new Date().toISOString()
+  };
+
+  const { error: updateError } = await supabase
+    .from('standard_ads_projects')
+    .update(updateData)
+    .eq('id', projectId);
+
+  if (updateError) {
+    throw updateError;
+  }
+}
+
+function buildReplicaPrompt({
+  competitorDescription,
+  productContext,
+  language,
+  additionalRequirements
+}: {
+  competitorDescription?: Record<string, unknown>;
+  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string };
+  language?: LanguageCode;
+  additionalRequirements?: string;
+}): string {
+  const brandName = productContext?.brand_name || 'the featured brand';
+  const productDetails = truncateText(productContext?.product_details, 800);
+  const brandSlogan = truncateText(productContext?.brand_slogan, 200);
+  const subject = typeof competitorDescription?.subject === 'string' ? competitorDescription.subject : '';
+  const action = typeof competitorDescription?.action === 'string' ? competitorDescription.action : '';
+  const ambiance = typeof competitorDescription?.ambiance === 'string' ? competitorDescription.ambiance : '';
+  const style = typeof competitorDescription?.style === 'string' ? competitorDescription.style : '';
+  const firstFrame = typeof competitorDescription?.first_frame_composition === 'string'
+    ? competitorDescription.first_frame_composition
+    : '';
+  const sceneElements = Array.isArray((competitorDescription as { scene_elements?: Array<{ element: string; position: string; details: string }> })?.scene_elements)
+    ? ((competitorDescription as { scene_elements: Array<{ element: string; position: string; details: string }> }).scene_elements)
+    : [];
+  const MAX_SCENE_ELEMENTS = 12;
+  const visibleSceneElements = sceneElements.slice(0, MAX_SCENE_ELEMENTS);
+  const hasTrimmedScene = sceneElements.length > MAX_SCENE_ELEMENTS;
+
+  const sceneGuide = visibleSceneElements.length
+    ? `${visibleSceneElements.map(el => `- ${el.element} (${el.position}): ${truncateText(el.details, 280)}`).join('\n')}${hasTrimmedScene ? '\n- ... (trimmed additional scene elements)' : ''}`
+    : 'Match every visible background object, flooring, wall color, prop, and piece of furniture based on the competitor photo. Keep their placement and proportions identical.';
+  const sanitizedAdditionalRequirements = truncateText(additionalRequirements, 800);
+
+  const promptSections = [
+    `Replica UGC mode: recreate the competitor scene exactly as analyzed, but swap every branded object with ${brandName}'s products using the provided reference images. Maintain identical framing, pose, lens, lighting, mood, and prop placement.`,
+    subject && `Competitor subject focus: ${subject}`,
+    action && `Action/motion cues: ${action}`,
+    style && `Visual style: ${style}`,
+    ambiance && `Ambiance & color palette: ${ambiance}`,
+    firstFrame && `Spatial layout (match precisely): ${firstFrame}`,
+    'Scene elements to reproduce verbatim:\n' + sceneGuide,
+    productDetails && `Brand/Product cues: ${productDetails}`,
+    brandSlogan && `Brand tone: ${brandSlogan}`,
+    `Use only the supplied ${brandName} assets for replacement props. Preserve the same number of toys, type of flooring, wall textures, and negative space. If people or children are present, keep their poses, clothing vibes, and camera depth identical.`,
+    sanitizedAdditionalRequirements && `Additional requirements: ${sanitizedAdditionalRequirements}`,
+    `Language for any visible text: ${(language || 'en').toUpperCase()}.`
+  ].filter(Boolean);
+
+  return clampPromptLength(promptSections.join('\n\n'));
+}
+
+async function generateReplicaPhoto({
+  prompt,
+  referenceImages,
+  aspectRatio,
+  resolution,
+  outputFormat
+}: {
+  prompt: string;
+  referenceImages: string[];
+  aspectRatio?: string;
+  resolution?: '1K' | '2K' | '4K';
+  outputFormat?: 'png' | 'jpg';
+}): Promise<string> {
+  if (!referenceImages.length) {
+    throw new Error('Replica photo generation requires reference images');
+  }
+
+  const requestBody = {
+    model: IMAGE_MODELS.nano_banana_pro,
+    input: {
+      prompt,
+      image_input: referenceImages.slice(0, 10),
+      aspect_ratio: aspectRatio || '9:16',
+      resolution: resolution || '2K',
+      output_format: outputFormat || 'png'
+    }
+  };
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  }, 5, 30000);
+
+  if (!response.ok) {
+    throw new Error(`Replica photo generation failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (data.code !== 200 || !data.data?.taskId) {
+    throw new Error(data.msg || 'Failed to start replica photo task');
+  }
+
+  return data.data.taskId as string;
 }
 
 async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
@@ -1655,7 +1928,7 @@ ${competitorDescription ? '- CRITICAL: Replicate the exact scene elements and sp
   }
 
   // Ensure prompt doesn't exceed KIE API's 5000 character limit
-  const MAX_PROMPT_LENGTH = 5000;
+  const MAX_PROMPT_LENGTH = KIE_PROMPT_LIMIT;
   if (prompt.length > MAX_PROMPT_LENGTH) {
     // Truncate the description part while keeping the critical instructions and watermark
     const criticalInstructions = `IMPORTANT: Use the provided product image as the EXACT BASE. Maintain the original product's exact visual appearance, shape, design, colors, textures, and all distinctive features. DO NOT change the product itself.
@@ -1677,6 +1950,7 @@ Based on the provided product image, create an enhanced advertising version that
 
 Requirements: Keep exact product appearance, only enhance presentation.${watermarkSection}`;
   }
+  prompt = clampPromptLength(prompt);
 
   const targetAspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
   const resolvedImageSize = actualImageModel === 'nano_banana'

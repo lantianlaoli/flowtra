@@ -68,7 +68,10 @@ export default function MultiVariantAdsPage() {
   const actualModel = getActualModel(selectedModel, userCredits || 0) || 'veo3_fast';
   // Multi-variant workflow now supports Sora2
   const actualModelForWorkflow: 'veo3' | 'veo3_fast' | 'sora2' = actualModel as 'veo3' | 'veo3_fast' | 'sora2';
-  const actualImageModel = getActualImageModel(selectedImageModel);
+  const computedImageModel = getActualImageModel(selectedImageModel);
+  const actualImageModel: 'nano_banana' | 'seedream' = computedImageModel === 'nano_banana_pro'
+    ? 'nano_banana'
+    : computedImageModel;
 
   // Auto-derive ad copy and watermark from brand
   const derivedAdCopy = selectedBrand?.brand_slogan || '';

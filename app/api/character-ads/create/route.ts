@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
-import { CREDIT_COSTS, getActualModel, getActualImageModel, getCreditCost, getSora2ProCreditCost } from '@/lib/constants';
+import { CREDIT_COSTS, getActualImageModel } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
-import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { CHARACTER_ADS_DURATION_OPTIONS } from '@/lib/character-ads-dialogue';
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,16 +40,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate video duration
-    if (![8, 10, 16, 20, 24, 30].includes(videoDurationSeconds)) {
+    if (!CHARACTER_ADS_DURATION_OPTIONS.includes(videoDurationSeconds as typeof CHARACTER_ADS_DURATION_OPTIONS[number])) {
       return NextResponse.json(
-        { error: 'Invalid video duration. Must be 8, 10, 16, 20, 24, or 30 seconds' },
+        { error: 'Invalid video duration. Select between 8s and 80s in 8-second increments.' },
         { status: 400 }
       );
     }
 
     // Validate models
-    const validImageModels = ['auto', 'nano_banana', 'seedream'];
-    const validVideoModels = ['auto', 'veo3', 'veo3_fast', 'sora2', 'sora2_pro'];
+    const validImageModels = ['auto', 'nano_banana', 'seedream', 'nano_banana_pro'];
+    const validVideoModels = ['veo3_fast'];
 
     if (!validImageModels.includes(imageModel)) {
       return NextResponse.json(
@@ -60,21 +61,6 @@ export async function POST(request: NextRequest) {
     if (!validVideoModels.includes(videoModel)) {
       return NextResponse.json(
         { error: 'Invalid video model' },
-        { status: 400 }
-      );
-    }
-
-    // Enforce model-duration compatibility
-    const isSora2Duration = [10, 20, 30].includes(videoDurationSeconds);
-    if (isSora2Duration && videoModel !== 'sora2' && videoModel !== 'auto') {
-      return NextResponse.json(
-        { error: 'For 10s/20s/30s duration, video model must be Sora2' },
-        { status: 400 }
-      );
-    }
-    if (!isSora2Duration && videoModel === 'sora2') {
-      return NextResponse.json(
-        { error: 'Sora2 supports 10s/20s/30s durations only' },
         { status: 400 }
       );
     }
@@ -193,87 +179,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert 'auto' values to actual models using constants
-    const actualImageModel = getActualImageModel(imageModel as 'auto' | 'nano_banana' | 'seedream');
-    // Determine video model with duration constraints
-    let resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
-    if (isSora2Duration) {
-      resolvedVideoModel = videoModel === 'sora2_pro' ? 'sora2_pro' : 'sora2';
-    } else {
-      const actualVideoModel = getActualModel(videoModel as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro', 1000) || (videoModel === 'auto' ? 'veo3_fast' : (videoModel as 'veo3' | 'veo3_fast' | 'sora2_pro'));
-      const normalizedVideoModel = actualVideoModel === 'grok' ? 'veo3_fast' : actualVideoModel;
-      // Guard against sora2/sora2_pro sneaking in for 8/16/24
-      resolvedVideoModel = (normalizedVideoModel === 'sora2' || normalizedVideoModel === 'sora2_pro') ? 'veo3_fast' : normalizedVideoModel;
-    }
-    
-    // Calculate credits cost using constants (use actual model for cost calculation)
-    const imageCredits = 0; // Image generation is free according to constants
-    const sceneUnitSeconds = (resolvedVideoModel === 'sora2' || resolvedVideoModel === 'sora2_pro') ? 10 : 8;
+    const actualImageModel = getActualImageModel(imageModel as 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro');
+    const resolvedVideoModel = 'veo3_fast' as const;
+
+    const sceneUnitSeconds = 8;
     const videoScenes = videoDurationSeconds / sceneUnitSeconds;
+    const videoCreditsPerScene = CREDIT_COSTS[resolvedVideoModel];
+    const totalCredits = videoScenes * videoCreditsPerScene;
 
-    let videoCreditsPerScene: number;
-    if (resolvedVideoModel === 'sora2_pro') {
-      // For Sora2 Pro, we need duration and quality params (use defaults for character ads)
-      const sora2ProDuration = videoDurationSeconds === 10 ? '10' : '15';
-      const sora2ProQuality = 'standard'; // Default for character ads
-      videoCreditsPerScene = getSora2ProCreditCost(sora2ProDuration, sora2ProQuality);
-    } else {
-      videoCreditsPerScene = CREDIT_COSTS[resolvedVideoModel];
-    }
-
-    const totalCredits = imageCredits + (videoScenes * videoCreditsPerScene);
-
-    // VEO3 prepaid credit deduction
-    let generationCreditsUsed = 0;
-    if (resolvedVideoModel === 'veo3') {
-      const veo3CostPerScene = getCreditCost('veo3'); // 150 credits per scene
-      const totalVeo3Cost = veo3CostPerScene * videoScenes;
-
-      // Check if user has enough credits
-      const creditCheck = await checkCredits(userId, totalVeo3Cost);
-      if (!creditCheck.success) {
-        return NextResponse.json(
-          {
-            error: 'Failed to check credits',
-            details: creditCheck.error || 'Credit check failed'
-          },
-          { status: 500 }
-        );
-      }
-
-      if (!creditCheck.hasEnoughCredits) {
-        return NextResponse.json(
-          {
-            error: 'Insufficient credits',
-            details: `Need ${totalVeo3Cost} credits for ${videoScenes} VEO3 High Quality scene(s), have ${creditCheck.currentCredits || 0}`
-          },
-          { status: 400 }
-        );
-      }
-
-      // Deduct credits upfront
-      const deductResult = await deductCredits(userId, totalVeo3Cost);
-      if (!deductResult.success) {
-        return NextResponse.json(
-          {
-            error: 'Failed to deduct credits',
-            details: deductResult.error || 'Credit deduction failed'
-          },
-          { status: 500 }
-        );
-      }
-
-      // Record the transaction
-      await recordCreditTransaction(
-        userId,
-        'usage',
-        totalVeo3Cost,
-        `Character ads - ${videoScenes}x VEO3 High Quality scenes (prepaid)`,
-        undefined,
-        true
-      );
-
-      generationCreditsUsed = totalVeo3Cost;
-    }
+    const generationCreditsUsed = 0;
 
     // Create project in database
     const supabase = getSupabaseAdmin();
