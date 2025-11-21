@@ -130,6 +130,9 @@ export default function AssetsManager() {
         }
       }));
     }
+
+    // Refresh from the server to ensure photos show up immediately
+    void loadAssets();
   };
 
   const handleEditProduct = (product: UserProduct) => {

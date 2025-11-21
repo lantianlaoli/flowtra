@@ -1,6 +1,22 @@
-export type CharacterAdsDuration = 8 | 10 | 16 | 20 | 24 | 30;
+export const CHARACTER_ADS_DURATION_OPTIONS = [
+  8,
+  16,
+  24,
+  32,
+  40,
+  48,
+  56,
+  64,
+  72,
+  80
+] as const;
 
-const DIALOGUE_WORD_LIMITS: Record<CharacterAdsDuration, number> = {
+export type CharacterAdsDuration = typeof CHARACTER_ADS_DURATION_OPTIONS[number];
+
+const DEFAULT_WORDS_PER_SECOND = 5.6;
+
+// Preserve legacy explicit limits for historical durations so older projects remain consistent
+const LEGACY_WORD_LIMITS: Record<number, number> = {
   8: 48,
   10: 60,
   16: 88,
@@ -9,22 +25,12 @@ const DIALOGUE_WORD_LIMITS: Record<CharacterAdsDuration, number> = {
   30: 168
 };
 
-const FALLBACK_DURATION: CharacterAdsDuration = 16;
-
-const DURATION_KEYS: CharacterAdsDuration[] = [8, 10, 16, 20, 24, 30];
-
 export function getCharacterAdsDialogueWordLimit(durationSeconds: number): number {
-  if (DIALOGUE_WORD_LIMITS[durationSeconds as CharacterAdsDuration]) {
-    return DIALOGUE_WORD_LIMITS[durationSeconds as CharacterAdsDuration];
+  if (LEGACY_WORD_LIMITS[durationSeconds]) {
+    return LEGACY_WORD_LIMITS[durationSeconds];
   }
 
-  const closest = DURATION_KEYS.reduce((closestDuration, current) => {
-    const closestDiff = Math.abs(closestDuration - durationSeconds);
-    const currentDiff = Math.abs(current - durationSeconds);
-    return currentDiff < closestDiff ? current : closestDuration;
-  }, FALLBACK_DURATION);
-
-  return DIALOGUE_WORD_LIMITS[closest];
+  return Math.round(durationSeconds * DEFAULT_WORDS_PER_SECOND);
 }
 
 export function countDialogueWords(content: string): number {

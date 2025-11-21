@@ -28,7 +28,8 @@ import {
   getGenerationCost,
   getSegmentCountFromDuration,
   type VideoModel,
-  type VideoDuration
+  type VideoDuration,
+  REPLICA_PHOTO_CREDITS
 } from '@/lib/constants';
 import { Format } from '@/components/ui/FormatSelector';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
@@ -40,6 +41,15 @@ interface KieCreditsStatus {
   currentCredits?: number;
   threshold?: number;
 }
+
+type ReplicaAspectRatio = '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '4:5' | '5:4' | '9:16' | '16:9' | '21:9';
+type ReplicaResolution = '1K' | '2K' | '4K';
+type ReplicaOutputFormat = 'png' | 'jpg';
+
+const MAX_REPLICA_ASSETS = 9;
+const REPLICA_ASPECT_RATIOS: ReplicaAspectRatio[] = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
+const REPLICA_RESOLUTIONS: ReplicaResolution[] = ['1K', '2K', '4K'];
+const REPLICA_OUTPUT_FORMATS: ReplicaOutputFormat[] = ['png', 'jpg'];
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
   generating_cover: 'Generating cover image…',
@@ -270,8 +280,15 @@ export default function StandardAdsPage() {
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
   const [selectedCompetitorAd, setSelectedCompetitorAd] = useState<CompetitorAd | null>(null);
+  const isCompetitorPhotoMode = selectedCompetitorAd?.file_type === 'image';
+  const competitorImageUrl = isCompetitorPhotoMode ? selectedCompetitorAd?.ad_file_url ?? null : null;
+  const [replicaSelectedProducts, setReplicaSelectedProducts] = useState<UserProduct[]>([]);
+  const [photoAspectRatio, setPhotoAspectRatio] = useState<ReplicaAspectRatio>('9:16');
+  const [photoResolution, setPhotoResolution] = useState<ReplicaResolution>('2K');
+  const [photoOutputFormat, setPhotoOutputFormat] = useState<ReplicaOutputFormat>('png');
   const [isGenerating, setIsGenerating] = useState(false);
   const isMountedRef = useRef(true);
+  const effectiveImageModel = isCompetitorPhotoMode ? 'nano_banana_pro' : selectedImageModel;
 
   // Modal states for user guidance
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -301,6 +318,56 @@ export default function StandardAdsPage() {
       setSelectedLanguage(selectedCompetitorAd.language as LanguageCode);
     }
   }, [selectedCompetitorAd, selectedLanguage]);
+
+  const selectedBrandId = selectedBrand?.id || null;
+  const selectedCompetitorAdId = selectedCompetitorAd?.id || null;
+
+  useEffect(() => {
+    if (!selectedBrandId || !isCompetitorPhotoMode) {
+      setReplicaSelectedProducts(() => []);
+      return;
+    }
+    setReplicaSelectedProducts(() => []);
+    setSelectedProduct(prev => (prev ? null : prev));
+  }, [selectedBrandId, selectedCompetitorAdId, isCompetitorPhotoMode]);
+
+  const selectedReplicaAssetUrls = useMemo(() => {
+    if (!isCompetitorPhotoMode) {
+      return [];
+    }
+
+    const urls: string[] = [];
+    const seen = new Set<string>();
+
+    const addUrl = (url?: string | null) => {
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      urls.push(url);
+    };
+
+    addUrl(selectedBrand?.brand_logo_url || null);
+
+    replicaSelectedProducts.forEach((product) => {
+      const photo = product.user_product_photos?.find((p) => p.is_primary) || product.user_product_photos?.[0];
+      addUrl(photo?.photo_url);
+    });
+
+    return urls.slice(0, MAX_REPLICA_ASSETS);
+  }, [isCompetitorPhotoMode, replicaSelectedProducts, selectedBrand?.brand_logo_url]);
+
+  const replicaSelectedProductIds = useMemo(
+    () => replicaSelectedProducts.map(product => product.id),
+    [replicaSelectedProducts]
+  );
+
+  const handleReplicaSelectionChange = useCallback((products: UserProduct[]) => {
+    setReplicaSelectedProducts(products);
+    setSelectedProduct(products[0] ?? null);
+  }, []);
+
+  const handleReplicaSelectionLimitReached = useCallback((limit: number) => {
+    showError(`You can select up to ${limit} products.`);
+  }, [showError]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -347,6 +414,7 @@ export default function StandardAdsPage() {
   // Auto-derive brand info
   const derivedAdCopy = selectedBrand?.brand_slogan || '';
   const derivedWatermark = selectedBrand?.brand_name || '';
+  const shouldGenerateVideo = !isCompetitorPhotoMode;
 
   // Build final prompt with additional requirements
   const buildFinalPrompt = useCallback(() => {
@@ -360,7 +428,7 @@ export default function StandardAdsPage() {
   const { startWorkflowWithSelectedProduct } = useStandardAdsWorkflow(
     user?.id,
     selectedModel,
-    selectedImageModel,
+    effectiveImageModel,
     updateCredits,
     refetchCredits,
     elementsCount,
@@ -677,11 +745,31 @@ export default function StandardAdsPage() {
       return;
     }
 
+    if (isCompetitorPhotoMode) {
+      if (!competitorImageUrl) {
+        setValidationMessage('Select a competitor photo in the Assets panel before generating.');
+        setShowValidationModal(true);
+        return;
+      }
+      if (replicaSelectedProducts.length === 0) {
+        setValidationMessage('Select at least one of your products to replace the competitor assets.');
+        setShowValidationModal(true);
+        return;
+      }
+      if (selectedReplicaAssetUrls.length === 0) {
+        setValidationMessage('Add brand or product photos in Assets before running competitor replicas.');
+        setShowValidationModal(true);
+        return;
+      }
+    }
+
     if (isGenerating) return;
 
     setIsGenerating(true);
 
-    const initialSegmentCount = getSegmentCountFromDuration(videoDuration, selectedModel);
+    const initialSegmentCount = shouldGenerateVideo
+      ? getSegmentCountFromDuration(videoDuration, selectedModel)
+      : null;
 
     // Create new generation entry
     const newGeneration: SessionGeneration = {
@@ -689,14 +777,14 @@ export default function StandardAdsPage() {
       timestamp: new Date(),
       status: 'pending',
       progress: 5,
-      stage: 'Initializing…',
+      stage: isCompetitorPhotoMode ? 'Preparing replica photo…' : 'Initializing…',
       platform: selectedPlatform,
       brand: selectedBrand.brand_name,
       product: selectedProduct.product_name,
-      videoModel: selectedModel,
+      videoModel: shouldGenerateVideo ? selectedModel : undefined,
       downloaded: false,
-      segmentCount: initialSegmentCount,
-      videoDuration
+      segmentCount: initialSegmentCount ?? undefined,
+      videoDuration: shouldGenerateVideo ? videoDuration : null
     };
 
     setGenerations(prev => [newGeneration, ...prev]);
@@ -712,14 +800,24 @@ export default function StandardAdsPage() {
         location: 'bottom-right' as const,
       };
 
+      const replicaPayload = isCompetitorPhotoMode ? {
+        photoOnly: true,
+        replicaMode: true,
+        referenceImageUrls: [competitorImageUrl!, ...selectedReplicaAssetUrls].slice(0, MAX_REPLICA_ASSETS + 1),
+        photoAspectRatio,
+        photoResolution,
+        photoOutputFormat
+      } : undefined;
+
       const workflowResult = await startWorkflowWithSelectedProduct(
         selectedProduct.id,
         watermarkConfig,
         elementsCount,
         format,
-        true, // shouldGenerateVideo - always true now
+        shouldGenerateVideo,
         selectedBrand.id,
-        selectedCompetitorAd?.id || null // Pass competitor ad ID
+        selectedCompetitorAd?.id || null,
+        replicaPayload
       );
 
       const projectId = workflowResult?.historyId || workflowResult?.projectId;
@@ -729,8 +827,8 @@ export default function StandardAdsPage() {
           ? {
               ...gen,
               status: 'processing',
-              stage: STEP_DESCRIPTIONS.generating_cover,
-              progress: 20,
+              stage: isCompetitorPhotoMode ? 'Generating replica photo…' : STEP_DESCRIPTIONS.generating_cover,
+              progress: isCompetitorPhotoMode ? 30 : 20,
               projectId: projectId || gen.projectId
             }
           : gen
@@ -740,7 +838,7 @@ export default function StandardAdsPage() {
         fetchStatusForProject(projectId);
       }
 
-      showSuccess('Video generation started! Check progress above.');
+      showSuccess(isCompetitorPhotoMode ? 'Replica photo generation started!' : 'Video generation started! Check progress above.');
 
     } catch (error: unknown) {
       console.error('Failed to start workflow:', error);
@@ -761,10 +859,17 @@ export default function StandardAdsPage() {
   };
 
   // Calculate cost for generate button
-  const canGenerate = !isGenerating && selectedProduct && selectedBrand;
-  const generationCost = getGenerationCost(selectedModel, videoDuration.toString(), videoQuality);
-  const isFreeGen = isFreeGenerationModel(selectedModel);
-  const canAfford = canAffordModel(userCredits || 0, selectedModel);
+  const generationCost = isCompetitorPhotoMode
+    ? REPLICA_PHOTO_CREDITS
+    : getGenerationCost(selectedModel, videoDuration.toString(), videoQuality);
+  const isFreeGen = !isCompetitorPhotoMode && isFreeGenerationModel(selectedModel);
+  const canAfford = isCompetitorPhotoMode
+    ? (userCredits || 0) >= generationCost
+    : canAffordModel(userCredits || 0, selectedModel);
+  const hasReplicaAssetSelection = selectedReplicaAssetUrls.length > 0;
+  const hasReplicaProductsSelected = replicaSelectedProducts.length > 0;
+  const replicaSelectionValid = !isCompetitorPhotoMode || (competitorImageUrl && hasReplicaProductsSelected && hasReplicaAssetSelection);
+  const canGenerate = !isGenerating && selectedProduct && selectedBrand && replicaSelectionValid;
 
   // Render insufficient credits or maintenance message
   if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
@@ -786,6 +891,12 @@ export default function StandardAdsPage() {
   }
 
   if (!canAfford) {
+    const insufficientMessage = isCompetitorPhotoMode
+      ? `Replica photo mode requires ${generationCost} credits but you only have ${userCredits || 0} credits.`
+      : `You need ${generationCost} credits but only have ${userCredits || 0} credits.`;
+    const insufficientAction = isCompetitorPhotoMode
+      ? 'Please top up credits to continue generating competitor replica photos.'
+      : `Please purchase more credits to continue using ${selectedModel}.`;
     return (
       <div className="flex h-screen bg-gray-50">
         <Sidebar {...sidebarProps} />
@@ -794,10 +905,10 @@ export default function StandardAdsPage() {
             <div className="bg-white rounded-lg shadow-lg p-8 text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Insufficient Credits</h2>
               <p className="text-gray-600 mb-2">
-                You need {generationCost} credits but only have {userCredits || 0} credits.
+                {insufficientMessage}
               </p>
               <p className="text-gray-600">
-                Please purchase more credits to continue using {selectedModel}.
+                {insufficientAction}
               </p>
             </div>
           </div>
@@ -845,7 +956,7 @@ export default function StandardAdsPage() {
 
     {/* Bottom Composer */}
     <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-4 sm:px-8 lg:px-10 pb-4">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto space-y-3">
         <div className="bg-white/95 backdrop-blur border border-gray-200 rounded-[34px] shadow-xl px-4 sm:px-5 py-3 flex flex-wrap items-center gap-3">
           {/* Left controls */}
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -864,6 +975,11 @@ export default function StandardAdsPage() {
               onProductSelect={setSelectedProduct}
               className="flex items-center gap-2"
               variant="compact"
+              replicaMode={isCompetitorPhotoMode}
+              replicaSelectedProductIds={replicaSelectedProductIds}
+              onReplicaSelectionChange={handleReplicaSelectionChange}
+              replicaSelectionLimit={MAX_REPLICA_ASSETS}
+              onReplicaSelectionLimitReached={handleReplicaSelectionLimitReached}
             />
           </div>
 
@@ -878,6 +994,7 @@ export default function StandardAdsPage() {
             hideCounter
           />
 
+          {/* Replica asset selector */}
           {/* Actions */}
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
             <ConfigPopover
@@ -899,6 +1016,16 @@ export default function StandardAdsPage() {
               onWatermarkEnabledChange={setWatermarkEnabled}
               disabled={isGenerating}
               variant="minimal"
+              mode={isCompetitorPhotoMode ? 'photo' : 'video'}
+              photoAspectRatio={photoAspectRatio}
+              onPhotoAspectRatioChange={(value) => setPhotoAspectRatio(value as ReplicaAspectRatio)}
+              photoAspectRatioOptions={REPLICA_ASPECT_RATIOS}
+              photoResolution={photoResolution}
+              onPhotoResolutionChange={(value) => setPhotoResolution(value as ReplicaResolution)}
+              photoResolutionOptions={REPLICA_RESOLUTIONS}
+              photoOutputFormat={photoOutputFormat}
+              onPhotoOutputFormatChange={(value) => setPhotoOutputFormat(value as ReplicaOutputFormat)}
+              photoOutputFormatOptions={REPLICA_OUTPUT_FORMATS}
             />
 
             <div className="flex flex-col items-end gap-1">

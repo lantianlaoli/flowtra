@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { getSupabaseAdmin, uploadProductPhotoToStorage } from '@/lib/supabase';
+import { getSupabaseAdmin, uploadProductPhotoToStorage, deleteProductPhotoFromStorage } from '@/lib/supabase';
 import sharp from 'sharp';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -171,7 +171,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const supabase = getSupabaseAdmin();
 
     // Delete photo record
-    const { error } = await supabase
+    const { data: deletedPhoto, error } = await supabase
       .from('user_product_photos')
       .delete()
       .eq('id', photoId)
@@ -187,8 +187,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       throw error;
     }
 
-    // TODO: Delete from Supabase storage
-    // This would require implementing storage deletion logic
+    if (deletedPhoto?.photo_url) {
+      try {
+        await deleteProductPhotoFromStorage(deletedPhoto.photo_url);
+      } catch (storageError) {
+        console.warn('Failed to delete product photo from storage:', storageError);
+      }
+    }
 
     return NextResponse.json({
       success: true,

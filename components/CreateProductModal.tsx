@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Package, Upload, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
+import { AlertCircle, Loader2, Package, Upload, X } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -12,6 +13,31 @@ interface CreateProductModalProps {
   onProductCreated: (product: UserProduct) => void;
   preselectedBrandId?: string | null;
 }
+
+type AnalysisState = 'idle' | 'analyzing' | 'completed' | 'failed';
+
+const STATUS_COPY: Record<AnalysisState, { label: string; badge: string; helper: string }> = {
+  idle: {
+    label: 'Waiting for photo',
+    badge: 'bg-gray-200 text-gray-700',
+    helper: 'Upload a clear product photo and Flowtra will describe it automatically.'
+  },
+  analyzing: {
+    label: 'Analyzing photo…',
+    badge: 'bg-blue-100 text-blue-800',
+    helper: 'Hang tight while we inspect the photo and write the product copy.'
+  },
+  completed: {
+    label: 'Metadata ready',
+    badge: 'bg-emerald-100 text-emerald-800',
+    helper: 'Review or tweak the generated name and description before saving.'
+  },
+  failed: {
+    label: 'Analysis failed',
+    badge: 'bg-red-100 text-red-800',
+    helper: 'Upload a new photo to retry the automatic analysis.'
+  }
+};
 
 export default function CreateProductModal({
   isOpen,
@@ -21,32 +47,30 @@ export default function CreateProductModal({
 }: CreateProductModalProps) {
   const [productName, setProductName] = useState('');
   const [productDetails, setProductDetails] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisState>('idle');
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setProductName('');
       setProductDetails('');
-      setError(null);
       setUploadedImage(null);
       setImagePreview(null);
-      // Auto focus input after modal animation
-      setTimeout(() => {
-        const input = document.querySelector('#product-name-input') as HTMLInputElement;
-        if (input) input.focus();
-      }, 150);
+      setAnalysisStatus('idle');
+      setAnalysisError(null);
+      setFormError(null);
     }
   }, [isOpen]);
 
-  // Handle ESC key
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
         onClose();
       }
     };
@@ -55,30 +79,70 @@ export default function CreateProductModal({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setUploadedImage(file);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setFormError('Please upload a PNG or JPG file.');
+      return;
+    }
+
+    setFormError(null);
+    setAnalysisError(null);
+    setUploadedImage(file);
+    setAnalysisStatus('analyzing');
+
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    analyzePhoto(file);
+  };
+
+  const analyzePhoto = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/user-products/analyze', {
+        method: 'POST',
+        body: formData
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.productName) {
+        const message = payload?.error || payload?.details || 'Failed to analyze product photo';
+        throw new Error(message);
+      }
+
+      setProductName(payload.productName.slice(0, 100));
+      setProductDetails(payload.productDetails || '');
+      setAnalysisStatus('completed');
+    } catch (error) {
+      console.error('Product analysis failed:', error);
+      setAnalysisStatus('failed');
+      setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze product photo');
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!productName.trim()) {
-      setError('Product name is required');
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!uploadedImage) {
+      setFormError('Upload a product photo to continue.');
+      return;
+    }
+
+    if (analysisStatus !== 'completed') {
+      setFormError('Wait for the AI analysis to finish before saving.');
       return;
     }
 
     setIsCreating(true);
-    setError(null);
+    setFormError(null);
 
     try {
-      // First create the product
       const response = await fetch('/api/user-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,48 +153,60 @@ export default function CreateProductModal({
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create product');
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.product) {
+        const message = payload?.details || payload?.error || `Failed to create product (${response.status})`;
+        throw new Error(message);
       }
 
-      const data = await response.json();
-      const newProduct = data.product;
+      const newProduct = payload.product as UserProduct;
 
-      // If there's an uploaded image, upload it as the first photo
-      if (uploadedImage) {
-        setIsUploading(true);
-        const formData = new FormData();
-        formData.append('file', uploadedImage);
-        formData.append('is_primary', 'true');
+      setIsUploading(true);
+      try {
+        const uploadForm = new FormData();
+        uploadForm.append('file', uploadedImage);
+        uploadForm.append('is_primary', 'true');
 
         const photoResponse = await fetch(`/api/user-products/${newProduct.id}/photos`, {
           method: 'POST',
-          body: formData
+          body: uploadForm
         });
 
-        if (photoResponse.ok) {
-          const photoData = await photoResponse.json();
-          // Update the product with the uploaded photo
-          newProduct.user_product_photos = [photoData.photo];
+        const photoPayload = await photoResponse.json().catch(() => ({}));
+        if (!photoResponse.ok || !photoPayload?.photo) {
+          console.error('Product photo upload failed:', {
+            status: photoResponse.status,
+            payload: photoPayload
+          });
+          throw new Error(photoPayload?.error || photoPayload?.details || 'Failed to upload product photo');
         }
+
+        newProduct.user_product_photos = [photoPayload.photo];
+      } catch (photoError) {
+        await fetch(`/api/user-products/${newProduct.id}`, { method: 'DELETE' }).catch(() => null);
+        throw photoError;
+      } finally {
+        setIsUploading(false);
       }
 
       onProductCreated(newProduct);
       onClose();
     } catch (error) {
       console.error('Error creating product:', error);
-      setError('Failed to create product. Please try again.');
+      setFormError(error instanceof Error ? error.message : 'Failed to create product. Please try again.');
     } finally {
       setIsCreating(false);
-      setIsUploading(false);
     }
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
+  const handleBackdropClick = (event: React.MouseEvent) => {
+    if (event.target === event.currentTarget) {
       onClose();
     }
   };
+
+  const canSubmit = Boolean(uploadedImage && analysisStatus === 'completed' && !isCreating && !isUploading);
+  const statusMeta = STATUS_COPY[analysisStatus];
 
   return (
     <AnimatePresence>
@@ -142,7 +218,6 @@ export default function CreateProductModal({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {/* Backdrop */}
           <motion.div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={handleBackdropClick}
@@ -151,141 +226,168 @@ export default function CreateProductModal({
             exit={{ opacity: 0 }}
           />
 
-          {/* Modal Card */}
           <motion.div
-            className="relative bg-white rounded-xl shadow-lg border border-gray-200 w-full max-w-md mx-auto"
+            className="relative w-full max-w-4xl rounded-2xl border border-gray-200 bg-white shadow-2xl"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-5">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-                  <Package className="w-4 h-4 text-white" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-white">
+                  <Package className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Create New Product</h3>
-                  <p className="text-sm text-gray-600">Enter your product name to get started</p>
+                  <p className="text-xl font-semibold text-gray-900">Create New Product</p>
+                  <p className="text-sm text-gray-600">Upload a product photo and Flowtra will write the listing for you.</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+                className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100"
                 disabled={isCreating}
               >
-                <X className="w-4 h-4 text-gray-500" />
+                <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Product Name Input */}
-            <div>
-              <label htmlFor="product-name-input" className="block text-sm font-medium text-gray-700 mb-2">
-                Product Name *
-              </label>
-              <input
-                id="product-name-input"
-                type="text"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors"
-                placeholder="Enter product name"
-                disabled={isCreating}
-                maxLength={100}
-              />
-              {error && (
-                <p className="mt-1 text-sm text-red-600">{error}</p>
+            <form onSubmit={handleSubmit} className="space-y-6 px-6 py-6">
+              {formError && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{formError}</span>
+                </div>
               )}
-            </div>
 
-            {/* Product Details Input */}
-            <div>
-              <label htmlFor="product-details-input" className="block text-sm font-medium text-gray-700 mb-2">
-                Product Details (Optional)
-              </label>
-              <textarea
-                id="product-details-input"
-                value={productDetails}
-                onChange={(e) => setProductDetails(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors min-h-24"
-                placeholder="Materials, features, sizing, use cases, target audience, etc."
-                disabled={isCreating}
-                maxLength={2000}
-              />
-              <p className="mt-1 text-xs text-gray-500">This context improves ad generation quality.</p>
-            </div>
-
-              {/* Optional Image Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Image (Optional)
-                </label>
-                <div className="space-y-3">
-                  {imagePreview ? (
-                    <div className="relative">
-                      <Image
-                        src={imagePreview}
-                        alt="Product preview"
-                        width={400}
-                        height={128}
-                        className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUploadedImage(null);
-                          setImagePreview(null);
-                        }}
-                        className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                        disabled={isCreating}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="space-y-3 lg:w-5/12">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    className={cn(
+                      "relative aspect-[3/4] w-full overflow-hidden rounded-2xl border-2 border-dashed transition",
+                      imagePreview
+                        ? "border-gray-200 bg-gray-900/5"
+                        : "border-gray-300 bg-gray-50 hover:border-gray-400"
+                    )}
+                  >
+                    <div className="absolute left-3 top-3">
+                      <span className={cn("text-xs font-semibold px-3 py-1 rounded-full", statusMeta.badge)}>
+                        {statusMeta.label}
+                      </span>
                     </div>
-                  ) : (
-                    <label className="block">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        disabled={isCreating}
-                      />
-                      <div className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-gray-400 cursor-pointer transition-colors">
-                        <Upload className="w-6 h-6 text-gray-400 mb-2" />
-                        <p className="text-sm text-gray-600">Click to upload image</p>
-                        <p className="text-xs text-gray-500">PNG, JPG up to 8MB</p>
+
+                    {imagePreview ? (
+                      <>
+                        <Image src={imagePreview} alt="Product preview" fill className="object-cover" />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
+                          onClick={() => {
+                            setUploadedImage(null);
+                            setImagePreview(null);
+                            setAnalysisStatus('idle');
+                            setAnalysisError(null);
+                            setProductName('');
+                            setProductDetails('');
+                          }}
+                          disabled={isCreating}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-600">
+                        <Upload className="mb-3 h-6 w-6 text-gray-400" />
+                        <p className="font-semibold text-gray-900">Drop a product photo or click to browse</p>
+                        <p className="mt-1 text-xs text-gray-500">PNG or JPG, up to 8MB. Clear shots work best.</p>
                       </div>
-                    </label>
+                    )}
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                      disabled={isCreating}
+                    />
+
+                    {analysisStatus === 'analyzing' && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+                        <Loader2 className="h-6 w-6 animate-spin text-gray-700" />
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-gray-500">{statusMeta.helper}</p>
+                  {analysisError && (
+                    <p className="text-xs text-red-600">{analysisError}</p>
                   )}
+                </div>
+
+                <div className="flex-1 space-y-5">
+                  <div>
+                    <label htmlFor="product-name" className="mb-2 block text-sm font-medium text-gray-700">
+                      Product Name
+                    </label>
+                    <input
+                      id="product-name"
+                      type="text"
+                      value={productName}
+                      onChange={(event) => setProductName(event.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                      placeholder="AI generated name"
+                      disabled={isCreating}
+                      maxLength={100}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="product-details" className="mb-2 block text-sm font-medium text-gray-700">
+                      Product Details
+                    </label>
+                    <textarea
+                      id="product-details"
+                      value={productDetails}
+                      onChange={(event) => setProductDetails(event.target.value)}
+                      className="min-h-28 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                      placeholder="AI generated description"
+                      disabled={isCreating}
+                      maxLength={2000}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Flowtra drafts 2-3 short sentences automatically. Refine them before saving if needed.
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col gap-3 pt-2 sm:flex-row">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
                   disabled={isCreating}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isCreating || !productName.trim()}
-                  className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  disabled={!canSubmit}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-40"
                 >
-                  {isCreating && (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  )}
-                  {isCreating
-                    ? (isUploading ? 'Uploading...' : 'Creating...')
-                    : 'Create Product'
-                  }
+                  {(isCreating || isUploading) && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isCreating ? (isUploading ? 'Uploading photo…' : 'Creating…') : 'Save Product'}
                 </button>
               </div>
             </form>

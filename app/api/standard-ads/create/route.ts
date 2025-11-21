@@ -35,6 +35,17 @@ export async function POST(request: NextRequest) {
       requestData.photoOnly = true;
     }
 
+    if (requestData.replicaMode) {
+      if (!Array.isArray(requestData.referenceImageUrls) || requestData.referenceImageUrls.length === 0) {
+        return NextResponse.json(
+          { error: 'Replica mode requires reference images' },
+          { status: 400 }
+        );
+      }
+      requestData.referenceImageUrls = requestData.referenceImageUrls.slice(0, 10);
+      requestData.photoOnly = true;
+    }
+
     // Fix model selection issue: ensure nano_banana selection doesn't show as auto
     if (requestData.imageModel === 'auto') {
       // Default to use nano_banana as the actual model for auto

@@ -14,7 +14,7 @@ export interface MultiVariantAdsRequest {
   generateVideo?: boolean;
   videoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
   requestedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
-  imageModel?: 'auto' | 'nano_banana' | 'seedream';
+  imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
   watermark?: {
     text: string;
     location: string;

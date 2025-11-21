@@ -32,7 +32,10 @@ interface KieCreditsStatus {
 
 const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
 const DEFAULT_IMAGE_MODEL = 'nano_banana_pro' as const;
-const DEFAULT_IMAGE_SIZE = 'auto';
+const IMAGE_SIZE_BY_ASPECT: Record<'16:9' | '9:16', 'landscape_16_9' | 'portrait_16_9'> = {
+  '16:9': 'landscape_16_9',
+  '9:16': 'portrait_16_9'
+};
 const SESSION_STORAGE_KEY = 'flowtra_character_ads_generations';
 const ASPECT_OPTIONS = [
   { value: '16:9', label: 'Landscape', subtitle: '16:9' },
@@ -64,6 +67,23 @@ const LANGUAGE_OPTIONS = [
 type CharacterGeneration = Generation & { projectId?: string; coverUrl?: string | null };
 const sortGenerations = (items: CharacterGeneration[]) =>
   [...items].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+const CHARACTER_EMPTY_STEPS = [
+  {
+    icon: '📦',
+    title: 'Step 1',
+    description: 'Create your brands & products in Assets',
+  },
+  {
+    icon: '🎭',
+    title: 'Step 2',
+    description: 'Select character, brand, and product above',
+  },
+  {
+    icon: '✨',
+    title: 'Step 3',
+    description: 'Click Generate to create your video',
+  },
+];
 interface CharacterAdsStatusPayload {
   success?: boolean;
   project: {
@@ -93,6 +113,9 @@ const CHARACTER_STAGE_HINTS: Record<string, string> = {
   generating_videos: 'Producing video scenes…',
   merging_videos: 'Merging scenes…'
 };
+
+const isActiveGeneration = (generation: CharacterGeneration) =>
+  generation.status === 'pending' || generation.status === 'processing';
 
 const getStageLabel = (status: Generation['status'], step?: string | null) => {
   if (status === 'completed') return 'Completed';
@@ -147,6 +170,7 @@ const formatDurationLabel = (seconds: number) => {
   const [generations, setGenerations] = useState<CharacterGeneration[]>([]);
   const [downloadingProjects, setDownloadingProjects] = useState<Record<string, boolean>>({});
   const isMountedRef = useRef(true);
+  const notifiedProjectsRef = useRef<Record<string, Generation['status']>>({});
 
   const dialogueWordLimit = useMemo(
     () => getCharacterAdsDialogueWordLimit(videoDuration),
@@ -163,6 +187,22 @@ const formatDurationLabel = (seconds: number) => {
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const notifyProjectStatus = useCallback((projectId: string, status: Generation['status']) => {
+    if (status !== 'completed' && status !== 'failed') {
+      return;
+    }
+    const previous = notifiedProjectsRef.current[projectId];
+    if (previous === status) {
+      return;
+    }
+    notifiedProjectsRef.current[projectId] = status;
+    if (status === 'completed') {
+      showSuccess('Character ad finished! Download it from History.');
+    } else {
+      showError('Character ad failed. Please try again.');
+    }
+  }, [showError, showSuccess]);
 
   // KIE credits state
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
@@ -253,7 +293,7 @@ const formatDurationLabel = (seconds: number) => {
       }
       formData.append('video_duration_seconds', videoDuration.toString());
       formData.append('image_model', DEFAULT_IMAGE_MODEL);
-      formData.append('image_size', DEFAULT_IMAGE_SIZE);
+      formData.append('image_size', IMAGE_SIZE_BY_ASPECT[videoAspectRatio]);
       formData.append('video_model', DEFAULT_VIDEO_MODEL);
       formData.append('video_aspect_ratio', videoAspectRatio);
       formData.append('language', selectedLanguage);
@@ -358,16 +398,17 @@ const formatDurationLabel = (seconds: number) => {
       if (!saved) return;
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed)) return;
-      const restored: CharacterGeneration[] = parsed.map((item) => ({
-        ...item,
-        timestamp: item.timestamp ? new Date(item.timestamp) : new Date()
-      }));
-      setGenerations((prev) => {
-        const existingIds = new Set(prev.map((gen) => gen.id));
-        const deduped = restored.filter((gen) => !existingIds.has(gen.id));
-        if (!deduped.length) return prev;
-        return sortGenerations([...deduped, ...prev]);
-      });
+      const restored = (parsed as CharacterGeneration[])
+        .map((item) => ({
+          ...item,
+          timestamp: item.timestamp ? new Date(item.timestamp) : new Date()
+        }))
+        .filter(isActiveGeneration);
+      if (!restored.length) {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        return;
+      }
+      setGenerations(sortGenerations(restored));
     } catch (error) {
       console.error('Failed to restore character ads session state:', error);
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -376,7 +417,7 @@ const formatDurationLabel = (seconds: number) => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const activeGenerations = generations.filter((gen) => gen.projectId);
+    const activeGenerations = generations.filter((gen) => gen.projectId && isActiveGeneration(gen));
     if (!activeGenerations.length) {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       return;
@@ -405,6 +446,7 @@ const formatDurationLabel = (seconds: number) => {
           : payload.isCompleted || project.status === 'completed'
             ? 'completed'
             : 'processing';
+        notifyProjectStatus(projectId, computedStatus);
         const progressValue = computedStatus === 'completed'
           ? 100
           : typeof project.progress_percentage === 'number'
@@ -423,9 +465,13 @@ const formatDurationLabel = (seconds: number) => {
           downloaded: project.downloaded ?? gen.downloaded
         };
       });
-      return found ? sortGenerations(next) : prev;
+      if (!found) {
+        return prev;
+      }
+      const filtered = next.filter(isActiveGeneration);
+      return sortGenerations(filtered);
     });
-  }, []);
+  }, [notifyProjectStatus]);
 
   const fetchStatusForProject = useCallback(async (projectId: string) => {
     if (!projectId) return;
@@ -685,11 +731,15 @@ const formatDurationLabel = (seconds: number) => {
                 transition={{ duration: 0.3 }}
                 className="flex-1 px-6 sm:px-8 lg:px-10 pb-48 overflow-y-auto"
               >
-                <div className="max-w-6xl mx-auto w-full">
+                <div className="max-w-6xl mx-auto w-full space-y-3">
                   <GenerationProgressDisplay
                     generations={displayedGenerations}
                     onDownload={handleDownloadGeneration}
+                    emptyStateSteps={CHARACTER_EMPTY_STEPS}
                   />
+                  <p className="text-xs text-gray-500 px-4">
+                    Completed Character Ads move to History automatically. Visit the History tab to download finished videos.
+                  </p>
                 </div>
               </motion.section>
             )}
@@ -951,13 +1001,13 @@ const formatDurationLabel = (seconds: number) => {
                     setIsProductPickerOpen(false);
                     setShowProductManager(true);
                   }}
-                  className="text-sm text-gray-600 hover:text-gray-900"
+                  className="px-3 py-1 rounded-full border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-100 transition"
                 >
                   Manage Products
                 </button>
                 <button
                   onClick={() => setIsProductPickerOpen(false)}
-                  className="text-sm text-gray-600 hover:text-gray-900"
+                  className="px-3 py-1 rounded-full border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-100 transition"
                 >
                   Close
                 </button>

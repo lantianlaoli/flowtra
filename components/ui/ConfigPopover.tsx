@@ -46,6 +46,16 @@ interface ConfigPopoverProps {
 
   disabled?: boolean;
   variant?: 'default' | 'minimal';
+  mode?: 'video' | 'photo';
+  photoAspectRatio?: string;
+  onPhotoAspectRatioChange?: (ratio: string) => void;
+  photoAspectRatioOptions?: string[];
+  photoResolution?: '1K' | '2K' | '4K';
+  onPhotoResolutionChange?: (resolution: '1K' | '2K' | '4K') => void;
+  photoResolutionOptions?: Array<'1K' | '2K' | '4K'>;
+  photoOutputFormat?: 'png' | 'jpg';
+  onPhotoOutputFormatChange?: (format: 'png' | 'jpg') => void;
+  photoOutputFormatOptions?: Array<'png' | 'jpg'>;
 }
 
 export default function ConfigPopover({
@@ -67,6 +77,16 @@ export default function ConfigPopover({
   onWatermarkEnabledChange,
   disabled = false,
   variant = 'default',
+  mode = 'video',
+  photoAspectRatio,
+  onPhotoAspectRatioChange,
+  photoAspectRatioOptions = [],
+  photoResolution,
+  onPhotoResolutionChange,
+  photoResolutionOptions = ['1K', '2K', '4K'],
+  photoOutputFormat,
+  onPhotoOutputFormatChange,
+  photoOutputFormatOptions = ['png', 'jpg'],
 }: ConfigPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -74,6 +94,7 @@ export default function ConfigPopover({
   const [isMobile, setIsMobile] = useState(false);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
   const isMinimal = variant === 'minimal';
+  const isPhotoMode = mode === 'photo';
 
   // Track viewport to render a mobile-friendly drawer
   useEffect(() => {
@@ -132,6 +153,130 @@ export default function ConfigPopover({
       setButtonRect(buttonRef.current.getBoundingClientRect());
     }
   }, [isOpen]);
+
+  const headerTitle = 'Config';
+
+  const renderPhotoOptions = () => (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Aspect Ratio
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {photoAspectRatioOptions.map(option => {
+            const isSelected = option === photoAspectRatio;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onPhotoAspectRatioChange?.(option)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
+                  isSelected
+                    ? 'bg-black text-white border-black shadow-sm'
+                    : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+                )}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Resolution
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {photoResolutionOptions.map(option => {
+            const isSelected = option === photoResolution;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onPhotoResolutionChange?.(option)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
+                  isSelected
+                    ? 'bg-black text-white border-black shadow-sm'
+                    : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+                )}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Output Format
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {photoOutputFormatOptions.map(option => {
+            const isSelected = option === photoOutputFormat;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onPhotoOutputFormatChange?.(option as 'png' | 'jpg')}
+                className={cn(
+                  'px-3 py-1.5 rounded-full border text-sm font-medium transition-colors uppercase',
+                  isSelected
+                    ? 'bg-black text-white border-black shadow-sm'
+                    : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
+                )}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderVideoOptions = () => (
+    <div className="space-y-4">
+      <FormatSelector
+        outputMode="video"
+        selectedFormat={format}
+        onFormatChange={onFormatChange}
+        label="Aspect Ratio"
+      />
+
+      <VideoDurationSelector
+        selectedDuration={videoDuration}
+        onDurationChange={onDurationChange}
+        disabledDurations={disabledDurations}
+        label="Duration"
+        showIcon
+        disabled={disabled}
+        options={durationOptions}
+      />
+
+      <VideoQualitySelector
+        selectedQuality={videoQuality}
+        onQualityChange={onQualityChange}
+        disabledQualities={disabledQualities}
+        label="Quality"
+        showIcon
+      />
+
+      <VideoModelSelector
+        credits={userCredits}
+        selectedModel={selectedModel}
+        onModelChange={onModelChange}
+        videoDuration={videoDuration}
+        videoQuality={videoQuality}
+        label="AI Model"
+        showIcon
+        hiddenModels={['auto']}
+      />
+    </div>
+  );
 
   return (
     <div className="relative">
@@ -195,7 +340,7 @@ export default function ConfigPopover({
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-gray-700" />
-                <h3 className="font-semibold text-gray-900">Video Configuration</h3>
+                <h3 className="font-semibold text-gray-900">{headerTitle}</h3>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -208,46 +353,7 @@ export default function ConfigPopover({
 
             {/* Content */}
             <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
-              {/* Format Selector (Simplified - only 9:16 and 16:9) */}
-              <FormatSelector
-                outputMode="video"
-                selectedFormat={format}
-                onFormatChange={onFormatChange}
-                label="Aspect Ratio"
-                className=""
-              />
-
-              {/* Duration Selector */}
-              <VideoDurationSelector
-                selectedDuration={videoDuration}
-                onDurationChange={onDurationChange}
-                disabledDurations={disabledDurations}
-                label="Duration"
-                showIcon
-                disabled={disabled}
-                options={durationOptions}
-              />
-
-              {/* Quality Selector */}
-              <VideoQualitySelector
-                selectedQuality={videoQuality}
-                onQualityChange={onQualityChange}
-                disabledQualities={disabledQualities}
-                label="Quality"
-                showIcon
-              />
-
-              {/* Model Selector */}
-              <VideoModelSelector
-                credits={userCredits}
-                selectedModel={selectedModel}
-                onModelChange={onModelChange}
-                videoDuration={videoDuration}
-                videoQuality={videoQuality}
-                label="AI Model"
-                showIcon
-                hiddenModels={['auto']}
-              />
+              {isPhotoMode ? renderPhotoOptions() : renderVideoOptions()}
 
               {/* Language Selector */}
               <LanguageSelector

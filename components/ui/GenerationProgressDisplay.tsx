@@ -26,19 +26,46 @@ export interface Generation {
   videoDuration?: string | null;
 }
 
+interface EmptyStateStep {
+  icon: string;
+  title: string;
+  description: string;
+}
+
+const DEFAULT_STEPS: EmptyStateStep[] = [
+  {
+    icon: '📦',
+    title: 'Step 1',
+    description: 'Create your brands & products in Assets',
+  },
+  {
+    icon: '🎯',
+    title: 'Step 2',
+    description: 'Select platform, brand, and product above',
+  },
+  {
+    icon: '✨',
+    title: 'Step 3',
+    description: 'Click Generate to create your video',
+  },
+];
+
 interface GenerationProgressDisplayProps {
   generations: Generation[];
   onDownload?: (generation: Generation) => void;
   onRetry?: (generation: Generation) => void;
+  emptyStateSteps?: EmptyStateStep[];
 }
 
 export default function GenerationProgressDisplay({
   generations,
   onDownload,
   onRetry,
+  emptyStateSteps,
 }: GenerationProgressDisplayProps) {
   // Empty state
   if (generations.length === 0) {
+    const steps = emptyStateSteps || DEFAULT_STEPS;
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -50,27 +77,17 @@ export default function GenerationProgressDisplay({
 
         {/* Step-by-step guide */}
         <ol className="text-left space-y-3 mb-6 max-w-md">
-          <li className="flex items-start gap-3">
-            <span className="text-lg">📦</span>
-            <div>
-              <strong className="text-gray-900">Step 1:</strong>
-              <span className="text-gray-600"> Create your brands & products in Assets</span>
-            </div>
-          </li>
-          <li className="flex items-start gap-3">
-            <span className="text-lg">🎯</span>
-            <div>
-              <strong className="text-gray-900">Step 2:</strong>
-              <span className="text-gray-600"> Select platform, brand, and product above</span>
-            </div>
-          </li>
-          <li className="flex items-start gap-3">
-            <span className="text-lg">✨</span>
-            <div>
-              <strong className="text-gray-900">Step 3:</strong>
-              <span className="text-gray-600"> Click Generate to create your video</span>
-            </div>
-          </li>
+          {steps.map((step) => (
+            <li key={step.title} className="flex items-start gap-3">
+              <span className="text-lg" aria-hidden>
+                {step.icon}
+              </span>
+              <div>
+                <strong className="text-gray-900">{step.title}:</strong>
+                <span className="text-gray-600"> {step.description}</span>
+              </div>
+            </li>
+          ))}
         </ol>
 
         {/* Action buttons */}

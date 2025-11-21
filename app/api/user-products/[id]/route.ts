@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin, deleteProductPhotoFromStorage } from '@/lib/supabase';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -135,6 +135,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
+    const { data: productPhotos } = await supabase
+      .from('user_product_photos')
+      .select('photo_url')
+      .eq('product_id', id)
+      .eq('user_id', userId);
+
     // Count how many projects reference this product (for logging purposes)
     const [standardAdsCount, multiVariantCount, characterAdsCount] = await Promise.all([
       supabase.from('standard_ads_projects').select('id', { count: 'exact', head: true })
@@ -172,8 +178,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         : 'No projects were referencing this product.'
     );
 
-    // TODO: Delete photos from Supabase storage
-    // This would require implementing storage deletion logic
+    if (productPhotos?.length) {
+      for (const photo of productPhotos) {
+        if (photo.photo_url) {
+          deleteProductPhotoFromStorage(photo.photo_url).catch(err => {
+            console.warn('Failed to delete product photo from storage:', err);
+          });
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,

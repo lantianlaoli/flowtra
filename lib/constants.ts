@@ -71,7 +71,8 @@ export type Platform = keyof typeof PLATFORM_PRESETS;
 // Image models for cover generation
 export const IMAGE_MODELS = {
   'nano_banana': 'google/nano-banana-edit',
-  'seedream': 'bytedance/seedream-v4-edit'
+  'seedream': 'bytedance/seedream-v4-edit',
+  'nano_banana_pro': 'nano-banana-pro'
 } as const
 
 // Image size options for different models
@@ -101,6 +102,18 @@ export const IMAGE_SIZE_OPTIONS = {
     'landscape_3_2', 
     'landscape_16_9',
     'landscape_21_9'
+  ],
+  'nano_banana_pro': [
+    '1:1',
+    '2:3',
+    '3:2',
+    '3:4',
+    '4:3',
+    '4:5',
+    '5:4',
+    '9:16',
+    '16:9',
+    '21:9'
   ]
 } as const
 
@@ -117,6 +130,7 @@ export const VIDEO_ASPECT_RATIO_OPTIONS = {
 export const IMAGE_CREDIT_COSTS = {
   'nano_banana': 0,    // Nano Banana: Free, fast generation
   'seedream': 0,       // Seedream 4.0: Free, high quality generation
+  'nano_banana_pro': 24 // Replica mode: 24 credits per generation
 } as const
 
 // Processing times for different video models
@@ -132,7 +146,11 @@ export const MODEL_PROCESSING_TIMES = {
 export const IMAGE_PROCESSING_TIMES = {
   'nano_banana': '1-2 min',    // Nano Banana: 1-2 minutes processing time
   'seedream': '2-4 min',       // Seedream 4.0: 2-4 minutes processing time
+  'nano_banana_pro': '1-2 min'
 } as const
+
+// Replica photo generation credits (competitor photo mode)
+export const REPLICA_PHOTO_CREDITS = 24;
 
 // Package definitions based on updated pricing
 export const PACKAGES = {
@@ -354,13 +372,13 @@ export function getAutoImageModeSelection(): 'nano_banana' | 'seedream' {
 
 // Check if user has sufficient credits for an image model (always true since free)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function canAffordImageModel(_userCredits: number, _model: 'auto' | 'nano_banana' | 'seedream'): boolean {
+export function canAffordImageModel(_userCredits: number, _model: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro'): boolean {
   // All image models are free, so always affordable
   return true
 }
 
 // Get the actual image model that will be used (resolves auto to specific model)
-export function getActualImageModel(selectedModel: 'auto' | 'nano_banana' | 'seedream'): 'nano_banana' | 'seedream' {
+export function getActualImageModel(selectedModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro'): 'nano_banana' | 'seedream' | 'nano_banana_pro' {
   if (selectedModel === 'auto') {
     return getAutoImageModeSelection()
   }

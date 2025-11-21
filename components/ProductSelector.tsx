@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Tag, ChevronRight } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { UserProduct, UserBrand } from '@/lib/supabase';
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -90,18 +90,14 @@ export default function ProductSelector({
 
   // Brand Selection Step
   const renderBrandSelection = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold text-gray-900">Select Brand</div>
-      </div>
-
+    <div className="space-y-3">
       {isLoading ? (
         <div className="flex justify-center py-8">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-black"></div>
         </div>
       ) : brands.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center">
-          <Tag className="mx-auto h-8 w-8 text-gray-400" />
+          <div className="mx-auto h-8 w-8 rounded-full bg-gray-200" />
           <p className="mt-2 text-sm text-gray-600">No brands found</p>
           <p className="mt-1 text-xs text-gray-500">Create a brand first to add products</p>
         </div>
@@ -111,7 +107,7 @@ export default function ProductSelector({
             <button
               key={brand.id}
               onClick={() => handleBrandSelect(brand)}
-              className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left transition hover:border-gray-300 hover:bg-gray-50"
+              className="w-full rounded-2xl border border-gray-200 bg-white p-4 text-left transition hover:border-gray-300 hover:bg-gray-50"
             >
               <div className="flex items-center gap-3">
                 {brand.brand_logo_url ? (
@@ -123,15 +119,14 @@ export default function ProductSelector({
                     className="rounded-md object-cover"
                   />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-100">
-                    <Tag className="h-5 w-5 text-gray-400" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-100 text-sm font-semibold text-gray-500">
+                    {brand.brand_name?.[0]?.toUpperCase() || 'B'}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">{brand.brand_name}</div>
                   <div className="text-xs text-gray-500 truncate">{brand.brand_slogan || brand.brand_details || 'No slogan'}</div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-gray-400" />
               </div>
             </button>
           ))}
@@ -142,16 +137,15 @@ export default function ProductSelector({
 
   // Product Selection Step
   const renderProductSelection = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold text-gray-900">
-          Select Product from {selectedBrand?.brand_name}
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-sm text-gray-500">
+        <span>{selectedBrand?.brand_name}</span>
         <button
           onClick={() => setStep('brand-selection')}
-          className="text-xs text-gray-600 hover:text-gray-900"
+          className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 transition"
         >
-          ← Change Brand
+          <ChevronLeft className="h-3 w-3" />
+          Change Brand
         </button>
       </div>
 
@@ -161,7 +155,7 @@ export default function ProductSelector({
         </div>
       ) : brandProducts.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center">
-          <Package className="mx-auto h-8 w-8 text-gray-400" />
+          <div className="mx-auto h-8 w-8 rounded-full bg-gray-200" />
           <p className="mt-2 text-sm text-gray-600">No products in this brand</p>
           <p className="mt-1 text-xs text-gray-500">Add products to this brand to continue</p>
         </div>
@@ -175,7 +169,7 @@ export default function ProductSelector({
               <button
                 key={product.id}
                 onClick={() => handleProductSelect(product)}
-                className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left transition hover:border-gray-300 hover:bg-gray-50"
+                className="w-full rounded-2xl border border-gray-200 bg-white p-4 text-left transition hover:border-gray-300 hover:bg-gray-50"
               >
                 <div className="flex items-center gap-3">
                   {photo?.photo_url ? (
@@ -187,8 +181,8 @@ export default function ProductSelector({
                       className="rounded-md object-cover"
                     />
                   ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-100">
-                      <Package className="h-5 w-5 text-gray-400" />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-100 text-sm font-semibold text-gray-500">
+                      {product.product_name?.[0]?.toUpperCase() || 'P'}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
@@ -197,7 +191,6 @@ export default function ProductSelector({
                       <div className="text-xs text-gray-500 truncate">{product.product_details || product.description}</div>
                     )}
                   </div>
-                  <ChevronRight className="h-4 w-4 text-gray-400" />
                 </div>
               </button>
             );
@@ -216,15 +209,13 @@ export default function ProductSelector({
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-gray-900">Selected Product</div>
-          <button
-            onClick={handleChangeSelection}
-            className="text-xs text-gray-600 hover:text-gray-900"
-          >
-            Change Selection
-          </button>
-        </div>
+        <button
+          onClick={handleChangeSelection}
+          className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 transition"
+        >
+          <ChevronLeft className="h-3 w-3" />
+          Choose another
+        </button>
 
         <div className="rounded-lg border border-gray-300 bg-white p-4">
           <div className="flex items-center gap-4">
@@ -237,8 +228,8 @@ export default function ProductSelector({
                 className="rounded-md object-cover"
               />
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-md bg-gray-100">
-                <Package className="h-8 w-8 text-gray-400" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-md bg-gray-100 text-base font-semibold text-gray-500">
+                {selectedProduct.product_name?.[0]?.toUpperCase() || 'P'}
               </div>
             )}
             <div className="flex-1 min-w-0">
@@ -255,11 +246,6 @@ export default function ProductSelector({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 text-base font-medium text-gray-900">
-        <Package className="h-4 w-4" />
-        Product Selection
-      </div>
-
       <AnimatePresence mode="wait">
         {step === 'brand-selection' && (
           <motion.div

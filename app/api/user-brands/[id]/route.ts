@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, deleteBrandLogoFromStorage, uploadBrandLogoToStorage } from '@/lib/supabase';
+import {
+  getSupabaseAdmin,
+  deleteBrandLogoFromStorage,
+  deleteProductPhotoFromStorage,
+  deleteCompetitorAdFromStorage,
+  uploadBrandLogoToStorage
+} from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
@@ -201,7 +207,88 @@ export async function DELETE(
       return NextResponse.json({ error: 'Brand not found or unauthorized' }, { status: 404 });
     }
 
-    // Delete brand from database (will cascade to set brand_id to NULL in user_products)
+    const { data: brandProducts, error: productsError } = await supabase
+      .from('user_products')
+      .select('id, user_product_photos (id, photo_url)')
+      .eq('brand_id', brandId)
+      .eq('user_id', userId);
+
+    if (productsError) {
+      console.error('Failed to load brand products before deletion:', productsError);
+      return NextResponse.json(
+        { error: 'Failed to delete brand', details: productsError.message },
+        { status: 500 }
+      );
+    }
+
+    const productIds = (brandProducts || []).map(product => product.id);
+    const productPhotoUrls = (brandProducts || []).flatMap(product =>
+      product.user_product_photos?.map(photo => photo.photo_url).filter(Boolean) || []
+    );
+
+    if (productIds.length > 0) {
+      const { error: deleteProductPhotosError } = await supabase
+        .from('user_product_photos')
+        .delete()
+        .in('product_id', productIds)
+        .eq('user_id', userId);
+
+      if (deleteProductPhotosError) {
+        console.error('Failed to delete product photos before brand removal:', deleteProductPhotosError);
+        return NextResponse.json(
+          { error: 'Failed to delete brand', details: deleteProductPhotosError.message },
+          { status: 500 }
+        );
+      }
+
+      const { error: deleteProductsError } = await supabase
+        .from('user_products')
+        .delete()
+        .in('id', productIds)
+        .eq('user_id', userId);
+
+      if (deleteProductsError) {
+        console.error('Failed to delete products when removing brand:', deleteProductsError);
+        return NextResponse.json(
+          { error: 'Failed to delete brand', details: deleteProductsError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    const { data: competitorAds, error: competitorsError } = await supabase
+      .from('competitor_ads')
+      .select('id, ad_file_url')
+      .eq('brand_id', brandId)
+      .eq('user_id', userId);
+
+    if (competitorsError) {
+      console.error('Failed to load competitor ads before brand removal:', competitorsError);
+      return NextResponse.json(
+        { error: 'Failed to delete brand', details: competitorsError.message },
+        { status: 500 }
+      );
+    }
+
+    const competitorIds = (competitorAds || []).map(ad => ad.id);
+    const competitorUrls = (competitorAds || []).map(ad => ad.ad_file_url).filter(Boolean);
+
+    if (competitorIds.length > 0) {
+      const { error: deleteCompetitorsError } = await supabase
+        .from('competitor_ads')
+        .delete()
+        .in('id', competitorIds)
+        .eq('user_id', userId);
+
+      if (deleteCompetitorsError) {
+        console.error('Failed to delete competitor ads:', deleteCompetitorsError);
+        return NextResponse.json(
+          { error: 'Failed to delete brand', details: deleteCompetitorsError.message },
+          { status: 500 }
+        );
+      }
+    }
+
     const { error: deleteError } = await supabase
       .from('user_brands')
       .delete()
@@ -216,17 +303,43 @@ export async function DELETE(
       );
     }
 
-    // Delete logo from storage if present
+    // Clean up storage (best effort)
     try {
       if (brand.brand_logo_url) {
         await deleteBrandLogoFromStorage(brand.brand_logo_url);
       }
     } catch (storageError) {
-      console.warn('Failed to delete logo from storage (brand already deleted from DB):', storageError);
-      // Continue anyway since the database record is already deleted
+      console.warn('Failed to delete brand logo from storage:', storageError);
     }
 
-    return NextResponse.json({ success: true, message: 'Brand deleted successfully' });
+    await Promise.allSettled(productPhotoUrls.map(async (photoUrl) => {
+      try {
+        await deleteProductPhotoFromStorage(photoUrl);
+      } catch (storageError) {
+        console.warn('Failed to delete product photo from storage:', storageError);
+      }
+    }));
+
+    await Promise.allSettled(competitorUrls.map(async (adUrl) => {
+      try {
+        await deleteCompetitorAdFromStorage(adUrl);
+      } catch (storageError) {
+        console.warn('Failed to delete competitor asset from storage:', storageError);
+      }
+    }));
+
+    console.log(`[DELETE /api/user-brands/${brandId}] Deleted brand "${brand.brand_name}" with`, {
+      deletedProducts: productIds.length,
+      deletedProductPhotos: productPhotoUrls.length,
+      deletedCompetitorAds: competitorIds.length
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Brand and related assets deleted successfully',
+      deletedProducts: productIds.length,
+      deletedCompetitorAds: competitorIds.length
+    });
   } catch (error) {
     console.error('DELETE /api/user-brands/[id] error:', error);
     return NextResponse.json(

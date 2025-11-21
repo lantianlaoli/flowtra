@@ -39,7 +39,7 @@ export interface WorkflowState {
 export const useStandardAdsWorkflow = (
   userId?: string | null,
   selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' = 'veo3_fast',
-  selectedImageModel: 'auto' | 'nano_banana' | 'seedream' = 'nano_banana',
+  selectedImageModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' = 'nano_banana',
   updateCredits?: (newCredits: number) => void,
   refetchCredits?: () => Promise<void>,
   elementsCount: number = 1,
@@ -232,7 +232,15 @@ export const useStandardAdsWorkflow = (
     currentImageSize?: string,
     generateVideo?: boolean,
     selectedBrandId?: string,
-    competitorAdId?: string | null
+    competitorAdId?: string | null,
+    replicaOptions?: {
+      photoOnly?: boolean;
+      replicaMode?: boolean;
+      referenceImageUrls?: string[];
+      photoAspectRatio?: string;
+      photoResolution?: '1K' | '2K' | '4K';
+      photoOutputFormat?: 'png' | 'jpg';
+    }
   ) => {
     const previousStatus = state.workflowStatus;
 
@@ -251,6 +259,11 @@ export const useStandardAdsWorkflow = (
       const sora2ProDuration = selectedModel === 'sora2_pro' && resolvedDuration
         ? (resolvedDuration === '15' ? '15' : '10')
         : undefined;
+      const normalizedPhotoOnly = typeof replicaOptions?.photoOnly === 'boolean'
+        ? replicaOptions.photoOnly
+        : generateVideo === undefined
+          ? false
+          : !generateVideo;
 
       const requestData = {
         selectedProductId,
@@ -264,6 +277,7 @@ export const useStandardAdsWorkflow = (
         elementsCount: currentElementsCount ?? elementsCount,
         imageSize: currentImageSize ?? imageSize,
         shouldGenerateVideo: generateVideo,
+        photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
         videoDuration: resolvedDuration,
         videoQuality: resolvedQuality,
@@ -274,7 +288,12 @@ export const useStandardAdsWorkflow = (
         competitorAdId: competitorAdId || undefined, // Add competitor ad ID
         language: selectedLanguage,
         useCustomScript: useCustomScript,
-        customScript: customScript?.trim() ? customScript.trim() : undefined
+        customScript: customScript?.trim() ? customScript.trim() : undefined,
+        referenceImageUrls: replicaOptions?.referenceImageUrls,
+        photoAspectRatio: replicaOptions?.photoAspectRatio,
+        photoResolution: replicaOptions?.photoResolution,
+        photoOutputFormat: replicaOptions?.photoOutputFormat,
+        replicaMode: replicaOptions?.replicaMode
       };
 
       console.log('🔍 useWorkflow startWorkflowWithSelectedProduct requestData:', requestData);

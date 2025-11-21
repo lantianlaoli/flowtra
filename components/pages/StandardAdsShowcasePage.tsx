@@ -90,6 +90,7 @@ export default function StandardAdsShowcasePage() {
     { model: 'Sora2', credits: 6, type: 'Paid Download', quality: 'Standard quality, 10s video' },
     { model: 'Sora2 Pro', credits: '36-160', type: 'Paid Generation', quality: 'Dynamic pricing based on duration & quality' },
     { model: 'Grok', credits: 20, type: 'Per Segment Download', quality: '6-second segments, billed only when you download' },
+    { model: 'Replica Photo', credits: 24, type: 'Paid Generation', quality: 'Nano Banana Pro scene replica, downloads free' },
   ];
 
   return (
@@ -143,51 +144,55 @@ export default function StandardAdsShowcasePage() {
           </div>
 
           <div className="space-y-16">
-            {examples.map((example) => (
-              <div
-                key={example.id}
-                className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center"
-              >
-                {/* Product Image */}
-                <div>
-                  <div className="space-y-4">
-                    <div className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-full">
-                      <span className="text-sm font-semibold text-gray-700">
-                        Original Product Image
-                      </span>
+            {examples.map((example, index) => {
+              const isReversed = index % 2 === 1;
+
+              return (
+                <div
+                  key={example.id}
+                  className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center"
+                >
+                  {/* Product Image */}
+                  <div className={`${isReversed ? 'lg:order-2' : 'lg:order-1'}`}>
+                    <div className="space-y-4">
+                      <div className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-full">
+                        <span className="text-sm font-semibold text-gray-700">
+                          Original Product Image
+                        </span>
+                      </div>
+                      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg">
+                          <Image
+                            src={example.productImage}
+                            alt={`Product ${example.id}`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg">
-                        <Image
-                          src={example.productImage}
-                          alt={`Product ${example.id}`}
-                          fill
-                          className="object-cover"
+                  </div>
+
+                  {/* Generated Video */}
+                  <div className={`${isReversed ? 'lg:order-1' : 'lg:order-2'}`}>
+                    <div className="space-y-4">
+                      <div className="inline-block px-4 py-2 bg-black text-white rounded-full">
+                        <span className="text-sm font-semibold flex items-center gap-2">
+                          <PlayCircleIcon className="w-4 h-4" />
+                          AI-Generated Video Ad
+                        </span>
+                      </div>
+                      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-lg">
+                        <LazyVideoPlayer
+                          src={example.videoUrl}
+                          wrapperClassName="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
                         />
                       </div>
                     </div>
                   </div>
                 </div>
-
-                {/* Generated Video */}
-                <div>
-                  <div className="space-y-4">
-                    <div className="inline-block px-4 py-2 bg-black text-white rounded-full">
-                      <span className="text-sm font-semibold flex items-center gap-2">
-                        <PlayCircleIcon className="w-4 h-4" />
-                        AI-Generated Video Ad
-                      </span>
-                    </div>
-                    <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-lg">
-                      <LazyVideoPlayer
-                        src={example.videoUrl}
-                        wrapperClassName="relative aspect-[3/4] w-full overflow-hidden rounded-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -207,44 +212,48 @@ export default function StandardAdsShowcasePage() {
             </p>
           </div>
           <div className="space-y-16">
-            {replicaCases.map((example) => (
-              <div
-                key={example.id}
-                className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center"
-              >
-                <div>
-                  <div className="space-y-4">
-                    <div className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-full">
-                      <span className="text-sm font-semibold text-gray-700">
-                        Competitor Video
-                      </span>
+            {replicaCases.map((example, index) => {
+              const isReversed = index % 2 === 1;
+
+              return (
+                <div
+                  key={example.id}
+                  className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center"
+                >
+                  <div className={`${isReversed ? 'lg:order-2' : 'lg:order-1'}`}>
+                    <div className="space-y-4">
+                      <div className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-full">
+                        <span className="text-sm font-semibold text-gray-700">
+                          Competitor Video
+                        </span>
+                      </div>
+                      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                        <LazyVideoPlayer
+                          src={example.competitorVideo}
+                          wrapperClassName="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
+                        />
+                      </div>
                     </div>
-                    <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                      <LazyVideoPlayer
-                        src={example.competitorVideo}
-                        wrapperClassName="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
-                      />
+                  </div>
+                  <div className={`${isReversed ? 'lg:order-1' : 'lg:order-2'}`}>
+                    <div className="space-y-4">
+                      <div className="inline-block px-4 py-2 bg-black text-white rounded-full">
+                        <span className="text-sm font-semibold flex items-center gap-2">
+                          <PlayCircleIcon className="w-4 h-4" />
+                          Flowtra Result
+                        </span>
+                      </div>
+                      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-lg">
+                        <LazyVideoPlayer
+                          src={example.resultVideo}
+                          wrapperClassName="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-                <div>
-                  <div className="space-y-4">
-                    <div className="inline-block px-4 py-2 bg-black text-white rounded-full">
-                      <span className="text-sm font-semibold flex items-center gap-2">
-                        <PlayCircleIcon className="w-4 h-4" />
-                        Flowtra Result
-                      </span>
-                    </div>
-                    <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-lg">
-                      <LazyVideoPlayer
-                        src={example.resultVideo}
-                        wrapperClassName="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

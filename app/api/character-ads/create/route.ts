@@ -39,6 +39,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedAspectRatio: '16:9' | '9:16' = videoAspectRatio === '9:16' ? '9:16' : '16:9';
+    const enforcedImageSize = normalizedAspectRatio === '9:16' ? 'portrait_16_9' : 'landscape_16_9';
+    if (imageSize && imageSize !== enforcedImageSize) {
+      console.warn('Character ads image size mismatch. Overriding.', {
+        provided: imageSize,
+        enforced: enforcedImageSize,
+        aspect: normalizedAspectRatio
+      });
+    }
+
     // Validate video duration
     if (!CHARACTER_ADS_DURATION_OPTIONS.includes(videoDurationSeconds as typeof CHARACTER_ADS_DURATION_OPTIONS[number])) {
       return NextResponse.json(
@@ -199,9 +209,9 @@ export async function POST(request: NextRequest) {
         product_image_urls: productImageUrls,
         video_duration_seconds: videoDurationSeconds,
         image_model: actualImageModel,
-        image_size: imageSize,
+        image_size: enforcedImageSize,
         video_model: resolvedVideoModel,
-        video_aspect_ratio: videoAspectRatio,
+        video_aspect_ratio: normalizedAspectRatio,
         custom_dialogue: customDialogue || null,
         language: language, // Language for AI-generated content
         credits_cost: totalCredits,

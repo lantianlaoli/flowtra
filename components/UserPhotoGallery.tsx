@@ -192,44 +192,28 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <ImageIcon className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Your Photos</h2>
-          </div>
-        </div>
-        <div className="p-6 flex items-center justify-center min-h-[200px]">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-        </div>
+      <div className="p-4 flex items-center justify-center min-h-[200px]">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <ImageIcon className="w-5 h-5 text-gray-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Personal Photos</h2>
+    <div className="space-y-4">
+      {/* Upload Error */}
+      {uploadError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {uploadError}
         </div>
-      </div>
+      )}
 
-      <div className="p-6">
-        {/* Upload Error */}
-        {uploadError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {uploadError}
-          </div>
-        )}
-
-        {/* Photo Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {/* Default Photos */}
-          {DEFAULT_PHOTOS.map((photo) => (
-            <div key={photo.id} className="relative group">
-              <div
-                className={`
+      {/* Photo Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {/* Default Photos */}
+        {DEFAULT_PHOTOS.map((photo) => (
+          <div key={photo.id} className="relative group">
+            <div
+              className={`
                   relative w-full aspect-square rounded-lg overflow-hidden border-4 cursor-pointer
                   transition-all duration-200
                   ${selectedPhotoUrl === photo.photo_url
@@ -237,24 +221,24 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
                     : 'border-gray-200 hover:border-gray-300'
                   }
                 `}
-                onClick={() => onPhotoSelect(photo.photo_url)}
-              >
-                <Image
-                  src={photo.photo_url}
-                  alt={photo.file_name}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                />
-              </div>
+              onClick={() => onPhotoSelect(photo.photo_url)}
+            >
+              <Image
+                src={photo.photo_url}
+                alt={photo.file_name}
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              />
             </div>
-          ))}
+          </div>
+        ))}
 
-          {/* Existing Photos */}
-          {photos.map((photo) => (
-            <div key={photo.id} className="relative group">
-              <div
-                className={`
+        {/* Existing Photos */}
+        {photos.map((photo) => (
+          <div key={photo.id} className="relative group">
+            <div
+              className={`
                   relative w-full aspect-square rounded-lg overflow-hidden border-4 cursor-pointer
                   transition-all duration-200
                   ${selectedPhotoUrl === photo.photo_url
@@ -321,9 +305,6 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
             </label>
           </div>
         </div>
-
-
       </div>
-    </div>
   );
 }

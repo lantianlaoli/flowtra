@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Package, Building2, ChevronDown, Check } from 'lucide-react';
 import { UserProduct, UserBrand } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,11 @@ interface BrandProductSelectorProps {
   onProductSelect: (product: UserProduct | null) => void;
   className?: string;
   variant?: 'default' | 'compact';
+  replicaMode?: boolean;
+  replicaSelectedProductIds?: string[];
+  onReplicaSelectionChange?: (products: UserProduct[]) => void;
+  replicaSelectionLimit?: number;
+  onReplicaSelectionLimitReached?: (limit: number) => void;
 }
 
 export default function BrandProductSelector({
@@ -21,7 +26,12 @@ export default function BrandProductSelector({
   onBrandSelect,
   onProductSelect,
   className,
-  variant = 'default'
+  variant = 'default',
+  replicaMode = false,
+  replicaSelectedProductIds = [],
+  onReplicaSelectionChange,
+  replicaSelectionLimit = 9,
+  onReplicaSelectionLimitReached,
 }: BrandProductSelectorProps) {
   const [brands, setBrands] = useState<UserBrand[]>([]);
   const [allProducts, setAllProducts] = useState<Map<string, UserProduct[]>>(new Map());
@@ -32,6 +42,29 @@ export default function BrandProductSelector({
 
   const brandDropdownRef = useRef<HTMLDivElement>(null);
   const productDropdownRef = useRef<HTMLDivElement>(null);
+  const replicaSelectedIds = replicaSelectedProductIds;
+
+  const idToProductMap = useMemo(() => {
+    const map = new Map<string, UserProduct>();
+    brandProducts.forEach(product => {
+      map.set(product.id, product);
+    });
+    return map;
+  }, [brandProducts]);
+
+  const resolveProductsFromIds = useCallback((ids: string[]) => {
+    return ids
+      .map(id => idToProductMap.get(id))
+      .filter((product): product is UserProduct => Boolean(product));
+  }, [idToProductMap]);
+
+  const replicaSelectedProducts = useMemo(
+    () => resolveProductsFromIds(replicaSelectedIds),
+    [resolveProductsFromIds, replicaSelectedIds]
+  );
+
+  const primaryReplicaProduct = replicaSelectedProducts[0] ?? null;
+  const replicaSelectedCount = replicaSelectedIds.length;
 
   // Load all brands and their products on mount
   useEffect(() => {
@@ -135,6 +168,28 @@ export default function BrandProductSelector({
     setIsProductDropdownOpen(false);
   };
 
+  const handleReplicaProductToggle = (product: UserProduct) => {
+    if (!replicaMode || !onReplicaSelectionChange) {
+      handleProductSelect(product);
+      return;
+    }
+
+    const isSelected = replicaSelectedIds.includes(product.id);
+    if (isSelected) {
+      const nextIds = replicaSelectedIds.filter(id => id !== product.id);
+      onReplicaSelectionChange(resolveProductsFromIds(nextIds));
+      return;
+    }
+
+    if (replicaSelectedIds.length >= replicaSelectionLimit) {
+      onReplicaSelectionLimitReached?.(replicaSelectionLimit);
+      return;
+    }
+
+    const nextIds = [...replicaSelectedIds, product.id];
+    onReplicaSelectionChange(resolveProductsFromIds(nextIds));
+  };
+
   const getProductImage = (product?: UserProduct | null) => {
     if (!product?.user_product_photos?.length) return null;
     const primary = product.user_product_photos.find(photo => photo.is_primary);
@@ -142,8 +197,17 @@ export default function BrandProductSelector({
   };
 
   const isCompact = variant === 'compact';
-
   if (isCompact) {
+    const productButtonTitle = replicaMode
+      ? replicaSelectedCount > 0
+        ? `${replicaSelectedCount} product${replicaSelectedCount > 1 ? 's' : ''} selected`
+        : `Select products (up to ${replicaSelectionLimit})`
+      : selectedProduct
+        ? selectedProduct.product_name
+        : selectedBrand
+          ? 'Select product'
+          : 'Select a brand first';
+
     return (
       <div className={cn("flex items-center gap-2", className)}>
         {/* Brand selector */}
@@ -152,10 +216,6 @@ export default function BrandProductSelector({
             type="button"
             onClick={() => {
               console.log('[BrandProductSelector] Brand button clicked');
-              console.log('  - isLoading:', isLoading);
-              console.log('  - brands.length:', brands.length);
-              console.log('  - isBrandDropdownOpen:', isBrandDropdownOpen);
-              console.log('  - Will toggle to:', !isBrandDropdownOpen);
               if (!isLoading) {
                 setIsBrandDropdownOpen(!isBrandDropdownOpen);
               }
@@ -184,18 +244,18 @@ export default function BrandProductSelector({
             </div>
           </button>
 
-            {isBrandDropdownOpen && !isLoading && brands.length > 0 && (
-              <div className="absolute left-0 bottom-full mb-2 z-[100] w-72 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto">
-                {brands.map((brand) => (
-                  <button
-                    key={brand.id}
-                    type="button"
-                    onClick={() => handleBrandSelect(brand)}
-                    className={cn(
-                      "w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0 cursor-pointer",
-                      selectedBrand?.id === brand.id && "bg-gray-50"
-                    )}
-                  >
+          {isBrandDropdownOpen && !isLoading && brands.length > 0 && (
+            <div className="absolute left-0 bottom-full mb-2 z-[100] w-72 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto">
+              {brands.map((brand) => (
+                <button
+                  key={brand.id}
+                  type="button"
+                  onClick={() => handleBrandSelect(brand)}
+                  className={cn(
+                    "w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0 cursor-pointer",
+                    selectedBrand?.id === brand.id && "bg-gray-50"
+                  )}
+                >
                   <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
                     {brand.brand_logo_url ? (
                       <Image
@@ -227,7 +287,6 @@ export default function BrandProductSelector({
           <button
             type="button"
             onClick={() => {
-              console.log('[BrandProductSelector] Product button clicked, selectedBrand:', selectedBrand?.brand_name, 'products count:', brandProducts.length, 'dropdown open:', isProductDropdownOpen);
               if (selectedBrand) {
                 setIsProductDropdownOpen(!isProductDropdownOpen);
               }
@@ -237,18 +296,32 @@ export default function BrandProductSelector({
               "w-11 h-11 rounded-full border border-gray-200 bg-white flex items-center justify-center shadow-sm transition-colors cursor-pointer",
               "hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent",
               (!selectedBrand || brandProducts.length === 0) && "opacity-50 cursor-not-allowed",
-              selectedProduct && "border-gray-900"
+              (!replicaMode && selectedProduct) && "border-gray-900",
+              (replicaMode && replicaSelectedCount > 0) && "border-gray-900"
             )}
-            title={
-              selectedProduct
-                ? selectedProduct.product_name
-                : selectedBrand
-                  ? 'Select product'
-                  : 'Select a brand first'
-            }
+            title={productButtonTitle}
           >
             <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-gray-100">
-              {selectedProduct ? (
+              {replicaMode ? (
+                primaryReplicaProduct ? (
+                  (() => {
+                    const photoUrl = getProductImage(primaryReplicaProduct);
+                    return photoUrl ? (
+                      <Image
+                        src={photoUrl}
+                        alt={primaryReplicaProduct.product_name}
+                        width={36}
+                        height={36}
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <Package className="w-4 h-4 text-gray-500" />
+                    );
+                  })()
+                ) : (
+                  <Package className="w-4 h-4 text-gray-500" />
+                )
+              ) : selectedProduct ? (
                 (() => {
                   const photoUrl = getProductImage(selectedProduct);
                   return photoUrl ? (
@@ -269,43 +342,58 @@ export default function BrandProductSelector({
             </div>
           </button>
 
-            {isProductDropdownOpen && selectedBrand && brandProducts.length > 0 && (
-              <div className="absolute left-0 bottom-full mb-2 z-[100] w-80 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto">
-                {brandProducts.map((product) => (
+          {isProductDropdownOpen && selectedBrand && brandProducts.length > 0 && (
+            <div className="absolute left-0 bottom-full mb-2 z-[100] w-80 bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto">
+              {brandProducts.map((product) => {
+                const isReplicaSelected = replicaMode && replicaSelectedIds.includes(product.id);
+                return (
                   <button
                     key={product.id}
                     type="button"
-                    onClick={() => handleProductSelect(product)}
+                    onClick={() => (replicaMode ? handleReplicaProductToggle(product) : handleProductSelect(product))}
                     className={cn(
                       "w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0 cursor-pointer",
-                      selectedProduct?.id === product.id && "bg-gray-50"
+                      !replicaMode && selectedProduct?.id === product.id && "bg-gray-50",
+                      replicaMode && isReplicaSelected && "bg-purple-50"
                     )}
                   >
-                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
-                    {(() => {
-                      const photoUrl = getProductImage(product);
-                      return photoUrl ? (
-                        <Image
-                          src={photoUrl}
-                          alt={product.product_name}
-                          width={40}
-                          height={40}
-                          className="object-cover w-full h-full"
-                        />
-                      ) : (
-                        <Package className="w-4 h-4 text-gray-500" />
-                      );
-                    })()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 truncate">{product.product_name}</div>
-                    <div className="text-xs text-gray-500 truncate">{product.description || 'No description'}</div>
-                  </div>
-                  {selectedProduct?.id === product.id && (
-                    <Check className="w-4 h-4 text-gray-600" />
-                  )}
-                </button>
-              ))}
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                      {(() => {
+                        const photoUrl = getProductImage(product);
+                        return photoUrl ? (
+                          <Image
+                            src={photoUrl}
+                            alt={product.product_name}
+                            width={40}
+                            height={40}
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <Package className="w-4 h-4 text-gray-500" />
+                        );
+                      })()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 truncate">{product.product_name}</div>
+                      <div className="text-xs text-gray-500 truncate">{product.description || 'No description'}</div>
+                    </div>
+                    {replicaMode ? (
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-full border flex items-center justify-center",
+                          isReplicaSelected ? "border-purple-600 bg-purple-600 text-white" : "border-gray-300 text-transparent"
+                        )}
+                      >
+                        <Check className="w-3 h-3" />
+                      </div>
+                    ) : (
+                      selectedProduct?.id === product.id && (
+                        <Check className="w-4 h-4 text-gray-600" />
+                      )
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -414,7 +502,7 @@ export default function BrandProductSelector({
         <div className="space-y-2" ref={productDropdownRef}>
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <Package className="w-4 h-4" />
-            Select Product
+            {replicaMode ? 'Select Products (up to ' + replicaSelectionLimit + ')' : 'Select Product'}
           </label>
 
           <div className="relative">
@@ -430,7 +518,44 @@ export default function BrandProductSelector({
                 "flex items-center gap-3"
               )}
             >
-              {selectedProduct ? (
+              {replicaMode ? (
+                replicaSelectedCount > 0 && primaryReplicaProduct ? (
+                  <>
+                    <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {(() => {
+                        const photoUrl = getProductImage(primaryReplicaProduct);
+                        return photoUrl ? (
+                          <Image
+                            src={photoUrl}
+                            alt={primaryReplicaProduct.product_name}
+                            width={32}
+                            height={32}
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <Package className="w-4 h-4 text-gray-400" />
+                        );
+                      })()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 truncate">{primaryReplicaProduct.product_name}</div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {replicaSelectedCount > 1
+                          ? `+${replicaSelectedCount - 1} more · ${replicaSelectedCount}/${replicaSelectionLimit} selected`
+                          : `1/${replicaSelectionLimit} selected`}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-gray-500">
+                    {!selectedBrand
+                      ? 'Select a brand first'
+                      : brandProducts.length === 0
+                      ? 'No products in this brand'
+                      : `Choose up to ${replicaSelectionLimit} products`}
+                  </span>
+                )
+              ) : selectedProduct ? (
                 <>
                   <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {selectedProduct.user_product_photos?.find(p => p.is_primary)?.photo_url || selectedProduct.user_product_photos?.[0]?.photo_url ? (
@@ -472,16 +597,18 @@ export default function BrandProductSelector({
                 {brandProducts.map((product) => {
                   const primaryPhoto = product.user_product_photos?.find(p => p.is_primary);
                   const photo = primaryPhoto || product.user_product_photos?.[0];
+                  const isReplicaSelected = replicaMode && replicaSelectedIds.includes(product.id);
 
                   return (
                     <button
                       key={product.id}
                       type="button"
-                      onClick={() => handleProductSelect(product)}
+                      onClick={() => (replicaMode ? handleReplicaProductToggle(product) : handleProductSelect(product))}
                       className={cn(
                         "w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-3",
                         "border-b border-gray-100 last:border-b-0",
-                        selectedProduct?.id === product.id && "bg-gray-50"
+                        !replicaMode && selectedProduct?.id === product.id && "bg-gray-50",
+                        replicaMode && isReplicaSelected && "bg-purple-50"
                       )}
                     >
                       <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -503,8 +630,19 @@ export default function BrandProductSelector({
                           <div className="text-xs text-gray-500 truncate">{product.product_details || product.description}</div>
                         )}
                       </div>
-                      {selectedProduct?.id === product.id && (
-                        <Check className="w-5 h-5 text-black flex-shrink-0" />
+                      {replicaMode ? (
+                        <div
+                          className={cn(
+                            "w-5 h-5 rounded-full border flex items-center justify-center",
+                            isReplicaSelected ? "border-purple-600 bg-purple-600 text-white" : "border-gray-300 text-transparent"
+                          )}
+                        >
+                          <Check className="w-3 h-3" />
+                        </div>
+                      ) : (
+                        selectedProduct?.id === product.id && (
+                          <Check className="w-5 h-5 text-black flex-shrink-0" />
+                        )
                       )}
                     </button>
                   );
@@ -512,6 +650,9 @@ export default function BrandProductSelector({
               </div>
             )}
           </div>
+          {replicaMode && (
+            <p className="text-xs text-purple-700">{replicaSelectedCount}/{replicaSelectionLimit} selected</p>
+          )}
         </div>
       </div>
     </div>
