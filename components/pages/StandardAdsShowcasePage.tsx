@@ -48,6 +48,19 @@ export default function StandardAdsShowcasePage() {
     },
   ];
 
+  const replicaCases = [
+    {
+      id: '01',
+      competitorVideo: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/replica_competitor_01.mp4',
+      resultVideo: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/replica_result_01.mp4',
+    },
+    {
+      id: '02',
+      competitorVideo: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/replica_competitor_02.mp4',
+      resultVideo: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/replica_result_02.mp4',
+    },
+  ];
+
   const features = [
     {
       icon: Languages,
@@ -76,6 +89,7 @@ export default function StandardAdsShowcasePage() {
     { model: 'Veo3 Fast', credits: 20, type: 'Paid Download', quality: 'Fast generation, 8s video' },
     { model: 'Sora2', credits: 6, type: 'Paid Download', quality: 'Standard quality, 10s video' },
     { model: 'Sora2 Pro', credits: '36-160', type: 'Paid Generation', quality: 'Dynamic pricing based on duration & quality' },
+    { model: 'Grok', credits: 20, type: 'Per Segment Download', quality: '6-second segments, billed only when you download' },
   ];
 
   return (
@@ -129,15 +143,13 @@ export default function StandardAdsShowcasePage() {
           </div>
 
           <div className="space-y-16">
-            {examples.map((example, index) => (
+            {examples.map((example) => (
               <div
                 key={example.id}
-                className={`grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center ${
-                  index % 2 === 1 ? 'lg:flex-row-reverse' : ''
-                }`}
+                className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center"
               >
                 {/* Product Image */}
-                <div className={index % 2 === 1 ? 'lg:order-2' : ''}>
+                <div>
                   <div className="space-y-4">
                     <div className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-full">
                       <span className="text-sm font-semibold text-gray-700">
@@ -158,7 +170,7 @@ export default function StandardAdsShowcasePage() {
                 </div>
 
                 {/* Generated Video */}
-                <div className={index % 2 === 1 ? 'lg:order-1' : ''}>
+                <div>
                   <div className="space-y-4">
                     <div className="inline-block px-4 py-2 bg-black text-white rounded-full">
                       <span className="text-sm font-semibold flex items-center gap-2">
@@ -170,6 +182,63 @@ export default function StandardAdsShowcasePage() {
                       <LazyVideoPlayer
                         src={example.videoUrl}
                         wrapperClassName="relative aspect-[3/4] w-full overflow-hidden rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Replica Competitor UGC Section */}
+      <section className="py-16 lg:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-12">
+            <div className="inline-block px-4 py-2 bg-black text-white rounded-full mb-4">
+              <span className="text-sm font-semibold">Replica UGC Demo</span>
+            </div>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
+              Recreate Competitor Videos in Minutes
+            </h2>
+            <p className="text-lg text-gray-600">
+              Flowtra replicates top-performing UGC so you can launch proven creatives faster
+            </p>
+          </div>
+          <div className="space-y-16">
+            {replicaCases.map((example) => (
+              <div
+                key={example.id}
+                className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center"
+              >
+                <div>
+                  <div className="space-y-4">
+                    <div className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-full">
+                      <span className="text-sm font-semibold text-gray-700">
+                        Competitor Video
+                      </span>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                      <LazyVideoPlayer
+                        src={example.competitorVideo}
+                        wrapperClassName="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="space-y-4">
+                    <div className="inline-block px-4 py-2 bg-black text-white rounded-full">
+                      <span className="text-sm font-semibold flex items-center gap-2">
+                        <PlayCircleIcon className="w-4 h-4" />
+                        Flowtra Result
+                      </span>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-lg">
+                      <LazyVideoPlayer
+                        src={example.resultVideo}
+                        wrapperClassName="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
                       />
                     </div>
                   </div>
@@ -308,6 +377,13 @@ export default function StandardAdsShowcasePage() {
             <p className="text-sm text-gray-500">
               * Image generation is always free with unlimited generations
             </p>
+            <Link
+              href="/#model-pricing"
+              className="inline-flex items-center justify-center gap-2 mt-4 bg-black text-white px-6 py-3 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors"
+            >
+              View Video Model Pricing Table
+              <ArrowRightIcon className="w-4 h-4" />
+            </Link>
           </div>
         </div>
       </section>
