@@ -686,7 +686,7 @@ const formatDurationLabel = (seconds: number) => {
               </div>
               <div>
                 <h1 className="text-2xl font-semibold text-gray-900">Character Ads</h1>
-                <p className="text-sm text-gray-500">Veo3 Fast videos with Nano Banana Pro imagery</p>
+
               </div>
             </div>
           </header>
@@ -737,9 +737,7 @@ const formatDurationLabel = (seconds: number) => {
                     onDownload={handleDownloadGeneration}
                     emptyStateSteps={CHARACTER_EMPTY_STEPS}
                   />
-                  <p className="text-xs text-gray-500 px-4">
-                    Completed Character Ads move to History automatically. Visit the History tab to download finished videos.
-                  </p>
+
                 </div>
               </motion.section>
             )}
@@ -783,7 +781,7 @@ const formatDurationLabel = (seconds: number) => {
                       onChange={(e) => handleCustomDialogueChange(e.target.value)}
                       placeholder="Add a short line the character will say. Think product hook + friendly CTA."
                       rows={1}
-                      className="w-full resize-none bg-transparent border-none outline-none focus:outline-none focus-visible:outline-none text-sm text-gray-900 placeholder:text-gray-400 pr-32"
+                      className="w-full resize-none bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus-visible:border-none text-sm text-gray-900 placeholder:text-gray-400 pr-32 !outline-none !ring-0 shadow-none"
                     />
                     <button
                       type="button"
