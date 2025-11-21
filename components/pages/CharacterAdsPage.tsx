@@ -1,25 +1,22 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import UserPhotoGallery from '@/components/UserPhotoGallery';
-import CharacterAdsDurationSelector from '@/components/ui/CharacterAdsDurationSelector';
-import VideoModelSelector from '@/components/ui/VideoModelSelector';
-import ImageModelSelector from '@/components/ui/ImageModelSelector';
-import SizeSelector from '@/components/ui/SizeSelector';
-import VideoAspectRatioSelector from '@/components/ui/VideoAspectRatioSelector';
-import LanguageSelector, { LanguageCode } from '@/components/ui/LanguageSelector';
+import { LanguageCode } from '@/components/ui/LanguageSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
-import { ArrowRight, Clock, Video, Settings, Package, MessageSquare, Sparkles, Wand2, AlertCircle, HelpCircle } from 'lucide-react';
+import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
+import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, Globe } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
 import { getActualModel, isFreeGenerationModel, getGenerationCost } from '@/lib/constants';
+import { CharacterAdsDuration, CHARACTER_ADS_DURATION_OPTIONS } from '@/lib/character-ads-dialogue';
 import {
   clampDialogueToWordLimit,
   countDialogueWords,
@@ -33,47 +30,139 @@ interface KieCreditsStatus {
   threshold?: number;
 }
 
+const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
+const DEFAULT_IMAGE_MODEL = 'nano_banana_pro' as const;
+const DEFAULT_IMAGE_SIZE = 'auto';
+const SESSION_STORAGE_KEY = 'flowtra_character_ads_generations';
+const ASPECT_OPTIONS = [
+  { value: '16:9', label: 'Landscape', subtitle: '16:9' },
+  { value: '9:16', label: 'Portrait', subtitle: '9:16' }
+] as const;
+const LANGUAGE_OPTIONS = [
+  { value: 'en', label: 'English', native: 'English' },
+  { value: 'zh', label: 'Chinese', native: '中文' },
+  { value: 'cs', label: 'Czech', native: 'Čeština' },
+  { value: 'da', label: 'Danish', native: 'Dansk' },
+  { value: 'nl', label: 'Dutch', native: 'Nederlands' },
+  { value: 'fi', label: 'Finnish', native: 'Suomi' },
+  { value: 'fr', label: 'French', native: 'Français' },
+  { value: 'de', label: 'German', native: 'Deutsch' },
+  { value: 'el', label: 'Greek', native: 'Ελληνικά' },
+  { value: 'it', label: 'Italian', native: 'Italiano' },
+  { value: 'no', label: 'Norwegian', native: 'Norsk' },
+  { value: 'pl', label: 'Polish', native: 'Polski' },
+  { value: 'pt', label: 'Portuguese', native: 'Português' },
+  { value: 'pa', label: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
+  { value: 'ro', label: 'Romanian', native: 'Română' },
+  { value: 'ru', label: 'Russian', native: 'Русский' },
+  { value: 'es', label: 'Spanish', native: 'Español' },
+  { value: 'sv', label: 'Swedish', native: 'Svenska' },
+  { value: 'tr', label: 'Turkish', native: 'Türkçe' },
+  { value: 'ur', label: 'Urdu', native: 'اردو' },
+] as const;
+
+type CharacterGeneration = Generation & { projectId?: string; coverUrl?: string | null };
+const sortGenerations = (items: CharacterGeneration[]) =>
+  [...items].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+interface CharacterAdsStatusPayload {
+  success?: boolean;
+  project: {
+    id: string;
+    status: string;
+    current_step?: string | null;
+    progress_percentage?: number | null;
+    video_duration_seconds?: number | null;
+    image_model?: string | null;
+    video_model?: string | null;
+    credits_cost?: number | null;
+    person_image_urls?: string[] | null;
+    product_image_urls?: string[] | null;
+    generated_image_url?: string | null;
+    generated_video_urls?: string[] | null;
+    merged_video_url?: string | null;
+    downloaded?: boolean | null;
+  };
+  stepMessages?: Record<string, string>;
+  isCompleted?: boolean;
+  isFailed?: boolean;
+}
+const CHARACTER_STAGE_HINTS: Record<string, string> = {
+  analyzing_images: 'Analyzing uploaded images…',
+  generating_prompts: 'Creating dialogue prompts…',
+  generating_image: 'Generating character preview…',
+  generating_videos: 'Producing video scenes…',
+  merging_videos: 'Merging scenes…'
+};
+
+const getStageLabel = (status: Generation['status'], step?: string | null) => {
+  if (status === 'completed') return 'Completed';
+  if (status === 'failed') return 'Failed';
+  if (step) {
+    const normalized = step.toLowerCase();
+    if (CHARACTER_STAGE_HINTS[normalized]) {
+      return CHARACTER_STAGE_HINTS[normalized];
+    }
+  }
+  if (status === 'processing') return 'Processing…';
+  if (status === 'pending') return 'Queued';
+  return 'Unknown';
+};
+
 export default function CharacterAdsPage() {
   const { user, isLoaded } = useUser();
-  const { credits: userCredits } = useCredits();
-  const { showSuccess } = useToast();
-  const router = useRouter();
+  const { credits: userCredits, refetchCredits } = useCredits();
+  const { showSuccess, showError } = useToast();
 
   // Form state
-  const [personImages, setPersonImages] = useState<File[]>([]);
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
-  const [videoDuration, setVideoDuration] = useState<8 | 10 | 16 | 20 | 24 | 30>(8);
-  const [selectedVideoModel, setSelectedVideoModel] = useState<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>('veo3_fast');
-  const [selectedImageModel, setSelectedImageModel] = useState<'auto' | 'nano_banana' | 'seedream'>('seedream');
-  const [imageSize, setImageSize] = useState<string>('auto');
+  const [videoDuration, setVideoDuration] = useState<CharacterAdsDuration>(8);
   const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('9:16');
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
   const [showProductManager, setShowProductManager] = useState(false);
+  const [isPersonPickerOpen, setIsPersonPickerOpen] = useState(false);
+  const [isProductPickerOpen, setIsProductPickerOpen] = useState(false);
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const [showDurationMenu, setShowDurationMenu] = useState(false);
+  const [showAspectMenu, setShowAspectMenu] = useState(false);
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [isGeneratingDialogue, setIsGeneratingDialogue] = useState(false);
   const [dialogueError, setDialogueError] = useState<string | null>(null);
   const [hasAIGeneratedDialogue, setHasAIGeneratedDialogue] = useState(false);
+  const maxDurationOption = CHARACTER_ADS_DURATION_OPTIONS[CHARACTER_ADS_DURATION_OPTIONS.length - 1];
+const maxWordLimit = getCharacterAdsDialogueWordLimit(maxDurationOption);
+const formatDurationLabel = (seconds: number) => {
+  if (seconds >= 60) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    if (remainingSeconds === 0) {
+      return `${minutes}m`;
+    }
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+  return `${seconds}s`;
+};
+
+  const [generations, setGenerations] = useState<CharacterGeneration[]>([]);
+  const [downloadingProjects, setDownloadingProjects] = useState<Record<string, boolean>>({});
+  const isMountedRef = useRef(true);
 
   const dialogueWordLimit = useMemo(
     () => getCharacterAdsDialogueWordLimit(videoDuration),
     [videoDuration]
   );
-  const dialogueWordCount = useMemo(
-    () => countDialogueWords(customDialogue),
-    [customDialogue]
-  );
+  const productPhotoUrls = useMemo(() => {
+    if (!selectedProduct?.user_product_photos?.length) return [] as string[];
+    return selectedProduct.user_product_photos
+      .map((photo) => photo.photo_url)
+      .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
+      .slice(0, 3);
+  }, [selectedProduct]);
+  const primaryProductPhoto = useMemo(() => productPhotoUrls[0] || '', [productPhotoUrls]);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
-  const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [projectId, setProjectId] = useState<string | null>(null);
-
-  const disabledVideoModels = useMemo(
-    () => ['sora2', 'sora2_pro'] as Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro'>,
-    []
-  );
 
   // KIE credits state
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
@@ -81,7 +170,7 @@ export default function CharacterAdsPage() {
     loading: true
   });
 
-  const canStartGeneration = (personImages.length > 0 || selectedPersonPhotoUrl) && selectedProduct;
+  const canStartGeneration = !!selectedPersonPhotoUrl && !!selectedProduct;
 
   // Check KIE credits on page load
   useEffect(() => {
@@ -109,12 +198,6 @@ export default function CharacterAdsPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedVideoModel === 'sora2' || selectedVideoModel === 'sora2_pro') {
-      setSelectedVideoModel('veo3_fast');
-    }
-  }, [selectedVideoModel]);
-
-  useEffect(() => {
     setCustomDialogue(prev => {
       const limited = clampDialogueToWordLimit(prev, dialogueWordLimit);
       return limited === prev ? prev : limited;
@@ -122,16 +205,6 @@ export default function CharacterAdsPage() {
   }, [dialogueWordLimit]);
 
   // Show toast notification when generation starts
-  useEffect(() => {
-    if (workflowStatus === 'success') {
-      showSuccess(
-        'Added character ad to generation queue! Your ad is being created in the background.',
-        5000,
-        { label: 'View Progress →', href: '/dashboard/videos' }
-      );
-    }
-  }, [workflowStatus, showSuccess]);
-
   const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
     return product !== null && 'isTemporary' in product && product.isTemporary === true;
   };
@@ -170,13 +243,8 @@ export default function CharacterAdsPage() {
       // Upload images first
       const formData = new FormData();
 
-      // Handle person images - either uploaded files or selected photo URL
       if (selectedPersonPhotoUrl) {
         formData.append('selected_person_photo_url', selectedPersonPhotoUrl);
-      } else {
-        personImages.forEach((file, index) => {
-          formData.append(`person_image_${index}`, file);
-        });
       }
 
       // Use selected product or temporary product URL
@@ -184,9 +252,9 @@ export default function CharacterAdsPage() {
         formData.append('selected_product_id', productId);
       }
       formData.append('video_duration_seconds', videoDuration.toString());
-      formData.append('image_model', selectedImageModel);
-      formData.append('image_size', imageSize);
-      formData.append('video_model', selectedVideoModel);
+      formData.append('image_model', DEFAULT_IMAGE_MODEL);
+      formData.append('image_size', DEFAULT_IMAGE_SIZE);
+      formData.append('video_model', DEFAULT_VIDEO_MODEL);
       formData.append('video_aspect_ratio', videoAspectRatio);
       formData.append('language', selectedLanguage);
       if (customDialogue && customDialogue.trim()) {
@@ -204,37 +272,268 @@ export default function CharacterAdsPage() {
       }
 
       const project = await response.json();
-      setProjectId(project.id);
-      setWorkflowStatus('success');
+      const newGeneration: CharacterGeneration = {
+        id: project.id,
+        projectId: project.id,
+        timestamp: new Date(),
+        status: 'pending',
+        progress: 5,
+        stage: 'Queued',
+        platform: 'Character Ads',
+        brand: selectedBrandName || undefined,
+        product: selectedProductName || undefined,
+        videoModel: DEFAULT_VIDEO_MODEL,
+        videoDuration: `${videoDuration}`,
+        coverUrl: null,
+        videoUrl: undefined,
+        downloaded: false
+      };
+      setGenerations((prev) => {
+        const filtered = prev.filter((gen) => gen.id !== newGeneration.id);
+        return sortGenerations([newGeneration, ...filtered]);
+      });
+      showSuccess('Character ad added to the queue. Track progress below.');
 
     } catch (error) {
       console.error('Failed to start generation:', error);
-      setWorkflowStatus('error');
+      showError(error instanceof Error ? error.message : 'Failed to start generation');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const resetWorkflow = () => {
-    setWorkflowStatus('idle');
-    setProjectId(null);
-    setPersonImages([]);
-    setSelectedPersonPhotoUrl('');
-    setSelectedProduct(null);
-    setCustomDialogue('');
-    setDialogueError(null);
-    setHasAIGeneratedDialogue(false);
+  const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
+  const handlePersonPickerSelect = (photoUrl: string) => {
+    setSelectedPersonPhotoUrl(photoUrl);
+    setIsPersonPickerOpen(false);
   };
 
-  const productPhotoUrls = useMemo(() => {
-    if (!selectedProduct?.user_product_photos?.length) return [] as string[];
-    return selectedProduct.user_product_photos
-      .map((photo) => photo.photo_url)
-      .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
-      .slice(0, 3);
-  }, [selectedProduct]);
+  const handleProductPickerSelect = (product: UserProduct | null) => {
+    setSelectedProduct(product);
+    setIsProductPickerOpen(false);
+  };
 
-  const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
+  const showMaintenance = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
+  const composerVisible = !showMaintenance && !showProductManager;
+  const selectedBrandName = selectedProduct?.brand?.brand_name;
+  const selectedProductName = selectedProduct?.product_name;
+  const hasPersonPhoto = Boolean(selectedPersonPhotoUrl);
+  const composerDisabled = !canStartGeneration || isGenerating;
+  const configPanelRef = useRef<HTMLDivElement | null>(null);
+  const durationMenuRef = useRef<HTMLDivElement | null>(null);
+  const aspectMenuRef = useRef<HTMLDivElement | null>(null);
+  const languageMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (showConfigPanel && configPanelRef.current && !configPanelRef.current.contains(event.target as Node)) {
+        setShowConfigPanel(false);
+      }
+      if (showDurationMenu && durationMenuRef.current && !durationMenuRef.current.contains(event.target as Node)) {
+        setShowDurationMenu(false);
+      }
+      if (showAspectMenu && aspectMenuRef.current && !aspectMenuRef.current.contains(event.target as Node)) {
+        setShowAspectMenu(false);
+      }
+      if (showLanguageMenu && languageMenuRef.current && !languageMenuRef.current.contains(event.target as Node)) {
+        setShowLanguageMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showConfigPanel, showDurationMenu, showAspectMenu, showLanguageMenu]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return;
+      const restored: CharacterGeneration[] = parsed.map((item) => ({
+        ...item,
+        timestamp: item.timestamp ? new Date(item.timestamp) : new Date()
+      }));
+      setGenerations((prev) => {
+        const existingIds = new Set(prev.map((gen) => gen.id));
+        const deduped = restored.filter((gen) => !existingIds.has(gen.id));
+        if (!deduped.length) return prev;
+        return sortGenerations([...deduped, ...prev]);
+      });
+    } catch (error) {
+      console.error('Failed to restore character ads session state:', error);
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const activeGenerations = generations.filter((gen) => gen.projectId);
+    if (!activeGenerations.length) {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      return;
+    }
+    try {
+      const serializable = activeGenerations.map((gen) => ({
+        ...gen,
+        timestamp: gen.timestamp instanceof Date ? gen.timestamp.toISOString() : gen.timestamp
+      }));
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(serializable));
+    } catch (error) {
+      console.error('Failed to persist character ads session state:', error);
+    }
+  }, [generations]);
+
+  const updateGenerationFromStatus = useCallback((projectId: string, payload: CharacterAdsStatusPayload) => {
+    if (!payload?.project) return;
+    const project = payload.project;
+    setGenerations((prev) => {
+      let found = false;
+      const next = prev.map((gen) => {
+        if (gen.projectId !== projectId) return gen;
+        found = true;
+        const computedStatus: Generation['status'] = payload.isFailed || project.status === 'failed'
+          ? 'failed'
+          : payload.isCompleted || project.status === 'completed'
+            ? 'completed'
+            : 'processing';
+        const progressValue = computedStatus === 'completed'
+          ? 100
+          : typeof project.progress_percentage === 'number'
+            ? project.progress_percentage
+            : gen.progress;
+        const stageLabel = payload.stepMessages?.[project.current_step ?? '']
+          || getStageLabel(computedStatus, project.current_step);
+        return {
+          ...gen,
+          status: computedStatus,
+          progress: progressValue ?? gen.progress,
+          stage: stageLabel,
+          videoUrl: project.merged_video_url || project.generated_video_urls?.[0] || gen.videoUrl,
+          coverUrl: project.generated_image_url || gen.coverUrl,
+          videoModel: (project.video_model as Generation['videoModel']) || gen.videoModel,
+          downloaded: project.downloaded ?? gen.downloaded
+        };
+      });
+      return found ? sortGenerations(next) : prev;
+    });
+  }, []);
+
+  const fetchStatusForProject = useCallback(async (projectId: string) => {
+    if (!projectId) return;
+    try {
+      const response = await fetch(`/api/character-ads/${projectId}/status`, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('Failed to fetch project status');
+      }
+      const payload: CharacterAdsStatusPayload = await response.json();
+      if (!isMountedRef.current) return;
+      updateGenerationFromStatus(projectId, payload);
+    } catch (error) {
+      console.error('Failed to fetch character ads status:', error);
+    }
+  }, [updateGenerationFromStatus]);
+
+  const activeProjectIds = useMemo(() => {
+    const ids = generations
+      .filter((gen) => (gen.status === 'pending' || gen.status === 'processing') && gen.projectId)
+      .map((gen) => gen.projectId as string);
+    return Array.from(new Set(ids));
+  }, [generations]);
+
+  useEffect(() => {
+    if (!activeProjectIds.length) return;
+
+    const poll = () => {
+      activeProjectIds.forEach((id) => fetchStatusForProject(id));
+    };
+
+    poll();
+    const interval = setInterval(poll, 8000);
+    return () => clearInterval(interval);
+  }, [activeProjectIds, fetchStatusForProject]);
+
+  const handleDownloadGeneration = useCallback(async (generation: CharacterGeneration) => {
+    if (!user?.id) {
+      showError('Please sign in to download videos');
+      return;
+    }
+
+    const projectId = generation.projectId || generation.id;
+    if (!projectId) {
+      showError('Video is still preparing. Please try again later.');
+      return;
+    }
+
+    if (downloadingProjects[projectId]) {
+      return;
+    }
+
+    setDownloadingProjects((prev) => ({ ...prev, [projectId]: true }));
+
+    try {
+      const response = await fetch('/api/character-ads/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ historyId: projectId })
+      });
+
+      if (!response.ok) {
+        let message = 'Failed to download video';
+        try {
+          const data = await response.json();
+          message = data?.error || message;
+        } catch (err) {
+          console.error('Failed to parse download error response:', err);
+        }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `flowtra-character-ads-${projectId}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setGenerations((prev) => prev.map((gen) =>
+        gen.projectId === projectId ? { ...gen, downloaded: true } : gen
+      ));
+
+      if (refetchCredits) {
+        await refetchCredits();
+      }
+
+      showSuccess('Video download started');
+    } catch (error) {
+      console.error('Character ads download failed:', error);
+      showError(error instanceof Error ? error.message : 'Failed to download video');
+    } finally {
+      setDownloadingProjects((prev) => {
+        const next = { ...prev };
+        delete next[projectId];
+        return next;
+      });
+    }
+  }, [user?.id, downloadingProjects, refetchCredits, showError, showSuccess]);
+
+  const displayedGenerations = useMemo(() =>
+    sortGenerations(generations).map((gen) => ({
+      ...gen,
+      isDownloading: gen.projectId ? !!downloadingProjects[gen.projectId] : false,
+      coverUrl: gen.coverUrl ?? undefined
+    })),
+  [generations, downloadingProjects]);
 
   const handleGenerateAIDialogue = async () => {
     if (!selectedProduct) {
@@ -274,8 +573,13 @@ export default function CharacterAdsPage() {
         throw new Error(result?.error || 'Failed to generate dialogue.');
       }
 
-      const limitedDialogue = clampDialogueToWordLimit(result.dialogue || '', dialogueWordLimit);
+      const limitedDialogue = clampDialogueToWordLimit(result.dialogue || '', maxWordLimit);
       setCustomDialogue(limitedDialogue);
+      const generatedWordCount = countDialogueWords(limitedDialogue);
+      const autoDuration = getDurationForWordCount(generatedWordCount);
+      if (autoDuration !== videoDuration) {
+        setVideoDuration(autoDuration);
+      }
       setHasAIGeneratedDialogue(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate dialogue.';
@@ -286,10 +590,29 @@ export default function CharacterAdsPage() {
     }
   };
 
+  const getDurationForWordCount = (words: number): CharacterAdsDuration => {
+    if (words <= 0) {
+      return CHARACTER_ADS_DURATION_OPTIONS[0];
+    }
+    for (const option of CHARACTER_ADS_DURATION_OPTIONS) {
+      if (words <= getCharacterAdsDialogueWordLimit(option)) {
+        return option;
+      }
+    }
+    return CHARACTER_ADS_DURATION_OPTIONS[CHARACTER_ADS_DURATION_OPTIONS.length - 1];
+  };
+
   const handleCustomDialogueChange = (value: string) => {
-    const limitedValue = clampDialogueToWordLimit(value, dialogueWordLimit);
+    const limitedValue = clampDialogueToWordLimit(value, maxWordLimit);
     setCustomDialogue(limitedValue);
     setDialogueError(null);
+
+    const words = countDialogueWords(limitedValue);
+    const newDuration = getDurationForWordCount(words);
+    if (newDuration !== videoDuration) {
+      setVideoDuration(newDuration);
+    }
+
     if (hasAIGeneratedDialogue) {
       setHasAIGeneratedDialogue(false);
     }
@@ -307,30 +630,29 @@ export default function CharacterAdsPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
-        <div className="p-8 max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Video className="w-4 h-4 text-gray-700" />
+      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen flex flex-col pt-14 md:pt-0 min-h-0">
+        <div className="flex-1 flex flex-col min-h-0">
+          <header className="px-6 sm:px-8 lg:px-10 py-6 sticky top-0 z-30 bg-gray-50/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+            <div className="max-w-6xl mx-auto flex items-center gap-3">
+              <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
+                <Video className="w-5 h-5 text-gray-700" />
               </div>
-              <h1 className="text-2xl font-semibold text-gray-900">
-                Character Ads
-              </h1>
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900">Character Ads</h1>
+                <p className="text-sm text-gray-500">Veo3 Fast videos with Nano Banana Pro imagery</p>
+              </div>
             </div>
-          </div>
+          </header>
 
           <AnimatePresence mode="wait">
-            {/* Check KIE credits first - if insufficient, show maintenance interface */}
-            {!kieCreditsStatus.loading && !kieCreditsStatus.sufficient ? (
+            {showMaintenance ? (
               <motion.div
                 key="maintenance"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="max-w-xl mx-auto"
+                className="flex-1 flex items-center justify-center px-6 sm:px-8 lg:px-10"
               >
                 <MaintenanceMessage />
               </motion.div>
@@ -341,318 +663,314 @@ export default function CharacterAdsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
+                className="flex-1 overflow-y-auto px-6 sm:px-8 lg:px-10 py-8"
               >
-                <div className="mb-6">
+                <div className="max-w-6xl mx-auto space-y-6">
                   <button
                     onClick={() => setShowProductManager(false)}
                     className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
                   >
                     ← Back to Character Ads
                   </button>
+                  <ProductManager />
                 </div>
-                <ProductManager />
               </motion.div>
-            ) : workflowStatus === 'idle' || workflowStatus === 'success' ? (
-              <motion.div
-                key="configuration"
+            ) : (
+              <motion.section
+                key="preview"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+                className="flex-1 px-6 sm:px-8 lg:px-10 pb-48 overflow-y-auto"
               >
-                {/* Left Column - Photos and Product Management */}
-                <div className="space-y-6">
-                  {/* Personal Photos */}
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <UserPhotoGallery
-                      onPhotoSelect={setSelectedPersonPhotoUrl}
-                      selectedPhotoUrl={selectedPersonPhotoUrl}
-                    />
-                  </div>
-
-                  {/* Product Selection */}
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                      <div className="flex items-center gap-2">
-                        <Package className="w-4 h-4 text-gray-700" />
-                        <h3 className="text-lg font-semibold text-gray-900">Product Photos</h3>
-                      </div>
-                    </div>
-                    <div className="p-6 space-y-4">
-                      <ProductSelector
-                        selectedProduct={selectedProduct}
-                        onProductSelect={setSelectedProduct}
-                      />
-
-                    </div>
-                  </div>
-
+                <div className="max-w-6xl mx-auto w-full">
+                  <GenerationProgressDisplay
+                    generations={displayedGenerations}
+                    onDownload={handleDownloadGeneration}
+                  />
                 </div>
-
-                {/* Right Column - Configuration and Generate */}
-                <div className="space-y-6">
-                  {/* Configuration Card */}
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                      <div className="flex items-center gap-2">
-                        <Settings className="w-4 h-4 text-gray-700" />
-                        <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
-                      </div>
-                    </div>
-                    <div className="p-6 space-y-6">
-
-                      {/* Video Duration */}
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <Clock className="w-4 h-4 text-gray-600" />
-                          <label className="text-sm font-medium text-gray-700">
-                            Video Duration
-                          </label>
-                        </div>
-                        <CharacterAdsDurationSelector
-                          value={videoDuration}
-                          onChange={(d) => {
-                            // Keep the chosen video model stable when duration changes
-                            setVideoDuration(d);
-                          }}
-                        />
-                      </div>
-
-                      {/* Model Selection - Image and Video in one row */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
-                        <div className="relative">
-                          <ImageModelSelector
-                            credits={9999}
-                            selectedModel={selectedImageModel}
-                            onModelChange={setSelectedImageModel}
-                            showIcon={true}
-                            hiddenModels={['auto']}
-                          />
-                        </div>
-                        <div className="relative space-y-3">
-                          <VideoModelSelector
-                            credits={userCredits || 0}
-                            selectedModel={selectedVideoModel}
-                            onModelChange={(m) => {
-                              if (m === 'grok') return;
-                              setSelectedVideoModel(m);
-                            }}
-                            showIcon={true}
-                            disabledModels={disabledVideoModels}
-                            hiddenModels={['auto', 'grok']}
-                            videoDurationSeconds={videoDuration}
-                          />
-                          {['sora2', 'sora2_pro'].includes(selectedVideoModel) && (personImages.length > 0 || selectedPersonPhotoUrl) && (
-                            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                              <div className="flex items-start gap-3">
-                                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-                                <div className="flex-1">
-                                  <h4 className="text-sm font-semibold text-red-900 mb-1">
-                                    Sora2 Cannot Process Human Photos
-                                  </h4>
-                                  <p className="text-xs text-red-800">
-                                    OpenAI currently does not support uploads of images containing photorealistic people.
-                                    Please switch to VEO3 models for character ads, or remove person photos to use Sora2.
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Formats - Image size & Video aspect ratio in one row */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <SizeSelector
-                            selectedSize={imageSize}
-                            onSizeChange={setImageSize}
-                            imageModel={selectedImageModel === 'auto' ? 'seedream' : selectedImageModel}
-                            videoAspectRatio={videoAspectRatio}
-                            showIcon={true}
-                          />
-                        </div>
-                        <div>
-                          <VideoAspectRatioSelector
-                            selectedAspectRatio={videoAspectRatio}
-                            onAspectRatioChange={setVideoAspectRatio}
-                            videoModel={selectedVideoModel}
-                            showIcon={true}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Language Selection */}
-                      <LanguageSelector
-                        selectedLanguage={selectedLanguage}
-                        onLanguageChange={setSelectedLanguage}
-                        showIcon={true}
-                      />
-
-                      {/* Custom Dialogue (Optional) */}
-                      <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-2 text-base font-semibold text-gray-900">
-                            <MessageSquare className="w-4 h-4 text-gray-600" />
-                            <span>Custom Dialogue</span>
-                            <span className="text-xs text-gray-500 font-medium">Optional</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleGenerateAIDialogue}
-                            disabled={isGeneratingDialogue || !canUseDialogueAI}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
-                          >
-                          {isGeneratingDialogue ? (
-                            <>
-                              <span className="h-3 w-3 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
-                              Generating…
-                            </>
-                          ) : hasAIGeneratedDialogue ? (
-                            <>
-                              <Sparkles className="w-3.5 h-3.5" />
-                              Regenerate
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-3.5 h-3.5" />
-                              AI Generate
-                              {!canUseDialogueAI && (
-                                <span
-                                  className="ml-2 flex h-4 w-4 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-[10px] font-semibold text-amber-700"
-                                  title={selectedProduct
-                                    ? 'Upload at least one product photo so AI can understand your item before drafting dialogue.'
-                                    : 'Pick a product with photos to unlock AI dialogue suggestions.'}
-                                >
-                                  ?
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </button>
-                      </div>
-                        <div className="mt-3">
-                          {dialogueError && (
-                            <div className="mb-2 text-xs text-red-500">{dialogueError}</div>
-                          )}
-                          <div className="space-y-2">
-                            <textarea
-                              value={customDialogue}
-                              onChange={(e) => handleCustomDialogueChange(e.target.value)}
-                              placeholder="Add a short line the character will say. Think product hook + friendly CTA."
-                              rows={3}
-                              className="w-full px-3 py-3 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 text-gray-900 transition"
-                            />
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <div className="inline-flex items-center gap-1 text-gray-600">
-                                <Wand2 className="w-3.5 h-3.5" />
-                                Tip: aim for {dialogueWordLimit} words or less for a natural {videoDuration}s read.
-                              </div>
-                              <span className={dialogueWordCount >= dialogueWordLimit ? 'text-gray-900 font-semibold' : ''}>
-                                {dialogueWordCount}/{dialogueWordLimit} words
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* Generate Button */}
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="p-6">
-                      <motion.button
-                        onClick={handleStartGeneration}
-                        disabled={!canStartGeneration || isGenerating}
-                        className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-xl hover:bg-gray-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-base font-semibold group shadow-lg disabled:shadow-none"
-                        whileHover={{ scale: canStartGeneration && !isGenerating ? 1.02 : 1 }}
-                        whileTap={{ scale: canStartGeneration && !isGenerating ? 0.98 : 1 }}
-                      >
-                        {isGenerating ? (
-                          <>
-                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                            <span>Generating Ad…</span>
-                          </>
-                        ) : (
-                          <>
-                            <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform duration-200" />
-                            <span>Generate Ad</span>
-                            {(() => {
-                              // Calculate credits for button display
-                              const actualModel = getActualModel(selectedVideoModel, userCredits || 0);
-                              if (!actualModel) return null;
-
-                              const isFreeGen = isFreeGenerationModel(actualModel);
-                              if (isFreeGen) {
-                                // Free generation models - show FREE badge
-                                return (
-                                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
-                                    FREE
-                                  </span>
-                                );
-                              } else {
-                                // Paid generation models - show credit cost
-                                // Character ads: cost × number of scenes (duration in seconds / 8)
-                                const scenesCount = Math.ceil(videoDuration / 8);
-                                const cost = getGenerationCost(actualModel) * scenesCount;
-                                return (
-                                  <span className="ml-2 text-sm opacity-90">
-                                    (-{cost} credits)
-                                  </span>
-                                );
-                              }
-                            })()}
-                          </>
-                        )}
-                      </motion.button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ) : workflowStatus === 'error' ? (
-              /* Error State */
-              <motion.div
-                key="error"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="max-w-2xl mx-auto text-center space-y-6"
-              >
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-                  <AlertCircle className="w-8 h-8 text-red-600" />
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    Oops! Something went wrong
-                  </h3>
-                  <p className="text-gray-600 text-base">
-                    We encountered an issue while processing your request. Please try again.
-                  </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => resetWorkflow()}
-                    className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 font-medium"
-                  >
-                    Try Again
-                  </button>
-                  <button
-                    onClick={() => router.push('/dashboard/support')}
-                    className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium flex items-center justify-center gap-2"
-                  >
-                    <HelpCircle className="w-4 h-4" />
-                    Having Trouble?
-                  </button>
-                </div>
-              </motion.div>
-            ) : null}
+              </motion.section>
+            )}
           </AnimatePresence>
         </div>
       </div>
+
+      {composerVisible && (
+        <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-4 sm:px-8 lg:px-10 pb-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="relative bg-white/95 backdrop-blur border border-gray-200 rounded-[60px] shadow-2xl px-4 sm:px-6 py-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={() => setIsPersonPickerOpen(true)}
+                  className={`w-12 h-12 rounded-full border transition flex items-center justify-center text-sm font-medium ${hasPersonPhoto ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
+                  title={hasPersonPhoto ? 'Change character photo' : 'Select character'}
+                >
+                  {hasPersonPhoto ? (
+                    <Image src={selectedPersonPhotoUrl} alt="Character" width={48} height={48} className="object-cover w-full h-full rounded-full" />
+                  ) : (
+                    <Video className="w-5 h-5 text-gray-500" />
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setIsProductPickerOpen(true)}
+                  className={`w-12 h-12 rounded-full border transition flex items-center justify-center ${selectedProduct ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
+                  title={selectedProduct ? 'Change product' : 'Select brand & product'}
+                >
+                  {primaryProductPhoto ? (
+                    <Image src={primaryProductPhoto} alt="Product" width={48} height={48} className="object-cover w-full h-full rounded-full" />
+                  ) : (
+                    <Package className="w-5 h-5 text-gray-500" />
+                  )}
+                </button>
+
+                <div className="flex-1 min-w-[240px]">
+                  <div className="relative bg-white border border-gray-200 rounded-[999px] px-5 py-2.5 shadow-sm transition-all flex items-center min-h-[52px]">
+                    <textarea
+                      value={customDialogue}
+                      onChange={(e) => handleCustomDialogueChange(e.target.value)}
+                      placeholder="Add a short line the character will say. Think product hook + friendly CTA."
+                      rows={1}
+                      className="w-full resize-none bg-transparent border-none outline-none focus:outline-none focus-visible:outline-none text-sm text-gray-900 placeholder:text-gray-400 pr-32"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGenerateAIDialogue}
+                      disabled={isGeneratingDialogue || !canUseDialogueAI}
+                      className="absolute top-1/2 right-3 -translate-y-1/2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-300 px-3.5 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-500/25 transition disabled:opacity-60 focus:outline-none focus-visible:outline-none"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      {isGeneratingDialogue ? 'Loading…' : hasAIGeneratedDialogue ? 'Regenerate' : 'AI Generate'}
+                    </button>
+                  </div>
+                  {dialogueError && <div className="text-[11px] text-red-500 mt-1">{dialogueError}</div>}
+                </div>
+
+                <button
+                  onClick={() => setShowConfigPanel((prev) => !prev)}
+                  className={`w-12 h-12 rounded-full border flex items-center justify-center transition ${showConfigPanel ? 'border-gray-800 text-gray-900' : 'border-gray-300 text-gray-500'}`}
+                  title="Video settings"
+                >
+                  <SettingsIcon />
+                </button>
+
+                <motion.button
+                  onClick={handleStartGeneration}
+                  disabled={composerDisabled}
+                  className="flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  whileHover={{ scale: !composerDisabled ? 1.02 : 1 }}
+                  whileTap={{ scale: !composerDisabled ? 0.98 : 1 }}
+                >
+                  {isGenerating ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  {isGenerating ? 'Generating…' : 'Generate Ad'}
+                  {(() => {
+                    const actualModel = getActualModel(DEFAULT_VIDEO_MODEL, userCredits || 0);
+                    if (!actualModel) return null;
+                    const isFreeGen = isFreeGenerationModel(actualModel);
+                    if (isFreeGen) {
+                      return (
+                        <span className="ml-1 px-2 py-0.5 bg-green-500 text-white text-[10px] font-semibold rounded-full">
+                          FREE
+                        </span>
+                      );
+                    }
+                    const scenesCount = Math.ceil(videoDuration / 8);
+                    const cost = getGenerationCost(actualModel) * scenesCount;
+                    return (
+                      <span className="ml-1 text-xs opacity-90">(-{cost})</span>
+                    );
+                  })()}
+                </motion.button>
+              </div>
+              {showConfigPanel && (
+                <div
+                  ref={configPanelRef}
+                  className="absolute bottom-full right-6 mb-3 bg-white/95 border border-gray-200 rounded-[32px] shadow-2xl p-5 w-[360px] space-y-5"
+                >
+                  <div className="space-y-2 relative" ref={durationMenuRef}>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                      <Clock className="w-3.5 h-3.5" />
+                      Duration
+                    </label>
+                    <button
+                      onClick={() => {
+                        setShowDurationMenu((prev) => !prev);
+                        setShowAspectMenu(false);
+                        setShowLanguageMenu(false);
+                      }}
+                      className="w-full flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm hover:border-gray-400"
+                    >
+                      <span>{formatDurationLabel(videoDuration)}</span>
+                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showDurationMenu ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showDurationMenu && (
+                      <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-gray-200 bg-white shadow-xl divide-y divide-gray-100 max-h-64 overflow-y-auto z-10">
+                        {CHARACTER_ADS_DURATION_OPTIONS.map((seconds) => (
+                          <button
+                            key={seconds}
+                            onClick={() => {
+                              setVideoDuration(seconds);
+                              setShowDurationMenu(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${videoDuration === seconds ? 'bg-gray-50 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            <span>{formatDurationLabel(seconds)}</span>
+                            {videoDuration === seconds && <span className="text-xs text-gray-500">Selected</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 relative" ref={aspectMenuRef}>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                      <Video className="w-3.5 h-3.5" />
+                      Video Size
+                    </label>
+                    <button
+                      onClick={() => {
+                        setShowAspectMenu((prev) => !prev);
+                        setShowDurationMenu(false);
+                        setShowLanguageMenu(false);
+                      }}
+                      className="w-full flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm hover:border-gray-400"
+                    >
+                      <span>
+                        {ASPECT_OPTIONS.find((opt) => opt.value === videoAspectRatio)?.label}
+                        <span className="text-xs text-gray-500 ml-1">{videoAspectRatio}</span>
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showAspectMenu ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showAspectMenu && (
+                      <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-gray-200 bg-white shadow-xl divide-y divide-gray-100 z-10">
+                        {ASPECT_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => {
+                              setVideoAspectRatio(option.value);
+                              setShowAspectMenu(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${videoAspectRatio === option.value ? 'bg-gray-50 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            <span>{option.label}</span>
+                            <span className="text-xs text-gray-500">{option.subtitle}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 relative" ref={languageMenuRef}>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                      <Globe className="w-3.5 h-3.5" />
+                      Language
+                    </label>
+                    <button
+                      onClick={() => {
+                        setShowLanguageMenu((prev) => !prev);
+                        setShowDurationMenu(false);
+                        setShowAspectMenu(false);
+                      }}
+                      className="w-full flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm hover:border-gray-400"
+                    >
+                      <span>
+                        {LANGUAGE_OPTIONS.find((opt) => opt.value === selectedLanguage)?.label}
+                        <span className="text-xs text-gray-500 ml-1">
+                          {LANGUAGE_OPTIONS.find((opt) => opt.value === selectedLanguage)?.native}
+                        </span>
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showLanguageMenu ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showLanguageMenu && (
+                      <div className="absolute left-0 right-0 bottom-full mb-2 rounded-2xl border border-gray-200 bg-white shadow-xl divide-y divide-gray-100 max-h-64 overflow-y-auto z-10">
+                        {LANGUAGE_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => {
+                              setSelectedLanguage(option.value);
+                              setShowLanguageMenu(false);
+                            }}
+                            className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between ${selectedLanguage === option.value ? 'bg-gray-50 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            <span>{option.label}</span>
+                            <span className="text-xs text-gray-500">{option.native}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isPersonPickerOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Select Character Photo</h3>
+                <p className="text-xs text-gray-500">Pick an existing shot or upload a new one.</p>
+              </div>
+              <button
+                onClick={() => setIsPersonPickerOpen(false)}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+              <UserPhotoGallery
+                onPhotoSelect={handlePersonPickerSelect}
+                selectedPhotoUrl={selectedPersonPhotoUrl}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isProductPickerOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Select Brand & Product</h3>
+                <p className="text-xs text-gray-500">Pick a product to unlock AI-scripted dialogue.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setIsProductPickerOpen(false);
+                    setShowProductManager(true);
+                  }}
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Manage Products
+                </button>
+                <button
+                  onClick={() => setIsProductPickerOpen(false)}
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+              <ProductSelector
+                selectedProduct={selectedProduct as UserProduct | null}
+                onProductSelect={handleProductPickerSelect}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

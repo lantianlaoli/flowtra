@@ -1,91 +1,40 @@
 "use client";
 
-import { useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-
-type DurationValue = 8 | 10 | 16 | 20 | 24 | 30;
+import { CHARACTER_ADS_DURATION_OPTIONS, CharacterAdsDuration } from '@/lib/character-ads-dialogue';
+import { ChevronDown } from 'lucide-react';
 
 interface CharacterAdsDurationSelectorProps {
-  value: DurationValue;
-  onChange: (duration: DurationValue) => void;
-  disabledDurations?: DurationValue[];
+  value: CharacterAdsDuration;
+  onChange: (duration: CharacterAdsDuration) => void;
 }
 
-export default function CharacterAdsDurationSelector({ value, onChange, disabledDurations }: CharacterAdsDurationSelectorProps) {
-  const options = useMemo(() => ([
-    { value: 8 as const, label: '8s' },
-    { value: 10 as const, label: '10s' },
-    { value: 16 as const, label: '16s' },
-    { value: 20 as const, label: '20s' },
-    { value: 24 as const, label: '24s' },
-    { value: 30 as const, label: '30s' },
-  ]), []);
-
-  const permanentlyDisabled = useMemo(() => new Set<DurationValue>([10, 20, 30]), []);
-
-  useEffect(() => {
-    if (!permanentlyDisabled.has(value)) return;
-
-    const fallback = options.find((option) => !permanentlyDisabled.has(option.value))?.value;
-    if (fallback && fallback !== value) {
-      onChange(fallback);
+const formatDurationLabel = (seconds: number) => {
+  if (seconds >= 60) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    if (remainingSeconds === 0) {
+      return `${minutes}m`;
     }
-  }, [value, onChange, options, permanentlyDisabled]);
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+  return `${seconds}s`;
+};
 
+export default function CharacterAdsDurationSelector({ value, onChange }: CharacterAdsDurationSelectorProps) {
   return (
-    <div className="flex gap-0 bg-gray-100 rounded-lg p-1">
-      <AnimatePresence initial={false}>
-      {options.map((option) => {
-        const isDisabled = permanentlyDisabled.has(option.value)
-          || (disabledDurations?.includes(option.value) ?? false);
-        const isActive = value === option.value;
-
-        return (
-          <motion.button
-            key={option.value}
-            onClick={() => {
-              if (isDisabled) return;
-              onChange(option.value);
-            }}
-            className={`
-              flex-1 relative py-2.5 px-4 rounded-md font-medium text-sm transition-colors
-              ${isActive
-                ? 'text-white bg-gray-900 shadow-sm'
-                : isDisabled
-                  ? 'text-gray-400 cursor-not-allowed'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
-              }
-            `}
-            whileHover={!isActive && !isDisabled ? { scale: 1.02 } : {}}
-            whileTap={!isDisabled ? { scale: 0.98 } : {}}
-            animate={isActive ? { scale: 1 } : { scale: 1 }}
-            transition={{
-              type: 'spring',
-              stiffness: 300,
-              damping: 30
-            }}
-            disabled={isDisabled}
-          >
-            {isActive && (
-              <motion.div
-                className="absolute inset-0 bg-gray-900 rounded-md"
-                layoutId="durationActiveBackground"
-                initial={false}
-                transition={{
-                  type: 'spring',
-                  stiffness: 500,
-                  damping: 35
-                }}
-                style={{ zIndex: -1 }}
-              />
-            )}
-            <span className="relative z-10">
-              {option.label}
-            </span>
-          </motion.button>
-        );
-      })}
-      </AnimatePresence>
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value) as CharacterAdsDuration)}
+        className="w-full appearance-none rounded-full border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm font-semibold text-gray-900 shadow-sm focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+      >
+        {CHARACTER_ADS_DURATION_OPTIONS.map((seconds) => (
+          <option key={seconds} value={seconds}>
+            {formatDurationLabel(seconds)}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
     </div>
   );
 }
