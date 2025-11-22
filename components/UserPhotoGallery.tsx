@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Loader2, Plus, ImageIcon } from 'lucide-react';
+import { X, Loader2, Plus } from 'lucide-react';
 import Image from 'next/image';
 import { UserPhoto } from '@/lib/supabase';
 

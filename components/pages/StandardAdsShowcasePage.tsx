@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import Script from 'next/script';
 import {
   SparklesIcon,
   PlayCircleIcon,
@@ -99,31 +100,55 @@ export default function StandardAdsShowcasePage() {
 
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
-        <div className="text-center max-w-4xl mx-auto space-y-6">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black leading-tight">
-            Transform Product Images into Engaging Video Ads
-          </h1>
-          <p className="text-xl text-gray-600 leading-relaxed">
-            AI-powered video generation for e-commerce and marketing. Upload your product photo and get professional video ads in minutes.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-            <Link
-              href="/dashboard/standard-ads"
-              className="inline-flex items-center justify-center gap-2 bg-black text-white px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
-            >
-              Start Creating
-              <ArrowRightIcon className="w-5 h-5" />
-            </Link>
-            <Link
-              href="/#pricing"
-              className="inline-flex items-center justify-center gap-2 bg-white text-black border-2 border-gray-300 px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-50 transition-colors"
-            >
-              View Pricing
-            </Link>
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="text-left space-y-6">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black leading-tight">
+              Transform Product Images into Engaging Video Ads
+            </h1>
+            <p className="text-xl text-gray-600 leading-relaxed">
+              AI-powered video generation for e-commerce and marketing. Upload your product photo and get professional video ads in minutes.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <Link
+                href="/dashboard/standard-ads"
+                className="inline-flex items-center justify-center gap-2 bg-black text-white px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
+              >
+                Start Creating
+                <ArrowRightIcon className="w-5 h-5" />
+              </Link>
+              <Link
+                href="/#pricing"
+                className="inline-flex items-center justify-center gap-2 bg-white text-black border-2 border-gray-300 px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-50 transition-colors"
+              >
+                View Pricing
+              </Link>
+            </div>
+            <p className="text-sm text-gray-500">
+              100 free credits for new users (~$1.80 value) • 1 credit ≈ $0.018
+            </p>
           </div>
-          <p className="text-sm text-gray-500">
-            100 free credits for new users (~$1.80 value) • 1 credit ≈ $0.018
-          </p>
+
+          {/* TikTok Embed */}
+          <div className="flex justify-center lg:justify-end">
+            <blockquote
+              className="tiktok-embed"
+              cite="https://www.tiktok.com/@laolilantian/video/7575386238564240658"
+              data-video-id="7575386238564240658"
+              style={{ maxWidth: '605px', minWidth: '325px' }}
+            >
+              <section>
+                <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
+                Standard Advertising Demo Latest November 2025{' '}
+                <a title="advertising" target="_blank" href="https://www.tiktok.com/tag/advertising?refer=embed">#advertising</a>{' '}
+                <a title="nanobanana2" target="_blank" href="https://www.tiktok.com/tag/nanobanana2?refer=embed">#nanobanana2</a>{' '}
+                <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#ai</a>{' '}
+                <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a>{' '}
+                <a title="gemini" target="_blank" href="https://www.tiktok.com/tag/gemini?refer=embed">#gemini</a>{' '}
+                <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7575386395517389586?refer=embed">♬ original sound - Lantian laoli</a>
+              </section>
+            </blockquote>
+            <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
+          </div>
         </div>
       </section>
 

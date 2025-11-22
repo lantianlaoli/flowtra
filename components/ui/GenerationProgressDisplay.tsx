@@ -93,7 +93,7 @@ export default function GenerationProgressDisplay({
         {/* Action buttons */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           <a
-            href="https://www.tiktok.com/@laolilantian/video/7572766914779319559?lang=en"
+            href="https://www.tiktok.com/@laolilantian/video/7575386238564240658"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
