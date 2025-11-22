@@ -729,15 +729,37 @@ const formatDurationLabel = (seconds: number) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="flex-1 px-6 sm:px-8 lg:px-10 pb-48 overflow-y-auto"
+                className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-48 min-h-0"
               >
-                <div className="max-w-6xl mx-auto w-full space-y-3">
-                  <GenerationProgressDisplay
-                    generations={displayedGenerations}
-                    onDownload={handleDownloadGeneration}
-                    emptyStateSteps={CHARACTER_EMPTY_STEPS}
-                  />
-
+                <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
+                  <div className="bg-white border border-gray-200 rounded-3xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
+                    <div className="flex-1 overflow-hidden min-h-0">
+                      <GenerationProgressDisplay
+                        generations={displayedGenerations}
+                        onDownload={handleDownloadGeneration}
+                        emptyStateSteps={CHARACTER_EMPTY_STEPS}
+                        emptyStateRightContent={
+                          <blockquote
+                            className="tiktok-embed"
+                            cite="https://www.tiktok.com/@laolilantian/video/7575453353417657618"
+                            data-video-id="7575453353417657618"
+                            style={{ maxWidth: '605px', minWidth: '325px' }}
+                          >
+                            <section>
+                              <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
+                              This video explains how to use UGC advertising to introduce products in flowtra ai.{' '}
+                              <a title="aimarket" target="_blank" href="https://www.tiktok.com/tag/aimarket?refer=embed">#aimarket</a>{' '}
+                              <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#ai</a>{' '}
+                              <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a>{' '}
+                              <a title="advertising" target="_blank" href="https://www.tiktok.com/tag/advertising?refer=embed">#advertising</a>{' '}
+                              <a title="ugccreator" target="_blank" href="https://www.tiktok.com/tag/ugccreator?refer=embed">#ugccreator</a>{' '}
+                              <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7575453429700233992?refer=embed">♬ original sound - Lantian laoli</a>
+                            </section>
+                          </blockquote>
+                        }
+                      />
+                    </div>
+                  </div>
                 </div>
               </motion.section>
             )}

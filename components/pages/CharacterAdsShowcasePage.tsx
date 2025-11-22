@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import Script from 'next/script';
 import {
   PlayCircleIcon,
   ArrowRightIcon
@@ -65,31 +66,55 @@ export default function CharacterAdsShowcasePage() {
 
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
-        <div className="text-center max-w-4xl mx-auto space-y-6">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black leading-tight">
-            AI Character-Driven Video Ads
-          </h1>
-          <p className="text-xl text-gray-600 leading-relaxed">
-            Bring your products to life with realistic AI characters. Create engaging video advertisements where custom characters showcase your products and deliver your message.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-            <Link
-              href="/dashboard/character-ads"
-              className="inline-flex items-center justify-center gap-2 bg-black text-white px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
-            >
-              Start Creating
-              <ArrowRightIcon className="w-5 h-5" />
-            </Link>
-            <Link
-              href="/#pricing"
-              className="inline-flex items-center justify-center gap-2 bg-white text-black border-2 border-gray-300 px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-50 transition-colors"
-            >
-              View Pricing
-            </Link>
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="text-left space-y-6">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black leading-tight">
+              AI Character-Driven Video Ads
+            </h1>
+            <p className="text-xl text-gray-600 leading-relaxed">
+              Bring your products to life with realistic AI characters. Create engaging video advertisements where custom characters showcase your products and deliver your message.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <Link
+                href="/dashboard/character-ads"
+                className="inline-flex items-center justify-center gap-2 bg-black text-white px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
+              >
+                Start Creating
+                <ArrowRightIcon className="w-5 h-5" />
+              </Link>
+              <Link
+                href="/#pricing"
+                className="inline-flex items-center justify-center gap-2 bg-white text-black border-2 border-gray-300 px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-50 transition-colors"
+              >
+                View Pricing
+              </Link>
+            </div>
+            <p className="text-sm text-gray-500">
+              100 free credits for new users (~$1.80 value)
+            </p>
           </div>
-          <p className="text-sm text-gray-500">
-            100 free credits for new users (~$1.80 value)
-          </p>
+
+          {/* TikTok Embed */}
+          <div className="flex justify-center lg:justify-end">
+            <blockquote
+              className="tiktok-embed"
+              cite="https://www.tiktok.com/@laolilantian/video/7575453353417657618"
+              data-video-id="7575453353417657618"
+              style={{ maxWidth: '605px', minWidth: '325px' }}
+            >
+              <section>
+                <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
+                This video explains how to use UGC advertising to introduce products in flowtra ai.{' '}
+                <a title="aimarket" target="_blank" href="https://www.tiktok.com/tag/aimarket?refer=embed">#aimarket</a>{' '}
+                <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#ai</a>{' '}
+                <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a>{' '}
+                <a title="advertising" target="_blank" href="https://www.tiktok.com/tag/advertising?refer=embed">#advertising</a>{' '}
+                <a title="ugccreator" target="_blank" href="https://www.tiktok.com/tag/ugccreator?refer=embed">#ugccreator</a>{' '}
+                <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7575453429700233992?refer=embed">♬ original sound - Lantian laoli</a>
+              </section>
+            </blockquote>
+            <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
+          </div>
         </div>
       </section>
 
