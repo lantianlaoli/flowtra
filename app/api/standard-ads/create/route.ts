@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
     console.log('🚀 Standard ads workflow request received:', {
       imageUrl: requestData.imageUrl,
       selectedProductId: requestData.selectedProductId,
+      selectedBrandId: requestData.selectedBrandId, // NEW: Log brand ID
+      competitorAdId: requestData.competitorAdId, // NEW: Log competitor ad ID
       userId: requestData.userId,
       videoModel: requestData.videoModel,
       imageModel: requestData.imageModel,
@@ -74,8 +76,13 @@ export async function POST(request: NextRequest) {
       customScriptProvided: !!requestData.customScript
     });
 
-    if (!requestData.imageUrl && !requestData.selectedProductId) {
-      return NextResponse.json({ error: 'Either imageUrl or selectedProductId is required' }, { status: 400 });
+    // NEW: Updated validation to support brand-only mode
+    // At least one of: imageUrl, selectedProductId, or selectedBrandId is required
+    if (!requestData.imageUrl && !requestData.selectedProductId && !requestData.selectedBrandId) {
+      return NextResponse.json(
+        { error: 'Either imageUrl, selectedProductId, or selectedBrandId is required' },
+        { status: 400 }
+      );
     }
 
     console.log('📋 Calling startWorkflowProcess...');

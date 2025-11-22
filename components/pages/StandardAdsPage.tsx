@@ -27,6 +27,7 @@ import {
   isFreeGenerationModel,
   getGenerationCost,
   getSegmentCountFromDuration,
+  snapDurationToModel,
   type VideoModel,
   type VideoDuration,
   REPLICA_PHOTO_CREDITS
@@ -288,6 +289,11 @@ export default function StandardAdsPage() {
   const [photoOutputFormat, setPhotoOutputFormat] = useState<ReplicaOutputFormat>('png');
   const [isGenerating, setIsGenerating] = useState(false);
   const isMountedRef = useRef(true);
+  const lastAutoDurationRef = useRef<{ competitorId: string | null; model: VideoModel | null; duration: VideoDuration | null }>({
+    competitorId: null,
+    model: null,
+    duration: null
+  });
   const effectiveImageModel = isCompetitorPhotoMode ? 'nano_banana_pro' : selectedImageModel;
 
   // Modal states for user guidance
@@ -318,6 +324,29 @@ export default function StandardAdsPage() {
       setSelectedLanguage(selectedCompetitorAd.language as LanguageCode);
     }
   }, [selectedCompetitorAd, selectedLanguage]);
+
+  useEffect(() => {
+    if (!selectedCompetitorAd || selectedCompetitorAd.file_type !== 'video' || !selectedCompetitorAd.video_duration_seconds) {
+      if (!selectedCompetitorAd || selectedCompetitorAd.file_type !== 'video') {
+        lastAutoDurationRef.current = { competitorId: null, model: null, duration: null };
+      }
+      return;
+    }
+
+    const snapped = snapDurationToModel(selectedModel, selectedCompetitorAd.video_duration_seconds);
+    if (
+      snapped &&
+      (lastAutoDurationRef.current.competitorId !== selectedCompetitorAd.id ||
+        lastAutoDurationRef.current.model !== selectedModel ||
+        lastAutoDurationRef.current.duration !== snapped)
+    ) {
+      console.log(
+        `⏱️ Auto-selecting ${snapped}s duration to mirror ${selectedCompetitorAd.competitor_name} (${selectedModel})`
+      );
+      setVideoDuration(snapped);
+      lastAutoDurationRef.current = { competitorId: selectedCompetitorAd.id, model: selectedModel, duration: snapped };
+    }
+  }, [selectedCompetitorAd, selectedModel]);
 
   const selectedBrandId = selectedBrand?.id || null;
   const selectedCompetitorAdId = selectedCompetitorAd?.id || null;
@@ -680,6 +709,13 @@ export default function StandardAdsPage() {
     [videoQuality, videoDuration]
   );
 
+  // Calculate recommended duration based on competitor ad
+  const recommendedDuration = useMemo(() => {
+    if (selectedCompetitorAd?.file_type === 'video' && selectedCompetitorAd.video_duration_seconds) {
+      return snapDurationToModel(selectedModel, selectedCompetitorAd.video_duration_seconds);
+    }
+    return null;
+  }, [selectedCompetitorAd, selectedModel]);
 
   // Auto-adjust quality and duration when they become invalid
   useEffect(() => {
@@ -738,13 +774,6 @@ export default function StandardAdsPage() {
       return;
     }
 
-    // Validation: Check if product is selected
-    if (!selectedProduct) {
-      setValidationMessage('Please select a product before generating. Go to Assets page to create one if needed.');
-      setShowValidationModal(true);
-      return;
-    }
-
     if (isCompetitorPhotoMode) {
       if (!competitorImageUrl) {
         setValidationMessage('Select a competitor photo in the Assets panel before generating.');
@@ -780,7 +809,7 @@ export default function StandardAdsPage() {
       stage: isCompetitorPhotoMode ? 'Preparing replica photo…' : 'Initializing…',
       platform: selectedPlatform,
       brand: selectedBrand.brand_name,
-      product: selectedProduct.product_name,
+      product: selectedProduct?.product_name,
       videoModel: shouldGenerateVideo ? selectedModel : undefined,
       downloaded: false,
       segmentCount: initialSegmentCount ?? undefined,
@@ -810,7 +839,7 @@ export default function StandardAdsPage() {
       } : undefined;
 
       const workflowResult = await startWorkflowWithSelectedProduct(
-        selectedProduct.id,
+        selectedProduct?.id,
         watermarkConfig,
         elementsCount,
         format,
@@ -869,7 +898,8 @@ export default function StandardAdsPage() {
   const hasReplicaAssetSelection = selectedReplicaAssetUrls.length > 0;
   const hasReplicaProductsSelected = replicaSelectedProducts.length > 0;
   const replicaSelectionValid = !isCompetitorPhotoMode || (competitorImageUrl && hasReplicaProductsSelected && hasReplicaAssetSelection);
-  const canGenerate = !isGenerating && selectedProduct && selectedBrand && replicaSelectionValid;
+  // UPDATED: Support brand-only mode - require at least brand OR product
+  const canGenerate = !isGenerating && (selectedProduct || selectedBrand) && replicaSelectionValid;
 
   // Render insufficient credits or maintenance message
   if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
@@ -1002,6 +1032,7 @@ export default function StandardAdsPage() {
               onDurationChange={setVideoDuration}
               disabledDurations={disabledDurations}
               durationOptions={STANDARD_ADS_DURATION_OPTIONS}
+              recommendedDuration={recommendedDuration}
               videoQuality={videoQuality}
               onQualityChange={setVideoQuality}
               disabledQualities={disabledQualities}

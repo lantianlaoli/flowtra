@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Clock } from 'lucide-react';
+import { ChevronDown, Check, Clock, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { VideoDuration } from '@/lib/constants';
 
@@ -23,6 +23,7 @@ interface VideoDurationSelectorProps {
   disabled?: boolean;
   disabledDurations?: VideoDuration[];
   options?: VideoDurationOption[];
+  recommendedDuration?: VideoDuration | null; // NEW: Recommended duration from competitor ad
 }
 
 export default function VideoDurationSelector({
@@ -33,7 +34,8 @@ export default function VideoDurationSelector({
   showIcon = false,
   disabled = false,
   disabledDurations = [],
-  options
+  options,
+  recommendedDuration // NEW
 }: VideoDurationSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -210,6 +212,7 @@ export default function VideoDurationSelector({
               >
                 {durationOptions.map((option) => {
                   const isDisabled = disabledDurations.includes(option.value);
+                  const isRecommended = recommendedDuration === option.value;
                   return (
                     <button
                       key={option.value}
@@ -233,6 +236,12 @@ export default function VideoDurationSelector({
                             isDisabled ? "text-gray-400" : "text-gray-500"
                           )} />
                           <span className="font-medium">{option.label}</span>
+                          {isRecommended && (
+                            <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                              <Sparkles className="w-3 h-3" />
+                              Recommended
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs text-gray-500">
                           {option.description}

@@ -228,6 +228,7 @@ export interface CompetitorAd {
   analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed'
   analysis_error?: string | null
   analyzed_at?: string | null
+  video_duration_seconds?: number | null // Total runtime for analyzed competitor video
 }
 
 // Database types for sora2_watermark_removal_tasks table

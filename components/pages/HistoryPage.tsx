@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send } from 'lucide-react';
-import { getCreditCost } from '@/lib/constants';
+import { getCreditCost, getDownloadCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
@@ -33,6 +33,10 @@ interface StandardAdsItem {
   currentStep?: string;
   adType: 'standard';
   videoAspectRatio?: string;
+  // Segment information for cost calculation
+  isSegmented?: boolean;
+  segmentCount?: number;
+  videoDuration?: string;
 }
 
 interface MultiVariantAdsItem {
@@ -434,12 +438,16 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     const isPrepaid = item && 'generationCreditsUsed' in item ? (item.generationCreditsUsed || 0) > 0 : false;
 
     // Calculate download cost based on video duration for Character Ads
+    // For Standard Ads with segments, use getDownloadCost to account for segment_count
     let downloadCost = getCreditCost(videoModel);
     if (isCharacterAds(item) && item.videoDurationSeconds) {
       // For Character Ads: cost = (duration / unitSeconds) * base_cost_per_unit
       const unitSeconds = videoModel === 'sora2' ? 10 : 8;
       const baseCostPerUnit = getCreditCost(videoModel);
       downloadCost = Math.round((item.videoDurationSeconds / unitSeconds) * baseCostPerUnit);
+    } else if ('isSegmented' in item && item.isSegmented && item.segmentCount) {
+      // For Standard Ads with segments: use getDownloadCost which multiplies by segment_count
+      downloadCost = getDownloadCost(videoModel, item.videoDuration || null, item.segmentCount);
     }
 
     // For prepaid VEO3, no credit check needed
@@ -1244,11 +1252,15 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                             }
 
                                             // Compute dynamic cost for Character Ads based on duration; others use model cost
+                                            // For Standard Ads with segments, account for segment_count
                                             let cost = 0;
                                             if (isCharacterAds(item) && item.videoDurationSeconds) {
                                               const unitSeconds = item.videoModel === 'sora2' ? 10 : 8;
                                               const base = getCreditCost(item.videoModel);
                                               cost = Math.round((item.videoDurationSeconds / unitSeconds) * base);
+                                            } else if ('isSegmented' in item && item.isSegmented && item.segmentCount) {
+                                              // For Standard Ads with segments: use getDownloadCost which multiplies by segment_count
+                                              cost = getDownloadCost(item.videoModel, item.videoDuration || null, item.segmentCount);
                                             } else {
                                               cost = getCreditCost(item.videoModel);
                                             }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
 import { analyzeCompetitorAdWithLanguage } from '@/lib/standard-ads-workflow';
+import { parseCompetitorTimeline } from '@/lib/competitor-shots';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -89,6 +90,7 @@ export async function POST(
         file_type: competitorAd.file_type as 'video' | 'image',
         competitor_name: competitorAd.competitor_name
       });
+      const timeline = parseCompetitorTimeline(analysis);
 
       console.log(`[POST /api/competitor-ads/${id}/reanalyze] ✅ Analysis complete, language: ${language}`);
 
@@ -100,7 +102,8 @@ export async function POST(
           language: language,
           analysis_status: 'completed',
           analysis_error: null,
-          analyzed_at: new Date().toISOString()
+          analyzed_at: new Date().toISOString(),
+          video_duration_seconds: timeline.videoDurationSeconds
         })
         .eq('id', id)
         .select()

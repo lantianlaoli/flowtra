@@ -24,6 +24,10 @@ interface StandardAdsItem {
   currentStep?: string;
   adType: 'standard';
   videoAspectRatio?: string;
+  // Segment information for cost calculation
+  isSegmented?: boolean;
+  segmentCount?: number;
+  videoDuration?: string;
 }
 
 interface MultiVariantAdsItem {
@@ -217,7 +221,11 @@ export async function GET() {
       progress: item.progress_percentage,
       currentStep: item.current_step,
       adType: 'standard',
-      videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio)
+      videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio),
+      // Segment information for accurate cost calculation
+      isSegmented: item.is_segmented || false,
+      segmentCount: item.segment_count || undefined,
+      videoDuration: item.video_duration || undefined
     }));
 
     // Transform Multi-Variant Ads data

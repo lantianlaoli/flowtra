@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Upload, Loader2, Target, CheckCircle, XCircle, ChevronDown, ChevronUp, Languages } from 'lucide-react';
+import { X, Upload, Loader2, Target, CheckCircle, XCircle, Languages, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
 import { getLanguageDisplayInfo } from '@/lib/language';
@@ -68,11 +68,8 @@ export default function CreateCompetitorAdModal({
   const [createdAdId, setCreatedAdId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // UI state
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
-
-  // Polling ref
-  const pollingInterval = useRef<NodeJS.Timeout | null>(null);
+  // UI state for shot expansion
+  const [expandedShots, setExpandedShots] = useState<Set<number>>(new Set());
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -89,66 +86,23 @@ export default function CreateCompetitorAdModal({
       setAnalysisLanguage(null);
       setAnalysisError(null);
       setCreatedAdId(null);
-      setExpandedSection(null);
-    } else {
-      // Clear polling when modal closes
-      if (pollingInterval.current) {
-        clearInterval(pollingInterval.current);
-        pollingInterval.current = null;
-      }
+      setExpandedShots(new Set());
     }
   }, [isOpen]);
 
-  // Handle ESC key - allow closing even during analysis
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
+  const toggleShot = (shotId: number) => {
+    setExpandedShots(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(shotId)) {
+        newSet.delete(shotId);
+      } else {
+        newSet.add(shotId);
       }
-    };
+      return newSet;
+    });
+  };
 
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  // Poll for analysis status
-  useEffect(() => {
-    if (createdAdId && analysisStatus === 'analyzing') {
-      pollingInterval.current = setInterval(async () => {
-        try {
-          const response = await fetch(`/api/competitor-ads/${createdAdId}`);
-          const data = await response.json();
-
-          if (data.success && data.competitorAd) {
-            const ad = data.competitorAd;
-
-            if (ad.analysis_status === 'completed') {
-              setAnalysisStatus('completed');
-              setAnalysisResult(ad.analysis_result);
-              setAnalysisLanguage(ad.language || null);
-              clearInterval(pollingInterval.current!);
-              pollingInterval.current = null;
-            } else if (ad.analysis_status === 'failed') {
-              setAnalysisStatus('failed');
-              setAnalysisError(ad.analysis_error);
-              clearInterval(pollingInterval.current!);
-              pollingInterval.current = null;
-            }
-          }
-        } catch (err) {
-          console.error('Polling error:', err);
-        }
-      }, 3000); // Poll every 3 seconds
-
-      return () => {
-        if (pollingInterval.current) {
-          clearInterval(pollingInterval.current);
-        }
-      };
-    }
-  }, [createdAdId, analysisStatus]);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       // Validate file type
@@ -177,10 +131,107 @@ export default function CreateCompetitorAdModal({
       };
       reader.readAsDataURL(file);
       setError(null);
+
+      // Immediately create database record with analyzing status
+      console.log('[CreateCompetitorAdModal] Uploading and creating record...');
+      setAnalysisStatus('analyzing');
+      setIsUploading(true);
+
+      try {
+        // Use file name (without extension) as temporary name
+        const tempName = file.name.replace(/\.[^/.]+$/, '');
+
+        const formData = new FormData();
+        formData.append('brand_id', brandId);
+        formData.append('competitor_name', tempName);
+        formData.append('platform', platform);
+        formData.append('ad_file', file);
+
+        // Create record with analyzing status
+        const response = await fetch('/api/competitor-ads', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Upload failed');
+        }
+
+        const ad = data.competitorAd;
+        setCreatedAdId(ad.id);
+
+        console.log('[CreateCompetitorAdModal] ✅ Record created, ID:', ad.id);
+
+        // Now analysis should be running in background
+        // Poll for completion
+        const pollAnalysis = async () => {
+          try {
+            const statusResponse = await fetch(`/api/competitor-ads/${ad.id}`);
+            const statusData = await statusResponse.json();
+
+            if (statusData.success && statusData.competitorAd) {
+              const updatedAd = statusData.competitorAd;
+
+              if (updatedAd.analysis_status === 'completed') {
+                setAnalysisStatus('completed');
+                setAnalysisResult(updatedAd.analysis_result);
+                setAnalysisLanguage(updatedAd.language || null);
+                setCompetitorName(updatedAd.competitor_name);
+                onCompetitorAdCreated(updatedAd);
+                console.log('[CreateCompetitorAdModal] ✅ Analysis complete');
+                return true; // Stop polling
+              } else if (updatedAd.analysis_status === 'failed') {
+                setAnalysisStatus('failed');
+                setAnalysisError(updatedAd.analysis_error || 'Analysis failed');
+                console.error('[CreateCompetitorAdModal] ❌ Analysis failed');
+                return true; // Stop polling
+              }
+            }
+            return false; // Continue polling
+          } catch (err) {
+            console.error('[CreateCompetitorAdModal] Polling error:', err);
+            return false;
+          }
+        };
+
+        // Poll every 3 seconds
+        const pollInterval = setInterval(async () => {
+          const shouldStop = await pollAnalysis();
+          if (shouldStop) {
+            clearInterval(pollInterval);
+          }
+        }, 3000);
+
+        // Initial check
+        await pollAnalysis();
+
+      } catch (err) {
+        console.error('[CreateCompetitorAdModal] Upload error:', err);
+        setAnalysisStatus('failed');
+        setAnalysisError(err instanceof Error ? err.message : 'Upload failed');
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
-  const canSelectFile = !isUploading && analysisStatus === 'idle';
+  const handleCloseWithAnalyzing = () => {
+    if (analysisStatus === 'analyzing') {
+      const confirmed = confirm('Analysis is in progress. Are you sure you want to close? The ad has been saved and analysis will continue in the background.');
+      if (!confirmed) return;
+    }
+    onClose();
+  };
+
+  const languageDisplay = useMemo(() => getLanguageDisplayInfo(analysisLanguage), [analysisLanguage]);
+
+  const canClose = !isUploading;
+  const showUGCButton = Boolean(createdAdId) && analysisStatus === 'completed';
+  const canSelectFile = !isUploading && (analysisStatus === 'idle' || analysisStatus === 'failed');
+  const isAnalyzing = analysisStatus === 'analyzing';
+
   const triggerFileInput = () => {
     if (!canSelectFile) {
       return;
@@ -188,89 +239,7 @@ export default function CreateCompetitorAdModal({
     fileInputRef.current?.click();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!competitorName.trim()) {
-      setError('Ad name is required');
-      return;
-    }
-
-    if (!adFile) {
-      setError('Advertisement file is required');
-      return;
-    }
-
-    setIsUploading(true);
-    setError(null);
-    setWarning(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('brand_id', brandId);
-      formData.append('competitor_name', competitorName.trim());
-      formData.append('platform', platform);
-      formData.append('ad_file', adFile);
-
-      const response = await fetch('/api/competitor-ads', {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        const ad = data.competitorAd;
-        setCreatedAdId(ad.id);
-        setAnalysisLanguage(ad.language || null);
-
-        // Check immediate analysis status
-        if (ad.analysis_status === 'analyzing') {
-          setAnalysisStatus('analyzing');
-        } else if (ad.analysis_status === 'completed') {
-          setAnalysisStatus('completed');
-          setAnalysisResult(ad.analysis_result);
-          setAnalysisLanguage(ad.language || null);
-        } else if (ad.analysis_status === 'failed') {
-          setAnalysisStatus('failed');
-          setAnalysisError(ad.analysis_error);
-        }
-
-        if (data.warning) {
-          setWarning(data.warning);
-        }
-
-        onCompetitorAdCreated(ad);
-      } else {
-        setError(data.error || data.details || 'Failed to create competitor ad');
-      }
-    } catch (err) {
-      console.error('Error creating competitor ad:', err);
-      setError('An error occurred. Please try again.');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleCloseWithAnalyzing = () => {
-    if (analysisStatus === 'analyzing') {
-      // Show toast or notification that analysis continues in background
-      alert('✅ Competitor ad saved! Analysis is running in background.');
-    }
-    onClose();
-  };
-
-  const toggleSection = (section: string) => {
-    setExpandedSection(expandedSection === section ? null : section);
-  };
-
-  const languageDisplay = useMemo(() => getLanguageDisplayInfo(analysisLanguage), [analysisLanguage]);
-
   if (!isOpen) return null;
-
-  const canClose = !isUploading;
-  const canSubmit = !isUploading && competitorName.trim() && adFile;
-  const hasUploadedAd = Boolean(createdAdId);
 
   const handleGoToStandardAds = () => {
     onClose();
@@ -407,133 +376,124 @@ export default function CreateCompetitorAdModal({
                         <CheckCircle className="w-6 h-6 text-green-600" />
                         <h3 className="font-semibold text-gray-900">Analysis Complete</h3>
                       </div>
-                      {languageDisplay && (
-                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                          <Languages className="w-4 h-4 text-gray-500" />
-                          <span className="font-semibold text-gray-900">{languageDisplay.label}</span>
-                          {languageDisplay.native && languageDisplay.native !== languageDisplay.label && (
-                            <span className="text-gray-500">({languageDisplay.native})</span>
-                          )}
-                          <span className="text-xs uppercase tracking-wide text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">
-                            {languageDisplay.code.toUpperCase()}
-                          </span>
-                          <span className="text-gray-500">detected</span>
-                        </div>
-                      )}
 
-                      {/* 10 Veo Elements Display */}
-                      <div className="space-y-3">
-                        {(() => {
-                          // Extract analysis data with type safety
-                          const subject = String(analysisResult.subject || '');
-                          const context = String(analysisResult.context || '');
-                          const action = String(analysisResult.action || '');
-                          const style = String(analysisResult.style || '');
-                          const cameraMotion = String(analysisResult.camera_motion || '');
-                          const composition = String(analysisResult.composition || '');
-                          const ambiance = String(analysisResult.ambiance || '');
-                          const audio = String(analysisResult.audio || '');
-                          const firstFrame = String(analysisResult.first_frame_composition || '');
+                      {/* One-line summary: Language, Duration, Shots */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Language */}
+                        {languageDisplay && (
+                          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                            <Languages className="w-4 h-4 text-gray-500" />
+                            <span className="font-semibold text-gray-900">{languageDisplay.label}</span>
+                            <span className="text-xs uppercase tracking-wide text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+                              {languageDisplay.code.toUpperCase()}
+                            </span>
+                          </div>
+                        )}
 
-                          return (
-                            <>
-                              <AnalysisSection
-                                title="Subject"
-                                content={subject}
-                                expanded={expandedSection === 'subject'}
-                                onToggle={() => toggleSection('subject')}
-                              />
+                        {/* Duration */}
+                        {typeof analysisResult.video_duration_seconds === 'number' && (
+                          <div className="flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm">
+                            <span className="text-purple-600 font-semibold">Duration:</span>
+                            <span className="font-bold text-purple-900">
+                              {analysisResult.video_duration_seconds}s
+                            </span>
+                          </div>
+                        )}
 
-                              <AnalysisSection
-                                title="Context"
-                                content={context}
-                                expanded={expandedSection === 'context'}
-                                onToggle={() => toggleSection('context')}
-                              />
-
-                              <AnalysisSection
-                                title="Action"
-                                content={action}
-                                expanded={expandedSection === 'action'}
-                                onToggle={() => toggleSection('action')}
-                              />
-
-                              <AnalysisSection
-                                title="Style"
-                                content={style}
-                                expanded={expandedSection === 'style'}
-                                onToggle={() => toggleSection('style')}
-                              />
-
-                              <AnalysisSection
-                                title="Camera Motion"
-                                content={cameraMotion}
-                                expanded={expandedSection === 'camera_motion'}
-                                onToggle={() => toggleSection('camera_motion')}
-                              />
-
-                              <AnalysisSection
-                                title="Composition"
-                                content={composition}
-                                expanded={expandedSection === 'composition'}
-                                onToggle={() => toggleSection('composition')}
-                              />
-
-                              <AnalysisSection
-                                title="Ambiance"
-                                content={ambiance}
-                                expanded={expandedSection === 'ambiance'}
-                                onToggle={() => toggleSection('ambiance')}
-                              />
-
-                              <AnalysisSection
-                                title="Audio"
-                                content={audio}
-                                expanded={expandedSection === 'audio'}
-                                onToggle={() => toggleSection('audio')}
-                              />
-
-                              {/* Scene Elements - handled outside IIFE */}
-
-                              {/* First Frame Composition */}
-                              <AnalysisSection
-                                title="First Frame Composition"
-                                content={firstFrame}
-                                expanded={expandedSection === 'first_frame'}
-                                onToggle={() => toggleSection('first_frame')}
-                              />
-                            </>
-                          );
-                        })()}
-
-                        {/* Scene Elements */}
-                        {Array.isArray(analysisResult.scene_elements) && analysisResult.scene_elements.length > 0 && (
-                          <div className="border border-gray-200 rounded-lg overflow-hidden">
-                            <button
-                              onClick={() => toggleSection('scene_elements')}
-                              className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-                            >
-                              <span className="font-medium text-sm text-gray-900">Scene Elements ({(analysisResult.scene_elements as unknown[]).length})</span>
-                              {expandedSection === 'scene_elements' ? (
-                                <ChevronUp className="w-4 h-4 text-gray-600" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4 text-gray-600" />
-                              )}
-                            </button>
-                            {expandedSection === 'scene_elements' && (
-                              <div className="p-3 space-y-2">
-                                {(analysisResult.scene_elements as Array<{ element: string; position: string; details: string }>).map((el, idx) => (
-                                  <div key={idx} className="bg-white p-3 rounded border border-gray-200">
-                                    <div className="font-medium text-sm text-gray-900">{el.element}</div>
-                                    <div className="text-xs text-gray-600 mt-1">Position: {el.position}</div>
-                                    <div className="text-sm text-gray-700 mt-1">{el.details}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                        {/* Shots count */}
+                        {Array.isArray(analysisResult.shots) && (
+                          <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
+                            <span className="text-blue-600 font-semibold">Shots:</span>
+                            <span className="font-bold text-blue-900">
+                              {analysisResult.shots.length}
+                            </span>
                           </div>
                         )}
                       </div>
+
+                      {/* Shot details - expandable list */}
+                      {Array.isArray(analysisResult.shots) && analysisResult.shots.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                            Shot Timeline
+                          </h4>
+                          <div className="space-y-2">
+                            {(analysisResult.shots as Array<{
+                              shot_id: number;
+                              start_time: string;
+                              end_time: string;
+                              duration_seconds: number;
+                              first_frame_description: string;
+                              subject: string;
+                              context_environment: string;
+                              action: string;
+                              style: string;
+                              camera_motion_positioning: string;
+                              composition: string;
+                              ambiance_colour_lighting: string;
+                              audio: string;
+                              narrative_goal: string;
+                              recommended_segment_duration: number;
+                              generation_guidance: string;
+                            }>).map((shot) => {
+                              const isExpanded = expandedShots.has(shot.shot_id);
+                              return (
+                                <div
+                                  key={shot.shot_id}
+                                  className="border border-gray-200 rounded-lg overflow-hidden bg-white"
+                                >
+                                  {/* Shot header - always visible */}
+                                  <button
+                                    onClick={() => toggleShot(shot.shot_id)}
+                                    className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className="bg-blue-100 text-blue-700 font-bold text-xs rounded px-2 py-1">
+                                        Shot {shot.shot_id}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {shot.start_time} – {shot.end_time}
+                                      </div>
+                                      <div className="text-xs font-medium text-gray-700">
+                                        {shot.duration_seconds}s
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-500">{isExpanded ? 'Hide' : 'Show'} details</span>
+                                      {isExpanded ? (
+                                        <ChevronUp className="w-4 h-4 text-gray-600" />
+                                      ) : (
+                                        <ChevronDown className="w-4 h-4 text-gray-600" />
+                                      )}
+                                    </div>
+                                  </button>
+
+                                  {/* Shot details - expandable */}
+                                  {isExpanded && (
+                                    <div className="px-3 pb-3 space-y-3 border-t border-gray-100">
+                                      <ShotField label="Narrative Goal" value={shot.narrative_goal} />
+                                      <ShotField label="First Frame" value={shot.first_frame_description} />
+                                      <ShotField label="Subject" value={shot.subject} />
+                                      <ShotField label="Action" value={shot.action} />
+                                      <ShotField label="Context/Environment" value={shot.context_environment} />
+                                      <ShotField label="Style" value={shot.style} />
+                                      <ShotField label="Camera Motion" value={shot.camera_motion_positioning} />
+                                      <ShotField label="Composition" value={shot.composition} />
+                                      <ShotField label="Lighting/Ambiance" value={shot.ambiance_colour_lighting} />
+                                      <ShotField label="Audio" value={shot.audio} />
+                                      <ShotField label="Generation Guidance" value={shot.generation_guidance} highlight />
+                                      <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                                        <span className="font-semibold">Recommended Duration:</span>
+                                        <span>{shot.recommended_segment_duration}s</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -558,7 +518,7 @@ export default function CreateCompetitorAdModal({
 
             {/* Right Column: Form (40%) */}
             <div className="w-full md:w-2/5 overflow-y-auto p-6">
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form className="space-y-4">
                 {/* Ad Name */}
                 <div>
                   <label htmlFor="competitor-name" className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -569,13 +529,13 @@ export default function CreateCompetitorAdModal({
                     type="text"
                     value={competitorName}
                     onChange={(e) => setCompetitorName(e.target.value)}
-                    placeholder="e.g., Summer Splash 15s"
+                    placeholder="AI will suggest a name after analysis..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     disabled={isUploading || analysisStatus !== 'idle'}
                     required
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Use the actual title of the competitor advertisement so it&apos;s easy to find later.
+                    Upload a file and AI will auto-suggest a name. You can edit it anytime.
                   </p>
                 </div>
 
@@ -630,50 +590,45 @@ export default function CreateCompetitorAdModal({
                 )}
 
                 {/* Actions */}
-                {hasUploadedAd ? (
-                  <div className="pt-4">
+                {showUGCButton ? (
+                  <div className="pt-4 space-y-3">
                     <button
                       type="button"
                       onClick={handleGoToStandardAds}
                       className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 font-semibold"
                     >
-                      Recreate this competitor ad →
+                      Create your own UGC →
+                    </button>
+                    <p className="text-xs text-center text-gray-500">
+                      Analysis complete. Ready to recreate this ad with your product.
+                    </p>
+                  </div>
+                ) : isAnalyzing ? (
+                  <div className="pt-4 space-y-3">
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-sm text-purple-900 text-center">
+                      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-purple-600" />
+                      <p className="font-medium">Ad saved successfully!</p>
+                      <p className="text-xs text-purple-700 mt-1">Analysis is running in the background. You can close this modal and check back later.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCloseWithAnalyzing}
+                      disabled={!canClose}
+                      className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Close
                     </button>
                   </div>
                 ) : (
-                  <>
-                    <div className="flex gap-3 pt-4">
-                      <button
-                        type="button"
-                        onClick={handleCloseWithAnalyzing}
-                        disabled={!canClose}
-                        className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {analysisStatus === 'analyzing' ? 'Save & Close' : 'Cancel'}
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={!canSubmit}
-                        className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {isUploading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          'Upload & Analyze'
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Background analysis notice */}
-                    {analysisStatus === 'analyzing' && (
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-900">
-                        💡 <strong>Tip:</strong> You can close this window. Analysis will continue in the background.
-                      </div>
-                    )}
-                  </>
+                  <div className="pt-4">
+                    <button
+                      type="button"
+                      onClick={handleCloseWithAnalyzing}
+                      className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 )}
               </form>
             </div>
@@ -684,38 +639,12 @@ export default function CreateCompetitorAdModal({
   );
 }
 
-// Analysis Section Component
-function AnalysisSection({
-  title,
-  content,
-  expanded,
-  onToggle
-}: {
-  title: string;
-  content: string;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  const truncated = content.length > 80 ? content.slice(0, 80) + '...' : content;
-
+// Shot field display component
+function ShotField({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-      >
-        <span className="font-medium text-sm text-gray-900">{title}</span>
-        {expanded ? (
-          <ChevronUp className="w-4 h-4 text-gray-600" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-gray-600" />
-        )}
-      </button>
-      <div className="p-3">
-        <p className="text-sm text-gray-700">
-          {expanded ? content : truncated}
-        </p>
-      </div>
+    <div className={`text-sm ${highlight ? 'bg-blue-50 border border-blue-200 rounded p-2' : ''}`}>
+      <div className="font-semibold text-gray-700 text-xs uppercase tracking-wide mb-1">{label}</div>
+      <div className={`${highlight ? 'text-blue-900' : 'text-gray-900'}`}>{value}</div>
     </div>
   );
 }

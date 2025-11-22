@@ -226,7 +226,7 @@ export const useStandardAdsWorkflow = (
   }, [selectedModel, guestUsageCount, userId, maxUserUsage, maxGuestUsage]);
 
   const startWorkflowWithSelectedProduct = useCallback(async (
-    selectedProductId: string,
+    selectedProductId: string | undefined,
     watermarkConfig: { enabled: boolean; text: string; location?: string },
     currentElementsCount?: number,
     currentImageSize?: string,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -55,6 +55,7 @@ interface GenerationProgressDisplayProps {
   onDownload?: (generation: Generation) => void;
   onRetry?: (generation: Generation) => void;
   emptyStateSteps?: EmptyStateStep[];
+  emptyStateRightContent?: React.ReactNode;
 }
 
 export default function GenerationProgressDisplay({
@@ -62,53 +63,86 @@ export default function GenerationProgressDisplay({
   onDownload,
   onRetry,
   emptyStateSteps,
+  emptyStateRightContent,
 }: GenerationProgressDisplayProps) {
+  // Load TikTok script when in empty state
+  useEffect(() => {
+    if (generations.length === 0) {
+      const script = document.createElement('script');
+      script.src = 'https://www.tiktok.com/embed.js';
+      script.async = true;
+      document.body.appendChild(script);
+
+      return () => {
+        document.body.removeChild(script);
+      };
+    }
+  }, [generations.length]);
+
   // Empty state
   if (generations.length === 0) {
     const steps = emptyStateSteps || DEFAULT_STEPS;
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
-        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <Play className="w-10 h-10 text-gray-400" />
-        </div>
-        <h3 className="text-xl font-semibold text-gray-900 mb-4">
-          Get Started in 3 Easy Steps
-        </h3>
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+          {/* Left Side: Steps */}
+          <div className="flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+              <Play className="w-10 h-10 text-gray-400" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900">
+              Get Started in 3 Easy Steps
+            </h3>
 
-        {/* Step-by-step guide */}
-        <ol className="text-left space-y-3 mb-6 max-w-md">
-          {steps.map((step) => (
-            <li key={step.title} className="flex items-start gap-3">
-              <span className="text-lg" aria-hidden>
-                {step.icon}
-              </span>
-              <div>
-                <strong className="text-gray-900">{step.title}:</strong>
-                <span className="text-gray-600"> {step.description}</span>
-              </div>
-            </li>
-          ))}
-        </ol>
+            <ol className="w-full space-y-4 max-w-md">
+              {steps.map((step) => (
+                <li key={step.title} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                  <span className="text-2xl" aria-hidden>
+                    {step.icon}
+                  </span>
+                  <div className="text-left">
+                    <strong className="block text-gray-900 font-semibold mb-1">{step.title}</strong>
+                    <span className="text-gray-600 text-sm leading-relaxed">{step.description}</span>
+                  </div>
+                </li>
+              ))}
+            </ol>
 
-        {/* Action buttons */}
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <a
-            href="https://www.tiktok.com/@laolilantian/video/7575386238564240658"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <Play className="w-4 h-4" />
-            Watch Tutorial
-          </a>
+            <div className="pt-2">
+              <Link
+                href="/dashboard/assets"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md font-medium"
+              >
+                <Boxes className="w-5 h-5" />
+                Go to Assets
+              </Link>
+            </div>
+          </div>
 
-          <Link
-            href="/dashboard/assets"
-            className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-          >
-            <Boxes className="w-4 h-4" />
-            Go to Assets
-          </Link>
+          {/* Right Side: TikTok Video */}
+          <div className="flex justify-center w-full">
+            <div className="w-full flex justify-center lg:justify-end">
+              {emptyStateRightContent || (
+                <blockquote
+                  className="tiktok-embed"
+                  cite="https://www.tiktok.com/@laolilantian/video/7575430395320192263"
+                  data-video-id="7575430395320192263"
+                  style={{ maxWidth: '605px', minWidth: '325px' }}
+                >
+                  <section>
+                    <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
+                    Standard Advertising Demo Latest November 2025{' '}
+                    <a title="gemini" target="_blank" href="https://www.tiktok.com/tag/gemini?refer=embed">#gemini</a>{' '}
+                    <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a>{' '}
+                    <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#ai</a>{' '}
+                    <a title="nanobanana2" target="_blank" href="https://www.tiktok.com/tag/nanobanana2?refer=embed">#nanobanana2</a>{' '}
+                    <a title="aimarket" target="_blank" href="https://www.tiktok.com/tag/aimarket?refer=embed">#aimarket</a>{' '}
+                    <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7575430470718524167?refer=embed">♬ original sound - Lantian laoli</a>
+                  </section>
+                </blockquote>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );

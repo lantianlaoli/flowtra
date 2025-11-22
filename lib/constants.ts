@@ -596,6 +596,30 @@ export function getSegmentCountFromDuration(videoDuration?: string | null, model
   return Math.max(1, segments);
 }
 
+export function snapDurationToModel(model: VideoModel, targetSeconds: number): VideoDuration {
+  const capability = MODEL_CAPABILITIES.find(cap => cap.model === model);
+  const supportedDurations = capability?.supportedDurations || (['8'] as VideoDuration[]);
+  const sortedDurations = [...supportedDurations].sort((a, b) => Number(a) - Number(b));
+
+  if (sortedDurations.length === 0) {
+    return '8';
+  }
+
+  const sanitizedTarget = Number.isFinite(targetSeconds) && targetSeconds > 0 ? targetSeconds : Number(sortedDurations[0]);
+  let bestMatch = sortedDurations[0];
+  let bestDiff = Math.abs(Number(bestMatch) - sanitizedTarget);
+
+  for (const duration of sortedDurations) {
+    const diff = Math.abs(Number(duration) - sanitizedTarget);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestMatch = duration;
+    }
+  }
+
+  return bestMatch;
+}
+
 // Calculate cost for a model based on quality and duration
 export function getModelCostByConfig(
   model: VideoModel,

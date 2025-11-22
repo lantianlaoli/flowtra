@@ -21,6 +21,7 @@ interface ConfigPopoverProps {
   onDurationChange: (duration: VideoDuration) => void;
   disabledDurations?: VideoDuration[];
   durationOptions?: VideoDurationOption[];
+  recommendedDuration?: VideoDuration | null; // NEW: Recommended duration from competitor ad
 
   // Quality props
   videoQuality: 'standard' | 'high';
@@ -63,6 +64,7 @@ export default function ConfigPopover({
   onDurationChange,
   disabledDurations = [],
   durationOptions,
+  recommendedDuration, // NEW
   videoQuality,
   onQualityChange,
   disabledQualities = [],
@@ -251,6 +253,7 @@ export default function ConfigPopover({
         selectedDuration={videoDuration}
         onDurationChange={onDurationChange}
         disabledDurations={disabledDurations}
+        recommendedDuration={recommendedDuration}
         label="Duration"
         showIcon
         disabled={disabled}

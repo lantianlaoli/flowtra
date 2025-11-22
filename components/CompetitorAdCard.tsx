@@ -131,7 +131,7 @@ export default function CompetitorAdCard({
       </div>
 
       {/* Info */}
-      <div className="p-3">
+      <div className="p-3 space-y-3">
         <h4 className="font-medium text-gray-900 text-sm truncate">
           {competitorAd.competitor_name}
         </h4>

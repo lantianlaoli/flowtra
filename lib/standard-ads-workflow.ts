@@ -8,8 +8,11 @@ import {
   getLanguagePromptName,
   getSegmentCountFromDuration,
   REPLICA_PHOTO_CREDITS,
-  type LanguageCode
+  snapDurationToModel,
+  type LanguageCode,
+  type VideoDuration
 } from '@/lib/constants';
+import { parseCompetitorTimeline, sumShotDurations, type CompetitorShot } from '@/lib/competitor-shots';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 const KIE_PROMPT_LIMIT = 5000;
@@ -53,7 +56,7 @@ export interface StartWorkflowRequest {
   sora2ProDuration?: '10' | '15';
   sora2ProQuality?: 'standard' | 'high';
   // Generic video params (applies to all models)
-  videoDuration?: '8' | '10' | '15' | '16' | '24' | '32';
+  videoDuration?: VideoDuration;
   videoQuality?: 'standard' | 'high';
   language?: string; // Language for AI-generated content
   // NEW: Custom Script mode
@@ -89,6 +92,8 @@ export type SegmentPrompt = {
   segment_goal?: string;
   first_frame_prompt?: string;
   closing_frame_prompt?: string;
+  contains_brand?: boolean; // NEW: Whether this segment/shot contains brand elements
+  contains_product?: boolean; // NEW: Whether this segment/shot contains product
 };
 
 export interface SegmentStatusPayload {
@@ -173,7 +178,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     // Handle product selection - get the image URL from the selected product
     let imageUrl = request.imageUrl;
+    let brandLogoUrl: string | null = null;
     let productContext = { product_details: '', brand_name: '', brand_slogan: '', brand_details: '' };
+
     if (request.selectedProductId && !imageUrl) {
       const { data: product, error: productError } = await supabase
         .from('user_products')
@@ -184,7 +191,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             id,
             brand_name,
             brand_slogan,
-            brand_details
+            brand_details,
+            brand_logo_url
           )
         `)
         .eq('id', request.selectedProductId)
@@ -223,33 +231,92 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         brand_slogan: product.brand?.brand_slogan || '',
         brand_details: product.brand?.brand_details || ''
       };
+
+      // Store brand logo URL for brand-only shots
+      brandLogoUrl = product.brand?.brand_logo_url || null;
+    }
+    // NEW: If no product selected but brand is selected, get default product from brand
+    else if (request.selectedBrandId && !imageUrl) {
+      console.log(`🏢 No product selected, fetching default from brand: ${request.selectedBrandId}`);
+
+      const { data: brand, error: brandError } = await supabase
+        .from('user_brands')
+        .select(`
+          id,
+          brand_name,
+          brand_slogan,
+          brand_details,
+          brand_logo_url,
+          user_products (
+            id,
+            product_details,
+            user_product_photos (
+              photo_url,
+              is_primary
+            )
+          )
+        `)
+        .eq('id', request.selectedBrandId)
+        .eq('user_id', request.userId)
+        .single();
+
+      if (brandError || !brand) {
+        console.error('Brand query error:', brandError);
+        return {
+          success: false,
+          error: 'Brand not found',
+          details: brandError?.message || 'Selected brand does not exist or does not belong to this user'
+        };
+      }
+
+      // Store brand context
+      productContext = {
+        product_details: '',
+        brand_name: brand.brand_name || '',
+        brand_slogan: brand.brand_slogan || '',
+        brand_details: brand.brand_details || ''
+      };
+
+      // Store brand logo URL
+      brandLogoUrl = brand.brand_logo_url || null;
+
+      // Try to get the first product as default
+      const firstProduct = brand.user_products?.[0];
+      if (firstProduct && firstProduct.user_product_photos?.length > 0) {
+        const primaryPhoto = firstProduct.user_product_photos.find((photo: { is_primary: boolean }) => photo.is_primary);
+        const fallbackPhoto = firstProduct.user_product_photos[0];
+        const selectedPhoto = primaryPhoto || fallbackPhoto;
+
+        imageUrl = selectedPhoto.photo_url;
+        productContext.product_details = firstProduct.product_details || '';
+
+        console.log(`✅ Using brand's first product as default: ${imageUrl}`);
+      } else {
+        console.log(`ℹ️  No products found for brand. Will use Text-to-Image for product shots.`);
+      }
     }
 
-    if (!imageUrl) {
-      return {
-        success: false,
-        error: 'Image source required',
-        details: 'Either imageUrl or selectedProductId with photos is required'
-      };
-    }
+    // imageUrl is now optional when using competitor reference mode
+    // It will be used if available, otherwise Text-to-Image will be used
 
     // Load competitor ad if provided (optional reference for creative direction)
     // Extended type to include existing analysis and language for performance optimization
-    let competitorAdContext: {
-      id?: string;
-      file_url: string;
-      file_type: 'image' | 'video';
-      competitor_name: string;
-      existing_analysis?: Record<string, unknown> | null;
-      analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
-      language?: string | null;
-    } | undefined;
+  let competitorAdContext: {
+    id?: string;
+    file_url: string;
+    file_type: 'image' | 'video';
+    competitor_name: string;
+    existing_analysis?: Record<string, unknown> | null;
+    analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
+    language?: string | null;
+    video_duration_seconds?: number | null;
+  } | undefined;
 
     if (request.competitorAdId) {
       console.log(`🎯 Loading competitor ad: ${request.competitorAdId}`);
       const { data: competitorAd, error: competitorError } = await supabase
         .from('competitor_ads')
-        .select('ad_file_url, file_type, competitor_name, analysis_result, analysis_status, language')
+        .select('ad_file_url, file_type, competitor_name, analysis_result, analysis_status, language, video_duration_seconds')
         .eq('id', request.competitorAdId)
         .eq('user_id', request.userId)
         .single();
@@ -262,7 +329,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           competitor_name: competitorAd.competitor_name,
           existing_analysis: competitorAd.analysis_result,
           analysis_status: competitorAd.analysis_status as 'pending' | 'analyzing' | 'completed' | 'failed' | undefined,
-          language: competitorAd.language
+          language: competitorAd.language,
+          video_duration_seconds: competitorAd.video_duration_seconds
         };
         console.log(`✅ Competitor ad loaded: ${competitorAdContext.competitor_name} (${competitorAdContext.file_type})`);
         console.log(`📊 Analysis status: ${competitorAdContext.analysis_status || 'unknown'}`);
@@ -276,11 +344,43 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     // Convert 'auto' to specific model
     let actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+    let competitorShotTimeline: { shots: CompetitorShot[]; totalDurationSeconds: number } | null = null;
+
     if (request.videoModel === 'auto') {
       const autoSelection = getAutoModeSelection(0); // Get cheapest model
         actualVideoModel = autoSelection || 'sora2'; // Fallback to cheapest
     } else {
       actualVideoModel = request.videoModel;
+    }
+
+    if (
+      competitorAdContext &&
+      competitorAdContext.analysis_status === 'completed' &&
+      competitorAdContext.existing_analysis
+    ) {
+      const timeline = parseCompetitorTimeline(
+        competitorAdContext.existing_analysis as Record<string, unknown>,
+        competitorAdContext.video_duration_seconds
+      );
+      if (timeline.shots.length > 0) {
+        competitorShotTimeline = {
+          shots: timeline.shots,
+          totalDurationSeconds: timeline.videoDurationSeconds || sumShotDurations(timeline.shots)
+        };
+
+        if (
+          (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' || actualVideoModel === 'grok') &&
+          competitorShotTimeline.totalDurationSeconds > 0
+        ) {
+          const snappedDuration = snapDurationToModel(actualVideoModel, competitorShotTimeline.totalDurationSeconds);
+          if (snappedDuration && request.videoDuration !== snappedDuration) {
+            console.log(
+              `⏱️ Auto-adjusted video duration to ${snappedDuration}s to mirror competitor reference (${actualVideoModel})`
+            );
+            request.videoDuration = snappedDuration;
+          }
+        }
+      }
     }
 
     const isSegmented = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
@@ -474,7 +574,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             project.id,
             { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel },
             productContext,
-            competitorAdContext // Pass competitor ad context for reference
+            competitorAdContext, // Pass competitor ad context for reference
+            brandLogoUrl, // NEW: Pass brand logo URL for brand-only shots
+            imageUrl // NEW: Pass product image URL (may be null if no product)
           );
         }
       } catch (workflowError) {
@@ -557,7 +659,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 async function startAIWorkflow(
   projectId: string,
   request: StartWorkflowRequest & {
-    imageUrl: string;
+    imageUrl?: string; // UPDATED: Now optional to support brand-only mode
     resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
   },
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
@@ -569,7 +671,10 @@ async function startAIWorkflow(
     existing_analysis?: Record<string, unknown> | null;
     analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
     language?: string | null;
-  }
+    video_duration_seconds?: number | null;
+  },
+  brandLogoUrl?: string | null, // NEW: Brand logo URL for brand-only shots
+  productImageUrl?: string | null // NEW: Product image URL (may be null if no product)
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
@@ -619,9 +724,6 @@ async function startAIWorkflow(
     // AUTO MODE: Image-driven workflow with AI creative generation
     // Generate prompts based purely on visual analysis of the product image
     console.log('🤖 Generating creative video prompts from product image...');
-    const totalDurationSeconds = parseInt(request.videoDuration || request.sora2ProDuration || '10', 10);
-    const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
-    const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel) : 1;
 
     // TWO-STEP PROCESS for competitor reference mode (with intelligent caching)
     let competitorDescription: Record<string, unknown> | undefined;
@@ -637,7 +739,7 @@ async function startAIWorkflow(
         competitorDescription = competitorAdContext.existing_analysis as Record<string, unknown>;
 
         // Optional: Validate analysis structure
-        const requiredFields = ['subject', 'context', 'action', 'style', 'camera_motion', 'composition', 'ambiance', 'audio'];
+        const requiredFields = ['subject', 'context', 'action', 'style', 'camera_motion', 'composition', 'ambiance', 'audio', 'shots'];
         const hasAllFields = requiredFields.every(field => field in competitorDescription!);
 
         if (!hasAllFields) {
@@ -647,6 +749,21 @@ async function startAIWorkflow(
             file_type: competitorAdContext.file_type,
             competitor_name: competitorAdContext.competitor_name
           });
+
+          if (competitorAdContext.id && competitorDescription) {
+            const timeline = parseCompetitorTimeline(
+              competitorDescription as Record<string, unknown>,
+              competitorAdContext.video_duration_seconds
+            );
+            await supabase
+              .from('competitor_ads')
+              .update({
+                analysis_result: competitorDescription,
+                analysis_status: 'completed',
+                video_duration_seconds: timeline.videoDurationSeconds
+              })
+              .eq('id', competitorAdContext.id);
+          }
         }
       } else {
         // No existing analysis or analysis failed/pending - perform fresh analysis
@@ -664,7 +781,61 @@ async function startAIWorkflow(
         });
 
         console.log('✅ Step 1 complete: Fresh competitor analysis ready');
+
+        if (competitorAdContext.id && competitorDescription) {
+          const timeline = parseCompetitorTimeline(
+            competitorDescription as Record<string, unknown>,
+            competitorAdContext.video_duration_seconds
+          );
+          await supabase
+            .from('competitor_ads')
+            .update({
+              analysis_result: competitorDescription,
+              analysis_status: 'completed',
+              video_duration_seconds: timeline.videoDurationSeconds
+            })
+            .eq('id', competitorAdContext.id);
+        }
       }
+    }
+
+    let competitorTimelineShots: CompetitorShot[] | undefined;
+    if (competitorDescription) {
+      const parsedTimeline = parseCompetitorTimeline(
+        competitorDescription as Record<string, unknown>,
+        competitorAdContext?.video_duration_seconds
+      );
+      competitorTimelineShots = parsedTimeline.shots;
+
+      if (
+        parsedTimeline.videoDurationSeconds &&
+        (request.resolvedVideoModel === 'veo3' ||
+          request.resolvedVideoModel === 'veo3_fast' ||
+          request.resolvedVideoModel === 'grok')
+      ) {
+        const snappedDuration = snapDurationToModel(request.resolvedVideoModel, parsedTimeline.videoDurationSeconds);
+        if (snappedDuration && request.videoDuration !== snappedDuration) {
+          console.log(`⏱️ Aligning video duration to competitor timeline (${snappedDuration}s)`);
+          request.videoDuration = snappedDuration;
+        }
+      }
+    }
+
+    const totalDurationSeconds = parseInt(request.videoDuration || request.sora2ProDuration || '10', 10);
+    const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
+    const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel) : 1;
+
+    const { error: projectConfigUpdateError } = await supabase
+      .from('standard_ads_projects')
+      .update({
+        video_duration: request.videoDuration || request.sora2ProDuration || null,
+        is_segmented: segmentedFlow,
+        segment_count: segmentedFlow ? segmentCount : null,
+        segment_duration_seconds: segmentedFlow ? (request.resolvedVideoModel === 'grok' ? 6 : 8) : null
+      })
+      .eq('id', projectId);
+    if (projectConfigUpdateError) {
+      console.error('⚠️ Failed to sync project video settings with competitor analysis:', projectConfigUpdateError);
     }
 
     // Step 2: Generate prompts for our product
@@ -683,10 +854,36 @@ async function startAIWorkflow(
     const productCategory = detectProductCategory(prompts);
     console.log(`📦 Product category detected: ${productCategory}`);
 
+    let shotPlanForSegments: CompetitorShot[] | undefined;
+    if (segmentedFlow && competitorTimelineShots && competitorTimelineShots.length > 0) {
+      if (competitorTimelineShots.length === segmentCount) {
+        shotPlanForSegments = competitorTimelineShots;
+      } else {
+        console.warn(
+          `⚠️ Competitor shot count (${competitorTimelineShots.length}) does not match required segment count (${segmentCount}). Falling back to AI segment plan.`
+        );
+      }
+    }
+
     if (segmentedFlow) {
       console.log('🎬 Segmented workflow enabled - orchestrating multi-segment pipeline');
-      await startSegmentedWorkflow(projectId, request, prompts, segmentCount, competitorDescription);
+      await startSegmentedWorkflow(
+        projectId,
+        request,
+        prompts,
+        segmentCount,
+        competitorDescription,
+        shotPlanForSegments,
+        brandLogoUrl, // NEW: Pass brand logo URL
+        productImageUrl, // NEW: Pass product image URL
+        productContext // NEW: Pass product context for fallback text generation
+      );
       return;
+    }
+
+    // Non-segmented flow: Requires product image
+    if (!request.imageUrl) {
+      throw new Error('Non-segmented workflow requires a product image. Please use segmented workflow with competitor reference or provide a product image.');
     }
 
     // Step 1: Start cover generation
@@ -737,7 +934,7 @@ async function startAIWorkflow(
 async function startReplicaWorkflow(
   projectId: string,
   request: StartWorkflowRequest & {
-    imageUrl: string;
+    imageUrl: string | undefined;
     resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
   },
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
@@ -749,6 +946,7 @@ async function startReplicaWorkflow(
     existing_analysis?: Record<string, unknown> | null;
     analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
     language?: string | null;
+    video_duration_seconds?: number | null;
   }
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
@@ -772,6 +970,7 @@ async function startReplicaWorkflow(
       });
       competitorDescription = analysis;
       detectedLanguage = language;
+      const timeline = parseCompetitorTimeline(analysis);
 
       if (competitorAdContext.id) {
         await supabase
@@ -779,7 +978,8 @@ async function startReplicaWorkflow(
           .update({
             analysis_result: analysis,
             analysis_status: 'completed',
-            language
+            language,
+            video_duration_seconds: timeline.videoDurationSeconds
           })
           .eq('id', competitorAdContext.id);
       }
@@ -999,7 +1199,7 @@ async function analyzeCompetitorAd(
     }
   }
 
-  // Define JSON schema for competitor analysis (Veo Guide 8 elements + Scene Details)
+  // Define JSON schema for competitor analysis (Veo Guide 8 elements + Scene Details + Shot timeline)
   const responseFormat = {
     type: "json_schema",
     json_schema: {
@@ -1066,9 +1266,119 @@ async function analyzeCompetitorAd(
           first_frame_composition: {
             type: "string",
             description: "Detailed description of the first frame's spatial layout and visual hierarchy"
+          },
+          video_duration_seconds: {
+            type: "number",
+            description: "Total runtime of the analyzed advertisement in seconds"
+          },
+          shots: {
+            type: "array",
+            minItems: 1,
+            description: "Ordered breakdown of every shot/scene with timestamps and creative cues",
+            items: {
+              type: "object",
+              properties: {
+                shot_id: {
+                  type: "number",
+                  description: "Sequential shot number starting at 1"
+                },
+                start_time: {
+                  type: "string",
+                  description: "Shot start timestamp formatted as MM:SS"
+                },
+                end_time: {
+                  type: "string",
+                  description: "Shot end timestamp formatted as MM:SS"
+                },
+                duration_seconds: {
+                  type: "number",
+                  description: "Shot duration in seconds (round to nearest second)"
+                },
+                first_frame_description: {
+                  type: "string",
+                  description: "Visual description of the opening frame for this shot"
+                },
+                subject: {
+                  type: "string",
+                  description: "People, products, or hero objects featured in the shot"
+                },
+                context_environment: {
+                  type: "string",
+                  description: "Location, environment, and background details"
+                },
+                action: {
+                  type: "string",
+                  description: "What happens during the shot"
+                },
+                style: {
+                  type: "string",
+                  description: "Visual style or mood for the shot"
+                },
+                camera_motion_positioning: {
+                  type: "string",
+                  description: "Camera movement and framing specifics for the shot"
+                },
+                composition: {
+                  type: "string",
+                  description: "Shot type/framing (close-up, medium, wide, etc.)"
+                },
+                ambiance_colour_lighting: {
+                  type: "string",
+                  description: "Lighting scheme, palette, and atmosphere"
+                },
+                audio: {
+                  type: "string",
+                  description: "Voiceover, dialogue, SFX, or music cues"
+                },
+                narrative_goal: {
+                  type: "string",
+                  description: "Purpose of the shot inside the story arc (hook, proof, CTA, etc.)"
+                },
+                recommended_segment_duration: {
+                  type: "number",
+                  description: "Best segment duration for recreating this shot (use multiples of 8s when possible)"
+                },
+                generation_guidance: {
+                  type: "string",
+                  description: "Explicit instructions for recreating the shot with our product"
+                }
+              },
+              required: [
+                "shot_id",
+                "start_time",
+                "end_time",
+                "duration_seconds",
+                "first_frame_description",
+                "subject",
+                "context_environment",
+                "action",
+                "style",
+                "camera_motion_positioning",
+                "composition",
+                "ambiance_colour_lighting",
+                "audio",
+                "narrative_goal",
+                "recommended_segment_duration",
+                "generation_guidance"
+              ],
+              additionalProperties: false
+            }
           }
         },
-        required: ["subject", "context", "action", "style", "camera_motion", "composition", "ambiance", "audio", "scene_elements", "first_frame_composition"],
+        required: [
+          "subject",
+          "context",
+          "action",
+          "style",
+          "camera_motion",
+          "composition",
+          "ambiance",
+          "audio",
+          "scene_elements",
+          "first_frame_composition",
+          "video_duration_seconds",
+          "shots"
+        ],
         additionalProperties: false
       }
     }
@@ -1137,6 +1447,22 @@ Analyze and describe each element in detail:
     - Depth perception and layering of elements
     - Negative space and framing
 
+11. **Video Duration (广告总时长)**: Return the precise total runtime in seconds as \`video_duration_seconds\`. Use the video's metadata or timestamps.
+
+12. **Shot Timeline (多镜头拆解)**: Output a JSON array named "shots" describing sequential 6-8 second beats that cover the entire video from start to finish. Each shot MUST include:
+    - \`shot_id\`, \`start_time\`, \`end_time\`, and \`duration_seconds\`
+    - Visual specifics: \`first_frame_description\`, \`subject\`, \`context_environment\`, \`action\`, \`style\`, \`camera_motion_positioning\`, \`composition\`, \`ambiance_colour_lighting\`
+    - Audio cues
+    - \`narrative_goal\` explaining the marketing purpose of that shot
+    - \`recommended_segment_duration\` (prefer 8 seconds to match Veo3 Fast; use 6 seconds when the shot clearly demands Grok pacing)
+    - \`generation_guidance\` explaining exactly how to recreate the shot with our product instead of the competitor's while preserving framing and pacing.
+
+Requirements for the "shots" array:
+- Cover the entire runtime with no gaps.
+- Keep timestamps strictly increasing and formatted as MM:SS (e.g., "00:24").
+- Durations should be rounded to the nearest second and sum to the total runtime.
+- Favor concise multi-shot segmentation similar to storyboard beats.
+
 CRITICAL FOR SCENE REPLICATION:
 - Be extremely detailed and specific for scene_elements and first_frame_composition
 - Include colors, materials, sizes, and exact positions
@@ -1204,7 +1530,7 @@ export async function analyzeCompetitorAdWithLanguage(
     }
   }
 
-  // Extended JSON schema with language detection
+  // Extended JSON schema with language detection + shot breakdown
   const responseFormat = {
     type: "json_schema",
     json_schema: {
@@ -1213,71 +1539,128 @@ export async function analyzeCompetitorAdWithLanguage(
       schema: {
         type: "object",
         properties: {
-          subject: {
+          name: {
             type: "string",
-            description: "Main elements and focal points in the ad (what is shown)"
+            description: "A concise, descriptive name for this competitor ad (e.g., 'lovevery-playkits-delivery', 'nike-running-motivation'). Use lowercase with hyphens, keep it under 40 characters, make it searchable and memorable."
           },
-          context: {
-            type: "string",
-            description: "Environment, background, setting, time of day"
+          video_duration_seconds: {
+            type: "number",
+            description: "Total runtime of the analyzed advertisement in seconds"
           },
-          action: {
-            type: "string",
-            description: "What is happening, movement, interactions"
-          },
-          style: {
-            type: "string",
-            description: "Overall visual style and artistic direction"
-          },
-          camera_motion: {
-            type: "string",
-            description: "Camera movements (pan, zoom, tracking, POV, etc.)"
-          },
-          composition: {
-            type: "string",
-            description: "Shot types (close-up, medium shot, wide shot, angles)"
-          },
-          ambiance: {
-            type: "string",
-            description: "Color palette, lighting setup, mood, atmosphere"
-          },
-          audio: {
-            type: "string",
-            description: "Dialogue, voiceover, music style, sound effects"
-          },
-          scene_elements: {
+          shots: {
             type: "array",
-            description: "List of all visible background elements with their positions (furniture, plants, floor type, walls, props)",
+            minItems: 1,
+            description: "Ordered breakdown of every shot/scene with timestamps and creative cues",
             items: {
               type: "object",
               properties: {
-                element: {
-                  type: "string",
-                  description: "Name of the element (e.g., 'monstera plant', 'white chair', 'hardwood floor')"
+                shot_id: {
+                  type: "number",
+                  description: "Sequential shot number starting at 1"
                 },
-                position: {
+                start_time: {
                   type: "string",
-                  description: "Position in frame (e.g., 'left background', 'right side', 'bottom', 'center background')"
+                  description: "Shot start timestamp formatted as MM:SS"
                 },
-                details: {
+                end_time: {
                   type: "string",
-                  description: "Visual details (color, material, size, style)"
+                  description: "Shot end timestamp formatted as MM:SS"
+                },
+                duration_seconds: {
+                  type: "number",
+                  description: "Shot duration in seconds (round to nearest second)"
+                },
+                first_frame_description: {
+                  type: "string",
+                  description: "Visual description of the opening frame for this shot"
+                },
+                subject: {
+                  type: "string",
+                  description: "People, products, or hero objects featured in the shot"
+                },
+                context_environment: {
+                  type: "string",
+                  description: "Location, environment, and background details"
+                },
+                action: {
+                  type: "string",
+                  description: "What happens during the shot"
+                },
+                style: {
+                  type: "string",
+                  description: "Visual style or mood for the shot"
+                },
+                camera_motion_positioning: {
+                  type: "string",
+                  description: "Camera movement and framing specifics for the shot"
+                },
+                composition: {
+                  type: "string",
+                  description: "Shot type/framing (close-up, medium, wide, etc.)"
+                },
+                ambiance_colour_lighting: {
+                  type: "string",
+                  description: "Lighting scheme, palette, and atmosphere"
+                },
+                audio: {
+                  type: "string",
+                  description: "Voiceover, dialogue, SFX, or music cues"
+                },
+                narrative_goal: {
+                  type: "string",
+                  description: "Purpose of the shot inside the story arc (hook, proof, CTA, etc.)"
+                },
+                recommended_segment_duration: {
+                  type: "number",
+                  description: "Best segment duration for recreating this shot (use multiples of 8s when possible)"
+                },
+                generation_guidance: {
+                  type: "string",
+                  description: "Explicit instructions for recreating the shot with our product"
+                },
+                contains_brand: {
+                  type: "boolean",
+                  description: "Whether this shot contains brand elements (logo, packaging, brand name, brand signage)"
+                },
+                contains_product: {
+                  type: "boolean",
+                  description: "Whether this shot contains physical product(s) that should be replaced with user's product"
                 }
               },
-              required: ["element", "position", "details"],
+              required: [
+                "shot_id",
+                "start_time",
+                "end_time",
+                "duration_seconds",
+                "first_frame_description",
+                "subject",
+                "context_environment",
+                "action",
+                "style",
+                "camera_motion_positioning",
+                "composition",
+                "ambiance_colour_lighting",
+                "audio",
+                "narrative_goal",
+                "recommended_segment_duration",
+                "generation_guidance",
+                "contains_brand",
+                "contains_product"
+              ],
               additionalProperties: false
             }
-          },
-          first_frame_composition: {
-            type: "string",
-            description: "Detailed description of the first frame's spatial layout and visual hierarchy"
           },
           detected_language: {
             type: "string",
             description: "Detected primary language as a short code (e.g., 'en', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'ur', 'pa')"
           }
         },
-        required: ["subject", "context", "action", "style", "camera_motion", "composition", "ambiance", "audio", "scene_elements", "first_frame_composition", "detected_language"],
+        required: [
+          "name",
+          "video_duration_seconds",
+          "shots",
+          "detected_language"
+        ],
         additionalProperties: false
       }
     }
@@ -1307,85 +1690,103 @@ export async function analyzeCompetitorAdWithLanguage(
                 },
             {
               type: 'text',
-              text: `📺 COMPETITOR AD ANALYSIS WITH LANGUAGE DETECTION
+              text: `📺 COMPETITOR AD MULTI-SHOT ANALYSIS
 
 You are analyzing a competitor advertisement ${competitorAdContext.file_type === 'video' ? 'video' : 'image'}${competitorAdContext.competitor_name ? ` from "${competitorAdContext.competitor_name}"` : ''}.
 
-TASK: Analyze this ad using the Veo Prompt Guide's 8 core elements PLUS detailed scene reconstruction data AND automatic language detection. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
+TASK: Break down this ad into a structured shot-by-shot timeline with language detection. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
 
-Analyze and describe each element in detail:
+OUTPUT REQUIREMENTS:
 
-1. **Subject (主体)**: What objects, people, animals, or scenes appear? What are the main focal points?
+1. **name** (广告名称): Generate a concise, descriptive name for this ad
+   - Format: lowercase-with-hyphens (e.g., "lovevery-playkits-delivery", "nike-running-motivation")
+   - Keep it under 40 characters
+   - Make it searchable and memorable
+   - Include brand/product keywords if visible
 
-2. **Context (环境/背景)**: What is the environment? Indoor/outdoor? Time of day? Background elements?
+2. **video_duration_seconds** (广告总时长): Return the precise total runtime in seconds
+   - Use the video's metadata or calculate from timestamps
+   - Round to nearest second
 
-3. **Action (动作)**: What movements or actions are happening? How do subjects interact?
+3. **shots** (多镜头拆解): Break down the ad into sequential shots/scenes
+   - Each shot represents a distinct visual beat or narrative moment
+   - Typical shot duration: 6-11 seconds
+   - Cover the ENTIRE runtime with NO gaps
 
-4. **Style (风格)**: What is the overall visual or artistic style? (e.g., cinematic, minimalist, retro, modern, cartoon-like)
+   For EACH shot, provide:
+   - \`shot_id\` - Sequential number starting at 1
+   - \`start_time\` - Format: MM:SS (e.g., "00:06")
+   - \`end_time\` - Format: MM:SS
+   - \`duration_seconds\` - Shot duration (round to nearest second)
+   - \`first_frame_description\` - Detailed visual description of the opening frame
+   - \`subject\` - People, products, or hero objects featured
+   - \`context_environment\` - Location, environment, and background details
+   - \`action\` - What happens during the shot
+   - \`style\` - Visual style or mood
+   - \`camera_motion_positioning\` - Camera movement and framing
+   - \`composition\` - Shot type/framing (close-up, medium, wide, etc.)
+   - \`ambiance_colour_lighting\` - Lighting scheme, palette, and atmosphere
+   - \`audio\` - Voiceover, dialogue, SFX, or music cues
+   - \`narrative_goal\` - Purpose of the shot (hook, proof, CTA, etc.)
+   - \`recommended_segment_duration\` - Best duration for recreating (prefer 8s; use 6s only when needed)
+   - \`generation_guidance\` - Explicit instructions for recreating with our product
+   - \`contains_brand\` - Boolean: Does this shot show brand logo, packaging, brand name, or brand signage?
+   - \`contains_product\` - Boolean: Does this shot show physical product(s) that would need to be replaced?
 
-5. **Camera Motion (摄像机运动)**: How does the camera move? (e.g., static, pan left/right, zoom in/out, tracking shot, POV, crane shot)
+   Shot requirements:
+   - Timestamps must be strictly increasing (no gaps, no overlaps)
+   - Durations must sum to total video duration
+   - Be extremely detailed and specific
+   - Think like you're creating a storyboard for recreation
 
-6. **Composition (构图)**: What are the shot types and framing? (e.g., close-up, medium shot, wide shot, extreme close-up, angles)
+   **BRAND/PRODUCT DETECTION RULES:**
+   - \`contains_brand: true\` if the shot shows:
+     * Brand logo or wordmark
+     * Product packaging with brand name
+     * Brand signage or storefront
+     * Any visual brand identifier
+   - \`contains_product: true\` if the shot shows:
+     * Physical product(s) that are the focus or subject
+     * Product being used, demonstrated, or displayed
+     * Product in hand, on table, or in scene
+   - Both can be true simultaneously (e.g., branded product packaging)
+   - Both can be false (e.g., pure lifestyle/environment shots)
 
-7. **Ambiance (氛围/色彩)**: What is the color palette? Lighting? Mood? Atmosphere? (e.g., warm tones, cold blue, high-key lighting, moody shadows)
+4. **detected_language** (检测语言): Detect the PRIMARY language
+   - Check text overlays, subtitles, captions
+   - Listen to voiceover, dialogue, or narration
+   - Consider cultural and regional context
+   - Return ONLY the short code: 'en', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'ur', 'pa'
+   - Default to "en" if unclear or mostly visual
 
-8. **Audio (音频)**: What audio elements are present or suggested? Dialogue? Voiceover? Music style? Sound effects?
-
-9. **Scene Elements (场景元素)**: List EVERY visible background element with precise details:
-   - Furniture (chairs, tables, shelves, etc.) - specify color, material, style
-   - Plants (type, size, position)
-   - Floor type (hardwood, carpet, tile, pattern)
-   - Wall features (color, texture, decorations)
-   - Props and decorative items
-   - For each element, specify its EXACT position in the frame (left/right/center, foreground/background)
-
-10. **First Frame Composition (首帧构图)**: Describe the ${competitorAdContext.file_type === 'video' ? 'opening frame' : 'image'}'s spatial layout in detail:
-    - What is in the foreground vs background?
-    - How is the space divided (left/center/right)?
-    - What is the visual hierarchy (what draws the eye first)?
-    - Depth perception and layering of elements
-    - Negative space and framing
-
-11. **Detected Language (检测语言)**: Analyze the PRIMARY language used in this ad:
-    - Check text overlays, subtitles, captions
-    - Listen to voiceover, dialogue, or narration (if video)
-    - Consider cultural and regional context
-    - Return the language as a SHORT CODE using this mapping:
-
-      Language Mapping (Full Name → Code):
-      - English → "en"
-      - Spanish (Español) → "es"
-      - French (Français) → "fr"
-      - German (Deutsch) → "de"
-      - Italian (Italiano) → "it"
-      - Portuguese (Português) → "pt"
-      - Dutch (Nederlands) → "nl"
-      - Swedish (Svenska) → "sv"
-      - Norwegian (Norsk) → "no"
-      - Danish (Dansk) → "da"
-      - Finnish (Suomi) → "fi"
-      - Polish (Polski) → "pl"
-      - Russian (Русский) → "ru"
-      - Greek (Ελληνικά) → "el"
-      - Turkish (Türkçe) → "tr"
-      - Czech (Čeština) → "cs"
-      - Romanian (Română) → "ro"
-      - Chinese (中文) → "zh"
-      - Urdu (اردو) → "ur"
-      - Punjabi (ਪੰਜਾਬੀ) → "pa"
-
-      IMPORTANT:
-      - Return ONLY the short code (e.g., "en", "zh", "es"), NOT the full name
-      - If no clear language is detected or it's mostly visual, default to "en"
-      - If multiple languages appear, choose the DOMINANT one
-
-CRITICAL FOR SCENE REPLICATION:
-- Be extremely detailed and specific for scene_elements and first_frame_composition
-- Include colors, materials, sizes, and exact positions
-- Think like you're instructing someone to recreate the exact scene from scratch
-- These details will be used to generate an identical scene with a different product
-
-Return a JSON object with all 11 elements (including detected_language as a short code).`
+EXAMPLE OUTPUT STRUCTURE:
+{
+  "name": "lovevery-playkits-delivery",
+  "video_duration_seconds": 47,
+  "shots": [
+    {
+      "shot_id": 1,
+      "start_time": "00:00",
+      "end_time": "00:06",
+      "duration_seconds": 6,
+      "first_frame_description": "Exterior of a modern apartment building with a package on the doorstep",
+      "subject": "Young woman",
+      "context_environment": "Urban street entrance, brick building with glass door",
+      "action": "Opens door, picks up package, walks inside",
+      "style": "Realism, candid lifestyle",
+      "camera_motion_positioning": "Static wide shot",
+      "composition": "Full body shot",
+      "ambiance_colour_lighting": "Natural daylight, soft shadows",
+      "audio": "Upbeat acoustic music starts",
+      "narrative_goal": "Establish product arrival moment",
+      "recommended_segment_duration": 6,
+      "generation_guidance": "Show doorstep delivery pickup scene enthusiastically",
+      "contains_brand": true,
+      "contains_product": true
+    }
+  ],
+  "detected_language": "en"
+}`
             }
           ]
         }
@@ -1436,7 +1837,7 @@ Return a JSON object with all 11 elements (including detected_language as a shor
  * @param competitorDescription - Optional competitor analysis from Step 1 (used as system prompt)
  */
 async function generateImageBasedPrompts(
-  imageUrl: string,
+  imageUrl: string | undefined,
   language?: string,
   videoDurationSeconds?: number,
   userRequirements?: string,
@@ -1444,7 +1845,8 @@ async function generateImageBasedPrompts(
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
   competitorDescription?: Record<string, unknown> // Changed: Now receives analysis result, not raw context
 ): Promise<Record<string, unknown>> {
-  console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${competitorDescription ? ' (competitor reference mode)' : ' (traditional mode)'}`);
+  console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${competitorDescription ? ' (competitor reference mode)' : ' (traditional mode)'}${!imageUrl ? ' (brand-only mode, no product image)' : ''}`);
+
 
   const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
   const perSegmentDuration = Math.max(8, Math.round(duration / Math.max(1, segmentCount)));
@@ -1596,24 +1998,25 @@ async function generateImageBasedPrompts(
 **COMPETITOR ANALYSIS** (Veo Guide 8 Elements):
 ${JSON.stringify(competitorDescription, null, 2)}
 
-Your task is to create a similar advertisement for OUR product (shown in the user's image) by:
+Your task is to create a similar advertisement for OUR product${imageUrl ? ' (shown in the user\'s image)' : ''} by:
 1. CLONING the competitor's creative structure, style, and approach
 2. REPLACING the competitor's product with our product
 3. MAINTAINING the same narrative flow, visual style, and tone
 4. PRESERVING the camera work, composition, and ambiance
 
-Remember: The user's image is OUR product - adapt the competitor's ad to showcase OUR product instead.`
+${imageUrl ? 'Remember: The user\'s image is OUR product - adapt the competitor\'s ad to showcase OUR product instead.' : 'Note: No product image provided - use brand context to adapt the competitor\'s ad.'}`
             },
             {
               role: 'user',
-              content: [
-                {
-                  type: 'image_url',
-                  image_url: { url: imageUrl }
-                },
-                {
-                  type: 'text',
-                  text: `📸 OUR PRODUCT IMAGE (above)
+              content: imageUrl
+                ? [
+                    {
+                      type: 'image_url',
+                      image_url: { url: imageUrl }
+                    },
+                    {
+                      type: 'text',
+                      text: `📸 OUR PRODUCT IMAGE (above)
 
 Based on the competitor analysis provided in the system message, generate an advertisement for OUR product.
 
@@ -1660,22 +2063,73 @@ Generate a JSON object with these elements:
 - full_description: 200-500 word narrative for 60s+ videos
 
 CRITICAL: Return ONE object. All text in English. Dialogue under ${dialogueWordLimit} words per segment.`
-                }
-              ]
+                    }
+                  ]
+                : [
+                    {
+                      type: 'text',
+                      text: `Based on the competitor analysis provided in the system message, generate an advertisement for our brand/product.
+
+${productContext && (productContext.product_details || productContext.brand_name) ? `
+Product & Brand Context:
+${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}
+(Use this context to create the advertisement)` : ''}${userRequirements ? `\n\nUser Requirements:\n${userRequirements}\n\n(Apply these while maintaining the competitor's core structure)` : ''}
+
+${segmentCount > 1 ? `Segment Plan Requirements:
+- Output EXACTLY ${segmentCount} segment objects in the "segments" array
+- Each segment: "segment_title", "segment_goal", "first_frame_prompt", "closing_frame_prompt"
+- Keep style consistent across segments
+- Define one narrator voice for the entire ad
+` : ''}
+Generate a JSON object with these elements:
+
+**Product Classification (REQUIRED)**:
+- product_category: "children_toy" | "adult_product" | "general"
+- target_audience: "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
+
+**Core Concept (Veo Guide)**:
+- subject: Main elements (from competitor, adapted to our brand)
+- context: Environment and setting (matching competitor)
+- action: Action sequence (competitor structure + our brand)
+
+**Visual Style (Veo Guide)**:
+- style: Visual style (from competitor)
+- camera_type: Shot type (from competitor)
+- camera_movement: Camera movement (from competitor)
+- composition: Framing (from competitor)
+- ambiance: Color, lighting, mood (from competitor)
+
+**Standard Fields**:
+- description: Scene description (competitor structure + our brand)
+- setting: Environment (from competitor)
+- lighting: Lighting style (from competitor)
+- dialogue: Voiceover (adapted from competitor, in English)
+- music: Music style (from competitor)
+- ending: Conclusion (competitor style + our brand)
+- other_details: Creative elements (from competitor)
+- language: Language name for voiceover
+
+**Full Description**:
+- full_description: 200-500 word narrative for 60s+ videos
+
+CRITICAL: Return ONE object. All text in English. Dialogue under ${dialogueWordLimit} words per segment.`
+                    }
+                  ]
             }
           ]
         : // === TRADITIONAL AUTO-GENERATION MODE ===
           [
             {
               role: 'user',
-              content: [
-                {
-                  type: 'image_url',
-                  image_url: { url: imageUrl }
-                },
-                {
-                  type: 'text',
-                  text: `🤖 TRADITIONAL AUTO-GENERATION MODE
+              content: imageUrl
+                ? [
+                    {
+                      type: 'image_url',
+                      image_url: { url: imageUrl }
+                    },
+                    {
+                      type: 'text',
+                      text: `🤖 TRADITIONAL AUTO-GENERATION MODE
 
 Analyze the product image and generate ONE creative video advertisement prompt.
 
@@ -1748,10 +2202,71 @@ CRITICAL: Return EXACTLY ONE advertisement prompt object, NOT an array of object
 IMPORTANT: All text content (dialogue, descriptions, etc.) should be written in English. The 'language' field is metadata only to specify what language the video voiceover should use.
 IMPORTANT: The dialogue should be naturally creative and product-focused, NOT a brand slogan.
 CRITICAL: Keep each segment's dialogue concise enough for ~${perSegmentDuration} seconds of narration (under ${dialogueWordLimit} words). Avoid long sentences.`
+                    }
+                  ]
+                : [
+                    {
+                      type: 'text',
+                      text: `🤖 TRADITIONAL AUTO-GENERATION MODE (BRAND-ONLY)
+
+Generate ONE creative video advertisement prompt based on the brand context provided.
+
+${productContext && (productContext.product_details || productContext.brand_name) ? `
+Product & Brand Context:
+${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}
+IMPORTANT: Use this context to create the advertisement.
+` : ''}${userRequirements ? `
+User Requirements:
+${userRequirements}
+
+IMPORTANT: Incorporate these requirements into all aspects of the advertisement.
+` : ''}
+
+${segmentCount > 1 ? `Segment Plan Requirements:
+- Output EXACTLY ${segmentCount} segment objects in the "segments" array
+- Each segment needs its own "segment_title" and "segment_goal"
+- "first_frame_prompt" should paint the exact still image that opens the segment
+- "closing_frame_prompt" should describe the precise ending still image
+- Keep style, camera, and lighting consistent
+- **CRITICAL VOICE CONSISTENCY**: Define one narrator voice for the entire ad. Include "voice_type" and "voice_tone" ONLY in the FIRST segment.` : ''}
+
+Generate a JSON object with these elements:
+
+**Product Classification (REQUIRED)**:
+- product_category: "children_toy" | "adult_product" | "general"
+- target_audience: "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
+
+**Core Concept (Veo Guide)**:
+- subject: Main elements and focal points in the advertisement
+- context: Environment and setting suitable for the brand
+- action: Brand-related scene or lifestyle demonstration
+
+**Visual Style (Veo Guide)**:
+- style: Overall visual style and artistic direction appropriate for brand
+- camera_type: Cinematic shot type (e.g., "Medium shot", "Close-up")
+- camera_movement: Dynamic camera movement (e.g., "Slow push-in", "Tracking shot")
+- composition: Framing and shot composition style
+- ambiance: Color palette, lighting mood, and atmosphere
+
+**Standard Fields**:
+- description: Main scene description${userRequirements ? ' based on user requirements' : ''}
+- setting: Environment that suits the brand${userRequirements ? ' (consider user preferences)' : ''}
+- lighting: Professional lighting setup
+- dialogue: Natural voiceover content${userRequirements ? ', incorporating user messaging' : ''} (in English)
+- music: Music style matching the brand mood${userRequirements ? ' and user preferences' : ''}
+- ending: Natural ad conclusion
+- other_details: Creative visual elements${userRequirements ? ', including user-specified elements' : ''}
+- language: The language name for voiceover generation (e.g., "English", "Urdu", "Punjabi")
+
+**Full Description**:
+- full_description: A comprehensive 200-500 word narrative description for 60s+ video generation
+
+CRITICAL: Return EXACTLY ONE advertisement prompt object.
+CRITICAL: Keep each segment's dialogue under ${dialogueWordLimit} words.`
+                    }
+                  ]
             }
           ]
-        }
-      ]
     })
   }, 3, 30000);
 
@@ -1993,14 +2508,18 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
 
 async function startSegmentedWorkflow(
   projectId: string,
-  request: StartWorkflowRequest & { imageUrl: string },
+  request: StartWorkflowRequest & { imageUrl?: string }, // UPDATED: Optional to support brand-only mode
   prompts: Record<string, unknown>,
   segmentCount: number,
-  competitorDescription?: Record<string, unknown> // Add competitor analysis parameter
+  competitorDescription?: Record<string, unknown>, // Competitor analysis
+  competitorShots?: CompetitorShot[],
+  brandLogoUrl?: string | null, // NEW: Brand logo URL for brand shots
+  productImageUrl?: string | null, // NEW: Product image URL for product shots
+  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string } // NEW: For text fallback
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
-  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount);
+  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, competitorShots);
   const now = new Date().toISOString();
 
   const segmentRows = normalizedSegments.map((segmentPrompt, index) => ({
@@ -2038,8 +2557,18 @@ async function startSegmentedWorkflow(
 
   for (const segment of segments) {
     const promptData = normalizedSegments[segment.segment_index];
+    const aspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
 
-    const firstFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'first');
+    // Use smart frame generation with automatic routing
+    const firstFrameTaskId = await createSmartSegmentFrame(
+      promptData,
+      segment.segment_index,
+      'first',
+      aspectRatio,
+      brandLogoUrl || null,
+      productImageUrl || null,
+      productContext
+    );
 
     const { error: updateError } = await supabase
       .from('standard_ads_segments')
@@ -2061,7 +2590,15 @@ async function startSegmentedWorkflow(
 
     if (segment.segment_index === normalizedSegments.length - 1) {
       // For non-children products, only the last segment gets a closing frame
-      const closingFrameTaskId = await createSegmentFrameTask(request, promptData, segment.segment_index, 'closing');
+      const closingFrameTaskId = await createSmartSegmentFrame(
+        promptData,
+        segment.segment_index,
+        'closing',
+        aspectRatio,
+        brandLogoUrl || null,
+        productImageUrl || null,
+        productContext
+      );
 
       await supabase
         .from('standard_ads_segments')
@@ -2086,7 +2623,8 @@ async function startSegmentedWorkflow(
 
 function normalizeSegmentPrompts(
   prompts: Record<string, unknown>,
-  segmentCount: number
+  segmentCount: number,
+  competitorShots?: CompetitorShot[]
 ): SegmentPrompt[] {
   const basePrompt = {
     description: (prompts as { description?: string }).description || 'Product hero shot in premium environment',
@@ -2113,20 +2651,66 @@ function normalizeSegmentPrompts(
 
   for (let index = 0; index < segmentCount; index++) {
     const source = rawSegments[index] || rawSegments[rawSegments.length - 1] || {};
+    const shot = competitorShots?.[index];
+    const shotOverrides = shot ? buildSegmentOverridesFromShot(shot) : undefined;
 
-    normalized.push({
+    const normalizedSegment: SegmentPrompt = {
       ...basePrompt,
       ...source,
-      segment_title: source.segment_title || `Segment ${index + 1}`,
-      segment_goal: source.segment_goal || `Highlight product benefit ${index + 1}`,
-      first_frame_prompt: source.first_frame_prompt || source.description || basePrompt.description,
-      closing_frame_prompt: source.closing_frame_prompt || source.ending || basePrompt.ending,
-      voice_type: baseVoiceType,  // Force unified voice across all segments
-      voice_tone: baseVoiceTone   // Force unified tone across all segments
-    });
+      ...(shotOverrides || {})
+    };
+
+    normalizedSegment.segment_title =
+      shotOverrides?.segment_title || source.segment_title || `Segment ${index + 1}`;
+    normalizedSegment.segment_goal =
+      shotOverrides?.segment_goal || source.segment_goal || `Highlight product benefit ${index + 1}`;
+    normalizedSegment.first_frame_prompt =
+      shotOverrides?.first_frame_prompt || source.first_frame_prompt || source.description || basePrompt.description;
+    normalizedSegment.closing_frame_prompt =
+      shotOverrides?.closing_frame_prompt || source.closing_frame_prompt || source.ending || basePrompt.ending;
+    normalizedSegment.voice_type = baseVoiceType;
+    normalizedSegment.voice_tone = baseVoiceTone;
+
+    normalized.push(normalizedSegment);
   }
 
   return normalized;
+}
+
+function buildSegmentOverridesFromShot(shot: CompetitorShot): Partial<SegmentPrompt> {
+  const descriptionParts = [
+    shot.generationGuidance,
+    shot.action ? `Action focus: ${shot.action}` : '',
+    shot.subject ? `Hero: ${shot.subject}` : '',
+    shot.style ? `Style: ${shot.style}` : ''
+  ].filter(Boolean);
+
+  const overrides: Partial<SegmentPrompt> = {
+    segment_title: `Shot ${shot.id} (${shot.startTime}–${shot.endTime})`,
+    segment_goal: shot.narrativeGoal || `Mirror competitor beat ${shot.id}`,
+    description: descriptionParts.join('. ').trim() || `Recreate shot ${shot.id}`,
+    setting: shot.contextEnvironment || undefined,
+    camera_type: shot.composition || undefined,
+    camera_movement: shot.cameraMotionPositioning || undefined,
+    action: shot.action || undefined,
+    lighting: shot.ambianceColourLighting || undefined,
+    music: shot.audio || undefined,
+    ending: shot.narrativeGoal || undefined,
+    first_frame_prompt: shot.firstFrameDescription || undefined,
+    closing_frame_prompt: shot.generationGuidance || shot.action || undefined,
+    contains_brand: shot.containsBrand, // NEW: Preserve brand flag
+    contains_product: shot.containsProduct // NEW: Preserve product flag
+  };
+
+  const detailNotes = [
+    shot.style ? `Match style: ${shot.style}` : '',
+    shot.subject ? `Primary focus: ${shot.subject}` : '',
+    `Target duration: ${shot.recommendedSegmentDuration || shot.durationSeconds}s`
+  ].filter(Boolean);
+
+  overrides.other_details = detailNotes.join('. ');
+
+  return overrides;
 }
 
 export function buildSegmentStatusPayload(
@@ -2152,35 +2736,99 @@ export function buildSegmentStatusPayload(
   };
 }
 
-async function createSegmentFrameTask(
-  request: StartWorkflowRequest & { imageUrl: string },
+/**
+ * Generate frame from text prompt only (Text-to-Image)
+ * Used for shots that don't contain brand or product (pure scene/lifestyle shots)
+ */
+async function createFrameFromText(
   segmentPrompt: SegmentPrompt,
   segmentIndex: number,
-  frameType: 'first' | 'closing'
+  frameType: 'first' | 'closing',
+  aspectRatio: '16:9' | '9:16',
+  brandContext?: { brand_name: string; brand_slogan: string; brand_details: string }
 ): Promise<string> {
-  const actualImageModel = getActualImageModel(request.imageModel || 'auto');
-  const kieModelName = IMAGE_MODELS[actualImageModel];
-  const targetAspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
-  const resolvedImageSize = actualImageModel === 'nano_banana'
-    ? targetAspectRatio
-    : targetAspectRatio === '9:16'
-      ? 'portrait_16_9'
-      : 'landscape_16_9';
-
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
-  const prompt = `Segment ${segmentIndex + 1} ${frameLabel} frame for a premium product advertisement.
 
-Use the provided product image as the canonical reference. Maintain identical product proportions, textures, materials, and branding.
+  // Build prompt from shot description + brand context
+  const brandInfo = brandContext && brandContext.brand_name
+    ? `\n\nBrand Context:\n- Brand: ${brandContext.brand_name}\n- Slogan: ${brandContext.brand_slogan}\n- Details: ${brandContext.brand_details}`
+    : '';
+
+  const prompt = `Segment ${segmentIndex + 1} ${frameLabel} frame for a premium advertisement.
+
+Scene Description:
+- ${frameType === 'first' ? segmentPrompt.first_frame_prompt : segmentPrompt.closing_frame_prompt}
+
+Creative Direction:
+- Setting: ${segmentPrompt.setting}
+- Camera: ${segmentPrompt.camera_type} with ${segmentPrompt.camera_movement}
+- Action: ${segmentPrompt.action}
+- Lighting: ${segmentPrompt.lighting}
+- Style: Professional, high-quality commercial photography
+- Composition: ${frameType === 'first' ? 'Strong opening frame that captures attention' : 'Smooth closing that transitions naturally'}${brandInfo}
+
+Technical Requirements:
+- No text overlays, no watermarks, no borders
+- Photorealistic rendering
+- Commercial-grade quality`;
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: IMAGE_MODELS.nano_banana_pro,
+      input: {
+        prompt,
+        image_input: [], // Text-to-Image mode
+        aspect_ratio: aspectRatio,
+        resolution: '2K',
+        output_format: 'png'
+      }
+    })
+  }, 5, 30000);
+
+  if (!response.ok) {
+    throw new Error(`Text-to-Image frame generation failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (data.code !== 200) {
+    throw new Error(data.msg || 'Failed to generate frame from text');
+  }
+
+  return data.data.taskId;
+}
+
+/**
+ * Generate frame from reference image (Image-to-Image)
+ * Used for shots that contain brand logo or product
+ */
+async function createFrameFromImage(
+  referenceImageUrl: string,
+  segmentPrompt: SegmentPrompt,
+  segmentIndex: number,
+  frameType: 'first' | 'closing',
+  aspectRatio: '16:9' | '9:16',
+  isBrandShot: boolean
+): Promise<string> {
+  const frameLabel = frameType === 'first' ? 'opening' : 'closing';
+
+  const prompt = `Segment ${segmentIndex + 1} ${frameLabel} frame for a premium advertisement.
+
+${isBrandShot
+  ? 'Use the provided brand logo/asset as the canonical reference. Maintain identical brand styling, colors, and visual identity.'
+  : 'Use the provided product image as the canonical reference. Maintain identical product proportions, textures, materials, and branding.'}
 
 Scene Focus:
 - Description: ${segmentPrompt.description}
 - Setting: ${segmentPrompt.setting}
 - Camera: ${segmentPrompt.camera_type} with ${segmentPrompt.camera_movement}
 - Lighting: ${segmentPrompt.lighting}
-- Keep the product proportions and styling perfectly matched to the supplied reference
-- Adults can be shown naturally without face restrictions
 - Maintain SCENE, LIGHTING, CAMERA ANGLE, and STYLE from original segment
-- Create product-focused keyframe that shows authentic use cases
+- Create ${isBrandShot ? 'brand-focused' : 'product-focused'} keyframe that shows authentic use cases
 
 Render Instructions:
 - ${frameType === 'first' ? segmentPrompt.first_frame_prompt : segmentPrompt.closing_frame_prompt}
@@ -2194,26 +2842,120 @@ Render Instructions:
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: kieModelName,
+      model: IMAGE_MODELS.nano_banana_pro,
       input: {
         prompt,
-        image_urls: [request.imageUrl],
-        output_format: 'png',
-        image_size: resolvedImageSize
+        image_input: [referenceImageUrl], // Image-to-Image mode
+        aspect_ratio: aspectRatio,
+        resolution: '2K',
+        output_format: 'png'
       }
     })
   }, 5, 30000);
 
   if (!response.ok) {
-    throw new Error(`Segment frame generation failed: ${response.status}`);
+    throw new Error(`Image-to-Image frame generation failed: ${response.status}`);
   }
 
   const data = await response.json();
   if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to generate segment frame');
+    throw new Error(data.msg || 'Failed to generate frame from image');
   }
 
   return data.data.taskId;
+}
+
+/**
+ * Legacy function for backward compatibility
+ * @deprecated Use createSmartSegmentFrame instead
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function createSegmentFrameTask(
+  request: StartWorkflowRequest & { imageUrl: string },
+  segmentPrompt: SegmentPrompt,
+  segmentIndex: number,
+  frameType: 'first' | 'closing'
+): Promise<string> {
+  // Default to product image for backward compatibility
+  return createFrameFromImage(
+    request.imageUrl,
+    segmentPrompt,
+    segmentIndex,
+    frameType,
+    request.videoAspectRatio === '9:16' ? '9:16' : '16:9',
+    false
+  );
+}
+
+/**
+ * Smart segment frame generation with automatic routing
+ * Decides between Text-to-Image, Brand Image-to-Image, or Product Image-to-Image
+ * based on shot analysis flags (contains_brand, contains_product)
+ */
+async function createSmartSegmentFrame(
+  segmentPrompt: SegmentPrompt,
+  segmentIndex: number,
+  frameType: 'first' | 'closing',
+  aspectRatio: '16:9' | '9:16',
+  brandLogoUrl: string | null,
+  productImageUrl: string | null,
+  brandContext?: { brand_name: string; brand_slogan: string; brand_details: string }
+): Promise<string> {
+  // Extract shot flags from competitor analysis
+  const competitorShot = typeof segmentPrompt === 'object' && segmentPrompt !== null
+    ? segmentPrompt as unknown as { contains_brand?: boolean; contains_product?: boolean }
+    : undefined;
+
+  const containsBrand = competitorShot?.contains_brand === true;
+  const containsProduct = competitorShot?.contains_product === true;
+
+  console.log(`🎬 Segment ${segmentIndex + 1} ${frameType} frame generation:`);
+  console.log(`   - contains_brand: ${containsBrand}, brandLogoUrl: ${brandLogoUrl ? 'available' : 'missing'}`);
+  console.log(`   - contains_product: ${containsProduct}, productImageUrl: ${productImageUrl ? 'available' : 'missing'}`);
+
+  // Priority 1: Brand shots use brand logo (if available)
+  if (containsBrand && brandLogoUrl) {
+    console.log(`   ✅ Using Image-to-Image with brand logo`);
+    return createFrameFromImage(
+      brandLogoUrl,
+      segmentPrompt,
+      segmentIndex,
+      frameType,
+      aspectRatio,
+      true // isBrandShot
+    );
+  }
+
+  // Priority 2: Product shots use product image (if available)
+  if (containsProduct && productImageUrl) {
+    console.log(`   ✅ Using Image-to-Image with product image`);
+    return createFrameFromImage(
+      productImageUrl,
+      segmentPrompt,
+      segmentIndex,
+      frameType,
+      aspectRatio,
+      false // isProductShot
+    );
+  }
+
+  // Priority 3: Fallback to Text-to-Image for pure scene shots
+  // OR when brand/product is flagged but no image available
+  if (!containsBrand && !containsProduct) {
+    console.log(`   ✅ Using Text-to-Image (pure scene shot)`);
+  } else if (containsBrand && !brandLogoUrl) {
+    console.warn(`   ⚠️  Brand shot detected but no logo available, falling back to Text-to-Image`);
+  } else if (containsProduct && !productImageUrl) {
+    console.warn(`   ⚠️  Product shot detected but no product image available, falling back to Text-to-Image`);
+  }
+
+  return createFrameFromText(
+    segmentPrompt,
+    segmentIndex,
+    frameType,
+    aspectRatio,
+    brandContext
+  );
 }
 
 export async function startSegmentVideoTask(

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Loader2, Target, RefreshCcw, Languages, BadgeCheck, AlertTriangle, Clock3, ChevronDown } from 'lucide-react';
+import { X, Loader2, Target, RefreshCcw, Languages, BadgeCheck, AlertTriangle, Clock3, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
 import { getLanguageDisplayInfo, isLanguageCode } from '@/lib/language';
@@ -78,6 +78,7 @@ export default function EditCompetitorAdModal({
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
   const [isPlatformMenuOpen, setIsPlatformMenuOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+  const [expandedShots, setExpandedShots] = useState<Set<number>>(new Set());
   const platformMenuRef = useRef<HTMLDivElement | null>(null);
   const languageMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -89,10 +90,23 @@ export default function EditCompetitorAdModal({
       setCurrentAd(competitorAd);
       setError(null);
       setAnalysisMessage(null);
+      setExpandedShots(new Set());
       const normalizedLang = competitorAd.language && isLanguageCode(competitorAd.language) ? competitorAd.language : 'en';
       setSelectedLanguage(normalizedLang);
     }
   }, [isOpen, competitorAd]);
+
+  const toggleShot = (shotId: number) => {
+    setExpandedShots(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(shotId)) {
+        newSet.delete(shotId);
+      } else {
+        newSet.add(shotId);
+      }
+      return newSet;
+    });
+  };
 
   // Handle ESC key
   useEffect(() => {
@@ -215,14 +229,14 @@ export default function EditCompetitorAdModal({
   );
   const analysisStatus = currentAd?.analysis_status || 'pending';
   const analysisResult = currentAd?.analysis_result as Record<string, unknown> | null | undefined;
-  const analysisFields = [
-    { label: 'Subject', value: typeof analysisResult?.subject === 'string' ? analysisResult.subject : '' },
-    { label: 'Context', value: typeof analysisResult?.context === 'string' ? analysisResult.context : '' },
-    { label: 'Action', value: typeof analysisResult?.action === 'string' ? analysisResult.action : '' },
-    { label: 'Style', value: typeof analysisResult?.style === 'string' ? analysisResult.style : '' }
-  ].filter(item => item.value);
 
-  const showAnalysisSummary = analysisStatus === 'completed' && analysisFields.length > 0;
+  // New structure: name, video_duration_seconds, shots[]
+  const adName = typeof analysisResult?.name === 'string' ? analysisResult.name : '';
+  const videoDuration = typeof analysisResult?.video_duration_seconds === 'number' ? analysisResult.video_duration_seconds : null;
+  const shots = Array.isArray(analysisResult?.shots) ? analysisResult.shots : [];
+  const hasAnalysisData = Boolean(adName || videoDuration !== null || shots.length > 0);
+
+  const showAnalysisSummary = analysisStatus === 'completed' && hasAnalysisData;
 
   if (!isOpen || !competitorAd || !currentAd) return null;
 
@@ -360,14 +374,134 @@ export default function EditCompetitorAdModal({
                 )}
 
                 {showAnalysisSummary ? (
-                  <dl className="grid grid-cols-1 gap-2">
-                    {analysisFields.map(field => (
-                      <div key={field.label} className="rounded-md bg-gray-50 p-2">
-                        <dt className="text-[11px] uppercase tracking-wide text-gray-500">{field.label}</dt>
-                        <dd className="text-sm text-gray-800">{field.value}</dd>
+                  <div className="space-y-4">
+                    {/* Summary info in one line */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* Ad Name */}
+                      {adName && (
+                        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                          <span className="font-semibold text-gray-900">{adName}</span>
+                        </div>
+                      )}
+
+                      {/* Duration */}
+                      {videoDuration !== null && (
+                        <div className="flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm">
+                          <span className="text-purple-600 font-semibold">Duration:</span>
+                          <span className="font-bold text-purple-900">{videoDuration}s</span>
+                        </div>
+                      )}
+
+                      {/* Shots count */}
+                      {shots.length > 0 && (
+                        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
+                          <span className="text-blue-600 font-semibold">Shots:</span>
+                          <span className="font-bold text-blue-900">{shots.length}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Shot details - expandable list */}
+                    {shots.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                          Shot Timeline
+                        </h4>
+                        <div className="space-y-2">
+                          {(shots as Array<{
+                            shot_id: number;
+                            start_time: string;
+                            end_time: string;
+                            duration_seconds: number;
+                            first_frame_description: string;
+                            subject: string;
+                            context_environment: string;
+                            action: string;
+                            style: string;
+                            camera_motion_positioning: string;
+                            composition: string;
+                            ambiance_colour_lighting: string;
+                            audio: string;
+                            narrative_goal: string;
+                            recommended_segment_duration: number;
+                            generation_guidance: string;
+                            contains_brand?: boolean;
+                            contains_product?: boolean;
+                          }>).map((shot) => {
+                            const isExpanded = expandedShots.has(shot.shot_id);
+                            return (
+                              <div
+                                key={shot.shot_id}
+                                className="border border-gray-200 rounded-lg overflow-hidden bg-white"
+                              >
+                                {/* Shot header - always visible */}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleShot(shot.shot_id)}
+                                  className="w-full flex items-center justify-between p-2 hover:bg-gray-50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className="bg-blue-100 text-blue-700 font-bold text-xs rounded px-2 py-1">
+                                      Shot {shot.shot_id}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {shot.start_time} – {shot.end_time}
+                                    </div>
+                                    <div className="text-xs font-medium text-gray-700">
+                                      {shot.duration_seconds}s
+                                    </div>
+                                    {/* Brand indicator */}
+                                    {shot.contains_brand && (
+                                      <div className="flex items-center gap-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded px-1.5 py-0.5">
+                                        <BadgeCheck className="w-3 h-3" />
+                                        Brand
+                                      </div>
+                                    )}
+                                    {/* Product indicator */}
+                                    {shot.contains_product && (
+                                      <div className="flex items-center gap-1 bg-green-100 text-green-700 text-xs font-semibold rounded px-1.5 py-0.5">
+                                        <Target className="w-3 h-3" />
+                                        Product
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-500">{isExpanded ? 'Hide' : 'Show'}</span>
+                                    {isExpanded ? (
+                                      <ChevronUp className="w-4 h-4 text-gray-600" />
+                                    ) : (
+                                      <ChevronDown className="w-4 h-4 text-gray-600" />
+                                    )}
+                                  </div>
+                                </button>
+
+                                {/* Shot details - expandable */}
+                                {isExpanded && (
+                                  <div className="px-2 pb-2 space-y-2 border-t border-gray-100">
+                                    <ShotField label="Narrative Goal" value={shot.narrative_goal} />
+                                    <ShotField label="First Frame" value={shot.first_frame_description} />
+                                    <ShotField label="Subject" value={shot.subject} />
+                                    <ShotField label="Action" value={shot.action} />
+                                    <ShotField label="Context/Environment" value={shot.context_environment} />
+                                    <ShotField label="Style" value={shot.style} />
+                                    <ShotField label="Camera Motion" value={shot.camera_motion_positioning} />
+                                    <ShotField label="Composition" value={shot.composition} />
+                                    <ShotField label="Lighting/Ambiance" value={shot.ambiance_colour_lighting} />
+                                    <ShotField label="Audio" value={shot.audio} />
+                                    <ShotField label="Generation Guidance" value={shot.generation_guidance} highlight />
+                                    <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                                      <span className="font-semibold">Recommended Duration:</span>
+                                      <span>{shot.recommended_segment_duration}s</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    ))}
-                  </dl>
+                    )}
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-600">
                     {analysisStatus === 'failed'
@@ -388,24 +522,27 @@ export default function EditCompetitorAdModal({
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleReanalyze}
-                  disabled={isReanalyzing || analysisStatus === 'analyzing'}
-                  className="inline-flex items-center justify-center gap-2 w-full px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isReanalyzing || analysisStatus === 'analyzing' ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {analysisStatus === 'analyzing' ? 'Analysis in progress...' : 'Running analysis...'}
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCcw className="w-4 h-4" />
-                      {analysisStatus === 'completed' ? 'Re-run analysis' : 'Run analysis'}
-                    </>
-                  )}
-                </button>
+                {/* Only show Re-run analysis button if no analysis data exists or analysis failed */}
+                {(!hasAnalysisData || analysisStatus === 'failed') && (
+                  <button
+                    type="button"
+                    onClick={handleReanalyze}
+                    disabled={isReanalyzing || analysisStatus === 'analyzing'}
+                    className="inline-flex items-center justify-center gap-2 w-full px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isReanalyzing || analysisStatus === 'analyzing' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {analysisStatus === 'analyzing' ? 'Analysis in progress...' : 'Running analysis...'}
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCcw className="w-4 h-4" />
+                        {analysisStatus === 'completed' ? 'Re-run analysis' : 'Run analysis'}
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -578,5 +715,15 @@ export default function EditCompetitorAdModal({
         </motion.div>
       </div>
     </AnimatePresence>
+  );
+}
+
+// Shot field display component
+function ShotField({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={`text-xs ${highlight ? 'bg-blue-50 border border-blue-200 rounded p-2' : ''}`}>
+      <div className="font-semibold text-gray-700 text-[10px] uppercase tracking-wide mb-0.5">{label}</div>
+      <div className={`${highlight ? 'text-blue-900' : 'text-gray-900'}`}>{value}</div>
+    </div>
   );
 }
