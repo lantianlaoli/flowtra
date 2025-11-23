@@ -13,7 +13,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { historyId } = await request.json();
+    // Support both JSON and FormData (form submit)
+    const contentType = request.headers.get('content-type') || '';
+    let historyId: string;
+    let validateOnly: boolean | undefined;
+
+    if (contentType.includes('application/json')) {
+      // JSON format (validation request)
+      const body = await request.json();
+      historyId = body.historyId;
+      validateOnly = body.validateOnly;
+      // videoDurationSeconds from body is not used - duration comes from project record
+    } else {
+      // FormData format (form submit download)
+      const formData = await request.formData();
+      historyId = formData.get('historyId') as string;
+      validateOnly = formData.get('validateOnly') === 'true';
+      // videoDurationSeconds from formData is not used - duration comes from project record
+    }
 
     if (!historyId) {
       return NextResponse.json({ error: 'Missing historyId' }, { status: 400 });
@@ -77,6 +94,15 @@ export async function POST(request: NextRequest) {
           }, { status: 402 });
         }
 
+        // ✅ VALIDATE-ONLY MODE: If validateOnly=true, return success without downloading
+        if (validateOnly) {
+          return NextResponse.json({
+            success: true,
+            message: 'Validation successful',
+            downloadCost: downloadCost
+          }, { status: 200 });
+        }
+
         // Deduct download cost
         const deductResult = await deductCredits(userId, downloadCost);
         if (!deductResult.success) {
@@ -95,6 +121,13 @@ export async function POST(request: NextRequest) {
         );
 
         console.log(`[Download Billing] Charged ${downloadCost} credits for ${videoModel} download (user: ${userId})`);
+      } else if (validateOnly) {
+        // Paid-generation model + validate-only: just return success
+        return NextResponse.json({
+          success: true,
+          message: 'Validation successful (already paid)',
+          downloadCost: 0
+        }, { status: 200 });
       }
       // If paid-generation model, download is FREE (no credit deduction)
 
@@ -110,9 +143,16 @@ export async function POST(request: NextRequest) {
         console.error('Failed to mark project as downloaded:', updateError);
         // Don't fail the download, just log the error
       }
+    } else if (validateOnly) {
+      // Already downloaded + validate-only: return success
+      return NextResponse.json({
+        success: true,
+        message: 'Validation successful (already downloaded)',
+        downloadCost: 0
+      }, { status: 200 });
     }
 
-    // Download the video file
+    // Stream the video file directly to the client (instant download start)
     // videoUrl is already determined above based on video duration and available videos
 
     try {
@@ -122,13 +162,12 @@ export async function POST(request: NextRequest) {
         throw new Error(`Failed to fetch video: ${videoResponse.status} ${videoResponse.statusText}`);
       }
 
-      const videoBuffer = await videoResponse.arrayBuffer();
-
-      return new NextResponse(videoBuffer, {
+      // Stream video directly without buffering
+      return new NextResponse(videoResponse.body, {
         headers: {
           'Content-Type': 'video/mp4',
           'Content-Disposition': `attachment; filename="flowtra-character-ads-${historyId}.mp4"`,
-          'Content-Length': videoBuffer.byteLength.toString(),
+          'Content-Length': videoResponse.headers.get('content-length') || '',
         },
       });
 

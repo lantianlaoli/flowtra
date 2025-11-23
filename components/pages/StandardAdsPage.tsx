@@ -332,7 +332,7 @@ export default function StandardAdsPage() {
     }
 
     // Check for shot_count first (API enriched field)
-    const shotCount = (selectedCompetitorAd as any).shot_count;
+    const shotCount = 'shot_count' in selectedCompetitorAd ? (selectedCompetitorAd as CompetitorAd & { shot_count?: number }).shot_count : undefined;
     let targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
 
     if (typeof shotCount === 'number' && shotCount > 0) {
@@ -621,54 +621,65 @@ export default function StandardAdsPage() {
     setDownloadingProjects(prev => ({ ...prev, [projectId]: true }));
 
     try {
-      const response = await fetch('/api/download-video', {
+      // ✅ STEP 1: Fast validation (check auth + credits) without downloading
+      const validationResponse = await fetch('/api/download-video', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ historyId: projectId, userId: user.id })
+        body: JSON.stringify({
+          historyId: projectId,
+          userId: user.id,
+          validateOnly: true // Only validate, don't download yet
+        })
       });
 
-      if (!response.ok) {
-        let message = 'Failed to download video';
-        try {
-          const data = await response.json();
-          message = data?.message || message;
-        } catch (err) {
-          console.error('Failed to parse download error response:', err);
-        }
-        throw new Error(message);
+      if (!validationResponse.ok) {
+        const result = await validationResponse.json();
+        throw new Error(result.message || 'Failed to authorize download');
       }
 
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const data = await response.json();
-        throw new Error(data?.message || 'Failed to download video');
+      // ✅ STEP 2: Validation passed - trigger instant streaming download via hidden form
+      // This allows browser to handle download natively without waiting for blob
+
+      // Create or reuse hidden iframe for downloads
+      let iframe = document.getElementById('download-iframe') as HTMLIFrameElement;
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'download-iframe';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
       }
 
-      const downloadCostHeader = response.headers.get('x-flowtra-download-cost');
-      const parsedDownloadCost = downloadCostHeader !== null ? Number(downloadCostHeader) : undefined;
-      const downloadCostApplied = Number.isFinite(parsedDownloadCost) ? Number(parsedDownloadCost) : undefined;
+      // Submit download via hidden form (bypasses CORS and enables streaming)
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/api/download-video';
+      form.target = 'download-iframe';
+      form.style.display = 'none';
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `flowtra-video-${projectId}.mp4`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      const historyIdInput = document.createElement('input');
+      historyIdInput.type = 'hidden';
+      historyIdInput.name = 'historyId';
+      historyIdInput.value = projectId;
+      form.appendChild(historyIdInput);
 
+      const userIdInput = document.createElement('input');
+      userIdInput.type = 'hidden';
+      userIdInput.name = 'userId';
+      userIdInput.value = user.id;
+      form.appendChild(userIdInput);
+
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+
+      // Update UI immediately (download started in background)
       setGenerations(prev => prev.map(gen =>
         gen.projectId === projectId
           ? { ...gen, downloaded: true }
           : gen
       ));
-
-      if (typeof downloadCostApplied === 'number' && downloadCostApplied > 0 && typeof userCredits === 'number') {
-        updateCredits(Math.max(0, userCredits - downloadCostApplied));
-      }
 
       if (refetchCredits) {
         await refetchCredits();
@@ -685,7 +696,7 @@ export default function StandardAdsPage() {
         return next;
       });
     }
-  }, [user?.id, downloadingProjects, refetchCredits, showError, showSuccess, userCredits, updateCredits]);
+  }, [user?.id, downloadingProjects, refetchCredits, showError, showSuccess]);
 
   // Handle platform change - auto-set recommended config
   const handlePlatformChange = useCallback((platform: Platform) => {
@@ -725,7 +736,7 @@ export default function StandardAdsPage() {
   const recommendedDuration = useMemo(() => {
     if (selectedCompetitorAd?.file_type === 'video') {
       // Check for shot_count first (API enriched field)
-      const shotCount = (selectedCompetitorAd as any).shot_count;
+      const shotCount = 'shot_count' in selectedCompetitorAd ? (selectedCompetitorAd as CompetitorAd & { shot_count?: number }).shot_count : undefined;
       let targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
 
       if (typeof shotCount === 'number' && shotCount > 0) {

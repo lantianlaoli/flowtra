@@ -37,6 +37,7 @@ export default function BrandProductSelector({
   const [allProducts, setAllProducts] = useState<Map<string, UserProduct[]>>(new Map());
   const [brandProducts, setBrandProducts] = useState<UserProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false); // NEW: Independent products loading state
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
 
@@ -103,10 +104,11 @@ export default function BrandProductSelector({
   }, []);
 
   const loadAllData = async () => {
-    console.log('[BrandProductSelector] Loading brands and products...');
+    console.log('[BrandProductSelector] Loading brands...');
     setIsLoading(true);
     try {
-      // Step 1: Load all brands
+      // ✅ OPTIMIZATION: Only load brands immediately (fast ~200ms)
+      // Products will be loaded on-demand when a brand is selected
       const brandsResponse = await fetch('/api/brands');
       const brandsData = await brandsResponse.json();
 
@@ -119,37 +121,56 @@ export default function BrandProductSelector({
       console.log('[BrandProductSelector] Loaded brands:', loadedBrands.length);
       setBrands(loadedBrands);
 
-      // Step 2: Load products for all brands in parallel
-      const productsPromises = loadedBrands.map(async (brand: UserBrand) => {
-        try {
-          const response = await fetch(`/api/brands/${brand.id}/products`);
-          const data = await response.json();
-
-          if (data.success && Array.isArray(data.products)) {
-            console.log(`[BrandProductSelector] Brand "${brand.brand_name}" has ${data.products.length} products`);
-            return { brandId: brand.id, products: data.products };
-          }
-          return { brandId: brand.id, products: [] };
-        } catch (error) {
-          console.error(`[BrandProductSelector] Error loading products for brand ${brand.id}:`, error);
-          return { brandId: brand.id, products: [] };
-        }
-      });
-
-      const productsResults = await Promise.all(productsPromises);
-
-      // Step 3: Build products map
-      const productsMap = new Map<string, UserProduct[]>();
-      productsResults.forEach(({ brandId, products }) => {
-        productsMap.set(brandId, products);
-      });
-
-      console.log('[BrandProductSelector] Products map built with', productsMap.size, 'brands');
-      setAllProducts(productsMap);
+      // ✅ Enable brand selector immediately - no need to wait for products!
     } catch (error) {
-      console.error('[BrandProductSelector] Error loading brands and products:', error);
+      console.error('[BrandProductSelector] Error loading brands:', error);
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Brand selector now available!
+    }
+  };
+
+  // ✅ NEW: Load products for a specific brand on-demand
+  const loadProductsForBrand = async (brand: UserBrand) => {
+    // Check if products are already cached
+    if (allProducts.has(brand.id)) {
+      console.log(`[BrandProductSelector] Products for "${brand.brand_name}" already cached`);
+      return;
+    }
+
+    console.log(`[BrandProductSelector] Loading products for brand "${brand.brand_name}"...`);
+    setIsLoadingProducts(true);
+
+    try {
+      const response = await fetch(`/api/brands/${brand.id}/products`);
+      const data = await response.json();
+
+      if (data.success && Array.isArray(data.products)) {
+        console.log(`[BrandProductSelector] Loaded ${data.products.length} products for "${brand.brand_name}"`);
+
+        // Update products map with new brand's products
+        setAllProducts(prev => {
+          const newMap = new Map(prev);
+          newMap.set(brand.id, data.products);
+          return newMap;
+        });
+      } else {
+        console.warn(`[BrandProductSelector] No products found for "${brand.brand_name}"`);
+        setAllProducts(prev => {
+          const newMap = new Map(prev);
+          newMap.set(brand.id, []);
+          return newMap;
+        });
+      }
+    } catch (error) {
+      console.error(`[BrandProductSelector] Error loading products for brand ${brand.id}:`, error);
+      // Cache empty array to avoid repeated failed requests
+      setAllProducts(prev => {
+        const newMap = new Map(prev);
+        newMap.set(brand.id, []);
+        return newMap;
+      });
+    } finally {
+      setIsLoadingProducts(false);
     }
   };
 
@@ -158,6 +179,9 @@ export default function BrandProductSelector({
     onBrandSelect(brand);
     onProductSelect(null); // Reset product when changing brand
     setIsBrandDropdownOpen(false);
+
+    // ✅ NEW: Load products for this brand on-demand
+    loadProductsForBrand(brand);
   };
 
   const handleProductSelect = (product: UserProduct) => {
@@ -509,7 +533,7 @@ export default function BrandProductSelector({
             <button
               type="button"
               onClick={() => setIsProductDropdownOpen(!isProductDropdownOpen)}
-              disabled={!selectedBrand || isLoading}
+              disabled={!selectedBrand || isLoadingProducts}
               className={cn(
                 "w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg",
                 "focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent",
@@ -581,8 +605,8 @@ export default function BrandProductSelector({
                 <span className="text-gray-500">
                   {!selectedBrand
                     ? 'Select a brand first'
-                    : isLoading
-                    ? 'Loading...'
+                    : isLoadingProducts
+                    ? 'Loading products...'
                     : brandProducts.length === 0
                     ? 'No products in this brand'
                     : 'Choose a product'}
@@ -592,7 +616,7 @@ export default function BrandProductSelector({
             </button>
 
             {/* Dropdown Menu */}
-            {isProductDropdownOpen && !isLoading && brandProducts.length > 0 && (
+            {isProductDropdownOpen && !isLoadingProducts && brandProducts.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
                 {brandProducts.map((product) => {
                   const primaryPhoto = product.user_product_photos?.find(p => p.is_primary);

@@ -205,7 +205,7 @@ export default function CompetitorAdSelector({
           }}
           className="bg-white border border-purple-200 rounded-xl shadow-lg overflow-hidden z-[110]"
         >
-          <div className="p-4 space-y-3">
+          <div className="p-4 pb-16 space-y-3 max-h-[50vh] overflow-y-auto">
             <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 shadow-sm text-xs text-orange-900">
               <AlertTriangle className="w-4 h-4 text-orange-500" />
               <span>If the competitor’s first frame includes children, select Grok with 6s (or multiples) to avoid generation failures.</span>
@@ -216,7 +216,7 @@ export default function CompetitorAdSelector({
 
             {/* Desktop: Grid View */}
             {!isMobile ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[50vh] overflow-y-auto">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {competitorAds.map((ad) => (
                   <CompetitorAdCard
                     key={ad.id}
@@ -231,7 +231,7 @@ export default function CompetitorAdSelector({
               </div>
             ) : (
               /* Mobile: Compact List with Click-to-Expand */
-              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+              <div className="space-y-2">
                 {competitorAds.map((ad) => (
                   <div key={ad.id} className="border border-gray-200 rounded-lg overflow-hidden">
                     {/* Compact Header - Always Visible */}

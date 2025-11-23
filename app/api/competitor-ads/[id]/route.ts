@@ -34,7 +34,22 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, competitorAd });
+    // NEW: Extract shot_count from analysis_result
+    let shotCount = 0;
+    if (competitorAd.analysis_result && typeof competitorAd.analysis_result === 'object') {
+      const analysis = competitorAd.analysis_result as Record<string, unknown>;
+      if (Array.isArray(analysis.shots)) {
+        shotCount = analysis.shots.length;
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      competitorAd: {
+        ...competitorAd,
+        shot_count: shotCount
+      }
+    });
   } catch (error) {
     console.error('GET /api/competitor-ads/[id] error:', error);
     return NextResponse.json(
@@ -106,7 +121,22 @@ export async function PUT(
       );
     }
 
-    return NextResponse.json({ success: true, competitorAd });
+    // NEW: Extract shot_count from analysis_result
+    let shotCount = 0;
+    if (competitorAd.analysis_result && typeof competitorAd.analysis_result === 'object') {
+      const analysis = competitorAd.analysis_result as Record<string, unknown>;
+      if (Array.isArray(analysis.shots)) {
+        shotCount = analysis.shots.length;
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      competitorAd: {
+        ...competitorAd,
+        shot_count: shotCount
+      }
+    });
   } catch (error) {
     console.error('PUT /api/competitor-ads/[id] error:', error);
     return NextResponse.json(

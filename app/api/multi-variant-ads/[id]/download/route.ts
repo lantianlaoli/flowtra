@@ -11,7 +11,23 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { contentType } = await request.json(); // 'cover' or 'video'
+
+    // Support both JSON and FormData (form submit)
+    const contentTypeHeader = request.headers.get('content-type') || '';
+    let contentType: string;
+    let validateOnly: boolean | undefined;
+
+    if (contentTypeHeader.includes('application/json')) {
+      // JSON format (validation request)
+      const body = await request.json();
+      contentType = body.contentType;
+      validateOnly = body.validateOnly;
+    } else {
+      // FormData format (form submit download)
+      const formData = await request.formData();
+      contentType = formData.get('contentType') as string;
+      validateOnly = formData.get('validateOnly') === 'true';
+    }
 
     if (!id) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
@@ -21,7 +37,7 @@ export async function POST(
       return NextResponse.json({ error: 'Content type must be "cover" or "video"' }, { status: 400 });
     }
 
-    console.log(`📥 Download request for multi-variant ads project ${id}, type: ${contentType}`);
+    console.log(`📥 Download request for multi-variant ads project ${id}, type: ${contentType}, validateOnly: ${validateOnly || false}`);
 
     const supabase = getSupabase();
 
@@ -46,28 +62,37 @@ export async function POST(
     }
 
     // For cover downloads, no credit deduction needed (covers are free)
+    // Cover downloads don't need validation, they're always free
     if (contentType === 'cover') {
+      if (validateOnly) {
+        return NextResponse.json({
+          success: true,
+          message: 'Validation successful (covers are free)',
+          downloadCost: 0
+        }, { status: 200 });
+      }
+
       try {
-        console.log(`📥 Fetching cover from KIE: ${instance.cover_image_url}`);
+        console.log(`📥 Streaming cover from KIE: ${instance.cover_image_url}`);
         const coverResponse = await fetch(instance.cover_image_url);
 
         if (!coverResponse.ok) {
           throw new Error(`Failed to fetch cover image: ${coverResponse.status} ${coverResponse.statusText}`);
         }
 
-        const coverBuffer = await coverResponse.arrayBuffer();
         const contentTypeHeader = coverResponse.headers.get('content-type') || 'image/jpeg';
 
         // Determine file extension
         const ext = contentTypeHeader.includes('png') ? 'png' :
                     contentTypeHeader.includes('webp') ? 'webp' : 'jpg';
 
-        return new NextResponse(coverBuffer, {
+        // Stream cover directly without buffering
+        return new NextResponse(coverResponse.body, {
           status: 200,
           headers: {
             'Content-Type': contentTypeHeader,
             'Content-Disposition': `attachment; filename="flowtra-multi-variant-cover-${id}.${ext}"`,
-            'Content-Length': coverBuffer.byteLength.toString(),
+            'Content-Length': coverResponse.headers.get('content-length') || '',
           },
         });
       } catch (downloadError) {
@@ -100,6 +125,15 @@ export async function POST(
             }, { status: 402 });
           }
 
+          // ✅ VALIDATE-ONLY MODE: If validateOnly=true, return success without downloading
+          if (validateOnly) {
+            return NextResponse.json({
+              success: true,
+              message: 'Validation successful',
+              downloadCost: downloadCost
+            }, { status: 200 });
+          }
+
           // Deduct download cost
           const deductResult = await deductCredits(instance.user_id, downloadCost);
           if (!deductResult.success) {
@@ -119,6 +153,13 @@ export async function POST(
           );
 
           console.log(`[Download Billing] Charged ${downloadCost} credits for ${videoModel} download (user: ${instance.user_id})`);
+        } else if (validateOnly) {
+          // Paid-generation model + validate-only: just return success
+          return NextResponse.json({
+            success: true,
+            message: 'Validation successful (already paid)',
+            downloadCost: 0
+          }, { status: 200 });
         }
         // If paid-generation model, download is FREE (no credit deduction)
 
@@ -130,25 +171,31 @@ export async function POST(
             updated_at: new Date().toISOString()
           })
           .eq('id', id);
+      } else if (validateOnly) {
+        // Already downloaded + validate-only: return success
+        return NextResponse.json({
+          success: true,
+          message: 'Validation successful (already downloaded)',
+          downloadCost: 0
+        }, { status: 200 });
       }
 
-      // Download the video file from KIE and return it
+      // Stream the video file from KIE directly to the client (instant download start)
       try {
-        console.log(`📥 Fetching video from KIE: ${instance.video_url}`);
+        console.log(`📥 Streaming video from KIE: ${instance.video_url}`);
         const videoResponse = await fetch(instance.video_url);
 
         if (!videoResponse.ok) {
           throw new Error(`Failed to fetch video: ${videoResponse.status} ${videoResponse.statusText}`);
         }
 
-        const videoBuffer = await videoResponse.arrayBuffer();
-
-        return new NextResponse(videoBuffer, {
+        // Stream video directly without buffering
+        return new NextResponse(videoResponse.body, {
           status: 200,
           headers: {
             'Content-Type': 'video/mp4',
             'Content-Disposition': `attachment; filename="flowtra-multi-variant-video-${id}.mp4"`,
-            'Content-Length': videoBuffer.byteLength.toString(),
+            'Content-Length': videoResponse.headers.get('content-length') || '',
           },
         });
       } catch (downloadError) {

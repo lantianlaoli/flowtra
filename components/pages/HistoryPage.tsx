@@ -463,7 +463,8 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
       // Use different API endpoint for Character Ads
       const apiEndpoint = isCharacterAds(item) ? '/api/character-ads/download' : '/api/download-video';
 
-      const response = await fetch(apiEndpoint, {
+      // ✅ STEP 1: Fast validation (check auth + credits) without downloading
+      const validationResponse = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -471,62 +472,84 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
         body: JSON.stringify({
           historyId,
           userId: user.id,
+          validateOnly: true, // Only validate, don't download yet
           ...(isCharacterAds(item) && { videoDurationSeconds: item.videoDurationSeconds })
         }),
       });
 
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType?.includes('video/mp4')) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `flowtra-video-${historyId}.mp4`;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          window.URL.revokeObjectURL(url);
-          
-          // Show success state
-          setDownloadStates(prev => ({ ...prev, [historyId]: 'success' }));
-          
-          // Update history
-          setHistory(prevHistory =>
-            prevHistory.map(item =>
-              item.id === historyId
-                ? {
-                      ...item,
-                      downloaded: true,
-                      downloadCreditsUsed: isFirstDownload ? downloadCost : ('downloadCreditsUsed' in item ? item.downloadCreditsUsed : 0),
-                    }
-                  : item
-            )
-          );
-
-          if (isFirstDownload) {
-            await refetchCredits();
-          }
-
-          // Reset to idle after 3 seconds
-          setTimeout(() => {
-            setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
-          }, 3000);
-
-        } else {
-          const result = await response.json();
-          alert(result.message || 'Failed to download video');
-          setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
-        }
-      } else {
-        const result = await response.json();
+      if (!validationResponse.ok) {
+        const result = await validationResponse.json();
         alert(result.message || 'Failed to authorize download');
         setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
+        return;
       }
+
+      // ✅ STEP 2: Validation passed - trigger instant streaming download via hidden iframe
+      // This allows browser to handle download natively without navigating away from current page
+
+      // Create or reuse hidden iframe for downloads
+      let iframe = document.getElementById('download-iframe') as HTMLIFrameElement;
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'download-iframe';
+        iframe.name = 'download-iframe';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+      }
+
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = apiEndpoint;
+      form.target = 'download-iframe'; // Submit to hidden iframe
+      form.style.display = 'none';
+
+      // Add form fields
+      const fields: Record<string, string> = {
+        historyId,
+        userId: user.id,
+      };
+
+      if (isCharacterAds(item)) {
+        fields.videoDurationSeconds = String(item.videoDurationSeconds || 8);
+      }
+
+      Object.entries(fields).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+
+      // Show success state immediately (download started)
+      setDownloadStates(prev => ({ ...prev, [historyId]: 'success' }));
+
+      // Update history
+      setHistory(prevHistory =>
+        prevHistory.map(item =>
+          item.id === historyId
+            ? {
+                  ...item,
+                  downloaded: true,
+                  downloadCreditsUsed: isFirstDownload ? downloadCost : ('downloadCreditsUsed' in item ? item.downloadCreditsUsed : 0),
+                }
+              : item
+        )
+      );
+
+      if (isFirstDownload) {
+        await refetchCredits();
+      }
+
+      // Reset to idle after 3 seconds
+      setTimeout(() => {
+        setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
+      }, 3000);
+
     } catch (error) {
       console.error('Error downloading video:', error);
       alert('An error occurred while downloading the video');

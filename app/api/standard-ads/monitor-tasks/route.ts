@@ -524,10 +524,19 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
   }
 
   if (videosUpdated) {
+    // Calculate incremental progress based on videos ready (70% → 95% range)
+    const videosReady = segments.filter(seg => !!seg.video_url).length;
+    const totalSegments = segments.length;
+    const videoProgressRange = 25; // 95% - 70%
+    const videoProgress = 70 + Math.round((videosReady / totalSegments) * videoProgressRange);
+
+    console.log(`📊 Video progress: ${videosReady}/${totalSegments} videos ready → ${videoProgress}%`);
+
     await supabase
       .from('standard_ads_projects')
       .update({
         segment_status: buildSegmentStatusPayload(segments),
+        progress_percentage: videoProgress,
         last_processed_at: new Date().toISOString()
       })
       .eq('id', record.id);
@@ -751,11 +760,20 @@ async function syncSegmentFrameTasks(
   }
 
   if (updated) {
+    // Calculate incremental progress based on frames ready (25% → 70% range)
+    const framesReady = segments.filter(seg => !!seg.first_frame_url).length;
+    const totalSegments = segments.length;
+    const frameProgressRange = 45; // 70% - 25%
+    const frameProgress = 25 + Math.round((framesReady / totalSegments) * frameProgressRange);
+
+    console.log(`📊 Frame progress: ${framesReady}/${totalSegments} frames ready → ${frameProgress}%`);
+
     await supabase
       .from('standard_ads_projects')
       .update({
         cover_image_url: record.cover_image_url,
         segment_status: buildSegmentStatusPayload(segments),
+        progress_percentage: frameProgress,
         last_processed_at: now
       })
       .eq('id', record.id);

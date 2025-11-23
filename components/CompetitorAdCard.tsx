@@ -147,6 +147,12 @@ export default function CompetitorAdCard({
           `}>
             {competitorAd.file_type === 'video' ? 'Video' : 'Image'}
           </span>
+          {competitorAd.file_type === 'video' && competitorAd.video_duration_seconds && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+              <Clock3 className="w-3 h-3" />
+              {competitorAd.video_duration_seconds}s
+            </span>
+          )}
           {languageDisplay && analysisStatus === 'completed' && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
               <Languages className="w-3 h-3" />

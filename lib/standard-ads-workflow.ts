@@ -368,14 +368,24 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           totalDurationSeconds: timeline.videoDurationSeconds || sumShotDurations(timeline.shots)
         };
 
-        if (
-          (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' || actualVideoModel === 'grok') &&
-          competitorShotTimeline.totalDurationSeconds > 0
-        ) {
-          const snappedDuration = snapDurationToModel(actualVideoModel, competitorShotTimeline.totalDurationSeconds);
-          if (snappedDuration && request.videoDuration !== snappedDuration) {
+        // NEW: Recommend duration based on competitor shot count, but let user decide
+        // If user hasn't chosen duration yet, recommend shot_count × segment_duration
+        if (!request.videoDuration && (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' || actualVideoModel === 'grok')) {
+          const segmentDuration = actualVideoModel === 'grok' ? 6 : 8;
+          const recommendedDuration = competitorShotTimeline.shots.length * segmentDuration;
+
+          console.log(`🎯 [SEGMENT DEBUG] Competitor shot analysis:`);
+          console.log(`   - Model: ${actualVideoModel}`);
+          console.log(`   - Competitor shots: ${competitorShotTimeline.shots.length}`);
+          console.log(`   - Segment duration: ${segmentDuration}s per shot`);
+          console.log(`   - Recommended duration: ${competitorShotTimeline.shots.length} × ${segmentDuration} = ${recommendedDuration}s`);
+
+          const snappedDuration = snapDurationToModel(actualVideoModel, recommendedDuration);
+          console.log(`   - Snapped duration: ${snappedDuration}s`);
+
+          if (snappedDuration) {
             console.log(
-              `⏱️ Auto-adjusted video duration to ${snappedDuration}s to mirror competitor reference (${actualVideoModel})`
+              `💡 Final recommended video duration: ${snappedDuration}s (${competitorShotTimeline.shots.length} shots × ${segmentDuration}s per shot)`
             );
             request.videoDuration = snappedDuration;
           }
@@ -384,7 +394,35 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     }
 
     const isSegmented = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
-    const segmentCount = isSegmented ? getSegmentCountFromDuration(request.videoDuration, actualVideoModel) : 1;
+
+    // NEW: Smart segment count calculation
+    // Priority 1: If competitor shots exist and match user's segment count → use 1:1 mapping
+    // Priority 2: Use user's chosen duration
+    console.log(`🎯 [SEGMENT DEBUG] Calculating segment count:`);
+    console.log(`   - Video model: ${actualVideoModel}`);
+    console.log(`   - Video duration: ${request.videoDuration}`);
+    console.log(`   - Is segmented: ${isSegmented}`);
+
+    let segmentCount: number;
+    const competitorShotCount = competitorShotTimeline?.shots.length || 0;
+    const userSegmentCount = isSegmented ? getSegmentCountFromDuration(request.videoDuration, actualVideoModel) : 1;
+
+    console.log(`   - Competitor shot count: ${competitorShotCount}`);
+    console.log(`   - User segment count (from duration): ${userSegmentCount}`);
+
+    if (competitorShotCount > 0 && userSegmentCount === competitorShotCount) {
+      segmentCount = competitorShotCount;
+      console.log(`✅ Perfect match: ${competitorShotCount} competitor shots = ${userSegmentCount} segments (1:1 mapping)`);
+    } else {
+      segmentCount = userSegmentCount;
+      if (competitorShotCount > 0 && competitorShotCount !== userSegmentCount) {
+        console.log(`⚠️ Mismatch: ${competitorShotCount} competitor shots ≠ ${userSegmentCount} segments. Using user's choice, AI will adapt.`);
+      } else if (competitorShotCount === 0) {
+        console.log(`ℹ️ No competitor shots, using segment count from duration: ${userSegmentCount}`);
+      }
+    }
+
+    console.log(`🎬 [SEGMENT DEBUG] Final segment count: ${segmentCount}`);
     let remainingCreditsAfterDeduction: number | undefined;
     const isReplicaMode = Boolean(
       request.replicaMode &&
@@ -858,9 +896,10 @@ async function startAIWorkflow(
     if (segmentedFlow && competitorTimelineShots && competitorTimelineShots.length > 0) {
       if (competitorTimelineShots.length === segmentCount) {
         shotPlanForSegments = competitorTimelineShots;
+        console.log(`✅ Using 1:1 shot-to-segment mapping (${segmentCount} shots)`);
       } else {
-        console.warn(
-          `⚠️ Competitor shot count (${competitorTimelineShots.length}) does not match required segment count (${segmentCount}). Falling back to AI segment plan.`
+        console.log(
+          `🤖 Competitor has ${competitorTimelineShots.length} shots but user chose ${segmentCount} segments. AI will intelligently adapt the competitor's structure.`
         );
       }
     }
@@ -888,13 +927,25 @@ async function startAIWorkflow(
 
     // Step 1: Start cover generation
     console.log('🎨 Starting cover generation...');
-    const coverTaskId = await generateCover(request.imageUrl, prompts, request, competitorDescription);
+    const coverTaskId = await generateCover(
+      request.imageUrl,
+      prompts,
+      request,
+      competitorDescription,
+      competitorAdContext?.file_type
+    );
     console.log('🆔 Cover task ID:', coverTaskId);
 
     let finalCoverTaskId = coverTaskId;
     if (productCategory === 'children_toy') {
       console.log('🧸 Children toy product detected — running second cover generation pass');
-      finalCoverTaskId = await generateCover(request.imageUrl, prompts, request, competitorDescription);
+      finalCoverTaskId = await generateCover(
+        request.imageUrl,
+        prompts,
+        request,
+        competitorDescription,
+        competitorAdContext?.file_type
+      );
       console.log('🆔 Secondary cover task ID:', finalCoverTaskId);
     }
 
@@ -1095,7 +1146,7 @@ async function generateReplicaPhoto({
   }
 
   const requestBody = {
-    model: IMAGE_MODELS.nano_banana_pro,
+    model: IMAGE_MODELS.nano_banana,
     input: {
       prompt,
       image_input: referenceImages.slice(0, 10),
@@ -2367,10 +2418,29 @@ async function generateCover(
   imageUrl: string,
   prompts: Record<string, unknown>,
   request: StartWorkflowRequest,
-  competitorDescription?: Record<string, unknown>
+  competitorDescription?: Record<string, unknown>,
+  competitorFileType?: 'image' | 'video'
 ): Promise<string> {
   // Get the actual image model to use
-  const actualImageModel = getActualImageModel(request.imageModel || 'auto');
+  // CRITICAL: When using competitor reference mode, choose model based on competitor type:
+  // - Competitor video → nano_banana (google/nano-banana-edit)
+  // - Competitor image → nano_banana_pro (for better image-to-image quality)
+  let actualImageModel: 'nano_banana' | 'seedream' | 'nano_banana_pro';
+
+  if (competitorDescription && competitorFileType) {
+    // Competitor reference mode: model selection based on file type
+    if (competitorFileType === 'video') {
+      console.log('🎬 Competitor video detected → Using nano_banana (google/nano-banana-edit)');
+      actualImageModel = 'nano_banana';
+    } else {
+      console.log('🖼️ Competitor image detected → Using nano_banana_pro for better quality');
+      actualImageModel = 'nano_banana_pro';
+    }
+  } else {
+    // Normal mode: use user's selection or auto mode
+    actualImageModel = getActualImageModel(request.imageModel || 'auto');
+  }
+
   const kieModelName = IMAGE_MODELS[actualImageModel];
 
   // Build prompt that preserves original product appearance
