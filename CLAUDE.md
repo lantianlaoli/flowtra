@@ -63,7 +63,7 @@ The application implements three main AI workflows:
 - **History endpoints**: `/api/{workflow}/history` - List user's projects
 - **Monitor tasks**: `/api/{workflow}/monitor-tasks` - Background job processors that handle all workflow progress updates
 
-**IMPORTANT**: This application uses **monitor-tasks** for ALL workflow progress updates, NOT webhooks. The monitor-tasks endpoints poll KIE API to check task status and update database records accordingly. Webhook endpoints exist but are NOT actively used in the current workflow.
+**IMPORTANT**: This application uses **monitor-tasks** for ALL workflow progress updates. The monitor-tasks endpoints poll KIE API to check task status and update database records accordingly. Legacy webhook endpoints have been removed.
 
 ### Credit System (Mixed Billing Model - Version 3.0)
 - **Billing Model**: Dual-tier system for flexibility
@@ -86,7 +86,6 @@ Required environment variables (check existing code for complete list):
 - `SUPABASE_SECRET_KEY` (server-side only, for admin operations)
 - `KIE_API_KEY`, `OPENROUTER_API_KEY`
 - `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-- Webhook URLs: `KIE_STANDARD_ADS_CALLBACK_URL`, etc.
 - Credit thresholds: `KIE_CREDIT_THRESHOLD`
 
 ### Image Optimization
@@ -97,7 +96,6 @@ Next.js image optimization is configured for:
 
 ### Security & Routing
 - Clerk middleware protects `/dashboard` and sensitive API routes
-- Webhook routes are public (no auth required)
 - Redirects: Legacy routes redirect to new standardized naming
 - Security headers configured for XSS protection, content sniffing prevention
 
@@ -106,7 +104,6 @@ Next.js image optimization is configured for:
 - Monitor endpoints (`/api/{workflow}/monitor-tasks`) poll KIE API periodically to check task completion
 - Timeout handling: 15min for images, 30min for videos
 - Failed jobs are marked with error messages for debugging
-- **Note**: Webhook endpoints exist but are NOT used in the active workflow - all progress updates happen via monitor-tasks
 
 ### Key Libraries
 - **UI**: TailwindCSS v4, Heroicons, Lucide React, Framer Motion
@@ -128,7 +125,6 @@ When modifying any AI prompts in the codebase:
 - `prompts/standard-ads-workflow.md` - Standard Ads complete workflow
 - `prompts/multi-variant-ads-workflow.md` - Multi-Variant Ads complete workflow
 - `prompts/character-ads-workflow.md` - Character Ads complete workflow
-<!-- YouTube Thumbnail workflow removed -->
 
 ---
 

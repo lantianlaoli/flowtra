@@ -115,11 +115,8 @@ export async function startWatermarkRemovalWorkflow(
 
     // Step 5: Submit to KIE API
     try {
-      const callbackUrl = process.env.KIE_WATERMARK_REMOVAL_CALLBACK_URL;
-
       const taskResponse = await createWatermarkRemovalTask({
         video_url: request.videoUrl,
-        callBackUrl: callbackUrl,
       });
 
       // Update project with task ID

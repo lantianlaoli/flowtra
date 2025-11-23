@@ -38,7 +38,7 @@ Flowtra is a Next.js 15 application that delivers AI-generated marketing assets 
 
 ## Backend Surface Map
 `app/api/` hosts route handlers grouped by feature:
-- **Generation**: `standard-ads`, `multi-variant-ads`, `character-ads`, `youtube-thumbnail`, `download-video`.
+- **Generation**: `standard-ads`, `multi-variant-ads`, `character-ads`, `download-video`.
 - **Assets & uploads**: `upload`, `upload-temp-images`, `user-photos`, `user-products`, `recent-videos`, `history`.
 - **Billing & credits**: `credits`, `check-kie-credits`, `create-checkout`, `webhooks/creem`.
 - **Discovery & lead capture**: `discover`, `lead`, `public/*`.

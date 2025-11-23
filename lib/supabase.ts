@@ -330,8 +330,6 @@ export const uploadImageToStorage = async (file: File, filename?: string) => {
   }
 }
 
-// (Removed) uploadIdentityImageToStorage – deprecated with YouTube Thumbnail removal
-
 // Article management functions
 export async function getAllArticles(): Promise<Article[]> {
   const supabase = getSupabase()

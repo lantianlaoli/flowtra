@@ -165,16 +165,10 @@ export default function HistoryPage() {
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [, setDownloadStates] = useState<Record<string, 'idle' | 'processing' | 'success'>>({});
-  // Deprecated YouTube thumbnail helpers (kept to satisfy type system after feature removal)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const youtubeThumbnailStates: Record<string, 'packing' | 'done' | null> = {};
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleYoutubeThumbnailClick = (_item: unknown) => {};
   // Cover UI transient state: 'packing' -> 'done' -> cleared
   const [coverStates, setCoverStates] = useState<Record<string, 'packing' | 'done' | null>>({});
   // Video UI transient state: 'packing' -> 'done' -> cleared
   const [videoStates, setVideoStates] = useState<Record<string, 'packing' | 'done' | null>>({});
-  // Removed YouTube thumbnail transient state
 
   // TikTok publish dialog state
   const [tiktokDialogOpen, setTiktokDialogOpen] = useState(false);
@@ -560,8 +554,6 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
   // Generate a short emotional phrase for the Cover button
   const getPackingText = (stage: 'packing' | 'done') =>
     stage === 'packing' ? 'Packing…' : 'Ready!';
-
-  // Removed YouTube thumbnail download handlers
 
   // Standard ads cover download function (free) — show phrase only, no video download state
   const downloadStandardAdsCover = async (historyId: string) => {
