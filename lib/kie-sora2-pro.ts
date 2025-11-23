@@ -3,10 +3,10 @@
  *
  * This module provides integration with KIE's Sora2 Pro Image-to-Video API.
  * Sora2 Pro supports multiple quality levels and durations:
- * - Standard 10s: 36 credits
- * - Standard 15s: 54 credits
- * - HD 10s: 80 credits
- * - HD 15s: 160 credits
+ * - Standard 10s: 75 credits
+ * - Standard 15s: 135 credits
+ * - HD 10s: 165 credits
+ * - HD 15s: 315 credits
  */
 
 const KIE_API_BASE_URL = 'https://api.kie.ai/api/v1/jobs'
@@ -156,8 +156,8 @@ export function mapAspectRatioToSora2ProFormat(videoAspectRatio: string): 'portr
  */
 export function getSora2ProCost(duration: '10' | '15', quality: 'standard' | 'high'): number {
   const costs = {
-    'standard': { '10': 36, '15': 54 },
-    'high': { '10': 80, '15': 160 }
+    'standard': { '10': 75, '15': 135 },
+    'high': { '10': 165, '15': 315 }
   }
 
   return costs[quality][duration]

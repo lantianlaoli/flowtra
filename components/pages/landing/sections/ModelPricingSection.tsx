@@ -61,10 +61,10 @@ export default function ModelPricingSection() {
       durationRange: '10-15s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { duration: '10s Standard', credits: 36, unit: 'Standard quality' },
-        { duration: '15s Standard', credits: 54, unit: 'Standard quality' },
-        { duration: '10s HD', credits: 80, unit: 'HD quality' },
-        { duration: '15s HD', credits: 160, unit: 'HD quality' },
+        { duration: '10s Standard', credits: 75, unit: 'Standard quality' },
+        { duration: '15s Standard', credits: 135, unit: 'Standard quality' },
+        { duration: '10s HD', credits: 165, unit: 'HD quality' },
+        { duration: '15s HD', credits: 315, unit: 'HD quality' },
       ],
     },
     {

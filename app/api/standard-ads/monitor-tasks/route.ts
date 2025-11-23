@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
-import { startSegmentVideoTask, buildSegmentStatusPayload, type SegmentPrompt } from '@/lib/standard-ads-workflow';
+import { startSegmentVideoTask, buildSegmentStatusPayload, createSmartSegmentFrame, type SegmentPrompt } from '@/lib/standard-ads-workflow';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 
 export async function POST() {
@@ -168,6 +168,7 @@ interface HistoryRecord {
   segment_status?: Record<string, unknown> | null;
   fal_merge_task_id?: string | null;
   merged_video_url?: string | null;
+  retry_count?: number; // Number of automatic retries for server errors
 }
 
 async function processRecord(record: HistoryRecord) {
@@ -317,7 +318,44 @@ async function processRecord(record: HistoryRecord) {
       }
 
     } else if (videoResult.status === 'FAILED') {
-      throw new Error(`Video generation failed: ${videoResult.errorMessage || 'Unknown error'}`);
+      // CRITICAL: Check if error is retryable (failCode: 500)
+      const MAX_RETRIES = 3;
+      const currentRetryCount = record.retry_count || 0;
+
+      if (videoResult.isRetryable && currentRetryCount < MAX_RETRIES) {
+        console.warn(`⚠️ Retryable error for project ${record.id} (retry ${currentRetryCount + 1}/${MAX_RETRIES})`);
+        console.warn(`   Error: ${videoResult.errorMessage}`);
+        console.warn(`   Restarting video generation...`);
+
+        // Restart video generation
+        const newVideoTaskId = await startVideoGeneration(record, record.cover_image_url!);
+
+        // Update project with new task ID and increment retry count
+        const { error: retryErr } = await supabase
+          .from('standard_ads_projects')
+          .update({
+            video_task_id: newVideoTaskId,
+            retry_count: currentRetryCount + 1,
+            error_message: `Retrying after server error (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', record.id);
+
+        if (retryErr) {
+          console.error(`Failed to update record ${record.id} for retry:`, retryErr);
+          throw new Error(`DB update failed for record ${record.id}`);
+        }
+
+        console.log(`✅ Restarted video generation for project ${record.id}, new task ID: ${newVideoTaskId}`);
+        return; // Exit processRecord - will retry on next monitor run
+      } else {
+        // Non-retryable error OR max retries exceeded
+        if (videoResult.isRetryable) {
+          console.error(`❌ Max retries (${MAX_RETRIES}) exceeded for project ${record.id}`);
+        }
+
+        throw new Error(`Video generation failed: ${videoResult.errorMessage || 'Unknown error'}`);
+      }
     }
     // If still generating, do nothing and wait for next check
   }
@@ -413,25 +451,74 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
         segment.status = 'video_ready';
         videosUpdated = true;
       } else if (videoResult.status === 'FAILED') {
-        await supabase
-          .from('standard_ads_segments')
-          .update({
-            status: 'failed',
-            error_message: videoResult.errorMessage || 'Segment video generation failed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', segment.id);
+        // CRITICAL: Check if error is retryable (failCode: 500)
+        const MAX_RETRIES = 3;
+        const currentRetryCount = segment.retry_count || 0;
 
-        await supabase
-          .from('standard_ads_projects')
-          .update({
-            status: 'failed',
-            error_message: videoResult.errorMessage || 'Segment video generation failed',
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', record.id);
+        if (videoResult.isRetryable && currentRetryCount < MAX_RETRIES) {
+          console.warn(`⚠️ Retryable error for segment ${segment.segment_index} (retry ${currentRetryCount + 1}/${MAX_RETRIES})`);
+          console.warn(`   Error: ${videoResult.errorMessage}`);
+          console.warn(`   Restarting video generation...`);
 
-        throw new Error(`Segment ${segment.segment_index} video failed: ${videoResult.errorMessage || 'unknown error'}`);
+          // Get closing frame URL for retry
+          const nextSegment = segments.find(s => s.segment_index === segment.segment_index + 1);
+          const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url || null;
+
+          // Restart video generation
+          const prompt = getSegmentPrompt(record, segment.segment_index);
+          const newTaskId = await startSegmentVideoTask(
+            record as unknown as SingleVideoProject,
+            prompt,
+            segment.first_frame_url!,
+            closingFrameUrl,
+            segment.segment_index,
+            segments.length
+          );
+
+          // Update segment with new task ID and increment retry count
+          await supabase
+            .from('standard_ads_segments')
+            .update({
+              video_task_id: newTaskId,
+              status: 'generating_video',
+              retry_count: currentRetryCount + 1,
+              error_message: `Retrying after server error (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', segment.id);
+
+          console.log(`✅ Restarted video generation for segment ${segment.segment_index}, new task ID: ${newTaskId}`);
+
+          // Update segment object in memory
+          segment.video_task_id = newTaskId;
+          segment.status = 'generating_video';
+          videosUpdated = true;
+        } else {
+          // Non-retryable error OR max retries exceeded
+          if (videoResult.isRetryable) {
+            console.error(`❌ Max retries (${MAX_RETRIES}) exceeded for segment ${segment.segment_index}`);
+          }
+
+          await supabase
+            .from('standard_ads_segments')
+            .update({
+              status: 'failed',
+              error_message: videoResult.errorMessage || 'Segment video generation failed',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', segment.id);
+
+          await supabase
+            .from('standard_ads_projects')
+            .update({
+              status: 'failed',
+              error_message: videoResult.errorMessage || 'Segment video generation failed',
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', record.id);
+
+          throw new Error(`Segment ${segment.segment_index} video failed: ${videoResult.errorMessage || 'unknown error'}`);
+        }
       }
     }
   }
@@ -536,6 +623,71 @@ async function syncSegmentFrameTasks(
   const now = new Date().toISOString();
 
   for (const segment of segments) {
+    // FIX: Handle stuck segments in pending_first_frame without task_id
+    // This can happen when initial workflow fails mid-way (e.g., insufficient credits)
+    if (segment.status === 'pending_first_frame' && !segment.first_frame_task_id) {
+      console.log(`🔧 Recovering stuck segment ${segment.segment_index} - creating first frame task`);
+
+      const promptData = getSegmentPrompt(record, segment.segment_index);
+      const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+
+      try {
+        // Use createSmartSegmentFrame with null for brand/product to fallback to Text-to-Image
+        // This ensures the segment can progress even without brand/product images
+        const firstFrameTaskId = await createSmartSegmentFrame(
+          promptData,
+          segment.segment_index,
+          'first',
+          aspectRatio,
+          null, // brandLogoUrl - will fallback to Text-to-Image
+          null, // productImageUrl - will fallback to Text-to-Image
+          undefined // brandContext
+        );
+
+        await supabase
+          .from('standard_ads_segments')
+          .update({
+            first_frame_task_id: firstFrameTaskId,
+            status: 'generating_first_frame',
+            updated_at: now
+          })
+          .eq('id', segment.id);
+
+        segment.first_frame_task_id = firstFrameTaskId;
+        segment.status = 'generating_first_frame';
+        updated = true;
+
+        console.log(`✅ Started first frame generation for stuck segment ${segment.segment_index}, taskId: ${firstFrameTaskId}`);
+
+        // Also generate closing frame for the last segment
+        if (segment.segment_index === segments.length - 1) {
+          const closingFrameTaskId = await createSmartSegmentFrame(
+            promptData,
+            segment.segment_index,
+            'closing',
+            aspectRatio,
+            null,
+            null,
+            undefined
+          );
+
+          await supabase
+            .from('standard_ads_segments')
+            .update({
+              closing_frame_task_id: closingFrameTaskId,
+              updated_at: now
+            })
+            .eq('id', segment.id);
+
+          segment.closing_frame_task_id = closingFrameTaskId;
+          console.log(`✅ Started closing frame generation for last segment ${segment.segment_index}, taskId: ${closingFrameTaskId}`);
+        }
+      } catch (error) {
+        console.error(`❌ Failed to create first frame for stuck segment ${segment.segment_index}:`, error);
+        throw error; // Re-throw to be handled by processRecord's error handler
+      }
+    }
+
     if (segment.first_frame_task_id && !segment.first_frame_url) {
       const frameStatus = await checkCoverStatus(segment.first_frame_task_id);
 
@@ -973,7 +1125,7 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
   return { status: 'GENERATING' };
 }
 
-async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{status: string, videoUrl?: string, errorMessage?: string}> {
+async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{status: string, videoUrl?: string, errorMessage?: string, isRetryable?: boolean}> {
   const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok';
   const endpoint = usesJobsEndpoint
     ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
@@ -1022,17 +1174,34 @@ async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{s
 
     const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
     const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+    const failCode: string | undefined = typeof taskData.failCode === 'string' ? taskData.failCode : undefined;
 
     const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!videoUrl && state === undefined);
     const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+
+    // CRITICAL: Check for failCode 500 (KIE server error) - this is retryable
+    const isServerError = failCode === '500';
 
     if (isSuccess) {
       return { status: 'SUCCESS', videoUrl };
     }
     if (isFailed) {
+      const errorMessage = taskData.failMsg || taskData.errorMessage || 'Video generation failed';
+
+      // If it's a server error (failCode: 500), mark as retryable
+      if (isServerError) {
+        console.warn(`⚠️ KIE server error (failCode: 500) for task ${taskId}: ${errorMessage}`);
+        return {
+          status: 'FAILED',
+          errorMessage: `KIE server error (retryable): ${errorMessage}`,
+          isRetryable: true
+        };
+      }
+
       return {
         status: 'FAILED',
-        errorMessage: taskData.failMsg || taskData.errorMessage || 'Video generation failed'
+        errorMessage,
+        isRetryable: false
       };
     }
     return { status: 'GENERATING' };
@@ -1046,7 +1215,8 @@ async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{s
   } else if (taskData.successFlag === 2 || taskData.successFlag === 3) {
     return {
       status: 'FAILED',
-      errorMessage: taskData.errorMessage || 'Video generation failed'
+      errorMessage: taskData.errorMessage || 'Video generation failed',
+      isRetryable: false
     };
   } else {
     return { status: 'GENERATING' };

@@ -32,10 +32,10 @@ export const CREDIT_COSTS = {
 
 // Sora2 Pro credit costs based on duration and quality
 export const SORA2_PRO_CREDIT_COSTS = {
-  'standard_10s': 36,   // Sora2 Pro Standard 10s: 36 credits
-  'standard_15s': 54,   // Sora2 Pro Standard 15s: 54 credits
-  'hd_10s': 80,         // Sora2 Pro HD 10s: 80 credits
-  'hd_15s': 160,        // Sora2 Pro HD 15s: 160 credits
+  'standard_10s': 75,   // Sora2 Pro Standard 10s: 75 credits
+  'standard_15s': 135,  // Sora2 Pro Standard 15s: 135 credits
+  'hd_10s': 165,        // Sora2 Pro HD 10s: 165 credits
+  'hd_15s': 315,        // Sora2 Pro HD 15s: 315 credits
 } as const
 
 // Watermark removal cost

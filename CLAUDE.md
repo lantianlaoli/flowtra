@@ -72,7 +72,7 @@ The application implements three main AI workflows:
 - **Costs defined in** `lib/constants.ts`:
   - **Generation Costs** (paid models):
     - Veo3: 150 credits per 8s video
-    - Sora2 Pro: 36-160 credits (dynamic based on duration/quality)
+    - Sora2 Pro: 75-315 credits (dynamic based on duration/quality)
   - **Download Costs** (free-generation models):
     - Veo3 Fast: 20 credits per 8s video
     - Sora2: 6 credits per 10s video

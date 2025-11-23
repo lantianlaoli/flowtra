@@ -2892,7 +2892,7 @@ async function createSegmentFrameTask(
  * Decides between Text-to-Image, Brand Image-to-Image, or Product Image-to-Image
  * based on shot analysis flags (contains_brand, contains_product)
  */
-async function createSmartSegmentFrame(
+export async function createSmartSegmentFrame(
   segmentPrompt: SegmentPrompt,
   segmentIndex: number,
   frameType: 'first' | 'closing',

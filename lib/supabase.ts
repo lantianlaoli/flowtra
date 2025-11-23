@@ -108,6 +108,7 @@ export interface SingleVideoProject {
   segment_status?: Record<string, unknown> | null // Aggregated per-segment status payload
   merged_video_url?: string | null // Final merged video URL for segmented workflows
   fal_merge_task_id?: string | null // fal.ai merge task identifier
+  retry_count?: number // Number of automatic retries for server errors (failCode: 500)
   created_at: string
   updated_at: string
 }
@@ -125,6 +126,7 @@ export interface StandardAdsSegment {
   video_task_id?: string | null
   video_url?: string | null
   error_message?: string | null
+  retry_count?: number // Number of automatic retries for server errors (failCode: 500)
   created_at: string
   updated_at: string
 }
