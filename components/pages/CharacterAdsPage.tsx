@@ -731,7 +731,7 @@ const formatDurationLabel = (seconds: number) => {
                 transition={{ duration: 0.3 }}
                 className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-48 min-h-0"
               >
-                <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
+                <div className="max-w-6xl mx-auto flex-1 w-full flex min-h-0">
                   <div className="bg-white border border-gray-200 rounded-3xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
                     <div className="flex-1 overflow-hidden min-h-0">
                       <GenerationProgressDisplay
@@ -768,7 +768,7 @@ const formatDurationLabel = (seconds: number) => {
       </div>
 
       {composerVisible && (
-        <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-4 sm:px-8 lg:px-10 pb-4">
+        <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-6 sm:px-8 lg:px-10 pb-4">
           <div className="max-w-6xl mx-auto">
             <div className="relative bg-white/95 backdrop-blur border border-gray-200 rounded-[60px] shadow-2xl px-4 sm:px-6 py-4">
               <div className="flex items-center gap-3 flex-wrap">
