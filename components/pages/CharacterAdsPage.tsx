@@ -31,7 +31,7 @@ interface KieCreditsStatus {
 }
 
 const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
-const DEFAULT_IMAGE_MODEL = 'nano_banana_pro' as const;
+const DEFAULT_IMAGE_MODEL = 'nano_banana' as const;
 const IMAGE_SIZE_BY_ASPECT: Record<'16:9' | '9:16', 'landscape_16_9' | 'portrait_16_9'> = {
   '16:9': 'landscape_16_9',
   '9:16': 'portrait_16_9'
@@ -743,17 +743,10 @@ const formatDurationLabel = (seconds: number) => {
                             className="tiktok-embed"
                             cite="https://www.tiktok.com/@laolilantian/video/7575453353417657618"
                             data-video-id="7575453353417657618"
-                            style={{ maxWidth: '605px', minWidth: '325px' }}
+                            style={{ maxWidth: '325px', minWidth: '280px' }}
                           >
                             <section>
-                              <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
-                              This video explains how to use UGC advertising to introduce products in flowtra ai.{' '}
-                              <a title="aimarket" target="_blank" href="https://www.tiktok.com/tag/aimarket?refer=embed">#aimarket</a>{' '}
-                              <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#ai</a>{' '}
-                              <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a>{' '}
-                              <a title="advertising" target="_blank" href="https://www.tiktok.com/tag/advertising?refer=embed">#advertising</a>{' '}
-                              <a title="ugccreator" target="_blank" href="https://www.tiktok.com/tag/ugccreator?refer=embed">#ugccreator</a>{' '}
-                              <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7575453429700233992?refer=embed">♬ original sound - Lantian laoli</a>
+                              <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>
                             </section>
                           </blockquote>
                         }

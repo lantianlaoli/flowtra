@@ -83,66 +83,49 @@ export default function GenerationProgressDisplay({
   if (generations.length === 0) {
     const steps = emptyStateSteps || DEFAULT_STEPS;
     return (
-      <div className="h-full flex items-center justify-center p-4">
-        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center lg:items-start gap-12 lg:gap-16">
           {/* Left Side: Steps */}
-          <div className="flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
-            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
-              <Play className="w-10 h-10 text-gray-400" />
+          <div className="flex-1 max-w-md">
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-1">
+                Get started
+              </h3>
+              <p className="text-sm text-gray-500">
+                Follow these steps to create your first video
+              </p>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900">
-              Get Started in 3 Easy Steps
-            </h3>
 
-            <ol className="w-full space-y-4 max-w-md">
-              {steps.map((step) => (
-                <li key={step.title} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                  <span className="text-2xl" aria-hidden>
-                    {step.icon}
+            <div className="space-y-2 mb-6">
+              {steps.map((step, index) => (
+                <div key={step.title} className="flex items-start gap-3 py-2">
+                  <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-xs font-medium text-gray-400">
+                    {index + 1}.
                   </span>
-                  <div className="text-left">
-                    <strong className="block text-gray-900 font-semibold mb-1">{step.title}</strong>
-                    <span className="text-gray-600 text-sm leading-relaxed">{step.description}</span>
-                  </div>
-                </li>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    {step.description}
+                  </p>
+                </div>
               ))}
-            </ol>
-
-            <div className="pt-2">
-              <Link
-                href="/dashboard/assets"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md font-medium"
-              >
-                <Boxes className="w-5 h-5" />
-                Go to Assets
-              </Link>
             </div>
+
+            <Link
+              href="/dashboard/assets"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
+            >
+              <Boxes className="w-4 h-4" />
+              Go to Assets
+            </Link>
           </div>
 
-          {/* Right Side: TikTok Video */}
-          <div className="flex justify-center w-full">
-            <div className="w-full flex justify-center lg:justify-end">
-              {emptyStateRightContent || (
-                <blockquote
-                  className="tiktok-embed"
-                  cite="https://www.tiktok.com/@laolilantian/video/7575430395320192263"
-                  data-video-id="7575430395320192263"
-                  style={{ maxWidth: '605px', minWidth: '325px' }}
-                >
-                  <section>
-                    <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
-                    Standard Advertising Demo Latest November 2025{' '}
-                    <a title="gemini" target="_blank" href="https://www.tiktok.com/tag/gemini?refer=embed">#gemini</a>{' '}
-                    <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a>{' '}
-                    <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#ai</a>{' '}
-                    <a title="nanobanana2" target="_blank" href="https://www.tiktok.com/tag/nanobanana2?refer=embed">#nanobanana2</a>{' '}
-                    <a title="aimarket" target="_blank" href="https://www.tiktok.com/tag/aimarket?refer=embed">#aimarket</a>{' '}
-                    <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7575430470718524167?refer=embed">♬ original sound - Lantian laoli</a>
-                  </section>
-                </blockquote>
-              )}
+          {/* Right Side: Video Tutorial */}
+          {emptyStateRightContent && (
+            <div className="flex-1 max-w-sm">
+              <div className="rounded-xl overflow-hidden">
+                {emptyStateRightContent}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
