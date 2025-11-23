@@ -326,22 +326,34 @@ export default function StandardAdsPage() {
   }, [selectedCompetitorAd, selectedLanguage]);
 
   useEffect(() => {
-    if (!selectedCompetitorAd || selectedCompetitorAd.file_type !== 'video' || !selectedCompetitorAd.video_duration_seconds) {
-      if (!selectedCompetitorAd || selectedCompetitorAd.file_type !== 'video') {
-        lastAutoDurationRef.current = { competitorId: null, model: null, duration: null };
-      }
+    if (!selectedCompetitorAd || selectedCompetitorAd.file_type !== 'video') {
+      lastAutoDurationRef.current = { competitorId: null, model: null, duration: null };
       return;
     }
 
-    const snapped = snapDurationToModel(selectedModel, selectedCompetitorAd.video_duration_seconds);
+    // Check for shot_count first (API enriched field)
+    const shotCount = (selectedCompetitorAd as any).shot_count;
+    let targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
+
+    if (typeof shotCount === 'number' && shotCount > 0) {
+      // Use shot count logic: each shot = 1 segment
+      // Veo3/Fast = 8s per segment, Grok = 6s per segment
+      const segmentDuration = selectedModel === 'grok' ? 6 : 8;
+      targetDurationSeconds = shotCount * segmentDuration;
+    }
+
+    if (!targetDurationSeconds) return;
+
+    const snapped = snapDurationToModel(selectedModel, targetDurationSeconds);
     if (
       snapped &&
       (lastAutoDurationRef.current.competitorId !== selectedCompetitorAd.id ||
         lastAutoDurationRef.current.model !== selectedModel ||
         lastAutoDurationRef.current.duration !== snapped)
     ) {
+      const source = shotCount ? `shot count (${shotCount} shots)` : `video duration`;
       console.log(
-        `⏱️ Auto-selecting ${snapped}s duration to mirror ${selectedCompetitorAd.competitor_name} (${selectedModel})`
+        `⏱️ Auto-selecting ${snapped}s duration based on ${source} to mirror ${selectedCompetitorAd.competitor_name} (${selectedModel})`
       );
       setVideoDuration(snapped);
       lastAutoDurationRef.current = { competitorId: selectedCompetitorAd.id, model: selectedModel, duration: snapped };
@@ -711,8 +723,21 @@ export default function StandardAdsPage() {
 
   // Calculate recommended duration based on competitor ad
   const recommendedDuration = useMemo(() => {
-    if (selectedCompetitorAd?.file_type === 'video' && selectedCompetitorAd.video_duration_seconds) {
-      return snapDurationToModel(selectedModel, selectedCompetitorAd.video_duration_seconds);
+    if (selectedCompetitorAd?.file_type === 'video') {
+      // Check for shot_count first (API enriched field)
+      const shotCount = (selectedCompetitorAd as any).shot_count;
+      let targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
+
+      if (typeof shotCount === 'number' && shotCount > 0) {
+        // Use shot count logic: each shot = 1 segment
+        // Veo3/Fast = 8s per segment, Grok = 6s per segment
+        const segmentDuration = selectedModel === 'grok' ? 6 : 8;
+        targetDurationSeconds = shotCount * segmentDuration;
+      }
+
+      if (targetDurationSeconds > 0) {
+        return snapDurationToModel(selectedModel, targetDurationSeconds);
+      }
     }
     return null;
   }, [selectedCompetitorAd, selectedModel]);
