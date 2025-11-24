@@ -82,6 +82,13 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                       <div className="font-semibold">Character Ads</div>
                       <div className="text-xs text-gray-600">AI character-driven videos</div>
                     </Link>
+                    <Link
+                      href="/features/competitor-replica"
+                      className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                    >
+                      <div className="font-semibold">Competitor Replica</div>
+                      <div className="text-xs text-gray-600">Clone competitor videos</div>
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -206,6 +213,14 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                     >
                       <div className="font-semibold text-sm">Character Ads</div>
                       <div className="text-xs text-gray-600">AI character-driven videos</div>
+                    </Link>
+                    <Link
+                      href="/features/competitor-replica"
+                      className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <div className="font-semibold text-sm">Competitor Replica</div>
+                      <div className="text-xs text-gray-600">Clone competitor videos</div>
                     </Link>
                   </div>
                 </div>
