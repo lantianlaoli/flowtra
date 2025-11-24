@@ -680,7 +680,7 @@ const formatDurationLabel = (seconds: number) => {
       <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen flex flex-col pt-14 md:pt-0 min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
           <header className="px-6 sm:px-8 lg:px-10 py-6 sticky top-0 z-30 bg-gray-50/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
-            <div className="max-w-6xl mx-auto flex items-center gap-3">
+            <div className="max-w-7xl mx-auto flex items-center gap-3">
               <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
                 <Video className="w-5 h-5 text-gray-700" />
               </div>
@@ -712,7 +712,7 @@ const formatDurationLabel = (seconds: number) => {
                 transition={{ duration: 0.3 }}
                 className="flex-1 overflow-y-auto px-6 sm:px-8 lg:px-10 py-8"
               >
-                <div className="max-w-6xl mx-auto space-y-6">
+                <div className="max-w-7xl mx-auto space-y-6">
                   <button
                     onClick={() => setShowProductManager(false)}
                     className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
@@ -731,7 +731,7 @@ const formatDurationLabel = (seconds: number) => {
                 transition={{ duration: 0.3 }}
                 className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-48 min-h-0"
               >
-                <div className="max-w-6xl mx-auto flex-1 w-full flex min-h-0">
+                <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
                   <div className="bg-white border border-gray-200 rounded-3xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
                     <div className="flex-1 overflow-hidden min-h-0">
                       <GenerationProgressDisplay
@@ -743,10 +743,11 @@ const formatDurationLabel = (seconds: number) => {
                             className="tiktok-embed"
                             cite="https://www.tiktok.com/@laolilantian/video/7575453353417657618"
                             data-video-id="7575453353417657618"
-                            style={{ maxWidth: '325px', minWidth: '280px' }}
+                            style={{ maxWidth: '605px', minWidth: '280px' }}
                           >
                             <section>
                               <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>
+                              {' '}Character Advertising Demo Latest November 2025
                             </section>
                           </blockquote>
                         }
@@ -762,7 +763,7 @@ const formatDurationLabel = (seconds: number) => {
 
       {composerVisible && (
         <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-6 sm:px-8 lg:px-10 pb-4">
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             <div className="relative bg-white/95 backdrop-blur border border-gray-200 rounded-[60px] shadow-2xl px-4 sm:px-6 py-4">
               <div className="flex items-center gap-3 flex-wrap">
                 <button

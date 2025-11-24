@@ -52,8 +52,8 @@ export default function ProductCard({
   const handleCardClick = () => {
     if (isSelectableMode && onSelect) {
       onSelect(product);
-    } else if (isCompactMode && onView) {
-      onView(product);
+    } else if (isCompactMode && onEditClick) {
+      onEditClick(product);
     }
   };
 

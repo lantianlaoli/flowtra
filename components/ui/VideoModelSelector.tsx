@@ -12,6 +12,7 @@ import {
   modelSupports,
   getModelCostByConfig,
   isFreeGenerationModel,
+  MODEL_CAPABILITIES,
   type VideoQuality,
   type VideoDuration
 } from '@/lib/constants';
@@ -78,15 +79,18 @@ export default function VideoModelSelector({
       return Math.round((videoDurationSeconds / unitSeconds) * baseCost);
     };
 
-    // Check if model is supported by current quality/duration config or disabledModels list
+    // Check if model is supported by current quality config or disabledModels list
     const isModelSupported = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok') => {
       // First check disabledModels prop (takes precedence)
       if (disabledModels.includes(model)) {
         return false;
       }
-      // Then check quality/duration config (for backwards compatibility)
-      if (videoQuality && videoDuration) {
-        return modelSupports(model, videoQuality, videoDuration);
+      // Model selection should not be affected by duration
+      // Only check quality support
+      if (videoQuality) {
+        const capability = MODEL_CAPABILITIES.find(cap => cap.model === model);
+        if (!capability) return false;
+        return capability.supportedQualities.includes(videoQuality);
       }
       // If no constraints, all models are supported
       return true;
@@ -235,9 +239,16 @@ export default function VideoModelSelector({
           className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-md transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
           <div className="min-w-0 flex flex-col">
-            <span className="font-medium truncate">
-              {selectedOption?.label}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium truncate">
+                {selectedOption?.label}
+              </span>
+              {selectedOption?.value === 'grok' && (
+                <span className="inline-flex items-center text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                  Kids Friendly
+                </span>
+              )}
+            </div>
             {selectedOption?.features && (
               <span className="text-xs text-gray-500 truncate">{selectedOption?.features}</span>
             )}
@@ -283,6 +294,11 @@ export default function VideoModelSelector({
                       <span className="font-medium">
                         {option.label}
                       </span>
+                      {option.value === 'grok' && (
+                        <span className="inline-flex items-center text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                          Kids Friendly
+                        </span>
+                      )}
                       {option.description && (
                         <div className="relative">
                           <HelpCircle

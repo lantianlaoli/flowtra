@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import { CheckCircle, XCircle, Loader2, Download, Play, X, Boxes } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Download, Play, X, Boxes, Rocket } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 
 export interface Generation {
@@ -83,26 +83,31 @@ export default function GenerationProgressDisplay({
   if (generations.length === 0) {
     const steps = emptyStateSteps || DEFAULT_STEPS;
     return (
-      <div className="h-full flex items-center justify-center p-6">
-        <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center lg:items-start gap-12 lg:gap-16">
+      <div className="h-full flex items-center justify-center p-8">
+        <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-10 lg:gap-12">
           {/* Left Side: Steps */}
-          <div className="flex-1 max-w-md">
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-1">
-                Get started
-              </h3>
-              <p className="text-sm text-gray-500">
+          <div className="flex-1 max-w-lg">
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                  <Rocket className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="text-2xl font-semibold text-gray-900">
+                  Get started
+                </h3>
+              </div>
+              <p className="text-base text-gray-500 ml-13">
                 Follow these steps to create your first video
               </p>
             </div>
 
-            <div className="space-y-2 mb-6">
+            <div className="space-y-4 mb-8">
               {steps.map((step, index) => (
-                <div key={step.title} className="flex items-start gap-3 py-2">
-                  <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-xs font-medium text-gray-400">
-                    {index + 1}.
+                <div key={step.title} className="flex items-center gap-4 py-2">
+                  <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-base font-semibold text-gray-500 bg-gray-100 rounded-full">
+                    {index + 1}
                   </span>
-                  <p className="text-sm text-gray-600 leading-relaxed">
+                  <p className="text-base text-gray-700 leading-relaxed">
                     {step.description}
                   </p>
                 </div>
@@ -111,16 +116,16 @@ export default function GenerationProgressDisplay({
 
             <Link
               href="/dashboard/assets"
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
             >
-              <Boxes className="w-4 h-4" />
+              <Boxes className="w-5 h-5" />
               Go to Assets
             </Link>
           </div>
 
           {/* Right Side: Video Tutorial */}
           {emptyStateRightContent && (
-            <div className="flex-1 max-w-sm">
+            <div className="flex-1 max-w-md">
               <div className="rounded-xl overflow-hidden">
                 {emptyStateRightContent}
               </div>

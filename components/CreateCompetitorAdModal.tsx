@@ -178,7 +178,17 @@ export default function CreateCompetitorAdModal({
                 setAnalysisStatus('completed');
                 setAnalysisResult(updatedAd.analysis_result);
                 setAnalysisLanguage(updatedAd.language || null);
-                setCompetitorName(updatedAd.competitor_name);
+                // Auto-fill competitor name with AI-suggested name from analysis
+                if (updatedAd.analysis_result && typeof updatedAd.analysis_result === 'object' && 'name' in updatedAd.analysis_result) {
+                  const suggestedName = updatedAd.analysis_result.name as string;
+                  if (suggestedName && typeof suggestedName === 'string') {
+                    setCompetitorName(suggestedName);
+                  } else {
+                    setCompetitorName(updatedAd.competitor_name);
+                  }
+                } else {
+                  setCompetitorName(updatedAd.competitor_name);
+                }
                 onCompetitorAdCreated(updatedAd);
                 console.log('[CreateCompetitorAdModal] ✅ Analysis complete');
                 return true; // Stop polling

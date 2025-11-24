@@ -6,7 +6,6 @@ import { UserBrand, UserProduct } from '@/lib/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import BrandSection from './BrandSection';
 import ProductCard from './ProductCard';
-import ProductDetailModal from './ProductDetailModal';
 import CreateBrandModal from './CreateBrandModal';
 import EditBrandModal from './EditBrandModal';
 import EditProductModal from './EditProductModal';
@@ -40,7 +39,6 @@ export default function AssetsManager() {
   const [showSelectProductModal, setShowSelectProductModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<UserBrand | null>(null);
   const [editingProduct, setEditingProduct] = useState<UserProduct | null>(null);
-  const [viewingProduct, setViewingProduct] = useState<UserProduct | null>(null);
   const [selectedBrandIdForProduct, setSelectedBrandIdForProduct] = useState<string | null>(null);
   const [selectedBrandForProductSelection, setSelectedBrandForProductSelection] = useState<UserBrand | null>(null);
 
@@ -137,10 +135,6 @@ export default function AssetsManager() {
 
   const handleEditProduct = (product: UserProduct) => {
     setEditingProduct(product);
-  };
-
-  const handleViewProduct = (product: UserProduct) => {
-    setViewingProduct(product);
   };
 
   const handleProductUpdated = (updatedProduct: UserProduct) => {
@@ -423,7 +417,7 @@ export default function AssetsManager() {
                 brand={brand}
                 onEditBrand={handleEditBrand}
                 onDeleteBrand={handleDeleteBrand}
-                onViewProduct={handleViewProduct}
+                onViewProduct={() => {}}
                 onEditProduct={handleEditProduct}
                 onDeleteProduct={handleDeleteProduct}
                 onAddProductToBrand={handleAddProductToBrand}
@@ -446,7 +440,6 @@ export default function AssetsManager() {
                     <ProductCard
                       key={product.id}
                       product={product}
-                      onView={handleViewProduct}
                       onEditClick={handleEditProduct}
                       onDelete={handleDeleteProduct}
                       isDeleting={deletingProductId === product.id}
@@ -516,17 +509,6 @@ export default function AssetsManager() {
         brandName={selectedBrandForProductSelection?.brand_name || ''}
         availableProducts={assetsData.unbrandedProducts}
         onProductsSelected={handleProductsSelectedForBrand}
-      />
-
-      <ProductDetailModal
-        isOpen={!!viewingProduct}
-        onClose={() => setViewingProduct(null)}
-        product={viewingProduct}
-        onEdit={handleEditProduct}
-        onDelete={handleDeleteProduct}
-        onPhotoUpload={handlePhotoUpload}
-        onDeletePhoto={handleDeletePhoto}
-        isDeleting={deletingProductId === viewingProduct?.id}
       />
     </div>
   );

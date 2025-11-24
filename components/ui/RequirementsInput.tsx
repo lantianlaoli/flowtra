@@ -47,7 +47,7 @@ export default function RequirementsInput({
         className={cn(
           `w-full px-4 py-3 pr-16 resize-none transition-all duration-200 placeholder:text-gray-400`,
           isGhost
-            ? 'border-none rounded-2xl bg-transparent text-base focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-none focus-visible:border-none focus:shadow-none focus-visible:shadow-none'
+            ? 'border-none rounded-2xl bg-transparent text-base outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-none focus-visible:border-none focus:shadow-none focus-visible:shadow-none !outline-none !ring-0 shadow-none'
             : 'border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed',
           disabled && isGhost && 'cursor-not-allowed opacity-60',
           textareaClassName

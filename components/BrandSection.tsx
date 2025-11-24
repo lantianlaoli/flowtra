@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Edit2, Trash2, ChevronDown, ChevronRight, Plus, Package, Target } from 'lucide-react';
 import { UserBrand, UserProduct } from '@/lib/supabase';
@@ -36,7 +36,24 @@ export default function BrandSection({
   const [isHovered, setIsHovered] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<'products' | 'competitors'>('products');
+  const [competitorCount, setCompetitorCount] = useState(0);
   const products = brand.products || [];
+
+  // Fetch competitor count
+  useEffect(() => {
+    const fetchCompetitorCount = async () => {
+      try {
+        const response = await fetch(`/api/competitor-ads?brandId=${brand.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setCompetitorCount(data.competitorAds?.length || 0);
+        }
+      } catch (error) {
+        console.error('Error fetching competitor count:', error);
+      }
+    };
+    fetchCompetitorCount();
+  }, [brand.id]);
 
   const handleDeleteBrand = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -109,26 +126,24 @@ export default function BrandSection({
                 {brand.brand_slogan || brand.brand_details}
               </p>
             )}
-            <div className="flex items-center gap-1.5 md:gap-2 mt-1">
-              <Package className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-400" />
-              <span className="text-xs text-gray-500">
-                {products.length} {products.length === 1 ? 'product' : 'products'}
-              </span>
+            <div className="flex items-center gap-3 md:gap-4 mt-1">
+              <div className="flex items-center gap-1.5">
+                <Package className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-400" />
+                <span className="text-xs text-gray-500">
+                  {products.length} {products.length === 1 ? 'product' : 'products'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Target className="w-3 h-3 md:w-3.5 md:h-3.5 text-purple-400" />
+                <span className="text-xs text-gray-500">
+                  {competitorCount} {competitorCount === 1 ? 'competitor' : 'competitors'}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Actions */}
           <div className="flex items-center gap-1 md:gap-2">
-            {/* Add Product Button */}
-            <button
-              onClick={handleAddProduct}
-              className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 text-xs md:text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Add product to this brand"
-            >
-              <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              <span className="hidden sm:inline">Add Product</span>
-            </button>
-
             <button
               onClick={handleEditBrand}
               className="p-1.5 md:p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
@@ -220,7 +235,25 @@ export default function BrandSection({
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                    <div>
+                      {/* Products Header */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Package className="w-5 h-5 text-gray-600" />
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Products ({products.length})
+                          </h3>
+                        </div>
+                        <button
+                          onClick={handleAddProduct}
+                          className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Product
+                        </button>
+                      </div>
+                      {/* Products Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                       {products.map((product) => (
                         <ProductCard
                           key={product.id}
@@ -232,6 +265,7 @@ export default function BrandSection({
                           mode="compact"
                         />
                       ))}
+                      </div>
                     </div>
                   )
                 ) : (

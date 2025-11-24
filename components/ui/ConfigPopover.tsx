@@ -249,6 +249,17 @@ export default function ConfigPopover({
         label="Aspect Ratio"
       />
 
+      <VideoModelSelector
+        credits={userCredits}
+        selectedModel={selectedModel}
+        onModelChange={onModelChange}
+        videoDuration={videoDuration}
+        videoQuality={videoQuality}
+        label="AI Model"
+        showIcon
+        hiddenModels={['auto']}
+      />
+
       <VideoDurationSelector
         selectedDuration={videoDuration}
         onDurationChange={onDurationChange}
@@ -266,17 +277,6 @@ export default function ConfigPopover({
         disabledQualities={disabledQualities}
         label="Quality"
         showIcon
-      />
-
-      <VideoModelSelector
-        credits={userCredits}
-        selectedModel={selectedModel}
-        onModelChange={onModelChange}
-        videoDuration={videoDuration}
-        videoQuality={videoQuality}
-        label="AI Model"
-        showIcon
-        hiddenModels={['auto']}
       />
     </div>
   );

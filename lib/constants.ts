@@ -554,6 +554,24 @@ export function modelSupports(
   );
 }
 
+// Get supported durations for a specific model (optionally filtered by quality)
+export function getModelSupportedDurations(model: VideoModel, quality?: VideoQuality): VideoDuration[] {
+  const capability = MODEL_CAPABILITIES.find(cap => cap.model === model);
+
+  if (!capability) {
+    // Fallback to default if model not found
+    return ['8'] as VideoDuration[];
+  }
+
+  // If quality is provided, check if the model supports that quality
+  if (quality && !capability.supportedQualities.includes(quality)) {
+    return [];
+  }
+
+  // Return all supported durations for this model (sorted)
+  return [...capability.supportedDurations].sort((a, b) => Number(a) - Number(b));
+}
+
 // Get available durations for a given quality
 export function getAvailableDurations(quality: VideoQuality, models: VideoModel[] = MODEL_CAPABILITIES.map(cap => cap.model)): VideoDuration[] {
   const durations = new Set<VideoDuration>();

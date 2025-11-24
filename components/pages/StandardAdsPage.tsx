@@ -24,10 +24,13 @@ import {
   modelSupports,
   getAvailableDurations,
   getAvailableQualities,
+  getModelSupportedDurations,
   isFreeGenerationModel,
   getGenerationCost,
+  getDownloadCost,
   getSegmentCountFromDuration,
   snapDurationToModel,
+  MODEL_CAPABILITIES,
   type VideoModel,
   type VideoDuration,
   REPLICA_PHOTO_CREDITS
@@ -331,16 +334,8 @@ export default function StandardAdsPage() {
       return;
     }
 
-    // Check for shot_count first (API enriched field)
-    const shotCount = 'shot_count' in selectedCompetitorAd ? (selectedCompetitorAd as CompetitorAd & { shot_count?: number }).shot_count : undefined;
-    let targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
-
-    if (typeof shotCount === 'number' && shotCount > 0) {
-      // Use shot count logic: each shot = 1 segment
-      // Veo3/Fast = 8s per segment, Grok = 6s per segment
-      const segmentDuration = selectedModel === 'grok' ? 6 : 8;
-      targetDurationSeconds = shotCount * segmentDuration;
-    }
+    // Use actual video duration for direct time matching
+    const targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
 
     if (!targetDurationSeconds) return;
 
@@ -351,9 +346,8 @@ export default function StandardAdsPage() {
         lastAutoDurationRef.current.model !== selectedModel ||
         lastAutoDurationRef.current.duration !== snapped)
     ) {
-      const source = shotCount ? `shot count (${shotCount} shots)` : `video duration`;
       console.log(
-        `⏱️ Auto-selecting ${snapped}s duration based on ${source} to mirror ${selectedCompetitorAd.competitor_name} (${selectedModel})`
+        `⏱️ Auto-selecting ${snapped}s duration based on ${targetDurationSeconds}s video to mirror ${selectedCompetitorAd.competitor_name} (${selectedModel})`
       );
       setVideoDuration(snapped);
       lastAutoDurationRef.current = { competitorId: selectedCompetitorAd.id, model: selectedModel, duration: snapped };
@@ -708,8 +702,8 @@ export default function StandardAdsPage() {
 
   // Calculate available and disabled options
   const availableDurations = useMemo(
-    () => getAvailableDurations(videoQuality),
-    [videoQuality]
+    () => getModelSupportedDurations(selectedModel, videoQuality),
+    [selectedModel, videoQuality]
   );
 
   const availableQualities = useMemo(
@@ -722,29 +716,36 @@ export default function StandardAdsPage() {
     [availableDurations]
   );
 
+  // Filter duration options to only show supported durations for current model
+  const filteredDurationOptions = useMemo(
+    () => STANDARD_ADS_DURATION_OPTIONS.filter(option => availableDurations.includes(option.value)),
+    [availableDurations]
+  );
+
   const disabledQualities = useMemo(
     () => ALL_VIDEO_QUALITIES.filter(q => !availableQualities.includes(q)),
     [availableQualities]
   );
 
   const disabledModels = useMemo(
-    () => ALL_VIDEO_MODELS.filter(m => !modelSupports(m, videoQuality, videoDuration)),
-    [videoQuality, videoDuration]
+    () => {
+      // Model selection should not be affected by duration
+      // Only disable models that don't support the selected quality
+      const allModels = MODEL_CAPABILITIES.map(cap => cap.model);
+      return allModels.filter(m => {
+        const capability = MODEL_CAPABILITIES.find(cap => cap.model === m);
+        if (!capability) return true; // Disable if model not found
+        return !capability.supportedQualities.includes(videoQuality);
+      });
+    },
+    [videoQuality]
   );
 
   // Calculate recommended duration based on competitor ad
   const recommendedDuration = useMemo(() => {
     if (selectedCompetitorAd?.file_type === 'video') {
-      // Check for shot_count first (API enriched field)
-      const shotCount = 'shot_count' in selectedCompetitorAd ? (selectedCompetitorAd as CompetitorAd & { shot_count?: number }).shot_count : undefined;
-      let targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
-
-      if (typeof shotCount === 'number' && shotCount > 0) {
-        // Use shot count logic: each shot = 1 segment
-        // Veo3/Fast = 8s per segment, Grok = 6s per segment
-        const segmentDuration = selectedModel === 'grok' ? 6 : 8;
-        targetDurationSeconds = shotCount * segmentDuration;
-      }
+      // Use actual video duration for direct time matching
+      const targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
 
       if (targetDurationSeconds > 0) {
         return snapDurationToModel(selectedModel, targetDurationSeconds);
@@ -762,9 +763,11 @@ export default function StandardAdsPage() {
 
   useEffect(() => {
     if (!availableDurations.includes(videoDuration)) {
-      setVideoDuration(availableDurations[0]);
+      // Use snapDurationToModel to find the closest supported duration
+      const closest = snapDurationToModel(selectedModel, Number(videoDuration));
+      setVideoDuration(closest);
     }
-  }, [videoDuration, availableDurations]);
+  }, [videoDuration, availableDurations, selectedModel]);
 
   // Auto-switch model when it becomes disabled
   useEffect(() => {
@@ -927,6 +930,9 @@ export default function StandardAdsPage() {
   const generationCost = isCompetitorPhotoMode
     ? REPLICA_PHOTO_CREDITS
     : getGenerationCost(selectedModel, videoDuration.toString(), videoQuality);
+  const downloadCost = isCompetitorPhotoMode
+    ? 0
+    : getDownloadCost(selectedModel, videoDuration.toString());
   const isFreeGen = !isCompetitorPhotoMode && isFreeGenerationModel(selectedModel);
   const canAfford = isCompetitorPhotoMode
     ? (userCredits || 0) >= generationCost
@@ -1011,6 +1017,19 @@ export default function StandardAdsPage() {
                       // TODO: Implement retry handler
                       console.log('Retry:', gen);
                     }}
+                    emptyStateRightContent={
+                      <blockquote
+                        className="tiktok-embed"
+                        cite="https://www.tiktok.com/@laolilantian/video/7575386238564240658"
+                        data-video-id="7575386238564240658"
+                        style={{ maxWidth: '605px', minWidth: '280px' }}
+                      >
+                        <section>
+                          <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>
+                          {' '}Standard Advertising Demo Latest November 2025
+                        </section>
+                      </blockquote>
+                    }
                   />
                 </div>
               </div>
@@ -1067,7 +1086,7 @@ export default function StandardAdsPage() {
               videoDuration={videoDuration}
               onDurationChange={setVideoDuration}
               disabledDurations={disabledDurations}
-              durationOptions={STANDARD_ADS_DURATION_OPTIONS}
+              durationOptions={filteredDurationOptions}
               recommendedDuration={recommendedDuration}
               videoQuality={videoQuality}
               onQualityChange={setVideoQuality}
@@ -1100,8 +1119,8 @@ export default function StandardAdsPage() {
                 onClick={handleStartWorkflow}
                 disabled={!canGenerate}
                 className={`
-                  flex items-center gap-2 px-6 py-2.5 rounded-full cursor-pointer
-                  font-semibold text-sm whitespace-nowrap
+                  flex items-center gap-2.5 px-5 py-2.5 rounded-full cursor-pointer
+                  font-semibold text-sm whitespace-nowrap min-w-[260px]
                   transition-all duration-200
                   ${canGenerate
                     ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
@@ -1111,15 +1130,42 @@ export default function StandardAdsPage() {
               >
                 <Sparkles className="w-4 h-4" />
                 <span>Generate</span>
-                {!isFreeGen && generationCost > 0 && (
-                  <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded">
+                {!isCompetitorPhotoMode && (
+                  <div className="flex items-center gap-2 ml-auto text-xs">
+                    {/* Generation Cost */}
+                    <div className="flex items-center gap-1">
+                      {generationCost > 0 ? (
+                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/20 rounded">
+                          <Coins className="w-3 h-3" />
+                          <span>{generationCost}</span>
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 bg-green-500/20 text-green-100 rounded text-[10px] font-bold">
+                          FREE
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-white/40">+</span>
+                    {/* Download Cost */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-white/80">Download:</span>
+                      {downloadCost > 0 ? (
+                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/20 rounded">
+                          <Coins className="w-3 h-3" />
+                          <span>{downloadCost}</span>
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 bg-green-500/20 text-green-100 rounded text-[10px] font-bold">
+                          FREE
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {isCompetitorPhotoMode && generationCost > 0 && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded ml-auto">
                     <Coins className="w-3 h-3" />
                     {generationCost}
-                  </span>
-                )}
-                {isFreeGen && (
-                  <span className="px-2 py-0.5 bg-green-500/20 text-green-100 rounded text-xs font-bold">
-                    FREE
                   </span>
                 )}
               </button>
