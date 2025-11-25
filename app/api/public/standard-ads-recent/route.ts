@@ -8,7 +8,6 @@ interface StandardAdProjectRow {
   created_at: string;
   cover_image_url: string | null;
   video_url: string | null;
-  product_description: Record<string, unknown> | string | null;
   video_model: string | null;
   status: string | null;
   video_duration: string | null;
@@ -20,30 +19,10 @@ interface StandardAdProject {
   createdAt: string;
   coverImageUrl?: string;
   videoUrl?: string;
-  description?: string;
   videoModel?: string;
   status?: string;
   videoDuration?: string;
   videoQuality?: 'standard' | 'high';
-}
-
-function parseDescription(description: StandardAdProjectRow['product_description']): string | undefined {
-  if (!description) {
-    return undefined;
-  }
-
-  if (typeof description === 'string') {
-    try {
-      const parsed = JSON.parse(description) as { description?: string };
-      return parsed.description ?? description;
-    } catch {
-      return description;
-    }
-  }
-
-  const maybeRecord = description as { description?: unknown };
-  const text = typeof maybeRecord.description === 'string' ? maybeRecord.description : undefined;
-  return text;
 }
 
 function mapProjectRow(row: StandardAdProjectRow): StandardAdProject {
@@ -52,7 +31,6 @@ function mapProjectRow(row: StandardAdProjectRow): StandardAdProject {
     createdAt: row.created_at,
     coverImageUrl: row.cover_image_url ?? undefined,
     videoUrl: row.video_url ?? undefined,
-    description: parseDescription(row.product_description),
     videoModel: row.video_model ?? undefined,
     status: row.status ?? undefined,
     videoDuration: row.video_duration ?? undefined,
@@ -71,7 +49,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabase
       .from('standard_ads_projects')
       .select(
-        'id, created_at, cover_image_url, video_url, product_description, video_model, status, video_duration, video_quality'
+        'id, created_at, cover_image_url, video_url, video_model, status, video_duration, video_quality'
       )
       .order('created_at', { ascending: false })
       .limit(limit);

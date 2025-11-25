@@ -71,10 +71,8 @@ export interface Article {
 export interface SingleVideoProject {
   id: string
   user_id: string
-  original_image_url: string
   cover_image_url?: string
   video_url?: string
-  product_description?: Record<string, unknown> // JSONB field containing { description: string }
   video_prompts?: Record<string, unknown>
   image_prompt?: Record<string, unknown> // JSONB field containing the prompt used for cover generation
   video_model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'
@@ -95,8 +93,6 @@ export interface SingleVideoProject {
   last_processed_at?: string
   selected_product_id?: string | null // Reference to user_products table
   selected_brand_id?: string | null // Reference to user_brands table
-  brand_ending_frame_url?: string | null // Legacy: historical brand ending frame URL
-  brand_ending_task_id?: string | null // Legacy: historical brand ending task ID
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
   video_generation_prompt?: Record<string, unknown> // JSONB field containing the prompt used for video generation
   video_duration?: string | null // Video duration in seconds (e.g., '8', '10', '15') - applicable to all video models

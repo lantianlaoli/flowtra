@@ -91,7 +91,6 @@ export type SegmentPrompt = {
   segment_title?: string;
   segment_goal?: string;
   first_frame_prompt?: string;
-  closing_frame_prompt?: string;
   contains_brand?: boolean; // NEW: Whether this segment/shot contains brand elements
   contains_product?: boolean; // NEW: Whether this segment/shot contains product
 };
@@ -545,7 +544,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       .from('standard_ads_projects')
       .insert({
         user_id: request.userId,
-        original_image_url: imageUrl,
         selected_product_id: request.selectedProductId,
         selected_brand_id: request.selectedBrandId, // NEW: Brand selection
         competitor_ad_id: request.competitorAdId || null, // NEW: Competitor ad reference
@@ -736,7 +734,6 @@ async function startAIWorkflow(
       const updateData = {
         cover_image_url: request.imageUrl, // Use original image directly
         video_prompts: customScriptPrompt,
-        product_description: { customScript: request.customScript },
         current_step: 'ready_for_video' as const,
         progress_percentage: 50,
         last_processed_at: new Date().toISOString()
@@ -782,11 +779,12 @@ async function startAIWorkflow(
 
         if (!hasAllFields) {
           console.warn('⚠️ Existing analysis incomplete or invalid, re-analyzing...');
-          competitorDescription = await analyzeCompetitorAd({
+          const { analysis, language } = await analyzeCompetitorAdWithLanguage({
             file_url: competitorAdContext.file_url,
             file_type: competitorAdContext.file_type,
             competitor_name: competitorAdContext.competitor_name
           });
+          competitorDescription = analysis;
 
           if (competitorAdContext.id && competitorDescription) {
             const timeline = parseCompetitorTimeline(
@@ -798,6 +796,7 @@ async function startAIWorkflow(
               .update({
                 analysis_result: competitorDescription,
                 analysis_status: 'completed',
+                language: language,
                 video_duration_seconds: timeline.videoDurationSeconds
               })
               .eq('id', competitorAdContext.id);
@@ -812,11 +811,12 @@ async function startAIWorkflow(
         console.log(`🔄 Performing fresh competitor analysis (${statusReason})...`);
         console.log('📺 Step 1: Analyzing competitor ad...');
 
-        competitorDescription = await analyzeCompetitorAd({
+        const { analysis, language } = await analyzeCompetitorAdWithLanguage({
           file_url: competitorAdContext.file_url,
           file_type: competitorAdContext.file_type,
           competitor_name: competitorAdContext.competitor_name
         });
+        competitorDescription = analysis;
 
         console.log('✅ Step 1 complete: Fresh competitor analysis ready');
 
@@ -830,6 +830,7 @@ async function startAIWorkflow(
             .update({
               analysis_result: competitorDescription,
               analysis_status: 'completed',
+              language: language,
               video_duration_seconds: timeline.videoDurationSeconds
             })
             .eq('id', competitorAdContext.id);
@@ -953,8 +954,6 @@ async function startAIWorkflow(
     const updateData = {
       cover_task_id: finalCoverTaskId,
       video_prompts: prompts,
-      product_description: prompts, // Store complete AI response with all structured fields (final prompt for our product)
-      competitor_description: competitorDescription || null, // Store competitor analysis (Veo Guide 8 elements) if available
       image_prompt: prompts.description as string,
       current_step: 'generating_cover' as const,
       progress_percentage: 30,
@@ -1055,13 +1054,6 @@ async function startReplicaWorkflow(
   const updateData = {
     cover_task_id: taskId,
     video_prompts: { replica_prompt: prompt },
-    product_description: {
-      brand_name: productContext?.brand_name,
-      brand_slogan: productContext?.brand_slogan,
-      brand_details: productContext?.brand_details,
-      product_details: productContext?.product_details
-    },
-    competitor_description: competitorDescription || null,
     current_step: 'generating_cover' as const,
     progress_percentage: 35,
     last_processed_at: new Date().toISOString()
@@ -1222,338 +1214,8 @@ async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
     throw error;
   }
 }
-
 /**
- * Step 1: Analyze competitor ad independently (First API call)
- *
- * This function ONLY analyzes the competitor ad/video using Veo Guide 8 elements.
- * It does NOT consider our product at all - pure competitor analysis.
- *
- * @param competitorAdContext - Competitor ad file URL and type
- * @returns competitor_description - Veo Guide 8-element analysis
- */
-async function analyzeCompetitorAd(
-  competitorAdContext: { file_url: string; file_type: 'image' | 'video'; competitor_name: string }
-): Promise<Record<string, unknown>> {
-  console.log(`[analyzeCompetitorAd] Step 1: Analyzing competitor ad from ${competitorAdContext.competitor_name}`);
-
-  // Convert video to base64 if needed
-  let processedFileUrl = competitorAdContext.file_url;
-  if (competitorAdContext.file_type === 'video') {
-    console.log(`[analyzeCompetitorAd] Converting competitor video to base64`);
-    try {
-      processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
-      console.log(`[analyzeCompetitorAd] Video converted successfully`);
-    } catch (error) {
-      console.error('[analyzeCompetitorAd] Failed to convert video:', error);
-      throw new Error('Failed to process competitor video');
-    }
-  }
-
-  // Define JSON schema for competitor analysis (Veo Guide 8 elements + Scene Details + Shot timeline)
-  const responseFormat = {
-    type: "json_schema",
-    json_schema: {
-      name: "competitor_analysis_schema",
-      strict: true,
-      schema: {
-        type: "object",
-        properties: {
-          subject: {
-            type: "string",
-            description: "Main elements and focal points in the ad (what is shown)"
-          },
-          context: {
-            type: "string",
-            description: "Environment, background, setting, time of day"
-          },
-          action: {
-            type: "string",
-            description: "What is happening, movement, interactions"
-          },
-          style: {
-            type: "string",
-            description: "Overall visual style and artistic direction"
-          },
-          camera_motion: {
-            type: "string",
-            description: "Camera movements (pan, zoom, tracking, POV, etc.)"
-          },
-          composition: {
-            type: "string",
-            description: "Shot types (close-up, medium shot, wide shot, angles)"
-          },
-          ambiance: {
-            type: "string",
-            description: "Color palette, lighting setup, mood, atmosphere"
-          },
-          audio: {
-            type: "string",
-            description: "Dialogue, voiceover, music style, sound effects"
-          },
-          scene_elements: {
-            type: "array",
-            description: "List of all visible background elements with their positions (furniture, plants, floor type, walls, props)",
-            items: {
-              type: "object",
-              properties: {
-                element: {
-                  type: "string",
-                  description: "Name of the element (e.g., 'monstera plant', 'white chair', 'hardwood floor')"
-                },
-                position: {
-                  type: "string",
-                  description: "Position in frame (e.g., 'left background', 'right side', 'bottom', 'center background')"
-                },
-                details: {
-                  type: "string",
-                  description: "Visual details (color, material, size, style)"
-                }
-              },
-              required: ["element", "position", "details"],
-              additionalProperties: false
-            }
-          },
-          first_frame_composition: {
-            type: "string",
-            description: "Detailed description of the first frame's spatial layout and visual hierarchy"
-          },
-          video_duration_seconds: {
-            type: "number",
-            description: "Total runtime of the analyzed advertisement in seconds"
-          },
-          shots: {
-            type: "array",
-            minItems: 1,
-            description: "Ordered breakdown of every shot/scene with timestamps and creative cues",
-            items: {
-              type: "object",
-              properties: {
-                shot_id: {
-                  type: "number",
-                  description: "Sequential shot number starting at 1"
-                },
-                start_time: {
-                  type: "string",
-                  description: "Shot start timestamp formatted as MM:SS"
-                },
-                end_time: {
-                  type: "string",
-                  description: "Shot end timestamp formatted as MM:SS"
-                },
-                duration_seconds: {
-                  type: "number",
-                  description: "Shot duration in seconds (round to nearest second)"
-                },
-                first_frame_description: {
-                  type: "string",
-                  description: "Visual description of the opening frame for this shot"
-                },
-                subject: {
-                  type: "string",
-                  description: "People, products, or hero objects featured in the shot"
-                },
-                context_environment: {
-                  type: "string",
-                  description: "Location, environment, and background details"
-                },
-                action: {
-                  type: "string",
-                  description: "What happens during the shot"
-                },
-                style: {
-                  type: "string",
-                  description: "Visual style or mood for the shot"
-                },
-                camera_motion_positioning: {
-                  type: "string",
-                  description: "Camera movement and framing specifics for the shot"
-                },
-                composition: {
-                  type: "string",
-                  description: "Shot type/framing (close-up, medium, wide, etc.)"
-                },
-                ambiance_colour_lighting: {
-                  type: "string",
-                  description: "Lighting scheme, palette, and atmosphere"
-                },
-                audio: {
-                  type: "string",
-                  description: "Voiceover, dialogue, SFX, or music cues"
-                },
-                narrative_goal: {
-                  type: "string",
-                  description: "Purpose of the shot inside the story arc (hook, proof, CTA, etc.)"
-                },
-                recommended_segment_duration: {
-                  type: "number",
-                  description: "Best segment duration for recreating this shot (use multiples of 8s when possible)"
-                },
-                generation_guidance: {
-                  type: "string",
-                  description: "Explicit instructions for recreating the shot with our product"
-                }
-              },
-              required: [
-                "shot_id",
-                "start_time",
-                "end_time",
-                "duration_seconds",
-                "first_frame_description",
-                "subject",
-                "context_environment",
-                "action",
-                "style",
-                "camera_motion_positioning",
-                "composition",
-                "ambiance_colour_lighting",
-                "audio",
-                "narrative_goal",
-                "recommended_segment_duration",
-                "generation_guidance"
-              ],
-              additionalProperties: false
-            }
-          }
-        },
-        required: [
-          "subject",
-          "context",
-          "action",
-          "style",
-          "camera_motion",
-          "composition",
-          "ambiance",
-          "audio",
-          "scene_elements",
-          "first_frame_composition",
-          "video_duration_seconds",
-          "shots"
-        ],
-        additionalProperties: false
-      }
-    }
-  };
-
-  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
-      response_format: responseFormat,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            competitorAdContext.file_type === 'video'
-              ? {
-                  type: 'video_url' as const,
-                  video_url: { url: processedFileUrl }
-                }
-              : {
-                  type: 'image_url' as const,
-                  image_url: { url: processedFileUrl }
-                },
-            {
-              type: 'text',
-              text: `📺 COMPETITOR AD ANALYSIS - Step 1 (Independent Analysis)
-
-You are analyzing a competitor advertisement ${competitorAdContext.file_type === 'video' ? 'video' : 'image'} from "${competitorAdContext.competitor_name}".
-
-TASK: Analyze this ad using the Veo Prompt Guide's 8 core elements PLUS detailed scene reconstruction data. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
-
-Analyze and describe each element in detail:
-
-1. **Subject (主体)**: What objects, people, animals, or scenes appear? What are the main focal points?
-
-2. **Context (环境/背景)**: What is the environment? Indoor/outdoor? Time of day? Background elements?
-
-3. **Action (动作)**: What movements or actions are happening? How do subjects interact?
-
-4. **Style (风格)**: What is the overall visual or artistic style? (e.g., cinematic, minimalist, retro, modern, cartoon-like)
-
-5. **Camera Motion (摄像机运动)**: How does the camera move? (e.g., static, pan left/right, zoom in/out, tracking shot, POV, crane shot)
-
-6. **Composition (构图)**: What are the shot types and framing? (e.g., close-up, medium shot, wide shot, extreme close-up, angles)
-
-7. **Ambiance (氛围/色彩)**: What is the color palette? Lighting? Mood? Atmosphere? (e.g., warm tones, cold blue, high-key lighting, moody shadows)
-
-8. **Audio (音频)**: What audio elements are present or suggested? Dialogue? Voiceover? Music style? Sound effects?
-
-9. **Scene Elements (场景元素)**: List EVERY visible background element with precise details:
-   - Furniture (chairs, tables, shelves, etc.) - specify color, material, style
-   - Plants (type, size, position)
-   - Floor type (hardwood, carpet, tile, pattern)
-   - Wall features (color, texture, decorations)
-   - Props and decorative items
-   - For each element, specify its EXACT position in the frame (left/right/center, foreground/background)
-
-10. **First Frame Composition (首帧构图)**: Describe the ${competitorAdContext.file_type === 'video' ? 'opening frame' : 'image'}'s spatial layout in detail:
-    - What is in the foreground vs background?
-    - How is the space divided (left/center/right)?
-    - What is the visual hierarchy (what draws the eye first)?
-    - Depth perception and layering of elements
-    - Negative space and framing
-
-11. **Video Duration (广告总时长)**: Return the precise total runtime in seconds as \`video_duration_seconds\`. Use the video's metadata or timestamps.
-
-12. **Shot Timeline (多镜头拆解)**: Output a JSON array named "shots" describing sequential 6-8 second beats that cover the entire video from start to finish. Each shot MUST include:
-    - \`shot_id\`, \`start_time\`, \`end_time\`, and \`duration_seconds\`
-    - Visual specifics: \`first_frame_description\`, \`subject\`, \`context_environment\`, \`action\`, \`style\`, \`camera_motion_positioning\`, \`composition\`, \`ambiance_colour_lighting\`
-    - Audio cues
-    - \`narrative_goal\` explaining the marketing purpose of that shot
-    - \`recommended_segment_duration\` (prefer 8 seconds to match Veo3 Fast; use 6 seconds when the shot clearly demands Grok pacing)
-    - \`generation_guidance\` explaining exactly how to recreate the shot with our product instead of the competitor's while preserving framing and pacing.
-
-Requirements for the "shots" array:
-- Cover the entire runtime with no gaps.
-- Keep timestamps strictly increasing and formatted as MM:SS (e.g., "00:24").
-- Durations should be rounded to the nearest second and sum to the total runtime.
-- Favor concise multi-shot segmentation similar to storyboard beats.
-
-CRITICAL FOR SCENE REPLICATION:
-- Be extremely detailed and specific for scene_elements and first_frame_composition
-- Include colors, materials, sizes, and exact positions
-- Think like you're instructing someone to recreate the exact scene from scratch
-- These details will be used to generate an identical scene with a different product
-
-Return a JSON object with all 10 elements.`
-            }
-          ]
-        }
-      ]
-    })
-  });
-
-  let data: unknown;
-  try {
-    data = await response.json();
-  } catch (error) {
-    console.error('[analyzeCompetitorAd] JSON parse error:', error);
-    throw new Error('Failed to parse competitor analysis response');
-  }
-
-  const apiResponse = data as { choices?: Array<{ message?: { content?: string } }> };
-  if (!apiResponse.choices?.[0]?.message?.content) {
-    console.error('[analyzeCompetitorAd] Invalid API response structure:', data);
-    throw new Error('Invalid competitor analysis response format');
-  }
-
-  const analysis = JSON.parse(apiResponse.choices[0].message.content) as Record<string, unknown>;
-  console.log('[analyzeCompetitorAd] ✅ Competitor analysis complete:', analysis);
-
-  return analysis;
-}
-
-/**
- * Analyze competitor ad with automatic language detection
- *
- * This function extends analyzeCompetitorAd by adding automatic language detection
- * during the analysis process. The detected language is returned as a short code
- * matching the LanguageCode type ('en', 'zh', 'es', etc.).
+ * Analyze a competitor ad with automatic language detection.
  *
  * @param competitorAdContext - Competitor ad metadata including file URL and type
  * @returns Object with { analysis: {...}, language: 'en' }
@@ -1657,18 +1319,6 @@ export async function analyzeCompetitorAdWithLanguage(
                   type: "string",
                   description: "Voiceover, dialogue, SFX, or music cues"
                 },
-                narrative_goal: {
-                  type: "string",
-                  description: "Purpose of the shot inside the story arc (hook, proof, CTA, etc.)"
-                },
-                recommended_segment_duration: {
-                  type: "number",
-                  description: "Best segment duration for recreating this shot (use multiples of 8s when possible)"
-                },
-                generation_guidance: {
-                  type: "string",
-                  description: "Explicit instructions for recreating the shot with our product"
-                },
                 contains_brand: {
                   type: "boolean",
                   description: "Whether this shot contains brand elements (logo, packaging, brand name, brand signage)"
@@ -1692,9 +1342,6 @@ export async function analyzeCompetitorAdWithLanguage(
                 "composition",
                 "ambiance_colour_lighting",
                 "audio",
-                "narrative_goal",
-                "recommended_segment_duration",
-                "generation_guidance",
                 "contains_brand",
                 "contains_product"
               ],
@@ -1769,7 +1416,7 @@ OUTPUT REQUIREMENTS:
    - \`start_time\` - Format: MM:SS (e.g., "00:06")
    - \`end_time\` - Format: MM:SS
    - \`duration_seconds\` - Shot duration (round to nearest second)
-   - \`first_frame_description\` - Detailed visual description of the opening frame
+   - \`first_frame_description\` - Hyper-detailed 3-4 sentence description (minimum 45 words) of the opening frame, covering foreground, midground, background, lighting cues, and focal hierarchy. Mention left/center/right placement, props, wardrobe, and depth cues so another artist could recreate it perfectly.
    - \`subject\` - People, products, or hero objects featured
    - \`context_environment\` - Location, environment, and background details
    - \`action\` - What happens during the shot
@@ -1778,9 +1425,6 @@ OUTPUT REQUIREMENTS:
    - \`composition\` - Shot type/framing (close-up, medium, wide, etc.)
    - \`ambiance_colour_lighting\` - Lighting scheme, palette, and atmosphere
    - \`audio\` - Voiceover, dialogue, SFX, or music cues
-   - \`narrative_goal\` - Purpose of the shot (hook, proof, CTA, etc.)
-   - \`recommended_segment_duration\` - Best duration for recreating (prefer 8s; use 6s only when needed)
-   - \`generation_guidance\` - Explicit instructions for recreating with our product
    - \`contains_brand\` - Boolean: Does this shot show brand logo, packaging, brand name, or brand signage?
    - \`contains_product\` - Boolean: Does this shot show physical product(s) that would need to be replaced?
 
@@ -1829,9 +1473,6 @@ EXAMPLE OUTPUT STRUCTURE:
       "composition": "Full body shot",
       "ambiance_colour_lighting": "Natural daylight, soft shadows",
       "audio": "Upbeat acoustic music starts",
-      "narrative_goal": "Establish product arrival moment",
-      "recommended_segment_duration": 6,
-      "generation_guidance": "Show doorstep delivery pickup scene enthusiastically",
       "contains_brand": true,
       "contains_product": true
     }
@@ -1862,15 +1503,12 @@ EXAMPLE OUTPUT STRUCTURE:
   const result = JSON.parse(apiResponse.choices[0].message.content) as Record<string, unknown>;
 
   // Extract language and validate it's a valid LanguageCode
-  const detectedLanguage = result.detected_language as string;
+  const rawDetectedLanguage = typeof result.detected_language === 'string' ? (result.detected_language as string) : undefined;
   const validLanguageCodes: LanguageCode[] = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'zh', 'ur', 'pa'];
-  const language: LanguageCode = validLanguageCodes.includes(detectedLanguage as LanguageCode)
-    ? (detectedLanguage as LanguageCode)
+  const language: LanguageCode = rawDetectedLanguage && validLanguageCodes.includes(rawDetectedLanguage as LanguageCode)
+    ? (rawDetectedLanguage as LanguageCode)
     : 'en'; // Default to English if invalid
-
-  // Remove detected_language from analysis (it's returned separately)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { detected_language, ...analysis } = result;
+  const analysis = result as Record<string, unknown>;
 
   console.log('[analyzeCompetitorAdWithLanguage] ✅ Analysis complete');
   console.log('[analyzeCompetitorAdWithLanguage] 🌍 Detected language:', language);
@@ -1986,7 +1624,6 @@ async function generateImageBasedPrompts(
           segment_title: { type: "string" },
           segment_goal: { type: "string" },
           first_frame_prompt: { type: "string" },
-          closing_frame_prompt: { type: "string" },
           voice_type: { type: "string" },
           voice_tone: { type: "string" }
         },
@@ -2004,7 +1641,6 @@ async function generateImageBasedPrompts(
           "segment_title",
           "segment_goal",
           "first_frame_prompt",
-          "closing_frame_prompt",
           "voice_type",
           "voice_tone"
         ],
@@ -2078,42 +1714,31 @@ ${productContext.product_details ? `Product Details: ${productContext.product_de
 
 ${segmentCount > 1 ? `Segment Plan Requirements:
 - Output EXACTLY ${segmentCount} segment objects in the "segments" array
-- Each segment: "segment_title", "segment_goal", "first_frame_prompt", "closing_frame_prompt"
-- Keep style consistent across segments
-- Define one narrator voice for the entire ad
+- Each segment must include: "audio", "style", "action", "subject", "composition", "context_environment", "first_frame_description", "ambiance_colour_lighting", "camera_motion_positioning", "dialogue", "language"
+- Keep the structure identical to the competitor shot schema but describe OUR product/brand
 ` : ''}
-Generate a JSON object with these elements:
+Return JSON matching this shape:
+{
+  "segments": [
+    {
+      "audio": string,
+      "style": string,
+      "action": string,
+      "subject": string,
+      "composition": string,
+      "context_environment": string,
+      "first_frame_description": string,
+      "ambiance_colour_lighting": string,
+      "camera_motion_positioning": string,
+      "dialogue": string,
+      "language": string,
+      "contains_brand": boolean,
+      "contains_product": boolean
+    }
+  ]
+}
 
-**Product Classification (REQUIRED)**:
-- product_category: "children_toy" | "adult_product" | "general"
-- target_audience: "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
-
-**Core Concept (Veo Guide)**:
-- subject: Main elements (from competitor, adapted to our product)
-- context: Environment and setting (matching competitor)
-- action: Action sequence (competitor structure + our product)
-
-**Visual Style (Veo Guide)**:
-- style: Visual style (from competitor)
-- camera_type: Shot type (from competitor)
-- camera_movement: Camera movement (from competitor)
-- composition: Framing (from competitor)
-- ambiance: Color, lighting, mood (from competitor)
-
-**Standard Fields**:
-- description: Scene description (competitor structure + our product)
-- setting: Environment (from competitor)
-- lighting: Lighting style (from competitor)
-- dialogue: Voiceover (adapted from competitor, in English)
-- music: Music style (from competitor)
-- ending: Conclusion (competitor style + our product)
-- other_details: Creative elements (from competitor)
-- language: Language name for voiceover
-
-**Full Description**:
-- full_description: 200-500 word narrative for 60s+ videos
-
-CRITICAL: Return ONE object. All text in English. Dialogue under ${dialogueWordLimit} words per segment.`
+No extra keys, no timing fields. All text in English. Dialogue under ${dialogueWordLimit} words per segment.`
                     }
                   ]
                 : [
@@ -2128,42 +1753,30 @@ ${productContext.product_details ? `Product Details: ${productContext.product_de
 
 ${segmentCount > 1 ? `Segment Plan Requirements:
 - Output EXACTLY ${segmentCount} segment objects in the "segments" array
-- Each segment: "segment_title", "segment_goal", "first_frame_prompt", "closing_frame_prompt"
-- Keep style consistent across segments
-- Define one narrator voice for the entire ad
+- Each segment must include the same fields as the competitor analysis shots (audio, style, action, subject, composition, context_environment, first_frame_description, ambiance_colour_lighting, camera_motion_positioning, dialogue, language, contains_brand, contains_product)
 ` : ''}
-Generate a JSON object with these elements:
+Return JSON:
+{
+  "segments": [
+    {
+      "audio": string,
+      "style": string,
+      "action": string,
+      "subject": string,
+      "composition": string,
+      "context_environment": string,
+      "first_frame_description": string,
+      "ambiance_colour_lighting": string,
+      "camera_motion_positioning": string,
+      "dialogue": string,
+      "language": "en",
+      "contains_brand": boolean,
+      "contains_product": boolean
+    }
+  ]
+}
 
-**Product Classification (REQUIRED)**:
-- product_category: "children_toy" | "adult_product" | "general"
-- target_audience: "babies (0-2)" | "children (3-12)" | "teens (13-17)" | "adults (18+)"
-
-**Core Concept (Veo Guide)**:
-- subject: Main elements (from competitor, adapted to our brand)
-- context: Environment and setting (matching competitor)
-- action: Action sequence (competitor structure + our brand)
-
-**Visual Style (Veo Guide)**:
-- style: Visual style (from competitor)
-- camera_type: Shot type (from competitor)
-- camera_movement: Camera movement (from competitor)
-- composition: Framing (from competitor)
-- ambiance: Color, lighting, mood (from competitor)
-
-**Standard Fields**:
-- description: Scene description (competitor structure + our brand)
-- setting: Environment (from competitor)
-- lighting: Lighting style (from competitor)
-- dialogue: Voiceover (adapted from competitor, in English)
-- music: Music style (from competitor)
-- ending: Conclusion (competitor style + our brand)
-- other_details: Creative elements (from competitor)
-- language: Language name for voiceover
-
-**Full Description**:
-- full_description: 200-500 word narrative for 60s+ videos
-
-CRITICAL: Return ONE object. All text in English. Dialogue under ${dialogueWordLimit} words per segment.`
+No additional metadata, no timing fields. All text in English. Dialogue under ${dialogueWordLimit} words per segment.`
                     }
                   ]
             }
@@ -2208,7 +1821,6 @@ ${segmentCount > 1 ? `Segment Plan Requirements:
 - Output EXACTLY ${segmentCount} segment objects in the "segments" array
 - Each segment needs its own "segment_title" and "segment_goal"
 - "first_frame_prompt" should paint the exact still image that opens the segment
-- "closing_frame_prompt" should describe the precise ending still image (for segments 1-${segmentCount - 1}, this will double as the next segment's starting frame)
 - Keep style, camera, and lighting consistent so stitched clips feel cohesive
 - Ensure every prompt keeps the product design identical to the supplied photo
 - **CRITICAL VOICE CONSISTENCY**: Define one narrator voice that works for the entire ad. Include "voice_type" (accent + gender) and "voice_tone" (mood/energy) ONLY in the FIRST segment. All subsequent segments MUST NOT include voice_type or voice_tone fields - the voice will be automatically unified across all segments to guarantee perfect continuity.` : ''}
@@ -2277,7 +1889,6 @@ ${segmentCount > 1 ? `Segment Plan Requirements:
 - Output EXACTLY ${segmentCount} segment objects in the "segments" array
 - Each segment needs its own "segment_title" and "segment_goal"
 - "first_frame_prompt" should paint the exact still image that opens the segment
-- "closing_frame_prompt" should describe the precise ending still image
 - Keep style, camera, and lighting consistent
 - **CRITICAL VOICE CONSISTENCY**: Define one narrator voice for the entire ad. Include "voice_type" and "voice_tone" ONLY in the FIRST segment.` : ''}
 
@@ -2615,8 +2226,6 @@ async function startSegmentedWorkflow(
     .from('standard_ads_projects')
     .update({
       video_prompts: prompts,
-      product_description: prompts, // Store complete AI response with all structured fields (final prompt for our product)
-      competitor_description: competitorDescription || null, // Store competitor analysis (Veo Guide 8 elements) if available
       segment_plan: { segments: normalizedSegments },
       current_step: 'generating_segment_frames',
       progress_percentage: 35,
@@ -2736,8 +2345,6 @@ function normalizeSegmentPrompts(
       shotOverrides?.segment_goal || source.segment_goal || `Highlight product benefit ${index + 1}`;
     normalizedSegment.first_frame_prompt =
       shotOverrides?.first_frame_prompt || source.first_frame_prompt || source.description || basePrompt.description;
-    normalizedSegment.closing_frame_prompt =
-      shotOverrides?.closing_frame_prompt || source.closing_frame_prompt || source.ending || basePrompt.ending;
     normalizedSegment.voice_type = baseVoiceType;
     normalizedSegment.voice_tone = baseVoiceTone;
 
@@ -2747,9 +2354,15 @@ function normalizeSegmentPrompts(
   return normalized;
 }
 
+function resolveFrameDescription(segmentPrompt: SegmentPrompt, frameType: 'first' | 'closing'): string {
+  if (frameType === 'first') {
+    return segmentPrompt.first_frame_prompt || segmentPrompt.description || 'Product hero shot';
+  }
+  return segmentPrompt.ending || segmentPrompt.segment_goal || segmentPrompt.description || 'Product hero shot';
+}
+
 function buildSegmentOverridesFromShot(shot: CompetitorShot): Partial<SegmentPrompt> {
   const descriptionParts = [
-    shot.generationGuidance,
     shot.action ? `Action focus: ${shot.action}` : '',
     shot.subject ? `Hero: ${shot.subject}` : '',
     shot.style ? `Style: ${shot.style}` : ''
@@ -2757,7 +2370,7 @@ function buildSegmentOverridesFromShot(shot: CompetitorShot): Partial<SegmentPro
 
   const overrides: Partial<SegmentPrompt> = {
     segment_title: `Shot ${shot.id} (${shot.startTime}–${shot.endTime})`,
-    segment_goal: shot.narrativeGoal || `Mirror competitor beat ${shot.id}`,
+    segment_goal: shot.action || shot.subject || `Beat ${shot.id}`,
     description: descriptionParts.join('. ').trim() || `Recreate shot ${shot.id}`,
     setting: shot.contextEnvironment || undefined,
     camera_type: shot.composition || undefined,
@@ -2765,9 +2378,8 @@ function buildSegmentOverridesFromShot(shot: CompetitorShot): Partial<SegmentPro
     action: shot.action || undefined,
     lighting: shot.ambianceColourLighting || undefined,
     music: shot.audio || undefined,
-    ending: shot.narrativeGoal || undefined,
+    ending: shot.action || shot.subject || undefined,
     first_frame_prompt: shot.firstFrameDescription || undefined,
-    closing_frame_prompt: shot.generationGuidance || shot.action || undefined,
     contains_brand: shot.containsBrand, // NEW: Preserve brand flag
     contains_product: shot.containsProduct // NEW: Preserve product flag
   };
@@ -2775,7 +2387,7 @@ function buildSegmentOverridesFromShot(shot: CompetitorShot): Partial<SegmentPro
   const detailNotes = [
     shot.style ? `Match style: ${shot.style}` : '',
     shot.subject ? `Primary focus: ${shot.subject}` : '',
-    `Target duration: ${shot.recommendedSegmentDuration || shot.durationSeconds}s`
+    `Target duration: ${shot.durationSeconds}s`
   ].filter(Boolean);
 
   overrides.other_details = detailNotes.join('. ');
@@ -2815,19 +2427,34 @@ async function createFrameFromText(
   segmentIndex: number,
   frameType: 'first' | 'closing',
   aspectRatio: '16:9' | '9:16',
-  brandContext?: { brand_name: string; brand_slogan: string; brand_details: string }
+  brandContext?: { brand_name: string; brand_slogan: string; brand_details: string },
+  competitorFileType?: 'video' | 'image' | null
 ): Promise<string> {
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
+
+  // CRITICAL: Choose model based on competitor type
+  // - Competitor image → nano_banana_pro (better quality for image-to-image editing)
+  // - Competitor video or no competitor → nano_banana (cheaper, sufficient quality)
+  let imageModel: string;
+  if (competitorFileType === 'image') {
+    console.log('🖼️ Competitor image detected → Using nano_banana_pro for better quality');
+    imageModel = IMAGE_MODELS.nano_banana_pro;
+  } else {
+    console.log('🎬 Video competitor or no competitor → Using nano_banana (google/nano-banana-edit)');
+    imageModel = IMAGE_MODELS.nano_banana;
+  }
 
   // Build prompt from shot description + brand context
   const brandInfo = brandContext && brandContext.brand_name
     ? `\n\nBrand Context:\n- Brand: ${brandContext.brand_name}\n- Slogan: ${brandContext.brand_slogan}\n- Details: ${brandContext.brand_details}`
     : '';
 
+  const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
+
   const prompt = `Segment ${segmentIndex + 1} ${frameLabel} frame for a premium advertisement.
 
 Scene Description:
-- ${frameType === 'first' ? segmentPrompt.first_frame_prompt : segmentPrompt.closing_frame_prompt}
+- ${frameDescription}
 
 Creative Direction:
 - Setting: ${segmentPrompt.setting}
@@ -2849,7 +2476,7 @@ Technical Requirements:
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: IMAGE_MODELS.nano_banana_pro,
+      model: imageModel,
       input: {
         prompt,
         image_input: [], // Text-to-Image mode
@@ -2882,9 +2509,24 @@ async function createFrameFromImage(
   segmentIndex: number,
   frameType: 'first' | 'closing',
   aspectRatio: '16:9' | '9:16',
-  isBrandShot: boolean
+  isBrandShot: boolean,
+  competitorFileType?: 'video' | 'image' | null
 ): Promise<string> {
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
+
+  // CRITICAL: Choose model based on competitor type
+  // - Competitor image → nano_banana_pro (better quality for image-to-image editing)
+  // - Competitor video or no competitor → nano_banana (cheaper, sufficient quality)
+  let imageModel: string;
+  if (competitorFileType === 'image') {
+    console.log('🖼️ Competitor image detected → Using nano_banana_pro for better quality');
+    imageModel = IMAGE_MODELS.nano_banana_pro;
+  } else {
+    console.log('🎬 Video competitor or no competitor → Using nano_banana (google/nano-banana-edit)');
+    imageModel = IMAGE_MODELS.nano_banana;
+  }
+
+  const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
 
   const prompt = `Segment ${segmentIndex + 1} ${frameLabel} frame for a premium advertisement.
 
@@ -2893,7 +2535,7 @@ ${isBrandShot
   : 'Use the provided product image as the canonical reference. Maintain identical product proportions, textures, materials, and branding.'}
 
 Scene Focus:
-- Description: ${segmentPrompt.description}
+- Description: ${frameDescription}
 - Setting: ${segmentPrompt.setting}
 - Camera: ${segmentPrompt.camera_type} with ${segmentPrompt.camera_movement}
 - Lighting: ${segmentPrompt.lighting}
@@ -2901,7 +2543,7 @@ Scene Focus:
 - Create ${isBrandShot ? 'brand-focused' : 'product-focused'} keyframe that shows authentic use cases
 
 Render Instructions:
-- ${frameType === 'first' ? segmentPrompt.first_frame_prompt : segmentPrompt.closing_frame_prompt}
+- ${frameDescription}
 - Ensure composition seamlessly transitions ${frameType === 'first' ? 'into the upcoming motion clip' : 'out of the prior scene'}
 - No text overlays, no watermarks, no borders`;
 
@@ -2912,7 +2554,7 @@ Render Instructions:
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: IMAGE_MODELS.nano_banana_pro,
+      model: imageModel,
       input: {
         prompt,
         image_input: [referenceImageUrl], // Image-to-Image mode
@@ -2969,7 +2611,8 @@ export async function createSmartSegmentFrame(
   aspectRatio: '16:9' | '9:16',
   brandLogoUrl: string | null,
   productImageUrl: string | null,
-  brandContext?: { brand_name: string; brand_slogan: string; brand_details: string }
+  brandContext?: { brand_name: string; brand_slogan: string; brand_details: string },
+  competitorFileType?: 'video' | 'image' | null
 ): Promise<string> {
   // Extract shot flags from competitor analysis
   const competitorShot = typeof segmentPrompt === 'object' && segmentPrompt !== null
@@ -2992,7 +2635,8 @@ export async function createSmartSegmentFrame(
       segmentIndex,
       frameType,
       aspectRatio,
-      true // isBrandShot
+      true, // isBrandShot
+      competitorFileType
     );
   }
 
@@ -3005,7 +2649,8 @@ export async function createSmartSegmentFrame(
       segmentIndex,
       frameType,
       aspectRatio,
-      false // isProductShot
+      false, // isProductShot
+      competitorFileType
     );
   }
 
@@ -3024,7 +2669,8 @@ export async function createSmartSegmentFrame(
     segmentIndex,
     frameType,
     aspectRatio,
-    brandContext
+    brandContext,
+    competitorFileType
   );
 }
 

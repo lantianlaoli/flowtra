@@ -6,7 +6,7 @@ import VideoPlayer from './VideoPlayer';
 
 interface ShowcaseItem {
   id: string;
-  original_image_url: string;
+  original_image_url?: string;
   cover_image_url: string;
   user_id: string;
   user: {
@@ -28,7 +28,7 @@ interface ProjectItem {
   id: string;
   status: string;
   cover_image_url: string;
-  original_image_url: string;
+  original_image_url?: string;
   user_id: string;
   // Character ads specific fields
   person_image_urls?: string[];
@@ -121,9 +121,10 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
           // For character-ads and multi-variant-ads, API already limits to 2 items; for others, slice to 2
           const itemsToShow = (workflowType === 'character-ads' || workflowType === 'multi-variant-ads') ? completedItems : completedItems.slice(0, 2);
           const showcaseData = itemsToShow.map((item: ProjectItem) => {
+            const fallbackImage = item.original_image_url || item.cover_image_url || '';
             const baseItem = {
               id: item.id,
-              original_image_url: item.original_image_url,
+              original_image_url: fallbackImage,
               cover_image_url: item.cover_image_url,
               user_id: item.user_id,
               user: userMap.get(item.user_id) || {
@@ -136,7 +137,7 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
             if (workflowType === 'character-ads') {
               return {
                 ...baseItem,
-                person_image_url: item.person_image_urls?.[0] || item.original_image_url,
+                person_image_url: item.person_image_urls?.[0] || fallbackImage,
                 product_image_url: item.product_image_urls?.[0],
                 video_url: item.merged_video_url || item.generated_video_urls?.[0]
               };
@@ -292,7 +293,7 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
           <div className="grid grid-cols-2 gap-3 p-3 h-80">
             <div className="relative rounded-md overflow-hidden bg-gray-50">
               <Image
-                src={item.original_image_url}
+                src={item.original_image_url || item.cover_image_url || '/placeholder-image.png'}
                 alt="Original"
                 fill
                 className="object-cover"

@@ -15,7 +15,6 @@ import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 
 interface StandardAdsItem {
   id: string;
-  originalImageUrl: string;
   coverImageUrl?: string;
   videoUrl?: string;
   coverAspectRatio?: string;
@@ -23,7 +22,6 @@ interface StandardAdsItem {
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
-  productDescription?: string;
   imagePrompt?: string;
   videoModel: 'veo3' | 'veo3_fast' | 'sora2';
   creditsUsed: number;

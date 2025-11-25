@@ -17,7 +17,6 @@ export interface WorkflowState {
       url: string;
       path?: string;
     };
-    productDescription?: string;
     creativePrompts?: any;
     video?: {
       url: string;

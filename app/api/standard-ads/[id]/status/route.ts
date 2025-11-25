@@ -51,8 +51,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       language: record.language || null,
       video_prompts: record.video_prompts || null,
       data: {
-        originalImageUrl: record.original_image_url,
-        productDescription: record.product_description || null,
         creativePrompts: record.video_prompts || null,
         coverImageUrl: record.cover_image_url || null,
         videoUrl: record.video_url || null,

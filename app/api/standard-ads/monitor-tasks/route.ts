@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
@@ -154,12 +152,12 @@ interface HistoryRecord {
   image_prompt?: string | null;
   photo_only?: boolean | null;
   selected_brand_id?: string;
+  competitor_ad_id?: string;
   image_model?: 'nano_banana' | 'seedream';
   language?: string;
   // NEW: Custom script fields
   custom_script?: string | null;
   use_custom_script?: boolean | null;
-  original_image_url?: string; // For custom script mode (use original image instead of generated cover)
   video_duration?: string | null;
   video_quality?: 'standard' | 'high' | null;
   is_segmented?: boolean | null;
@@ -373,7 +371,22 @@ async function processRecord(record: HistoryRecord) {
 async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnType<typeof getSupabaseAdmin>) {
   let segments = await fetchSegments(record.id, supabase);
 
-  segments = await syncSegmentFrameTasks(record, segments, supabase);
+  // Query competitor file type if competitor ad is selected
+  let competitorFileType: 'video' | 'image' | null = null;
+  if (record.competitor_ad_id) {
+    const { data: competitorAd } = await supabase
+      .from('competitor_ads')
+      .select('file_type')
+      .eq('id', record.competitor_ad_id)
+      .single();
+
+    if (competitorAd?.file_type) {
+      competitorFileType = competitorAd.file_type as 'video' | 'image';
+      console.log(`📊 Project ${record.id} uses ${competitorFileType} competitor reference → Image model will be optimized`);
+    }
+  }
+
+  segments = await syncSegmentFrameTasks(record, segments, supabase, competitorFileType);
 
   if (!segments.length) {
     console.warn(`No segments found for segmented record ${record.id}`);
@@ -626,7 +639,8 @@ async function fetchSegments(projectId: string, supabase: ReturnType<typeof getS
 async function syncSegmentFrameTasks(
   record: HistoryRecord,
   segments: StandardAdsSegment[],
-  supabase: ReturnType<typeof getSupabaseAdmin>
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  competitorFileType: 'video' | 'image' | null
 ): Promise<StandardAdsSegment[]> {
   let updated = false;
   const now = new Date().toISOString();
@@ -650,7 +664,8 @@ async function syncSegmentFrameTasks(
           aspectRatio,
           null, // brandLogoUrl - will fallback to Text-to-Image
           null, // productImageUrl - will fallback to Text-to-Image
-          undefined // brandContext
+          undefined, // brandContext
+          competitorFileType // Pass competitor file type for model optimization
         );
 
         await supabase
@@ -677,7 +692,8 @@ async function syncSegmentFrameTasks(
             aspectRatio,
             null,
             null,
-            undefined
+            undefined,
+            competitorFileType // Pass competitor file type for model optimization
           );
 
           await supabase
@@ -777,6 +793,17 @@ async function syncSegmentFrameTasks(
         last_processed_at: now
       })
       .eq('id', record.id);
+  } else {
+    // Even if no segments were updated, refresh timestamp to indicate backend is still processing
+    // This prevents the frontend from showing a "frozen" progress bar
+    await supabase
+      .from('standard_ads_projects')
+      .update({
+        last_processed_at: now
+      })
+      .eq('id', record.id);
+
+    console.log(`⏳ No segment updates for project ${record.id}, but refreshed timestamp to keep frontend alive`);
   }
 
   return segments;
@@ -803,8 +830,7 @@ function getSegmentPrompt(record: HistoryRecord, index: number): SegmentPrompt {
     language: fallback.language || record.language || 'English',
     segment_title: fallback.segment_title || `Segment ${index + 1}`,
     segment_goal: fallback.segment_goal || `Highlight benefit ${index + 1}`,
-    first_frame_prompt: fallback.first_frame_prompt || fallback.description || 'Show product hero shot',
-    closing_frame_prompt: fallback.closing_frame_prompt || fallback.ending || 'End with product close-up'
+    first_frame_prompt: fallback.first_frame_prompt || fallback.description || 'Show product hero shot'
   };
 }
 
@@ -1194,8 +1220,8 @@ async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{s
     const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
     const failCode: string | undefined = typeof taskData.failCode === 'string' ? taskData.failCode : undefined;
 
-    const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!videoUrl && state === undefined);
-    const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+    const isSuccess = (state && (state.toLowerCase() === 'success' || state.toLowerCase() === 'succeeded')) || successFlag === 1 || (!!videoUrl && state === undefined);
+    const isFailed = (state && (state.toLowerCase() === 'failed' || state.toLowerCase() === 'fail')) || successFlag === 2 || successFlag === 3;
 
     // CRITICAL: Check for failCode 500 (KIE server error) - this is retryable
     const isServerError = failCode === '500';
@@ -1225,15 +1251,30 @@ async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{s
     return { status: 'GENERATING' };
   }
 
+  // VEO3 endpoint (non-jobs)
   if (taskData.successFlag === 1) {
     return {
       status: 'SUCCESS',
       videoUrl: taskData.response?.resultUrls?.[0] || undefined
     };
   } else if (taskData.successFlag === 2 || taskData.successFlag === 3) {
+    const errorMessage = taskData.errorMessage || taskData.failMsg || 'Video generation failed';
+    const failCode: string | undefined = typeof taskData.failCode === 'string' ? taskData.failCode : undefined;
+    const isServerError = failCode === '500';
+
+    // Check for retryable server errors (failCode: 500)
+    if (isServerError) {
+      console.warn(`⚠️ VEO3 server error (failCode: 500) for task ${taskId}: ${errorMessage}`);
+      return {
+        status: 'FAILED',
+        errorMessage: `KIE server error (retryable): ${errorMessage}`,
+        isRetryable: true
+      };
+    }
+
     return {
       status: 'FAILED',
-      errorMessage: taskData.errorMessage || 'Video generation failed',
+      errorMessage,
       isRetryable: false
     };
   } else {

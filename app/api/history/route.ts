@@ -6,7 +6,6 @@ import { getSupabase } from '@/lib/supabase';
 
 interface StandardAdsItem {
   id: string;
-  originalImageUrl: string;
   coverImageUrl?: string;
   videoUrl?: string;
   coverAspectRatio?: string;
@@ -14,7 +13,6 @@ interface StandardAdsItem {
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
-  productDescription?: string;
   imagePrompt?: string;
   videoModel: 'veo3' | 'veo3_fast' | 'sora2';
   creditsUsed: number;
@@ -199,14 +197,12 @@ export async function GET() {
     // Transform Standard Ads data
     const transformedStandardAdsHistory: StandardAdsItem[] = (standardAdsItems || []).map(item => ({
       id: item.id,
-      originalImageUrl: item.original_image_url,
       coverImageUrl: item.cover_image_url,
       videoUrl: item.video_url,
       photoOnly: !!item.photo_only,
       downloaded: item.downloaded,
       downloadCreditsUsed: item.download_credits_used,
       generationCreditsUsed: 0,
-      productDescription: item.product_description,
       imagePrompt: item.image_prompt,
       coverAspectRatio: resolveCoverAspectRatio(item.cover_image_aspect_ratio),
       videoModel:

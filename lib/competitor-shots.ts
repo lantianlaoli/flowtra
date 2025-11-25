@@ -12,9 +12,6 @@ export interface CompetitorShot {
   composition: string;
   ambianceColourLighting: string;
   audio: string;
-  narrativeGoal: string;
-  recommendedSegmentDuration: number;
-  generationGuidance: string;
   startTimeSeconds: number;
   endTimeSeconds: number;
   containsBrand: boolean; // NEW: Whether this shot contains brand elements
@@ -100,11 +97,6 @@ export function parseCompetitorTimeline(
 
     const endSeconds = startSeconds + durationSeconds;
 
-    const recommendedSegmentDuration = clampDuration(
-      toNumber(shotRecord.recommended_segment_duration),
-      durationSeconds >= 6 ? 8 : 6
-    );
-
     // Extract brand/product flags (default to false if not present)
     const containsBrand = Boolean(shotRecord.contains_brand);
     const containsProduct = Boolean(shotRecord.contains_product);
@@ -123,9 +115,6 @@ export function parseCompetitorTimeline(
       composition: toString(shotRecord.composition),
       ambianceColourLighting: toString(shotRecord.ambiance_colour_lighting),
       audio: toString(shotRecord.audio),
-      narrativeGoal: toString(shotRecord.narrative_goal),
-      recommendedSegmentDuration,
-      generationGuidance: toString(shotRecord.generation_guidance),
       startTimeSeconds: startSeconds,
       endTimeSeconds: endSeconds,
       containsBrand, // NEW
