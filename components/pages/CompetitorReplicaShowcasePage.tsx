@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   PlayCircleIcon,
@@ -304,7 +303,7 @@ export default function CompetitorReplicaShowcasePage() {
                     Save up to <span className="text-green-600">$0.99 per video</span>
                   </p>
                   <p className="text-sm text-gray-600">
-                    That's <span className="font-semibold">~85% cheaper</span> than Creatify!
+                    That&apos;s <span className="font-semibold">~85% cheaper</span> than Creatify!
                   </p>
                 </div>
                 <div className="text-3xl font-bold text-green-600">🎉</div>

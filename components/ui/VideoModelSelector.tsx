@@ -9,7 +9,6 @@ import {
   canAffordModel,
   getAutoModeSelection,
   getProcessingTime,
-  modelSupports,
   getModelCostByConfig,
   isFreeGenerationModel,
   MODEL_CAPABILITIES,

@@ -21,11 +21,8 @@ import type { VideoDurationOption } from '@/components/ui/VideoDurationSelector'
 import {
   PLATFORM_PRESETS,
   canAffordModel,
-  modelSupports,
-  getAvailableDurations,
   getAvailableQualities,
   getModelSupportedDurations,
-  isFreeGenerationModel,
   getGenerationCost,
   getDownloadCost,
   getSegmentCountFromDuration,
@@ -933,7 +930,6 @@ export default function StandardAdsPage() {
   const downloadCost = isCompetitorPhotoMode
     ? 0
     : getDownloadCost(selectedModel, videoDuration.toString());
-  const isFreeGen = !isCompetitorPhotoMode && isFreeGenerationModel(selectedModel);
   const canAfford = isCompetitorPhotoMode
     ? (userCredits || 0) >= generationCost
     : canAffordModel(userCredits || 0, selectedModel);

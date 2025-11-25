@@ -210,61 +210,6 @@ export default function AssetsManager() {
     }
   };
 
-  const handlePhotoUpload = async (productId: string, file: File) => {
-    try {
-      // Client-side dimension guard: require width and height > 300px
-      const objectUrl = URL.createObjectURL(file);
-      const img = new Image();
-
-      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-        img.onload = () => resolve({ width: img.width, height: img.height });
-        img.onerror = () => reject(new Error('Failed to read image dimensions'));
-        img.src = objectUrl;
-      }).finally(() => {
-        URL.revokeObjectURL(objectUrl);
-      });
-
-      if (dimensions.width <= 300 || dimensions.height <= 300) {
-        showError('Image too small. Minimum size is greater than 300x300px.', 5000);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('is_primary', 'false');
-
-      const response = await fetch(`/api/user-products/${productId}/photos`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (response.ok) {
-        await loadAssets();
-      } else {
-        const data = await response.json().catch(() => ({}));
-        const msg = data?.error || data?.message || 'Failed to upload photo';
-        showError(msg, 5000);
-      }
-    } catch (error) {
-      console.error('Error uploading photo:', error);
-      showError('Error uploading photo. Please try again.', 5000);
-    }
-  };
-
-  const handleDeletePhoto = async (productId: string, photoId: string) => {
-    try {
-      const response = await fetch(`/api/user-products/${productId}/photos?photoId=${photoId}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        await loadAssets();
-      }
-    } catch (error) {
-      console.error('Error deleting photo:', error);
-    }
-  };
-
   const handleAddProductToBrand = (brandId: string, mode: 'create' | 'select') => {
     const brand = assetsData.brands.find(b => b.id === brandId);
     if (!brand) return;

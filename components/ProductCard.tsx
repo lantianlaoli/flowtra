@@ -32,7 +32,7 @@ export default function ProductCard({
   onDelete,
   onPhotoUpload,
   onDeletePhoto,
-  onView,
+  // onView - intentionally not destructured as it's not used in this component
   onSelect,
   isSelected = false,
   isDeleting = false,
