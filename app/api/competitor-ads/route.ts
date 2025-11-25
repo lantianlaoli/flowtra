@@ -164,6 +164,7 @@ export async function POST(request: NextRequest) {
       const { data: updatedAd, error: updateError } = await supabase
         .from('competitor_ads')
         .update({
+          competitor_name: analysis.name as string, // Save AI suggested name
           analysis_result: analysis,
           language: language,
           analysis_status: 'completed',

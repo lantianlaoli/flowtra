@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Upload, Loader2, Target, CheckCircle, XCircle, Languages, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Upload, Loader2, Target, CheckCircle, XCircle, Languages } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
 import { getLanguageDisplayInfo } from '@/lib/language';
@@ -17,6 +17,8 @@ import {
   FaPinterestP
 } from 'react-icons/fa6';
 import { LuGlobe } from 'react-icons/lu';
+import CompetitorShotsEditor from './CompetitorShotsEditor';
+import { CompetitorShotForm, parseShotsFromAnalysis, sanitizeShotsForSave } from '@/lib/competitor-shot-form';
 
 interface CreateCompetitorAdModalProps {
   isOpen: boolean;
@@ -68,8 +70,8 @@ export default function CreateCompetitorAdModal({
   const [createdAdId, setCreatedAdId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // UI state for shot expansion
-  const [expandedShots, setExpandedShots] = useState<Set<number>>(new Set());
+  const [shotsDraft, setShotsDraft] = useState<CompetitorShotForm[]>([]);
+  const [isSavingShots, setIsSavingShots] = useState(false);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -86,21 +88,19 @@ export default function CreateCompetitorAdModal({
       setAnalysisLanguage(null);
       setAnalysisError(null);
       setCreatedAdId(null);
-      setExpandedShots(new Set());
+      setShotsDraft([]);
+      setIsSavingShots(false);
     }
   }, [isOpen]);
 
-  const toggleShot = (shotId: number) => {
-    setExpandedShots(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(shotId)) {
-        newSet.delete(shotId);
-      } else {
-        newSet.add(shotId);
-      }
-      return newSet;
-    });
-  };
+  useEffect(() => {
+    if (analysisResult && typeof analysisResult === 'object' && Array.isArray((analysisResult as Record<string, unknown>).shots)) {
+      setShotsDraft(parseShotsFromAnalysis((analysisResult as Record<string, unknown>).shots));
+    } else {
+      setShotsDraft([]);
+    }
+  }, [analysisResult]);
+
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -224,6 +224,41 @@ export default function CreateCompetitorAdModal({
       } finally {
         setIsUploading(false);
       }
+    }
+  };
+
+  const handleSaveShots = async (shots: CompetitorShotForm[]) => {
+    if (!createdAdId || !analysisResult) {
+      throw new Error('Analysis is not ready yet');
+    }
+
+    try {
+      setIsSavingShots(true);
+      const sanitizedShots = sanitizeShotsForSave(shots);
+      const updatedAnalysis = {
+        ...analysisResult,
+        shots: sanitizedShots
+      };
+
+      const response = await fetch(`/api/competitor-ads/${createdAdId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ analysis_result: updatedAnalysis })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || data.details || 'Failed to save shots');
+      }
+
+      setAnalysisResult(data.competitorAd.analysis_result);
+    } catch (error) {
+      console.error('Error saving shots:', error);
+      throw error instanceof Error ? error : new Error('Failed to save shots');
+    } finally {
+      setIsSavingShots(false);
     }
   };
 
@@ -411,99 +446,23 @@ export default function CreateCompetitorAdModal({
                         )}
 
                         {/* Shots count */}
-                        {Array.isArray(analysisResult.shots) && (
+                        {shotsDraft.length > 0 && (
                           <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
                             <span className="text-blue-600 font-semibold">Shots:</span>
                             <span className="font-bold text-blue-900">
-                              {analysisResult.shots.length}
+                              {shotsDraft.length}
                             </span>
                           </div>
                         )}
                       </div>
 
-                      {/* Shot details - expandable list */}
-                      {Array.isArray(analysisResult.shots) && analysisResult.shots.length > 0 && (
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                            Shot Timeline
-                          </h4>
-                          <div className="space-y-2">
-                            {(analysisResult.shots as Array<{
-                              shot_id: number;
-                              start_time: string;
-                              end_time: string;
-                              duration_seconds: number;
-                              first_frame_description: string;
-                              subject: string;
-                              context_environment: string;
-                              action: string;
-                              style: string;
-                              camera_motion_positioning: string;
-                              composition: string;
-                              ambiance_colour_lighting: string;
-                              audio: string;
-                              narrative_goal: string;
-                              recommended_segment_duration: number;
-                              generation_guidance: string;
-                            }>).map((shot) => {
-                              const isExpanded = expandedShots.has(shot.shot_id);
-                              return (
-                                <div
-                                  key={shot.shot_id}
-                                  className="border border-gray-200 rounded-lg overflow-hidden bg-white"
-                                >
-                                  {/* Shot header - always visible */}
-                                  <button
-                                    onClick={() => toggleShot(shot.shot_id)}
-                                    className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <div className="bg-blue-100 text-blue-700 font-bold text-xs rounded px-2 py-1">
-                                        Shot {shot.shot_id}
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        {shot.start_time} – {shot.end_time}
-                                      </div>
-                                      <div className="text-xs font-medium text-gray-700">
-                                        {shot.duration_seconds}s
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs text-gray-500">{isExpanded ? 'Hide' : 'Show'} details</span>
-                                      {isExpanded ? (
-                                        <ChevronUp className="w-4 h-4 text-gray-600" />
-                                      ) : (
-                                        <ChevronDown className="w-4 h-4 text-gray-600" />
-                                      )}
-                                    </div>
-                                  </button>
-
-                                  {/* Shot details - expandable */}
-                                  {isExpanded && (
-                                    <div className="px-3 pb-3 space-y-3 border-t border-gray-100">
-                                      <ShotField label="Narrative Goal" value={shot.narrative_goal} />
-                                      <ShotField label="First Frame" value={shot.first_frame_description} />
-                                      <ShotField label="Subject" value={shot.subject} />
-                                      <ShotField label="Action" value={shot.action} />
-                                      <ShotField label="Context/Environment" value={shot.context_environment} />
-                                      <ShotField label="Style" value={shot.style} />
-                                      <ShotField label="Camera Motion" value={shot.camera_motion_positioning} />
-                                      <ShotField label="Composition" value={shot.composition} />
-                                      <ShotField label="Lighting/Ambiance" value={shot.ambiance_colour_lighting} />
-                                      <ShotField label="Audio" value={shot.audio} />
-                                      <ShotField label="Generation Guidance" value={shot.generation_guidance} highlight />
-                                      <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                                        <span className="font-semibold">Recommended Duration:</span>
-                                        <span>{shot.recommended_segment_duration}s</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                      <CompetitorShotsEditor
+                        shots={shotsDraft}
+                        onShotsChange={setShotsDraft}
+                        onSave={handleSaveShots}
+                        isSaving={isSavingShots}
+                        showSummary={false}
+                      />
                     </div>
                   )}
 
@@ -646,15 +605,5 @@ export default function CreateCompetitorAdModal({
         </motion.div>
       </div>
     </AnimatePresence>
-  );
-}
-
-// Shot field display component
-function ShotField({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className={`text-sm ${highlight ? 'bg-blue-50 border border-blue-200 rounded p-2' : ''}`}>
-      <div className="font-semibold text-gray-700 text-xs uppercase tracking-wide mb-1">{label}</div>
-      <div className={`${highlight ? 'text-blue-900' : 'text-gray-900'}`}>{value}</div>
-    </div>
   );
 }
