@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { getSupabase } from '@/lib/supabase';
+import { deriveSegmentDetails, type SegmentPrompt } from '@/lib/standard-ads-workflow';
 
 export async function GET() {
   try {
@@ -54,12 +55,25 @@ export async function GET() {
             ? JSON.parse(item.video_prompts)
             : item.video_prompts;
 
-          creativePrompt = {
-            music: parsed.music || null,
-            action: parsed.action || null,
-            ending: parsed.ending || null,
-            setting: parsed.setting || null
-          };
+          if (parsed && Array.isArray((parsed as { segments?: SegmentPrompt[] }).segments)) {
+            const firstSegment = (parsed as { segments?: SegmentPrompt[] }).segments?.[0];
+            if (firstSegment) {
+              const derived = deriveSegmentDetails(firstSegment as SegmentPrompt);
+              creativePrompt = {
+                music: derived.music || null,
+                action: derived.action || null,
+                ending: derived.ending || null,
+                setting: derived.setting || null
+              };
+            }
+          } else {
+            creativePrompt = {
+              music: parsed?.music || null,
+              action: parsed?.action || null,
+              ending: parsed?.ending || null,
+              setting: parsed?.setting || null
+            };
+          }
         } catch (e) {
           console.error('Failed to parse V1 creative prompts:', e);
         }

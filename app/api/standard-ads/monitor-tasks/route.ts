@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
-import { startSegmentVideoTask, buildSegmentStatusPayload, createSmartSegmentFrame, type SegmentPrompt } from '@/lib/standard-ads-workflow';
+import { startSegmentVideoTask, buildSegmentStatusPayload, createSmartSegmentFrame, deriveSegmentDetails, type SegmentPrompt } from '@/lib/standard-ads-workflow';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 
 export async function POST() {
@@ -115,7 +115,7 @@ export async function POST() {
   }
 }
 
-type VideoPrompt = {
+type LegacyVideoPrompt = {
   description: string;
   setting: string;
   camera_type: string;
@@ -127,6 +127,10 @@ type VideoPrompt = {
   ending: string;
   other_details: string;
   language?: string;
+  ad_copy?: string;
+  video_advertisement_prompt?: LegacyVideoPrompt;
+  video_ad_prompt?: LegacyVideoPrompt;
+  advertisement_prompt?: LegacyVideoPrompt;
 };
 
 interface HistoryRecord {
@@ -139,7 +143,7 @@ interface HistoryRecord {
   video_task_id: string;
   cover_image_url: string;
   video_url: string;
-  video_prompts: VideoPrompt;
+  video_prompts: { segments?: SegmentPrompt[] } | LegacyVideoPrompt | null;
   video_model: string;
   video_aspect_ratio?: string;
   credits_cost: number;
@@ -815,27 +819,48 @@ function getSegmentPrompt(record: HistoryRecord, index: number): SegmentPrompt {
     return planSegments[index] as SegmentPrompt;
   }
 
-  const fallback = (record.video_prompts || {}) as SegmentPrompt;
+  const promptContainer = record.video_prompts as { segments?: SegmentPrompt[] } | null;
+  const promptSegments = promptContainer?.segments;
+  if (Array.isArray(promptSegments) && promptSegments[index]) {
+    return promptSegments[index] as SegmentPrompt;
+  }
+
+  const legacy = record.video_prompts as LegacyVideoPrompt | null;
+  if (legacy) {
+    return {
+      audio: legacy.music || 'Warm instrumental',
+      style: 'Premium lifestyle realism',
+      action: legacy.action || 'Showcase product details',
+      subject: 'Hero product',
+      composition: legacy.camera_type || 'Wide cinematic shot',
+      context_environment: legacy.setting || 'Premium studio environment',
+      first_frame_description: legacy.description || 'Hero frame showing product clearly',
+      ambiance_colour_lighting: legacy.lighting || 'Soft commercial lighting',
+      camera_motion_positioning: legacy.camera_movement || 'Slow push-in',
+      dialogue: legacy.dialogue || 'Narrate the primary benefit in one sentence',
+      language: legacy.language || record.language || 'English',
+      index: index + 1
+    };
+  }
+
   return {
-    description: fallback.description || 'Product hero shot',
-    setting: fallback.setting || 'Premium studio',
-    camera_type: fallback.camera_type || 'Wide cinematic shot',
-    camera_movement: fallback.camera_movement || 'Slow push-in',
-    action: fallback.action || 'Showcase product details',
-    lighting: fallback.lighting || 'Soft glam lighting',
-    dialogue: fallback.dialogue || 'Narrate core benefit',
-    music: fallback.music || 'Warm instrumental',
-    ending: fallback.ending || 'Product close-up',
-    other_details: fallback.other_details || '',
-    language: fallback.language || record.language || 'English',
-    segment_title: fallback.segment_title || `Segment ${index + 1}`,
-    segment_goal: fallback.segment_goal || `Highlight benefit ${index + 1}`,
-    first_frame_prompt: fallback.first_frame_prompt || fallback.description || 'Show product hero shot'
+    audio: 'Warm instrumental underscore',
+    style: 'Premium lifestyle realism',
+    action: 'Showcase product hero shot',
+    subject: 'Hero product',
+    composition: 'Wide cinematic shot',
+    context_environment: 'Professional studio',
+    first_frame_description: 'Hero product centered with premium lighting',
+    ambiance_colour_lighting: 'Soft glam lighting',
+    camera_motion_positioning: 'Slow push-in',
+    dialogue: 'Narrate the core benefit in a concise line',
+    language: record.language || 'English',
+    index: index + 1
   };
 }
 
 async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string): Promise<string> {
-  if (!record.video_prompts) {
+  if (!record.video_prompts && !record.segment_plan) {
     throw new Error('No creative prompts available for video generation');
   }
 
@@ -951,48 +976,14 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
   }
 
   // ===== NORMAL MODE (AI-generated prompts) =====
-  // With Structured Outputs, video_prompts should already be in the correct format
-  // But keep backward compatibility for old records with nested structures
-  let videoPrompt = record.video_prompts as VideoPrompt & {
-    ad_copy?: string;
-    video_advertisement_prompt?: VideoPrompt;
-    video_ad_prompt?: VideoPrompt;
-    advertisement_prompt?: VideoPrompt;
-  };
-
-  // Check for legacy nested structures (from before Structured Outputs)
-  if (videoPrompt.video_advertisement_prompt && typeof videoPrompt.video_advertisement_prompt === 'object') {
-    console.log('⚠️ Legacy format detected: video_advertisement_prompt');
-    videoPrompt = videoPrompt.video_advertisement_prompt as VideoPrompt & { ad_copy?: string };
-  } else if (videoPrompt.video_ad_prompt && typeof videoPrompt.video_ad_prompt === 'object') {
-    console.log('⚠️ Legacy format detected: video_ad_prompt');
-    videoPrompt = videoPrompt.video_ad_prompt as VideoPrompt & { ad_copy?: string };
-  } else if (videoPrompt.advertisement_prompt && typeof videoPrompt.advertisement_prompt === 'object') {
-    console.log('⚠️ Legacy format detected: advertisement_prompt');
-    videoPrompt = videoPrompt.advertisement_prompt as VideoPrompt & { ad_copy?: string };
-  }
-
-  // Validate that we have all required fields
-  const requiredFields = ['description', 'setting', 'camera_type', 'camera_movement', 'action', 'lighting', 'dialogue', 'music', 'ending', 'other_details'];
-  const missingFields = requiredFields.filter(field => !videoPrompt[field as keyof VideoPrompt]);
-
-  if (missingFields.length > 0) {
-    console.error(`Missing required fields in video_prompts:`, missingFields);
-    console.error(`Record ID: ${record.id}`);
-    console.error(`video_prompts structure:`, JSON.stringify(record.video_prompts, null, 2));
-    throw new Error(`Invalid video_prompts: missing fields [${missingFields.join(', ')}]`);
-  }
-
-  // Use the dialogue from AI-generated video prompts (purely image-based, no brand slogans)
-  const dialogueContent = videoPrompt.dialogue;
-
-  // Get language information from video_prompts if available, fallback to record.language
-  const languageFromPrompt = typeof videoPrompt.language === 'string' ? videoPrompt.language : undefined;
+  const baseSegment = getSegmentPrompt(record, 0);
+  const derived = deriveSegmentDetails(baseSegment);
   const language = (record.language || 'en') as LanguageCode;
-  const languageName = languageFromPrompt || getLanguagePromptName(language);
+  const languageName = derived.language || getLanguagePromptName(language);
+  const dialogueContent = derived.dialogue;
 
   console.log('🌍 Language handling:');
-  console.log('  - languageFromPrompt:', languageFromPrompt);
+  console.log('  - languageFromPrompt:', derived.language);
   console.log('  - record.language:', record.language);
   console.log('  - languageName (final):', languageName);
   console.log('  - Will add prefix:', languageName !== 'English');
@@ -1004,16 +995,20 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
 
   console.log('🎬 Language prefix:', languagePrefix ? `YES - "${languageName}"` : 'NO (English)');
 
-  const fullPrompt = `${languagePrefix}${videoPrompt.description}
+  const voiceDescriptor = 'Calm professional narrator';
+  const voiceToneDescriptor = 'warm and confident';
 
-Setting: ${videoPrompt.setting}
-Camera: ${videoPrompt.camera_type} with ${videoPrompt.camera_movement}
-Action: ${videoPrompt.action}
-Lighting: ${videoPrompt.lighting}
+  const fullPrompt = `${languagePrefix}${derived.description}
+
+Setting: ${derived.setting}
+Camera: ${derived.camera_type} with ${derived.camera_movement}
+Action: ${derived.action}
+Lighting: ${derived.lighting}
 Dialogue: ${dialogueContent}
-Music: ${videoPrompt.music}
-Ending: ${videoPrompt.ending}
-Other details: ${videoPrompt.other_details}`;
+Music: ${derived.music}
+Ending: ${derived.ending}
+Other details: ${derived.other_details}
+Voice: Use a ${voiceDescriptor} with a ${voiceToneDescriptor} tone to maintain consistency with the storyboard.`;
 
   console.log('Generated video prompt:', fullPrompt);
 
