@@ -89,6 +89,7 @@ export type SegmentPrompt = {
   index: number;
   contains_brand?: boolean; // Whether this segment/shot contains brand elements
   contains_product?: boolean; // Whether this segment/shot contains product
+  description?: string;
 };
 
 type DerivedSegmentDetails = {
@@ -1801,14 +1802,14 @@ ${strictSegmentFormat}`
       throw new Error(`AI response returned ${segments.length} segments but ${segmentCount} were requested`);
     }
 
-    segments.forEach((segment, index) => {
-      const missingSegmentFields = segmentRequiredFields.filter(field => {
-        const value = (segment as Record<string, unknown>)[field];
-        return value === undefined || value === null || value === '';
-      });
+      segments.forEach((segment, index) => {
+        const missingSegmentFields = segmentRequiredFields.filter(field => {
+          const value = (segment as Record<string, unknown>)[field];
+          return value === undefined || value === null;
+        });
 
-      if (missingSegmentFields.length > 0) {
-        console.error(`❌ Segment ${index + 1} missing required fields:`, missingSegmentFields);
+        if (missingSegmentFields.length > 0) {
+          console.error(`❌ Segment ${index + 1} missing required fields:`, missingSegmentFields);
         throw new Error(`Segment ${index + 1} missing fields: ${missingSegmentFields.join(', ')}`);
       }
     });
@@ -2128,48 +2129,33 @@ export function normalizeSegmentPrompts(
 
   const normalized: SegmentPrompt[] = [];
 
-  const fallbackSegment: SegmentPrompt = {
-    audio: SEGMENT_DEFAULTS.music,
-    style: 'Premium lifestyle realism',
-    action: SEGMENT_DEFAULTS.action,
-    subject: 'Hero product',
-    composition: SEGMENT_DEFAULTS.camera_type,
-    context_environment: SEGMENT_DEFAULTS.setting,
-    first_frame_description: SEGMENT_DEFAULTS.first_frame_prompt,
-    ambiance_colour_lighting: SEGMENT_DEFAULTS.lighting,
-    camera_motion_positioning: SEGMENT_DEFAULTS.camera_movement,
-    dialogue: SEGMENT_DEFAULTS.dialogue,
-    language: SEGMENT_DEFAULTS.language,
-    index: 1
-  };
-
   for (let index = 0; index < segmentCount; index++) {
     const source = (rawSegments[index] || rawSegments[rawSegments.length - 1] || {}) as LooseSegment;
     const shot = competitorShots?.[index];
     const shotOverrides = shot ? buildSegmentOverridesFromShot(shot) : undefined;
 
     const segment: SegmentPrompt = {
-      audio: cleanSegmentText(shotOverrides?.audio) || cleanSegmentText(source.audio) || fallbackSegment.audio,
-      style: cleanSegmentText(shotOverrides?.style) || cleanSegmentText(source.style) || fallbackSegment.style,
-      action: cleanSegmentText(shotOverrides?.action) || cleanSegmentText(source.action) || fallbackSegment.action,
-      subject: cleanSegmentText(shotOverrides?.subject) || cleanSegmentText(source.subject) || fallbackSegment.subject,
-      composition: cleanSegmentText(shotOverrides?.composition) || cleanSegmentText(source.composition) || fallbackSegment.composition,
+      audio: cleanSegmentText(shotOverrides?.audio) ?? cleanSegmentText(source.audio) ?? '',
+      style: cleanSegmentText(shotOverrides?.style) ?? cleanSegmentText(source.style) ?? '',
+      action: cleanSegmentText(shotOverrides?.action) ?? cleanSegmentText(source.action) ?? '',
+      subject: cleanSegmentText(shotOverrides?.subject) ?? cleanSegmentText(source.subject) ?? '',
+      composition: cleanSegmentText(shotOverrides?.composition) ?? cleanSegmentText(source.composition) ?? '',
       context_environment:
-        cleanSegmentText(shotOverrides?.context_environment) || cleanSegmentText(source.context_environment) || fallbackSegment.context_environment,
+        cleanSegmentText(shotOverrides?.context_environment) ?? cleanSegmentText(source.context_environment) ?? '',
       first_frame_description:
-        cleanSegmentText(shotOverrides?.first_frame_description) ||
-        cleanSegmentText(source.first_frame_description) ||
-        fallbackSegment.first_frame_description,
+        cleanSegmentText(shotOverrides?.first_frame_description) ??
+        cleanSegmentText(source.first_frame_description) ??
+        '',
       ambiance_colour_lighting:
-        cleanSegmentText(shotOverrides?.ambiance_colour_lighting) ||
-        cleanSegmentText(source.ambiance_colour_lighting) ||
-        fallbackSegment.ambiance_colour_lighting,
+        cleanSegmentText(shotOverrides?.ambiance_colour_lighting) ??
+        cleanSegmentText(source.ambiance_colour_lighting) ??
+        '',
       camera_motion_positioning:
-        cleanSegmentText(shotOverrides?.camera_motion_positioning) ||
-        cleanSegmentText(source.camera_motion_positioning) ||
-        fallbackSegment.camera_motion_positioning,
-      dialogue: cleanSegmentText(shotOverrides?.dialogue) || cleanSegmentText(source.dialogue) || fallbackSegment.dialogue,
-      language: cleanSegmentText(shotOverrides?.language) || cleanSegmentText(source.language) || fallbackSegment.language,
+        cleanSegmentText(shotOverrides?.camera_motion_positioning) ??
+        cleanSegmentText(source.camera_motion_positioning) ??
+        '',
+      dialogue: cleanSegmentText(shotOverrides?.dialogue) ?? cleanSegmentText(source.dialogue) ?? '',
+      language: cleanSegmentText(shotOverrides?.language) ?? cleanSegmentText(source.language) ?? 'en',
       index:
         typeof shotOverrides?.index === 'number'
           ? shotOverrides.index
@@ -2500,8 +2486,19 @@ export async function startSegmentVideoTask(
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
   const languageCode = (project.language || 'en') as LanguageCode;
   const languageName = getLanguagePromptName(languageCode);
-  const derived = deriveSegmentDetails(segmentPrompt);
-  const dialogueContent = derived.dialogue;
+  const prompts = (project.video_prompts || {}) as { ad_copy?: string };
+  const providedAdCopyRaw = typeof prompts.ad_copy === 'string' ? prompts.ad_copy.trim() : undefined;
+  const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
+  const description = cleanSegmentText(segmentPrompt.description) || cleanSegmentText(segmentPrompt.first_frame_description) || '';
+  const setting = cleanSegmentText(segmentPrompt.context_environment) || '';
+  const cameraType = cleanSegmentText(segmentPrompt.composition) || '';
+  const cameraMovement = cleanSegmentText(segmentPrompt.camera_motion_positioning) || '';
+  const action = cleanSegmentText(segmentPrompt.action) || '';
+  const lighting = cleanSegmentText(segmentPrompt.ambiance_colour_lighting) || '';
+  const dialogueContent = providedAdCopy || segmentPrompt.dialogue || '';
+  const music = cleanSegmentText(segmentPrompt.audio) || '';
+  const ending = cleanSegmentText(segmentPrompt.action) || '';
+  const otherDetails = segmentPrompt.style ? `Style: ${segmentPrompt.style}` : '';
 
   const languagePrefix = languageName !== 'English'
     ? `"language": "${languageName}"\n\n`
@@ -2510,16 +2507,16 @@ export async function startSegmentVideoTask(
   const voiceDescriptor = 'Calm professional narrator';
   const voiceToneDescriptor = 'warm and confident';
 
-  const fullPrompt = `${languagePrefix}${derived.description}
+  const fullPrompt = `${languagePrefix}${description}
 
-Setting: ${derived.setting}
-Camera: ${derived.camera_type} with ${derived.camera_movement}
-Action: ${derived.action}
-Lighting: ${derived.lighting}
+Setting: ${setting}
+Camera: ${cameraType} with ${cameraMovement}
+Action: ${action}
+Lighting: ${lighting}
 Dialogue: ${dialogueContent}
-Music: ${derived.music}
-Ending: ${derived.ending}
-Other details: ${derived.other_details}
+Music: ${music}
+Ending: ${ending}
+Other details: ${otherDetails}
 Voice: This is segment ${segmentIndex + 1} of ${totalSegments}. Use the exact same narrator voice across all segments — ${voiceDescriptor} with a ${voiceToneDescriptor} tone. Match timbre, accent, gender, pacing, and energy perfectly so the audience cannot tell the clips were generated separately.`;
 
   // Determine imageUrls based on whether a closing frame exists
