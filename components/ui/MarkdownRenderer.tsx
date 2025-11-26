@@ -51,7 +51,7 @@ function rehypeUnwrapVideos() {
 
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
   return (
-    <div className={`markdown-rendered prose prose-gray max-w-none ${className}`}>
+    <div className={`markdown-rendered w-full ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[
@@ -108,17 +108,17 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
             );
           },
           ul: ({ children }) => (
-            <ul className="list-disc list-outside ml-6 space-y-3 mb-6 text-gray-700">
+            <ul className="list-disc list-outside ml-6 space-y-3 mb-6 text-gray-900 marker:text-gray-800">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal list-outside ml-6 space-y-3 mb-6 text-gray-700">
+            <ol className="list-decimal list-outside ml-6 space-y-3 mb-6 text-gray-900 marker:text-gray-800">
               {children}
             </ol>
           ),
           li: ({ children }) => (
-            <li className="leading-relaxed pl-2">
+            <li className="leading-relaxed pl-2 text-gray-900 marker:text-gray-900">
               {children}
             </li>
           ),
@@ -145,19 +145,34 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
             </pre>
           ),
           table: ({ children }) => (
-            <div className="overflow-x-auto my-4">
-              <table className="min-w-full border border-gray-200 rounded-lg">
+            <div className="overflow-x-auto my-6 rounded-2xl border border-gray-200 shadow-sm bg-white">
+              <table className="min-w-full border-collapse text-base text-gray-900">
                 {children}
               </table>
             </div>
           ),
+          thead: ({ children }) => (
+            <thead className="bg-gray-50 text-gray-900 text-sm font-semibold">
+              {children}
+            </thead>
+          ),
+          tbody: ({ children }) => (
+            <tbody className="bg-white [&>tr:nth-child(even)]:bg-gray-50">
+              {children}
+            </tbody>
+          ),
+          tr: ({ children }) => (
+            <tr className="border-b border-gray-100 last:border-b-0">
+              {children}
+            </tr>
+          ),
           th: ({ children }) => (
-            <th className="border border-gray-200 px-4 py-2 bg-gray-50 font-medium text-left">
+            <th className="px-5 py-3 text-left font-semibold !text-gray-900 tracking-wide">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="border border-gray-200 px-4 py-2">
+            <td className="px-5 py-4 text-gray-900 leading-relaxed">
               {children}
             </td>
           ),

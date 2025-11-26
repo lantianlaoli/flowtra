@@ -137,19 +137,21 @@ export function BlogVideoPlayer({
 
       {controls && !isLoading && (
         <>
-          {/* Play/Pause overlay */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20">
-            <button
-              onClick={togglePlay}
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-4 transition-all"
-            >
-              {isPlaying ? (
-                <Pause className="w-8 h-8 text-white" />
-              ) : (
-                <Play className="w-8 h-8 text-white ml-1" />
-              )}
-            </button>
-          </div>
+          {/* Play/Pause overlay shows only when paused so hover doesn't block playback */}
+          {!isPlaying && (
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+              <button
+                onClick={togglePlay}
+                className="bg-white/20 hover:bg-white/30 rounded-full p-4 transition-all"
+              >
+                {isPlaying ? (
+                  <Pause className="w-8 h-8 text-white" />
+                ) : (
+                  <Play className="w-8 h-8 text-white ml-1" />
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Controls bar */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">

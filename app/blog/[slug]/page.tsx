@@ -116,8 +116,8 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
 
       {/* Article Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
-        <article className="prose prose-lg prose-gray max-w-none">
-          <MarkdownRenderer content={article.content} />
+        <article className="w-full">
+          <MarkdownRenderer content={article.content} className="w-full" />
         </article>
 
         {/* Article Footer */}
