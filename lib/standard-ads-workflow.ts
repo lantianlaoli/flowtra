@@ -1666,6 +1666,7 @@ Your task is to create a similar advertisement for OUR product${imageUrl ? ' (sh
 2. REPLACING the competitor's product with our product
 3. MAINTAINING the same narrative flow, visual style, and tone
 4. PRESERVING the camera work, composition, and ambiance
+5. MATCH EVERY SHOT EXACTLY: number of segments, graphic title cards, text overlays, and the final brand sign-off must appear in the same order as the competitor. Do not drop or rearrange any shots.
 
 ${imageUrl ? 'Remember: The user\'s image is OUR product - adapt the competitor\'s ad to showcase OUR product instead.' : 'Note: No product image provided - use brand context to adapt the competitor\'s ad.'}`
             },
