@@ -180,6 +180,13 @@ export interface SegmentStatusPayload {
 
 export const SEGMENTED_DURATIONS = new Set(['16', '24', '32', '40', '48', '56', '64']);
 
+function shouldForceSingleSegmentGrok(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok', videoDuration?: string | null): boolean {
+  if (model !== 'grok' || !videoDuration) return false;
+  const duration = Number(videoDuration);
+  if (!Number.isFinite(duration)) return false;
+  return duration <= 6;
+}
+
 export function isSegmentedVideoRequest(
   model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok',
   videoDuration?: string | null
@@ -415,7 +422,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
     }
 
-    const isSegmented = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
+    const forceSingleSegmentGrok = shouldForceSingleSegmentGrok(actualVideoModel, request.videoDuration);
+    const segmentedByDuration = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
+    const isSegmented = forceSingleSegmentGrok || segmentedByDuration;
 
     // NEW: Smart segment count calculation
     // Priority 1: If competitor shots exist and match user's segment count → use 1:1 mapping
@@ -427,7 +436,11 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     let segmentCount: number;
     const competitorShotCount = competitorShotTimeline?.shots.length || 0;
-    const userSegmentCount = isSegmented ? getSegmentCountFromDuration(request.videoDuration, actualVideoModel) : 1;
+    const userSegmentCount = forceSingleSegmentGrok
+      ? 1
+      : segmentedByDuration
+        ? getSegmentCountFromDuration(request.videoDuration, actualVideoModel)
+        : 1;
 
     console.log(`   - Competitor shot count: ${competitorShotCount}`);
     console.log(`   - User segment count (from duration): ${userSegmentCount}`);
@@ -884,8 +897,13 @@ async function startAIWorkflow(
     }
 
     const totalDurationSeconds = parseInt(request.videoDuration || request.sora2ProDuration || '10', 10);
-    const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
-    const segmentCount = segmentedFlow ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel) : 1;
+    const forceSingleSegment = shouldForceSingleSegmentGrok(request.resolvedVideoModel, request.videoDuration);
+    const segmentedFlow = forceSingleSegment || isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
+    const segmentCount = segmentedFlow
+      ? forceSingleSegment
+        ? 1
+        : getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
+      : 1;
 
     const { error: projectConfigUpdateError } = await supabase
       .from('standard_ads_projects')

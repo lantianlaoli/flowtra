@@ -561,20 +561,18 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
 
   const videosReady = segments.every(seg => !!seg.video_url);
   if (videosReady && !record.fal_merge_task_id) {
-    const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
-    const { taskId } = await mergeVideosWithFal(segments.map(seg => seg.video_url as string), aspectRatio);
-
-    await supabase
-      .from('standard_ads_projects')
-      .update({
-        fal_merge_task_id: taskId,
-        current_step: 'merging_segments',
-        progress_percentage: 95,
-        last_processed_at: new Date().toISOString()
-      })
-      .eq('id', record.id);
-
-      record.fal_merge_task_id = taskId;
+    if (record.current_step !== 'awaiting_merge') {
+      await supabase
+        .from('standard_ads_projects')
+        .update({
+          current_step: 'awaiting_merge',
+          segment_status: buildSegmentStatusPayload(segments),
+          progress_percentage: 95,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
+      console.log(`⏸️ Project ${record.id} awaiting manual merge confirmation`);
+    }
     return;
   }
 

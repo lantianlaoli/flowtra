@@ -178,7 +178,7 @@ export default function CompetitorAdSelector({
             </p>
             <div className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-orange-700 bg-orange-100 border border-orange-200">
               <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
-              <span>If the first frame shows kids, use Grok with 6s (or multiples).</span>
+              <span>If your product targets children, pick Grok (6-second segments) to avoid policy issues.</span>
             </div>
           </div>
         </div>
@@ -208,7 +208,7 @@ export default function CompetitorAdSelector({
           <div className="p-4 pb-16 space-y-3 max-h-[50vh] overflow-y-auto">
             <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 shadow-sm text-xs text-orange-900">
               <AlertTriangle className="w-4 h-4 text-orange-500" />
-              <span>If the competitor’s first frame includes children, select Grok with 6s (or multiples) to avoid generation failures.</span>
+              <span>If your brand serves kids, select Grok (6-second segments) to keep generation stable.</span>
             </div>
             <p className="text-xs text-gray-600">
               Select a competitor ad to use as creative reference. The AI will analyze its style and generate a similar ad for your product.

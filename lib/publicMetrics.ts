@@ -7,6 +7,15 @@ const parseFallbackCount = () => {
 };
 
 export const getActivatedUserCount = cache(async (): Promise<number> => {
+  const forceFallback =
+    process.env.DISABLE_PUBLIC_METRICS === '1' ||
+    process.env.SKIP_SUPABASE_PUBLIC_METRICS === '1' ||
+    process.env.NEXT_PHASE === 'phase-production-build';
+
+  if (forceFallback) {
+    return parseFallbackCount();
+  }
+
   try {
     const supabase = getSupabaseAdmin();
     const { count, error } = await supabase
