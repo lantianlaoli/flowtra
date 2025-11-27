@@ -15,7 +15,8 @@ import BrandProductSelector from '@/components/ui/BrandProductSelector';
 import CompetitorAdSelector from '@/components/ui/CompetitorAdSelector';
 import RequirementsInput from '@/components/ui/RequirementsInput';
 import ConfigPopover from '@/components/ui/ConfigPopover';
-import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
+import GenerationProgressDisplay, { type Generation, type SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
+import SegmentInspector, { type SegmentPromptPayload } from '@/components/standard-ads/SegmentInspector';
 import type { VideoDurationOption } from '@/components/ui/VideoDurationSelector';
 
 import {
@@ -35,6 +36,7 @@ import {
 import { Format } from '@/components/ui/FormatSelector';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
 import { UserProduct, UserBrand, CompetitorAd } from '@/lib/supabase';
+import type { SegmentStatusPayload, SegmentPrompt } from '@/lib/standard-ads-workflow';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -76,7 +78,15 @@ const STATUS_MAP: Record<string, Generation['status']> = {
   generating_video: 'processing'
 };
 
-type SessionGeneration = Generation & { projectId?: string };
+type SessionGeneration = Generation & {
+  projectId?: string;
+  isSegmented?: boolean;
+  segmentStatus?: SegmentStatusPayload | null;
+  segmentPlan?: { segments?: SegmentPrompt[] } | Record<string, unknown> | null;
+  segments?: SegmentCardSummary[] | null;
+  awaitingMerge?: boolean;
+  mergeTaskId?: string | null;
+};
 
 interface StandardAdsStatusPayload {
   success?: boolean;
@@ -95,9 +105,15 @@ interface StandardAdsStatusPayload {
     downloaded?: boolean;
     errorMessage?: string | null;
     videoDuration?: string | null;
+    videoAspectRatio?: '16:9' | '9:16' | string | null;
     segmentCount?: number | null;
     segmentDurationSeconds?: number | null;
     isSegmented?: boolean | null;
+    segmentStatus?: SegmentStatusPayload | null;
+    segmentPlan?: { segments?: SegmentPrompt[] } | Record<string, unknown> | null;
+    segments?: SegmentCardSummary[] | null;
+    awaitingMerge?: boolean;
+    mergeTaskId?: string | null;
   };
   error?: string;
 }
@@ -259,6 +275,18 @@ export default function StandardAdsPage() {
 
   // NEW: Generation history
   const [generations, setGenerations] = useState<SessionGeneration[]>([]);
+  const [expandedGenerationId, setExpandedGenerationId] = useState<string | null>(null);
+  const [segmentInspector, setSegmentInspector] = useState<{
+    projectId: string;
+    segmentIndex: number;
+    generationId: string;
+  } | null>(null);
+  const [segmentInspectorSubmitting, setSegmentInspectorSubmitting] = useState({ photo: false, video: false });
+  const [mergeSubmitting, setMergeSubmitting] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setSegmentInspectorSubmitting({ photo: false, video: false });
+  }, [segmentInspector?.generationId, segmentInspector?.segmentIndex]);
   const [downloadingProjects, setDownloadingProjects] = useState<Record<string, boolean>>({});
 
   // Video configuration states
@@ -522,6 +550,14 @@ export default function StandardAdsPage() {
         }
         return gen.segmentCount;
       })();
+      const payloadData = payload.data;
+      const hasSegmentStatus = Boolean(payloadData && Object.prototype.hasOwnProperty.call(payloadData, 'segmentStatus'));
+      const hasSegmentPlan = Boolean(payloadData && Object.prototype.hasOwnProperty.call(payloadData, 'segmentPlan'));
+      const hasSegmentsArray = Boolean(payloadData && Object.prototype.hasOwnProperty.call(payloadData, 'segments'));
+      const nextIsSegmented = typeof payloadData?.isSegmented === 'boolean'
+        ? payloadData.isSegmented
+        : gen.isSegmented;
+
       return {
         ...gen,
         status: resolvedStatus,
@@ -532,7 +568,16 @@ export default function StandardAdsPage() {
         videoModel: (payload.data?.videoModel as VideoModel) || (payload.data?.video_model as VideoModel) || gen.videoModel,
         downloaded: typeof payload.data?.downloaded === 'boolean' ? payload.data.downloaded : gen.downloaded,
         videoDuration: payload.data?.videoDuration || gen.videoDuration,
+        videoAspectRatio: typeof payload.data?.videoAspectRatio === 'string'
+          ? payload.data.videoAspectRatio
+          : gen.videoAspectRatio,
         segmentCount: typeof nextSegmentCount === 'number' && nextSegmentCount > 0 ? nextSegmentCount : gen.segmentCount,
+        isSegmented: nextIsSegmented,
+        segmentStatus: hasSegmentStatus ? (payloadData?.segmentStatus ?? null) : gen.segmentStatus,
+        segmentPlan: hasSegmentPlan ? (payloadData?.segmentPlan ?? null) : gen.segmentPlan,
+        segments: hasSegmentsArray ? (payloadData?.segments ?? null) : gen.segments,
+        awaitingMerge: typeof payloadData?.awaitingMerge === 'boolean' ? payloadData.awaitingMerge : gen.awaitingMerge,
+        mergeTaskId: typeof payloadData?.mergeTaskId === 'string' ? payloadData.mergeTaskId : gen.mergeTaskId,
         error: resolvedStatus === 'failed'
           ? (payload.data?.errorMessage || payload.error || 'Video generation failed')
           : undefined
@@ -575,9 +620,103 @@ export default function StandardAdsPage() {
   const displayedGenerations = useMemo(() =>
     generations.map(gen => ({
       ...gen,
-      isDownloading: gen.projectId ? !!downloadingProjects[gen.projectId] : false
+      isDownloading: gen.projectId ? !!downloadingProjects[gen.projectId] : false,
+      mergeLoading: gen.projectId ? !!mergeSubmitting[gen.projectId] : false
     })),
-  [generations, downloadingProjects]);
+  [generations, downloadingProjects, mergeSubmitting]);
+
+  const inspectorContext = useMemo(() => {
+    if (!segmentInspector) return null;
+    const generation = generations.find(gen => gen.id === segmentInspector.generationId);
+    if (!generation) return null;
+    const segment =
+      generation.segments?.find(seg => seg.index === segmentInspector.segmentIndex) || null;
+    const planEntry = ((generation.segmentPlan as { segments?: SegmentPrompt[] | undefined })?.segments?.[
+      segmentInspector.segmentIndex
+    ] ?? null) as SegmentPrompt | null;
+    return {
+      generation,
+      segment,
+      planEntry: planEntry || undefined
+    };
+  }, [segmentInspector, generations]);
+  const inspectorPrompt = inspectorContext?.segment?.prompt as Partial<SegmentPrompt> | undefined;
+
+  const handleSegmentRegenerate = useCallback(async ({ type, prompt }: { type: 'photo' | 'video'; prompt: SegmentPromptPayload; }) => {
+    if (!segmentInspector) return;
+    const projectId = segmentInspector.projectId;
+    const segmentIndex = segmentInspector.segmentIndex;
+    const mergedPrompt = composeSegmentPromptUpdate(prompt, inspectorPrompt);
+
+    try {
+      setSegmentInspectorSubmitting(prev => ({ ...prev, [type]: true }));
+      const response = await fetch(`/api/standard-ads/${projectId}/segments/${segmentIndex}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt: mergedPrompt,
+          regenerate: type
+        })
+      });
+
+      if (!response.ok) {
+        let message = 'Failed to update segment';
+        try {
+          const data = await response.json();
+          message = data?.error || data?.message || message;
+        } catch {
+          // ignore
+        }
+        throw new Error(message);
+      }
+
+      await fetchStatusForProject(projectId);
+      const successText = type === 'photo' ? 'First frame regeneration queued.' : 'Video regeneration queued.';
+      showSuccess(successText);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Segment regeneration failed';
+      showError(message);
+    } finally {
+      setSegmentInspectorSubmitting(prev => ({ ...prev, [type]: false }));
+    }
+  }, [segmentInspector, inspectorPrompt, fetchStatusForProject, showSuccess, showError]);
+
+  const handleMergeProject = useCallback(async (projectId: string) => {
+    if (!projectId) return;
+    setMergeSubmitting(prev => ({ ...prev, [projectId]: true }));
+    try {
+      const response = await fetch(`/api/standard-ads/${projectId}/merge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        let message = 'Failed to start merge';
+        try {
+          const data = await response.json();
+          message = data?.error || data?.message || message;
+        } catch {
+          // ignore
+        }
+        throw new Error(message);
+      }
+
+      showSuccess('Merge started. We will notify you when it is ready.');
+      await fetchStatusForProject(projectId);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : 'Failed to start merge');
+    } finally {
+      setMergeSubmitting(prev => {
+        const next = { ...prev };
+        delete next[projectId];
+        return next;
+      });
+    }
+  }, [fetchStatusForProject, showError, showSuccess]);
 
   useEffect(() => {
     if (!activeProjectIds.length) return;
@@ -836,6 +975,10 @@ export default function StandardAdsPage() {
       ? getSegmentCountFromDuration(videoDuration, selectedModel)
       : null;
 
+    const selectedVideoAspectRatio = !isCompetitorPhotoMode && (format === '16:9' || format === '9:16')
+      ? (format as '16:9' | '9:16')
+      : '16:9';
+
     // Create new generation entry
     const newGeneration: SessionGeneration = {
       id: Date.now().toString(),
@@ -847,9 +990,17 @@ export default function StandardAdsPage() {
       brand: selectedBrand.brand_name,
       product: selectedProduct?.product_name,
       videoModel: shouldGenerateVideo ? selectedModel : undefined,
+      videoAspectRatio: shouldGenerateVideo ? selectedVideoAspectRatio : null,
       downloaded: false,
       segmentCount: initialSegmentCount ?? undefined,
-      videoDuration: shouldGenerateVideo ? videoDuration : null
+      videoDuration: shouldGenerateVideo ? videoDuration : null,
+      isSegmented: Boolean(initialSegmentCount && initialSegmentCount > 1),
+      segmentStatus: null,
+      segmentPlan: null,
+      segments: null,
+      awaitingMerge: false,
+      mergeTaskId: null,
+      mergeLoading: false
     };
 
     setGenerations(prev => [newGeneration, ...prev]);
@@ -1026,6 +1177,33 @@ export default function StandardAdsPage() {
                         </section>
                       </blockquote>
                     }
+                    expandedGenerationId={expandedGenerationId}
+                    onToggleSegments={(generation) => {
+                      setExpandedGenerationId(prev => prev === generation.id ? null : generation.id);
+                    }}
+                    onSegmentSelect={(generation, segment) => {
+                      const projectId = (generation as SessionGeneration).projectId;
+                      if (!projectId) return;
+                      setSegmentInspector({
+                        projectId,
+                        generationId: generation.id,
+                        segmentIndex: segment.index
+                      });
+                    }}
+                    onMerge={(generation) => {
+                      const projectId = (generation as SessionGeneration).projectId;
+                      if (!projectId) {
+                        showError('Project not ready for merge yet.');
+                        return;
+                      }
+                      const videosReady = generation.segmentStatus?.videosReady || 0;
+                      const total = generation.segmentStatus?.total || generation.segmentCount || 0;
+                      if (videosReady !== total || total === 0) {
+                        showError('Segments are still rendering. Please wait until all videos are ready.');
+                        return;
+                      }
+                      handleMergeProject(projectId);
+                    }}
                   />
                 </div>
               </div>
@@ -1168,11 +1346,27 @@ export default function StandardAdsPage() {
             </div>
           </div>
         </div>
-      </div>
     </div>
+  </div>
+
+    {segmentInspector && inspectorContext && (
+      <SegmentInspector
+        open
+        onClose={() => setSegmentInspector(null)}
+        projectId={segmentInspector.projectId}
+        segmentIndex={segmentInspector.segmentIndex}
+        segment={inspectorContext.segment}
+        segmentPlanEntry={inspectorContext.planEntry}
+        videoModel={inspectorContext.generation.videoModel}
+        videoDuration={inspectorContext.generation.videoDuration}
+        videoAspectRatio={inspectorContext.generation.videoAspectRatio}
+        onRegenerate={handleSegmentRegenerate}
+        isSubmitting={segmentInspectorSubmitting}
+      />
+    )}
 
     {/* Competitor Ad Selector - Shows above composer when brand is selected */}
-    {selectedBrand && (
+  {selectedBrand && (
       <div className="fixed bottom-[108px] left-0 right-0 md:left-72 px-4 sm:px-8 lg:px-10">
         <div className="max-w-7xl mx-auto">
           <CompetitorAdSelector
@@ -1248,4 +1442,24 @@ export default function StandardAdsPage() {
     )}
     </>
   );
+}
+
+function composeSegmentPromptUpdate(
+  payload: SegmentPromptPayload,
+  current?: Partial<SegmentPrompt>
+): Partial<SegmentPrompt> {
+  return {
+    ...current,
+    first_frame_description: payload.first_frame_description,
+    action: payload.video.action,
+    subject: payload.video.subject,
+    style: payload.video.style,
+    dialogue: payload.video.dialogue,
+    audio: payload.video.audio,
+    composition: payload.video.composition,
+    context_environment: payload.video.context_environment,
+    camera_motion_positioning: payload.video.camera_motion_positioning,
+    ambiance_colour_lighting: payload.video.ambiance_colour_lighting,
+    language: payload.video.language
+  };
 }

@@ -40,6 +40,42 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
+    let segments: Array<{
+      index: number;
+      status: string;
+      firstFrameUrl: string | null;
+      closingFrameUrl: string | null;
+      videoUrl: string | null;
+      prompt: Record<string, unknown> | null;
+      updatedAt: string | null;
+    }> | null = null;
+
+    if (record.is_segmented) {
+      const { data: segmentRows, error: segmentError } = await supabase
+        .from('standard_ads_segments')
+        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,prompt,updated_at')
+        .eq('project_id', record.id)
+        .order('segment_index', { ascending: true });
+
+      if (segmentError) {
+        console.error('Error fetching project segments:', segmentError);
+      } else if (Array.isArray(segmentRows)) {
+        segments = segmentRows.map(row => ({
+          index: row.segment_index,
+          status: row.status,
+          firstFrameUrl: row.first_frame_url,
+          closingFrameUrl: row.closing_frame_url,
+          videoUrl: row.video_url,
+          prompt: (row.prompt as Record<string, unknown> | null) ?? null,
+          updatedAt: row.updated_at
+        }));
+      }
+    }
+
+    const segmentStatus = record.is_segmented
+      ? (record.segment_status as Record<string, unknown> | null) || buildSegmentStatusFallback(segments)
+      : null;
+
     const response = {
       success: true,
       workflowStatus: record.status,
@@ -63,6 +99,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         segmentCount: record.segment_count || null,
         segmentDurationSeconds: record.segment_duration_seconds || null,
         isSegmented: record.is_segmented || false,
+        videoAspectRatio: record.video_aspect_ratio || null,
+        segmentStatus,
+        segmentPlan: record.segment_plan || null,
+        segments,
+        awaitingMerge: record.current_step === 'awaiting_merge',
+        mergeTaskId: record.fal_merge_task_id || null,
         videoQuality: record.video_quality || null,
         downloaded: record.downloaded || false,
         downloadCreditsUsed: record.download_credits_used || 0,
@@ -90,4 +132,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       { status: 500 }
     );
   }
+}
+
+function buildSegmentStatusFallback(
+  segments: Array<{
+    index: number;
+    status: string;
+    firstFrameUrl: string | null;
+    closingFrameUrl: string | null;
+    videoUrl: string | null;
+  }> | null
+) {
+  if (!segments?.length) return null;
+  const total = segments.length;
+  const framesReady = segments.filter(seg => !!seg.firstFrameUrl).length;
+  const videosReady = segments.filter(seg => !!seg.videoUrl).length;
+
+  return {
+    total,
+    framesReady,
+    videosReady,
+    segments: segments.map(seg => ({
+      index: seg.index,
+      status: seg.status,
+      firstFrameUrl: seg.firstFrameUrl,
+      closingFrameUrl: seg.closingFrameUrl,
+      videoUrl: seg.videoUrl
+    }))
+  };
 }
