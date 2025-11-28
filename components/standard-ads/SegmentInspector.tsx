@@ -312,9 +312,6 @@ export default function SegmentInspector({
       <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-7xl p-6 lg:p-8 space-y-6">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide text-gray-500">
-              Project {projectId} · Segment {segmentIndex + 1}
-            </p>
             <h2 className="text-2xl font-semibold text-gray-900">
               {getSegmentTitle(normalizedPrompt, segmentIndex)}
             </h2>
