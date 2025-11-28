@@ -31,6 +31,7 @@ export interface Generation {
   coverUrl?: string;
   platform?: string;
   brand?: string;
+  brandId?: string | null;
   product?: string;
   error?: string;
   videoModel?: VideoModel;
@@ -56,6 +57,7 @@ export interface SegmentCardSummary {
   videoUrl?: string | null;
   prompt?: Record<string, unknown> | null;
   updatedAt?: string | null;
+  errorMessage?: string | null;
 }
 
 interface EmptyStateStep {
@@ -85,7 +87,6 @@ const DEFAULT_STEPS: EmptyStateStep[] = [
 interface GenerationProgressDisplayProps {
   generations: Generation[];
   onDownload?: (generation: Generation) => void;
-  onRetry?: (generation: Generation) => void;
   emptyStateSteps?: EmptyStateStep[];
   emptyStateRightContent?: React.ReactNode;
   expandedGenerationId?: string | null;
@@ -97,7 +98,6 @@ interface GenerationProgressDisplayProps {
 export default function GenerationProgressDisplay({
   generations,
   onDownload,
-  onRetry,
   emptyStateSteps,
   emptyStateRightContent,
   expandedGenerationId,
@@ -183,7 +183,6 @@ export default function GenerationProgressDisplay({
           key={generation.id}
           generation={generation}
           onDownload={onDownload}
-          onRetry={onRetry}
           expandedGenerationId={expandedGenerationId}
           onToggleSegments={onToggleSegments}
           onSegmentSelect={onSegmentSelect}
@@ -197,7 +196,6 @@ export default function GenerationProgressDisplay({
 interface GenerationCardProps {
   generation: Generation;
   onDownload?: (generation: Generation) => void;
-  onRetry?: (generation: Generation) => void;
   expandedGenerationId?: string | null;
   onToggleSegments?: (generation: Generation) => void;
   onSegmentSelect?: (generation: Generation, segment: SegmentCardSummary) => void;
@@ -207,7 +205,6 @@ interface GenerationCardProps {
 function GenerationCard({
   generation,
   onDownload,
-  onRetry,
   expandedGenerationId,
   onToggleSegments,
   onSegmentSelect,
@@ -239,14 +236,12 @@ function GenerationCard({
   const isExpanded = expandedGenerationId === generation.id;
   const videosReady = generation.segmentStatus?.videosReady ?? 0;
   const totalSegments = generation.segmentStatus?.total ?? generation.segmentCount ?? 0;
-  const awaitingUserMerge = generation.awaitingMerge !== false;
+  const awaitingUserMerge = generation.awaitingMerge === true;
   const mergedVideoUrl =
     generation.segmentStatus?.mergedVideoUrl ||
     (!awaitingUserMerge ? generation.videoUrl : undefined);
   const mergeComplete = Boolean(mergedVideoUrl);
-  const mergeInProgress = awaitingUserMerge
-    ? Boolean((generation.mergeTaskId && !mergeComplete) || generation.mergeLoading)
-    : !mergeComplete;
+  const mergeInProgress = Boolean((generation.mergeTaskId && !mergeComplete) || generation.mergeLoading);
   const canMerge = Boolean(
     awaitingUserMerge &&
     !mergeComplete &&
@@ -270,6 +265,14 @@ function GenerationCard({
     return `Download · ${downloadMetaLabel}`;
   }, [isDownloading, downloaded, downloadMetaLabel]);
 
+  const hasSegmentFailure = Boolean(
+    generation.segmentStatus?.segments?.some(seg => seg.status === 'failed')
+  );
+  const displayStatus: Generation['status'] | 'attention' =
+    hasSegmentFailure && status !== 'completed' ? 'attention' : status;
+  const displayStage = hasSegmentFailure ? 'Needs attention' : stage;
+  const errorMessage = generation.error;
+
   const handlePlay = () => {
     if (!videoUrl) return;
     setIsPlaying(true);
@@ -289,11 +292,13 @@ function GenerationCard({
   };
 
   const getStatusIcon = () => {
-    switch (status) {
+    switch (displayStatus) {
       case 'completed':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'failed':
         return <XCircle className="w-5 h-5 text-red-500" />;
+      case 'attention':
+        return <XCircle className="w-5 h-5 text-amber-500" />;
       case 'processing':
       case 'pending':
         return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
@@ -303,13 +308,15 @@ function GenerationCard({
   };
 
   const getStatusText = () => {
-    switch (status) {
+    switch (displayStatus) {
       case 'completed':
         return 'Completed';
       case 'failed':
         return 'Failed';
+      case 'attention':
+        return 'Needs attention';
       case 'processing':
-        return stage || 'Processing...';
+        return displayStage || 'Processing...';
       case 'pending':
         return 'Queued';
       default:
@@ -372,7 +379,7 @@ function GenerationCard({
         </div>
 
         {/* Progress bar for processing */}
-        {(status === 'processing' || status === 'pending') && (
+        {(displayStatus === 'processing' || displayStatus === 'pending' || displayStatus === 'attention') && (
           <div className="mb-3">
             <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
               <motion.div
@@ -388,10 +395,14 @@ function GenerationCard({
           </div>
         )}
 
-        {/* Error message */}
-        {status === 'failed' && error && (
+        {displayStatus === 'attention' && hasSegmentFailure && (
           <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
-            {error}
+            One or more segments failed. Open the segment cards below to adjust and regenerate.
+          </div>
+        )}
+        {displayStatus === 'failed' && errorMessage && (
+          <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+            {errorMessage}
           </div>
         )}
 
@@ -466,9 +477,16 @@ function GenerationCard({
               >
                 {mergeInProgress ? 'Merging…' : canMerge ? 'Merge Final Video' : 'Waiting for segments to finish'}
               </button>
-            ) : (
+            ) : mergeInProgress ? (
               <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
                 <span>Final video is merging. We’ll update you once it’s ready.</span>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                <div className="font-semibold">Segments still rendering</div>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Fine-tune each segment until you&apos;re ready to merge. ({videosReady}/{totalSegments || '–'} ready)
+                </p>
               </div>
             )}
           </div>
@@ -526,17 +544,6 @@ function GenerationCard({
           </div>
         )}
 
-        {/* Actions */}
-        {status === 'failed' && onRetry && (
-          <div className="flex items-center justify-end">
-            <button
-              onClick={() => onRetry(generation)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-full hover:bg-gray-800"
-            >
-              Retry
-            </button>
-          </div>
-        )}
       </div>
     </motion.div>
   );
@@ -640,6 +647,11 @@ function SegmentSummaryCard({ segment, onSelect }: { segment: SegmentCardSummary
         </div>
         <p className="text-xs text-gray-600 leading-relaxed">{summary}</p>
       </div>
+      {segment.status === 'failed' && (
+        <div className="mt-2 text-[11px] text-red-600">
+          {segment.errorMessage || 'Segment failed. Adjust the prompt and regenerate.'}
+        </div>
+      )}
       <button
         type="button"
         className="mt-3 inline-flex items-center text-[12px] font-semibold text-indigo-600 hover:text-indigo-500 disabled:text-gray-400 disabled:cursor-not-allowed"

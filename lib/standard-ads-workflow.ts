@@ -174,6 +174,7 @@ export interface SegmentStatusPayload {
     firstFrameUrl?: string | null;
     closingFrameUrl?: string | null;
     videoUrl?: string | null;
+    errorMessage?: string | null;
   }>;
   mergedVideoUrl?: string | null;
 }
@@ -647,8 +648,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel },
             productContext,
             competitorAdContext, // Pass competitor ad context for reference
-            brandLogoUrl, // NEW: Pass brand logo URL for brand-only shots
-            imageUrl // NEW: Pass product image URL (may be null if no product)
+            brandLogoUrl // NEW: Pass brand logo URL for brand-only shots
           );
         }
       } catch (workflowError) {
@@ -745,8 +745,7 @@ async function startAIWorkflow(
     language?: string | null;
     video_duration_seconds?: number | null;
   },
-  brandLogoUrl?: string | null, // NEW: Brand logo URL for brand-only shots
-  productImageUrl?: string | null // NEW: Product image URL (may be null if no product)
+  brandLogoUrl?: string | null // NEW: Brand logo URL for brand-only shots
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
@@ -941,8 +940,9 @@ async function startAIWorkflow(
         console.log(`✅ Using 1:1 shot-to-segment mapping (${segmentCount} shots)`);
       } else {
         console.log(
-          `🤖 Competitor has ${competitorTimelineShots.length} shots but user chose ${segmentCount} segments. AI will intelligently adapt the competitor's structure.`
+          `🤖 Competitor has ${competitorTimelineShots.length} shots but user chose ${segmentCount} segments. Compressing timeline to preserve full narrative.`
         );
+        shotPlanForSegments = compressCompetitorShotsToSegments(competitorTimelineShots, segmentCount);
       }
     }
 
@@ -956,7 +956,7 @@ async function startAIWorkflow(
         competitorDescription,
         shotPlanForSegments,
         brandLogoUrl, // NEW: Pass brand logo URL
-        productImageUrl, // NEW: Pass product image URL
+        request.imageUrl ? [request.imageUrl] : null, // Provide initial product reference if available
         productContext // NEW: Pass product context for fallback text generation
       );
       return;
@@ -2030,7 +2030,7 @@ async function startSegmentedWorkflow(
   competitorDescription?: Record<string, unknown>, // Competitor analysis
   competitorShots?: CompetitorShot[],
   brandLogoUrl?: string | null, // NEW: Brand logo URL for brand shots
-  productImageUrl?: string | null, // NEW: Product image URL for product shots
+  productImageUrls?: string[] | null, // UPDATED: Multiple product image URLs for product shots
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string } // NEW: For text fallback
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
@@ -2080,7 +2080,7 @@ async function startSegmentedWorkflow(
       'first',
       aspectRatio,
       brandLogoUrl || null,
-      productImageUrl || null,
+      productImageUrls || null,
       productContext
     );
 
@@ -2110,7 +2110,7 @@ async function startSegmentedWorkflow(
         'closing',
         aspectRatio,
         brandLogoUrl || null,
-        productImageUrl || null,
+        productImageUrls || null,
         productContext
       );
 
@@ -2199,6 +2199,75 @@ export function normalizeSegmentPrompts(
   return normalized;
 }
 
+function compressCompetitorShotsToSegments(shots: CompetitorShot[], segmentCount: number): CompetitorShot[] {
+  if (segmentCount <= 0 || shots.length === 0) {
+    return [];
+  }
+
+  if (segmentCount === shots.length) {
+    return shots;
+  }
+
+  const buckets: CompetitorShot[][] = Array.from({ length: segmentCount }, () => []);
+  const totalShots = shots.length;
+
+  for (let i = 0; i < segmentCount; i++) {
+    const startRatio = i / segmentCount;
+    const endRatio = (i + 1) / segmentCount;
+    const startIndex = Math.floor(startRatio * totalShots);
+    const endIndex = Math.max(startIndex + 1, Math.floor(endRatio * totalShots));
+    let slice = shots.slice(startIndex, Math.min(endIndex, totalShots));
+
+    if (slice.length === 0) {
+      const fallbackIndex = Math.min(startIndex, totalShots - 1);
+      slice = [shots[Math.max(0, fallbackIndex)]];
+    }
+
+    buckets[i] = slice;
+  }
+
+  return buckets.map((group, index) => mergeShotGroup(group, index));
+}
+
+function mergeShotGroup(shots: CompetitorShot[], segmentIndex: number): CompetitorShot {
+  const first = shots[0];
+  const last = shots[shots.length - 1] || first;
+
+  const joinText = (values: Array<string | undefined>) => {
+    const sanitized = values
+      .map(value => (value || '').trim())
+      .filter(Boolean);
+    if (sanitized.length === 0) return '';
+    // Use sentence-like spacing when combining multiple clips
+    return sanitized.join('\n\n');
+  };
+
+  const durationSeconds = Math.max(
+    1,
+    Math.round((last.endTimeSeconds ?? 0) - (first.startTimeSeconds ?? 0)) || shots.reduce((sum, shot) => sum + (shot.durationSeconds || 0), 0)
+  );
+
+  return {
+    id: segmentIndex + 1,
+    startTime: first.startTime,
+    endTime: last.endTime,
+    durationSeconds,
+    firstFrameDescription: joinText(shots.map(shot => shot.firstFrameDescription)),
+    subject: joinText(shots.map(shot => shot.subject)),
+    contextEnvironment: joinText(shots.map(shot => shot.contextEnvironment)),
+    action: joinText(shots.map(shot => shot.action)),
+    style: joinText(shots.map(shot => shot.style)),
+    cameraMotionPositioning: joinText(shots.map(shot => shot.cameraMotionPositioning)),
+    composition: joinText(shots.map(shot => shot.composition)),
+    ambianceColourLighting: joinText(shots.map(shot => shot.ambianceColourLighting)),
+    audio: joinText(shots.map(shot => shot.audio)),
+    startTimeSeconds: first.startTimeSeconds,
+    endTimeSeconds: last.endTimeSeconds,
+    containsBrand: shots.some(shot => shot.containsBrand),
+    containsProduct: shots.some(shot => shot.containsProduct)
+  };
+}
+
 function resolveFrameDescription(segmentPrompt: SegmentPrompt, frameType: 'first' | 'closing'): string {
   const derived = deriveSegmentDetails(segmentPrompt);
   if (frameType === 'first') {
@@ -2244,7 +2313,8 @@ export function buildSegmentStatusPayload(
       status: seg.status,
       firstFrameUrl: seg.first_frame_url,
       closingFrameUrl: seg.closing_frame_url,
-      videoUrl: seg.video_url
+      videoUrl: seg.video_url,
+      errorMessage: (seg as { error_message?: string | null }).error_message || null
     })),
     mergedVideoUrl
   };
@@ -2323,7 +2393,7 @@ Technical Requirements:
  * Used for shots that contain brand logo or product
  */
 async function createFrameFromImage(
-  referenceImageUrl: string,
+  referenceImageUrls: string[],
   segmentPrompt: SegmentPrompt,
   segmentIndex: number,
   frameType: 'first' | 'closing',
@@ -2331,6 +2401,12 @@ async function createFrameFromImage(
   isBrandShot: boolean,
   competitorFileType?: 'video' | 'image' | null
 ): Promise<string> {
+  const sanitizedReferences = (referenceImageUrls || []).filter(Boolean);
+  if (sanitizedReferences.length === 0) {
+    throw new Error('No reference images provided for frame generation');
+  }
+  const limitedReferences = sanitizedReferences.slice(0, 10);
+
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
 
@@ -2377,8 +2453,8 @@ Render Instructions:
       model: imageModel,
       input: {
         prompt,
-        image_urls: [referenceImageUrl], // Image-to-Image mode
-        image_input: [referenceImageUrl],
+        image_urls: limitedReferences, // Image-to-Image mode
+        image_input: limitedReferences,
         image_size: aspectRatio,
         output_format: 'png'
       }
@@ -2410,7 +2486,7 @@ async function createSegmentFrameTask(
 ): Promise<string> {
   // Default to product image for backward compatibility
   return createFrameFromImage(
-    request.imageUrl,
+    [request.imageUrl],
     segmentPrompt,
     segmentIndex,
     frameType,
@@ -2430,22 +2506,25 @@ export async function createSmartSegmentFrame(
   frameType: 'first' | 'closing',
   aspectRatio: '16:9' | '9:16',
   brandLogoUrl: string | null,
-  productImageUrl: string | null,
+  productImageUrls: string[] | null,
   brandContext?: { brand_name: string; brand_slogan: string; brand_details: string },
   competitorFileType?: 'video' | 'image' | null
 ): Promise<string> {
   const containsBrand = segmentPrompt.contains_brand === true;
   const containsProduct = segmentPrompt.contains_product === true;
+  const normalizedProductImages = Array.isArray(productImageUrls)
+    ? productImageUrls.filter(url => typeof url === 'string' && url.length > 0)
+    : [];
 
   console.log(`🎬 Segment ${segmentIndex + 1} ${frameType} frame generation:`);
   console.log(`   - contains_brand: ${containsBrand}, brandLogoUrl: ${brandLogoUrl ? 'available' : 'missing'}`);
-  console.log(`   - contains_product: ${containsProduct}, productImageUrl: ${productImageUrl ? 'available' : 'missing'}`);
+  console.log(`   - contains_product: ${containsProduct}, productImageRefs: ${normalizedProductImages.length}`);
 
   // Priority 1: Brand shots use brand logo (if available)
   if (containsBrand && brandLogoUrl) {
     console.log(`   ✅ Using Image-to-Image with brand logo`);
     return createFrameFromImage(
-      brandLogoUrl,
+      [brandLogoUrl],
       segmentPrompt,
       segmentIndex,
       frameType,
@@ -2456,10 +2535,10 @@ export async function createSmartSegmentFrame(
   }
 
   // Priority 2: Product shots use product image (if available)
-  if (containsProduct && productImageUrl) {
+  if (containsProduct && normalizedProductImages.length > 0) {
     console.log(`   ✅ Using Image-to-Image with product image`);
     return createFrameFromImage(
-      productImageUrl,
+      normalizedProductImages,
       segmentPrompt,
       segmentIndex,
       frameType,
@@ -2475,7 +2554,7 @@ export async function createSmartSegmentFrame(
     console.log(`   ✅ Using Text-to-Image (pure scene shot)`);
   } else if (containsBrand && !brandLogoUrl) {
     console.warn(`   ⚠️  Brand shot detected but no logo available, falling back to Text-to-Image`);
-  } else if (containsProduct && !productImageUrl) {
+  } else if (containsProduct && normalizedProductImages.length === 0) {
     console.warn(`   ⚠️  Product shot detected but no product image available, falling back to Text-to-Image`);
   }
 

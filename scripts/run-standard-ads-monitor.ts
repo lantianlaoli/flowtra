@@ -1,3 +1,4 @@
+import { NextRequest } from 'next/server';
 import { POST as runStandardAdsMonitor } from '@/app/api/standard-ads/monitor-tasks/route';
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -35,7 +36,11 @@ loadEnvFile('.env');
 loadEnvFile('.env.local');
 
 async function main() {
-  const response = await runStandardAdsMonitor();
+  const request = new NextRequest('http://localhost/api/standard-ads/monitor-tasks', {
+    method: 'POST',
+    body: null
+  });
+  const response = await runStandardAdsMonitor(request);
   const result = await response.json();
 
   // eslint-disable-next-line no-console

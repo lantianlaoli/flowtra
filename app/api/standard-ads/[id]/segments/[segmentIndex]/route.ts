@@ -15,7 +15,10 @@ import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/cred
 type PatchPayload = {
   prompt?: Partial<SegmentPrompt>;
   regenerate?: 'photo' | 'video' | 'both' | 'none';
+  productIds?: string[];
 };
+
+const PRODUCT_REFERENCE_LIMIT = 10;
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string; segmentIndex: string }> }) {
   let projectUserId: string | null = null;
@@ -39,6 +42,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const regenerate = payload.regenerate || 'none';
     const shouldRegeneratePhoto = regenerate === 'photo' || regenerate === 'both';
     const shouldRegenerateVideo = regenerate === 'video' || regenerate === 'both';
+    const requestedProductIds = Array.isArray(payload.productIds)
+      ? Array.from(
+          new Set(
+            payload.productIds
+              .map(id => (typeof id === 'string' ? id.trim() : ''))
+              .filter(id => id.length > 0)
+          )
+        ).slice(0, PRODUCT_REFERENCE_LIMIT)
+      : [];
 
     const supabase = getSupabaseAdmin();
     const { data: project, error: projectError } = await supabase
@@ -104,7 +116,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     };
 
     let brandLogoUrl: string | null = null;
-    let productImageUrl: string | null = null;
+    const productImageUrls: string[] = [];
+    const addProductPhotoUrl = (url?: string | null) => {
+      if (!url || productImageUrls.length >= PRODUCT_REFERENCE_LIMIT) {
+        return;
+      }
+      if (!productImageUrls.includes(url)) {
+        productImageUrls.push(url);
+      }
+    };
     let brandContext: { brand_name: string; brand_slogan: string; brand_details: string } | undefined;
     let competitorFileType: 'video' | 'image' | null = null;
 
@@ -153,7 +173,30 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
-      if (project.selected_product_id) {
+      if (requestedProductIds.length > 0) {
+        const { data: requestedProducts } = await supabase
+          .from('user_products')
+          .select('id,user_id,user_product_photos(photo_url,is_primary)')
+          .in('id', requestedProductIds)
+          .eq('user_id', project.user_id);
+
+        if (requestedProducts?.length) {
+          const map = new Map<string, { user_product_photos?: Array<{ photo_url: string; is_primary?: boolean }> }>();
+          requestedProducts.forEach(product => {
+            map.set(product.id, product);
+          });
+
+          requestedProductIds.forEach(productId => {
+            const match = map.get(productId);
+            if (!match?.user_product_photos?.length) return;
+            const primary = match.user_product_photos.find(photo => photo.is_primary);
+            const fallback = match.user_product_photos[0];
+            addProductPhotoUrl(primary?.photo_url || fallback?.photo_url || null);
+          });
+        }
+      }
+
+      if (!productImageUrls.length && project.selected_product_id) {
         const { data: product } = await supabase
           .from('user_products')
           .select('user_product_photos(photo_url,is_primary)')
@@ -162,7 +205,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         if (product?.user_product_photos?.length) {
           const primary = product.user_product_photos.find((photo: { is_primary?: boolean }) => photo.is_primary);
           const fallback = product.user_product_photos[0];
-          productImageUrl = primary?.photo_url || fallback?.photo_url || null;
+          addProductPhotoUrl(primary?.photo_url || fallback?.photo_url || null);
         }
       }
 
@@ -193,7 +236,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         'first',
         aspectRatio,
         brandLogoUrl,
-        productImageUrl,
+        productImageUrls.length ? productImageUrls : null,
         brandContext,
         competitorFileType
       );
@@ -211,7 +254,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           'closing',
           aspectRatio,
           brandLogoUrl,
-          productImageUrl,
+          productImageUrls.length ? productImageUrls : null,
           brandContext,
           competitorFileType
         );

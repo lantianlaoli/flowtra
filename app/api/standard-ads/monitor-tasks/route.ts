@@ -1,34 +1,61 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import { startSegmentVideoTask, buildSegmentStatusPayload, createSmartSegmentFrame, deriveSegmentDetails, type SegmentPrompt } from '@/lib/standard-ads-workflow';
-import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
+import { checkFalTaskStatus } from '@/lib/video-merge';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    let targetProjectId: string | null = null;
+    try {
+      const body = await request.json();
+      if (body && typeof body.projectId === 'string') {
+        targetProjectId = body.projectId;
+      }
+    } catch {
+      // No body – treat as bulk run
+    }
+
     console.log('Starting standard ads task monitoring...');
 
     // Find records that need monitoring
     const supabase = getSupabaseAdmin();
-    const { data: records, error } = await supabase
-      .from('standard_ads_projects')
-      .select('*')
-      .in('status', ['processing', 'generating_cover', 'generating_video'])
-      .or(
-        // Include any of these conditions:
-        'cover_task_id.not.is.null,' +           // Has cover task
-        'use_custom_script.eq.true,' +           // Custom script mode
-        'current_step.eq.ready_for_video,' +    // Ready for video
-        'is_segmented.eq.true,' +                // Segmented workflow
-        'current_step.eq.generating_cover'       // Generating cover (even if task_id is null - might be stuck)
-      )
-      .order('last_processed_at', { ascending: true, nullsFirst: true }) // Process new records (null last_processed_at) first
-      .limit(20); // Process max 20 records per run
+    let records: HistoryRecord[] | null = null;
 
-    if (error) {
-      console.error('Error fetching records:', error);
-      return NextResponse.json({ error: 'Database query failed' }, { status: 500 });
+    if (targetProjectId) {
+      const { data: project, error } = await supabase
+        .from('standard_ads_projects')
+        .select('*')
+        .eq('id', targetProjectId)
+        .single();
+
+      if (error) {
+        console.error(`Error fetching project ${targetProjectId}:`, error);
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+      records = project ? [project as HistoryRecord] : [];
+    } else {
+      const { data, error } = await supabase
+        .from('standard_ads_projects')
+        .select('*')
+        .in('status', ['processing', 'generating_cover', 'generating_video', 'failed'])
+        .or(
+          'cover_task_id.not.is.null,' +
+          'use_custom_script.eq.true,' +
+          'current_step.eq.ready_for_video,' +
+          'is_segmented.eq.true,' +
+          'current_step.eq.generating_cover'
+        )
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error fetching records:', error);
+        return NextResponse.json({ error: 'Database query failed' }, { status: 500 });
+      }
+
+      records = data as HistoryRecord[] | null;
     }
 
     console.log(`Found ${records?.length || 0} records to monitor`);
@@ -173,9 +200,38 @@ interface HistoryRecord {
   retry_count?: number; // Number of automatic retries for server errors
 }
 
+const MAX_WORKFLOW_AGE_MINUTES = 30;
+
 async function processRecord(record: HistoryRecord) {
   const supabase = getSupabaseAdmin();
   console.log(`Processing record ${record.id}, step: ${record.current_step}, status: ${record.status}`);
+
+  if (record.status === 'completed') {
+    return;
+  }
+
+  const createdAt = new Date(record.created_at);
+  const workflowAgeMinutes = (Date.now() - createdAt.getTime()) / (1000 * 60);
+
+  if (workflowAgeMinutes > MAX_WORKFLOW_AGE_MINUTES) {
+    console.warn(`⏱️ Record ${record.id} exceeded ${MAX_WORKFLOW_AGE_MINUTES} minutes since creation, marking as failed`);
+
+    const { error: timeoutErr } = await supabase
+      .from('standard_ads_projects')
+      .update({
+        status: 'failed',
+        error_message: 'Workflow timeout: exceeded 30 minutes since creation',
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', record.id);
+
+    if (timeoutErr) {
+      console.error(`Failed to mark record ${record.id} as timed-out failed:`, timeoutErr);
+      throw new Error(`DB update failed for timeout record ${record.id}`);
+    }
+
+    return;
+  }
 
   if (record.is_segmented) {
     await processSegmentedRecord(record, supabase);
@@ -375,6 +431,25 @@ async function processRecord(record: HistoryRecord) {
 async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnType<typeof getSupabaseAdmin>) {
   let segments = await fetchSegments(record.id, supabase);
 
+  if (!segments.length && record.is_segmented) {
+    console.warn(`⚠️ Project ${record.id} has no segment rows despite segmented workflow. Attempting auto-recovery…`);
+    segments = await reinitializeMissingSegments(record, supabase);
+    if (!segments.length) {
+      console.error(`❌ Failed to reinitialize segments for project ${record.id}. Marking as failed.`);
+      await supabase
+        .from('standard_ads_projects')
+        .update({
+          status: 'failed',
+          error_message: 'Failed to initialize segment tasks. Please restart this generation.',
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
+      return;
+    }
+  }
+
+  await ensureProjectInProgress(record, segments, supabase);
+
   // Query competitor file type if competitor ad is selected
   let competitorFileType: 'video' | 'image' | null = null;
   if (record.competitor_ad_id) {
@@ -525,16 +600,26 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
             })
             .eq('id', segment.id);
 
+          segment.status = 'failed';
+          segment.video_url = null;
+          segment.video_task_id = null;
+
+          const failureStatus = buildSegmentStatusPayload(segments);
+          const failureMessage = videoResult.errorMessage || 'Segment video generation failed';
+
           await supabase
             .from('standard_ads_projects')
             .update({
-              status: 'failed',
-              error_message: videoResult.errorMessage || 'Segment video generation failed',
+              status: 'processing',
+              current_step: 'generating_segment_videos',
+              error_message: failureMessage,
+              segment_status: failureStatus,
               last_processed_at: new Date().toISOString()
             })
             .eq('id', record.id);
 
-          throw new Error(`Segment ${segment.segment_index} video failed: ${videoResult.errorMessage || 'unknown error'}`);
+          console.error(`❌ Segment ${segment.segment_index} video failed: ${failureMessage}`);
+          continue;
         }
       }
     }
@@ -636,6 +721,108 @@ async function fetchSegments(projectId: string, supabase: ReturnType<typeof getS
   }
 
   return (data || []) as StandardAdsSegment[];
+}
+
+async function reinitializeMissingSegments(
+  record: HistoryRecord,
+  supabase: ReturnType<typeof getSupabaseAdmin>
+): Promise<StandardAdsSegment[]> {
+  const planSegments = (record.segment_plan as { segments?: SegmentPrompt[] } | null)?.segments;
+  let promptSegments =
+    (Array.isArray(planSegments) && planSegments.length > 0
+      ? planSegments
+      : ((record.video_prompts as { segments?: SegmentPrompt[] } | null)?.segments ?? [])) || [];
+
+  let segmentCount = record.segment_count && record.segment_count > 0
+    ? record.segment_count
+    : promptSegments.length;
+  if (!segmentCount || segmentCount < 1) {
+    segmentCount = Math.max(1, promptSegments.length || 1);
+  }
+
+  if (!promptSegments.length) {
+    console.warn(`⚠️ No stored prompt segments for project ${record.id}. Generating defaults for ${segmentCount} segments.`);
+    promptSegments = Array.from({ length: segmentCount }, (_, index) => getSegmentPrompt(record, index));
+  } else if (promptSegments.length < segmentCount) {
+    const fallbackPrompt = promptSegments[promptSegments.length - 1] || getSegmentPrompt(record, promptSegments.length - 1);
+    while (promptSegments.length < segmentCount) {
+      promptSegments.push({ ...fallbackPrompt, index: promptSegments.length + 1 });
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  const rows = Array.from({ length: segmentCount }, (_, index) => {
+    const prompt =
+      promptSegments[index] ||
+      promptSegments[promptSegments.length - 1] ||
+      ({} as SegmentPrompt);
+    return {
+      project_id: record.id,
+      segment_index: index,
+      status: 'pending_first_frame',
+      prompt,
+      created_at: now,
+      updated_at: now
+    };
+  });
+
+  const { data, error } = await supabase
+    .from('standard_ads_segments')
+    .insert(rows)
+    .select('*');
+
+  if (error || !data) {
+    console.error(`❌ Failed to insert missing segments for project ${record.id}:`, error);
+    return [];
+  }
+
+  const insertedSegments = data as StandardAdsSegment[];
+  await supabase
+    .from('standard_ads_projects')
+    .update({
+      segment_status: buildSegmentStatusPayload(insertedSegments),
+      last_processed_at: now
+    })
+    .eq('id', record.id);
+
+  console.log(`✅ Rebuilt ${insertedSegments.length} missing segments for project ${record.id}`);
+  return insertedSegments;
+}
+
+async function ensureProjectInProgress(
+  record: HistoryRecord,
+  segments: StandardAdsSegment[],
+  supabase: ReturnType<typeof getSupabaseAdmin>
+) {
+  if (record.status !== 'failed') return;
+  const hasSuccessfulVideo = segments.some(seg => !!seg.video_url);
+  const hasPendingSegments = segments.some(seg => seg.status !== 'failed');
+
+  if (!hasSuccessfulVideo && !hasPendingSegments) {
+    // All segments failed with no successes – keep failed status.
+    return;
+  }
+
+  const updatePayload = {
+    status: 'processing',
+    current_step: 'generating_segment_videos',
+    last_processed_at: new Date().toISOString()
+  } as const;
+
+  const { error } = await supabase
+    .from('standard_ads_projects')
+    .update(updatePayload)
+    .eq('id', record.id);
+
+  if (error) {
+    console.error(`❌ Failed to reset project ${record.id} to processing:`, error);
+    return;
+  }
+
+  record.status = 'processing';
+  record.current_step = 'generating_segment_videos';
+  console.log(`🔄 Project ${record.id} recovered from failed status (segments still running).`);
 }
 
 async function syncSegmentFrameTasks(

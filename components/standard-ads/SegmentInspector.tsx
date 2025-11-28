@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { X, Image as ImageIcon, Video as VideoIcon, Loader2 } from 'lucide-react';
+import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check } from 'lucide-react';
 import type { SegmentPrompt } from '@/lib/standard-ads-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
@@ -56,6 +56,13 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
 ];
 
 const DEFAULT_LANGUAGE: LanguageCode = 'en';
+const MAX_REFERENCE_PRODUCTS = 10;
+
+type BrandProduct = {
+  id: string;
+  product_name: string;
+  user_product_photos?: Array<{ photo_url: string; is_primary?: boolean }>;
+};
 
 type SegmentInspectorProps = {
   open: boolean;
@@ -67,9 +74,12 @@ type SegmentInspectorProps = {
   videoModel?: string;
   videoDuration?: string | null;
   videoAspectRatio?: '16:9' | '9:16' | string | null;
+  brandId?: string | null;
+  brandName?: string | null;
   onRegenerate?: (options: {
     type: 'photo' | 'video';
     prompt: SegmentPromptPayload;
+    productIds?: string[];
   }) => Promise<void> | void;
   isSubmitting?: { photo: boolean; video: boolean };
 };
@@ -89,6 +99,8 @@ export default function SegmentInspector({
   videoModel,
   videoDuration,
   videoAspectRatio,
+  brandId,
+  brandName,
   onRegenerate,
   isSubmitting,
 }: SegmentInspectorProps) {
@@ -113,6 +125,10 @@ export default function SegmentInspector({
   const [videoFocusedField, setVideoFocusedField] = useState<keyof EditableVideoPrompt | null>(null);
   const [photoPreviewPending, setPhotoPreviewPending] = useState(false);
   const [videoPreviewPending, setVideoPreviewPending] = useState(false);
+  const [productOptions, setProductOptions] = useState<BrandProduct[]>([]);
+  const [productLoading, setProductLoading] = useState(false);
+  const [productError, setProductError] = useState<string | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const firstFrameUrl = segment?.firstFrameUrl || null;
   const videoUrl = segment?.videoUrl || null;
   const lastFirstFrameUrlRef = useRef<string | null>(firstFrameUrl);
@@ -131,6 +147,58 @@ export default function SegmentInspector({
     setPhotoPrompt(initialPhotoPrompt);
     setVideoPrompt(initialVideoPrompt);
   }, [initialPhotoPrompt, initialVideoPrompt, promptSeedSignature]);
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedProductIds([]);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    setSelectedProductIds([]);
+  }, [brandId]);
+
+  useEffect(() => {
+    if (!open || !brandId) {
+      setProductOptions([]);
+      setProductError(brandId ? null : 'Link this project to a brand to unlock product references.');
+      setProductLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+    setProductLoading(true);
+    setProductError(null);
+
+    fetch(`/api/brands/${brandId}/products`, { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) {
+          throw new Error('Failed to load products');
+        }
+        const data = await response.json();
+        if (cancelled) return;
+        const items: BrandProduct[] = Array.isArray(data?.products) ? data.products : [];
+        setProductOptions(items);
+        setSelectedProductIds(prev => prev.filter(id => items.some(item => item.id === id)));
+      })
+      .catch(error => {
+        if (controller.signal.aborted || cancelled) return;
+        console.error('Failed to fetch brand products:', error);
+        setProductOptions([]);
+        setProductError('Unable to load products for this brand.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setProductLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [open, brandId]);
 
   const photoChanged = photoPrompt.trim() !== initialPhotoPrompt.trim();
   const videoChanged = !areVideoPromptsEqual(videoPrompt, initialVideoPrompt);
@@ -159,6 +227,30 @@ export default function SegmentInspector({
   const showVideoSkeleton = videoPreviewPending || isGeneratingVideo;
   const submittingPhoto = isSubmitting?.photo ?? false;
   const submittingVideo = isSubmitting?.video ?? false;
+  const selectedProductCount = selectedProductIds.length;
+  const productSelectionLimitReached = selectedProductCount >= MAX_REFERENCE_PRODUCTS;
+
+  const getProductPhotoUrl = (product?: BrandProduct | null) => {
+    if (!product?.user_product_photos?.length) return null;
+    const primary = product.user_product_photos.find(photo => photo.is_primary);
+    return primary?.photo_url || product.user_product_photos[0]?.photo_url || null;
+  };
+
+  const handleProductToggle = (product: BrandProduct) => {
+    const hasPhoto = Boolean(getProductPhotoUrl(product));
+    if (!hasPhoto) {
+      return;
+    }
+    setSelectedProductIds(prev => {
+      if (prev.includes(product.id)) {
+        return prev.filter(id => id !== product.id);
+      }
+      if (prev.length >= MAX_REFERENCE_PRODUCTS) {
+        return prev;
+      }
+      return [...prev, product.id];
+    });
+  };
 
   useEffect(() => {
     if (firstFrameUrl && firstFrameUrl !== lastFirstFrameUrlRef.current) {
@@ -186,12 +278,13 @@ export default function SegmentInspector({
       first_frame_description: photoPrompt,
       video: videoPrompt
     };
+    const referenceProductIds = type === 'photo' && selectedProductIds.length ? selectedProductIds : undefined;
     if (type === 'photo') {
       setPhotoPreviewPending(true);
     } else {
       setVideoPreviewPending(true);
     }
-    const maybePromise = onRegenerate({ type, prompt: payload });
+    const maybePromise = onRegenerate({ type, prompt: payload, productIds: referenceProductIds });
     if (
       type === 'photo' &&
       maybePromise &&
@@ -332,6 +425,84 @@ export default function SegmentInspector({
               {photoPromptTooLong && (
                 <p className="text-xs text-red-600">Photo prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
               )}
+              <div className="pt-3 border-t border-dashed border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Product references</p>
+                    <p className="text-xs text-gray-500">
+                      Optional · Select up to {MAX_REFERENCE_PRODUCTS} product photos from {brandName || 'this brand'} to guide the next keyframe.
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {selectedProductCount}/{MAX_REFERENCE_PRODUCTS}
+                  </span>
+                </div>
+                {!brandId ? (
+                  <p className="text-xs text-gray-500">
+                    Link this project to a brand to enable product references.
+                  </p>
+                ) : productLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading products…
+                  </div>
+                ) : productError ? (
+                  <p className="text-xs text-red-600">{productError}</p>
+                ) : productOptions.length === 0 ? (
+                  <p className="text-xs text-gray-500">
+                    No products with photos found for this brand yet.
+                  </p>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {productOptions.map(product => {
+                      const photoUrl = getProductPhotoUrl(product);
+                      const isSelected = selectedProductIds.includes(product.id);
+                      const disabled = (!photoUrl && !isSelected) || (!isSelected && productSelectionLimitReached);
+
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => handleProductToggle(product)}
+                          disabled={disabled}
+                          className={clsx(
+                            'relative flex items-center gap-3 rounded-2xl border px-3 py-2 text-left transition',
+                            isSelected ? 'border-gray-900 shadow-sm' : 'border-gray-200 hover:border-gray-300',
+                            disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer bg-white'
+                          )}
+                        >
+                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
+                            {photoUrl ? (
+                              <img src={photoUrl} alt={product.product_name} className="w-full h-full object-cover" />
+                            ) : (
+                              <ImageIcon className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{product.product_name}</p>
+                            <p className="text-xs text-gray-500">
+                              {photoUrl ? 'Primary photo' : 'Add photos in Assets to use this product'}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <Check className="w-4 h-4 text-gray-900 flex-shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedProductCount > 0 && (
+                  <p className="text-[11px] text-gray-500">
+                    First-frame regeneration will reuse the selected product photos.
+                  </p>
+                )}
+                {productSelectionLimitReached && (
+                  <p className="text-[11px] text-gray-500">
+                    You’ve reached the {MAX_REFERENCE_PRODUCTS}-product limit. Deselect one to add another.
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="rounded-3xl border border-gray-200 p-4 space-y-4">

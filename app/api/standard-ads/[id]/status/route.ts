@@ -53,7 +53,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (record.is_segmented) {
       const { data: segmentRows, error: segmentError } = await supabase
         .from('standard_ads_segments')
-        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,prompt,updated_at')
+        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,prompt,updated_at,error_message')
         .eq('project_id', record.id)
         .order('segment_index', { ascending: true });
 
@@ -66,14 +66,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           firstFrameUrl: row.first_frame_url,
           closingFrameUrl: row.closing_frame_url,
           videoUrl: row.video_url,
+          errorMessage: row.error_message,
           prompt: (row.prompt as Record<string, unknown> | null) ?? null,
           updatedAt: row.updated_at
         }));
       }
     }
 
+    const storedMergeUrl =
+      (record.segment_status as { mergedVideoUrl?: string | null } | null)?.mergedVideoUrl || null;
     const segmentStatus = record.is_segmented
-      ? (record.segment_status as Record<string, unknown> | null) || buildSegmentStatusFallback(segments)
+      ? buildSegmentStatusFallback(segments, storedMergeUrl)
       : null;
 
     const response = {
@@ -106,6 +109,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         awaitingMerge: record.current_step === 'awaiting_merge',
         mergeTaskId: record.fal_merge_task_id || null,
         videoQuality: record.video_quality || null,
+        selectedBrandId: record.selected_brand_id || null,
         downloaded: record.downloaded || false,
         downloadCreditsUsed: record.download_credits_used || 0,
         retryCount: 0,
@@ -141,7 +145,8 @@ function buildSegmentStatusFallback(
     firstFrameUrl: string | null;
     closingFrameUrl: string | null;
     videoUrl: string | null;
-  }> | null
+  }> | null,
+  mergedVideoUrl: string | null = null
 ) {
   if (!segments?.length) return null;
   const total = segments.length;
@@ -157,7 +162,9 @@ function buildSegmentStatusFallback(
       status: seg.status,
       firstFrameUrl: seg.firstFrameUrl,
       closingFrameUrl: seg.closingFrameUrl,
-      videoUrl: seg.videoUrl
-    }))
+      videoUrl: seg.videoUrl,
+      errorMessage: (seg as { errorMessage?: string | null }).errorMessage || null
+    })),
+    mergedVideoUrl
   };
 }

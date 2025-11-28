@@ -59,6 +59,7 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   generating_segment_frames: 'Generating scene keyframes…',
   generating_segment_videos: 'Rendering segmented clips…',
   merging_segments: 'Stitching clips…',
+  awaiting_merge: 'Segments ready – awaiting merge',
   ready_for_video: 'Preparing video prompts…',
   generating_video: 'Generating video…',
   processing: 'Processing…',
@@ -114,6 +115,7 @@ interface StandardAdsStatusPayload {
     segments?: SegmentCardSummary[] | null;
     awaitingMerge?: boolean;
     mergeTaskId?: string | null;
+    selectedBrandId?: string | null;
   };
   error?: string;
 }
@@ -124,6 +126,7 @@ const STEP_PROGRESS_HINTS: Record<string, number> = {
   generating_segment_frames: 25,
   generating_segment_videos: 70,
   merging_segments: 80,
+  awaiting_merge: 95,
   generating_video: 85,
   processing: 25,
   completed: 100,
@@ -518,25 +521,7 @@ export default function StandardAdsPage() {
       error_message: payload.data?.errorMessage
     });
 
-    const stageLabel = getStageLabel(status, payload.current_step);
-    const normalizedStep = payload.current_step?.toLowerCase() ?? '';
-    const progress = typeof payload.progress_percentage === 'number'
-      ? payload.progress_percentage
-      : typeof payload.progress === 'number'
-        ? payload.progress
-        : normalizedStep && STEP_PROGRESS_HINTS[normalizedStep] !== undefined
-          ? STEP_PROGRESS_HINTS[normalizedStep]
-          : status === 'completed'
-            ? 100
-            : status === 'failed'
-              ? 0
-              : STEP_PROGRESS_HINTS.processing;
-
-    const hasVideoReady = Boolean(payload.data?.videoUrl);
-    const resolvedStatus = hasVideoReady ? 'completed' as Generation['status'] : status;
-    const resolvedStage = hasVideoReady ? 'Completed' : stageLabel;
-    const resolvedProgress = hasVideoReady ? 100 : progress;
-
+    const payloadData = payload.data;
     setGenerations(prev => prev.map(gen => {
       if (gen.projectId !== projectId) return gen;
       const nextSegmentCount = (() => {
@@ -550,13 +535,81 @@ export default function StandardAdsPage() {
         }
         return gen.segmentCount;
       })();
-      const payloadData = payload.data;
       const hasSegmentStatus = Boolean(payloadData && Object.prototype.hasOwnProperty.call(payloadData, 'segmentStatus'));
       const hasSegmentPlan = Boolean(payloadData && Object.prototype.hasOwnProperty.call(payloadData, 'segmentPlan'));
       const hasSegmentsArray = Boolean(payloadData && Object.prototype.hasOwnProperty.call(payloadData, 'segments'));
       const nextIsSegmented = typeof payloadData?.isSegmented === 'boolean'
         ? payloadData.isSegmented
         : gen.isSegmented;
+      const awaitingMerge = typeof payloadData?.awaitingMerge === 'boolean'
+        ? payloadData.awaitingMerge
+        : gen.awaitingMerge;
+      const mergeTaskId = typeof payloadData?.mergeTaskId === 'string'
+        ? payloadData.mergeTaskId
+        : gen.mergeTaskId;
+      const nextSegmentStatus = hasSegmentStatus ? (payloadData?.segmentStatus ?? null) : gen.segmentStatus;
+
+      let effectiveStep = payload.current_step?.toLowerCase() ?? '';
+      const placeholderStep = !effectiveStep || effectiveStep === 'generating_cover' || effectiveStep === 'ready_for_video' || effectiveStep === 'processing';
+
+      if (nextIsSegmented) {
+        if (awaitingMerge) {
+          effectiveStep = 'awaiting_merge';
+        } else if (mergeTaskId && effectiveStep !== 'merging_segments' && effectiveStep !== 'completed') {
+          effectiveStep = 'merging_segments';
+        } else if (placeholderStep) {
+          const totalSegments = nextSegmentStatus?.total || nextSegmentCount || gen.segmentCount || 0;
+          const framesReady = nextSegmentStatus?.framesReady || 0;
+          const videosReady = nextSegmentStatus?.videosReady || 0;
+
+          if (videosReady > 0 && totalSegments > 0) {
+            effectiveStep = 'generating_segment_videos';
+          } else if ((framesReady > 0 || totalSegments > 0)) {
+            effectiveStep = 'generating_segment_frames';
+          }
+        }
+      }
+
+      const progressKey = effectiveStep || (payload.current_step?.toLowerCase() ?? '');
+      const baseProgress = typeof payload.progress_percentage === 'number'
+        ? payload.progress_percentage
+        : typeof payload.progress === 'number'
+          ? payload.progress
+          : progressKey && STEP_PROGRESS_HINTS[progressKey] !== undefined
+            ? STEP_PROGRESS_HINTS[progressKey]
+            : status === 'completed'
+              ? 100
+              : status === 'failed'
+                ? 0
+                : STEP_PROGRESS_HINTS.processing;
+
+      const hasVideoReady = Boolean(payloadData?.videoUrl);
+      const resolvedStatus = hasVideoReady ? 'completed' as Generation['status'] : status;
+      let resolvedProgress = hasVideoReady ? 100 : baseProgress;
+      const stageLabel = getStageLabel(resolvedStatus, effectiveStep || payload.current_step);
+      const resolvedStage = hasVideoReady ? 'Completed' : stageLabel;
+
+      if (nextIsSegmented) {
+        const totalSegments = nextSegmentStatus?.total || nextSegmentCount || gen.segmentCount || 0;
+        const framesReady = nextSegmentStatus?.framesReady || 0;
+        const videosReady = nextSegmentStatus?.videosReady || 0;
+
+        if (awaitingMerge) {
+          resolvedProgress = Math.max(resolvedProgress, STEP_PROGRESS_HINTS.awaiting_merge);
+        } else if (mergeTaskId) {
+          resolvedProgress = Math.max(resolvedProgress, STEP_PROGRESS_HINTS.merging_segments || 80);
+        } else if (videosReady > 0 && totalSegments > 0) {
+          const ratio = Math.min(videosReady / totalSegments, 1);
+          const videoProgress = 70 + Math.round(ratio * 25);
+          resolvedProgress = Math.max(resolvedProgress, videoProgress);
+        } else if (framesReady > 0 && totalSegments > 0) {
+          const ratio = Math.min(framesReady / totalSegments, 1);
+          const frameProgress = 25 + Math.round(ratio * 45);
+          resolvedProgress = Math.max(resolvedProgress, frameProgress);
+        } else if (totalSegments > 0) {
+          resolvedProgress = Math.max(resolvedProgress, STEP_PROGRESS_HINTS.generating_segment_frames);
+        }
+      }
 
       return {
         ...gen,
@@ -566,6 +619,7 @@ export default function StandardAdsPage() {
         videoUrl: payload.data?.videoUrl || gen.videoUrl,
         coverUrl: payload.data?.coverImageUrl || gen.coverUrl,
         videoModel: (payload.data?.videoModel as VideoModel) || (payload.data?.video_model as VideoModel) || gen.videoModel,
+        brandId: typeof payload.data?.selectedBrandId === 'string' ? payload.data.selectedBrandId : gen.brandId,
         downloaded: typeof payload.data?.downloaded === 'boolean' ? payload.data.downloaded : gen.downloaded,
         videoDuration: payload.data?.videoDuration || gen.videoDuration,
         videoAspectRatio: typeof payload.data?.videoAspectRatio === 'string'
@@ -573,14 +627,14 @@ export default function StandardAdsPage() {
           : gen.videoAspectRatio,
         segmentCount: typeof nextSegmentCount === 'number' && nextSegmentCount > 0 ? nextSegmentCount : gen.segmentCount,
         isSegmented: nextIsSegmented,
-        segmentStatus: hasSegmentStatus ? (payloadData?.segmentStatus ?? null) : gen.segmentStatus,
+        segmentStatus: nextSegmentStatus,
         segmentPlan: hasSegmentPlan ? (payloadData?.segmentPlan ?? null) : gen.segmentPlan,
         segments: hasSegmentsArray ? (payloadData?.segments ?? null) : gen.segments,
-        awaitingMerge: typeof payloadData?.awaitingMerge === 'boolean' ? payloadData.awaitingMerge : gen.awaitingMerge,
-        mergeTaskId: typeof payloadData?.mergeTaskId === 'string' ? payloadData.mergeTaskId : gen.mergeTaskId,
-        error: resolvedStatus === 'failed'
-          ? (payload.data?.errorMessage || payload.error || 'Video generation failed')
-          : undefined
+        awaitingMerge,
+        mergeTaskId,
+        error: payload.data?.errorMessage || (resolvedStatus === 'failed'
+          ? (payload.error || 'Video generation failed')
+          : undefined)
       };
     }));
   }, []);
@@ -642,7 +696,7 @@ export default function StandardAdsPage() {
   }, [segmentInspector, generations]);
   const inspectorPrompt = inspectorContext?.segment?.prompt as Partial<SegmentPrompt> | undefined;
 
-  const handleSegmentRegenerate = useCallback(async ({ type, prompt }: { type: 'photo' | 'video'; prompt: SegmentPromptPayload; }) => {
+  const handleSegmentRegenerate = useCallback(async ({ type, prompt, productIds }: { type: 'photo' | 'video'; prompt: SegmentPromptPayload; productIds?: string[]; }) => {
     if (!segmentInspector) return;
     const projectId = segmentInspector.projectId;
     const segmentIndex = segmentInspector.segmentIndex;
@@ -650,15 +704,20 @@ export default function StandardAdsPage() {
 
     try {
       setSegmentInspectorSubmitting(prev => ({ ...prev, [type]: true }));
+      const requestBody: Record<string, unknown> = {
+        prompt: mergedPrompt,
+        regenerate: type
+      };
+      if (type === 'photo' && productIds?.length) {
+        requestBody.productIds = productIds.slice(0, 10);
+      }
+
       const response = await fetch(`/api/standard-ads/${projectId}/segments/${segmentIndex}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          prompt: mergedPrompt,
-          regenerate: type
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -988,6 +1047,7 @@ export default function StandardAdsPage() {
       stage: isCompetitorPhotoMode ? 'Preparing replica photo…' : 'Initializing…',
       platform: selectedPlatform,
       brand: selectedBrand.brand_name,
+      brandId: selectedBrand.id,
       product: selectedProduct?.product_name,
       videoModel: shouldGenerateVideo ? selectedModel : undefined,
       videoAspectRatio: shouldGenerateVideo ? selectedVideoAspectRatio : null,
@@ -1038,13 +1098,25 @@ export default function StandardAdsPage() {
 
       const projectId = workflowResult?.historyId || workflowResult?.projectId;
 
+      const startedSegmented = Boolean(initialSegmentCount && initialSegmentCount > 1);
+      const nextStage = isCompetitorPhotoMode
+        ? 'Generating replica photo…'
+        : startedSegmented
+          ? STEP_DESCRIPTIONS.generating_segment_frames
+          : STEP_DESCRIPTIONS.generating_cover;
+      const nextProgress = isCompetitorPhotoMode
+        ? 30
+        : startedSegmented
+          ? STEP_PROGRESS_HINTS.generating_segment_frames
+          : STEP_PROGRESS_HINTS.generating_cover;
+
       setGenerations(prev => prev.map(gen =>
         gen.id === newGeneration.id
           ? {
               ...gen,
               status: 'processing',
-              stage: isCompetitorPhotoMode ? 'Generating replica photo…' : STEP_DESCRIPTIONS.generating_cover,
-              progress: isCompetitorPhotoMode ? 30 : 20,
+              stage: nextStage,
+              progress: nextProgress,
               projectId: projectId || gen.projectId
             }
           : gen
@@ -1160,10 +1232,6 @@ export default function StandardAdsPage() {
                   <GenerationProgressDisplay
                     generations={displayedGenerations}
                     onDownload={handleDownloadGeneration}
-                    onRetry={(gen) => {
-                      // TODO: Implement retry handler
-                      console.log('Retry:', gen);
-                    }}
                     emptyStateRightContent={
                       <blockquote
                         className="tiktok-embed"
@@ -1357,6 +1425,8 @@ export default function StandardAdsPage() {
         segmentIndex={segmentInspector.segmentIndex}
         segment={inspectorContext.segment}
         segmentPlanEntry={inspectorContext.planEntry}
+        brandId={inspectorContext.generation.brandId || null}
+        brandName={inspectorContext.generation.brand || null}
         videoModel={inspectorContext.generation.videoModel}
         videoDuration={inspectorContext.generation.videoDuration}
         videoAspectRatio={inspectorContext.generation.videoAspectRatio}
