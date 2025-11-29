@@ -402,8 +402,7 @@ const formatDurationLabel = (seconds: number) => {
         .map((item) => ({
           ...item,
           timestamp: item.timestamp ? new Date(item.timestamp) : new Date()
-        }))
-        .filter(isActiveGeneration);
+        }));
       if (!restored.length) {
         window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
         return;
@@ -417,13 +416,12 @@ const formatDurationLabel = (seconds: number) => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const activeGenerations = generations.filter((gen) => gen.projectId && isActiveGeneration(gen));
-    if (!activeGenerations.length) {
+    if (!generations.length) {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       return;
     }
     try {
-      const serializable = activeGenerations.map((gen) => ({
+      const serializable = generations.map((gen) => ({
         ...gen,
         timestamp: gen.timestamp instanceof Date ? gen.timestamp.toISOString() : gen.timestamp
       }));
@@ -468,8 +466,7 @@ const formatDurationLabel = (seconds: number) => {
       if (!found) {
         return prev;
       }
-      const filtered = next.filter(isActiveGeneration);
-      return sortGenerations(filtered);
+      return sortGenerations(next);
     });
   }, [notifyProjectStatus]);
 

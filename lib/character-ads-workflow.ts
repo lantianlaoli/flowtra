@@ -54,80 +54,172 @@ async function analyzeImages(personImageUrls: string[], productImageUrls: string
 1. The FIRST image shows a person/character
 2. The SECOND image shows a product
 
-Analyze BOTH images separately and return a combined analysis in the following JSON format:
-
-{
-  "type": "character",
-  "character": {
-    "outfit_style": "(Description of the person's clothing style, accessories, or notable features from the first image)",
-    "visual_description": "(A full sentence or two summarizing what the character/person looks like, ignoring the background)"
-  },
-  "product": {
-    "brand_name": "(Name of the brand shown in the product image, if visible or inferable)",
-    "color_scheme": [
-      {
-        "hex": "(Hex code of each prominent color used in the product)",
-        "name": "(Descriptive name of the color)"
-      }
-    ],
-    "font_style": "(Describe any font family or style used on the product: serif/sans-serif, bold/thin, etc. Use 'N/A' if no text visible)",
-    "visual_description": "(A full sentence or two summarizing what is seen in the product image, ignoring the background)"
-  }
-}
-
-Important:
+Analyze BOTH images separately and return a combined analysis that matches the provided JSON schema. Follow these rules:
 - Always analyze the character from the FIRST image and the product from the SECOND image
 - Always use "type": "character" since this is for character spokesperson ads
 - Provide detailed descriptions that will help generate realistic video prompts featuring the character with the product`;
 
-  const requestBody = JSON.stringify({
-    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: systemText },
-          { type: 'image_url', image_url: { url: personImageUrl } },
-          { type: 'image_url', image_url: { url: productImageUrl } }
-        ]
+  const responseFormat = {
+    type: 'json_schema',
+    json_schema: {
+      name: 'character_product_analysis',
+      strict: true,
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['type', 'character', 'product'],
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['character']
+          },
+          character: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['outfit_style', 'visual_description'],
+            properties: {
+              outfit_style: { type: 'string' },
+              visual_description: { type: 'string' }
+            }
+          },
+          product: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['brand_name', 'color_scheme', 'font_style', 'visual_description'],
+            properties: {
+              brand_name: { type: 'string' },
+              color_scheme: {
+                type: 'array',
+                minItems: 1,
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['hex', 'name'],
+                  properties: {
+                    hex: { type: 'string' },
+                    name: { type: 'string' }
+                  }
+                }
+              },
+              font_style: { type: 'string' },
+              visual_description: { type: 'string' }
+            }
+          }
+        }
       }
-    ],
-    max_tokens: 700,
-    temperature: 0.2,
-  });
+    }
+  };
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-      'X-Title': 'Flowtra'
+  const messages = [
+    {
+      role: 'system',
+      content: systemText
     },
-    body: requestBody
-  });
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Analyze the next two images and fill the JSON schema exactly.' },
+        { type: 'image_url', image_url: { url: personImageUrl } },
+        { type: 'image_url', image_url: { url: productImageUrl } }
+      ]
+    }
+  ];
 
-  if (!response.ok) {
-    throw new Error(`Image analysis failed: ${response.statusText}`);
-  }
+  const requestedModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+  const modelsToTry = Array.from(new Set([
+    requestedModel,
+    'google/gemini-2.5-flash'
+  ]));
 
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
+  const requestAnalysis = async (model: string) => {
+    const requestBody = JSON.stringify({
+      model,
+      messages,
+      response_format: responseFormat,
+      max_tokens: 900,
+      max_output_tokens: 900,
+      temperature: 0.2,
+      reasoning: { effort: 'low' as const }
+    });
 
-  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        'X-Title': 'Flowtra'
+      },
+      body: requestBody
+    });
+
+    if (!response.ok) {
+      throw new Error(`Image analysis failed (${model}): ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    const choiceMessage = choice?.message;
+    const contentFromMessage = choiceMessage?.content;
+    const contentFromChoice = (choice as { content?: unknown })?.content;
+    const toolCallArguments = choiceMessage?.tool_calls?.[0]?.function?.arguments
+      || (choice as { tool_calls?: { function?: { arguments?: string } }[] })?.tool_calls?.[0]?.function?.arguments;
+    const normalizedContent = toolCallArguments
+      || (Array.isArray(contentFromMessage)
+        ? contentFromMessage.map((part: { text?: string }) => part?.text || '').join('\n')
+        : (contentFromMessage as string | undefined))
+      || (Array.isArray(contentFromChoice)
+        ? contentFromChoice.map((part: { text?: string }) => part?.text || '').join('\n')
+        : (contentFromChoice as string | undefined))
+      || '';
+    const normalizedString = typeof normalizedContent === 'string'
+      ? normalizedContent
+      : JSON.stringify(normalizedContent || {});
+
     // Clean up markdown code blocks if present
-    const cleanedContent = content
+    const cleanedContent = normalizedString
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();
 
-    console.log('Cleaned content for parsing:', cleanedContent);
-    return JSON.parse(cleanedContent);
-  } catch (error) {
-    console.error('Failed to parse analysis result:', content);
-    console.error('Parse error:', error);
-    throw new Error('Failed to parse image analysis result');
+    if (!cleanedContent) {
+      const reason = choice?.finish_reason || (choice as { native_finish_reason?: string })?.native_finish_reason;
+      const error = new Error(`Empty analysis response from ${model}`) as Error & { reason?: string; data?: unknown };
+      error.reason = reason;
+      error.data = data;
+      throw error;
+    }
+
+    return { cleanedContent, rawData: data };
+  };
+
+  let lastError: Error | null = null;
+  for (const model of modelsToTry) {
+    try {
+      const { cleanedContent } = await requestAnalysis(model);
+      console.log(`Image analysis succeeded with model ${model}`);
+      try {
+        return JSON.parse(cleanedContent);
+      } catch (parseError) {
+        console.error('Failed to parse analysis result:', cleanedContent);
+        console.error('Parse error:', parseError);
+        throw new Error('Failed to parse image analysis result');
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const reason = (lastError as { reason?: string }).reason;
+      const finishReason = reason ? ` (finish_reason: ${reason})` : '';
+      console.warn(`Image analysis failed for model ${model}${finishReason}.`, lastError);
+      continue;
+    }
   }
+
+  console.error('All image analysis attempts failed.');
+  if (lastError) {
+    console.error(lastError);
+    throw lastError;
+  }
+  throw new Error('Image analysis failed with all available models');
 }
 
 // Generate prompts based on analysis and long_ads.md specifications

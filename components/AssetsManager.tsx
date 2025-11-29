@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Loader2, Package, Tag, BarChart3 } from 'lucide-react';
+import { Search, Loader2, Package, Tag, BarChart3, ExternalLink } from 'lucide-react';
 import { UserBrand, UserProduct } from '@/lib/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import BrandSection from './BrandSection';
@@ -283,6 +283,16 @@ export default function AssetsManager() {
             <p className="text-sm md:text-base text-gray-600">Manage your brands and products in one place</p>
           </div>
           <div className="flex gap-2 md:gap-3">
+            <a
+              href="https://www.flowtra.store/blog/free-ugc-download-methods-2025"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 md:gap-2 border border-gray-200 text-gray-700 px-3 md:px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm md:text-base"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span className="hidden sm:inline">Download Competitor UGC</span>
+              <span className="sm:hidden">UGC Guide</span>
+            </a>
             <button
               onClick={() => setShowCreateBrandModal(true)}
               data-onboarding-id="assets-new-brand"
