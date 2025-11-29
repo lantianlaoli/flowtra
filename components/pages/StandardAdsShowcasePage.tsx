@@ -78,7 +78,7 @@ export default function StandardAdsShowcasePage() {
     { model: 'Sora2', credits: 6, type: 'Paid Download', quality: 'Standard quality, 10s video' },
     { model: 'Sora2 Pro', credits: '36-160', type: 'Paid Generation', quality: 'Dynamic pricing based on duration & quality' },
     { model: 'Grok', credits: 20, type: 'Per Segment Download', quality: '6-second segments, billed only when you download' },
-    { model: 'Replica Photo', credits: 24, type: 'Paid Generation', quality: 'Nano Banana Pro scene replica, downloads free' },
+    { model: 'Replica Photo', credits: '6-12', type: 'Paid Generation', quality: '1K/2K = 6 credits, 4K = 12 credits. Nano Banana Pro scene replica, downloads free' },
   ];
 
   return (

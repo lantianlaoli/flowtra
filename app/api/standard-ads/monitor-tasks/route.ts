@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
-import { startSegmentVideoTask, buildSegmentStatusPayload, createSmartSegmentFrame, deriveSegmentDetails, type SegmentPrompt } from '@/lib/standard-ads-workflow';
+import {
+  startSegmentVideoTask,
+  buildSegmentStatusPayload,
+  createSmartSegmentFrame,
+  deriveSegmentDetails,
+  buildSegmentPlanFromCompetitorShots,
+  type SegmentPrompt
+} from '@/lib/standard-ads-workflow';
+import { parseCompetitorTimeline, type CompetitorShot } from '@/lib/competitor-shots';
 import { checkFalTaskStatus } from '@/lib/video-merge';
 
 export async function POST(request: NextRequest) {
@@ -429,11 +437,39 @@ async function processRecord(record: HistoryRecord) {
 }
 
 async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnType<typeof getSupabaseAdmin>) {
+  // Load competitor metadata up-front so recovery can mirror reference shots
+  let competitorFileType: 'video' | 'image' | null = null;
+  let competitorShots: CompetitorShot[] | undefined;
+  if (record.competitor_ad_id) {
+    const { data: competitorAd } = await supabase
+      .from('competitor_ads')
+      .select('file_type, analysis_result, video_duration_seconds')
+      .eq('id', record.competitor_ad_id)
+      .single();
+
+    if (competitorAd?.file_type) {
+      competitorFileType = competitorAd.file_type as 'video' | 'image';
+      console.log(`📊 Project ${record.id} uses ${competitorFileType} competitor reference → Image model will be optimized`);
+    }
+
+    if (competitorAd?.analysis_result) {
+      const timeline = parseCompetitorTimeline(
+        competitorAd.analysis_result as Record<string, unknown>,
+        competitorAd.video_duration_seconds
+      );
+
+      if (timeline.shots.length) {
+        competitorShots = timeline.shots;
+        console.log(`🧠 Loaded ${competitorShots.length} competitor shots for project ${record.id}`);
+      }
+    }
+  }
+
   let segments = await fetchSegments(record.id, supabase);
 
   if (!segments.length && record.is_segmented) {
     console.warn(`⚠️ Project ${record.id} has no segment rows despite segmented workflow. Attempting auto-recovery…`);
-    segments = await reinitializeMissingSegments(record, supabase);
+    segments = await reinitializeMissingSegments(record, supabase, { competitorShots });
     if (!segments.length) {
       console.error(`❌ Failed to reinitialize segments for project ${record.id}. Marking as failed.`);
       await supabase
@@ -449,21 +485,6 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
   }
 
   await ensureProjectInProgress(record, segments, supabase);
-
-  // Query competitor file type if competitor ad is selected
-  let competitorFileType: 'video' | 'image' | null = null;
-  if (record.competitor_ad_id) {
-    const { data: competitorAd } = await supabase
-      .from('competitor_ads')
-      .select('file_type')
-      .eq('id', record.competitor_ad_id)
-      .single();
-
-    if (competitorAd?.file_type) {
-      competitorFileType = competitorAd.file_type as 'video' | 'image';
-      console.log(`📊 Project ${record.id} uses ${competitorFileType} competitor reference → Image model will be optimized`);
-    }
-  }
 
   segments = await syncSegmentFrameTasks(record, segments, supabase, competitorFileType);
 
@@ -725,8 +746,10 @@ async function fetchSegments(projectId: string, supabase: ReturnType<typeof getS
 
 async function reinitializeMissingSegments(
   record: HistoryRecord,
-  supabase: ReturnType<typeof getSupabaseAdmin>
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  options?: { competitorShots?: CompetitorShot[] }
 ): Promise<StandardAdsSegment[]> {
+  const competitorShots = options?.competitorShots;
   const planSegments = (record.segment_plan as { segments?: SegmentPrompt[] } | null)?.segments;
   let promptSegments =
     (Array.isArray(planSegments) && planSegments.length > 0
@@ -740,6 +763,14 @@ async function reinitializeMissingSegments(
     segmentCount = Math.max(1, promptSegments.length || 1);
   }
 
+  if ((!promptSegments.length || promptSegments.length !== segmentCount) && competitorShots?.length) {
+    console.log(`🧱 Rebuilding ${segmentCount} prompts from competitor timeline for project ${record.id}`);
+    const rebuilt = buildSegmentPlanFromCompetitorShots(segmentCount, competitorShots);
+    if (rebuilt.length === segmentCount) {
+      promptSegments = rebuilt;
+    }
+  }
+
   if (!promptSegments.length) {
     console.warn(`⚠️ No stored prompt segments for project ${record.id}. Generating defaults for ${segmentCount} segments.`);
     promptSegments = Array.from({ length: segmentCount }, (_, index) => getSegmentPrompt(record, index));
@@ -751,6 +782,33 @@ async function reinitializeMissingSegments(
   }
 
   const now = new Date().toISOString();
+
+  // Persist recovered prompts for future retries so we don't fall back to generic templates again
+  const hasPlanSegments = Array.isArray(planSegments) && planSegments.length > 0;
+  const storedVideoSegments = (record.video_prompts as { segments?: SegmentPrompt[] } | null)?.segments;
+  const needsPlanUpdate = !hasPlanSegments;
+  const needsPromptUpdate = !Array.isArray(storedVideoSegments) || storedVideoSegments.length === 0;
+
+  if (needsPlanUpdate || needsPromptUpdate) {
+    const updatePayload: Record<string, unknown> = { last_processed_at: now };
+    if (needsPlanUpdate) {
+      updatePayload.segment_plan = { segments: promptSegments };
+      record.segment_plan = { segments: promptSegments };
+    }
+    if (needsPromptUpdate) {
+      updatePayload.video_prompts = { segments: promptSegments };
+      record.video_prompts = { segments: promptSegments };
+    }
+
+    const { error: planUpdateError } = await supabase
+      .from('standard_ads_projects')
+      .update(updatePayload)
+      .eq('id', record.id);
+
+    if (planUpdateError) {
+      console.error(`❌ Failed to persist recovered prompts for project ${record.id}:`, planUpdateError);
+    }
+  }
 
   const rows = Array.from({ length: segmentCount }, (_, index) => {
     const prompt =

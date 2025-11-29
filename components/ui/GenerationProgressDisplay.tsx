@@ -16,7 +16,8 @@ import {
   ChevronDown,
   ChevronUp,
   Film,
-  Image as ImageIcon
+  Image as ImageIcon,
+  PenSquare
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/standard-ads-workflow';
@@ -416,10 +417,6 @@ function GenerationCard({
             >
               <div className="flex flex-col gap-0.5">
                 <span>Segment breakdown</span>
-                <span className="text-xs font-normal text-gray-500">
-                  {generation.segmentStatus?.videosReady ?? 0}/{generation.segmentStatus?.total ?? generation.segmentCount ?? 0} videos ready ·{' '}
-                  {generation.segmentStatus?.framesReady ?? 0} frames ready
-                </span>
               </div>
               <div className="flex items-center gap-2 text-gray-500">
                 <span className="text-xs">{isExpanded ? 'Hide' : 'Show'}</span>
@@ -448,18 +445,13 @@ function GenerationCard({
         {hasSegments && (
           <div className="mb-3">
             {mergeComplete ? (
-              <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                <span>Merged video ready</span>
-                {mergedVideoUrl && (
-                  <a
-                    href={mergedVideoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-emerald-800 font-semibold text-xs"
-                  >
-                    View merge
-                  </a>
-                )}
+              <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800">
+                Final video merged. Download from the card above when ready.
+              </div>
+            ) : mergeInProgress ? (
+              <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Merging clips… hang tight.</span>
               </div>
             ) : awaitingUserMerge ? (
               <button
@@ -470,22 +462,16 @@ function GenerationCard({
                 title={
                   canMerge
                     ? 'Merge segments into final video'
-                    : mergeInProgress
-                      ? 'Merging in progress'
-                      : `Segments still rendering (${generation.segmentStatus?.videosReady || 0}/${generation.segmentStatus?.total || 0} ready)`
+                    : `Segments still rendering (${generation.segmentStatus?.videosReady || 0}/${generation.segmentStatus?.total || 0} ready)`
                 }
               >
-                {mergeInProgress ? 'Merging…' : canMerge ? 'Merge Final Video' : 'Waiting for segments to finish'}
+                {canMerge ? 'Merge Final Video' : 'Waiting for segments to finish'}
               </button>
-            ) : mergeInProgress ? (
-              <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
-                <span>Final video is merging. We’ll update you once it’s ready.</span>
-              </div>
             ) : (
               <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 <div className="font-semibold">Segments still rendering</div>
                 <p className="text-xs text-amber-700 mt-0.5">
-                  Fine-tune each segment until you&apos;re ready to merge. ({videosReady}/{totalSegments || '–'} ready)
+                  Fine-tune each segment until you&apos;re ready to merge.
                 </p>
               </div>
             )}
@@ -615,7 +601,6 @@ function SegmentSummaryCard({ segment, onSelect }: { segment: SegmentCardSummary
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-900">{title}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Shot {segment.index + 1}</p>
         </div>
         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusBadge.className}`}>
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
@@ -654,11 +639,12 @@ function SegmentSummaryCard({ segment, onSelect }: { segment: SegmentCardSummary
       )}
       <button
         type="button"
-        className="mt-3 inline-flex items-center text-[12px] font-semibold text-indigo-600 hover:text-indigo-500 disabled:text-gray-400 disabled:cursor-not-allowed"
+        className="mt-4 inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
         disabled={!onSelect}
         onClick={onSelect}
       >
-        {onSelect ? 'Open segment editor' : 'Segment editor coming soon'}
+        <PenSquare className="w-3.5 h-3.5" />
+        Edit
       </button>
     </div>
   );

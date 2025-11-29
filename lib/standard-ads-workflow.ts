@@ -7,13 +7,31 @@ import {
   getGenerationCost,
   getLanguagePromptName,
   getSegmentCountFromDuration,
-  REPLICA_PHOTO_CREDITS,
+  getReplicaPhotoCredits,
   snapDurationToModel,
   type LanguageCode,
   type VideoDuration
 } from '@/lib/constants';
 import { parseCompetitorTimeline, sumShotDurations, type CompetitorShot } from '@/lib/competitor-shots';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+
+async function retryAsync<T>(fn: () => Promise<T>, options?: { maxAttempts?: number; baseDelayMs?: number; label?: string }): Promise<T> {
+  const attempts = options?.maxAttempts && options.maxAttempts > 0 ? options.maxAttempts : 3;
+  const baseDelay = options?.baseDelayMs && options.baseDelayMs > 0 ? options.baseDelayMs : 300;
+  const label = options?.label || 'retryAsync';
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      console.warn(`[${label}] Attempt ${attempt}/${attempts} failed:`, error);
+      if (attempt >= attempts) break;
+      await new Promise(resolve => setTimeout(resolve, baseDelay * attempt));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(`${label} failed after ${attempts} attempts`);
+}
 
 const KIE_PROMPT_LIMIT = 5000;
 const truncateText = (value: string | undefined | null, limit: number) => {
@@ -90,6 +108,7 @@ export type SegmentPrompt = {
   contains_brand?: boolean; // Whether this segment/shot contains brand elements
   contains_product?: boolean; // Whether this segment/shot contains product
   description?: string;
+  first_frame_image_size?: string;
 };
 
 type DerivedSegmentDetails = {
@@ -269,33 +288,39 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     else if (request.selectedBrandId && !imageUrl) {
       console.log(`🏢 No product selected, fetching default from brand: ${request.selectedBrandId}`);
 
-      const { data: brand, error: brandError } = await supabase
-        .from('user_brands')
-        .select(`
-          id,
-          brand_name,
-          brand_slogan,
-          brand_details,
-          brand_logo_url,
-          user_products (
+      const fetchBrand = async () => {
+        const { data: brand, error: brandError } = await supabase
+          .from('user_brands')
+          .select(`
             id,
-            product_details,
-            user_product_photos (
-              photo_url,
-              is_primary
+            brand_name,
+            brand_slogan,
+            brand_details,
+            brand_logo_url,
+            user_products (
+              id,
+              product_details,
+              user_product_photos (
+                photo_url,
+                is_primary
+              )
             )
-          )
-        `)
-        .eq('id', request.selectedBrandId)
-        .eq('user_id', request.userId)
-        .single();
+          `)
+          .eq('id', request.selectedBrandId)
+          .eq('user_id', request.userId)
+          .single();
+        if (brandError) throw brandError;
+        return brand;
+      };
 
-      if (brandError || !brand) {
-        console.error('Brand query error:', brandError);
+      const brand = await retryAsync(fetchBrand, { maxAttempts: 3, baseDelayMs: 500, label: 'Brand fetch' });
+
+      if (!brand) {
+        console.error('Brand query failed after retries');
         return {
           success: false,
           error: 'Brand not found',
-          details: brandError?.message || 'Selected brand does not exist or does not belong to this user'
+          details: 'Selected brand does not exist or does not belong to this user'
         };
       }
 
@@ -344,14 +369,20 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     if (request.competitorAdId) {
       console.log(`🎯 Loading competitor ad: ${request.competitorAdId}`);
-      const { data: competitorAd, error: competitorError } = await supabase
-        .from('competitor_ads')
-        .select('ad_file_url, file_type, competitor_name, analysis_result, analysis_status, language, video_duration_seconds')
-        .eq('id', request.competitorAdId)
-        .eq('user_id', request.userId)
-        .single();
+      const fetchCompetitor = async () => {
+        const { data: competitorAd, error: competitorError } = await supabase
+          .from('competitor_ads')
+          .select('ad_file_url, file_type, competitor_name, analysis_result, analysis_status, language, video_duration_seconds')
+          .eq('id', request.competitorAdId)
+          .eq('user_id', request.userId)
+          .single();
+        if (competitorError) throw competitorError;
+        return competitorAd;
+      };
 
-      if (competitorAd && !competitorError) {
+      try {
+        const competitorAd = await retryAsync(fetchCompetitor, { maxAttempts: 3, baseDelayMs: 500, label: 'Competitor fetch' });
+
         competitorAdContext = {
           id: request.competitorAdId,
           file_url: competitorAd.ad_file_url,
@@ -366,7 +397,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         console.log(`📊 Analysis status: ${competitorAdContext.analysis_status || 'unknown'}`);
         console.log(`🔍 Has existing analysis: ${!!competitorAdContext.existing_analysis}`);
         console.log(`🌍 Detected language: ${competitorAdContext.language || 'none'}`);
-      } else {
+      } catch (competitorError) {
         console.warn(`⚠️ Competitor ad not found or access denied: ${request.competitorAdId}`, competitorError);
         // Don't fail the workflow if competitor ad is not found, just proceed without it
       }
@@ -383,11 +414,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       actualVideoModel = request.videoModel;
     }
 
-    if (
-      competitorAdContext &&
-      competitorAdContext.analysis_status === 'completed' &&
-      competitorAdContext.existing_analysis
-    ) {
+    if (competitorAdContext?.existing_analysis) {
       const timeline = parseCompetitorTimeline(
         competitorAdContext.existing_analysis as Record<string, unknown>,
         competitorAdContext.video_duration_seconds
@@ -459,6 +486,24 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     }
 
     console.log(`🎬 [SEGMENT DEBUG] Final segment count: ${segmentCount}`);
+
+    // Precompute shot-to-segment mapping asap so we can persist plans even if prompt generation fails later
+    let shotPlanForSegments: CompetitorShot[] | undefined;
+    let precomputedSegmentPlan: SegmentPrompt[] | undefined;
+    if (segmentCount > 0 && competitorShotTimeline?.shots.length) {
+      if (competitorShotTimeline.shots.length === segmentCount) {
+        shotPlanForSegments = competitorShotTimeline.shots;
+        console.log('📐 Prepared 1:1 competitor shot map for future recovery');
+      } else {
+        shotPlanForSegments = compressCompetitorShotsToSegments(competitorShotTimeline.shots, segmentCount);
+        console.log(
+          `📐 Prepared compressed competitor shot map (${competitorShotTimeline.shots.length} shots → ${segmentCount} segments)`
+        );
+      }
+
+      precomputedSegmentPlan = buildSegmentPlanFromCompetitorShots(segmentCount, shotPlanForSegments);
+    }
+
     let remainingCreditsAfterDeduction: number | undefined;
     const isReplicaMode = Boolean(
       request.replicaMode &&
@@ -474,7 +519,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     const duration = request.videoDuration || request.sora2ProDuration;
     const quality = request.videoQuality || request.sora2ProQuality;
     if (isReplicaMode) {
-      generationCost = REPLICA_PHOTO_CREDITS;
+      const replicaResolution = request.photoResolution || '2K';
+      generationCost = getReplicaPhotoCredits(replicaResolution);
 
       const creditCheck = await checkCredits(request.userId, generationCost);
       if (!creditCheck.success) {
@@ -489,7 +535,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         return {
           success: false,
           error: 'Insufficient credits',
-          details: `Need ${generationCost} credits for replica photo mode, have ${creditCheck.currentCredits || 0}`
+          details: `Need ${generationCost} credits for replica photo mode (${replicaResolution}), have ${creditCheck.currentCredits || 0}`
         };
       }
 
@@ -507,7 +553,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         request.userId,
         'usage',
         generationCost,
-        'Standard Ads - Replica photo generation (Nano Banana Pro)',
+        `Standard Ads - Replica photo generation (Nano Banana Pro, ${replicaResolution})`,
         undefined,
         true
       );
@@ -631,6 +677,18 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       };
     }
 
+    if (precomputedSegmentPlan?.length === segmentCount) {
+      const { error: planSeedError } = await supabase
+        .from('standard_ads_projects')
+        .update({ segment_plan: { segments: precomputedSegmentPlan } })
+        .eq('id', project.id);
+      if (planSeedError) {
+        console.error('⚠️ Failed to seed segment plan with competitor timeline:', planSeedError);
+      } else {
+        console.log('💾 Seeded segment_plan with competitor timeline segments');
+      }
+    }
+
     // Start the AI workflow in background (fire-and-forget for instant UX)
     // Wrap in IIFE to ensure error handling is reliable
     (async () => {
@@ -648,7 +706,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel },
             productContext,
             competitorAdContext, // Pass competitor ad context for reference
-            brandLogoUrl // NEW: Pass brand logo URL for brand-only shots
+            brandLogoUrl, // NEW: Pass brand logo URL for brand-only shots
+            shotPlanForSegments
           );
         }
       } catch (workflowError) {
@@ -745,9 +804,11 @@ async function startAIWorkflow(
     language?: string | null;
     video_duration_seconds?: number | null;
   },
-  brandLogoUrl?: string | null // NEW: Brand logo URL for brand-only shots
+  brandLogoUrl?: string | null, // NEW: Brand logo URL for brand-only shots
+  initialShotPlan?: CompetitorShot[]
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
+  let shotPlanForSegments = initialShotPlan;
 
   try {
     // CUSTOM SCRIPT MODE: Skip AI steps and use original image
@@ -799,7 +860,7 @@ async function startAIWorkflow(
     let competitorDescription: Record<string, unknown> | undefined;
     if (competitorAdContext) {
       // Check if we can reuse existing analysis from database
-      if (competitorAdContext.analysis_status === 'completed' && competitorAdContext.existing_analysis) {
+      if (competitorAdContext.existing_analysis) {
         // Performance optimization: Reuse cached analysis
         console.log('✅ Using existing competitor analysis from database (cached)');
         console.log(`   - Competitor: ${competitorAdContext.competitor_name}`);
@@ -839,7 +900,7 @@ async function startAIWorkflow(
         }
       } else {
         // No existing analysis or analysis failed/pending - perform fresh analysis
-        const statusReason = !competitorAdContext.existing_analysis
+        const statusReason = !competitorAdContext.analysis_status
           ? 'no existing analysis found'
           : `status is ${competitorAdContext.analysis_status}`;
 
@@ -933,8 +994,7 @@ async function startAIWorkflow(
     const primarySegmentPrompt = segmentCount === 1 ? normalizeSegmentPrompts(prompts, 1)[0] : undefined;
     const primarySegmentDetails = primarySegmentPrompt ? deriveSegmentDetails(primarySegmentPrompt) : undefined;
 
-    let shotPlanForSegments: CompetitorShot[] | undefined;
-    if (segmentedFlow && competitorTimelineShots && competitorTimelineShots.length > 0) {
+    if (!shotPlanForSegments && segmentedFlow && competitorTimelineShots && competitorTimelineShots.length > 0) {
       if (competitorTimelineShots.length === segmentCount) {
         shotPlanForSegments = competitorTimelineShots;
         console.log(`✅ Using 1:1 shot-to-segment mapping (${segmentCount} shots)`);
@@ -1659,22 +1719,16 @@ No other top-level keys or metadata. Do not include timing fields, summaries, or
   } as const;
 
   // Define JSON schema for Structured Outputs - IMPORTANT: This must return a SINGLE object
-  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
-      response_format: responseFormat,
-      messages: competitorDescription
-        ? // === COMPETITOR REFERENCE MODE (Step 2) ===
-          // Use competitor analysis as system prompt
-          [
-            {
-              role: 'system',
-              content: `You are an expert advertisement creator. You have been provided with a detailed analysis of a competitor's advertisement.
+  const requestPayload = JSON.stringify({
+    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+    response_format: responseFormat,
+    messages: competitorDescription
+      ? // === COMPETITOR REFERENCE MODE (Step 2) ===
+        // Use competitor analysis as system prompt
+        [
+          {
+            role: 'system',
+            content: `You are an expert advertisement creator. You have been provided with a detailed analysis of a competitor's advertisement.
 
 **COMPETITOR ANALYSIS** (Veo Guide 8 Elements):
 ${JSON.stringify(competitorDescription, null, 2)}
@@ -1687,51 +1741,51 @@ Your task is to create a similar advertisement for OUR product${imageUrl ? ' (sh
 5. MATCH EVERY SHOT EXACTLY: number of segments, graphic title cards, text overlays, and the final brand sign-off must appear in the same order as the competitor. Do not drop or rearrange any shots.
 
 ${imageUrl ? 'Remember: The user\'s image is OUR product - adapt the competitor\'s ad to showcase OUR product instead.' : 'Note: No product image provided - use brand context to adapt the competitor\'s ad.'}`
-            },
-            {
-              role: 'user',
-              content: imageUrl
-                ? [
-                    {
-                      type: 'image_url',
-                      image_url: { url: imageUrl }
-                    },
-                    {
-                      type: 'text',
-                      text: `📸 OUR PRODUCT IMAGE (above)
+          },
+          {
+            role: 'user',
+            content: imageUrl
+              ? [
+                  {
+                    type: 'image_url',
+                    image_url: { url: imageUrl }
+                  },
+                  {
+                    type: 'text',
+                    text: `📸 OUR PRODUCT IMAGE (above)
 
 Use the competitor analysis provided in the system message to recreate the same storyboard for OUR product. Replace logos, subjects, and props with our brand while keeping framing, movement, pacing, and energy identical.
 
 ${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this to ensure accurate product replacement)\n` : ''}${userRequirements ? `\nUser Requirements:\n${userRequirements}\n(Apply without changing the competitor's creative structure)\n` : ''}
 
 ${strictSegmentFormat}`
-                    }
-                  ]
-                : [
-                    {
-                      type: 'text',
-                      text: `Recreate the competitor advertisement for our brand using ONLY the information provided in the system message.
+                  }
+                ]
+              : [
+                  {
+                    type: 'text',
+                    text: `Recreate the competitor advertisement for our brand using ONLY the information provided in the system message.
 
 ${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this context when replacing subjects or props)\n` : ''}${userRequirements ? `\nUser Requirements:\n${userRequirements}\n(Apply without inventing new structure)\n` : ''}
 
 ${strictSegmentFormat}`
-                    }
-                  ]
-            }
-          ]
-        : // === TRADITIONAL AUTO-GENERATION MODE ===
-          [
-            {
-              role: 'user',
-              content: imageUrl
-                ? [
-                    {
-                      type: 'image_url',
-                      image_url: { url: imageUrl }
-                    },
-                    {
-                      type: 'text',
-                      text: `🤖 TRADITIONAL AUTO-GENERATION MODE
+                  }
+                ]
+          }
+        ]
+      : // === TRADITIONAL AUTO-GENERATION MODE ===
+        [
+          {
+            role: 'user',
+            content: imageUrl
+              ? [
+                  {
+                    type: 'image_url',
+                    image_url: { url: imageUrl }
+                  },
+                  {
+                    type: 'text',
+                    text: `🤖 TRADITIONAL AUTO-GENERATION MODE
 
 Analyze the product image and build a storyboard that feels like a premium advertisement. Keep all details consistent with the supplied product photo (colors, proportions, packaging, materials) while enhancing the production value.
 
@@ -1740,12 +1794,12 @@ ${productContext && (productContext.product_details || productContext.brand_name
 Focus on real visual cues from the image: product texture, use cases, target audience, and natural environments. Dialogue must describe the product or experience without adding slogans or pricing.
 
 ${strictSegmentFormat}`
-                    }
-                  ]
-                : [
-                    {
-                      type: 'text',
-                      text: `🤖 TRADITIONAL AUTO-GENERATION MODE (BRAND-ONLY)
+                  }
+                ]
+              : [
+                  {
+                    type: 'text',
+                    text: `🤖 TRADITIONAL AUTO-GENERATION MODE (BRAND-ONLY)
 
 Use ONLY the brand/product context to imagine what the product looks like in the real world, then output a storyboard following the exact competitor-style schema.
 
@@ -1754,114 +1808,125 @@ ${productContext && (productContext.product_details || productContext.brand_name
 Every segment must feel grounded, cinematic, and ready for production. Mention props, environments, and characters explicitly.
 
 ${strictSegmentFormat}`
-                    }
-                  ]
-            }
-          ]
-    })
-  }, 3, 30000);
-
-  // Read response text first to handle both success and error cases
-  const responseText = await response.text();
-
-  if (!response.ok) {
-    console.error('❌ OpenRouter API error:', {
-      status: response.status,
-      statusText: response.statusText,
-      responseText: responseText.substring(0, 500)
-    });
-    throw new Error(`Prompt generation failed: ${response.status} - ${responseText}`);
-  }
-
-  // Log successful response for debugging
-  console.log('✅ OpenRouter API response received:', {
-    status: response.status,
-    responseLength: responseText.length,
-    preview: responseText.substring(0, 200)
+                  }
+                ]
+          }
+        ]
   });
 
-  // Parse JSON from text
-  let data: unknown;
-  try {
-    data = JSON.parse(responseText);
-  } catch (parseError) {
-    console.error('❌ Failed to parse OpenRouter response as JSON:', parseError);
-    console.error('Response text:', responseText.substring(0, 1000));
-    throw new Error(`OpenRouter returned invalid JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
-  }
+  const MAX_PROMPT_GENERATION_ATTEMPTS = 3;
+  let lastPromptError: unknown;
 
-  // Validate response structure
-  const apiResponse = data as { choices?: Array<{ message?: { content?: string } }> };
-  if (!apiResponse.choices || !apiResponse.choices[0] || !apiResponse.choices[0].message || !apiResponse.choices[0].message.content) {
-    console.error('❌ OpenRouter response missing expected structure:', data);
-    throw new Error('OpenRouter response missing choices[0].message.content');
-  }
+  for (let attempt = 1; attempt <= MAX_PROMPT_GENERATION_ATTEMPTS; attempt++) {
+    try {
+      console.log(`[generateImageBasedPrompts] Attempt ${attempt}/${MAX_PROMPT_GENERATION_ATTEMPTS}`);
 
-  const content = apiResponse.choices[0].message.content;
+      const response = await fetchWithRetry(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: requestPayload
+        },
+        3,
+        30000
+      );
 
-  // With Structured Outputs, the response is guaranteed to match our schema
-  let parsed: Record<string, unknown>;
+      const responseText = await response.text();
 
-  try {
-    const rawParsed = JSON.parse(content);
+      if (!response.ok) {
+        console.error('❌ OpenRouter API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          responseText: responseText.substring(0, 500)
+        });
+        throw new Error(`Prompt generation failed: ${response.status} - ${responseText}`);
+      }
 
-    // CRITICAL FIX: Handle case where AI returns an array instead of a single object
-    if (Array.isArray(rawParsed)) {
-      console.warn('⚠️ AI returned an array instead of single object, taking first element');
-      parsed = rawParsed[0] || {};
-    } else {
-      parsed = rawParsed;
-    }
+      console.log('✅ OpenRouter API response received:', {
+        status: response.status,
+        responseLength: responseText.length,
+        preview: responseText.substring(0, 200)
+      });
 
-    const segments = Array.isArray((parsed as { segments?: SegmentPrompt[] }).segments)
-      ? ((parsed as { segments?: SegmentPrompt[] }).segments || [])
-      : [];
+      let data: unknown;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ Failed to parse OpenRouter response as JSON:', parseError);
+        console.error('Response text:', responseText.substring(0, 1000));
+        throw new Error(`OpenRouter returned invalid JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      }
 
-    if (segments.length !== segmentCount) {
-      throw new Error(`AI response returned ${segments.length} segments but ${segmentCount} were requested`);
-    }
+      const apiResponse = data as { choices?: Array<{ message?: { content?: string } }> };
+      if (!apiResponse.choices || !apiResponse.choices[0] || !apiResponse.choices[0].message || !apiResponse.choices[0].message.content) {
+        console.error('❌ OpenRouter response missing expected structure:', data);
+        throw new Error('OpenRouter response missing choices[0].message.content');
+      }
 
-      segments.forEach((segment, index) => {
-        const missingSegmentFields = segmentRequiredFields.filter(field => {
-          const value = (segment as Record<string, unknown>)[field];
-          return value === undefined || value === null;
+      const content = apiResponse.choices[0].message.content;
+
+      let parsed: Record<string, unknown>;
+
+      try {
+        const rawParsed = JSON.parse(content);
+
+        if (Array.isArray(rawParsed)) {
+          console.warn('⚠️ AI returned an array instead of single object, taking first element');
+          parsed = rawParsed[0] || {};
+        } else {
+          parsed = rawParsed;
+        }
+
+        const segments = Array.isArray((parsed as { segments?: SegmentPrompt[] }).segments)
+          ? ((parsed as { segments?: SegmentPrompt[] }).segments || [])
+          : [];
+
+        if (segments.length !== segmentCount) {
+          throw new Error(`AI response returned ${segments.length} segments but ${segmentCount} were requested`);
+        }
+
+        segments.forEach((segment, index) => {
+          const missingSegmentFields = segmentRequiredFields.filter(field => {
+            const value = (segment as Record<string, unknown>)[field];
+            return value === undefined || value === null;
+          });
+
+          if (missingSegmentFields.length > 0) {
+            console.error(`❌ Segment ${index + 1} missing required fields:`, missingSegmentFields);
+            throw new Error(`Segment ${index + 1} missing fields: ${missingSegmentFields.join(', ')}`);
+          }
         });
 
-        if (missingSegmentFields.length > 0) {
-          console.error(`❌ Segment ${index + 1} missing required fields:`, missingSegmentFields);
-        throw new Error(`Segment ${index + 1} missing fields: ${missingSegmentFields.join(', ')}`);
+        parsed = { segments };
+
+        console.log('✅ Structured output parsed successfully with all required fields');
+      } catch (parseError) {
+        console.error(`[generateImageBasedPrompts] Failed to parse structured output on attempt ${attempt}:`, parseError);
+        console.error('[generateImageBasedPrompts] Content received (truncated):', typeof content === 'string' ? content.substring(0, 1000) : content);
+        throw parseError instanceof Error ? parseError : new Error(String(parseError));
       }
-    });
 
-    parsed = { segments };
-
-    console.log('✅ Structured output parsed successfully with all required fields');
-  } catch (parseError) {
-    console.error('Failed to parse structured output:', parseError);
-    console.error('Content received:', content);
-
-    // Fallback (should rarely happen with Structured Outputs)
-    parsed = {
-      segments: [
-        {
-          audio: 'Cinematic bed with gentle percussion',
-          style: 'Premium lifestyle realism',
-          action: 'Camera glides around the hero product on a sleek surface',
-          subject: 'Hero product on pedestal',
-          composition: 'Medium-wide shot with shallow depth of field',
-          context_environment: 'Modern studio with soft daylight',
-          first_frame_description: 'Product centered on reflective surface with dramatic rim light',
-          ambiance_colour_lighting: 'Soft whites with warm highlights and subtle shadows',
-          camera_motion_positioning: 'Slow circular dolly with 45-degree angle',
-          dialogue: 'Experience craftsmanship refined to perfection.',
-          language: language ? getLanguagePromptName(language as LanguageCode) : 'English',
-          index: 1
-        }
-      ]
-    };
+      return parsed;
+    } catch (error) {
+      lastPromptError = error;
+      console.error(`[generateImageBasedPrompts] Attempt ${attempt} failed:`, error);
+      if (attempt < MAX_PROMPT_GENERATION_ATTEMPTS) {
+        const backoffMs = attempt * 2000;
+        console.log(`[generateImageBasedPrompts] Retrying prompt generation in ${backoffMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
+    }
   }
 
-  return parsed;
+  throw new Error(
+    `Prompt generation failed after ${MAX_PROMPT_GENERATION_ATTEMPTS} attempts${
+      lastPromptError instanceof Error ? `: ${lastPromptError.message}` : ''
+    }`
+  );
 }
 
 async function generateCover(
@@ -1872,20 +1937,12 @@ async function generateCover(
   competitorFileType?: 'image' | 'video'
 ): Promise<string> {
   // Get the actual image model to use
-  // CRITICAL: When using competitor reference mode, choose model based on competitor type:
-  // - Competitor video → nano_banana (google/nano-banana-edit)
-  // - Competitor image → nano_banana_pro (for better image-to-image quality)
+  // CRITICAL: When using competitor reference mode, always upgrade to nano_banana_pro per docs/kie/nano_banana_pro.md
   let actualImageModel: 'nano_banana' | 'seedream' | 'nano_banana_pro';
 
   if (competitorDescription && competitorFileType) {
-    // Competitor reference mode: model selection based on file type
-    if (competitorFileType === 'video') {
-      console.log('🎬 Competitor video detected → Using nano_banana (google/nano-banana-edit)');
-      actualImageModel = 'nano_banana';
-    } else {
-      console.log('🖼️ Competitor image detected → Using nano_banana_pro for better quality');
-      actualImageModel = 'nano_banana_pro';
-    }
+    console.log(`📎 Competitor ${competitorFileType} detected → Using nano_banana_pro (docs/kie/nano_banana_pro.md)`);
+    actualImageModel = 'nano_banana_pro';
   } else {
     // Normal mode: use user's selection or auto mode
     actualImageModel = getActualImageModel(request.imageModel || 'auto');
@@ -1990,14 +2047,22 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
   prompt = clampPromptLength(prompt);
 
   const targetAspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
+  const inputPayload: Record<string, unknown> = {
+    prompt,
+    image_urls: [imageUrl],
+    output_format: "png"
+  };
+
+  if (actualImageModel === 'nano_banana_pro') {
+    inputPayload.aspect_ratio = targetAspectRatio;
+    inputPayload.resolution = '1K';
+  } else {
+    inputPayload.image_size = targetAspectRatio;
+  }
+
   const requestBody = {
     model: kieModelName,
-    input: {
-      prompt: prompt,
-      image_urls: [imageUrl],
-      output_format: "png",
-      image_size: targetAspectRatio
-    }
+    input: inputPayload
   };
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
@@ -2035,8 +2100,22 @@ async function startSegmentedWorkflow(
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
-  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, competitorShots);
+  const defaultFrameSize = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
+  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, competitorShots).map(segment => ({
+    ...segment,
+    first_frame_image_size: segment.first_frame_image_size || defaultFrameSize
+  }));
   const now = new Date().toISOString();
+
+  // Clear any previous segment rows for this project to avoid unique key conflicts when restarting workflows
+  const { error: cleanupError } = await supabase
+    .from('standard_ads_segments')
+    .delete()
+    .eq('project_id', projectId);
+  if (cleanupError) {
+    console.error('Failed to clean up existing segments before re-initializing:', cleanupError);
+    throw new Error('Failed to reset previous segments');
+  }
 
   const segmentRows = normalizedSegments.map((segmentPrompt, index) => ({
     project_id: projectId,
@@ -2154,43 +2233,30 @@ export function normalizeSegmentPrompts(
     const shotOverrides = shot ? buildSegmentOverridesFromShot(shot) : undefined;
 
     const segment: SegmentPrompt = {
-      audio: cleanSegmentText(shotOverrides?.audio) ?? cleanSegmentText(source.audio) ?? '',
-      style: cleanSegmentText(shotOverrides?.style) ?? cleanSegmentText(source.style) ?? '',
-      action: cleanSegmentText(shotOverrides?.action) ?? cleanSegmentText(source.action) ?? '',
-      subject: cleanSegmentText(shotOverrides?.subject) ?? cleanSegmentText(source.subject) ?? '',
-      composition: cleanSegmentText(shotOverrides?.composition) ?? cleanSegmentText(source.composition) ?? '',
-      context_environment:
-        cleanSegmentText(shotOverrides?.context_environment) ?? cleanSegmentText(source.context_environment) ?? '',
-      first_frame_description:
-        cleanSegmentText(shotOverrides?.first_frame_description) ??
-        cleanSegmentText(source.first_frame_description) ??
-        '',
-      ambiance_colour_lighting:
-        cleanSegmentText(shotOverrides?.ambiance_colour_lighting) ??
-        cleanSegmentText(source.ambiance_colour_lighting) ??
-        '',
-      camera_motion_positioning:
-        cleanSegmentText(shotOverrides?.camera_motion_positioning) ??
-        cleanSegmentText(source.camera_motion_positioning) ??
-        '',
-      dialogue: cleanSegmentText(shotOverrides?.dialogue) ?? cleanSegmentText(source.dialogue) ?? '',
-      language: cleanSegmentText(shotOverrides?.language) ?? cleanSegmentText(source.language) ?? 'en',
+      audio: cleanSegmentText(source.audio) ?? '',
+      style: cleanSegmentText(source.style) ?? '',
+      action: cleanSegmentText(source.action) ?? '',
+      subject: cleanSegmentText(source.subject) ?? '',
+      composition: cleanSegmentText(source.composition) ?? '',
+      context_environment: cleanSegmentText(source.context_environment) ?? '',
+      first_frame_description: cleanSegmentText(source.first_frame_description) ?? '',
+      ambiance_colour_lighting: cleanSegmentText(source.ambiance_colour_lighting) ?? '',
+      camera_motion_positioning: cleanSegmentText(source.camera_motion_positioning) ?? '',
+      dialogue: cleanSegmentText(source.dialogue) ?? '',
+      language: cleanSegmentText(source.language) ?? 'en',
       index:
-        typeof shotOverrides?.index === 'number'
-          ? shotOverrides.index
-          : typeof source.index === 'number'
-            ? source.index
+        typeof source.index === 'number'
+          ? source.index
+          : typeof shotOverrides?.index === 'number'
+            ? shotOverrides.index
             : index + 1,
-      contains_brand: typeof shotOverrides?.contains_brand === 'boolean'
-        ? shotOverrides.contains_brand
-        : typeof source.contains_brand === 'boolean'
-          ? source.contains_brand
-          : undefined,
-      contains_product: typeof shotOverrides?.contains_product === 'boolean'
-        ? shotOverrides.contains_product
-        : typeof source.contains_product === 'boolean'
-          ? source.contains_product
-          : undefined
+      contains_brand: typeof source.contains_brand === 'boolean'
+        ? source.contains_brand
+        : shotOverrides?.contains_brand,
+      contains_product: typeof source.contains_product === 'boolean'
+        ? source.contains_product
+        : shotOverrides?.contains_product,
+      first_frame_image_size: source.first_frame_image_size
     };
 
     normalized.push(segment);
@@ -2277,23 +2343,27 @@ function resolveFrameDescription(segmentPrompt: SegmentPrompt, frameType: 'first
 }
 
 function buildSegmentOverridesFromShot(shot: CompetitorShot): Partial<SegmentPrompt> {
-  const overrides: Partial<SegmentPrompt> = {
-    audio: shot.audio || undefined,
-    style: shot.style || undefined,
-    action: shot.action || undefined,
-    subject: shot.subject || undefined,
-    composition: shot.composition || undefined,
-    context_environment: shot.contextEnvironment || undefined,
-    first_frame_description: shot.firstFrameDescription || undefined,
-    ambiance_colour_lighting: shot.ambianceColourLighting || undefined,
-    camera_motion_positioning: shot.cameraMotionPositioning || undefined,
-    dialogue: shot.audio || undefined,
+  return {
     index: shot.id,
     contains_brand: shot.containsBrand,
     contains_product: shot.containsProduct
   };
+}
 
-  return overrides;
+export function buildSegmentPlanFromCompetitorShots(segmentCount: number, competitorShots: CompetitorShot[]): SegmentPrompt[] {
+  if (segmentCount <= 0 || competitorShots.length === 0) {
+    return [];
+  }
+
+  const effectiveShots = segmentCount === competitorShots.length
+    ? competitorShots
+    : compressCompetitorShotsToSegments(competitorShots, segmentCount);
+
+  const placeholderPrompts = {
+    segments: Array.from({ length: segmentCount }, (_, index) => ({ index: index + 1 }))
+  } as { segments: Array<Partial<SegmentPrompt>> };
+
+  return normalizeSegmentPrompts(placeholderPrompts, segmentCount, effectiveShots);
 }
 
 export function buildSegmentStatusPayload(
@@ -2392,6 +2462,12 @@ Technical Requirements:
  * Generate frame from reference image (Image-to-Image)
  * Used for shots that contain brand logo or product
  */
+type FrameGenerationOverrides = {
+  imageModelOverride?: 'nano_banana' | 'seedream' | 'nano_banana_pro';
+  imageSizeOverride?: string;
+  resolutionOverride?: '1K' | '2K' | '4K';
+};
+
 async function createFrameFromImage(
   referenceImageUrls: string[],
   segmentPrompt: SegmentPrompt,
@@ -2399,7 +2475,8 @@ async function createFrameFromImage(
   frameType: 'first' | 'closing',
   aspectRatio: '16:9' | '9:16',
   isBrandShot: boolean,
-  competitorFileType?: 'video' | 'image' | null
+  competitorFileType?: 'video' | 'image' | null,
+  overrides?: FrameGenerationOverrides
 ): Promise<string> {
   const sanitizedReferences = (referenceImageUrls || []).filter(Boolean);
   if (sanitizedReferences.length === 0) {
@@ -2410,17 +2487,21 @@ async function createFrameFromImage(
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
 
-  // CRITICAL: Choose model based on competitor type
-  // - Competitor image → nano_banana_pro (better quality for image-to-image editing)
-  // - Competitor video or no competitor → nano_banana (cheaper, sufficient quality)
-  let imageModel: string;
-  if (competitorFileType === 'image') {
-    console.log('🖼️ Competitor image detected → Using nano_banana_pro for better quality');
-    imageModel = IMAGE_MODELS.nano_banana_pro;
+  // CRITICAL: Competitor reference defaults to nano_banana_pro, but overrides can force a specific model (e.g., docs/kie/nano_banana.md for manual edits)
+  let imageModelKey: 'nano_banana' | 'seedream' | 'nano_banana_pro';
+  if (overrides?.imageModelOverride) {
+    imageModelKey = overrides.imageModelOverride;
+    console.log(`🎛️ Frame override → Using ${imageModelKey} (manual override)`);
+  } else if (competitorFileType) {
+    console.log(`📎 Competitor ${competitorFileType} detected → Using nano_banana_pro (docs/kie/nano_banana_pro.md)`);
+    imageModelKey = 'nano_banana_pro';
   } else {
-    console.log('🎬 Video competitor or no competitor → Using nano_banana (google/nano-banana-edit)');
-    imageModel = IMAGE_MODELS.nano_banana;
+    console.log('🎬 No competitor reference → Using nano_banana (google/nano-banana-edit)');
+    imageModelKey = 'nano_banana';
   }
+  const imageModel = IMAGE_MODELS[imageModelKey];
+  const resolvedAspectRatio = overrides?.imageSizeOverride || aspectRatio;
+  const resolvedResolution = overrides?.resolutionOverride || (imageModelKey === 'nano_banana_pro' ? '1K' : undefined);
 
   const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
 
@@ -2443,6 +2524,20 @@ Render Instructions:
 - Ensure composition seamlessly transitions ${frameType === 'first' ? 'into the upcoming motion clip' : 'out of the prior scene'}
 - No text overlays, no watermarks, no borders`;
 
+  const inputPayload: Record<string, unknown> = {
+    prompt,
+    image_urls: limitedReferences,
+    image_input: limitedReferences,
+    output_format: 'png'
+  };
+
+  if (imageModelKey === 'nano_banana_pro') {
+    inputPayload.aspect_ratio = resolvedAspectRatio;
+    inputPayload.resolution = resolvedResolution || '1K';
+  } else {
+    inputPayload.image_size = resolvedAspectRatio;
+  }
+
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
@@ -2451,13 +2546,7 @@ Render Instructions:
     },
     body: JSON.stringify({
       model: imageModel,
-      input: {
-        prompt,
-        image_urls: limitedReferences, // Image-to-Image mode
-        image_input: limitedReferences,
-        image_size: aspectRatio,
-        output_format: 'png'
-      }
+      input: inputPayload
     })
   }, 5, 30000);
 
@@ -2508,7 +2597,8 @@ export async function createSmartSegmentFrame(
   brandLogoUrl: string | null,
   productImageUrls: string[] | null,
   brandContext?: { brand_name: string; brand_slogan: string; brand_details: string },
-  competitorFileType?: 'video' | 'image' | null
+  competitorFileType?: 'video' | 'image' | null,
+  overrides?: FrameGenerationOverrides
 ): Promise<string> {
   const containsBrand = segmentPrompt.contains_brand === true;
   const containsProduct = segmentPrompt.contains_product === true;
@@ -2530,7 +2620,8 @@ export async function createSmartSegmentFrame(
       frameType,
       aspectRatio,
       true, // isBrandShot
-      competitorFileType
+      competitorFileType,
+      overrides
     );
   }
 
@@ -2544,7 +2635,8 @@ export async function createSmartSegmentFrame(
       frameType,
       aspectRatio,
       false, // isProductShot
-      competitorFileType
+      competitorFileType,
+      overrides
     );
   }
 

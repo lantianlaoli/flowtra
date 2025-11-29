@@ -9,7 +9,7 @@ import {
   startSegmentVideoTask,
   type SegmentPrompt
 } from '@/lib/standard-ads-workflow';
-import { getGenerationCost, REPLICA_PHOTO_CREDITS } from '@/lib/constants';
+import { getGenerationCost, getReplicaPhotoCredits } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 type PatchPayload = {
@@ -90,6 +90,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       ...existingPrompt,
       ...(payload.prompt || {})
     } as SegmentPrompt;
+    const defaultFrameImageSize = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+    const previousFrameSize = typeof existingPrompt.first_frame_image_size === 'string'
+      ? existingPrompt.first_frame_image_size
+      : undefined;
+    if (!mergedPrompt.first_frame_image_size) {
+      mergedPrompt.first_frame_image_size = previousFrameSize || defaultFrameImageSize;
+    }
 
     if (shouldRegeneratePhoto && segmentRow.status === 'generating_first_frame') {
       return NextResponse.json(
@@ -224,12 +231,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (shouldRegeneratePhoto) {
-      const photoCredits = Math.max(0, REPLICA_PHOTO_CREDITS || 0);
+      const photoCredits = getReplicaPhotoCredits();
       if (photoCredits > 0) {
         await ensureCredits(photoCredits, 'Standard Ads - Segment first frame regeneration');
       }
 
       const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+      const frameImageSize = mergedPrompt.first_frame_image_size || aspectRatio;
       const firstFrameTaskId = await createSmartSegmentFrame(
         mergedPrompt,
         index,
@@ -238,7 +246,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         brandLogoUrl,
         productImageUrls.length ? productImageUrls : null,
         brandContext,
-        competitorFileType
+        competitorFileType,
+        {
+          imageModelOverride: 'nano_banana_pro',
+          imageSizeOverride: frameImageSize,
+          resolutionOverride: '1K'
+        }
       );
 
       segmentUpdates.first_frame_task_id = firstFrameTaskId;
@@ -256,7 +269,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           brandLogoUrl,
           productImageUrls.length ? productImageUrls : null,
           brandContext,
-          competitorFileType
+          competitorFileType,
+          {
+            imageModelOverride: 'nano_banana_pro',
+            imageSizeOverride: frameImageSize,
+            resolutionOverride: '1K'
+          }
         );
         segmentUpdates.closing_frame_task_id = closingTaskId;
         segmentUpdates.closing_frame_url = null;

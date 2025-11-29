@@ -150,7 +150,12 @@ export const IMAGE_PROCESSING_TIMES = {
 } as const
 
 // Replica photo generation credits (competitor photo mode)
-export const REPLICA_PHOTO_CREDITS = 24;
+export const REPLICA_PHOTO_CREDITS = {
+  '1K': 6,
+  '2K': 6,
+  '4K': 12
+} as const;
+export type ReplicaPhotoResolution = keyof typeof REPLICA_PHOTO_CREDITS;
 
 // Package definitions based on updated pricing
 export const PACKAGES = {
@@ -299,6 +304,12 @@ export function getDownloadCost(
   }
 
   return 0;
+}
+
+// Get replica photo credit cost for a specific resolution (defaults to 2K pricing)
+export function getReplicaPhotoCredits(resolution?: ReplicaPhotoResolution): number {
+  const resolved = resolution ? REPLICA_PHOTO_CREDITS[resolution] : undefined;
+  return typeof resolved === 'number' ? resolved : REPLICA_PHOTO_CREDITS['2K'];
 }
 
 // Get processing time for video model

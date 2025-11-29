@@ -57,6 +57,7 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
 
 const DEFAULT_LANGUAGE: LanguageCode = 'en';
 const MAX_REFERENCE_PRODUCTS = 10;
+const PRODUCT_FETCH_MAX_ATTEMPTS = 3;
 
 type BrandProduct = {
   id: string;
@@ -129,6 +130,7 @@ export default function SegmentInspector({
   const [productLoading, setProductLoading] = useState(false);
   const [productError, setProductError] = useState<string | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const productCacheRef = useRef<Record<string, { items: BrandProduct[]; error?: string }>>({});
   const firstFrameUrl = segment?.firstFrameUrl || null;
   const videoUrl = segment?.videoUrl || null;
   const lastFirstFrameUrlRef = useRef<string | null>(firstFrameUrl);
@@ -167,36 +169,74 @@ export default function SegmentInspector({
     }
 
     let cancelled = false;
-    const controller = new AbortController();
-    setProductLoading(true);
-    setProductError(null);
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let activeController: AbortController | null = null;
 
-    fetch(`/api/brands/${brandId}/products`, { signal: controller.signal })
-      .then(async response => {
+    const cached = productCacheRef.current[brandId];
+    if (cached) {
+      setProductOptions(cached.items);
+      setProductError(cached.error ?? null);
+      setProductLoading(false);
+      setSelectedProductIds(prev => prev.filter(id => cached.items.some(item => item.id === id)));
+      return () => {
+        if (retryTimeout) clearTimeout(retryTimeout);
+        if (activeController) activeController.abort();
+      };
+    }
+
+    const fetchProducts = async (attempt = 1) => {
+      if (cancelled) return;
+      if (attempt === 1) {
+        setProductLoading(true);
+        setProductError(null);
+      }
+
+      const controller = new AbortController();
+      activeController = controller;
+
+      try {
+        const response = await fetch(`/api/brands/${brandId}/products`, { signal: controller.signal });
         if (!response.ok) {
           throw new Error('Failed to load products');
         }
         const data = await response.json();
         if (cancelled) return;
+
         const items: BrandProduct[] = Array.isArray(data?.products) ? data.products : [];
+        productCacheRef.current[brandId] = { items };
         setProductOptions(items);
         setSelectedProductIds(prev => prev.filter(id => items.some(item => item.id === id)));
-      })
-      .catch(error => {
-        if (controller.signal.aborted || cancelled) return;
-        console.error('Failed to fetch brand products:', error);
-        setProductOptions([]);
-        setProductError('Unable to load products for this brand.');
-      })
-      .finally(() => {
-        if (!cancelled) {
+        setProductLoading(false);
+      } catch (error) {
+        if (cancelled || controller.signal.aborted) {
+          return;
+        }
+        console.error(`Failed to fetch brand products (attempt ${attempt}):`, error);
+        if (attempt < PRODUCT_FETCH_MAX_ATTEMPTS) {
+          const delay = attempt * 1000;
+          retryTimeout = setTimeout(() => {
+            fetchProducts(attempt + 1);
+          }, delay);
+        } else {
+          const message = 'Unable to load products for this brand. Please refresh and try again.';
+          productCacheRef.current[brandId] = { items: [], error: message };
+          setProductOptions([]);
+          setProductError(message);
           setProductLoading(false);
         }
-      });
+      }
+    };
+
+    fetchProducts();
 
     return () => {
       cancelled = true;
-      controller.abort();
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+      if (activeController) {
+        activeController.abort();
+      }
     };
   }, [open, brandId]);
 

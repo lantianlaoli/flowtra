@@ -31,7 +31,7 @@ import {
   MODEL_CAPABILITIES,
   type VideoModel,
   type VideoDuration,
-  REPLICA_PHOTO_CREDITS
+  getReplicaPhotoCredits
 } from '@/lib/constants';
 import { Format } from '@/components/ui/FormatSelector';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
@@ -312,6 +312,7 @@ export default function StandardAdsPage() {
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
   const [selectedCompetitorAd, setSelectedCompetitorAd] = useState<CompetitorAd | null>(null);
+  const hasCompetitorReference = Boolean(selectedCompetitorAd);
   const isCompetitorPhotoMode = selectedCompetitorAd?.file_type === 'image';
   const competitorImageUrl = isCompetitorPhotoMode ? selectedCompetitorAd?.ad_file_url ?? null : null;
   const [replicaSelectedProducts, setReplicaSelectedProducts] = useState<UserProduct[]>([]);
@@ -325,7 +326,7 @@ export default function StandardAdsPage() {
     model: null,
     duration: null
   });
-  const effectiveImageModel = isCompetitorPhotoMode ? 'nano_banana_pro' : selectedImageModel;
+  const effectiveImageModel = hasCompetitorReference ? 'nano_banana_pro' : selectedImageModel;
 
   // Modal states for user guidance
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -660,16 +661,38 @@ export default function StandardAdsPage() {
     }
   }, [updateGenerationFromStatus]);
 
+  const generationHasActiveSegments = useCallback((gen: SessionGeneration) => {
+    const statusPayload = gen.segmentStatus;
+    if (!statusPayload) return false;
+    const totalSegments = statusPayload.total ?? gen.segmentCount ?? 0;
+    const videosReady = statusPayload.videosReady ?? 0;
+    if (totalSegments > 0 && videosReady < totalSegments) {
+      return true;
+    }
+    const segments =
+      (statusPayload.segments as SegmentCardSummary[] | undefined) ||
+      gen.segments ||
+      [];
+    return segments.some(segment => {
+      const normalized = (segment.status || '').toLowerCase();
+      return normalized === 'pending_first_frame' ||
+        normalized === 'generating_first_frame' ||
+        normalized === 'generating_video';
+    });
+  }, []);
+
   const activeProjectIds = useMemo(() => {
     const ids = generations
       .filter(gen => {
-        // Poll if pending, processing, or if status just changed to failed/completed (to ensure final status is fetched)
-        const shouldPoll = (gen.status === 'pending' || gen.status === 'processing') && gen.projectId;
-        return shouldPoll;
+        if (!gen.projectId) return false;
+        if (gen.status === 'pending' || gen.status === 'processing') {
+          return true;
+        }
+        return generationHasActiveSegments(gen);
       })
       .map(gen => gen.projectId as string);
     return Array.from(new Set(ids));
-  }, [generations]);
+  }, [generations, generationHasActiveSegments]);
 
   const displayedGenerations = useMemo(() =>
     generations.map(gen => ({
@@ -678,6 +701,7 @@ export default function StandardAdsPage() {
       mergeLoading: gen.projectId ? !!mergeSubmitting[gen.projectId] : false
     })),
   [generations, downloadingProjects, mergeSubmitting]);
+
 
   const inspectorContext = useMemo(() => {
     if (!segmentInspector) return null;
@@ -787,7 +811,7 @@ export default function StandardAdsPage() {
     };
 
     poll();
-    const interval = setInterval(poll, 8000);
+    const interval = setInterval(poll, 5000);
     return () => clearInterval(interval);
   }, [activeProjectIds, fetchStatusForProject]);
 
@@ -1147,8 +1171,9 @@ export default function StandardAdsPage() {
   };
 
   // Calculate cost for generate button
+  const replicaPhotoCredits = getReplicaPhotoCredits(photoResolution);
   const generationCost = isCompetitorPhotoMode
-    ? REPLICA_PHOTO_CREDITS
+    ? replicaPhotoCredits
     : getGenerationCost(selectedModel, videoDuration.toString(), videoQuality);
   const downloadCost = isCompetitorPhotoMode
     ? 0

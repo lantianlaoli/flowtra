@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
-import { analyzeCompetitorAdWithLanguage } from '@/lib/standard-ads-workflow';
 import { parseCompetitorTimeline } from '@/lib/competitor-shots';
+import { analyzeCompetitorAdWithRetry } from '@/lib/competitor-analysis';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -85,11 +85,11 @@ export async function POST(
 
     // Perform AI analysis with language detection
     try {
-      const { analysis, language } = await analyzeCompetitorAdWithLanguage({
+      const { analysis, language } = await analyzeCompetitorAdWithRetry({
         file_url: competitorAd.ad_file_url,
         file_type: competitorAd.file_type as 'video' | 'image',
         competitor_name: competitorAd.competitor_name
-      });
+      }, { loggerPrefix: `POST /api/competitor-ads/${id}/reanalyze` });
       const timeline = parseCompetitorTimeline(analysis);
 
       console.log(`[POST /api/competitor-ads/${id}/reanalyze] ✅ Analysis complete, language: ${language}`);
