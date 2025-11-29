@@ -7,11 +7,11 @@
     "dev:webpack": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.31.4",
+    "@clerk/nextjs": "^6.35.5",
     "@fal-ai/client": "^1.6.2",
     "@heroicons/react": "^2.2.0",
     "@react-email/render": "^1.2.3",
@@ -22,7 +22,7 @@
     "framer-motion": "^12.23.12",
     "googleapis": "^164.1.0",
     "lucide-react": "^0.525.0",
-    "next": "15.4.4",
+    "next": "16.0.5",
     "plaiceholder": "^3.0.0",
     "posthog-js": "^1.267.0",
     "posthog-node": "^5.9.1",
@@ -47,8 +47,9 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "baseline-browser-mapping": "^2.8.32",
     "eslint": "^9.31.0",
-    "eslint-config-next": "^15.3.5",
+    "eslint-config-next": "^16.0.5",
     "tailwindcss": "^4",
     "tsx": "^4.20.6",
     "typescript": "^5"

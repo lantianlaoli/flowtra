@@ -1814,7 +1814,7 @@ ${strictSegmentFormat}`
         ]
   });
 
-  const MAX_PROMPT_GENERATION_ATTEMPTS = 3;
+  const MAX_PROMPT_GENERATION_ATTEMPTS = 5;
   let lastPromptError: unknown;
 
   for (let attempt = 1; attempt <= MAX_PROMPT_GENERATION_ATTEMPTS; attempt++) {
