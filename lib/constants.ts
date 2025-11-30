@@ -489,6 +489,7 @@ export type VideoDuration =
   | '15'
   | '16'
   | '18'
+  | '20'
   | '24'
   | '30'
   | '32'
@@ -496,10 +497,13 @@ export type VideoDuration =
   | '40'
   | '42'
   | '48'
+  | '50'
   | '54'
   | '56'
   | '60'
-  | '64';
+  | '64'
+  | '70'
+  | '80';
 export type VideoModel = 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
 
 interface ModelCapabilities {
@@ -523,7 +527,7 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
   {
     model: 'sora2',
     supportedQualities: ['standard'],
-    supportedDurations: ['10']
+    supportedDurations: ['10', '15', '20', '30', '40', '50', '60', '70', '80']
   },
   {
     model: 'sora2_pro',
@@ -614,6 +618,15 @@ export function getAvailableQualities(duration: VideoDuration): VideoQuality[] {
 
 export function getSegmentCountFromDuration(videoDuration?: string | null, model?: VideoModel): number {
   const duration = Number(videoDuration);
+
+  // Sora2 uses 10-second segments
+  if (model === 'sora2') {
+    if (!Number.isFinite(duration) || duration <= 10) {
+      return 1;
+    }
+    return Math.ceil(duration / 10);
+  }
+
   const segmentLength = model === 'grok' ? 6 : 8;
   const maxSegments = model === 'grok' ? 10 : 8;
 

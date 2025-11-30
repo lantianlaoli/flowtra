@@ -84,6 +84,19 @@ const CHARACTER_EMPTY_STEPS = [
     description: 'Click Generate to create your video',
   },
 ];
+
+const STATUS_MAP: Record<string, Generation['status']> = {
+  pending: 'pending',
+  completed: 'completed',
+  failed: 'failed',
+  processing: 'processing',
+  analyzing_images: 'processing',
+  generating_prompts: 'processing',
+  generating_image: 'processing',
+  generating_videos: 'processing',
+  merging_videos: 'processing'
+};
+
 interface CharacterAdsStatusPayload {
   success?: boolean;
   project: {
@@ -185,9 +198,6 @@ const formatDurationLabel = (seconds: number) => {
   }, [selectedProduct]);
   const primaryProductPhoto = useMemo(() => productPhotoUrls[0] || '', [productPhotoUrls]);
 
-  // Generation state
-  const [isGenerating, setIsGenerating] = useState(false);
-
   const notifyProjectStatus = useCallback((projectId: string, status: Generation['status']) => {
     if (status !== 'completed' && status !== 'failed') {
       return;
@@ -252,14 +262,12 @@ const formatDurationLabel = (seconds: number) => {
   const handleStartGeneration = async () => {
     if (!canStartGeneration || !user?.id) return;
 
-    setIsGenerating(true);
-
     try {
       // Upload temporary product images to Supabase first if needed
       let productId = selectedProduct?.id;
 
       if (selectedProduct && isTemporaryProduct(selectedProduct)) {
-        // Upload temporary images first
+        // Upload temporary images first (must wait for this)
         const uploadFormData = new FormData();
         selectedProduct.uploadedFiles.forEach((file, index) => {
           uploadFormData.append(`file_${index}`, file);
@@ -280,14 +288,36 @@ const formatDurationLabel = (seconds: number) => {
         productId = `temp:${uploadResult.imageUrls[0]}`;
       }
 
-      // Upload images first
-      const formData = new FormData();
+      // Create optimistic generation immediately with temp ID
+      const tempId = `temp-${Date.now()}`;
+      const optimisticGeneration: CharacterGeneration = {
+        id: tempId,
+        projectId: tempId,
+        timestamp: new Date(),
+        status: 'pending',
+        progress: 5,
+        stage: 'Queued',
+        platform: 'Character Ads',
+        brand: selectedBrandName || undefined,
+        product: selectedProductName || undefined,
+        videoModel: DEFAULT_VIDEO_MODEL,
+        videoDuration: `${videoDuration}`,
+        coverUrl: undefined,
+        videoUrl: undefined,
+        downloaded: false
+      };
 
+      // Add to generations list immediately
+      setGenerations((prev) => {
+        const filtered = prev.filter((gen) => gen.id !== tempId);
+        return sortGenerations([optimisticGeneration, ...filtered]);
+      });
+
+      // Prepare form data
+      const formData = new FormData();
       if (selectedPersonPhotoUrl) {
         formData.append('selected_person_photo_url', selectedPersonPhotoUrl);
       }
-
-      // Use selected product or temporary product URL
       if (productId) {
         formData.append('selected_product_id', productId);
       }
@@ -302,43 +332,41 @@ const formatDurationLabel = (seconds: number) => {
       }
       formData.append('user_id', user.id);
 
-      const response = await fetch('/api/character-ads/create', {
+      // Fire API call asynchronously (no await!)
+      fetch('/api/character-ads/create', {
         method: 'POST',
         body: formData,
-      });
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error('Failed to start generation');
+          }
+          return response.json();
+        })
+        .then((project) => {
+          // Update generation with real project ID
+          setGenerations((prev) =>
+            prev.map((gen) =>
+              gen.id === tempId
+                ? { ...gen, id: project.id, projectId: project.id }
+                : gen
+            )
+          );
+        })
+        .catch((error) => {
+          console.error('Failed to start generation:', error);
+          showError(error instanceof Error ? error.message : 'Failed to start generation');
+          // Remove failed generation
+          setGenerations((prev) => prev.filter((gen) => gen.id !== tempId));
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to start generation');
-      }
-
-      const project = await response.json();
-      const newGeneration: CharacterGeneration = {
-        id: project.id,
-        projectId: project.id,
-        timestamp: new Date(),
-        status: 'pending',
-        progress: 5,
-        stage: 'Queued',
-        platform: 'Character Ads',
-        brand: selectedBrandName || undefined,
-        product: selectedProductName || undefined,
-        videoModel: DEFAULT_VIDEO_MODEL,
-        videoDuration: `${videoDuration}`,
-        coverUrl: undefined,
-        videoUrl: undefined,
-        downloaded: false
-      };
-      setGenerations((prev) => {
-        const filtered = prev.filter((gen) => gen.id !== newGeneration.id);
-        return sortGenerations([newGeneration, ...filtered]);
-      });
+      // Show success message immediately
       showSuccess('Character ad added to the queue. Track progress below.');
 
     } catch (error) {
+      // Only catches errors from temporary image upload
       console.error('Failed to start generation:', error);
       showError(error instanceof Error ? error.message : 'Failed to start generation');
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -347,7 +375,7 @@ const formatDurationLabel = (seconds: number) => {
   const hasPersonPhoto = Boolean(selectedPersonPhotoUrl);
   const showMaintenance = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
   const composerVisible = !showMaintenance && !showProductManager;
-  const composerDisabled = !canStartGeneration || isGenerating;
+  const composerDisabled = !canStartGeneration;
 
   const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
   const handlePersonPickerSelect = (photoUrl: string) => {
@@ -439,11 +467,13 @@ const formatDurationLabel = (seconds: number) => {
       const next = prev.map((gen) => {
         if (gen.projectId !== projectId) return gen;
         found = true;
-        const computedStatus: Generation['status'] = payload.isFailed || project.status === 'failed'
-          ? 'failed'
-          : payload.isCompleted || project.status === 'completed'
-            ? 'completed'
-            : 'processing';
+        const rawStatus = (project.status || '').toLowerCase();
+        const computedStatus: Generation['status'] =
+          payload.isFailed || rawStatus === 'failed'
+            ? 'failed'
+            : payload.isCompleted || rawStatus === 'completed'
+              ? 'completed'
+              : STATUS_MAP[rawStatus] || 'processing';
         notifyProjectStatus(projectId, computedStatus);
         const progressValue = computedStatus === 'completed'
           ? 100
@@ -824,12 +854,8 @@ const formatDurationLabel = (seconds: number) => {
                   whileHover={{ scale: !composerDisabled ? 1.02 : 1 }}
                   whileTap={{ scale: !composerDisabled ? 0.98 : 1 }}
                 >
-                  {isGenerating ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4" />
-                  )}
-                  {isGenerating ? 'Generating…' : 'Generate Ad'}
+                  <Sparkles className="w-4 h-4" />
+                  Generate Ad
                   {(() => {
                     const actualModel = getActualModel(DEFAULT_VIDEO_MODEL, userCredits || 0);
                     if (!actualModel) return null;

@@ -57,16 +57,23 @@ export async function POST(request: NextRequest) {
     let videoUrl = project.merged_video_url;
     const unitSeconds = (project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : project.video_model) === 'sora2' ? 10 : 8;
     const totalScenes = (project.video_duration_seconds || 8) / unitSeconds;
-    if (!videoUrl && totalScenes === 1 && project.generated_video_urls?.length > 0) {
-      videoUrl = project.generated_video_urls[0];
+    if (!videoUrl && totalScenes === 1) {
+      // Query single video from scenes table
+      const { data: scene } = await supabase
+        .from('character_ads_scenes')
+        .select('video_url')
+        .eq('project_id', historyId)
+        .eq('scene_number', 1)
+        .single();
+
+      videoUrl = scene?.video_url || null;
     }
 
     if (project.status !== 'completed' || !videoUrl) {
       console.error('Video not ready for download:', {
         status: project.status,
         hasVideoUrl: !!videoUrl,
-        mergedVideoUrl: project.merged_video_url,
-        generatedVideos: project.generated_video_urls?.length || 0
+        mergedVideoUrl: project.merged_video_url
       });
       return NextResponse.json({
         error: 'Video not ready for download',

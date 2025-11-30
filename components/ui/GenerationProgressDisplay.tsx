@@ -17,7 +17,8 @@ import {
   ChevronUp,
   Film,
   Image as ImageIcon,
-  PenSquare
+  PenSquare,
+  AlertTriangle
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/standard-ads-workflow';
@@ -128,6 +129,26 @@ export default function GenerationProgressDisplay({
         <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-10 lg:gap-12">
           {/* Left Side: Steps */}
           <div className="flex-1 max-w-lg">
+            {/* Model Usage Restrictions Warning */}
+            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-amber-900 mb-2">
+                    Model Usage Restrictions
+                  </h4>
+                  <ul className="space-y-2 text-sm text-amber-800">
+                    <li>
+                      <span className="font-medium">Sora2 (OpenAI):</span> Does not allow images containing unauthorized portraits. If your video contains human faces (adults or children), please do not select this model.
+                    </li>
+                    <li>
+                      <span className="font-medium">Veo3 (Google):</span> Does not allow images containing children. If your brand targets children or content features minors, please do not select this model.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             <div className="mb-8">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">

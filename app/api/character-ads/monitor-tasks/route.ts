@@ -15,7 +15,6 @@ export async function POST() {
       .from('character_ads_projects')
       .select('*')
       .in('status', [
-        'analyzing_images',
         'generating_prompts',
         'generating_image',
         'generating_videos',
@@ -161,15 +160,7 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
         })
         .eq('id', project.id);
 
-      // Update Scene 0 (image scene)
-      await supabase
-        .from('character_ads_scenes')
-        .update({
-          generated_url: imageResult.imageUrl,
-          status: 'completed'
-        })
-        .eq('project_id', project.id)
-        .eq('scene_number', 0);
+      // No scene 0 to update anymore - cover image is project-level
 
       // Trigger next step - video generation
       try {
@@ -206,14 +197,6 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
   let nextStep: string | null = null;
 
   switch (project.status) {
-    case 'analyzing_images':
-      if (project.current_step === 'analyzing_images' && !project.image_analysis_result) {
-        nextStep = 'analyze_images';
-      } else if (project.image_analysis_result && !project.generated_prompts) {
-        nextStep = 'generate_prompts';
-      }
-      break;
-
     case 'generating_prompts':
       if (!project.generated_prompts) {
         nextStep = 'generate_prompts';
@@ -236,10 +219,9 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
     case 'generating_videos':
       if (project.generated_image_url && !project.kie_video_task_ids?.length) {
         nextStep = 'generate_videos';
-      } else if (project.kie_video_task_ids?.length && !project.generated_video_urls?.length) {
+      } else if (project.kie_video_task_ids?.length) {
+        // Keep checking video status until workflow transitions to merging or completion
         nextStep = 'check_videos_status';
-      } else if (project.generated_video_urls?.length && !project.fal_merge_task_id) {
-        nextStep = 'merge_videos';
       }
       break;
 

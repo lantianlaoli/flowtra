@@ -144,7 +144,7 @@ export default function VideoModelSelector({
         processingTime: getProcessingTime('sora2_pro'),
         affordable: credits >= calculateDurationCost('sora2_pro'),
         features: videoQuality && videoDuration
-          ? `${videoQuality === 'high' ? 'HD' : 'Standard'} ${videoDuration}s, 8-15 min`
+          ? `${videoQuality === 'high' ? '1080p' : '720p'} ${videoDuration}s, 8-15 min`
           : 'Premium quality, 8-15 min',
         supported: isModelSupported('sora2_pro')
       },

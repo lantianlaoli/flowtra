@@ -30,6 +30,7 @@ import {
   snapDurationToModel,
   MODEL_CAPABILITIES,
   type VideoModel,
+  type VideoQuality,
   type VideoDuration,
   getReplicaPhotoCredits
 } from '@/lib/constants';
@@ -145,7 +146,7 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 };
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
-const ALL_VIDEO_DURATIONS: VideoDuration[] = ['6', '8', '10', '12', '15', '16', '18', '24', '30', '32', '36', '40', '42', '48', '54', '56', '60', '64'];
+const ALL_VIDEO_DURATIONS: VideoDuration[] = ['6', '8', '10', '12', '15', '16', '18', '20', '24', '30', '32', '36', '40', '42', '48', '50', '54', '56', '60', '64', '70', '80'];
 const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'grok', 'sora2', 'sora2_pro'];
 const SESSION_STORAGE_KEY = 'flowtra_standard_ads_generations';
 
@@ -257,6 +258,18 @@ const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
     label: '64 seconds',
     description: 'Full commercial',
     features: 'Complete brand story'
+  },
+  {
+    value: '70',
+    label: '70 seconds',
+    description: 'Extended narrative',
+    features: 'Multi-scene storytelling'
+  },
+  {
+    value: '80',
+    label: '80 seconds',
+    description: 'Full commercial length',
+    features: 'Complete brand story'
   }
 ];
 
@@ -298,6 +311,17 @@ export default function StandardAdsPage() {
   const [selectedModel, setSelectedModel] = useState<VideoModel>('veo3_fast');
   const [format, setFormat] = useState<Format>('9:16');
   const [watermarkEnabled, setWatermarkEnabled] = useState(true); // NEW: Watermark toggle
+
+  // Auto-adjust quality when model changes
+  useEffect(() => {
+    const capability = MODEL_CAPABILITIES.find(cap => cap.model === selectedModel);
+    const supportedQualities = capability?.supportedQualities || ['standard'];
+
+    // If current quality is not supported by selected model, switch to 'standard'
+    if (!supportedQualities.includes(videoQuality)) {
+      setVideoQuality('standard');
+    }
+  }, [selectedModel, videoQuality]);
 
   // Image and language
   const [selectedImageModel] = useState<'nano_banana' | 'seedream'>('nano_banana');
@@ -925,9 +949,12 @@ export default function StandardAdsPage() {
     [selectedModel, videoQuality]
   );
 
-  const availableQualities = useMemo(
-    () => getAvailableQualities(videoDuration),
-    [videoDuration]
+  const availableQualities = useMemo<VideoQuality[]>(
+    () => {
+      const capability = MODEL_CAPABILITIES.find(cap => cap.model === selectedModel);
+      return capability?.supportedQualities || ['standard'];
+    },
+    [selectedModel]
   );
 
   const disabledDurations = useMemo(
@@ -946,18 +973,15 @@ export default function StandardAdsPage() {
     [availableQualities]
   );
 
-  const disabledModels = useMemo(
+  const disabledModels = useMemo<VideoModel[]>(
     () => {
-      // Model selection should not be affected by duration
-      // Only disable models that don't support the selected quality
-      const allModels = MODEL_CAPABILITIES.map(cap => cap.model);
-      return allModels.filter(m => {
-        const capability = MODEL_CAPABILITIES.find(cap => cap.model === m);
-        if (!capability) return true; // Disable if model not found
-        return !capability.supportedQualities.includes(videoQuality);
-      });
+      // Models should only be disabled by:
+      // 1. User's available credits (handled in VideoModelSelector)
+      // 2. Explicit disable props (if any)
+      // NOT by quality!
+      return [];
     },
-    [videoQuality]
+    []
   );
 
   // Calculate recommended duration based on competitor ad

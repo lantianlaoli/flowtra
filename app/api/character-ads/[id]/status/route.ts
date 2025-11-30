@@ -47,7 +47,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const has_analysis_result = !!project.image_analysis_result;
     const has_generated_prompts = !!project.generated_prompts;
     const generated_video_count = scenes?.filter(scene =>
-      scene.scene_type === 'video' && scene.status === 'completed'
+      scene.scene_number > 0 && scene.status === 'completed'  // All scenes are videos now (scene_type removed)
     ).length || 0;
 
     const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
@@ -84,7 +84,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         fal_merge_task_id: project.fal_merge_task_id
       },
       stepMessages: {
-        analyzing_images: 'Analyzing uploaded images with AI...',
         generating_prompts: 'Creating character presentation prompts...',
         generating_image: 'Generating character advertisement image...',
         generating_videos: 'Producing character presentation videos...',
@@ -92,7 +91,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
       isCompleted: project.status === 'completed',
       isFailed: project.status === 'failed',
-      isProcessing: ['analyzing_images', 'generating_prompts', 'generating_image', 'generating_videos', 'merging_videos'].includes(project.status)
+      isProcessing: ['generating_prompts', 'generating_image', 'generating_videos', 'merging_videos'].includes(project.status)
     };
 
     return NextResponse.json(response);

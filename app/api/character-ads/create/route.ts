@@ -95,16 +95,30 @@ export async function POST(request: NextRequest) {
     // Handle product images - either from selected product or uploaded files
     const productImageUrls: string[] = [];
     const productFiles: File[] = [];
-    // Collect product context for AI prompt (future enhancement - not yet integrated into workflow)
-    // const productContext = { product_details: '', brand_name: '', brand_slogan: '', brand_details: '' };
+    // Product context for AI workflow
+    let productContext: {
+      product_details: string;
+      brand_name?: string;
+      brand_slogan?: string;
+      brand_details?: string;
+    } | null = null;
 
     if (selectedProductId) {
-      // Check if it's a temporary product (starts with "temp:")
-      if (selectedProductId.startsWith('temp:')) {
-        // Extract URL from temp format: "temp: URL"
-        const tempUrl = selectedProductId.replace(/^temp:\s*`?([^`]+)`?$/, '$1').trim();
-        console.log('Using temporary product URL:', tempUrl);
-        productImageUrls.push(tempUrl);
+      // Check if it's a temporary product (starts with "temp")
+      if (selectedProductId.startsWith('temp')) {
+        // Extract URL from temp format: "temp: URL" or "temp-timestamp"
+        // For "temp: URL" format, extract the URL part
+        // For "temp-timestamp" format, use as is (it's just an ID, not a URL)
+        let tempUrl = selectedProductId;
+        if (selectedProductId.includes(':')) {
+          tempUrl = selectedProductId.replace(/^temp:\s*`?([^`]+)`?$/, '$1').trim();
+        }
+        console.log('Using temporary product identifier:', tempUrl);
+        // Note: temp products without URLs will trigger fallback analysis in workflow
+        if (tempUrl.startsWith('http')) {
+          productImageUrls.push(tempUrl);
+        }
+        // For temp products, productContext remains null (will be analyzed during workflow)
       } else {
         // Get product with brand information from database
         const supabase = getSupabaseAdmin();
@@ -141,13 +155,20 @@ export async function POST(request: NextRequest) {
 
         productImageUrls.push(...product.user_product_photos.map((photo: { photo_url: string }) => photo.photo_url));
 
-        // Store product and brand context for AI prompt (future enhancement - not yet integrated into workflow)
-        // productContext = {
-        //   product_details: product.product_details || '',
-        //   brand_name: product.brand?.brand_name || '',
-        //   brand_slogan: product.brand?.brand_slogan || '',
-        //   brand_details: product.brand?.brand_details || ''
-        // };
+        // Store product and brand context for AI workflow
+        if (!product.product_details) {
+          return NextResponse.json(
+            { error: 'Product details not found. Please ensure the product has been analyzed.' },
+            { status: 400 }
+          );
+        }
+
+        productContext = {
+          product_details: product.product_details,
+          brand_name: product.brand?.brand_name,
+          brand_slogan: product.brand?.brand_slogan,
+          brand_details: product.brand?.brand_details
+        };
       }
     } else {
       for (const [key, value] of formData.entries()) {
@@ -206,10 +227,11 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: userId,
         person_image_urls: personImageUrls,
-        product_image_urls: productImageUrls,
+        product_image_urls: productImageUrls, // Still stored for temp products; will be removed in future migration
+        selected_product_id: selectedProductId && !selectedProductId.startsWith('temp') ? selectedProductId : null,
+        product_context: productContext,
         video_duration_seconds: videoDurationSeconds,
         image_model: actualImageModel,
-        image_size: enforcedImageSize,
         video_model: resolvedVideoModel,
         video_aspect_ratio: normalizedAspectRatio,
         custom_dialogue: customDialogue || null,
@@ -217,8 +239,8 @@ export async function POST(request: NextRequest) {
         credits_cost: totalCredits,
         generation_credits_used: generationCreditsUsed,
         status: 'pending',
-        current_step: 'analyzing_images',
-        progress_percentage: 0,
+        current_step: 'generating_prompts', // Start directly at prompt generation (skip analyze_images)
+        progress_percentage: 10,
       })
       .select()
       .single();
@@ -252,7 +274,7 @@ export async function POST(request: NextRequest) {
         const response = await fetch(`${request.nextUrl.origin}/api/character-ads/${project.id}/process`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ step: 'analyze_images', customDialogue })
+          body: JSON.stringify({ step: 'generate_prompts', customDialogue }) // Start directly at prompt generation
         });
 
         if (!response.ok) {

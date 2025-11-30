@@ -31,14 +31,14 @@ export default function VideoQualitySelector({
   const qualityOptions = [
     {
       value: 'standard' as const,
-      label: 'Standard',
+      label: '720p',
       description: 'Balanced quality and cost',
       icon: Zap,
       features: 'Fast processing, good quality'
     },
     {
       value: 'high' as const,
-      label: 'HD',
+      label: '1080p',
       description: 'Premium high-definition',
       icon: Sparkles,
       features: 'Premium quality, longer processing'

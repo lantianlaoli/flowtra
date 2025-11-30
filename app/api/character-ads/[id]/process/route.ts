@@ -44,11 +44,32 @@ export async function POST(
     });
 
   } catch (error) {
-    console.error('Process character ads project error:', error);
+    console.error('❌ Process character ads project error:', error);
+    console.error('Error type:', typeof error);
+    console.error('Error constructor:', error?.constructor?.name);
+
+    // Try to extract as much detail as possible
+    let errorMessage = 'Unknown error';
+    let errorStack: string | undefined;
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorStack = error.stack;
+    } else if (error && typeof error === 'object') {
+      errorMessage = JSON.stringify(error);
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+
+    console.error('Error message:', errorMessage);
+    if (errorStack) {
+      console.error('Error stack:', errorStack);
+    }
+
     return NextResponse.json(
       {
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: errorMessage
       },
       { status: 500 }
     );

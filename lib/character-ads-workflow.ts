@@ -20,6 +20,7 @@ interface CharacterAdsProject {
   video_duration_seconds: number;
   image_model: string;
   image_size?: string;
+  image_prompt?: string; // Prompt used for cover image generation
   video_model: string;
   video_aspect_ratio?: string;
   custom_dialogue?: string;
@@ -36,6 +37,7 @@ interface CharacterAdsProject {
   kie_video_task_ids?: string[];
   fal_merge_task_id?: string;
   error_message?: string;
+  last_processed_at?: string;
 }
 
 interface ProcessResult {
@@ -44,71 +46,14 @@ interface ProcessResult {
   nextStep?: string;
 }
 
-// Analyze both person and product images for Character Ads workflow
-async function analyzeImages(personImageUrls: string[], productImageUrls: string[]): Promise<Record<string, unknown>> {
-  // Use the first person image and first product image for analysis
-  const personImageUrl = personImageUrls[0];
-  const productImageUrl = productImageUrls[0];
+// Lightweight person-only analysis for Character Ads workflow
+async function analyzePersonImage(imageUrl: string): Promise<string> {
+  const systemText = `Analyze the person in this image and describe:
+1. Gender and approximate age
+2. Outfit style and colors
+3. Overall visual presentation
 
-  const systemText = `You will be provided with TWO images for analysis:
-1. The FIRST image shows a person/character
-2. The SECOND image shows a product
-
-Analyze BOTH images separately and return a combined analysis that matches the provided JSON schema. Follow these rules:
-- Always analyze the character from the FIRST image and the product from the SECOND image
-- Always use "type": "character" since this is for character spokesperson ads
-- Provide detailed descriptions that will help generate realistic video prompts featuring the character with the product`;
-
-  const responseFormat = {
-    type: 'json_schema',
-    json_schema: {
-      name: 'character_product_analysis',
-      strict: true,
-      schema: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['type', 'character', 'product'],
-        properties: {
-          type: {
-            type: 'string',
-            enum: ['character']
-          },
-          character: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['outfit_style', 'visual_description'],
-            properties: {
-              outfit_style: { type: 'string' },
-              visual_description: { type: 'string' }
-            }
-          },
-          product: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['brand_name', 'color_scheme', 'font_style', 'visual_description'],
-            properties: {
-              brand_name: { type: 'string' },
-              color_scheme: {
-                type: 'array',
-                minItems: 1,
-                items: {
-                  type: 'object',
-                  additionalProperties: false,
-                  required: ['hex', 'name'],
-                  properties: {
-                    hex: { type: 'string' },
-                    name: { type: 'string' }
-                  }
-                }
-              },
-              font_style: { type: 'string' },
-              visual_description: { type: 'string' }
-            }
-          }
-        }
-      }
-    }
-  };
+Provide a concise 2-3 sentence description.`;
 
   const messages = [
     {
@@ -118,124 +63,106 @@ Analyze BOTH images separately and return a combined analysis that matches the p
     {
       role: 'user',
       content: [
-        { type: 'text', text: 'Analyze the next two images and fill the JSON schema exactly.' },
-        { type: 'image_url', image_url: { url: personImageUrl } },
-        { type: 'image_url', image_url: { url: productImageUrl } }
+        { type: 'text', text: 'Describe this person:' },
+        { type: 'image_url', image_url: { url: imageUrl } }
       ]
     }
   ];
 
   const requestedModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
-  const modelsToTry = Array.from(new Set([
-    requestedModel,
-    'google/gemini-2.5-flash'
-  ]));
 
-  const requestAnalysis = async (model: string) => {
-    const requestBody = JSON.stringify({
-      model,
+  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'X-Title': 'Flowtra'
+    },
+    body: JSON.stringify({
+      model: requestedModel,
       messages,
-      response_format: responseFormat,
-      max_tokens: 900,
-      max_output_tokens: 900,
-      temperature: 0.2,
-      reasoning: { effort: 'low' as const }
-    });
+      max_tokens: 200,
+      temperature: 0.2
+    })
+  }, 3, 30000); // 3 retries, 30 second timeout
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-        'X-Title': 'Flowtra'
-      },
-      body: requestBody
-    });
-
-    if (!response.ok) {
-      throw new Error(`Image analysis failed (${model}): ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const choice = data.choices?.[0];
-    const choiceMessage = choice?.message;
-    const contentFromMessage = choiceMessage?.content;
-    const contentFromChoice = (choice as { content?: unknown })?.content;
-    const toolCallArguments = choiceMessage?.tool_calls?.[0]?.function?.arguments
-      || (choice as { tool_calls?: { function?: { arguments?: string } }[] })?.tool_calls?.[0]?.function?.arguments;
-    const normalizedContent = toolCallArguments
-      || (Array.isArray(contentFromMessage)
-        ? contentFromMessage.map((part: { text?: string }) => part?.text || '').join('\n')
-        : (contentFromMessage as string | undefined))
-      || (Array.isArray(contentFromChoice)
-        ? contentFromChoice.map((part: { text?: string }) => part?.text || '').join('\n')
-        : (contentFromChoice as string | undefined))
-      || '';
-    const normalizedString = typeof normalizedContent === 'string'
-      ? normalizedContent
-      : JSON.stringify(normalizedContent || {});
-
-    // Clean up markdown code blocks if present
-    const cleanedContent = normalizedString
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
-
-    if (!cleanedContent) {
-      const reason = choice?.finish_reason || (choice as { native_finish_reason?: string })?.native_finish_reason;
-      const error = new Error(`Empty analysis response from ${model}`) as Error & { reason?: string; data?: unknown };
-      error.reason = reason;
-      error.data = data;
-      throw error;
-    }
-
-    return { cleanedContent, rawData: data };
-  };
-
-  let lastError: Error | null = null;
-  for (const model of modelsToTry) {
-    try {
-      const { cleanedContent } = await requestAnalysis(model);
-      console.log(`Image analysis succeeded with model ${model}`);
-      try {
-        return JSON.parse(cleanedContent);
-      } catch (parseError) {
-        console.error('Failed to parse analysis result:', cleanedContent);
-        console.error('Parse error:', parseError);
-        throw new Error('Failed to parse image analysis result');
-      }
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      const reason = (lastError as { reason?: string }).reason;
-      const finishReason = reason ? ` (finish_reason: ${reason})` : '';
-      console.warn(`Image analysis failed for model ${model}${finishReason}.`, lastError);
-      continue;
-    }
+  if (!response.ok) {
+    throw new Error(`Person analysis failed: ${response.statusText}`);
   }
 
-  console.error('All image analysis attempts failed.');
-  if (lastError) {
-    console.error(lastError);
-    throw lastError;
-  }
-  throw new Error('Image analysis failed with all available models');
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || 'Person description unavailable';
 }
 
-// Generate prompts based on analysis and long_ads.md specifications
+// Fallback product analysis for temporary products (no database record)
+async function analyzeProductImageOnly(imageUrl: string): Promise<string> {
+  const systemText = `Analyze this product image and describe:
+1. Product type and category
+2. Key visual features (color, design, materials)
+3. Likely use case or target audience
+
+Provide a concise 2-3 sentence description.`;
+
+  const messages = [
+    {
+      role: 'system',
+      content: systemText
+    },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Describe this product:' },
+        { type: 'image_url', image_url: { url: imageUrl } }
+      ]
+    }
+  ];
+
+  const requestedModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+
+  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'X-Title': 'Flowtra'
+    },
+    body: JSON.stringify({
+      model: requestedModel,
+      messages,
+      max_tokens: 200,
+      temperature: 0.2
+    })
+  }, 3, 30000); // 3 retries, 30 second timeout
+
+  if (!response.ok) {
+    throw new Error(`Product analysis failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || 'Product description unavailable';
+}
+
+// Generate prompts based on product context and character description
 async function generatePrompts(
-  analysisResult: Record<string, unknown>,
+  productContext: {
+    product_details: string;
+    brand_name?: string;
+    brand_slogan?: string;
+    brand_details?: string;
+  },
+  characterDescription: string,
   videoDurationSeconds: number,
   videoModel: 'veo3' | 'veo3_fast' | 'sora2',
   language?: string,
-  productContext?: { product_details?: string; brand_name?: string; brand_slogan?: string; brand_details?: string }
+  userDialogue?: string
 ): Promise<Record<string, unknown>> {
   const unitSeconds = videoModel === 'sora2' ? 10 : 8;
   const videoScenes = videoDurationSeconds / unitSeconds; // Scene length depends on model
-  const userDialogue = (analysisResult as { user_dialogue?: string })?.user_dialogue || '';
 
-  // Extract character information to determine appropriate voice type
-  const characterInfo = (analysisResult as { character?: { visual_description?: string } })?.character?.visual_description || '';
+  // Extract character information from description
+  const characterInfo = characterDescription;
 
   // Check for female indicators first (to avoid "woman" being caught by "man" check)
   const isCharacterFemale =
@@ -267,9 +194,9 @@ async function generatePrompts(
 
   const systemPrompt = `
 UGC Image + Video Prompt Generator 🎥🖼️
-Have Scene 0 as the image prompt and Scenes 1 onward are the video prompts
+Create ONE image prompt and ${videoScenes} video prompts
 
-Your task: Create 1 image prompt and ${videoScenes} video prompts as guided by your system guidelines. Scene 0 will be the image prompt, and Scenes 1 onward will be the video prompts.${productContext && (productContext.product_details || productContext.brand_name) ? `\n\nProduct & Brand Context from Database:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\nIMPORTANT: Use this authentic product and brand context to enhance the video prompts. The brand identity and product features should guide the creative direction.` : ''}
+Your task: Generate 1 cover image prompt (at root level) and ${videoScenes} video scene prompts. The image will serve as the cover AND first frame reference for ALL videos.${productContext && (productContext.product_details || productContext.brand_name) ? `\n\nProduct & Brand Context from Database:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\nIMPORTANT: Use this authentic product and brand context to enhance the video prompts. The brand identity and product features should guide the creative direction.` : ''}
 
 Use **UGC - style casual realism** principles:
 - Everyday realism with authentic, relatable environments
@@ -277,13 +204,14 @@ Use **UGC - style casual realism** principles:
 - Slightly imperfect framing and natural lighting
 - Candid poses, genuine expressions
 
-For Scene 0 (image prompt):
+For image_prompt (root level field):
 - At the beginning, use this prefix: "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible"
 - Use casual, amateur iPhone selfie style
 - UGC, unfiltered, realistic
 - IMPORTANT: Keep the character consistent with the reference image analysis
+- This image will be the cover AND serve as first frame reference for ALL video scenes
 
-For Scene 1+ (video prompts):
+For video scenes (numbered 1, 2, 3, etc.):
 - Each scene is ${unitSeconds} seconds long
 - Include dialogue with casual, spontaneous tone (under 150 characters)
 - IMPORTANT: Write ALL dialogue in ENGLISH. The 'language' field is metadata that tells the video generation API what language to use for voiceover. The actual dialogue text should always be in English.
@@ -297,22 +225,13 @@ For Scene 1+ (video prompts):
 - Don't refer back to previous scenes
 - CRITICAL: Maintain character consistency - the same person from the reference image should appear in all scenes
 - CRITICAL: Maintain product consistency - focus on the same product throughout all scenes
+- CRITICAL: Each video should flow naturally from the cover image
 - If a user dialogue is provided, you MUST use it EXACTLY as given for Scene 1 without paraphrasing, summarizing, or changing words. Do not add prefixes/suffixes other than the required "dialogue, the character in the video says:". Preserve casing; you may only escape quotes when needed for JSON validity.
 
 Return in JSON format:
 {
+  "image_prompt": "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible. [full image prompt with character details, product, setting, camera style]",
   "scenes": [
-    {
-      "scene": 0,
-      "prompt": {
-        "action": "character holds product casually",
-        "character": "inferred from image",
-        "product": "the product in the reference image",
-        "setting": "casual everyday environment",
-        "camera": "amateur iPhone selfie, slightly uneven framing, casual vibe",
-        "style": "UGC, unfiltered, realistic"
-      }
-    },
     {
       "scene": 1,
       "prompt": {
@@ -323,10 +242,27 @@ Return in JSON format:
         "camera": "amateur iPhone selfie video",
         "camera_movement": "fixed"
       }
+    },
+    {
+      "scene": 2,
+      "prompt": {
+        "video_prompt": "dialogue, the character in the video says: [casual dialogue]",
+        "voice_type": "${voiceType}",
+        "emotion": "chill, upbeat",
+        "setting": "[casual environment]",
+        "camera": "amateur iPhone selfie video",
+        "camera_movement": "fixed"
+      }
     }
-    // ... additional video scenes based on duration
+    // ... additional video scenes (numbered 3, 4, etc.) based on duration
   ]
 }
+
+CRITICAL FORMAT RULES:
+- Put image_prompt at ROOT LEVEL (same level as scenes array)
+- scenes array starts from scene number 1 (NOT 0)
+- Do NOT include scene 0 in the scenes array
+- The image_prompt generates the cover image that ALL videos will reference
 
 CRITICAL INSTRUCTIONS FOR DIALOGUE:
 - Write ALL dialogue text in ENGLISH, regardless of the target language (${languageName})
@@ -335,8 +271,17 @@ CRITICAL INSTRUCTIONS FOR DIALOGUE:
 - Keep dialogue concise (under 150 characters) and casual
 ${userDialogue ? `- For Scene 1, use the exact user-provided dialogue: "${userDialogue.replace(/"/g, '\\"')}"` : ''}`;
 
-  const userPrompt = `Description of the reference images are given below:
-${JSON.stringify(analysisResult, null, 2)}
+  const userPrompt = `🎯 PRODUCT INFORMATION (From Database):
+Product: ${productContext.product_details}
+${productContext.brand_name ? `Brand: ${productContext.brand_name}` : ''}
+${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}` : ''}
+${productContext.brand_details ? `Brand Details: ${productContext.brand_details}` : ''}
+
+🎭 CHARACTER INFORMATION:
+${characterDescription}
+
+IMPORTANT: Use the authentic product details from the database to create prompts.
+The character should present the product with accurate brand messaging.
 
 Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) plus 1 image scene.`;
 
@@ -350,7 +295,7 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
     temperature: 0.7,
   });
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -359,7 +304,7 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
       'X-Title': 'Flowtra'
     },
     body: requestBody
-  });
+  }, 3, 30000); // 3 retries, 30 second timeout
 
   if (!response.ok) {
     throw new Error(`Prompt generation failed: ${response.statusText}`);
@@ -376,14 +321,29 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
       .trim();
 
     console.log('Cleaned prompts content for parsing:', cleanedContent);
-    const parsed: { scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> } = JSON.parse(cleanedContent);
+    const parsed: { image_prompt?: string; scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> } = JSON.parse(cleanedContent);
+
+    // Validate new structure
+    if (!parsed.image_prompt) {
+      throw new Error('AI did not return image_prompt at root level');
+    }
+    if (!Array.isArray(parsed.scenes) || parsed.scenes.length === 0) {
+      throw new Error('AI did not return scenes array');
+    }
+
+    // Ensure no scene 0 exists (scenes should start from 1)
+    const hasScene0 = parsed.scenes.some((s) => s && Number(s.scene) === 0);
+    if (hasScene0) {
+      console.warn('⚠️ AI incorrectly returned scene 0 - filtering it out');
+      parsed.scenes = parsed.scenes.filter((s) => s && Number(s.scene) !== 0);
+    }
 
     // Enforce exact user dialogue for Scene 1 if provided
     if (userDialogue && Array.isArray(parsed.scenes)) {
       const scenes: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> = parsed.scenes;
       let s1 = scenes.find((s) => s && (Number(s.scene) === 1));
-      if (!s1 && scenes.length > 1) {
-        s1 = scenes[1];
+      if (!s1 && scenes.length >= 1) {
+        s1 = scenes[0]; // First scene if scene numbers not set correctly
       }
       if (s1) {
         const exact = `dialogue, the character in the video says: ${userDialogue.replace(/"/g, '\\"')}`;
@@ -401,7 +361,8 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
     const languageName = getLanguagePromptName(languageCode);
     (parsed as Record<string, unknown>)['language'] = languageName;
 
-    console.log(`✅ Prompts generated with language: ${languageName} (code: ${languageCode})`);
+    console.log(`✅ Prompts generated with image_prompt at root level and ${parsed.scenes.length} video scenes`);
+    console.log(`✅ Language: ${languageName} (code: ${languageCode})`);
 
     return parsed;
   } catch (error) {
@@ -860,89 +821,79 @@ export async function processCharacterAdsProject(
 
   try {
     switch (step) {
-      case 'analyze_images': {
-        // Step 1: Analyze uploaded images
-        console.log('Starting image analysis for project:', project.id);
-
-        // Analyze person and product images separately
-        const analysisResult = await analyzeImages(project.person_image_urls, project.product_image_urls);
-        if (options?.customDialogue) {
-          (analysisResult as Record<string, unknown>)['user_dialogue'] = options.customDialogue;
-        }
-
-        // Update project with analysis results
-        const { data: updatedProject, error } = await supabase
-          .from('character_ads_projects')
-          .update({
-            image_analysis_result: analysisResult,
-            status: 'generating_prompts',
-            current_step: 'generating_prompts',
-            progress_percentage: 20,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', project.id)
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        // No event recording
-
-        return {
-          project: updatedProject,
-          message: 'Image analysis completed successfully',
-          nextStep: 'generate_prompts'
-        };
-      }
-
       case 'generate_prompts': {
         // Step 2: Generate prompts for all scenes
         console.log('Generating prompts for project:', project.id);
-
-        if (!project.image_analysis_result) {
-          throw new Error('Image analysis result not found');
-        }
-
-        // Ensure user dialogue persists: if missing from analysis_result but present on project, inject it
-        const analysisWithDialogue: Record<string, unknown> = { ...(project.image_analysis_result as Record<string, unknown>) };
-        if (!('user_dialogue' in analysisWithDialogue) && project.custom_dialogue) {
-          analysisWithDialogue['user_dialogue'] = project.custom_dialogue;
-        }
+        console.log('Project person_image_urls:', project.person_image_urls);
+        console.log('Project product_image_urls:', project.product_image_urls);
 
         // Extract product context from project (typed safely)
         const projectData = project as CharacterAdsProject & { product_context?: { product_details?: string; brand_name?: string; brand_slogan?: string; brand_details?: string } };
-        const productContext = projectData.product_context;
+        let productContext = projectData.product_context;
+        console.log('Product context from project:', JSON.stringify(productContext, null, 2));
+
+        // Fallback: analyze temp product if no context
+        if (!productContext && project.product_image_urls?.length > 0) {
+          console.log('Temporary product - running fallback analysis');
+
+          const productAnalysis = await analyzeProductImageOnly(project.product_image_urls[0]);
+          productContext = {
+            product_details: productAnalysis,
+            brand_name: 'Unknown Brand'
+          };
+
+          await supabase.from('character_ads_projects')
+            .update({ product_context: productContext })
+            .eq('id', project.id);
+        }
+
+        if (!productContext || !productContext.product_details) {
+          throw new Error(`Product context validation failed: ${JSON.stringify({
+            hasContext: !!productContext,
+            hasProductDetails: !!productContext?.product_details,
+            productContext
+          })}`);
+        }
+
+        // Validate person image URLs
+        if (!project.person_image_urls || project.person_image_urls.length === 0) {
+          throw new Error('Person image URLs are required but not found in project');
+        }
+
+        const personImageUrl = project.person_image_urls[0];
+        if (!personImageUrl || typeof personImageUrl !== 'string') {
+          throw new Error(`Invalid person image URL: ${JSON.stringify(personImageUrl)}`);
+        }
+
+        console.log('Starting person image analysis for URL:', personImageUrl);
+
+        // NEW: Lightweight character analysis
+        const characterDescription = await analyzePersonImage(personImageUrl);
+        console.log('Person analysis completed:', characterDescription);
 
         const prompts = await generatePrompts(
-          analysisWithDialogue,
+          productContext as { product_details: string; brand_name?: string; brand_slogan?: string; brand_details?: string },
+          characterDescription,
           project.video_duration_seconds,
           (project.video_model as 'veo3' | 'veo3_fast' | 'sora2'),
           project.language,
-          productContext
+          project.custom_dialogue || undefined
         );
 
-        // Create scene records
+        // Create scene records (video scenes only, starting from 1)
         const unitSeconds = (project.video_model === 'sora2') ? 10 : 8;
         const videoScenes = project.video_duration_seconds / unitSeconds;
         const sceneRecords = [];
 
-        // Scene 0 - Image
-        sceneRecords.push({
-          project_id: project.id,
-          scene_number: 0,
-          scene_type: 'image',
-          scene_prompt: (prompts.scenes as Array<{prompt: unknown}>)[0].prompt,
-          status: 'pending'
-        });
-
-        // Scene 1+ - Videos
-        for (let i = 1; i <= videoScenes; i++) {
+        // Only create video scenes (no scene 0 anymore)
+        const scenes = prompts.scenes as Array<{ scene?: number; prompt: unknown }>;
+        for (let i = 0; i < scenes.length; i++) {
           sceneRecords.push({
             project_id: project.id,
-            scene_number: i,
-            scene_type: 'video',
-            scene_prompt: (prompts.scenes as Array<{prompt: unknown}>)[i].prompt,
+            scene_number: i + 1, // Start from 1, not 0
+            scene_prompt: scenes[i].prompt,
             status: 'pending'
+            // scene_type removed (all scenes are videos now)
           });
         }
 
@@ -953,11 +904,12 @@ export async function processCharacterAdsProject(
 
         if (sceneError) throw sceneError;
 
-        // Update project
+        // Update project with prompts AND image_prompt
         const { data: updatedProject, error } = await supabase
           .from('character_ads_projects')
           .update({
             generated_prompts: prompts,
+            image_prompt: (prompts as { image_prompt?: string }).image_prompt, // Store project-level image prompt
             status: 'generating_image',
             current_step: 'generating_image',
             progress_percentage: 40,
@@ -979,34 +931,44 @@ export async function processCharacterAdsProject(
       }
 
       case 'generate_image': {
-        // Step 3: Generate Scene 0 image using KIE
-        console.log('Generating image for project:', project.id);
+        // Step 3: Generate project-level cover image using KIE (not scene-specific anymore)
+        console.log('Generating cover image for project:', project.id);
 
-        if (!project.generated_prompts) {
-          throw new Error('Generated prompts not found');
+        if (!project.image_prompt) {
+          throw new Error('Image prompt not found in project');
         }
 
-        const imagePrompt = (project.generated_prompts?.scenes as Array<{prompt: unknown}>)?.[0]?.prompt;
+        if (project.generated_image_url) {
+          // Already generated, skip to next step
+          console.log('Cover image already exists, skipping to video generation');
+          return {
+            project,
+            message: 'Cover image already generated',
+            nextStep: 'generate_videos'
+          };
+        }
+
         const referenceImages = [...project.person_image_urls, ...project.product_image_urls];
 
         // Map short model name to full KIE model name
         const fullModelName = IMAGE_MODELS[project.image_model as keyof typeof IMAGE_MODELS] || project.image_model;
-        
+
         // Legacy projects may have stored sora2 as veo3_fast with an error_message flag
         const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
         const actualVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
-        
+
         console.log(`🎬 Video model detection: stored=${project.video_model}, resolved=${actualVideoModel}, legacyFlag=${project.error_message}`);
 
+        // Use project-level image_prompt instead of scene 0 prompt
         const { taskId } = await generateImageWithKIE(
-          imagePrompt as Record<string, unknown>,
+          { prompt: project.image_prompt } as Record<string, unknown>,
           fullModelName,
           referenceImages,
           project.image_size,
           project.video_aspect_ratio
         );
 
-        // Update project and scene
+        // Update project only (no scene updates since scene 0 doesn't exist)
         const { data: updatedProject, error } = await supabase
           .from('character_ads_projects')
           .update({
@@ -1023,19 +985,9 @@ export async function processCharacterAdsProject(
 
         // No event recording
 
-        // Update scene 0
-        await supabase
-          .from('character_ads_scenes')
-          .update({
-            kie_task_id: taskId,
-            status: 'generating'
-          })
-          .eq('project_id', project.id)
-          .eq('scene_number', 0);
-
         return {
           project: updatedProject,
-          message: 'Image generation started',
+          message: 'Cover image generation started',
           nextStep: 'check_image_status'
         };
       }
@@ -1065,21 +1017,13 @@ export async function processCharacterAdsProject(
 
           if (error) throw error;
 
-          // Update scene 0
-          await supabase
-            .from('character_ads_scenes')
-            .update({
-              generated_url: status.result_url,
-              status: 'completed'
-            })
-            .eq('project_id', project.id)
-            .eq('scene_number', 0);
+          // No scene 0 to update anymore - cover image is project-level
 
           // No event recording
 
           return {
             project: updatedProject,
-            message: 'Image generation completed',
+            message: 'Cover image generation completed',
             nextStep: 'generate_videos'
           };
         } else if (status.status === 'failed') {
@@ -1089,7 +1033,7 @@ export async function processCharacterAdsProject(
         // Still processing
         return {
           project,
-          message: 'Image generation in progress'
+          message: 'Cover image generation in progress'
         };
       }
 
@@ -1167,7 +1111,7 @@ export async function processCharacterAdsProject(
           await supabase
             .from('character_ads_scenes')
             .update({
-              kie_task_id: taskId,
+              kie_video_task_id: taskId,  // Renamed from kie_task_id
               status: 'generating'
             })
             .eq('project_id', project.id)
@@ -1204,7 +1148,7 @@ export async function processCharacterAdsProject(
           throw new Error('Video task IDs not found');
         }
 
-        const videoUrls = [];
+        const videoUrls: string[] = [];
         let allCompleted = true;
 
         // Resolve actual video model (handle legacy sora2 storage)
@@ -1217,13 +1161,14 @@ export async function processCharacterAdsProject(
           const status = await checkKIEVideoTaskStatusByModel(taskId, actualVideoModel);
 
           if (status.status === 'completed' && status.result_url) {
+            // Collect video URL
             videoUrls.push(status.result_url);
 
-            // Update scene status
+            // Update scene status in database
             await supabase
               .from('character_ads_scenes')
               .update({
-                generated_url: status.result_url,
+                video_url: status.result_url,
                 status: 'completed'
               })
               .eq('project_id', project.id)
@@ -1237,6 +1182,13 @@ export async function processCharacterAdsProject(
         }
 
         if (allCompleted) {
+          // All videos completed
+          console.log(`✅ All ${videoUrls.length} videos completed for project ${project.id}`);
+
+          if (videoUrls.length === 0) {
+            throw new Error('No video URLs collected despite all tasks completed');
+          }
+
           // Check if we need to merge videos (single-scene vs multi-scene)
           const unitSecondsCheck = actualVideoModel === 'sora2' ? 10 : 8;
           const videoScenes = project.video_duration_seconds / unitSecondsCheck;
@@ -1245,7 +1197,6 @@ export async function processCharacterAdsProject(
             const { data: updatedProject, error } = await supabase
               .from('character_ads_projects')
               .update({
-                generated_video_urls: videoUrls,
                 merged_video_url: videoUrls[0], // Use the single video directly
                 status: 'completed',
                 current_step: 'completed',
@@ -1269,7 +1220,6 @@ export async function processCharacterAdsProject(
             const { data: updatedProject, error } = await supabase
               .from('character_ads_projects')
               .update({
-                generated_video_urls: videoUrls,
                 status: 'merging_videos',
                 current_step: 'merging_videos',
                 progress_percentage: 85,
@@ -1302,12 +1252,22 @@ export async function processCharacterAdsProject(
         // Step 5: Merge videos using fal.ai
         console.log('Merging videos for project:', project.id);
 
-        if (!project.generated_video_urls || project.generated_video_urls.length === 0) {
-          throw new Error('Generated videos not found');
+        // Query video URLs from scenes table
+        const { data: scenes } = await supabase
+          .from('character_ads_scenes')
+          .select('video_url, scene_number')
+          .eq('project_id', project.id)
+          .eq('status', 'completed')
+          .order('scene_number', { ascending: true });
+
+        const videoUrls = scenes?.map(s => s.video_url).filter(Boolean) || [];
+
+        if (videoUrls.length === 0) {
+          throw new Error('No video URLs available for merging');
         }
 
         const { taskId } = await mergeVideosWithFal(
-          project.generated_video_urls,
+          videoUrls,
           project.video_aspect_ratio as '16:9' | '9:16'
         );
 
