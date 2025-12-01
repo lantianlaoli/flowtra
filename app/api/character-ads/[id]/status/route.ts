@@ -50,9 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       scene.scene_number > 0 && scene.status === 'completed'  // All scenes are videos now (scene_type removed)
     ).length || 0;
 
-    const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
-    const resolvedVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
-
+    // Character Ads only supports veo3_fast
     const response = {
       success: true,
       project: {
@@ -62,7 +60,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         progress_percentage: project.progress_percentage,
         video_duration_seconds: project.video_duration_seconds,
         image_model: project.image_model,
-        video_model: resolvedVideoModel,
+        video_model: 'veo3_fast', // Character Ads only supports veo3_fast
         credits_cost: project.credits_cost,
         person_image_urls: project.person_image_urls,
         product_image_urls: project.product_image_urls,

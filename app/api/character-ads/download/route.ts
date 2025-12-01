@@ -53,10 +53,10 @@ export async function POST(request: NextRequest) {
 
 
     // Check if project has downloadable video
-    // Accept single generated video when only one scene is generated (8s for VEO*, 10s for Sora2)
+    // Accept single generated video when only one scene is generated (8s for veo3_fast)
     let videoUrl = project.merged_video_url;
-    const unitSeconds = (project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : project.video_model) === 'sora2' ? 10 : 8;
-    const totalScenes = (project.video_duration_seconds || 8) / unitSeconds;
+    const UNIT_SECONDS = 8; // Character Ads only supports veo3_fast (8 second unit duration)
+    const totalScenes = (project.video_duration_seconds || 8) / UNIT_SECONDS;
     if (!videoUrl && totalScenes === 1) {
       // Query single video from scenes table
       const { data: scene } = await supabase
@@ -83,10 +83,9 @@ export async function POST(request: NextRequest) {
     }
 
     // ===== VERSION 3.0: MIXED BILLING - Download Phase =====
-    // FREE generation models (veo3_fast, sora2): Charge at download
-    // PAID generation models (veo3, sora2_pro): Download is FREE (already paid at generation)
+    // Character Ads only supports veo3_fast (free generation, paid download)
     const isFirstDownload = !project.downloaded;
-    const videoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro';
+    const videoModel = 'veo3_fast' as const; // Character Ads only supports veo3_fast
 
     if (isFirstDownload) {
       // Check if this model has download cost (free-generation models)

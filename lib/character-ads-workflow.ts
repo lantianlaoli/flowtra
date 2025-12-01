@@ -4,6 +4,11 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 // Events table removed: no tracking imports
 
+// Character Ads fixed configuration - only supports veo3_fast
+const UNIT_SECONDS = 8;  // veo3_fast unit duration
+const VIDEO_MODEL = 'veo3_fast' as const;
+const VIDEO_API_ENDPOINT = 'https://api.kie.ai/api/v1/veo/generate';
+
 interface CharacterAdsProject {
   id: string;
   user_id: string;
@@ -98,12 +103,10 @@ async function generatePrompts(
   personImageUrl: string,
   productImageUrl: string,
   videoDurationSeconds: number,
-  videoModel: 'veo3' | 'veo3_fast' | 'sora2',
   language?: string,
   userDialogue?: string
 ): Promise<Record<string, unknown>> {
-  const unitSeconds = videoModel === 'sora2' ? 10 : 8;
-  const videoScenes = videoDurationSeconds / unitSeconds;
+  const videoScenes = videoDurationSeconds / UNIT_SECONDS;
 
   // Get language name for prompts
   const languageCode = (language || 'en') as LanguageCode;
@@ -144,7 +147,7 @@ UGC STYLE PRINCIPLES:
 - The character must SHOW the product to camera naturally
 
 VIDEO SCENE REQUIREMENTS:
-- Each scene is ${unitSeconds} seconds long
+- Each scene is ${UNIT_SECONDS} seconds long
 - Write ALL dialogue in ENGLISH (regardless of target language)
 - The 'language' field is metadata - actual dialogue text is always English
 - Keep dialogue concise (under 150 characters) and conversational
@@ -408,7 +411,6 @@ async function generateImageWithKIE(
 
 async function generateVideoWithKIE(
   prompt: Record<string, unknown>,
-  videoModel: string,
   referenceImageUrl: string,
   videoAspectRatio?: '16:9' | '9:16',
   language?: string
@@ -417,7 +419,6 @@ async function generateVideoWithKIE(
   console.log('Input parameters:', {
     promptType: typeof prompt,
     promptKeys: prompt ? Object.keys(prompt) : 'null',
-    videoModel,
     referenceImageUrl: referenceImageUrl?.substring(0, 50) + '...',
     videoAspectRatio,
     language
@@ -528,43 +529,25 @@ async function generateVideoWithKIE(
     languagePrefix: languagePrefix || 'none'
   });
 
-  let requestBody: Record<string, unknown>;
-  let apiEndpoint: string;
-
-  if (videoModel === 'sora2') {
-    // Sora2 API structure
-    requestBody = {
-      model: 'sora-2-image-to-video',
-      input: {
-        prompt: finalPrompt,
-        image_urls: [referenceImageUrl],
-        aspect_ratio: videoAspectRatio === '9:16' ? 'portrait' : 'landscape'
-      }
-    };
-    apiEndpoint = 'https://api.kie.ai/api/v1/jobs/createTask';
-  } else {
-    // VEO3 API structure (veo3_fast, veo3)
-    requestBody = {
-      prompt: finalPrompt,
-      model: videoModel, // e.g., 'veo3_fast' or 'veo3'
-      aspectRatio: videoAspectRatio || "16:9",
-      imageUrls: [referenceImageUrl], // Correct parameter name and format
-      enableAudio: true,
-      audioEnabled: true,
-      generateVoiceover: false,
-      includeDialogue: true, // ✅ Enable dialogue generation for character ads
-      enableTranslation: false
-    };
-    apiEndpoint = 'https://api.kie.ai/api/v1/veo/generate';
-  }
+  // Character Ads only uses VEO3 Fast API
+  const requestBody = {
+    prompt: finalPrompt,
+    model: VIDEO_MODEL, // Fixed: 'veo3_fast'
+    aspectRatio: videoAspectRatio || "16:9",
+    imageUrls: [referenceImageUrl],
+    enableAudio: true,
+    audioEnabled: true,
+    generateVoiceover: false,
+    includeDialogue: true,
+    enableTranslation: false
+  };
+  const apiEndpoint = VIDEO_API_ENDPOINT; // Fixed: VEO3 endpoint
 
   console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
   console.log('Video API endpoint:', apiEndpoint);
 
   // ✅ FINAL STRICT VALIDATION before calling KIE API
-  const promptInBody = videoModel === 'sora2'
-    ? (requestBody.input as any)?.prompt
-    : requestBody.prompt;
+  const promptInBody = requestBody.prompt;
 
   console.log('🚨 FINAL PROMPT VALIDATION BEFORE KIE API CALL:');
   console.log('Prompt value:', promptInBody);
@@ -754,77 +737,6 @@ async function checkKIEVideoTaskStatus(taskId: string): Promise<{
   }
 }
 
-// Model-aware video task status checker
-// - For 'sora2', query the generic jobs endpoint (same as image tasks)
-// - For VEO models, fall back to the existing VEO status endpoint
-async function checkKIEVideoTaskStatusByModel(taskId: string, videoModel: string): Promise<{
-  status: string;
-  result_url?: string;
-  error?: string;
-}> {
-  try {
-    if (videoModel === 'sora2') {
-      // Sora2 tasks are created via jobs/createTask and polled via jobs/recordInfo
-      const response = await fetchWithRetry(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
-        headers: {
-          'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-        }
-      }, 5, 30000);
-
-      if (!response.ok) {
-        throw new Error(`KIE Sora2 task status check failed: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (data.code !== 200) {
-        throw new Error(`KIE Sora2 task status check failed: ${data.msg || 'Unknown error'}`);
-      }
-
-      const taskData = data.data;
-      if (!taskData) return { status: 'processing' };
-
-      // Reuse robust extraction logic similar to image status
-      const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
-      const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
-
-      let resultJson: Record<string, unknown> = {};
-      try {
-        resultJson = JSON.parse(taskData.resultJson || '{}');
-      } catch {
-        resultJson = {};
-      }
-
-      const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
-        ? (resultJson as { resultUrls?: string[] }).resultUrls
-        : undefined;
-      const responseUrls = Array.isArray(taskData.response?.resultUrls)
-        ? (taskData.response.resultUrls as string[])
-        : undefined;
-      const flatUrls = Array.isArray(taskData.resultUrls)
-        ? (taskData.resultUrls as string[])
-        : undefined;
-      const result_url = (directUrls || responseUrls || flatUrls)?.[0];
-
-      const stateLower2 = state?.toLowerCase();
-      const isSuccess = (stateLower2 === 'success') || successFlag === 1 || (!!result_url && (stateLower2 === undefined));
-      const isFailed = (stateLower2 === 'failed' || stateLower2 === 'fail' || stateLower2 === 'error') || successFlag === 2 || successFlag === 3;
-
-      if (isSuccess) return { status: 'completed', result_url };
-      if (isFailed) return { status: 'failed', error: taskData.failMsg || taskData.errorMessage || 'Video generation failed' };
-      return { status: 'processing' };
-    }
-
-    // Default path for VEO models
-    return await checkKIEVideoTaskStatus(taskId);
-  } catch (err) {
-    return {
-      status: 'failed',
-      error: err instanceof Error ? err.message : 'Unknown error'
-    };
-  }
-}
-
 export async function processCharacterAdsProject(
   project: CharacterAdsProject,
   step: string,
@@ -898,14 +810,12 @@ export async function processCharacterAdsProject(
           personImageUrl,
           productImageUrl,
           project.video_duration_seconds,
-          (project.video_model as 'veo3' | 'veo3_fast' | 'sora2'),
           project.language,
           project.custom_dialogue || undefined
         );
 
         // Create scene records (video scenes only, starting from 1)
-        const unitSeconds = (project.video_model === 'sora2') ? 10 : 8;
-        const videoScenes = project.video_duration_seconds / unitSeconds;
+        const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
         const sceneRecords = [];
 
         // Only create video scenes (no scene 0 anymore)
@@ -975,12 +885,6 @@ export async function processCharacterAdsProject(
 
         // Map short model name to full KIE model name
         const fullModelName = IMAGE_MODELS[project.image_model as keyof typeof IMAGE_MODELS] || project.image_model;
-
-        // Legacy projects may have stored sora2 as veo3_fast with an error_message flag
-        const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
-        const actualVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
-
-        console.log(`🎬 Video model detection: stored=${project.video_model}, resolved=${actualVideoModel}, legacyFlag=${project.error_message}`);
 
         // Use project-level image_prompt instead of scene 0 prompt
         const { taskId } = await generateImageWithKIE(
@@ -1073,12 +977,7 @@ export async function processCharacterAdsProject(
           throw new Error('Generated image not found - required for video generation');
         }
 
-        // Legacy projects may have stored sora2 as veo3_fast with an error_message flag
-        const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
-        const actualVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
-
-        const unitSeconds = (project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : (project.video_model as 'veo3'|'veo3_fast'|'sora2')) === 'sora2' ? 10 : 8;
-        const videoScenes = project.video_duration_seconds / unitSeconds;
+        const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
 
         const existingTaskIds = Array.isArray(project.kie_video_task_ids)
           ? project.kie_video_task_ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
@@ -1171,7 +1070,6 @@ export async function processCharacterAdsProject(
 
           const { taskId } = await generateVideoWithKIE(
             videoPrompt as Record<string, unknown>,
-            actualVideoModel, // Use actual video model (sora2 if detected)
             project.generated_image_url, // Use generated image as reference
             project.video_aspect_ratio as '16:9' | '9:16' | undefined,
             project.language // Pass language for video prompt
@@ -1225,13 +1123,9 @@ export async function processCharacterAdsProject(
         const videoUrls: string[] = [];
         let allCompleted = true;
 
-        // Resolve actual video model (handle legacy sora2 storage)
-        const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
-        const actualVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
-
         for (let i = 0; i < project.kie_video_task_ids.length; i++) {
           const taskId = project.kie_video_task_ids[i];
-          const status = await checkKIEVideoTaskStatusByModel(taskId, actualVideoModel);
+          const status = await checkKIEVideoTaskStatus(taskId);
 
           if (status.status === 'completed' && status.result_url) {
             // Collect video URL
@@ -1263,8 +1157,7 @@ export async function processCharacterAdsProject(
           }
 
           // Check if we need to merge videos (single-scene vs multi-scene)
-          const unitSecondsCheck = actualVideoModel === 'sora2' ? 10 : 8;
-          const videoScenes = project.video_duration_seconds / unitSecondsCheck;
+          const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
           if (videoScenes === 1) {
             // For 8-second videos, use the single generated video directly
             const { data: updatedProject, error } = await supabase
