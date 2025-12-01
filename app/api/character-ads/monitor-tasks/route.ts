@@ -10,11 +10,13 @@ export async function POST() {
     console.log('Starting character ads task monitoring...');
 
     // Find projects that need monitoring
+    // ✅ Added 'pending' status to support fire-and-forget removal
     const supabase = getSupabaseAdmin();
     const { data: projects, error } = await supabase
       .from('character_ads_projects')
       .select('*')
       .in('status', [
+        'pending',
         'generating_prompts',
         'generating_image',
         'generating_videos',
@@ -162,17 +164,25 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
 
       // No scene 0 to update anymore - cover image is project-level
 
-      // Trigger next step - video generation
+      // ✅ Update project object in memory with new image URL before triggering video generation
+      project.generated_image_url = imageResult.imageUrl;
+      project.status = 'generating_videos';
+      project.current_step = 'generating_videos';
+
+      // ✅ Directly trigger video generation workflow (no HTTP call)
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-        await fetch(`${baseUrl}/api/character-ads/${project.id}/process`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ step: 'generate_videos' })
-        });
-        console.log(`Triggered video generation for project ${project.id}`);
+        console.log(`🚀 Triggering video generation for project ${project.id}`);
+
+        // Directly call processCharacterAdsProject instead of HTTP fetch
+        const result = await processCharacterAdsProject(project, 'generate_videos');
+
+        console.log(`✅ Video generation triggered successfully:`, result.message);
       } catch (triggerError) {
-        console.error(`Failed to trigger video generation for project ${project.id}:`, triggerError);
+        console.error(`❌ FAILED to trigger video generation for project ${project.id}:`, triggerError);
+        console.error('Trigger error details:', {
+          message: triggerError instanceof Error ? triggerError.message : 'Unknown',
+          stack: triggerError instanceof Error ? triggerError.stack : 'No stack'
+        });
         // Don't fail the monitor - the video generation can be triggered by polling
       }
 
@@ -197,6 +207,11 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
   let nextStep: string | null = null;
 
   switch (project.status) {
+    case 'pending':
+      // ✅ New project just created, start workflow
+      nextStep = 'generate_prompts';
+      break;
+
     case 'generating_prompts':
       if (!project.generated_prompts) {
         nextStep = 'generate_prompts';

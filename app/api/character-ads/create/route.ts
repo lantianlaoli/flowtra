@@ -234,6 +234,7 @@ export async function POST(request: NextRequest) {
         image_model: actualImageModel,
         video_model: resolvedVideoModel,
         video_aspect_ratio: normalizedAspectRatio,
+        image_size: enforcedImageSize, // ✅ Fix Bug 1: Ensure image_size is saved for nano_banana API
         custom_dialogue: customDialogue || null,
         language: language, // Language for AI-generated content
         credits_cost: totalCredits,
@@ -265,80 +266,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // No longer recording events to character_ads_project_events table
+    // ✅ Fire-and-forget mechanism removed (architecture simplification)
+    // Workflow is now completely driven by monitor-tasks
+    // After project creation with status='pending', monitor-tasks will
+    // automatically detect and start processing in the next polling cycle
 
-    // Start the workflow in background (fire-and-forget for instant UX)
-    // Wrap in IIFE to ensure error handling is reliable
-    (async () => {
-      try {
-        const response = await fetch(`${request.nextUrl.origin}/api/character-ads/${project.id}/process`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ step: 'generate_prompts', customDialogue }) // Start directly at prompt generation
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Workflow trigger failed with status ${response.status}: ${errorText}`);
-        }
-
-        console.log(`✅ Successfully triggered workflow for character ads project ${project.id}`);
-      } catch (error) {
-        console.error('❌ Background workflow trigger failed:', error);
-        console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack available');
-        console.error('Context:', {
-          projectId: project.id,
-          userId,
-          generationCreditsUsed,
-          videoModel: resolvedVideoModel
-        });
-
-        // REFUND credits on failure
-        if (generationCreditsUsed > 0) {
-          console.log(`⚠️ Refunding ${generationCreditsUsed} credits due to workflow trigger failure`);
-          try {
-            await deductCredits(userId, -generationCreditsUsed);
-            await recordCreditTransaction(
-              userId,
-              'refund',
-              generationCreditsUsed,
-              `Character Ads - Refund for failed workflow trigger`,
-              project.id,
-              true
-            );
-            console.log(`✅ Successfully refunded ${generationCreditsUsed} credits to user ${userId}`);
-          } catch (refundError) {
-            console.error('❌ CRITICAL: Refund failed:', refundError);
-            console.error('Refund error stack:', refundError instanceof Error ? refundError.stack : 'No stack available');
-            // TODO: This should trigger alerting - user paid but didn't get service
-          }
-        }
-
-        // Update project status to failed
-        try {
-          const supabase = getSupabaseAdmin();
-          const { error: updateError } = await supabase
-            .from('character_ads_projects')
-            .update({
-              status: 'failed',
-              error_message: `Workflow trigger failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-              last_processed_at: new Date().toISOString()
-            })
-            .eq('id', project.id);
-
-          if (updateError) {
-            console.error('❌ CRITICAL: Failed to update project status to failed:', updateError);
-            // TODO: This should trigger alerting - project stuck in pending state
-          } else {
-            console.log(`✅ Marked project ${project.id} as failed`);
-          }
-        } catch (dbError) {
-          console.error('❌ CRITICAL: Database update exception:', dbError);
-          console.error('DB error stack:', dbError instanceof Error ? dbError.stack : 'No stack available');
-          // TODO: This should trigger alerting
-        }
-      }
-    })();
+    console.log(`✅ Character ads project ${project.id} created with status='pending'`);
+    console.log(`Monitor-tasks will start processing in the next cycle`);
 
     return NextResponse.json({
       id: project.id,

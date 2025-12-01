@@ -4,14 +4,6 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 // Events table removed: no tracking imports
 
-// Helper function to generate voice type based on language and gender
-function generateVoiceTypeFromLanguage(language: string, isMale: boolean): string {
-  const languageCode = (language || 'en') as LanguageCode;
-  const voiceStyle = getLanguageVoiceStyle(languageCode);
-  const voiceGender = isMale ? 'deep male voice' : 'deep female voice';
-  return `${voiceStyle}, ${voiceGender}`;
-}
-
 interface CharacterAdsProject {
   id: string;
   user_id: string;
@@ -44,55 +36,6 @@ interface ProcessResult {
   project: CharacterAdsProject;
   message: string;
   nextStep?: string;
-}
-
-// Lightweight person-only analysis for Character Ads workflow
-async function analyzePersonImage(imageUrl: string): Promise<string> {
-  const systemText = `Analyze the person in this image and describe:
-1. Gender and approximate age
-2. Outfit style and colors
-3. Overall visual presentation
-
-Provide a concise 2-3 sentence description.`;
-
-  const messages = [
-    {
-      role: 'system',
-      content: systemText
-    },
-    {
-      role: 'user',
-      content: [
-        { type: 'text', text: 'Describe this person:' },
-        { type: 'image_url', image_url: { url: imageUrl } }
-      ]
-    }
-  ];
-
-  const requestedModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
-
-  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-      'X-Title': 'Flowtra'
-    },
-    body: JSON.stringify({
-      model: requestedModel,
-      messages,
-      max_tokens: 200,
-      temperature: 0.2
-    })
-  }, 3, 30000); // 3 retries, 30 second timeout
-
-  if (!response.ok) {
-    throw new Error(`Person analysis failed: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || 'Person description unavailable';
 }
 
 // Fallback product analysis for temporary products (no database record)
@@ -152,41 +95,15 @@ async function generatePrompts(
     brand_slogan?: string;
     brand_details?: string;
   },
-  characterDescription: string,
+  personImageUrl: string,
+  productImageUrl: string,
   videoDurationSeconds: number,
   videoModel: 'veo3' | 'veo3_fast' | 'sora2',
   language?: string,
   userDialogue?: string
 ): Promise<Record<string, unknown>> {
   const unitSeconds = videoModel === 'sora2' ? 10 : 8;
-  const videoScenes = videoDurationSeconds / unitSeconds; // Scene length depends on model
-
-  // Extract character information from description
-  const characterInfo = characterDescription;
-
-  // Check for female indicators first (to avoid "woman" being caught by "man" check)
-  const isCharacterFemale =
-    characterInfo.toLowerCase().includes('woman') ||
-    characterInfo.toLowerCase().includes('female') ||
-    characterInfo.toLowerCase().includes('girl') ||
-    characterInfo.toLowerCase().includes('lady') ||
-    characterInfo.toLowerCase().includes(' she ') ||
-    characterInfo.toLowerCase().includes(' her ');
-
-  // Check for male indicators with word boundaries to avoid false positives
-  const isCharacterMale = !isCharacterFemale && (
-    characterInfo.toLowerCase().includes(' man ') ||
-    characterInfo.toLowerCase().includes('businessman') ||
-    characterInfo.toLowerCase().includes('gentleman') ||
-    characterInfo.toLowerCase().includes(' male ') ||
-    characterInfo.toLowerCase().includes(' boy ') ||
-    characterInfo.toLowerCase().includes(' guy ') ||
-    characterInfo.toLowerCase().includes(' he ') ||
-    characterInfo.toLowerCase().includes(' his ')
-  );
-
-  // Generate voice type based on language and gender
-  const voiceType = generateVoiceTypeFromLanguage(language || 'en', isCharacterMale);
+  const videoScenes = videoDurationSeconds / unitSeconds;
 
   // Get language name for prompts
   const languageCode = (language || 'en') as LanguageCode;
@@ -194,106 +111,93 @@ async function generatePrompts(
 
   const systemPrompt = `
 UGC Image + Video Prompt Generator 🎥🖼️
-Create ONE image prompt and ${videoScenes} video prompts
 
-Your task: Generate 1 cover image prompt (at root level) and ${videoScenes} video scene prompts. The image will serve as the cover AND first frame reference for ALL videos.${productContext && (productContext.product_details || productContext.brand_name) ? `\n\nProduct & Brand Context from Database:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}\nIMPORTANT: Use this authentic product and brand context to enhance the video prompts. The brand identity and product features should guide the creative direction.` : ''}
+Generate a complete JSON structure with ${videoScenes} video scene(s) for a character-based product advertisement.
 
-Use **UGC - style casual realism** principles:
-- Everyday realism with authentic, relatable environments
-- Amateur iPhone photo/video style
-- Slightly imperfect framing and natural lighting
-- Candid poses, genuine expressions
+You will receive TWO images:
+1. A PERSON image (the character/influencer)
+2. A PRODUCT image
 
-For image_prompt (root level field):
-- At the beginning, use this prefix: "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible"
-- Use casual, amateur iPhone selfie style
-- UGC, unfiltered, realistic
-- IMPORTANT: Keep the character consistent with the reference image analysis
-- This image will be the cover AND serve as first frame reference for ALL video scenes
+Your task:
+1. Analyze the PERSON image: Determine their ACTUAL GENDER (male/female), age, style, and appearance
+2. Analyze the PRODUCT image: Identify what it is and key visual features
+3. Generate ${videoScenes} video scene prompt(s) with CORRECT gender-specific voice
+4. Generate 1 cover image prompt
 
-For video scenes (numbered 1, 2, 3, etc.):
+${productContext && (productContext.product_details || productContext.brand_name) ? `
+Product & Brand Context from Database:
+${productContext.product_details ? `Product: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Details: ${productContext.brand_details}\n` : ''}
+IMPORTANT: Use this authentic product and brand context to enhance the video prompts.
+` : ''}
+
+CRITICAL RULES FOR GENDER:
+- Analyze the person's ACTUAL GENDER from the image - do NOT guess or assume
+- For MALE characters: Use "${languageName} accent, warm male voice"
+- For FEMALE characters: Use "${languageName} accent, warm female voice"
+- The gender MUST match what you see in the person image
+
+UGC STYLE PRINCIPLES:
+- Amateur iPhone selfie video aesthetic
+- Natural, casual environments
+- Slightly imperfect framing and lighting
+- Genuine, relatable expressions
+- The character must SHOW the product to camera naturally
+
+VIDEO SCENE REQUIREMENTS:
 - Each scene is ${unitSeconds} seconds long
-- Include dialogue with casual, spontaneous tone (under 150 characters)
-- IMPORTANT: Write ALL dialogue in ENGLISH. The 'language' field is metadata that tells the video generation API what language to use for voiceover. The actual dialogue text should always be in English.
-- CRITICAL LANGUAGE NOTE: The character will speak ${languageName} in the final video (handled automatically by the video generation API based on the 'language' field), but you must write the dialogue text in English.
-- DO NOT include a "language" field inside individual scene prompts - language is set at the top level only
-- Describe accent and voice style consistently
-- Prefix video prompts with: "dialogue, the character in the video says:"
-- Use ${voiceType}
-- Camera movement: fixed
-- Avoid mentioning copyrighted characters
-- Don't refer back to previous scenes
-- CRITICAL: Maintain character consistency - the same person from the reference image should appear in all scenes
-- CRITICAL: Maintain product consistency - focus on the same product throughout all scenes
-- CRITICAL: Each video should flow naturally from the cover image
-- If a user dialogue is provided, you MUST use it EXACTLY as given for Scene 1 without paraphrasing, summarizing, or changing words. Do not add prefixes/suffixes other than the required "dialogue, the character in the video says:". Preserve casing; you may only escape quotes when needed for JSON validity.
+- Write ALL dialogue in ENGLISH (regardless of target language)
+- The 'language' field is metadata - actual dialogue text is always English
+- Keep dialogue concise (under 150 characters) and conversational
+- Prefix all video_prompt with: "dialogue, the character in the video says:"
+- Camera movement: always "fixed"
+- Emotion: "excited, genuine" or similar positive emotions
+${userDialogue ? `- Scene 1 MUST use this EXACT dialogue: "${userDialogue.replace(/"/g, '\\"')}"` : ''}
 
-Return in JSON format:
+IMAGE PROMPT REQUIREMENTS:
+- Start with: "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible."
+- Describe the character with CORRECT GENDER matching the person image
+- Include product description
+- Amateur iPhone selfie aesthetic
+- This image serves as cover AND first frame reference for ALL videos
+
+OUTPUT FORMAT (JSON):
 {
-  "image_prompt": "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible. [full image prompt with character details, product, setting, camera style]",
   "scenes": [
     {
       "scene": 1,
       "prompt": {
-        "video_prompt": "dialogue, the character in the video says: ${userDialogue ? userDialogue.replace(/"/g, '\\"') : '[casual dialogue]'}",
-        "voice_type": "${voiceType}",
-        "emotion": "chill, upbeat",
-        "setting": "[casual environment]",
         "camera": "amateur iPhone selfie video",
-        "camera_movement": "fixed"
-      }
-    },
-    {
-      "scene": 2,
-      "prompt": {
-        "video_prompt": "dialogue, the character in the video says: [casual dialogue]",
-        "voice_type": "${voiceType}",
-        "emotion": "chill, upbeat",
-        "setting": "[casual environment]",
-        "camera": "amateur iPhone selfie video",
+        "emotion": "excited, genuine",
+        "setting": "[appropriate casual setting]",
+        "voice_type": "${languageName} accent, warm [male/female] voice",
+        "video_prompt": "dialogue, the character in the video says: [natural product pitch in English]",
         "camera_movement": "fixed"
       }
     }
-    // ... additional video scenes (numbered 3, 4, etc.) based on duration
-  ]
+  ],
+  "language": "${languageName}",
+  "image_prompt": "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible. [Detailed character description with CORRECT GENDER + product + setting + camera style]"
 }
 
-CRITICAL FORMAT RULES:
-- Put image_prompt at ROOT LEVEL (same level as scenes array)
-- scenes array starts from scene number 1 (NOT 0)
-- Do NOT include scene 0 in the scenes array
-- The image_prompt generates the cover image that ALL videos will reference
+CRITICAL: Ensure voice_type gender matches the person in the image!`;
 
-CRITICAL INSTRUCTIONS FOR DIALOGUE:
-- Write ALL dialogue text in ENGLISH, regardless of the target language (${languageName})
-- The video generation API will automatically convert the English dialogue to ${languageName} voiceover
-- Do NOT attempt to translate the dialogue yourself - write it in natural, conversational English
-- Keep dialogue concise (under 150 characters) and casual
-${userDialogue ? `- For Scene 1, use the exact user-provided dialogue: "${userDialogue.replace(/"/g, '\\"')}"` : ''}`;
-
-  const userPrompt = `🎯 PRODUCT INFORMATION (From Database):
-Product: ${productContext.product_details}
-${productContext.brand_name ? `Brand: ${productContext.brand_name}` : ''}
-${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}` : ''}
-${productContext.brand_details ? `Brand Details: ${productContext.brand_details}` : ''}
-
-🎭 CHARACTER INFORMATION:
-${characterDescription}
-
-IMPORTANT: Use the authentic product details from the database to create prompts.
-The character should present the product with accurate brand messaging.
-
-Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) plus 1 image scene.`;
-
-  const requestBody = JSON.stringify({
-    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    max_tokens: 2000,
-    temperature: 0.7,
-  });
+  const messages = [
+    {
+      role: 'system',
+      content: systemPrompt
+    },
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: `Generate prompts for this character and product:\n\nPERSON IMAGE: Analyze for gender, age, style\nPRODUCT IMAGE: Identify the product\n\n${productContext.product_details ? `Product Details: ${productContext.product_details}` : ''}`
+        },
+        { type: 'image_url', image_url: { url: personImageUrl } },
+        { type: 'image_url', image_url: { url: productImageUrl } }
+      ]
+    }
+  ];
 
   const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -303,38 +207,41 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
       'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       'X-Title': 'Flowtra'
     },
-    body: requestBody
-  }, 3, 30000); // 3 retries, 30 second timeout
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages,
+      response_format: { type: 'json_object' },
+      max_tokens: 2000,
+      temperature: 0.3
+    })
+  }, 3, 30000);
 
   if (!response.ok) {
-    throw new Error(`Prompt generation failed: ${response.statusText}`);
+    throw new Error(`Gemini prompt generation failed: ${response.statusText}`);
   }
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
 
   try {
-    // Clean up markdown code blocks if present
-    const cleanedContent = content
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
+    const parsed: {
+      image_prompt?: string;
+      scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }>;
+      language?: string;
+    } = JSON.parse(content);
 
-    console.log('Cleaned prompts content for parsing:', cleanedContent);
-    const parsed: { image_prompt?: string; scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> } = JSON.parse(cleanedContent);
-
-    // Validate new structure
+    // Validate structure
     if (!parsed.image_prompt) {
-      throw new Error('AI did not return image_prompt at root level');
+      throw new Error('AI did not return image_prompt');
     }
     if (!Array.isArray(parsed.scenes) || parsed.scenes.length === 0) {
       throw new Error('AI did not return scenes array');
     }
 
-    // Ensure no scene 0 exists (scenes should start from 1)
+    // Ensure no scene 0 (scenes start from 1)
     const hasScene0 = parsed.scenes.some((s) => s && Number(s.scene) === 0);
     if (hasScene0) {
-      console.warn('⚠️ AI incorrectly returned scene 0 - filtering it out');
+      console.warn('⚠️ AI returned scene 0 - filtering it out');
       parsed.scenes = parsed.scenes.filter((s) => s && Number(s.scene) !== 0);
     }
 
@@ -343,7 +250,7 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
       const scenes: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> = parsed.scenes;
       let s1 = scenes.find((s) => s && (Number(s.scene) === 1));
       if (!s1 && scenes.length >= 1) {
-        s1 = scenes[0]; // First scene if scene numbers not set correctly
+        s1 = scenes[0];
       }
       if (s1) {
         const exact = `dialogue, the character in the video says: ${userDialogue.replace(/"/g, '\\"')}`;
@@ -355,20 +262,19 @@ Generate prompts for ${videoScenes} video scenes (${unitSeconds} seconds each) p
       }
     }
 
-    // CRITICAL: Ensure language field is set correctly at the top level
-    // This is used by generateVideoWithKIE to add language metadata
-    const languageCode = (language || 'en') as LanguageCode;
-    const languageName = getLanguagePromptName(languageCode);
-    (parsed as Record<string, unknown>)['language'] = languageName;
+    // Ensure language field is set
+    if (!parsed.language) {
+      (parsed as Record<string, unknown>)['language'] = languageName;
+    }
 
-    console.log(`✅ Prompts generated with image_prompt at root level and ${parsed.scenes.length} video scenes`);
-    console.log(`✅ Language: ${languageName} (code: ${languageCode})`);
+    console.log(`✅ Generated prompts with direct Gemini image analysis: ${parsed.scenes.length} scenes`);
+    console.log(`✅ Language: ${parsed.language || languageName}`);
 
     return parsed;
   } catch (error) {
-    console.error('Failed to parse prompts result:', content);
-    console.error('Prompts parse error:', error);
-    throw new Error('Failed to parse generated prompts');
+    console.error('Failed to parse Gemini response:', content);
+    console.error('Parse error:', error);
+    throw new Error('Failed to parse generated prompts from Gemini');
   }
 }
 
@@ -507,34 +413,99 @@ async function generateVideoWithKIE(
   videoAspectRatio?: '16:9' | '9:16',
   language?: string
 ): Promise<{ taskId: string }> {
-  // Debug logging
-  console.log('🎬 generateVideoWithKIE called with:');
-  console.log('  - videoModel:', videoModel);
-  console.log('  - language parameter:', language);
-  console.log('  - language type:', typeof language);
+  console.log('===================generateVideoWithKIE called:=====================');
+  console.log('Input parameters:', {
+    promptType: typeof prompt,
+    promptKeys: prompt ? Object.keys(prompt) : 'null',
+    videoModel,
+    referenceImageUrl: referenceImageUrl?.substring(0, 50) + '...',
+    videoAspectRatio,
+    language
+  });
 
-  // DEFENSIVE: Remove any "language" field from prompt object (should only be in prefix)
-  const cleanedPrompt = { ...prompt };
-  if ('language' in cleanedPrompt) {
-    console.warn('⚠️ Removing "language" field from prompt object (it should only be in the prefix)');
-    console.warn('  - Removed value:', cleanedPrompt.language);
-    delete cleanedPrompt.language;
+  // ✅ Validate prompt parameter
+  if (!prompt || typeof prompt !== 'object') {
+    console.error('❌ Invalid prompt:', prompt);
+    throw new Error(`Invalid prompt: expected object, got ${typeof prompt}`);
   }
 
-  // Convert prompt object to string for API
-  const basePrompt = typeof cleanedPrompt === 'string' ? cleanedPrompt : JSON.stringify(cleanedPrompt);
+  // ✅ Extract video_prompt text from prompt object AND all metadata
+  let videoPromptText: string;
+
+  if (typeof prompt === 'string') {
+    // If already a string, use it directly
+    videoPromptText = prompt;
+  } else if (prompt && typeof prompt === 'object') {
+    // Extract all fields from the scene prompt object
+    const promptObj = prompt as {
+      video_prompt?: string;
+      voice_type?: string;
+      camera?: string;
+      emotion?: string;
+      setting?: string;
+      camera_movement?: string;
+      [key: string]: unknown;
+    };
+
+    // Extract each field
+    const videoPrompt = promptObj.video_prompt || '';
+    const voiceType = promptObj.voice_type || '';
+    const camera = promptObj.camera || '';
+    const emotion = promptObj.emotion || '';
+    const setting = promptObj.setting || '';
+    const cameraMovement = promptObj.camera_movement || '';
+
+    // Build structured prompt string with metadata
+    const promptParts: string[] = [];
+
+    // 1. Main dialogue content (required)
+    if (videoPrompt) {
+      promptParts.push(videoPrompt);
+    }
+
+    // 2. Add metadata guidance (if exists)
+    const metadataParts: string[] = [];
+
+    if (voiceType) {
+      metadataParts.push(`Voice: ${voiceType}`);
+    }
+    if (emotion) {
+      metadataParts.push(`Emotion: ${emotion}`);
+    }
+    if (setting) {
+      metadataParts.push(`Setting: ${setting}`);
+    }
+    if (camera) {
+      metadataParts.push(`Camera: ${camera}`);
+    }
+    if (cameraMovement && cameraMovement !== 'fixed') {
+      metadataParts.push(`Movement: ${cameraMovement}`);
+    }
+
+    if (metadataParts.length > 0) {
+      promptParts.push('\n\n' + metadataParts.join(', '));
+    }
+
+    videoPromptText = promptParts.join('');
+
+    // Defensive check: if still empty
+    if (!videoPromptText || videoPromptText.trim() === '') {
+      console.error('❌ Failed to extract video prompt text from prompt object:', prompt);
+      throw new Error('Invalid prompt: video_prompt field is missing or empty');
+    }
+  } else {
+    throw new Error(`Invalid prompt format: ${typeof prompt}`);
+  }
+
+  const basePrompt = videoPromptText;
 
   // Add language metadata if not English (simple format for VEO3 API)
   const lang = (language || 'en') as LanguageCode;
-  console.log('  - resolved lang:', lang);
 
   const languageName = getLanguagePromptName(lang);
-  console.log('  - languageName from getLanguagePromptName:', languageName);
 
   // Defensive check: ensure languageName is valid
   if (!languageName) {
-    console.error(`❌ getLanguagePromptName returned undefined for language code: "${lang}"`);
-    console.error(`Available language codes: en, zh, es, fr, de, nl, ur, pa`);
     throw new Error(`Invalid language code: ${lang}`);
   }
 
@@ -543,6 +514,19 @@ async function generateVideoWithKIE(
     : '';
 
   const finalPrompt = `${languagePrefix}${basePrompt}`;
+
+  console.log('===================Final prompt:=====================');
+  console.log(finalPrompt);
+  console.log('Prompt metadata:', {
+    length: finalPrompt.length,
+    containsDialogue: finalPrompt.includes('dialogue'),
+    containsVoice: finalPrompt.includes('Voice:'),
+    containsEmotion: finalPrompt.includes('Emotion:'),
+    containsSetting: finalPrompt.includes('Setting:'),
+    containsCamera: finalPrompt.includes('Camera:'),
+    language: language || 'en',
+    languagePrefix: languagePrefix || 'none'
+  });
 
   let requestBody: Record<string, unknown>;
   let apiEndpoint: string;
@@ -568,7 +552,7 @@ async function generateVideoWithKIE(
       enableAudio: true,
       audioEnabled: true,
       generateVoiceover: false,
-      includeDialogue: false,
+      includeDialogue: true, // ✅ Enable dialogue generation for character ads
       enableTranslation: false
     };
     apiEndpoint = 'https://api.kie.ai/api/v1/veo/generate';
@@ -577,6 +561,29 @@ async function generateVideoWithKIE(
   console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
   console.log('Video API endpoint:', apiEndpoint);
 
+  // ✅ FINAL STRICT VALIDATION before calling KIE API
+  const promptInBody = videoModel === 'sora2'
+    ? (requestBody.input as any)?.prompt
+    : requestBody.prompt;
+
+  console.log('🚨 FINAL PROMPT VALIDATION BEFORE KIE API CALL:');
+  console.log('Prompt value:', promptInBody);
+  console.log('Prompt type:', typeof promptInBody);
+  console.log('Prompt length:', typeof promptInBody === 'string' ? promptInBody.length : 'N/A');
+
+  if (!promptInBody || typeof promptInBody !== 'string' || promptInBody.trim() === '' || promptInBody === '{}') {
+    console.error('❌❌❌ CRITICAL: Attempting to call KIE API with empty/invalid prompt!');
+    console.error('Request body:', JSON.stringify(requestBody, null, 2));
+    throw new Error(`STOPPING WORKFLOW: Cannot call KIE API with empty prompt "${promptInBody}"`);
+  }
+
+  if (!promptInBody.includes('dialogue')) {
+    console.warn('⚠️ WARNING: Prompt does not contain "dialogue" keyword!');
+  }
+
+  console.log('✅ Final prompt validation passed, calling KIE API...');
+
+  console.log('Calling KIE API...');
   const response = await fetchWithRetry(apiEndpoint, {
     method: 'POST',
     headers: {
@@ -586,17 +593,23 @@ async function generateVideoWithKIE(
     body: JSON.stringify(requestBody)
   }, 5, 30000);
 
+  console.log('KIE API response status:', response.status);
+
   if (!response.ok) {
     const errorData = await response.text();
+    console.error('❌ KIE API error response:', errorData);
     throw new Error(`KIE video generation failed: ${response.status} ${response.statusText} - ${errorData}`);
   }
 
   const data = await response.json();
+  console.log('KIE API response data:', JSON.stringify(data, null, 2));
 
   if (data.code !== 200) {
+    console.error('❌ KIE API returned error code:', data.code, data.message);
     throw new Error(`KIE video generation failed: ${data.message || 'Unknown error'}`);
   }
 
+  console.log('✅ Video task created successfully:', data.data.taskId);
   return { taskId: data.data.taskId };
 }
 
@@ -865,15 +878,25 @@ export async function processCharacterAdsProject(
           throw new Error(`Invalid person image URL: ${JSON.stringify(personImageUrl)}`);
         }
 
-        console.log('Starting person image analysis for URL:', personImageUrl);
+        // Validate product image URLs
+        if (!project.product_image_urls || project.product_image_urls.length === 0) {
+          throw new Error('Product image URLs are required but not found in project');
+        }
 
-        // NEW: Lightweight character analysis
-        const characterDescription = await analyzePersonImage(personImageUrl);
-        console.log('Person analysis completed:', characterDescription);
+        const productImageUrl = project.product_image_urls[0];
+        if (!productImageUrl || typeof productImageUrl !== 'string') {
+          throw new Error(`Invalid product image URL: ${JSON.stringify(productImageUrl)}`);
+        }
 
+        console.log('Generating prompts with direct Gemini analysis...');
+        console.log('Person image:', personImageUrl);
+        console.log('Product image:', productImageUrl);
+
+        // ✅ Fix Bug 2: Direct Gemini analysis - no separate person analysis or gender detection
         const prompts = await generatePrompts(
           productContext as { product_details: string; brand_name?: string; brand_slogan?: string; brand_details?: string },
-          characterDescription,
+          personImageUrl,
+          productImageUrl,
           project.video_duration_seconds,
           (project.video_model as 'veo3' | 'veo3_fast' | 'sora2'),
           project.language,
@@ -1038,10 +1061,14 @@ export async function processCharacterAdsProject(
       }
 
       case 'generate_videos': {
-        // Step 4: Generate video scenes using KIE
-        console.log('Generating videos for project:', project.id);
-        console.log('📊 Project language field:', project.language);
+        console.log('📹 === GENERATE_VIDEOS STEP STARTED ===', {
+          projectId: project.id,
+          hasGeneratedImage: !!project.generated_image_url,
+          videoModel: project.video_model,
+          videoDuration: project.video_duration_seconds
+        });
 
+        // Step 4: Generate video scenes using KIE
         if (!project.generated_image_url) {
           throw new Error('Generated image not found - required for video generation');
         }
@@ -1049,8 +1076,6 @@ export async function processCharacterAdsProject(
         // Legacy projects may have stored sora2 as veo3_fast with an error_message flag
         const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
         const actualVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
-        
-        console.log(`🎬 Video generation - stored model: ${project.video_model}, resolved model: ${actualVideoModel}`);
 
         const unitSeconds = (project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : (project.video_model as 'veo3'|'veo3_fast'|'sora2')) === 'sora2' ? 10 : 8;
         const videoScenes = project.video_duration_seconds / unitSeconds;
@@ -1059,9 +1084,15 @@ export async function processCharacterAdsProject(
           ? project.kie_video_task_ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
           : [];
 
-        if (existingTaskIds.length === videoScenes) {
-          console.log(`🎬 Project ${project.id} already has ${existingTaskIds.length} KIE video tasks, skipping duplicate generation.`);
+        console.log('🔍 Checking existing video tasks:', {
+          projectId: project.id,
+          existingTaskIds: existingTaskIds.length,
+          requiredScenes: videoScenes,
+          willSkipGeneration: existingTaskIds.length === videoScenes
+        });
 
+        if (existingTaskIds.length === videoScenes) {
+          console.log('⏭️ Skipping video generation - tasks already exist, moving to status checks');
           const progress = Math.max(project.progress_percentage ?? 0, 70);
           const { data: updatedProject, error: skipUpdateError } = await supabase
             .from('character_ads_projects')
@@ -1085,15 +1116,58 @@ export async function processCharacterAdsProject(
           };
         }
 
+        console.log('🎬 Starting video generation loop for', videoScenes, 'scenes');
         const videoTaskIds = [];
 
         // Start video generation for each scene
         for (let i = 1; i <= videoScenes; i++) {
-          const videoPrompt = (project.generated_prompts?.scenes as Array<{prompt: unknown}>)?.[i]?.prompt;
+          // ✅ Fix: Array index is 0-based, loop counter is 1-based
+          console.log(`\n🔍 DEBUG Scene ${i}: Extracting prompt from generated_prompts`);
+          console.log('generated_prompts type:', typeof project.generated_prompts);
+          console.log('generated_prompts.scenes type:', typeof project.generated_prompts?.scenes);
+          console.log('generated_prompts.scenes is Array:', Array.isArray(project.generated_prompts?.scenes));
 
-          console.log(`\n🎬 Generating video for scene ${i}/${videoScenes}:`);
-          console.log('  - Project language field:', project.language);
-          console.log('  - Video prompt object:', JSON.stringify(videoPrompt, null, 2));
+          const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
+          console.log('scenes.length:', scenes?.length);
+          console.log(`scenes[${i-1}]:`, JSON.stringify(scenes?.[i-1], null, 2));
+
+          const videoPrompt = scenes?.[i - 1]?.prompt;
+          console.log(`videoPrompt extracted:`, JSON.stringify(videoPrompt, null, 2));
+          console.log('videoPrompt type:', typeof videoPrompt);
+          console.log('videoPrompt is empty object:', JSON.stringify(videoPrompt) === '{}');
+          console.log('Extracted fields:', {
+            hasVideoPrompt: !!(videoPrompt as any)?.video_prompt,
+            hasVoiceType: !!(videoPrompt as any)?.voice_type,
+            hasCamera: !!(videoPrompt as any)?.camera,
+            hasEmotion: !!(videoPrompt as any)?.emotion,
+            hasSetting: !!(videoPrompt as any)?.setting,
+            hasCameraMovement: !!(videoPrompt as any)?.camera_movement,
+            language: project.language
+          });
+
+          // ✅ STRICT VALIDATION: Ensure videoPrompt exists and is not empty object
+          if (!videoPrompt || typeof videoPrompt !== 'object') {
+            console.error(`❌❌❌ Scene ${i}: videoPrompt is ${!videoPrompt ? 'undefined/null' : 'not an object'}!`);
+            console.error('Full generated_prompts:', JSON.stringify(project.generated_prompts, null, 2));
+            throw new Error(`Scene ${i} prompt not found in generated_prompts - STOPPING WORKFLOW`);
+          }
+
+          // ✅ STRICT VALIDATION: Check if videoPrompt is empty object {}
+          const videoPromptObj = videoPrompt as any;
+          if (!videoPromptObj.video_prompt || typeof videoPromptObj.video_prompt !== 'string' || videoPromptObj.video_prompt.trim() === '') {
+            console.error(`❌❌❌ Scene ${i}: video_prompt field is missing or empty!`);
+            console.error('videoPrompt object:', JSON.stringify(videoPrompt, null, 2));
+            throw new Error(`Scene ${i} video_prompt is empty - STOPPING WORKFLOW`);
+          }
+
+          console.log(`✅ Scene ${i} prompt validation passed, video_prompt length: ${videoPromptObj.video_prompt.length}`);
+
+          console.log(`🎬 Generating video for scene ${i}/${videoScenes}:`, {
+            sceneNumber: i,
+            promptKeys: Object.keys(videoPrompt),
+            hasVideoPrompt: 'video_prompt' in videoPrompt,
+            videoPromptValue: (videoPrompt as any).video_prompt?.substring(0, 100) + '...'
+          });
 
           const { taskId } = await generateVideoWithKIE(
             videoPrompt as Record<string, unknown>,
@@ -1103,7 +1177,7 @@ export async function processCharacterAdsProject(
             project.language // Pass language for video prompt
           );
 
-          console.log(`  ✅ Scene ${i} video task created: ${taskId}\n`);
+          console.log(`✅ Scene ${i} video task created: ${taskId}`);
 
           videoTaskIds.push(taskId);
 
@@ -1154,7 +1228,6 @@ export async function processCharacterAdsProject(
         // Resolve actual video model (handle legacy sora2 storage)
         const storedVideoModel = project.video_model as 'veo3' | 'veo3_fast' | 'sora2';
         const actualVideoModel = project.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
-        console.log(`🎬 Checking video status - stored model: ${project.video_model}, resolved model: ${actualVideoModel}`);
 
         for (let i = 0; i < project.kie_video_task_ids.length; i++) {
           const taskId = project.kie_video_task_ids[i];

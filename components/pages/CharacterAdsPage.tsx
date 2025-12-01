@@ -517,7 +517,11 @@ const formatDurationLabel = (seconds: number) => {
 
   const activeProjectIds = useMemo(() => {
     const ids = generations
-      .filter((gen) => (gen.status === 'pending' || gen.status === 'processing') && gen.projectId)
+      .filter((gen) =>
+        (gen.status === 'pending' || gen.status === 'processing') &&
+        gen.projectId &&
+        !gen.projectId.startsWith('temp-')  // ✅ Filter out temporary IDs to prevent UUID validation errors
+      )
       .map((gen) => gen.projectId as string);
     return Array.from(new Set(ids));
   }, [generations]);
