@@ -8,11 +8,14 @@ import { ToastProvider } from '@/contexts/ToastContext';
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Flowtra AI - AI Video Generator for Etsy, Shopify & Gumroad Sellers",
-  description: "Generate scroll-stopping marketing videos and product images in minutes. Flowtra helps Etsy, Shopify, Gumroad, and Stan sellers create ads with unlimited free generations and one-time plans starting at $9.",
+  title: "UGC Videos Made for Small Businesses - Flowtra AI",
+  description: "UGC videos for small businesses, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes with unlimited free generations.",
   keywords: [
-    "AI video maker for Etsy sellers",
-    "Shopify product video generator",
+    "UGC video maker",
+    "small business video ads",
+    "Shopify product videos",
+    "dropshipping video ads",
+    "AI video generator for Etsy",
     "Gumroad marketing tool",
     "Stan creators AI",
     "free AI video generator",
@@ -43,8 +46,8 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: "Flowtra AI - AI Video Generator for Etsy, Shopify & Gumroad Sellers",
-    description: "Generate scroll-stopping marketing videos and product images in minutes. Flowtra helps Etsy, Shopify, Gumroad, and Stan sellers create ads with unlimited free generations and one-time plans starting at $9.",
+    title: "UGC Videos Made for Small Businesses - Flowtra AI",
+    description: "UGC videos for small businesses, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes with unlimited free generations.",
     url: 'https://www.flowtra.store',
     siteName: 'Flowtra',
     images: [
@@ -52,7 +55,7 @@ export const metadata: Metadata = {
         url: '/opengraph-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Flowtra AI - Video Generator for Etsy, Shopify & Gumroad Sellers',
+        alt: 'Flowtra AI - UGC Videos Made for Small Businesses',
       }
     ],
     locale: 'en_US',
@@ -60,8 +63,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Flowtra AI - AI Video Generator for Etsy, Shopify & Gumroad Sellers',
-    description: 'Generate scroll-stopping marketing videos and product images in minutes. Unlimited free generations and one-time plans starting at $9.',
+    title: 'UGC Videos Made for Small Businesses - Flowtra AI',
+    description: 'UGC videos for small businesses, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes.',
     images: ['/twitter-image.png'],
     creator: '@flowtra',
   },

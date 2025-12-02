@@ -7,94 +7,72 @@ export default function ModelPricingSection() {
 
   const models = [
     {
-      name: 'Veo3 Fast',
-      description: 'Quick generation for rapid testing',
+      name: 'Veo3.1 Fast',
+      description: '',
       icon: SiGoogle,
       badge: 'Popular',
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      durationRange: '8-32s',
+      durationRange: '1m 20s',
       billingType: 'download' as const,
       pricingOptions: [
-        { duration: '8s', credits: 20, unit: 'per 8s' },
-        { duration: '16s', credits: 40, unit: 'per 8s (2 segments)' },
-        { duration: '24s', credits: 60, unit: 'per 8s (3 segments)' },
-        { duration: '32s', credits: 80, unit: 'per 8s (4 segments)' },
+        { duration: '1m 20s', credits: 20, unit: 'per 8s' },
       ],
+      quality: ['720p', '1080p'],
     },
     {
       name: 'Sora2',
-      description: 'Standard quality for most use cases',
+      description: '',
       icon: SiOpenai,
       badge: null,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-      durationRange: '10s',
+      durationRange: '1m 20s',
       billingType: 'download' as const,
       pricingOptions: [
-        { duration: '10s', credits: 6, unit: 'per 10s' },
+        { duration: '1m 20s', credits: 6, unit: 'per 10s' },
       ],
+      quality: ['720p', '1080p'],
     },
     {
-      name: 'Veo3',
-      description: 'High-quality professional content',
+      name: 'Grok Imagine',
+      description: '',
+      icon: SiX,
+      badge: 'New',
+      durationRange: '1m 20s',
+      billingType: 'download' as const,
+      pricingOptions: [
+        { duration: '1m 20s', credits: 20, unit: 'per 6s' },
+      ],
+      quality: ['360p', '720p'],
+    },
+    {
+      name: 'Veo3.1',
+      description: '',
       icon: SiGoogle,
       badge: null,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-      durationRange: '8-32s',
+      durationRange: '1m 20s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { duration: '8s', credits: 150, unit: 'per 8s' },
-        { duration: '16s', credits: 300, unit: 'per 8s (2 segments)' },
-        { duration: '24s', credits: 450, unit: 'per 8s (3 segments)' },
-        { duration: '32s', credits: 600, unit: 'per 8s (4 segments)' },
+        { duration: '1m 20s', credits: 150, unit: 'per 8s' },
       ],
+      quality: ['720p', '1080p'],
     },
     {
       name: 'Sora2 Pro',
-      description: 'Premium quality with flexible options',
+      description: '',
       icon: SiOpenai,
       badge: 'Premium',
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
-      durationRange: '10-15s',
+      durationRange: '1m 20s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { duration: '10s Standard', credits: 75, unit: 'Standard quality' },
-        { duration: '15s Standard', credits: 135, unit: 'Standard quality' },
-        { duration: '10s HD', credits: 165, unit: 'HD quality' },
-        { duration: '15s HD', credits: 315, unit: 'HD quality' },
+        { duration: '1m 20s', credits: 75, unit: 'per 10s (720p)' },
+        { duration: '1m 20s', credits: 165, unit: 'per 10s (1080p)' },
       ],
-    },
-    {
-      name: 'Grok',
-      description: 'Kid-safe pipeline (6-second segments up to 60s), free to generate and billed on download',
-      icon: SiX,
-      badge: 'New',
-      color: 'text-indigo-600',
-      bgColor: 'bg-indigo-50',
-      durationRange: '6-60s',
-      billingType: 'download' as const,
-      pricingOptions: [
-        { duration: '6s', credits: 20, unit: 'per 6s segment download' },
-        { duration: '12s', credits: 40, unit: 'per 6s segment download' },
-        { duration: '18s', credits: 60, unit: 'per 6s segment download' },
-        { duration: '24s', credits: 80, unit: 'per 6s segment download' },
-        { duration: '30s', credits: 100, unit: 'per 6s segment download' },
-        { duration: '36s', credits: 120, unit: 'per 6s segment download' },
-        { duration: '42s', credits: 140, unit: 'per 6s segment download' },
-        { duration: '48s', credits: 160, unit: 'per 6s segment download' },
-        { duration: '54s', credits: 180, unit: 'per 6s segment download' },
-        { duration: '60s', credits: 200, unit: 'per 6s segment download' },
-      ],
+      quality: ['720p', '1080p'],
     },
   ];
 
   return (
     <section id="model-pricing" className="py-12 scroll-mt-24">
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Video Model Pricing</h2>
+        <h2 className="text-3xl font-bold text-gray-900 mb-2">Price details</h2>
         <p className="text-base text-gray-600 max-w-2xl mx-auto">
           Transparent pricing for all video models. Choose the right model for your needs.
         </p>
@@ -109,7 +87,10 @@ export default function ModelPricingSection() {
                 Model
               </th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                Duration
+                Max duration
+              </th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                Quality
               </th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
                 Generation Cost
@@ -118,7 +99,7 @@ export default function ModelPricingSection() {
                 Download Cost
               </th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                Est. Cost (USD)
+                USD
               </th>
             </tr>
           </thead>
@@ -140,9 +121,9 @@ export default function ModelPricingSection() {
                     {/* Model Name & Description - only show on first row */}
                     {isFirstRow && (
                       <td className="px-6 py-5" rowSpan={rowSpan}>
-                        <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg ${model.bgColor} mt-0.5`}>
-                            <Icon className={`w-6 h-6 ${model.color}`} />
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-gray-100 mt-0.5">
+                            <Icon className="w-6 h-6 text-gray-900" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -170,6 +151,15 @@ export default function ModelPricingSection() {
                       </span>
                     </td>
 
+                    {/* Quality */}
+                    {isFirstRow && (
+                      <td className="px-6 py-4" rowSpan={rowSpan}>
+                        <span className="text-sm font-medium text-gray-900">
+                          {model.quality.join(', ')}
+                        </span>
+                      </td>
+                    )}
+
                     {/* Generation Cost */}
                     <td className="px-6 py-4">
                       {model.billingType === 'generation' ? (
@@ -183,10 +173,10 @@ export default function ModelPricingSection() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-green-600">
+                          <span className="text-sm font-semibold text-gray-900">
                             Free
                           </span>
-                          <Zap className="w-3.5 h-3.5 text-green-600" />
+                          <Zap className="w-3.5 h-3.5 text-gray-900" />
                         </div>
                       )}
                     </td>
@@ -201,27 +191,27 @@ export default function ModelPricingSection() {
                           <p className="text-xs text-gray-500 mt-0.5">
                             {option.unit}
                           </p>
-                          {isFirstRow && (
-                            <p className="text-xs text-blue-600 mt-1">
-                              *Deducted only upon the first successful download of an advertisement
-                            </p>
-                          )}
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-green-600">
+                          <span className="text-sm font-semibold text-gray-900">
                             Free
                           </span>
-                          <Check className="w-3.5 h-3.5 text-green-600" />
+                          <Check className="w-3.5 h-3.5 text-gray-900" />
                         </div>
                       )}
                     </td>
 
                     {/* Est. Cost USD */}
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-gray-900">
-                        ~${usdCost}
-                      </span>
+                      <div>
+                        <span className="text-sm font-bold text-gray-900">
+                          ${usdCost}
+                        </span>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {option.unit}
+                        </p>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -241,9 +231,9 @@ export default function ModelPricingSection() {
               className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm"
             >
               {/* Header */}
-              <div className="flex items-start gap-3 mb-4">
-                <div className={`p-2 rounded-lg ${model.bgColor}`}>
-                  <Icon className={`w-6 h-6 ${model.color}`} />
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-gray-100">
+                  <Icon className="w-6 h-6 text-gray-900" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -260,7 +250,10 @@ export default function ModelPricingSection() {
                     {model.description}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Duration: <span className="font-medium text-gray-700">{model.durationRange}</span>
+                    Max duration: <span className="font-medium text-gray-700">{model.durationRange}</span>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Quality: <span className="font-medium text-gray-700">{model.quality.join(', ')}</span>
                   </p>
                 </div>
               </div>
@@ -274,7 +267,7 @@ export default function ModelPricingSection() {
                         {option.duration}
                       </span>
                       <span className="text-sm font-bold text-gray-900">
-                        ~${(option.credits * CREDIT_TO_USD).toFixed(2)}
+                        ${(option.credits * CREDIT_TO_USD).toFixed(2)}
                       </span>
                     </div>
                     <div className="space-y-1 text-xs text-gray-600">
@@ -285,8 +278,8 @@ export default function ModelPricingSection() {
                             {option.credits} credits
                           </span>
                         ) : (
-                          <span className="flex items-center gap-1 text-green-600 font-semibold">
-                            Free <Zap className="w-3 h-3" />
+                          <span className="flex items-center gap-1 text-gray-900 font-semibold">
+                            Free <Zap className="w-3 h-3 text-gray-900" />
                           </span>
                         )}
                       </div>
@@ -297,8 +290,8 @@ export default function ModelPricingSection() {
                             {option.credits} credits
                           </span>
                         ) : (
-                          <span className="flex items-center gap-1 text-green-600 font-semibold">
-                            Free <Check className="w-3 h-3" />
+                          <span className="flex items-center gap-1 text-gray-900 font-semibold">
+                            Free <Check className="w-3 h-3 text-gray-900" />
                           </span>
                         )}
                       </div>
@@ -309,50 +302,14 @@ export default function ModelPricingSection() {
                   </div>
                 ))}
 
-                {/* Download billing notice for free-generation models */}
-                {model.billingType === 'download' && (
-                  <div className="text-xs text-blue-700 bg-blue-50 rounded p-2 leading-snug">
-                    Credits are deducted only on the first successful download you keep.
-                  </div>
-                )}
+
               </div>
             </article>
           );
         })}
       </div>
 
-      {/* Footnote */}
-      <div className="mt-8 space-y-3 text-center max-w-[90rem] mx-auto">
-        <div className="bg-gray-50 rounded-lg p-4 text-left">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">Billing Rules</h4>
-          <ul className="space-y-1.5 text-xs text-gray-600">
-            <li className="flex items-start gap-2">
-              <span className="text-gray-400 mt-0.5">•</span>
-              <span><strong>Veo3 & Veo3 Fast:</strong> Videos are generated in 8-second segments. Longer videos (16s/24s/32s) cost multiples of the base 8s price.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-400 mt-0.5">•</span>
-              <span><strong>Sora2 Pro:</strong> 4 quality tiers available - Standard/HD quality at 10s/15s durations.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-400 mt-0.5">•</span>
-              <span><strong>Grok:</strong> Free to generate, billed per 6-second segment only when you download (6s to 60s).</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-400 mt-0.5">•</span>
-              <span><strong>Download Billing (Veo3 Fast, Sora2, Grok):</strong> Credits are deducted only when you download a video you&apos;re satisfied with, and only on first download. Re-downloading is free.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-400 mt-0.5">•</span>
-              <span><strong>Generation Billing (Veo3, Sora2 Pro):</strong> Credits are charged upfront when generation starts. Downloads are free. Failed generations are automatically refunded.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-400 mt-0.5">•</span>
-              <span>All prices based on conversion rate of <strong>$0.018 per credit</strong>.</span>
-            </li>
-          </ul>
-        </div>
-      </div>
+
     </section>
   );
 }

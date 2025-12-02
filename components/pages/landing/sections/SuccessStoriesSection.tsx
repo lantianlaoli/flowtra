@@ -9,10 +9,10 @@ export default function SuccessStoriesSection() {
     <section id="features" className="pt-12 md:pt-20 pb-6 md:pb-10 scroll-mt-24">
       <div className="text-center mb-8 md:mb-12">
         <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3 sm:mb-6">
-          Real Success Stories
+          User Cases
         </h2>
         <p className="text-base sm:text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed">
-          See how creators and businesses use Flowtra to create engaging video content
+          See how creators and businesses use Flowtra
         </p>
       </div>
 

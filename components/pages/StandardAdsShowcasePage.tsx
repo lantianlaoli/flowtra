@@ -111,7 +111,7 @@ export default function StandardAdsShowcasePage() {
               </Link>
             </div>
             <p className="text-sm text-gray-500">
-              100 free credits for new users (~$1.80 value) • 1 credit ≈ $0.018
+              100 free credits for new users ($1.80 value) • 1 credit ≈ $0.018
             </p>
           </div>
 

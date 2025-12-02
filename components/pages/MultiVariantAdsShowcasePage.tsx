@@ -112,7 +112,7 @@ export default function MultiVariantAdsShowcasePage() {
             </Link>
           </div>
           <p className="text-sm text-gray-500">
-            100 free credits (~$1.80 value) • Image generation is FREE
+            100 free credits ($1.80 value) • Image generation is FREE
           </p>
         </div>
       </section>
