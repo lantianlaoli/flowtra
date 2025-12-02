@@ -2,20 +2,13 @@ import { PricingButton } from '@/components/pages/landing/PricingButton';
 
 export default function PricingSection() {
   // Black Friday discount
-  const DISCOUNT_RATE = 0.2; // 20% off
   const LITE_PRICE = 9;
   const BASIC_PRICE = 29;
   const PRO_PRICE = 49;
 
-  const calculateDiscount = (price: number) => ({
-    original: price,
-    discounted: (price * (1 - DISCOUNT_RATE)).toFixed(2),
-    savings: (price * DISCOUNT_RATE).toFixed(2)
-  });
-
-  const litePricing = calculateDiscount(LITE_PRICE);
-  const basicPricing = calculateDiscount(BASIC_PRICE);
-  const proPricing = calculateDiscount(PRO_PRICE);
+  const litePricing = LITE_PRICE;
+  const basicPricing = BASIC_PRICE;
+  const proPricing = PRO_PRICE;
 
   return (
     <section id="pricing" className="py-12 scroll-mt-24">
@@ -31,14 +24,8 @@ export default function PricingSection() {
 
           {/* Price with discount */}
           <div className="mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg line-through text-[#9b9a97]">${litePricing.original}</span>
-              <span className="bg-[#f7f6f3] text-[#787774] text-xs font-medium px-2 py-1 rounded">
-                Save ${litePricing.savings}
-              </span>
-            </div>
             <div className="text-3xl font-bold text-gray-900">
-              <data itemProp="price" value={litePricing.discounted}>${litePricing.discounted}</data>
+              <data itemProp="price" value={litePricing}>${litePricing}</data>
               <span className="text-lg font-normal text-gray-600">/package</span>
             </div>
           </div>
@@ -76,14 +63,8 @@ export default function PricingSection() {
 
           {/* Price with discount */}
           <div className="mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg line-through text-[#9b9a97]">${basicPricing.original}</span>
-              <span className="bg-[#f7f6f3] text-[#787774] text-xs font-medium px-2 py-1 rounded">
-                Save ${basicPricing.savings}
-              </span>
-            </div>
             <div className="text-3xl font-bold text-gray-900">
-              <data itemProp="price" value={basicPricing.discounted}>${basicPricing.discounted}</data>
+              <data itemProp="price" value={basicPricing}>${basicPricing}</data>
               <span className="text-lg font-normal text-gray-600">/package</span>
             </div>
           </div>
@@ -118,14 +99,8 @@ export default function PricingSection() {
 
           {/* Price with discount */}
           <div className="mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg line-through text-[#9b9a97]">${proPricing.original}</span>
-              <span className="bg-[#f7f6f3] text-[#787774] text-xs font-medium px-2 py-1 rounded">
-                Save ${proPricing.savings}
-              </span>
-            </div>
             <div className="text-3xl font-bold text-gray-900">
-              <data itemProp="price" value={proPricing.discounted}>${proPricing.discounted}</data>
+              <data itemProp="price" value={proPricing}>${proPricing}</data>
               <span className="text-lg font-normal text-gray-600">/package</span>
             </div>
           </div>
