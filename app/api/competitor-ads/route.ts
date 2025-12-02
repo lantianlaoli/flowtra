@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
     const competitorName = formData.get('competitor_name') as string;
     const platform = formData.get('platform') as string;
     const adFile = formData.get('ad_file') as File | null;
+    const adFileUrl = formData.get('ad_file_url') as string | null;
+    const fileTypeInput = formData.get('file_type') as 'image' | 'video' | null;
 
     // Validation
     if (!brandId || brandId.trim().length === 0) {
@@ -94,8 +96,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Platform is required' }, { status: 400 });
     }
 
-    if (!adFile) {
-      return NextResponse.json({ error: 'Advertisement file is required' }, { status: 400 });
+    if (!adFile && !adFileUrl) {
+      return NextResponse.json({ error: 'Advertisement file or URL is required' }, { status: 400 });
     }
 
     // Verify brand ownership
@@ -111,16 +113,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Brand not found or access denied' }, { status: 404 });
     }
 
-    // Upload file to storage
+    // Upload file to storage (if not already uploaded)
     let uploadResult;
-    try {
-      uploadResult = await uploadCompetitorAdToStorage(adFile, brandId, competitorName);
-    } catch (uploadError) {
-      console.error('File upload error:', uploadError);
-      return NextResponse.json(
-        { error: 'Failed to upload file', details: uploadError instanceof Error ? uploadError.message : 'Unknown error' },
-        { status: 500 }
-      );
+    if (adFile) {
+      try {
+        uploadResult = await uploadCompetitorAdToStorage(adFile, brandId, competitorName);
+      } catch (uploadError) {
+        console.error('File upload error:', uploadError);
+        return NextResponse.json(
+          { error: 'Failed to upload file', details: uploadError instanceof Error ? uploadError.message : 'Unknown error' },
+          { status: 500 }
+        );
+      }
+    } else {
+      // Pre-uploaded file
+      if (!fileTypeInput) {
+        return NextResponse.json({ error: 'File type is required when using pre-uploaded URL' }, { status: 400 });
+      }
+      uploadResult = {
+        publicUrl: adFileUrl!,
+        fileType: fileTypeInput,
+        // path is not strictly needed for the DB record insert below which uses publicUrl
+      };
     }
 
     // Create competitor ad record in database with pending analysis status

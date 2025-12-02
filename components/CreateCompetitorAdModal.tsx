@@ -141,11 +141,48 @@ export default function CreateCompetitorAdModal({
         // Use file name (without extension) as temporary name
         const tempName = file.name.replace(/\.[^/.]+$/, '');
 
+        // 1. Get Signed Upload URL (Direct to Storage)
+        const uploadAuthResponse = await fetch('/api/competitor-ads/upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            fileType: isVideo ? 'video' : 'image',
+            brandId,
+            competitorName: tempName
+          })
+        });
+
+        if (!uploadAuthResponse.ok) {
+          throw new Error('Failed to initialize upload');
+        }
+
+        const { signedUrl, publicUrl } = await uploadAuthResponse.json();
+
+        // 2. Upload File directly to Supabase Storage
+        console.log('[CreateCompetitorAdModal] Uploading directly to storage...');
+        const uploadResponse = await fetch(signedUrl, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type
+          }
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error('Storage upload failed');
+        }
+
+        console.log('[CreateCompetitorAdModal] Direct upload successful');
+
+        // 3. Create Record with Public URL
         const formData = new FormData();
         formData.append('brand_id', brandId);
         formData.append('competitor_name', tempName);
         formData.append('platform', platform);
-        formData.append('ad_file', file);
+        // Pass URL instead of file
+        formData.append('ad_file_url', publicUrl);
+        formData.append('file_type', isVideo ? 'video' : 'image');
 
         // Create record with analyzing status
         const response = await fetch('/api/competitor-ads', {
@@ -156,7 +193,7 @@ export default function CreateCompetitorAdModal({
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || 'Upload failed');
+          throw new Error(data.error || 'Failed to create record');
         }
 
         const ad = data.competitorAd;
