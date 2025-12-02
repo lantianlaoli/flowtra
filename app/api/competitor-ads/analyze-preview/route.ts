@@ -4,6 +4,7 @@ import { analyzeCompetitorAdWithLanguage } from '@/lib/standard-ads-workflow';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const maxDuration = 60; // Increase execution timeout to 60s for large uploads
 
 /**
  * POST /api/competitor-ads/analyze-preview

@@ -1312,11 +1312,7 @@ async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
  * @returns Object with { analysis: {...}, language: 'en' }
  */
 export async function analyzeCompetitorAdWithLanguage(
-  competitorAdContext: {
-    file_url: string;
-    file_type: 'video' | 'image';
-    competitor_name?: string;
-  }
+  competitorAdContext: { file_url: string; file_type: 'image' | 'video'; competitor_name?: string }
 ): Promise<{ analysis: Record<string, unknown>; language: LanguageCode }> {
   console.log('[analyzeCompetitorAdWithLanguage] 🔍 Starting competitor analysis with language detection...');
   console.log('[analyzeCompetitorAdWithLanguage] File type:', competitorAdContext.file_type);
@@ -1578,10 +1574,15 @@ EXAMPLE OUTPUT STRUCTURE:
   });
 
   let data: unknown;
+  let responseText = '';
   try {
-    data = await response.json();
+    responseText = await response.text();
+    data = JSON.parse(responseText);
   } catch (error) {
     console.error('[analyzeCompetitorAdWithLanguage] JSON parse error:', error);
+    if (typeof responseText === 'string' && responseText.includes('Request En')) {
+      throw new Error(`Failed to parse competitor analysis response: Possible request body too large. OpenRouter returned: ${responseText.substring(0, 100)}...`);
+    }
     throw new Error('Failed to parse competitor analysis response');
   }
 
