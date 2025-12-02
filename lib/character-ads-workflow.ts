@@ -150,11 +150,11 @@ VIDEO SCENE REQUIREMENTS:
 - Each scene is ${UNIT_SECONDS} seconds long
 - Write ALL dialogue in ENGLISH (regardless of target language)
 - The 'language' field is metadata - actual dialogue text is always English
-- Keep dialogue concise (under 150 characters) and conversational
+- Keep dialogue concise (under 20 words per scene) and conversational
 - Prefix all video_prompt with: "dialogue, the character in the video says:"
 - Camera movement: always "fixed"
 - Emotion: "excited, genuine" or similar positive emotions
-${userDialogue ? `- Scene 1 MUST use this EXACT dialogue: "${userDialogue.replace(/"/g, '\\"')}"` : ''}
+${userDialogue ? `- The user has provided a custom script. You MUST distribute this script appropriately across the ${videoScenes} scenes. Do not change the words, but split them to fit the timing. Script: "${userDialogue.replace(/"/g, '\\"')}"` : ''}
 
 IMAGE PROMPT REQUIREMENTS:
 - Start with: "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible."
@@ -248,22 +248,7 @@ CRITICAL: Ensure voice_type gender matches the person in the image!`;
       parsed.scenes = parsed.scenes.filter((s) => s && Number(s.scene) !== 0);
     }
 
-    // Enforce exact user dialogue for Scene 1 if provided
-    if (userDialogue && Array.isArray(parsed.scenes)) {
-      const scenes: Array<{ scene?: number | string; prompt?: Record<string, unknown> }> = parsed.scenes;
-      let s1 = scenes.find((s) => s && (Number(s.scene) === 1));
-      if (!s1 && scenes.length >= 1) {
-        s1 = scenes[0];
-      }
-      if (s1) {
-        const exact = `dialogue, the character in the video says: ${userDialogue.replace(/"/g, '\\"')}`;
-        if (!s1.prompt || typeof s1.prompt === 'string') {
-          s1.prompt = { video_prompt: exact } as Record<string, unknown>;
-        } else {
-          (s1.prompt as Record<string, unknown>)["video_prompt"] = exact;
-        }
-      }
-    }
+    // User dialogue is now handled by the LLM system prompt directly to ensure proper distribution across scenes
 
     // Ensure language field is set
     if (!parsed.language) {
@@ -411,7 +396,7 @@ async function generateImageWithKIE(
 
 async function generateVideoWithKIE(
   prompt: Record<string, unknown>,
-  referenceImageUrl: string,
+  referenceImageUrls: string[],
   videoAspectRatio?: '16:9' | '9:16',
   language?: string
 ): Promise<{ taskId: string }> {
@@ -419,7 +404,7 @@ async function generateVideoWithKIE(
   console.log('Input parameters:', {
     promptType: typeof prompt,
     promptKeys: prompt ? Object.keys(prompt) : 'null',
-    referenceImageUrl: referenceImageUrl?.substring(0, 50) + '...',
+    referenceImageUrls: referenceImageUrls?.map(url => url.substring(0, 50) + '...'),
     videoAspectRatio,
     language
   });
@@ -529,12 +514,23 @@ async function generateVideoWithKIE(
     languagePrefix: languagePrefix || 'none'
   });
 
+  // Determine generation mode based on images provided
+  let generationType = 'TEXT_2_VIDEO';
+  if (referenceImageUrls.length === 1) {
+    // Normal image-to-video
+    generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO'; // or rely on auto-detection, but manual is safer
+  } else if (referenceImageUrls.length === 2) {
+    // Start and end frame
+    generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO';
+  }
+
   // Character Ads only uses VEO3 Fast API
   const requestBody = {
     prompt: finalPrompt,
     model: VIDEO_MODEL, // Fixed: 'veo3_fast'
     aspectRatio: videoAspectRatio || "16:9",
-    imageUrls: [referenceImageUrl],
+    imageUrls: referenceImageUrls,
+    generationType, // Explicitly set generation type
     enableAudio: true,
     audioEnabled: true,
     generateVoiceover: false,
@@ -1070,7 +1066,7 @@ export async function processCharacterAdsProject(
 
           const { taskId } = await generateVideoWithKIE(
             videoPrompt as Record<string, unknown>,
-            project.generated_image_url, // Use generated image as reference
+            [project.generated_image_url, project.generated_image_url], // Use generated image as start AND end frame for consistency
             project.video_aspect_ratio as '16:9' | '9:16' | undefined,
             project.language // Pass language for video prompt
           );
@@ -1122,9 +1118,11 @@ export async function processCharacterAdsProject(
 
         const videoUrls: string[] = [];
         let allCompleted = true;
+        let hasRetries = false;
+        const currentTaskIds = [...project.kie_video_task_ids]; // Copy for mutation
 
-        for (let i = 0; i < project.kie_video_task_ids.length; i++) {
-          const taskId = project.kie_video_task_ids[i];
+        for (let i = 0; i < currentTaskIds.length; i++) {
+          const taskId = currentTaskIds[i];
           const status = await checkKIEVideoTaskStatus(taskId);
 
           if (status.status === 'completed' && status.result_url) {
@@ -1142,10 +1140,71 @@ export async function processCharacterAdsProject(
               .eq('scene_number', i + 1);
 
           } else if (status.status === 'failed') {
+            // Check if retryable error
+            const isRetryable = status.error && (
+              status.error.includes('content policy') || 
+              status.error.includes('Safety check failed') ||
+              status.error.includes('violating content policies')
+            );
+
+            if (isRetryable) {
+              console.log(`⚠️ Retryable error detected for scene ${i + 1}: ${status.error}. Retrying...`);
+              
+              // Retrieve prompt for this scene
+              const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
+              const videoPrompt = scenes?.[i]?.prompt;
+
+              if (videoPrompt) {
+                // Regenerate video task
+                const { taskId: newTaskId } = await generateVideoWithKIE(
+                  videoPrompt as Record<string, unknown>,
+                  [project.generated_image_url!, project.generated_image_url!], 
+                  project.video_aspect_ratio as '16:9' | '9:16' | undefined,
+                  project.language
+                );
+
+                console.log(`✅ Retried scene ${i + 1} with new task: ${newTaskId}`);
+                
+                // Update task ID in local array
+                currentTaskIds[i] = newTaskId;
+                hasRetries = true;
+                allCompleted = false;
+
+                // Update scene record immediately
+                await supabase
+                  .from('character_ads_scenes')
+                  .update({
+                    kie_video_task_id: newTaskId,
+                    status: 'generating'
+                  })
+                  .eq('project_id', project.id)
+                  .eq('scene_number', i + 1);
+                  
+                continue; // Skip error throwing
+              }
+            }
+
             throw new Error(`Video ${i + 1} generation failed: ${status.error}`);
           } else {
             allCompleted = false;
           }
+        }
+
+        // Save retries if any
+        if (hasRetries) {
+           await supabase
+            .from('character_ads_projects')
+            .update({
+              kie_video_task_ids: currentTaskIds,
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', project.id);
+            
+           return {
+             project: { ...project, kie_video_task_ids: currentTaskIds },
+             message: 'Retrying failed video tasks due to content policy...',
+             nextStep: 'check_videos_status' // Stay in this step
+           };
         }
 
         if (allCompleted) {

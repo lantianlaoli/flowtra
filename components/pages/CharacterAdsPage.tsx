@@ -12,7 +12,7 @@ import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector'
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
-import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, Globe } from 'lucide-react';
+import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getActualModel, isFreeGenerationModel, getGenerationCost } from '@/lib/constants';
@@ -166,6 +166,11 @@ export default function CharacterAdsPage() {
   const [isGeneratingDialogue, setIsGeneratingDialogue] = useState(false);
   const [dialogueError, setDialogueError] = useState<string | null>(null);
   const [hasAIGeneratedDialogue, setHasAIGeneratedDialogue] = useState(false);
+  const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [showExpandCollapseIcon, setShowExpandCollapseIcon] = useState(false);
+
+
   const maxDurationOption = CHARACTER_ADS_DURATION_OPTIONS[CHARACTER_ADS_DURATION_OPTIONS.length - 1];
 const maxWordLimit = getCharacterAdsDialogueWordLimit(maxDurationOption);
 const formatDurationLabel = (seconds: number) => {
@@ -248,11 +253,15 @@ const formatDurationLabel = (seconds: number) => {
   }, []);
 
   useEffect(() => {
-    setCustomDialogue(prev => {
-      const limited = clampDialogueToWordLimit(prev, dialogueWordLimit);
-      return limited === prev ? prev : limited;
-    });
-  }, [dialogueWordLimit]);
+    const checkOverflow = () => {
+      if (textareaRef.current) {
+        setShowExpandCollapseIcon(textareaRef.current.scrollHeight > textareaRef.current.clientHeight);
+      }
+    };
+    checkOverflow(); // Initial check
+    window.addEventListener('resize', checkOverflow); // Check on window resize
+    return () => window.removeEventListener('resize', checkOverflow);
+  }, [customDialogue]); // Re-run when customDialogue changes
 
   // Show toast notification when generation starts
   const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
@@ -398,6 +407,40 @@ const formatDurationLabel = (seconds: number) => {
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    setCustomDialogue(prev => {
+      const limited = clampDialogueToWordLimit(prev, dialogueWordLimit);
+      return limited === prev ? prev : limited;
+    });
+  }, [dialogueWordLimit]);
+
+  useEffect(() => {
+    const checkOverflow = () => {
+      if (textareaRef.current) {
+        // We consider it overflowing if scrollHeight is greater than clientHeight + some tolerance (e.g., 1px for rounding)
+        // Also ensure it's not expanded, or if expanded, that it actually needs to scroll
+        const isOverflowing = textareaRef.current.scrollHeight > (textareaRef.current.clientHeight + 1);
+        setShowExpandCollapseIcon(isOverflowing);
+      }
+    };
+
+    checkOverflow(); // Initial check
+
+    // Re-check when customDialogue changes or window resizes
+    const resizeObserver = new ResizeObserver(checkOverflow);
+    if (textareaRef.current) {
+      resizeObserver.observe(textareaRef.current);
+    }
+    window.addEventListener('resize', checkOverflow);
+
+    return () => {
+      if (textareaRef.current) {
+        resizeObserver.unobserve(textareaRef.current);
+      }
+      window.removeEventListener('resize', checkOverflow);
+    };
+  }, [customDialogue, isTextareaExpanded]); // isTextareaExpanded also affects clientHeight, so re-check then.
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -796,7 +839,7 @@ const formatDurationLabel = (seconds: number) => {
         <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-6 sm:px-8 lg:px-10 pb-4">
           <div className="max-w-7xl mx-auto">
             <div className="relative bg-white/95 backdrop-blur border border-gray-200 rounded-[60px] shadow-2xl px-4 sm:px-6 py-4">
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-end gap-3 flex-wrap">
                 <button
                   onClick={() => setIsPersonPickerOpen(true)}
                   className={`w-12 h-12 rounded-full border transition flex items-center justify-center text-sm font-medium ${hasPersonPhoto ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
@@ -821,28 +864,36 @@ const formatDurationLabel = (seconds: number) => {
                   )}
                 </button>
 
-                <div className="flex-1 min-w-[240px]">
-                  <div className="relative bg-white border border-gray-200 rounded-[999px] px-5 py-2.5 shadow-sm transition-all flex items-center min-h-[52px]">
-                    <textarea
-                      value={customDialogue}
-                      onChange={(e) => handleCustomDialogueChange(e.target.value)}
-                      placeholder="Add a short line the character will say. Think product hook + friendly CTA."
-                      rows={1}
-                      className="w-full resize-none bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus-visible:border-none text-sm text-gray-900 placeholder:text-gray-400 pr-32 !outline-none !ring-0 shadow-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleGenerateAIDialogue}
-                      disabled={isGeneratingDialogue || !canUseDialogueAI}
-                      className="absolute top-1/2 right-3 -translate-y-1/2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-300 px-3.5 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-500/25 transition disabled:opacity-60 focus:outline-none focus-visible:outline-none"
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      {isGeneratingDialogue ? 'Loading…' : hasAIGeneratedDialogue ? 'Regenerate' : 'AI Generate'}
-                    </button>
-                  </div>
-                  {dialogueError && <div className="text-[11px] text-red-500 mt-1">{dialogueError}</div>}
-                </div>
-
+                              <div className="flex-1 min-w-[240px]">
+                                <div className="relative bg-white border border-gray-200 rounded-3xl px-5 py-3 shadow-sm transition-all flex flex-col justify-end" style={{minHeight: '52px'}}>
+                                  <textarea
+                                    ref={textareaRef}
+                                    value={customDialogue}
+                                    onChange={(e) => handleCustomDialogueChange(e.target.value)}
+                                    onInput={(e) => {
+                                      e.currentTarget.style.height = 'auto';
+                                      e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
+                                    }}
+                                    placeholder="Type your custom script here (AI will generate if left blank)"
+                                    rows={1} // Start with 1, auto-grow
+                                    className={`w-full bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus-visible:border-none text-sm text-gray-900 placeholder:text-gray-400 pr-10 !outline-none !ring-0 shadow-none resize-none transition-all duration-300 ${isTextareaExpanded ? 'max-h-[300px]' : 'max-h-[72px]'} overflow-y-auto`}
+                                    style={{ minHeight: '24px' }}
+                                  />
+                                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                                    {showExpandCollapseIcon && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setIsTextareaExpanded(!isTextareaExpanded)}
+                                        className="inline-flex items-center justify-center w-6 h-6 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+                                        title={isTextareaExpanded ? 'Collapse' : 'Expand'}
+                                      >
+                                        {isTextareaExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                {dialogueError && <div className="text-[11px] text-red-500 mt-1">{dialogueError}</div>}
+                              </div>
                 <button
                   onClick={() => setShowConfigPanel((prev) => !prev)}
                   className={`w-12 h-12 rounded-full border flex items-center justify-center transition ${showConfigPanel ? 'border-gray-800 text-gray-900' : 'border-gray-300 text-gray-500'}`}

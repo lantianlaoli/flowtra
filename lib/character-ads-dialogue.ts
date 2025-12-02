@@ -13,16 +13,21 @@ export const CHARACTER_ADS_DURATION_OPTIONS = [
 
 export type CharacterAdsDuration = typeof CHARACTER_ADS_DURATION_OPTIONS[number];
 
-const DEFAULT_WORDS_PER_SECOND = 5.6;
+const DEFAULT_WORDS_PER_SECOND = 2.1; // ~126 wpm (Safe speaking pace for short clips)
 
 // Preserve legacy explicit limits for historical durations so older projects remain consistent
+// Updated to reflect safer speaking speeds (approx 17 words per 8s block)
 const LEGACY_WORD_LIMITS: Record<number, number> = {
-  8: 48,
-  10: 60,
-  16: 88,
-  20: 112,
-  24: 136,
-  30: 168
+  8: 17,
+  16: 34,
+  24: 51,
+  32: 68,
+  40: 85,
+  48: 102,
+  56: 119,
+  64: 136,
+  72: 153,
+  80: 170
 };
 
 export function getCharacterAdsDialogueWordLimit(durationSeconds: number): number {
