@@ -26,7 +26,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         </h1>
 
         <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
-          UGC videos for small businesses, Shopify sellers, and dropshippers.
+          UGC videos for local stores, Shopify sellers, and dropshippers.
         </p>
 
         {/* New users label + key benefits under subtitle */}

@@ -9,7 +9,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "UGC Videos Made for Small Businesses - Flowtra AI",
-  description: "UGC videos for small businesses, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes with unlimited free generations.",
+  description: "UGC videos for local stores, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes with unlimited free generations.",
   keywords: [
     "UGC video maker",
     "small business video ads",
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "UGC Videos Made for Small Businesses - Flowtra AI",
-    description: "UGC videos for small businesses, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes with unlimited free generations.",
+    description: "UGC videos for local stores, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes with unlimited free generations.",
     url: 'https://www.flowtra.store',
     siteName: 'Flowtra',
     images: [
@@ -64,7 +64,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'UGC Videos Made for Small Businesses - Flowtra AI',
-    description: 'UGC videos for small businesses, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes.',
+    description: 'UGC videos for local stores, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes.',
     images: ['/twitter-image.png'],
     creator: '@flowtra',
   },
