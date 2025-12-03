@@ -408,10 +408,17 @@ const formatDurationLabel = (seconds: number) => {
     setOptimizationPrompt('Generate a clear portrait photo of this person, chest up only, head and shoulders, no hands visible, high quality, photorealistic, 8k resolution, natural lighting.');
   }, []);
 
-  const handlePersonPickerSelect = (photoUrl: string, photoId?: string) => {
+  const handlePersonPickerSelect = (photoUrl: string, photoId?: string, isNewUpload?: boolean) => {
     setTempSelectedPhotoUrl(photoUrl);
     setTempSelectedPhotoId(photoId);
-    setOptimizationStage('optimize');
+
+    if (isNewUpload) { // Only proceed to optimize stage for new uploads
+      setOptimizationStage('optimize');
+    } else { // For existing photos, directly select and close
+      setSelectedPersonPhotoUrl(photoUrl);
+      setIsPersonPickerOpen(false);
+      resetOptimizationState(); // Reset optimization state for next time
+    }
   };
 
   const handleUseOriginal = () => {
