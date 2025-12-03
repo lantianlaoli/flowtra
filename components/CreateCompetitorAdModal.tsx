@@ -61,6 +61,7 @@ export default function CreateCompetitorAdModal({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [compressionLink, setCompressionLink] = useState<string | null>(null);
 
   // Analysis state
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('idle');
@@ -117,7 +118,13 @@ export default function CreateCompetitorAdModal({
       // Validate file size
       const maxSize = isVideo ? 12 * 1024 * 1024 : 10 * 1024 * 1024;
       if (file.size > maxSize) {
-        setError(`File size must be less than ${isVideo ? '12MB. Please use a video compression website to process your video before uploading: https://www.onlineconverter.com/compress-video' : '10MB'}`);
+        if (isVideo) {
+          setError('File size must be less than 12MB.');
+          setCompressionLink('https://www.onlineconverter.com/compress-video');
+        } else {
+          setError('File size must be less than 10MB.');
+          setCompressionLink(null);
+        }
         return;
       }
 
@@ -214,7 +221,8 @@ export default function CreateCompetitorAdModal({
               if (updatedAd.analysis_status === 'completed') {
                 if (updatedAd.file_type === 'video' && typeof updatedAd.video_duration_seconds === 'number' && updatedAd.video_duration_seconds > 80) {
                   setAnalysisStatus('failed');
-                  setAnalysisError('Video duration must not exceed 1 minute 20 seconds (80 seconds). Please use a video compression website to process your video before uploading: https://www.onlineconverter.com/compress-video');
+                  setAnalysisError('Video duration must not exceed 1 minute 20 seconds (80 seconds).');
+                  setCompressionLink('https://www.onlineconverter.com/compress-video');
                   console.error('[CreateCompetitorAdModal] ❌ Video duration exceeds 80 seconds');
                   return true; // Stop polling, analysis considered failed due to duration
                 }
@@ -520,6 +528,15 @@ export default function CreateCompetitorAdModal({
                       </div>
                       <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
                         {analysisError || 'An error occurred during analysis'}
+                        {compressionLink && (
+                          <>
+                            <br />
+                            <span className="font-semibold">Please use a video compression website to process your video before uploading:</span>{' '}
+                            <a href={compressionLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">
+                              {compressionLink}
+                            </a>
+                          </>
+                        )}
                       </p>
                       <p className="text-sm text-gray-600 mt-3">
                         The competitor ad has been saved, but analysis failed. You can retry analysis later from the Assets page.
@@ -592,7 +609,15 @@ export default function CreateCompetitorAdModal({
                 {/* Error Message */}
                 {error && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                    {error}
+                    <p>{error}</p>
+                    {compressionLink && (
+                      <p className="mt-2">
+                        Please use a video compression website to process your video before uploading:{' '}
+                        <a href={compressionLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">
+                          {compressionLink}
+                        </a>
+                      </p>
+                    )}
                   </div>
                 )}
 
