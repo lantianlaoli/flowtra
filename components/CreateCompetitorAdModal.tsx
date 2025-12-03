@@ -117,7 +117,7 @@ export default function CreateCompetitorAdModal({
       // Validate file size
       const maxSize = isVideo ? 12 * 1024 * 1024 : 10 * 1024 * 1024;
       if (file.size > maxSize) {
-        setError(`File size must be less than ${isVideo ? '100MB' : '10MB'}`);
+        setError(`File size must be less than ${isVideo ? '12MB. Please use a video compression website to process your video before uploading: https://www.onlineconverter.com/compress-video' : '10MB'}`);
         return;
       }
 
