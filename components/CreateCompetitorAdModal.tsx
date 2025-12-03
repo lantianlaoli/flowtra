@@ -115,7 +115,7 @@ export default function CreateCompetitorAdModal({
       }
 
       // Validate file size
-      const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+      const maxSize = isVideo ? 12 * 1024 * 1024 : 10 * 1024 * 1024;
       if (file.size > maxSize) {
         setError(`File size must be less than ${isVideo ? '100MB' : '10MB'}`);
         return;
@@ -212,9 +212,17 @@ export default function CreateCompetitorAdModal({
               const updatedAd = statusData.competitorAd;
 
               if (updatedAd.analysis_status === 'completed') {
+                if (updatedAd.file_type === 'video' && typeof updatedAd.video_duration_seconds === 'number' && updatedAd.video_duration_seconds > 80) {
+                  setAnalysisStatus('failed');
+                  setAnalysisError('Video duration must not exceed 1 minute 20 seconds (80 seconds). Please use a video compression website to process your video before uploading: https://www.onlineconverter.com/compress-video');
+                  console.error('[CreateCompetitorAdModal] ❌ Video duration exceeds 80 seconds');
+                  return true; // Stop polling, analysis considered failed due to duration
+                }
+
                 setAnalysisStatus('completed');
                 setAnalysisResult(updatedAd.analysis_result);
                 setAnalysisLanguage(updatedAd.language || null);
+
                 // Auto-fill competitor name with AI-suggested name from analysis
                 if (updatedAd.analysis_result && typeof updatedAd.analysis_result === 'object' && 'name' in updatedAd.analysis_result) {
                   const suggestedName = updatedAd.analysis_result.name as string;
@@ -391,7 +399,7 @@ export default function CreateCompetitorAdModal({
                   <p className="text-lg font-medium text-gray-800 mb-2">Upload a file</p>
                   <p className="text-sm text-gray-500">Choose a competitor image or video to preview and analyze.</p>
                   <p className="text-xs text-gray-400 mt-3">
-                    Images: max 10MB · Videos: max 100MB
+                    Images: max 10MB · Videos: max 12MB
                   </p>
                   {!canSelectFile && (
                     <p className="text-xs text-gray-500 mt-2">Finish the current upload before adding another file.</p>
