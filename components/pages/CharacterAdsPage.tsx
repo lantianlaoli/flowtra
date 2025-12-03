@@ -32,6 +32,7 @@ interface KieCreditsStatus {
 
 const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
 const DEFAULT_IMAGE_MODEL = 'nano_banana' as const;
+const BLURRY_IMAGE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/competitor_videos/user-photos/character_ad_bad.png';
 const IMAGE_SIZE_BY_ASPECT: Record<'16:9' | '9:16', 'landscape_16_9' | 'portrait_16_9'> = {
   '16:9': 'landscape_16_9',
   '9:16': 'portrait_16_9'
@@ -387,9 +388,131 @@ const formatDurationLabel = (seconds: number) => {
   const composerDisabled = !canStartGeneration;
 
   const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
-  const handlePersonPickerSelect = (photoUrl: string) => {
-    setSelectedPersonPhotoUrl(photoUrl);
+
+  // Optimization State
+  const [optimizationStage, setOptimizationStage] = useState<'upload' | 'optimize'>('upload');
+  const [tempSelectedPhotoUrl, setTempSelectedPhotoUrl] = useState<string>('');
+  const [tempSelectedPhotoId, setTempSelectedPhotoId] = useState<string | undefined>(undefined);
+  const [optimizationPrompt, setOptimizationPrompt] = useState<string>('Generate a clear portrait photo of this person, chest up only, head and shoulders, no hands visible, high quality, photorealistic, 8k resolution, natural lighting.');
+  const [optimizedPhotoUrl, setOptimizedPhotoUrl] = useState<string | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const resetOptimizationState = useCallback(() => {
+    setOptimizationStage('upload');
+    setTempSelectedPhotoUrl('');
+    setTempSelectedPhotoId(undefined);
+    setOptimizedPhotoUrl(null);
+    setIsOptimizing(false);
+    setIsSaving(false);
+    setOptimizationPrompt('Generate a clear portrait photo of this person, chest up only, head and shoulders, no hands visible, high quality, photorealistic, 8k resolution, natural lighting.');
+  }, []);
+
+  const handlePersonPickerSelect = (photoUrl: string, photoId?: string) => {
+    setTempSelectedPhotoUrl(photoUrl);
+    setTempSelectedPhotoId(photoId);
+    setOptimizationStage('optimize');
+  };
+
+  const handleUseOriginal = () => {
+    setSelectedPersonPhotoUrl(tempSelectedPhotoUrl);
     setIsPersonPickerOpen(false);
+    resetOptimizationState();
+  };
+
+  const handleUseOptimized = async () => {
+    if (!optimizedPhotoUrl) return;
+    
+    setIsSaving(true);
+
+    try {
+      // Call API to save photo from URL (backend handles download/upload to avoid CORS)
+      const uploadRes = await fetch('/api/user-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: optimizedPhotoUrl })
+      });
+
+      if (!uploadRes.ok) throw new Error('Failed to save optimized photo');
+      
+      const data = await uploadRes.json();
+      
+      // Use the new Supabase URL
+      setSelectedPersonPhotoUrl(data.imageUrl);
+      
+      // Delete original if needed
+      if (tempSelectedPhotoId && !tempSelectedPhotoId.startsWith('default-')) {
+        try {
+          await fetch(`/api/user-photos?photoId=${tempSelectedPhotoId}`, { method: 'DELETE' });
+        } catch (err) {
+          console.error('Failed to delete discarded photo:', err);
+        }
+      }
+
+      setIsPersonPickerOpen(false);
+      resetOptimizationState();
+      showSuccess('Optimized photo saved and selected!');
+
+    } catch (error) {
+      console.error('Error saving optimized photo:', error);
+      showError('Failed to save optimized photo');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleOptimize = async () => {
+    if (!tempSelectedPhotoUrl) return;
+    setIsOptimizing(true);
+    setOptimizedPhotoUrl(null);
+
+    try {
+      const response = await fetch('/api/character-ads/optimize-portrait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: tempSelectedPhotoUrl, prompt: optimizationPrompt })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to start optimization');
+
+      const taskId = data.taskId;
+      
+      // Poll for status
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/character-ads/optimize-portrait?taskId=${taskId}`);
+          const statusData = await statusRes.json();
+          
+          if (statusData.status === 'success' && statusData.imageUrl) {
+            clearInterval(pollInterval);
+            setOptimizedPhotoUrl(statusData.imageUrl);
+            setIsOptimizing(false);
+            showSuccess('Portrait optimized successfully!');
+          } else if (statusData.status === 'failed' || statusData.status === 'fail') {
+            clearInterval(pollInterval);
+            setIsOptimizing(false);
+            showError('Optimization failed. Please try again.');
+          }
+        } catch (e) {
+          console.error('Polling error:', e);
+        }
+      }, 3000);
+
+      // Timeout after 60s
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (isOptimizing) {
+           // Just stop the spinner, user can try again
+           setIsOptimizing(false);
+        }
+      }, 60000);
+
+    } catch (error) {
+      console.error('Optimization error:', error);
+      showError('Failed to start optimization');
+      setIsOptimizing(false);
+    }
   };
 
   const handleProductPickerSelect = (product: UserProduct | null) => {
@@ -1059,21 +1182,153 @@ const formatDurationLabel = (seconds: number) => {
           <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Select Character Photo</h3>
-                <p className="text-xs text-gray-500">Pick an existing shot or upload a new one.</p>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {optimizationStage === 'upload' ? 'Select Character Photo' : 'AI Optimize Portrait'}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  {optimizationStage === 'upload'
+                    ? 'Pick an existing shot or upload a new one.'
+                    : 'Improve your portrait quality with AI.'}
+                </p>
               </div>
               <button
-                onClick={() => setIsPersonPickerOpen(false)}
+                onClick={() => {
+                  setIsPersonPickerOpen(false);
+                  resetOptimizationState();
+                }}
                 className="text-sm text-gray-600 hover:text-gray-900"
               >
                 Close
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-              <UserPhotoGallery
-                onPhotoSelect={handlePersonPickerSelect}
-                selectedPhotoUrl={selectedPersonPhotoUrl}
-              />
+              {optimizationStage === 'upload' ? (
+                <>
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Portrait Photo Examples:</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-green-500 shadow-md mb-2">
+                          <Image
+                            src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/character_ad_example.png"
+                            alt="Good Example"
+                            width={112}
+                            height={112}
+                            className="object-cover w-full h-full"
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-green-700">Good Example</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-red-500 shadow-md mb-2">
+                          <Image
+                            src={BLURRY_IMAGE_URL}
+                            alt="Bad Example (Blurry)"
+                            width={112}
+                            height={112}
+                            className="object-cover w-full h-full"
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-red-700">Bad Example (Blurry)</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-4">For best results, use a clear, well-lit, front-facing portrait of a single person. Avoid blurry or low-resolution images.</p>
+                  </div>
+                  <UserPhotoGallery
+                    onPhotoSelect={handlePersonPickerSelect}
+                    selectedPhotoUrl={selectedPersonPhotoUrl}
+                  />
+                </>
+              ) : (
+                <div className="h-full flex flex-col min-h-0">
+                  <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+                    {/* Left Side: Images (Original + Optimized) */}
+                    <div className="lg:col-span-8 grid grid-cols-2 gap-4 h-full min-h-0">
+                      {/* Original */}
+                      <div className="flex flex-col gap-2 h-full min-h-0">
+                        <label className="text-sm font-medium text-gray-700">Original Photo</label>
+                        <div className="relative flex-1 bg-gray-100 rounded-xl overflow-hidden border border-gray-200">
+                          {tempSelectedPhotoUrl && (
+                            <Image src={tempSelectedPhotoUrl} alt="Original" fill className="object-cover" />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Optimized */}
+                      <div className="flex flex-col gap-2 h-full min-h-0">
+                        <label className="text-sm font-medium text-gray-700">AI Result</label>
+                        <div className="relative flex-1 bg-gray-100 rounded-xl overflow-hidden border border-gray-200 flex items-center justify-center">
+                          {isOptimizing ? (
+                            <div className="flex flex-col items-center gap-2 text-gray-500">
+                              <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
+                              <span className="text-sm">Optimizing...</span>
+                            </div>
+                          ) : optimizedPhotoUrl ? (
+                            <Image src={optimizedPhotoUrl} alt="Optimized" fill className="object-cover" />
+                          ) : (
+                            <div className="text-center p-4 text-gray-400">
+                              <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-xs">AI optimized version will appear here.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Side: Controls */}
+                    <div className="lg:col-span-4 flex flex-col h-full overflow-y-auto">
+                      <div className="flex-1">
+                         <label className="text-sm font-medium text-gray-700 mb-2 block">Optimization Prompt</label>
+                         <textarea
+                            value={optimizationPrompt}
+                            onChange={(e) => setOptimizationPrompt(e.target.value)}
+                            className="w-full rounded-lg border-gray-300 text-sm focus:ring-gray-900 focus:border-gray-900 min-h-[120px]"
+                            placeholder="Describe how you want to improve the photo..."
+                          />
+                          <p className="text-xs text-gray-500 mt-2">
+                            Refine the prompt to adjust lighting, background, or style.
+                          </p>
+                      </div>
+
+                      <div className="mt-6 space-y-3">
+                        <button
+                          onClick={handleOptimize}
+                          disabled={isOptimizing}
+                          className="w-full py-3 rounded-xl bg-gray-900 text-white font-semibold hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          {isOptimizing ? 'Optimizing...' : 'Generate AI Portrait'}
+                        </button>
+
+                        <div className="grid grid-cols-1 gap-2">
+                      {optimizedPhotoUrl && (
+                        <button
+                          onClick={handleUseOptimized}
+                          disabled={isSaving}
+                          className="w-full py-2.5 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isSaving ? 'Saving...' : 'Use Optimized Photo'}
+                        </button>
+                      )}
+                           <button
+                             onClick={handleUseOriginal}
+                             className="w-full py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition"
+                           >
+                             Use Original
+                           </button>
+                        </div>
+
+                        <button
+                          onClick={() => setOptimizationStage('upload')}
+                          className="w-full py-2 text-sm text-gray-500 hover:text-gray-900 transition"
+                        >
+                          Back to Upload
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

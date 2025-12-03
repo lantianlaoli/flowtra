@@ -514,9 +514,75 @@ export const deleteUserPhoto = async (photoId: string, userId: string): Promise<
     throw updateError
   }
 
+  // Delete from storage (hard delete)
+  const filePath = `user-photos/${photo.file_name}`
+  const { error: storageError } = await supabase.storage.from('images').remove([filePath])
+
   // Optionally delete from storage (uncomment if you want hard delete)
   // const filePath = `user-photos/${photo.file_name}`
   // await supabase.storage.from('images').remove([filePath])
+}
+
+export const uploadUserPhotoFromUrl = async (imageUrl: string, userId: string) => {
+  console.log(`[uploadUserPhotoFromUrl] Starting upload for user: ${userId}, url: ${imageUrl}`);
+
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const contentType = response.headers.get('content-type') || 'image/png';
+    // Handle content-type like "image/jpeg; charset=utf-8"
+    const mimeType = contentType.split(';')[0].trim();
+    const ext = mimeType.split('/')[1] || 'png';
+    
+    const fileName = `${userId}_${Date.now()}_optimized.${ext}`;
+    const filePath = `user-photos/${fileName}`;
+    
+    const supabase = getSupabaseAdmin();
+
+    const { data, error } = await supabase.storage
+      .from('images')
+      .upload(filePath, buffer, {
+        contentType: mimeType,
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath);
+
+    const { data: photoRecord, error: dbError } = await supabase
+      .from('user_photos')
+      .insert({
+        user_id: userId,
+        photo_url: publicUrl,
+        file_name: fileName,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+       await supabase.storage.from('images').remove([filePath]);
+       throw dbError;
+    }
+
+    return {
+      path: data.path,
+      publicUrl,
+      fullUrl: publicUrl,
+      photoRecord
+    };
+
+  } catch (error) {
+    console.error('[uploadUserPhotoFromUrl] Error:', error);
+    throw error;
+  }
 }
 
 // Upload product photo to storage in the correct product folder

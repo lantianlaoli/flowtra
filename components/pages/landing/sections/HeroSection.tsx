@@ -43,6 +43,22 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
           </span>
         </div>
 
+        {/* Selling points */}
+        <div className="mt-4 space-y-2 text-gray-600 text-base">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-green-500" />
+            <span>Videos from $0.36 per 8 seconds</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-green-500" />
+            <span>Veo3.1 fast generation is free; pay only to download</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-green-500" />
+            <span>Supports English, Chinese, and over ten other languages</span>
+          </div>
+        </div>
+
 
 
 

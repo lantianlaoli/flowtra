@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@clerk/nextjs/server';
-import { uploadUserPhotoToStorage, getUserPhotos, deleteUserPhoto } from '@/lib/supabase';
+import { uploadUserPhotoToStorage, getUserPhotos, deleteUserPhoto, uploadUserPhotoFromUrl } from '@/lib/supabase';
 
 // GET: Fetch all user photos
 export async function GET(request: NextRequest) {
@@ -43,6 +43,26 @@ export async function POST(request: NextRequest) {
     if (!userId) {
       console.log('[User Photo Upload] Unauthorized request');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      console.log(`[User Photo Upload] JSON request detected for user: ${userId}`);
+      const body = await request.json();
+      const { imageUrl } = body;
+
+      if (!imageUrl) {
+        return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
+      }
+
+      const result = await uploadUserPhotoFromUrl(imageUrl, userId);
+      return NextResponse.json({
+        success: true,
+        photo: result.photoRecord,
+        imageUrl: result.publicUrl,
+        path: result.path,
+        message: 'Photo saved successfully'
+      });
     }
 
     console.log(`[User Photo Upload] Starting upload for user: ${userId}`);

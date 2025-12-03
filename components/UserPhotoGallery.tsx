@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { UserPhoto } from '@/lib/supabase';
 
 interface UserPhotoGalleryProps {
-  onPhotoSelect: (photoUrl: string) => void;
+  onPhotoSelect: (photoUrl: string, photoId?: string) => void;
   selectedPhotoUrl?: string;
 }
 
@@ -112,7 +112,7 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
           // Refresh the photos list
           await loadUserPhotos();
           // Auto-select the newly uploaded photo
-          onPhotoSelect(data.imageUrl);
+          onPhotoSelect(data.imageUrl, data.photo?.id);
           return;
         } else {
           // Try to parse error response
@@ -221,7 +221,7 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
                     : 'border-gray-200 hover:border-gray-300'
                   }
                 `}
-              onClick={() => onPhotoSelect(photo.photo_url)}
+                              onClick={() => onPhotoSelect(photo.photo_url, photo.id)}
             >
               <Image
                 src={photo.photo_url}
@@ -246,7 +246,7 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
                     : 'border-gray-200 hover:border-gray-300'
                   }
                 `}
-                onClick={() => onPhotoSelect(photo.photo_url)}
+                                onClick={() => onPhotoSelect(photo.photo_url, photo.id)}
               >
                 <Image
                   src={photo.photo_url}
