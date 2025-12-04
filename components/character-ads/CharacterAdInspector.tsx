@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, Loader2, ChevronDown } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 // Define the shape of the structured video prompt
 export interface StructuredVideoPrompt {
@@ -87,10 +88,17 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
   const [isSceneExpanded, setIsSceneExpanded] = useState(true); // State for collapsible scene card
   const isInitialized = useRef(false); // Track if we've populated the edit buffers
 
-  const fetchProjectDetails = useCallback(async () => {
+  const fetchProjectDetails = useCallback(async ({ isInitialLoad = false }: { isInitialLoad?: boolean } = {}) => {
     if (!projectId) return;
     try {
-      const response = await fetch(`/api/character-ads/${projectId}/status`, { cache: 'no-store' });
+      const maxRetries = isInitialLoad ? 6 : 3;
+      const timeoutMs = isInitialLoad ? 45000 : 20000;
+      const response = await fetchWithRetry(
+        `/api/character-ads/${projectId}/status`,
+        { cache: 'no-store' },
+        maxRetries,
+        timeoutMs
+      );
       
       // Handle 404 or 401 silently during polling (might be transient)
       if (response.status === 404 || response.status === 401) {
@@ -104,13 +112,10 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
       const data = await response.json();
       if (data.project) {
         setProject(data.project);
-        
-        // Update regeneration state based on status
-        if (data.project.status === 'generating_image') {
-          setIsRegeneratingImage(true);
-        } else if (data.project.status === 'awaiting_review') {
-          setIsRegeneratingImage(false);
-        }
+
+        const shouldShowImageSpinner =
+          data.project.status === 'generating_image' && !data.project.generated_image_url;
+        setIsRegeneratingImage(shouldShowImageSpinner);
       } else {
         console.warn('Project data missing in response, or response was empty.');
         showError('Project details not found in response.');
@@ -152,7 +157,7 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
 
     const loadInitialData = async () => {
       console.log('loadInitialData: fetching details...');
-      await fetchProjectDetails();
+      await fetchProjectDetails({ isInitialLoad: true });
       console.log('loadInitialData: fetch complete, setLoading(false)');
       setLoading(false); // Only set loading to false after the initial fetch
     };

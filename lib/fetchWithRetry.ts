@@ -1,9 +1,30 @@
+const normalizeHeaders = (headers?: HeadersInit): Record<string, string> => {
+  if (!headers) return {};
+
+  if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+    const result: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      result[key] = value;
+    });
+    return result;
+  }
+
+  if (Array.isArray(headers)) {
+    return headers.reduce<Record<string, string>>((acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    }, {});
+  }
+
+  return { ...(headers as Record<string, string>) };
+};
+
 /**
  * Fetch with retry mechanism for handling network issues
  */
 export async function fetchWithRetry(
-  url: string, 
-  options: RequestInit, 
+  url: string,
+  options: RequestInit = {},
   maxRetries = 5, // Increased from 3 to 5
   timeoutMs = 60000 // Increased from 30000 to 60000 (60 seconds)
 ): Promise<Response> {
@@ -12,17 +33,21 @@ export async function fetchWithRetry(
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const baseHeaders = normalizeHeaders(options.headers);
+    const headers = typeof window === 'undefined'
+      ? {
+          ...baseHeaders,
+          Connection: baseHeaders.Connection ?? 'keep-alive',
+          'Accept-Encoding': baseHeaders['Accept-Encoding'] ?? 'gzip, deflate',
+        }
+      : baseHeaders;
     
     try {
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
-        // Add additional headers that might help with network issues
-        headers: {
-          ...options.headers,
-          'Connection': 'keep-alive',
-          'Accept-Encoding': 'gzip, deflate',
-        }
+        headers,
       });
       
       clearTimeout(timeoutId);

@@ -54,14 +54,15 @@ export async function PATCH(
     // Trigger the workflow to continue with video generation
     // This will directly call the workflow function without waiting for the monitor-tasks cron
     // and will update its state immediately.
-    try {
-      await processCharacterAdsProject(updatedProject, 'generate_videos');
-      console.log(`Successfully triggered video generation for project ${projectId}`);
-    } catch (workflowError) {
-      console.error(`Error triggering processCharacterAdsProject for ${projectId}:`, workflowError);
-      // Even if triggering fails, the project status is updated, so cron will pick it up.
-      // We don't want to block the user experience, so just log the error.
-    }
+    void processCharacterAdsProject(updatedProject, 'generate_videos')
+      .then(() => {
+        console.log(`Successfully triggered video generation for project ${projectId}`);
+      })
+      .catch((workflowError) => {
+        console.error(`Error triggering processCharacterAdsProject for ${projectId}:`, workflowError);
+        // Even if triggering fails, the project status is updated, so cron will pick it up.
+        // We don't want to block the user experience, so just log the error.
+      });
 
     return NextResponse.json({
       success: true,
