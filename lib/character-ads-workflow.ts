@@ -275,47 +275,66 @@ CRITICAL: Ensure voice_type gender matches the person in the image!`;
 
 // Helper function to get correct parameters for different image models
 function getImageModelParameters(model: string, customImageSize?: string, videoAspectRatio?: string): Record<string, unknown> {
-  // Handle both short names and full model names
-  if (model === IMAGE_MODELS.nano_banana || model === 'nano_banana' || model.includes('nano-banana')) {
+  // Map UI-friendly sizes to Ratio strings (shared logic)
+  const mapUiToRatio = (val?: string, fallbackAspect?: string) => {
+    switch (val) {
+      case 'square':
+      case 'square_hd':
+      case '1:1':
+        return '1:1';
+      case 'portrait_16_9':
+      case '9:16':
+        return '9:16';
+      case 'landscape_16_9':
+      case '16:9':
+        return '16:9';
+      case 'portrait_4_3':
+      case '3:4':
+        return '3:4';
+      case 'landscape_4_3':
+      case '4:3':
+        return '4:3';
+      case 'portrait_3_2':
+      case '2:3':
+        return '2:3';
+      case 'landscape_3_2':
+      case '3:2':
+        return '3:2';
+      case 'portrait_5_4':
+      case '4:5':
+        return '4:5';
+      case 'landscape_5_4':
+      case '5:4':
+        return '5:4';
+      case 'landscape_21_9':
+      case '21:9':
+        return '21:9';
+      case 'auto':
+      case undefined:
+      case '':
+        // Choose based on video aspect ratio if provided
+        if (fallbackAspect === '9:16') return '9:16';
+        if (fallbackAspect === '16:9') return '16:9';
+        return undefined;
+      default:
+        return undefined;
+    }
+  };
+
+  // Handle Nano Banana Pro specifically (nano-banana-pro)
+  if (model === 'nano-banana-pro' || model === 'nano_banana_pro') {
+    const ratio = mapUiToRatio(customImageSize, videoAspectRatio);
+    return {
+      output_format: "png",
+      resolution: "1K",
+      ...(ratio ? { aspect_ratio: ratio } : { aspect_ratio: "1:1" })
+    };
+  } 
+  // Handle original Nano Banana (google/nano-banana-edit)
+  else if (model === IMAGE_MODELS.nano_banana || model === 'nano_banana' || model.includes('nano-banana')) {
     // Nano Banana parameters (google/nano-banana-edit)
     // Supports image_size in ratio strings like '1:1', '16:9', '9:16', '3:4', '4:3', '3:2', '2:3', '21:9'
     const imageSize = customImageSize;
-    // Map UI-friendly sizes to Banana ratios
-    const mapUiToRatio = (val?: string, fallbackAspect?: string) => {
-      switch (val) {
-        case 'square':
-        case 'square_hd':
-          return '1:1';
-        case 'portrait_16_9':
-          return '9:16';
-        case 'landscape_16_9':
-          return '16:9';
-        case 'portrait_4_3':
-          return '3:4';
-        case 'landscape_4_3':
-          return '4:3';
-        case 'portrait_3_2':
-          return '2:3';
-        case 'landscape_3_2':
-          return '3:2';
-        case 'portrait_5_4':
-          return '4:5';
-        case 'landscape_5_4':
-          return '5:4';
-        case 'landscape_21_9':
-          return '21:9';
-        case 'auto':
-        case undefined:
-        case '':
-          // Choose based on video aspect ratio if provided
-          if (fallbackAspect === '9:16') return '9:16';
-          if (fallbackAspect === '16:9') return '16:9';
-          return undefined;
-        default:
-          return undefined;
-      }
-    };
-
     const ratio = mapUiToRatio(imageSize as string | undefined, videoAspectRatio);
     return {
       output_format: "png",
@@ -362,11 +381,32 @@ async function generateImageWithKIE(
   console.log('Character Ads - Image model:', imageModel);
   console.log('Character Ads - Model params:', JSON.stringify(modelParams, null, 2));
 
+  // Determine if using Nano Banana Pro (for image_input field vs image_urls)
+  const isNanoBananaPro = imageModel === 'nano-banana-pro' || imageModel === 'nano_banana_pro';
+
+  // Handle prompt: for Pro, we need string. For others, we kept JSON stringified object.
+  let promptValue: string;
+  if (isNanoBananaPro) {
+    // Extract simple string from prompt object if present
+    if (prompt && typeof prompt.image_prompt === 'string') {
+       promptValue = prompt.image_prompt;
+    } else if (prompt && typeof prompt.prompt === 'string') {
+       promptValue = prompt.prompt;
+    } else {
+       // Fallback: just stringify
+       promptValue = JSON.stringify(prompt);
+    }
+  } else {
+    // Legacy behavior
+    promptValue = JSON.stringify(prompt);
+  }
+
   const payload = {
     model: imageModel,
     input: {
-      prompt: JSON.stringify(prompt),
-      image_urls: referenceImages,
+      prompt: promptValue,
+      // Use image_input for Pro, image_urls for others
+      ...(isNanoBananaPro ? { image_input: referenceImages } : { image_urls: referenceImages }),
       ...modelParams  // Spread the model-specific parameters
     }
   };

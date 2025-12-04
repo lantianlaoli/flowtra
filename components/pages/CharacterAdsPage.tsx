@@ -33,7 +33,7 @@ interface KieCreditsStatus {
 
 
 const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
-const DEFAULT_IMAGE_MODEL = 'nano_banana' as const;
+const DEFAULT_IMAGE_MODEL = 'nano_banana_pro' as const;
 const BLURRY_IMAGE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/competitor_videos/user-photos/character_ad_bad.png';
 const IMAGE_SIZE_BY_ASPECT: Record<'16:9' | '9:16', 'landscape_16_9' | 'portrait_16_9'> = {
   '16:9': 'landscape_16_9',

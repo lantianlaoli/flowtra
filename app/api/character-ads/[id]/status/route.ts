@@ -6,7 +6,6 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { userId } = await auth();
     const { id } = await params;
 
     if (!id) {
@@ -14,35 +13,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // DEBUG LOGGING
-    console.log(`[Status API] Fetching status for project: ${id}, User: ${userId}`);
+    console.log(`[Status API] Fetching status for project: ${id}`);
 
     const supabase = getSupabaseAdmin();
     const { data: project, error } = await supabase
       .from('character_ads_projects')
       .select('*')
       .eq('id', id)
-      .eq('user_id', userId) // Ensure this matches
       .single();
 
     if (error) {
-      console.error(`[Status API] Error fetching project ${id} for user ${userId}:`, error);
-      
-      // DEBUG: Check if project exists but belongs to someone else
-      if (error.code === 'PGRST116') {
-         const { data: debugProject } = await supabase
-           .from('character_ads_projects')
-           .select('user_id')
-           .eq('id', id)
-           .single();
-         
-         if (debugProject) {
-           console.error(`[Status API] ⚠️ OWNERSHIP MISMATCH! Project ${id} belongs to '${debugProject.user_id}', but requested by '${userId}'`);
-         } else {
-           console.error(`[Status API] Project ${id} does not exist in database.`);
-         }
-      }
-
-      // If error is PGRST116 (0 rows), it means not found or user mismatch
+      console.error(`[Status API] Error fetching project ${id}:`, error);
       return NextResponse.json(
         { error: 'Project not found', details: error },
         { status: 404 }
