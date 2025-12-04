@@ -83,10 +83,13 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [isRegeneratingImage, setIsRegeneratingImage] = useState(false); // New state for image loading
   const [editedImagePrompt, setEditedImagePrompt] = useState<string>(''); // New state for image prompt
-  const [editedVideoPrompt, setEditedVideoPrompt] = useState<StructuredVideoPrompt | null>(null);
+  const [editedScenes, setEditedScenes] = useState<StructuredVideoPrompt[]>([]);
   const [activeSceneIndex, setActiveSceneIndex] = useState<number>(0); // New state for active scene
   const [isSceneExpanded, setIsSceneExpanded] = useState(true); // State for collapsible scene card
   const isInitialized = useRef(false); // Track if we've populated the edit buffers
+  const scenes = project?.generated_prompts?.scenes ?? [];
+  const totalScenes = scenes.length;
+  const activeScenePrompt = editedScenes[activeSceneIndex] || scenes[activeSceneIndex]?.prompt || null;
 
   const fetchProjectDetails = useCallback(async ({ isInitialLoad = false }: { isInitialLoad?: boolean } = {}) => {
     if (!projectId) return;
@@ -145,12 +148,23 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
       if (project.image_prompt) {
         setEditedImagePrompt(project.image_prompt);
       }
-      if (project.generated_prompts?.scenes?.[0]?.prompt) {
-        setEditedVideoPrompt(project.generated_prompts.scenes[0].prompt);
+      if (project.generated_prompts?.scenes?.length) {
+        setEditedScenes(project.generated_prompts.scenes.map(scene => ({ ...scene.prompt })));
+      } else {
+        setEditedScenes([]);
       }
+      setActiveSceneIndex(0);
       isInitialized.current = true;
     }
   }, [project]);
+
+  useEffect(() => {
+    if (!totalScenes) {
+      setActiveSceneIndex(0);
+      return;
+    }
+    setActiveSceneIndex((prev) => Math.min(prev, totalScenes - 1));
+  }, [totalScenes]);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -176,7 +190,7 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
       console.log('Inspector closed: cleaning up.');
       setProject(null);
       setEditedImagePrompt(''); // Reset on close
-      setEditedVideoPrompt(null);
+      setEditedScenes([]);
       setActiveSceneIndex(0);
       setIsRegeneratingImage(false); // Reset on close
       isInitialized.current = false;
@@ -202,11 +216,17 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
   }, [open, onClose]);
 
   const handleFieldChange = useCallback((field: keyof StructuredVideoPrompt, value: string) => {
-    setEditedVideoPrompt(prev => ({
-      ...prev,
-      [field]: value,
-    }));
-  }, []);
+    setEditedScenes(prev => {
+      const next = [...prev];
+      const fallback = project?.generated_prompts?.scenes?.[activeSceneIndex]?.prompt ?? {};
+      const current = next[activeSceneIndex] ?? fallback;
+      next[activeSceneIndex] = {
+        ...current,
+        [field]: value,
+      };
+      return next;
+    });
+  }, [activeSceneIndex, project]);
 
   const handleImagePromptChange = useCallback((value: string) => {
     setEditedImagePrompt(value);
@@ -230,7 +250,7 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
   };
 
   const handleConfirm = async () => {
-    if (!project || !editedVideoPrompt) return;
+    if (!project) return;
 
     setSubmitting(true);
     try {
@@ -239,11 +259,8 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
         ...project.generated_prompts,
         image_prompt: editedImagePrompt, // Include the edited image prompt
         scenes: project.generated_prompts?.scenes.map((scene, index) => {
-          // Assuming we only edit the first (and likely only) scene for character ads
-          if (index === activeSceneIndex) {
-            return { ...scene, prompt: editedVideoPrompt };
-          }
-          return scene;
+          const editedPrompt = editedScenes[index];
+          return editedPrompt ? { ...scene, prompt: editedPrompt } : scene;
         })
       };
 
@@ -365,49 +382,79 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
 
                         {/* Video Prompt Editor */}
                         <div className="flex-1 flex flex-col min-h-0">
-                          <h4 className="text-sm font-medium text-gray-900 flex-shrink-0">Video Prompts</h4>
-                          <p className="text-xs text-gray-500 mt-1 flex-shrink-0">
-                            Fine-tune the AI instructions for each video segment.
-                          </p>
-                          
-                          {/* Scene Selector/Accordion (for single scene for now) */}
-                          <div className="flex-1 overflow-y-auto pr-2 space-y-4 mt-4">
-                            {/* For Character Ads, assume only one scene for now, expand by default */}
-                            <div className="rounded-lg border border-gray-200 bg-gray-50/70 overflow-hidden">
-                              <button
-                                type="button"
-                                onClick={() => setIsSceneExpanded(!isSceneExpanded)}
-                                className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-100 transition-colors"
-                              >
-                                <div className="flex items-center gap-2 font-medium text-gray-800">
-                                  <Sparkles className="w-4 h-4 text-blue-500" />
-                                  Scene 1 Prompt
-                                </div>
-                                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isSceneExpanded ? 'transform rotate-180' : ''}`} />
-                              </button>
-                              
-                              {isSceneExpanded && (
-                                <div className="p-3 pt-0 space-y-3 border-t border-gray-100">
-                                  <div className="mt-3 space-y-3">
-                                    {editedVideoPrompt && FIELD_ORDER.map((field) => (
-                                      <div key={field} className="space-y-1.5">
-                                        <label htmlFor={`video_field_${field}`} className="block text-xs font-medium text-gray-700 uppercase tracking-wide">
-                                          {FIELD_LABELS[field]}
-                                        </label>
-                                        <textarea
-                                          id={`video_field_${field}`}
-                                          rows={field === 'dialog' ? 3 : 2}
-                                          className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm resize-none"
-                                          value={editedVideoPrompt[field] || ''}
-                                          onChange={(e) => handleFieldChange(field, e.target.value)}
-                                          placeholder={`Enter ${FIELD_LABELS[field].toLowerCase()}...`}
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                              <h4 className="text-sm font-medium text-gray-900 flex-shrink-0">Video Prompts</h4>
+                              <p className="text-xs text-gray-500 mt-1 flex-shrink-0">
+                                Fine-tune the AI instructions for each video segment.
+                              </p>
                             </div>
+                            {totalScenes > 0 && (
+                              <span className="text-xs text-gray-500">Total scenes: {totalScenes}</span>
+                            )}
+                          </div>
+
+                          {totalScenes > 1 && (
+                            <div className="flex flex-wrap gap-2 mt-4">
+                              {scenes.map((_, index) => (
+                                <button
+                                  key={`scene-tab-${index}`}
+                                  type="button"
+                                  onClick={() => setActiveSceneIndex(index)}
+                                  className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition ${
+                                    activeSceneIndex === index
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                                  }`}
+                                >
+                                  Scene {index + 1}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          
+                          <div className="flex-1 overflow-y-auto pr-2 space-y-4 mt-4">
+                            {totalScenes === 0 ? (
+                              <div className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-center text-sm text-gray-500">
+                                No scenes available yet. Generate prompts first to edit them here.
+                              </div>
+                            ) : (
+                              <div className="rounded-lg border border-gray-200 bg-gray-50/70 overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsSceneExpanded(!isSceneExpanded)}
+                                  className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-100 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 font-medium text-gray-800">
+                                    <Sparkles className="w-4 h-4 text-blue-500" />
+                                    Scene {activeSceneIndex + 1} Prompt
+                                  </div>
+                                  <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isSceneExpanded ? 'transform rotate-180' : ''}`} />
+                                </button>
+                                
+                                {isSceneExpanded && (
+                                  <div className="p-3 pt-0 space-y-3 border-t border-gray-100">
+                                    <div className="mt-3 space-y-3">
+                                      {FIELD_ORDER.map((field) => (
+                                        <div key={field} className="space-y-1.5">
+                                          <label htmlFor={`video_field_${field}`} className="block text-xs font-medium text-gray-700 uppercase tracking-wide">
+                                            {FIELD_LABELS[field]}
+                                          </label>
+                                          <textarea
+                                            id={`video_field_${field}`}
+                                            rows={field === 'dialog' ? 3 : 2}
+                                            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm resize-none"
+                                            value={activeScenePrompt?.[field] || ''}
+                                            onChange={(e) => handleFieldChange(field, e.target.value)}
+                                            placeholder={`Enter ${FIELD_LABELS[field].toLowerCase()}...`}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
