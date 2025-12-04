@@ -8,6 +8,7 @@ import {
   Image as ImageIcon, Film, User, MapPin, Zap, Palette, 
   Camera, Layout, Sun, Music, MessageSquare, Mic, RefreshCw, Award
 } from 'lucide-react';
+import { GiBanana } from 'react-icons/gi';
 import { useToast } from '@/contexts/ToastContext';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
@@ -326,7 +327,7 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
                         <div className="space-y-3">
                            <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
                               <ImageIcon className="w-4 h-4" />
-                              Generated Image
+                              Video First Frame
                            </div>
                            <div className="relative aspect-[9/16] w-full bg-white rounded-lg overflow-hidden border border-gray-200 shadow-sm">
                               {project.generated_image_url ? (
@@ -360,14 +361,22 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
                         
                         {/* Image Prompt Edit Section */}
                         <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                              <ImageIcon className="w-4 h-4" />
-                              Image Prompt
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                                <ImageIcon className="w-4 h-4" />
+                                Image Prompt
+                              </div>
+                              <p className="text-[11px] text-gray-500 pl-6">
+                                Adjust prompt to match expectations.
+                              </p>
                             </div>
-                            <p className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                              <Award className="w-3 h-3 text-green-500" /> Nano banana Pro: Unlimited free generation
-                            </p>
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-yellow-50 border border-yellow-100 shadow-sm">
+                              <GiBanana className="w-3.5 h-3.5 text-yellow-600" />
+                              <span className="text-[10px] font-medium text-yellow-700 tracking-wide">
+                                Nano banana Pro: Unlimited Free
+                              </span>
+                            </div>
                           </div>
                           <textarea
                             rows={3}
@@ -386,12 +395,16 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
 
                         {/* Video Scenes Section */}
                         <div className="space-y-4">
-                           <div className="flex items-center justify-between">
-                             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                               <Film className="w-4 h-4" />
-                               Video Prompts
+                           <div className="flex items-start justify-between mb-1">
+                             <div className="space-y-0.5">
+                               <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                                 <Film className="w-4 h-4" />
+                                 Video Prompts
+                               </div>
+                               <p className="text-[11px] text-gray-500 pl-6">
+                                 Please check and modify to meet expectations.
+                               </p>
                              </div>
-                             <p className="text-xs font-normal text-gray-500 ml-2">Please check and modify to meet expectations.</p>
                            </div>
 
                            {/* Scene Tabs */}
