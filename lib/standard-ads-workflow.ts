@@ -1229,13 +1229,13 @@ async function generateReplicaPhoto({
   }
 
   const requestBody = {
-    model: IMAGE_MODELS.nano_banana,
+    model: IMAGE_MODELS.nano_banana_pro,
     input: {
       prompt,
       image_urls: referenceImages.slice(0, 10),
       image_input: referenceImages.slice(0, 10),
       aspect_ratio: aspectRatio || '9:16',
-      resolution: resolution || '2K',
+      resolution: resolution || '1K',
       output_format: outputFormat || 'png'
     }
   };
