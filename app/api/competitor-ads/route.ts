@@ -161,6 +161,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // If the upload is an image, skip expensive analysis (per product requirements)
+    if (uploadResult.fileType === 'image') {
+      const { data: updatedAd, error: skipAnalysisError } = await supabase
+        .from('competitor_ads')
+        .update({
+          analysis_status: 'completed',
+          analysis_error: null,
+          analysis_result: null,
+          analyzed_at: new Date().toISOString()
+        })
+        .eq('id', competitorAd.id)
+        .select()
+        .single();
+
+      if (skipAnalysisError) {
+        console.error('Failed to finalize competitor image upload:', skipAnalysisError);
+        return NextResponse.json(
+          { error: 'Failed to finalize competitor image upload', details: skipAnalysisError.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        competitorAd: updatedAd,
+        message: 'Competitor image saved without analysis per configuration'
+      });
+    }
+
     console.log(`[POST /api/competitor-ads] Created competitor ad ${competitorAd.id}, starting analysis...`);
 
     // Perform synchronous AI analysis with language detection

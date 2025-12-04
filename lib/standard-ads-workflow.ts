@@ -1034,7 +1034,8 @@ async function startAIWorkflow(
       prompts,
       request,
       competitorDescription,
-      competitorAdContext?.file_type
+      competitorAdContext?.file_type,
+      competitorAdContext?.file_type === 'image' ? competitorAdContext.file_url : undefined
     );
     console.log('🆔 Cover task ID:', coverTaskId);
 
@@ -1935,13 +1936,16 @@ async function generateCover(
   prompts: Record<string, unknown>,
   request: StartWorkflowRequest,
   competitorDescription?: Record<string, unknown>,
-  competitorFileType?: 'image' | 'video'
+  competitorFileType?: 'image' | 'video',
+  competitorImageUrl?: string
 ): Promise<string> {
   // Get the actual image model to use
   // CRITICAL: When using competitor reference mode, always upgrade to nano_banana_pro per docs/kie/nano_banana_pro.md
   let actualImageModel: 'nano_banana' | 'seedream' | 'nano_banana_pro';
+  const hasCompetitorPhotoReference = Boolean(competitorFileType === 'image' && competitorImageUrl);
+  const isCompetitorReferenceMode = Boolean(competitorDescription || hasCompetitorPhotoReference);
 
-  if (competitorDescription && competitorFileType) {
+  if (isCompetitorReferenceMode) {
     console.log(`📎 Competitor ${competitorFileType} detected → Using nano_banana_pro (docs/kie/nano_banana_pro.md)`);
     actualImageModel = 'nano_banana_pro';
   } else {
@@ -1987,6 +1991,21 @@ ${firstFrameComp || 'Maintain original composition'}
 
 `;
     }
+  }
+  if (!competitorDescription && hasCompetitorPhotoReference) {
+    sceneReplicationSection = `
+📷 COMPETITOR PHOTO REPLICATION
+
+You are provided TWO reference images:
+- Reference 1: Competitor advertisement photo. This shows the exact background, lighting, pose, props, and camera framing you must COPY.
+- Reference 2: Our actual product photo. This shows the exact product you must insert into the replicated scene.
+
+Rules:
+1. Copy the entire composition, perspective, lighting, and styling from reference image 1.
+2. Replace ONLY the competitor's product with the product from reference image 2.
+3. Keep every background prop, surface, and material identical to reference image 1.
+4. Maintain the same camera angle, crop, and aspect ratio from reference image 1.
+5. The product appearance must match reference image 2 exactly (shape, color, branding).`;
   }
 
   // Create a prompt that explicitly instructs to maintain original product appearance
@@ -2048,9 +2067,12 @@ Requirements: Keep exact product appearance, only enhance presentation.${waterma
   prompt = clampPromptLength(prompt);
 
   const targetAspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
+  const referenceImages = hasCompetitorPhotoReference
+    ? [competitorImageUrl!, imageUrl]
+    : [imageUrl];
   const inputPayload: Record<string, unknown> = {
     prompt,
-    image_urls: [imageUrl],
+    image_urls: referenceImages,
     output_format: "png"
   };
 
