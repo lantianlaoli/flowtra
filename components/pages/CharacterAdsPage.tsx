@@ -67,6 +67,17 @@ const LANGUAGE_OPTIONS = [
   { value: 'ur', label: 'Urdu', native: 'اردو' },
 ] as const;
 
+const generateClientProjectId = () => {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID();
+    }
+  } catch {
+    // Ignore and fall back
+  }
+  return `proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
+
 type CharacterGeneration = Generation & { projectId?: string; coverUrl?: string | null };
 const sortGenerations = (items: CharacterGeneration[]) =>
   [...items].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -313,11 +324,11 @@ const formatDurationLabel = (seconds: number) => {
         productId = `temp:${uploadResult.imageUrls[0]}`;
       }
 
-      // Create optimistic generation immediately with temp ID
-      const tempId = `temp-${Date.now()}`;
+      // Create optimistic generation immediately with a client-side project ID
+      const clientProjectId = generateClientProjectId();
       const optimisticGeneration: CharacterGeneration = {
-        id: tempId,
-        projectId: tempId,
+        id: clientProjectId,
+        projectId: clientProjectId,
         timestamp: new Date(),
         status: 'pending',
         progress: 5,
@@ -334,7 +345,7 @@ const formatDurationLabel = (seconds: number) => {
 
       // Add to generations list immediately
       setGenerations((prev) => {
-        const filtered = prev.filter((gen) => gen.id !== tempId);
+        const filtered = prev.filter((gen) => gen.id !== clientProjectId);
         return sortGenerations([optimisticGeneration, ...filtered]);
       });
 
@@ -356,6 +367,7 @@ const formatDurationLabel = (seconds: number) => {
         formData.append('custom_dialogue', customDialogue.trim());
       }
       formData.append('user_id', user.id);
+      formData.append('project_id', clientProjectId);
 
       // Fire API call asynchronously (no await!)
       fetch('/api/character-ads/create', {
@@ -369,10 +381,12 @@ const formatDurationLabel = (seconds: number) => {
           return response.json();
         })
         .then((project) => {
-          // Update generation with real project ID
+          if (!project?.id) return;
+          if (project.id === clientProjectId) return;
+          // Fallback: ensure optimistic entry matches actual ID if server ignored clientProjectId
           setGenerations((prev) =>
             prev.map((gen) =>
-              gen.id === tempId
+              gen.id === clientProjectId
                 ? { ...gen, id: project.id, projectId: project.id }
                 : gen
             )
@@ -382,7 +396,7 @@ const formatDurationLabel = (seconds: number) => {
           console.error('Failed to start generation:', error);
           showError(error instanceof Error ? error.message : 'Failed to start generation');
           // Remove failed generation
-          setGenerations((prev) => prev.filter((gen) => gen.id !== tempId));
+          setGenerations((prev) => prev.filter((gen) => gen.id !== clientProjectId));
         });
 
       // Show success message immediately
@@ -725,8 +739,7 @@ const formatDurationLabel = (seconds: number) => {
     const ids = generations
       .filter((gen) =>
         (gen.status === 'pending' || gen.status === 'processing' || gen.status === 'awaiting_review') &&
-        gen.projectId &&
-        !gen.projectId.startsWith('temp-')
+        gen.projectId
       )
       .map((gen) => gen.projectId as string);
     return Array.from(new Set(ids));

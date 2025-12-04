@@ -6,6 +6,8 @@ import { validateKieCredits } from '@/lib/kie-credits-check';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { CHARACTER_ADS_DURATION_OPTIONS } from '@/lib/character-ads-dialogue';
 
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
 export async function POST(request: NextRequest) {
   try {
     console.log('Character ads create API called');
@@ -29,12 +31,21 @@ export async function POST(request: NextRequest) {
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const selectedProductId = formData.get('selected_product_id') as string;
     const language = (formData.get('language') as string) || 'en';
+    const clientProjectIdRaw = formData.get('project_id');
+    const clientProjectId = typeof clientProjectIdRaw === 'string' ? clientProjectIdRaw.trim() : null;
 
-    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, imageSize, videoModel, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId, language });
+    console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, imageSize, videoModel, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId, language, clientProjectId });
 
     if (!userId || !videoDurationSeconds || !imageModel || !videoModel) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    if (clientProjectId && !isUuid(clientProjectId)) {
+      return NextResponse.json(
+        { error: 'Invalid project_id. Must be a UUID.' },
         { status: 400 }
       );
     }
@@ -222,27 +233,32 @@ export async function POST(request: NextRequest) {
 
     // Create project in database
     const supabase = getSupabaseAdmin();
+    const projectInsert: Record<string, unknown> = {
+      user_id: userId,
+      person_image_urls: personImageUrls,
+      product_image_urls: productImageUrls, // Still stored for temp products; will be removed in future migration
+      selected_product_id: selectedProductId && !selectedProductId.startsWith('temp') ? selectedProductId : null,
+      product_context: productContext,
+      video_duration_seconds: videoDurationSeconds,
+      image_model: actualImageModel,
+      video_model: resolvedVideoModel,
+      video_aspect_ratio: normalizedAspectRatio,
+      image_size: enforcedImageSize, // ✅ Fix Bug 1: Ensure image_size is saved for nano_banana API
+      custom_dialogue: customDialogue || null,
+      language: language, // Language for AI-generated content
+      credits_cost: totalCredits,
+      generation_credits_used: generationCreditsUsed,
+      status: 'pending',
+      current_step: 'generating_prompts', // Start directly at prompt generation (skip analyze_images)
+      progress_percentage: 10,
+    };
+    if (clientProjectId) {
+      projectInsert.id = clientProjectId;
+    }
+
     const { data: project, error: insertError } = await supabase
       .from('character_ads_projects')
-      .insert({
-        user_id: userId,
-        person_image_urls: personImageUrls,
-        product_image_urls: productImageUrls, // Still stored for temp products; will be removed in future migration
-        selected_product_id: selectedProductId && !selectedProductId.startsWith('temp') ? selectedProductId : null,
-        product_context: productContext,
-        video_duration_seconds: videoDurationSeconds,
-        image_model: actualImageModel,
-        video_model: resolvedVideoModel,
-        video_aspect_ratio: normalizedAspectRatio,
-        image_size: enforcedImageSize, // ✅ Fix Bug 1: Ensure image_size is saved for nano_banana API
-        custom_dialogue: customDialogue || null,
-        language: language, // Language for AI-generated content
-        credits_cost: totalCredits,
-        generation_credits_used: generationCreditsUsed,
-        status: 'pending',
-        current_step: 'generating_prompts', // Start directly at prompt generation (skip analyze_images)
-        progress_percentage: 10,
-      })
+      .insert(projectInsert)
       .select()
       .single();
 
