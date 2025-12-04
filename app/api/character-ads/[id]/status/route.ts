@@ -13,18 +13,38 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
 
+    // DEBUG LOGGING
+    console.log(`[Status API] Fetching status for project: ${id}, User: ${userId}`);
+
     const supabase = getSupabaseAdmin();
     const { data: project, error } = await supabase
       .from('character_ads_projects')
       .select('*')
       .eq('id', id)
-      .eq('user_id', userId)
+      .eq('user_id', userId) // Ensure this matches
       .single();
 
     if (error) {
-      console.error('Error fetching character ads project status:', error);
+      console.error(`[Status API] Error fetching project ${id} for user ${userId}:`, error);
+      
+      // DEBUG: Check if project exists but belongs to someone else
+      if (error.code === 'PGRST116') {
+         const { data: debugProject } = await supabase
+           .from('character_ads_projects')
+           .select('user_id')
+           .eq('id', id)
+           .single();
+         
+         if (debugProject) {
+           console.error(`[Status API] ⚠️ OWNERSHIP MISMATCH! Project ${id} belongs to '${debugProject.user_id}', but requested by '${userId}'`);
+         } else {
+           console.error(`[Status API] Project ${id} does not exist in database.`);
+         }
+      }
+
+      // If error is PGRST116 (0 rows), it means not found or user mismatch
       return NextResponse.json(
-        { error: 'Project not found' },
+        { error: 'Project not found', details: error },
         { status: 404 }
       );
     }
@@ -66,6 +86,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         product_image_urls: project.product_image_urls,
         image_analysis_result: project.image_analysis_result,
         generated_prompts: project.generated_prompts,
+        image_prompt: project.image_prompt, // Include image_prompt
         generated_image_url: project.generated_image_url,
         generated_video_urls: project.generated_video_urls,
         merged_video_url: project.merged_video_url,

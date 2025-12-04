@@ -151,40 +151,26 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
       console.log(`Image completed for project ${project.id}`);
 
       // Update project with image completion
-      await supabase
+      const { error: updateError } = await supabase
         .from('character_ads_projects')
         .update({
           generated_image_url: imageResult.imageUrl,
-          status: 'generating_videos',
-          current_step: 'generating_videos',
+          status: 'awaiting_review', // Wait for user review
+          current_step: 'reviewing',
           progress_percentage: 60,
           last_processed_at: new Date().toISOString()
         })
         .eq('id', project.id);
 
+      if (updateError) {
+        console.error(`❌ Failed to update project ${project.id} status to awaiting_review:`, updateError);
+        throw updateError;
+      }
+
       // No scene 0 to update anymore - cover image is project-level
 
-      // ✅ Update project object in memory with new image URL before triggering video generation
-      project.generated_image_url = imageResult.imageUrl;
-      project.status = 'generating_videos';
-      project.current_step = 'generating_videos';
-
-      // ✅ Directly trigger video generation workflow (no HTTP call)
-      try {
-        console.log(`🚀 Triggering video generation for project ${project.id}`);
-
-        // Directly call processCharacterAdsProject instead of HTTP fetch
-        const result = await processCharacterAdsProject(project, 'generate_videos');
-
-        console.log(`✅ Video generation triggered successfully:`, result.message);
-      } catch (triggerError) {
-        console.error(`❌ FAILED to trigger video generation for project ${project.id}:`, triggerError);
-        console.error('Trigger error details:', {
-          message: triggerError instanceof Error ? triggerError.message : 'Unknown',
-          stack: triggerError instanceof Error ? triggerError.stack : 'No stack'
-        });
-        // Don't fail the monitor - the video generation can be triggered by polling
-      }
+      console.log(`✅ Image generated for project ${project.id}. Waiting for user review.`);
+      return; // Stop here, do not trigger video generation automatically
 
     } else if (imageResult.status === 'FAILED') {
       // Surface detailed KIE failure reason when available
@@ -227,6 +213,8 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
         // This case is handled above with active polling
         nextStep = null;
       } else if (project.generated_image_url && !project.kie_video_task_ids?.length) {
+        // This shouldn't happen automatically anymore due to 'awaiting_review' state
+        // But keeping it for robustness if manually moved
         nextStep = 'generate_videos';
       }
       break;
@@ -269,9 +257,20 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
       nextStep: result.nextStep
     });
 
-    // If the step completed successfully and there's a next step, we'll catch it in the next monitoring cycle
+    // Recursive processing if nextStep is returned (speeds up workflow)
     if (result.nextStep) {
-      console.log(`Next step for project ${project.id}: ${result.nextStep}`);
+      console.log(`🚀 Automatically proceeding to next step: ${result.nextStep}`);
+      // Update project object with latest state from result
+      const updatedProject = { ...project, ...result.project };
+      
+      // Specifically handle generate_image transition
+      // If we just finished generate_prompts, we want to immediately run generate_image
+      // UNLESS we are waiting for something async (like image generation itself)
+      if (result.nextStep === 'generate_image') {
+         await processCharacterAdsProjectStep(updatedProject);
+      } 
+      // Add other immediate transitions if needed, but generally safe to recurse
+      // Be careful of infinite loops if state doesn't update
     }
   } else {
     // No step needed, just update last_processed_at to show we checked

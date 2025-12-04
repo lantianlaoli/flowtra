@@ -4,8 +4,8 @@
 export async function fetchWithRetry(
   url: string, 
   options: RequestInit, 
-  maxRetries = 3,
-  timeoutMs = 30000 // Increased to 30 seconds for image downloads
+  maxRetries = 5, // Increased from 3 to 5
+  timeoutMs = 60000 // Increased from 30000 to 60000 (60 seconds)
 ): Promise<Response> {
   let lastError: Error | null = null;
   

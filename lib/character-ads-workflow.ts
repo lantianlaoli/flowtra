@@ -151,13 +151,16 @@ VIDEO SCENE REQUIREMENTS:
 - Write ALL dialogue in ENGLISH (regardless of target language)
 - The 'language' field is metadata - actual dialogue text is always English
 - Keep dialogue concise (under 20 words per scene) and conversational
-- Prefix all video_prompt with: "dialogue, the character in the video says:"
+- The 'dialog' field should contain the natural product pitch directly.
 - Camera movement: always "fixed"
 - Emotion: "excited, genuine" or similar positive emotions
 ${userDialogue ? `- The user has provided a custom script. You MUST distribute this script appropriately across the ${videoScenes} scenes. Do not change the words, but split them to fit the timing. Script: "${userDialogue.replace(/"/g, '\\"')}"` : ''}
 
 IMAGE PROMPT REQUIREMENTS:
-- Start with: "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible."
+- Analyze the PRODUCT image to determine how it should be presented:
+  - IF WEARABLE (e.g., t-shirt, dress, jacket, hat): The character MUST BE WEARING the product. Describe them wearing the item naturally. Do NOT write "holding the product".
+  - IF HANDHELD (e.g., cup, bottle, phone, cream): Start with: "Take the product in the image and have the character show it to the camera."
+- Place the character at the center of the image with both the product and character visible.
 - Describe the character with CORRECT GENDER matching the person image
 - Include product description
 - Amateur iPhone selfie aesthetic
@@ -169,12 +172,16 @@ OUTPUT FORMAT (JSON):
     {
       "scene": 1,
       "prompt": {
-        "camera": "amateur iPhone selfie video",
-        "emotion": "excited, genuine",
-        "setting": "[appropriate casual setting]",
-        "voice_type": "${languageName} accent, warm [male/female] voice",
-        "video_prompt": "dialogue, the character in the video says: [natural product pitch in English]",
-        "camera_movement": "fixed"
+        "subject": "A confident [man/woman] in [clothing description]...",
+        "context_environment": "A minimalist, upscale interior setting...",
+        "action": "The character is standing still... [performing subtle movements]...",
+        "style": "Amateur iPhone selfie video style...",
+        "camera_motion_positioning": "Fixed Medium Shot (MS). The camera is stable...",
+        "composition": "A balanced composition...",
+        "ambiance_color_lighting": "Warm color grading...",
+        "audio": "Soft background noise...",
+        "dialog": "This is more than a suit—it defines my confidence.",
+        "voice_type": "${languageName} accent, warm [male/female] voice"
       }
     }
   ],
@@ -424,60 +431,90 @@ async function generateVideoWithKIE(
   } else if (prompt && typeof prompt === 'object') {
     // Extract all fields from the scene prompt object
     const promptObj = prompt as {
-      video_prompt?: string;
       voice_type?: string;
-      camera?: string;
-      emotion?: string;
-      setting?: string;
-      camera_movement?: string;
+      // New structured fields
+      subject?: string;
+      context_environment?: string;
+      action?: string;
+      style?: string;
+      camera_motion_positioning?: string;
+      composition?: string;
+      ambiance_color_lighting?: string;
+      audio?: string;
+      dialog?: string;
       [key: string]: unknown;
     };
 
-    // Extract each field
-    const videoPrompt = promptObj.video_prompt || '';
-    const voiceType = promptObj.voice_type || '';
-    const camera = promptObj.camera || '';
-    const emotion = promptObj.emotion || '';
-    const setting = promptObj.setting || '';
-    const cameraMovement = promptObj.camera_movement || '';
+    // Check if we have the new structured fields (and if the 'video_prompt' is absent)
+    const hasNewStructuredFields = !!(promptObj.subject || promptObj.context_environment || promptObj.action || promptObj.dialog || promptObj.style || promptObj.camera_motion_positioning || promptObj.composition || promptObj.ambiance_color_lighting || promptObj.audio);
 
-    // Build structured prompt string with metadata
-    const promptParts: string[] = [];
+    if (hasNewStructuredFields) {
+      // Construct prompt from new fields
+      const parts = [];
+      
+      // Main visual description
+      if (promptObj.subject) parts.push(`Subject: ${promptObj.subject}`);
+      if (promptObj.context_environment) parts.push(`Context: ${promptObj.context_environment}`);
+      if (promptObj.action) parts.push(`Action: ${promptObj.action}`);
+      if (promptObj.style) parts.push(`Style: ${promptObj.style}`);
+      if (promptObj.camera_motion_positioning) parts.push(`Camera: ${promptObj.camera_motion_positioning}`);
+      if (promptObj.composition) parts.push(`Composition: ${promptObj.composition}`);
+      if (promptObj.ambiance_color_lighting) parts.push(`Lighting: ${promptObj.ambiance_color_lighting}`);
+      
+      // Audio/Dialogue section
+      if (promptObj.audio) parts.push(`Audio: ${promptObj.audio}`);
+      
+      // Dialogue is special - needs specific prefix for Veo/KIE
+      if (promptObj.dialog) {
+         // Ensure it starts with standard prefix if not already
+         const dialogText = String(promptObj.dialog).replace(/^"|"$/g, ''); // Remove quotes if present
+         parts.push(`dialogue, the character in the video says: ${dialogText}`);
+      }
+      
+      // Metadata (voice_type is assumed to be present from initial prompt generation)
+      if (promptObj.voice_type) parts.push(`Voice Type: ${promptObj.voice_type}`);
+      
+      videoPromptText = parts.join('\n\n');
+    } else {
+      // Fallback to old logic (if the prompt doesn't have the new structured fields)
+      // This path is for backwards compatibility and should eventually be phased out.
+      // If promptObj is missing expected keys, it implies old format or malformed.
+      console.warn('⚠️ generateVideoWithKIE: Using old prompt structure fallback. Please ensure new structured prompts are being generated.');
+      const oldPromptObj = prompt as {
+        video_prompt?: string;
+        voice_type?: string;
+        camera?: string;
+        emotion?: string;
+        setting?: string;
+        camera_movement?: string;
+        [key: string]: unknown;
+      };
 
-    // 1. Main dialogue content (required)
-    if (videoPrompt) {
-      promptParts.push(videoPrompt);
-    }
+      const videoPrompt = oldPromptObj.video_prompt || '';
+      const voiceType = oldPromptObj.voice_type || '';
+      const camera = oldPromptObj.camera || '';
+      const emotion = oldPromptObj.emotion || '';
+      const setting = oldPromptObj.setting || '';
+      const cameraMovement = oldPromptObj.camera_movement || '';
 
-    // 2. Add metadata guidance (if exists)
-    const metadataParts: string[] = [];
+      const promptParts: string[] = [];
+      if (videoPrompt) promptParts.push(videoPrompt);
 
-    if (voiceType) {
-      metadataParts.push(`Voice: ${voiceType}`);
-    }
-    if (emotion) {
-      metadataParts.push(`Emotion: ${emotion}`);
-    }
-    if (setting) {
-      metadataParts.push(`Setting: ${setting}`);
-    }
-    if (camera) {
-      metadataParts.push(`Camera: ${camera}`);
-    }
-    if (cameraMovement && cameraMovement !== 'fixed') {
-      metadataParts.push(`Movement: ${cameraMovement}`);
-    }
+      const metadataParts: string[] = [];
+      if (voiceType) metadataParts.push(`Voice: ${voiceType}`);
+      if (emotion) metadataParts.push(`Emotion: ${emotion}`);
+      if (setting) metadataParts.push(`Setting: ${setting}`);
+      if (camera) metadataParts.push(`Camera: ${camera}`);
+      if (cameraMovement && cameraMovement !== 'fixed') metadataParts.push(`Movement: ${cameraMovement}`);
 
-    if (metadataParts.length > 0) {
-      promptParts.push('\n\n' + metadataParts.join(', '));
+      if (metadataParts.length > 0) promptParts.push('\n\n' + metadataParts.join(', '));
+      videoPromptText = promptParts.join('');
     }
-
-    videoPromptText = promptParts.join('');
 
     // Defensive check: if still empty
     if (!videoPromptText || videoPromptText.trim() === '') {
       console.error('❌ Failed to extract video prompt text from prompt object:', prompt);
-      throw new Error('Invalid prompt: video_prompt field is missing or empty');
+      throw new Error('Invalid prompt: constructed video prompt is empty');
     }
   } else {
     throw new Error(`Invalid prompt format: ${typeof prompt}`);
@@ -929,8 +966,8 @@ export async function processCharacterAdsProject(
             .from('character_ads_projects')
             .update({
               generated_image_url: status.result_url,
-              status: 'generating_videos',
-              current_step: 'generating_videos',
+              status: 'awaiting_review', // Changed from generating_videos to awaiting_review
+              current_step: 'reviewing', // Changed from generating_videos to reviewing
               progress_percentage: 60,
               last_processed_at: new Date().toISOString()
             })
@@ -946,8 +983,8 @@ export async function processCharacterAdsProject(
 
           return {
             project: updatedProject,
-            message: 'Cover image generation completed',
-            nextStep: 'generate_videos'
+            message: 'Cover image generation completed, awaiting user review',
+            nextStep: undefined // Stop automatic progression
           };
         } else if (status.status === 'failed') {
           throw new Error(status.error || 'Image generation failed');
@@ -1047,15 +1084,18 @@ export async function processCharacterAdsProject(
             throw new Error(`Scene ${i} prompt not found in generated_prompts - STOPPING WORKFLOW`);
           }
 
-          // ✅ STRICT VALIDATION: Check if videoPrompt is empty object {}
+          // Check for structured fields or legacy video_prompt
           const videoPromptObj = videoPrompt as any;
-          if (!videoPromptObj.video_prompt || typeof videoPromptObj.video_prompt !== 'string' || videoPromptObj.video_prompt.trim() === '') {
-            console.error(`❌❌❌ Scene ${i}: video_prompt field is missing or empty!`);
-            console.error('videoPrompt object:', JSON.stringify(videoPrompt, null, 2));
-            throw new Error(`Scene ${i} video_prompt is empty - STOPPING WORKFLOW`);
+          const hasStructuredFields = !!(videoPromptObj.subject || videoPromptObj.action || videoPromptObj.dialog);
+          const hasLegacyPrompt = !!(videoPromptObj.video_prompt && typeof videoPromptObj.video_prompt === 'string' && videoPromptObj.video_prompt.trim() !== '');
+
+          if (!hasStructuredFields && !hasLegacyPrompt) {
+             console.error(`❌❌❌ Scene ${i}: Missing both structured fields (subject/action/dialog) AND legacy video_prompt!`);
+             console.error('videoPrompt object:', JSON.stringify(videoPrompt, null, 2));
+             throw new Error(`Scene ${i} prompt is empty/invalid - STOPPING WORKFLOW`);
           }
 
-          console.log(`✅ Scene ${i} prompt validation passed, video_prompt length: ${videoPromptObj.video_prompt.length}`);
+          console.log(`✅ Scene ${i} prompt validation passed. Structured: ${hasStructuredFields}, Legacy: ${hasLegacyPrompt}`);
 
           console.log(`🎬 Generating video for scene ${i}/${videoScenes}:`, {
             sceneNumber: i,
@@ -1155,7 +1195,7 @@ export async function processCharacterAdsProject(
               const videoPrompt = scenes?.[i]?.prompt;
 
               if (videoPrompt) {
-                // Regenerate video task
+                // Regenerate video task using updated generation logic (handles both structured and legacy)
                 const { taskId: newTaskId } = await generateVideoWithKIE(
                   videoPrompt as Record<string, unknown>,
                   [project.generated_image_url!, project.generated_image_url!], 

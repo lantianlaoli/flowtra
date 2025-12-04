@@ -17,6 +17,7 @@ import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getActualModel, isFreeGenerationModel, getGenerationCost } from '@/lib/constants';
 import { CharacterAdsDuration, CHARACTER_ADS_DURATION_OPTIONS } from '@/lib/character-ads-dialogue';
+import { CharacterAdInspector, StructuredVideoPrompt } from '@/components/character-ads/CharacterAdInspector';
 import {
   clampDialogueToWordLimit,
   countDialogueWords,
@@ -29,6 +30,7 @@ interface KieCreditsStatus {
   currentCredits?: number;
   threshold?: number;
 }
+
 
 const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
 const DEFAULT_IMAGE_MODEL = 'nano_banana' as const;
@@ -94,6 +96,7 @@ const STATUS_MAP: Record<string, Generation['status']> = {
   analyzing_images: 'processing',
   generating_prompts: 'processing',
   generating_image: 'processing',
+  awaiting_review: 'pending', // New status for review state - visually pending but active
   generating_videos: 'processing',
   merging_videos: 'processing'
 };
@@ -115,6 +118,8 @@ interface CharacterAdsStatusPayload {
     generated_video_urls?: string[] | null;
     merged_video_url?: string | null;
     downloaded?: boolean | null;
+    generated_prompts?: { scenes: Array<{ prompt: StructuredVideoPrompt }>; language?: string }; // Include generated_prompts
+    image_prompt?: string;
   };
   stepMessages?: Record<string, string>;
   isCompleted?: boolean;
@@ -124,9 +129,12 @@ const CHARACTER_STAGE_HINTS: Record<string, string> = {
   analyzing_images: 'Analyzing uploaded images…',
   generating_prompts: 'Creating dialogue prompts…',
   generating_image: 'Generating character preview…',
+  awaiting_review: 'Awaiting your review...', // New hint
+  reviewing: 'Reviewing prompts...', // New hint for current_step
   generating_videos: 'Producing video scenes…',
   merging_videos: 'Merging scenes…'
 };
+
 
 const isActiveGeneration = (generation: CharacterGeneration) =>
   generation.status === 'pending' || generation.status === 'processing';
@@ -171,6 +179,13 @@ export default function CharacterAdsPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showExpandCollapseIcon, setShowExpandCollapseIcon] = useState(false);
 
+  // Inspector state
+  const [inspectorProjectId, setInspectorProjectId] = useState<string | null>(null);
+  const isInspectorOpen = useMemo(() => !!inspectorProjectId, [inspectorProjectId]);
+
+  const handleCloseInspector = useCallback(() => {
+    setInspectorProjectId(null);
+  }, []);
 
   const maxDurationOption = CHARACTER_ADS_DURATION_OPTIONS[CHARACTER_ADS_DURATION_OPTIONS.length - 1];
 const maxWordLimit = getCharacterAdsDialogueWordLimit(maxDurationOption);
@@ -675,25 +690,43 @@ const formatDurationLabel = (seconds: number) => {
 
   const fetchStatusForProject = useCallback(async (projectId: string) => {
     if (!projectId) return;
-    try {
-      const response = await fetch(`/api/character-ads/${projectId}/status`, { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error('Failed to fetch project status');
+    
+    const fetchWithBackoff = async (retries = 3, delay = 1000) => {
+      try {
+        const response = await fetch(`/api/character-ads/${projectId}/status`, { cache: 'no-store' });
+        
+        if (response.status === 404 && retries > 0) {
+          // 404 might be a race condition (creation vs read), retry quickly
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return fetchWithBackoff(retries - 1, delay * 1.5);
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch project status: ${response.status}`);
+        }
+
+        const payload: CharacterAdsStatusPayload = await response.json();
+        if (!isMountedRef.current) return;
+        updateGenerationFromStatus(projectId, payload);
+      } catch (error) {
+        if (retries > 0) {
+           // Retry on network errors too
+           await new Promise(resolve => setTimeout(resolve, delay));
+           return fetchWithBackoff(retries - 1, delay * 1.5);
+        }
+        console.error('Failed to fetch character ads status:', error);
       }
-      const payload: CharacterAdsStatusPayload = await response.json();
-      if (!isMountedRef.current) return;
-      updateGenerationFromStatus(projectId, payload);
-    } catch (error) {
-      console.error('Failed to fetch character ads status:', error);
-    }
+    };
+
+    await fetchWithBackoff();
   }, [updateGenerationFromStatus]);
 
   const activeProjectIds = useMemo(() => {
     const ids = generations
       .filter((gen) =>
-        (gen.status === 'pending' || gen.status === 'processing') &&
+        (gen.status === 'pending' || gen.status === 'processing' || gen.status === 'awaiting_review') &&
         gen.projectId &&
-        !gen.projectId.startsWith('temp-')  // ✅ Filter out temporary IDs to prevent UUID validation errors
+        !gen.projectId.startsWith('temp-')
       )
       .map((gen) => gen.projectId as string);
     return Array.from(new Set(ids));
@@ -777,6 +810,56 @@ const formatDurationLabel = (seconds: number) => {
       });
     }
   }, [user?.id, downloadingProjects, refetchCredits, showError, showSuccess]);
+
+  const handleConfirmGeneration = useCallback(async (projectId: string, updatedPrompts: any) => {
+    try {
+      const response = await fetch(`/api/character-ads/${projectId}/confirm`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ updatedPrompts }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to confirm generation');
+      }
+
+      showSuccess('Video generation successfully resumed!');
+      setInspectorProjectId(null); // Close inspector
+      fetchStatusForProject(projectId); // Refresh status
+      refetchCredits(); // Credits might have changed
+    } catch (error) {
+      console.error('Error confirming generation:', error);
+      showError(error instanceof Error ? error.message : 'Failed to confirm generation.');
+      throw error; // Re-throw to allow component to handle submitting state
+    }
+  }, [showSuccess, showError, fetchStatusForProject, refetchCredits]);
+
+  const handleRegenerateImage = useCallback(async (projectId: string, imagePrompt: string) => {
+    try {
+      const response = await fetch(`/api/character-ads/${projectId}/regenerate-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imagePrompt }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to regenerate image');
+      }
+
+      showSuccess('Image regeneration started!');
+      fetchStatusForProject(projectId); // Refresh status to show new state
+      refetchCredits(); // In case image regeneration costs credits
+    } catch (error) {
+      console.error('Error regenerating image:', error);
+      showError(error instanceof Error ? error.message : 'Failed to regenerate image.');
+    }
+  }, [showSuccess, showError, fetchStatusForProject, refetchCredits]);
 
   const displayedGenerations = useMemo(() =>
     sortGenerations(generations).map((gen) => ({
@@ -955,6 +1038,7 @@ const formatDurationLabel = (seconds: number) => {
                             </section>
                           </blockquote>
                         }
+                        onReview={(generation) => setInspectorProjectId((generation as CharacterGeneration).projectId!)}
                       />
                     </div>
                   </div>
@@ -1375,6 +1459,18 @@ const formatDurationLabel = (seconds: number) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Character Ad Inspector */}
+      {inspectorProjectId && (
+        <CharacterAdInspector
+          projectId={inspectorProjectId}
+          open={isInspectorOpen}
+          onClose={handleCloseInspector}
+          onConfirmGeneration={handleConfirmGeneration}
+          onRefetchProjectStatus={fetchStatusForProject}
+          onRegenerateImage={handleRegenerateImage}
+        />
       )}
     </div>
   );

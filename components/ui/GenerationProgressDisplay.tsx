@@ -26,7 +26,7 @@ import type { SegmentStatusPayload } from '@/lib/standard-ads-workflow';
 export interface Generation {
   id: string;
   timestamp: Date;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'awaiting_review';
   progress?: number; // 0-100
   stage?: string; // e.g., "Generating cover image...", "Creating video..."
   videoUrl?: string;
@@ -94,7 +94,8 @@ interface GenerationProgressDisplayProps {
   expandedGenerationId?: string | null;
   onToggleSegments?: (generation: Generation) => void;
   onSegmentSelect?: (generation: Generation, segment: SegmentCardSummary) => void;
-  onMerge?: (generation: Generation) => void;
+  onMerge?: (generation: Generation, updatedPlan?: any) => void;
+  onReview?: (generation: Generation) => void;
 }
 
 export default function GenerationProgressDisplay({
@@ -105,7 +106,8 @@ export default function GenerationProgressDisplay({
   expandedGenerationId,
   onToggleSegments,
   onSegmentSelect,
-  onMerge
+  onMerge,
+  onReview
 }: GenerationProgressDisplayProps) {
   // Load TikTok script when in empty state
   useEffect(() => {
@@ -209,6 +211,7 @@ export default function GenerationProgressDisplay({
           onToggleSegments={onToggleSegments}
           onSegmentSelect={onSegmentSelect}
           onMerge={onMerge}
+          onReview={onReview}
         />
       ))}
     </div>
@@ -222,6 +225,7 @@ interface GenerationCardProps {
   onToggleSegments?: (generation: Generation) => void;
   onSegmentSelect?: (generation: Generation, segment: SegmentCardSummary) => void;
   onMerge?: (generation: Generation) => void;
+  onReview?: (generation: Generation) => void;
 }
 
 function GenerationCard({
@@ -230,7 +234,8 @@ function GenerationCard({
   expandedGenerationId,
   onToggleSegments,
   onSegmentSelect,
-  onMerge
+  onMerge,
+  onReview
 }: GenerationCardProps) {
   const {
     status,
@@ -340,7 +345,8 @@ function GenerationCard({
       case 'processing':
         return displayStage || 'Processing...';
       case 'pending':
-        return 'Queued';
+      case 'awaiting_review':
+        return displayStage || 'Queued';
       default:
         return 'Unknown';
     }
@@ -373,6 +379,17 @@ function GenerationCard({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Review Button for Character Ads - Hide during processing/video generation */}
+            {onReview && (status === 'pending' || status === 'awaiting_review') && coverUrl && !videoUrl && (
+              <button
+                onClick={() => onReview(generation)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold shadow-sm hover:bg-blue-100 hover:border-blue-300 transition-colors cursor-pointer"
+              >
+                <PenSquare className="w-3.5 h-3.5" />
+                <span>Review & Generate</span>
+              </button>
+            )}
+
             {status === 'completed' && videoUrl && (
               onDownload ? (
                 <button
