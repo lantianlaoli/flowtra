@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Layers, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send } from 'lucide-react';
 import { getCreditCost, getDownloadCost } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -36,29 +36,6 @@ interface StandardAdsItem {
   segmentCount?: number;
   videoDuration?: string;
 }
-
-interface MultiVariantAdsItem {
-  id: string;
-  originalImageUrl?: string;
-  coverImageUrl?: string;
-  videoUrl?: string;
-  coverAspectRatio?: string;
-  photoOnly?: boolean;
-  downloaded?: boolean;
-  downloadCreditsUsed?: number;
-  generationCreditsUsed?: number;
-  productDescription?: string;
-  videoModel: 'veo3' | 'veo3_fast';
-  creditsUsed: number;
-  status: 'processing' | 'completed' | 'failed';
-  createdAt: string;
-  progress?: number;
-  currentStep?: string;
-  adType: 'multi-variant';
-  elementsData?: Record<string, unknown>;
-  videoAspectRatio?: string;
-}
-
 
 interface CharacterAdsItem {
   id: string;
@@ -91,7 +68,7 @@ interface WatermarkRemovalItem {
   errorMessage?: string;
 }
 
-type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem | WatermarkRemovalItem;
+type HistoryItem = StandardAdsItem | CharacterAdsItem | WatermarkRemovalItem;
 
 const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns (desktop) = 8 items per page
 
@@ -107,12 +84,6 @@ const AD_TYPE_OPTIONS = [
     label: 'Standard',
     icon: ImageIcon,
     description: 'Single-product ads generated from one photo',
-  },
-  {
-    value: 'multi-variant',
-    label: 'Multi-Variant',
-    icon: Layers,
-    description: 'Variant sets with multiple layout experiments',
   },
   {
     value: 'character',
@@ -142,10 +113,6 @@ const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
 
 const isStandardAds = (item: HistoryItem): item is StandardAdsItem => {
   return 'adType' in item && item.adType === 'standard';
-};
-
-const isMultiVariantAds = (item: HistoryItem): item is MultiVariantAdsItem => {
-  return 'adType' in item && item.adType === 'multi-variant';
 };
 
 const isWatermarkRemoval = (item: HistoryItem): item is WatermarkRemovalItem => {
@@ -199,7 +166,6 @@ export default function HistoryPage() {
       return (
         adTypeFilter === 'all' ||
         (adTypeFilter === 'standard' && isStandardAds(item)) ||
-        (adTypeFilter === 'multi-variant' && isMultiVariantAds(item)) ||
         (adTypeFilter === 'character' && isCharacterAds(item)) ||
         (adTypeFilter === 'watermark-removal' && isWatermarkRemoval(item))
       );
@@ -611,103 +577,6 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     }
   };
 
-  // Multi-variant ads download function
-  const downloadMultiVariantAdsContent = async (instanceId: string, contentType: 'cover' | 'video', videoModel: 'veo3' | 'veo3_fast') => {
-    if (!user?.id) return;
-
-    // Check if VEO3 prepaid (credits already deducted at generation)
-    const item = history.find(h => h.id === instanceId);
-    const isPrepaid = item && 'generationCreditsUsed' in item ? (item.generationCreditsUsed || 0) > 0 : false;
-
-    const downloadCost = getCreditCost(videoModel);
-
-    // For prepaid VEO3, no credit check needed
-    if (!isPrepaid && contentType === 'video' && (!userCredits || userCredits < downloadCost)) {
-      alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
-      return;
-    }
-
-    // Only track download state for paid video; cover should not affect video button state
-    if (contentType === 'video') {
-      setDownloadStates(prev => ({ ...prev, [instanceId]: 'processing' }));
-    }
-
-    try {
-      const response = await fetch(`/api/multi-variant-ads/${instanceId}/download`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ contentType }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to download content');
-      }
-
-      const responseContentType = response.headers.get('content-type');
-
-      // Check if response is a file (image or video)
-      if (responseContentType?.includes('image/') || responseContentType?.includes('video/mp4')) {
-        // Server returned file buffer directly
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-
-        // Determine file extension
-        let ext = 'jpg';
-        if (contentType === 'video') {
-          ext = 'mp4';
-        } else if (responseContentType.includes('png')) {
-          ext = 'png';
-        } else if (responseContentType.includes('webp')) {
-          ext = 'webp';
-        }
-
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `flowtra-multi-variant-${contentType}-${instanceId}.${ext}`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        // Show success state only for paid video
-        if (contentType === 'video') {
-          setDownloadStates(prev => ({ ...prev, [instanceId]: 'success' }));
-
-          // Update local state for video download
-          setHistory(prevHistory =>
-            prevHistory.map(item =>
-              item.id === instanceId && isMultiVariantAds(item)
-                ? { ...item, downloaded: true }
-                : item
-            )
-          );
-
-          await refetchCredits();
-
-          // Reset to idle after 3 seconds
-          setTimeout(() => {
-            setDownloadStates(prev => ({ ...prev, [instanceId]: 'idle' }));
-          }, 3000);
-        }
-      } else {
-        // Fallback: response is JSON (error case)
-        const result = await response.json();
-        throw new Error(result.error || 'Unexpected response format');
-      }
-    } catch (error) {
-      console.error('Download failed:', error);
-      alert(error instanceof Error ? error.message : 'Download failed');
-      if (contentType === 'video') {
-        setDownloadStates(prev => ({ ...prev, [instanceId]: 'idle' }));
-      }
-      throw error;
-    }
-  };
-
   // Watermark removal video download function (free - credits already charged at generation)
   const downloadWatermarkRemovalVideo = async (historyId: string) => {
     if (!user?.id) return;
@@ -742,9 +611,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     const id = item.id;
     setCoverStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (isMultiVariantAds(item)) {
-        await downloadMultiVariantAdsContent(item.id, 'cover', item.videoModel);
-      } else if (isStandardAds(item)) {
+      if (isStandardAds(item)) {
         await downloadStandardAdsCover(item.id);
       } else if (isCharacterAds(item)) {
         await downloadCharacterAdsCover(item.id);
@@ -766,8 +633,6 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     try {
       if (isWatermarkRemoval(item)) {
         await downloadWatermarkRemovalVideo(item.id);
-      } else if (isMultiVariantAds(item)) {
-        await downloadMultiVariantAdsContent(item.id, 'video', item.videoModel);
       } else if (isStandardAds(item) || isCharacterAds(item)) {
         await downloadVideo(item.id, item.videoModel);
       }
@@ -946,8 +811,6 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           ? 'Sora2 Watermark Removal'
                           : isCharacterAds(item)
                           ? 'Character'
-                          : isMultiVariantAds(item)
-                          ? 'Multi variant'
                           : 'Standard'
                         }
                       </span>
@@ -1460,7 +1323,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
         historyId={selectedItemForTikTok?.id || ''}
         coverImageUrl={
           (selectedItemForTikTok && 'coverImageUrl' in (selectedItemForTikTok || {}))
-            ? (selectedItemForTikTok as StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem).coverImageUrl
+            ? (selectedItemForTikTok as StandardAdsItem | CharacterAdsItem).coverImageUrl
             : undefined
         }
       />

@@ -28,28 +28,6 @@ interface StandardAdsItem {
   videoDuration?: string;
 }
 
-interface MultiVariantAdsItem {
-  id: string;
-  originalImageUrl?: string;
-  coverImageUrl?: string;
-  videoUrl?: string;
-  coverAspectRatio?: string;
-  photoOnly?: boolean;
-  downloaded?: boolean;
-  downloadCreditsUsed?: number;
-  generationCreditsUsed?: number;
-  productDescription?: string;
-  videoModel: 'veo3' | 'veo3_fast';
-  creditsUsed: number;
-  status: 'processing' | 'completed' | 'failed';
-  createdAt: string;
-  progress?: number;
-  currentStep?: string;
-  adType: 'multi-variant';
-  elementsData?: Record<string, unknown>;
-  videoAspectRatio?: string;
-}
-
 interface CharacterAdsItem {
   id: string;
   originalImageUrl?: string;
@@ -81,7 +59,7 @@ interface WatermarkRemovalItem {
   errorMessage?: string;
 }
 
-type HistoryItem = StandardAdsItem | MultiVariantAdsItem | CharacterAdsItem | WatermarkRemovalItem;
+type HistoryItem = StandardAdsItem | CharacterAdsItem | WatermarkRemovalItem;
 
 type SupportedAspectRatio = '16:9' | '9:16' | '1:1';
 
@@ -161,17 +139,6 @@ export async function GET() {
       console.error('Failed to fetch Standard Ads history:', standardAdsError);
     }
 
-    // Fetch Multi-Variant Ads data
-    const { data: multiVariantAdsItems, error: multiVariantAdsError } = await supabase
-      .from('multi_variant_ads_projects')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (multiVariantAdsError) {
-      console.error('Failed to fetch Multi-Variant Ads history:', multiVariantAdsError);
-    }
-
     // Fetch Character Ads data
     const { data: characterAdsItems, error: characterAdsError } = await supabase
       .from('character_ads_projects')
@@ -223,57 +190,6 @@ export async function GET() {
       segmentCount: item.segment_count || undefined,
       videoDuration: item.video_duration || undefined
     }));
-
-    // Transform Multi-Variant Ads data
-    interface MultiVariantRow {
-      id: string;
-      user_id: string;
-      elements_data?: Record<string, unknown> | null;
-      photo_only?: boolean | null;
-      cover_task_id?: string | null;
-      video_task_id?: string | null;
-      cover_image_url?: string | null;
-      video_url?: string | null;
-      error_message?: string | null;
-      status: string;
-      current_step: string;
-      credits_cost: number;
-      downloaded: boolean;
-      created_at: string;
-      updated_at: string;
-      last_processed_at?: string | null;
-      progress_percentage?: number | null;
-      original_image_url?: string | null;
-      product_description?: string | null;
-      video_model?: 'veo3' | 'veo3_fast' | string | null;
-      cover_image_aspect_ratio?: string | null;
-    }
-
-    const transformedMultiVariantAdsHistory: MultiVariantAdsItem[] = (multiVariantAdsItems || []).map((instance: MultiVariantRow) => {
-      const elements = (instance.elements_data ?? {}) as Record<string, unknown>;
-      const originalImageFromElements = (elements.original_image_url as string | undefined) || (elements.originalImageUrl as string | undefined);
-      return {
-        id: instance.id,
-        originalImageUrl: instance.original_image_url || originalImageFromElements,
-        coverImageUrl: instance.cover_image_url || undefined,
-        videoUrl: instance.video_url || undefined,
-        coverAspectRatio: resolveCoverAspectRatio(instance.cover_image_aspect_ratio),
-        photoOnly: instance.photo_only === true,
-        downloaded: instance.downloaded,
-        downloadCreditsUsed: 0,
-        generationCreditsUsed: 0,
-        productDescription: instance.product_description || (elements.product_description as string | undefined) || (elements.product as string | undefined),
-        videoModel: (instance.video_model === 'veo3' || instance.video_model === 'veo3_fast') ? instance.video_model : 'veo3_fast',
-        creditsUsed: instance.credits_cost,
-        status: mapWorkflowStatus(instance.status),
-        createdAt: instance.created_at,
-        progress: (instance.progress_percentage as number | null) ?? 0,
-        currentStep: instance.current_step,
-        adType: 'multi-variant',
-        elementsData: instance.elements_data || undefined,
-        videoAspectRatio: '9:16' // Multi-variant always uses 9:16
-      };
-    });
 
     // Transform Character Ads data - show all items (processing, completed, and failed)
     const transformedCharacterAdsHistory: CharacterAdsItem[] = (characterAdsItems || [])
@@ -335,7 +251,6 @@ export async function GET() {
     // Combine and sort by creation date
     const combinedHistory: HistoryItem[] = [
       ...transformedStandardAdsHistory,
-      ...transformedMultiVariantAdsHistory,
       ...transformedCharacterAdsHistory,
       ...transformedWatermarkRemovalHistory
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

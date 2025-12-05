@@ -42,19 +42,6 @@ export async function GET() {
       console.log('📈 Standard Ads records:', standardAdsHistory?.length || 0);
     }
 
-    // Query Multi-Variant Ads projects
-    type MultiVariantAdsRow = { status: string; created_at: string; download_credits_used?: number | null };
-    const { data: multiVariantAdsHistory, error: errorMultiVariant } = await supabase
-      .from('multi_variant_ads_projects')
-      .select('status, created_at, download_credits_used')
-      .eq('user_id', userId);
-
-    if (errorMultiVariant) {
-      console.error('❌ Error querying multi_variant_ads_projects:', errorMultiVariant);
-    } else {
-      console.log('📈 Multi-Variant Ads records:', multiVariantAdsHistory?.length || 0);
-    }
-
     // Query Character Ads projects
     type CharacterAdsRow = { status: string; created_at: string; download_credits_used?: number | null };
     const { data: characterAdsHistory, error: errorCharacter } = await supabase
@@ -85,22 +72,6 @@ export async function GET() {
       }
     }
 
-    // Calculate stats from Multi-Variant Ads data
-    if (multiVariantAdsHistory && multiVariantAdsHistory.length > 0) {
-      for (const record of multiVariantAdsHistory as MultiVariantAdsRow[]) {
-        stats.totalVideos++;
-
-        // Check if this month
-        const recordDate = new Date(record.created_at);
-        if (recordDate >= currentMonthStart && recordDate <= currentMonthEnd) {
-          stats.thisMonth++;
-        }
-
-        // Add credits used (actual download charges)
-        stats.creditsUsed += record.download_credits_used || 0;
-      }
-    }
-
     // Calculate stats from Character Ads data
     if (characterAdsHistory && characterAdsHistory.length > 0) {
       for (const record of characterAdsHistory as CharacterAdsRow[]) {
@@ -123,15 +94,6 @@ export async function GET() {
 
     if (standardAdsHistory) {
       for (const record of standardAdsHistory as StandardAdsRow[]) {
-        totalCount++;
-        if (record.status === 'completed') {
-          completedCount++;
-        }
-      }
-    }
-
-    if (multiVariantAdsHistory) {
-      for (const record of multiVariantAdsHistory as MultiVariantAdsRow[]) {
         totalCount++;
         if (record.status === 'completed') {
           completedCount++;

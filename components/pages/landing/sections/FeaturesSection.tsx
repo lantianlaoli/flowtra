@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Play, Lightbulb, UserPlus, Copy, ArrowRight } from 'lucide-react';
+import { Play, UserPlus, Copy, ArrowRight } from 'lucide-react';
 
 export default function FeaturesSection() {
   return (
@@ -30,32 +30,6 @@ export default function FeaturesSection() {
                   </h3>
                   <p className="text-gray-600 leading-relaxed">
                     Transform product images into engaging video ads with AI. Support for 50+ languages and custom WhatsApp display.
-                  </p>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 group-hover:text-black pt-2">
-                    Learn More
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </div>
-            </Link>
-          </article>
-
-          {/* Multi-Variant Ads */}
-          <article>
-            <Link
-              href="/features/multi-variant-ads"
-              className="group bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl transition-all duration-300 hover:border-gray-300 block h-full"
-            >
-              <div className="flex flex-col md:flex-row items-start gap-6">
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors flex-shrink-0" aria-hidden="true">
-                  <Lightbulb className="w-6 h-6" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-2xl font-bold text-black group-hover:text-gray-900">
-                    Multi-Variant Ads
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    Generate multiple ad variants from one image. Perfect for A/B testing and diverse creative options.
                   </p>
                   <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 group-hover:text-black pt-2">
                     Learn More

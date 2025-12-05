@@ -25,18 +25,8 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(1);
 
-    // Fetch latest completed video from V2 workflow (multi_variant_projects)
-    const { data: historyV2, error: errorV2 } = await supabase
-      .from('multi_variant_ads_projects')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'completed')
-      .not('video_url', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (errorV1 || errorV2) {
-      console.error('Failed to fetch recent videos:', { errorV1, errorV2 });
+    if (errorV1) {
+      console.error('Failed to fetch recent videos:', { errorV1 });
       return NextResponse.json({
         error: 'Failed to fetch recent videos'
       }, { status: 500 });
@@ -90,45 +80,6 @@ export async function GET() {
         creditsConsumed: item.download_credits_used || undefined,
         creativePrompt,
         workflowVersion: 'v1'
-      });
-    }
-
-    // Transform V2 data
-    if (historyV2 && historyV2.length > 0) {
-      const item = historyV2[0];
-      let creativePrompt = null;
-      if (item.elements_data) {
-        try {
-          const parsed = typeof item.elements_data === 'string'
-            ? JSON.parse(item.elements_data)
-            : item.elements_data;
-
-          // V2 stores creative prompts in elements_data.video_prompt
-          const videoPrompt = parsed.video_prompt;
-          if (videoPrompt) {
-            creativePrompt = {
-              music: videoPrompt.music || null,
-              action: videoPrompt.action || null,
-              ending: videoPrompt.ending || null,
-              setting: videoPrompt.setting || null
-            };
-          }
-        } catch (e) {
-          console.error('Failed to parse V2 elements data:', e);
-        }
-      }
-
-      allVideos.push({
-        id: item.id,
-        thumbnail: item.cover_image_url || undefined,
-        videoUrl: item.video_url || undefined,
-        createdAt: item.created_at,
-        status: 'completed' as const,
-        generationTime: undefined, // V2 doesn't track generation time in the same way
-        modelUsed: item.video_model || 'VEO3',
-        creditsConsumed: item.download_credits_used || undefined,
-        creativePrompt,
-        workflowVersion: 'v2'
       });
     }
 

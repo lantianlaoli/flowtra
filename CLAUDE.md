@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a Next.js 15 app using the App Router with TypeScript and Supabase integration. The application focuses on AI-powered video and image generation workflows.
 
 ### Key Workflows
-The application implements three main AI workflows:
+The application implements two main AI workflows:
 
 1. **Standard Ads** (`/dashboard/single-video-generator`)
    - Single video generation from product images
@@ -31,20 +31,14 @@ The application implements three main AI workflows:
    - Table: `standard_ads_projects`
    - Workflow: `lib/standard-ads-workflow.ts`
 
-2. **Multi-Variant Ads** (`/dashboard/multi-variant-generator`)
-   - Multiple variant generation from a single image
-   - Direct cover generation without AI description step
-   - Table: `multi_variant_ads_projects`
-   - Workflow: `lib/multi-variant-ads-workflow.ts`
-
-3. **Character Ads**
+2. **Character Ads**
    - Character-based advertisement generation
    - Table: `character_ads_projects`
    - Workflow: `lib/character-ads-workflow.ts`
 
 ### Database Schema
-- **Main Tables**: `standard_ads_projects`, `multi_variant_ads_projects`, `character_ads_projects`
-- **Legacy Tables**: Old table names (`single_video_projects`, `multi_variant_projects`) have been migrated
+- **Main Tables**: `standard_ads_projects`, `character_ads_projects`
+- **Legacy Tables**: Old table names (`single_video_projects`) have been migrated
 - **Authentication**: Managed by Clerk
 - **Credits System**: User credits stored in Supabase, costs defined in `lib/constants.ts`
 
@@ -123,7 +117,6 @@ When modifying any AI prompts in the codebase:
 ### Prompt Documentation Structure
 - `prompts/README.md` - Overview of all workflows
 - `prompts/standard-ads-workflow.md` - Standard Ads complete workflow
-- `prompts/multi-variant-ads-workflow.md` - Multi-Variant Ads complete workflow
 - `prompts/character-ads-workflow.md` - Character Ads complete workflow
 
 ---
@@ -141,10 +134,8 @@ When modifying any AI prompts in the codebase:
 
 **Modified Files:**
 - `lib/standard-ads-workflow.ts` - Upfront billing for all models
-- `lib/multi-variant-ads-workflow.ts` - Upfront billing for all models
 - `app/api/character-ads/create/route.ts` - Sora2 Pro support
 - `app/api/download-video/route.ts` - Removed credit deduction
-- `app/api/multi-variant-ads/[id]/download/route.ts` - Removed credit deduction
 - `app/api/character-ads/download/route.ts` - Removed credit deduction
 - `components/pages/PricingPage.tsx` - Updated messaging
 - `components/pages/LandingPage.tsx` - Updated messaging
@@ -206,9 +197,7 @@ export const DOWNLOAD_COSTS = { 'veo3_fast': 20, 'sora2': 6 };
 **Modified Files:**
 - `lib/constants.ts` - Added model classification, helper functions
 - `lib/standard-ads-workflow.ts` - Generation billing logic
-- `lib/multi-variant-ads-workflow.ts` - Generation billing logic
 - `app/api/download-video/route.ts` - Download billing logic
-- `app/api/multi-variant-ads/[id]/download/route.ts` - Download billing logic
 - `app/api/character-ads/download/route.ts` - Download billing logic
 - `components/ui/VideoModelSelector.tsx` - UI shows "Generation: X credits" vs "Download: X credits"
 - `components/pages/PricingPage.tsx` - Updated messaging

@@ -127,38 +127,6 @@ export interface StandardAdsSegment {
   updated_at: string
 }
 
-// Database types for multi_variant_projects table
-export interface MultiVariantProject {
-  id: string
-  user_id: string
-  elements_data?: Record<string, unknown>
-  cover_task_id?: string
-  video_task_id?: string
-  cover_image_url?: string
-  video_url?: string
-  status: 'pending' | 'generating_cover' | 'generating_video' | 'completed' | 'failed'
-  current_step: 'waiting' | 'generating_cover' | 'generating_video' | 'completed'
-  credits_cost: number
-  downloaded: boolean
-  error_message?: string
-  created_at: string
-  updated_at: string
-  last_processed_at?: string
-  progress_percentage?: number
-  original_image_url?: string
-  product_description?: Record<string, unknown>
-  video_model?: string
-  download_credits_used: number  // DEPRECATED: Downloads are now free
-  watermark_text?: string
-  watermark_location?: string
-  cover_image_aspect_ratio?: string // Aspect ratio of the cover image (e.g., "16:9", "9:16", "1:1")
-  image_prompt?: Record<string, unknown>
-  photo_only: boolean
-  video_duration?: string | null // Video duration in seconds (e.g., '8', '10', '15') - applicable to all video models
-  video_quality?: 'standard' | 'high' | null // Video quality setting - applicable to all video models
-  language?: string | null // Preferred language code for prompts and narration
-}
-
 // Database types for user_photos table
 export interface UserPhoto {
   id: string
@@ -261,11 +229,6 @@ export type Database = {
         Row: StandardAdsSegment
         Insert: Omit<StandardAdsSegment, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<StandardAdsSegment, 'id' | 'created_at' | 'updated_at'>>
-      }
-      multi_variant_ads_projects: {
-        Row: MultiVariantProject
-        Insert: Omit<MultiVariantProject, 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Omit<MultiVariantProject, 'id' | 'created_at' | 'updated_at'>>
       }
       user_photos: {
         Row: UserPhoto

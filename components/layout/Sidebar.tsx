@@ -11,7 +11,6 @@ import {
   Coins,
   Sparkles,
   Play,
-  Layers,
   Video,
   Boxes,
   Menu,
@@ -42,12 +41,6 @@ const navigation = [
     href: '/dashboard/standard-ads',
     icon: Sparkles,
     onboardingId: 'sidebar-standard-ads'
-  },
-  {
-    name: 'Multi-Variant Ads',
-    href: '/dashboard/multi-variant-ads',
-    icon: Layers,
-    onboardingId: 'sidebar-multi-variant'
   },
   {
     name: 'Character Ads',

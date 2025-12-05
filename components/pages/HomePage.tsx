@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
-import { Zap, TrendingUp, Hand, Volume2, VolumeX, Image as ImageIcon, Layers, Video as VideoIcon, BarChart3, Clock } from 'lucide-react';
+import { Zap, TrendingUp, Hand, Volume2, VolumeX, Image as ImageIcon, Video as VideoIcon, BarChart3, Clock } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import { useRef, useMemo, useCallback } from 'react';
 import { useOnboarding } from '@/hooks/useOnboarding';
@@ -190,7 +190,7 @@ export default function HomePage() {
 }
 
 // --- Discover Section --- //
-type DiscoverType = 'all' | 'standard' | 'multi-variant' | 'character';
+type DiscoverType = 'all' | 'standard' | 'character';
 
 interface DiscoverItem {
   id: string;
@@ -337,7 +337,6 @@ function DiscoverSection() {
             [
               { k: 'all', icon: ImageIcon, label: 'All' },
               { k: 'standard', icon: ImageIcon, label: 'Standard' },
-              { k: 'multi-variant', icon: Layers, label: 'Multi-Variant' },
               { k: 'character', icon: VideoIcon, label: 'Character' },
             ] as const
           ).map(({ k, icon: Icon, label }) => (

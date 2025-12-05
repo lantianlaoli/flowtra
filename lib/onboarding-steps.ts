@@ -30,13 +30,6 @@ export const onboardingSteps: OnboardingStep[] = [
     placement: 'right',
   },
   {
-    id: 'multi-variant-ads',
-    title: 'Multi-Variant Ads',
-    description: 'Create multiple video variations from one image. Ideal for A/B testing different creative directions and finding what resonates with your audience.',
-    targetId: 'sidebar-multi-variant',
-    placement: 'right',
-  },
-  {
     id: 'character-ads',
     title: 'Character Ads',
     description: 'Create character-based advertising content. Let virtual characters promote your products, adding personality and engagement to your ads.',
@@ -53,7 +46,7 @@ export const onboardingSteps: OnboardingStep[] = [
   {
     id: 'my-ads',
     title: 'My Ads',
-    description: 'View all your ad history including standard ads, multi-variant ads, and character ads. Easily manage and download all your creations in one place.',
+    description: 'View all your ad history including standard ads, character ads, and watermark removal jobs. Easily manage and download all your creations in one place.',
     targetId: 'sidebar-my-ads',
     placement: 'right',
   },

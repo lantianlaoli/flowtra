@@ -135,26 +135,6 @@ export async function POST(request: NextRequest) {
       videoFound = true;
     }
 
-    // Try multi_variant_ads_projects if not found
-    if (!videoFound) {
-      const { data: multiVariantAd } = await supabase
-        .from('multi_variant_ads_projects')
-        .select('video_url, user_id, status')
-        .eq('id', historyId)
-        .maybeSingle();
-
-      if (multiVariantAd && multiVariantAd.user_id === userId) {
-        if (multiVariantAd.status !== 'completed') {
-          return NextResponse.json(
-            { success: false, error: 'Video is not ready yet' },
-            { status: 400 }
-          );
-        }
-        videoUrl = multiVariantAd.video_url;
-        videoFound = true;
-      }
-    }
-
     // Try character_ads_projects if still not found
     if (!videoFound) {
       const { data: characterAd } = await supabase

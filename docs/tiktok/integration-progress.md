@@ -81,7 +81,6 @@
 │  │  - user_tiktok_connections                   │           │
 │  │  - tiktok_publish_history        [Phase 2]  │           │
 │  │  - standard_ads_projects                     │           │
-│  │  - multi_variant_ads_projects                │           │
 │  │  - character_ads_projects                    │           │
 │  └──────────────────────────────────────────────┘           │
 │                                                               │

@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type DiscoverType = 'all' | 'standard' | 'multi-variant' | 'character';
+type DiscoverType = 'all' | 'standard' | 'character';
 
 interface DiscoverItem {
   id: string;
@@ -47,29 +47,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Multi-Variant Ads
-    if (type === 'all' || type === 'multi-variant') {
-      const { data, error } = await supabase
-        .from('multi_variant_ads_projects')
-        .select('id, cover_image_url, video_url, status, created_at')
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (!error && data) {
-        for (const r of data) {
-          if (!r.cover_image_url && !r.video_url) continue;
-          items.push({
-            id: r.id,
-            type: 'multi-variant',
-            coverImageUrl: r.cover_image_url || r.video_url,
-            videoUrl: r.video_url || undefined,
-            createdAt: r.created_at,
-          });
-        }
-      }
-    }
-
     // Character Ads
     if (type === 'all' || type === 'character') {
       const { data, error } = await supabase
@@ -104,4 +81,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
-

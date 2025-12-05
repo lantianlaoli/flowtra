@@ -37,11 +37,6 @@ export default function Footer() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/features/multi-variant-ads" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
-                    Multi-Variant Ads
-                  </Link>
-                </li>
-                <li>
                   <Link href="/features/character-ads" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
                     Character Ads
                   </Link>

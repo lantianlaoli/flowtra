@@ -23,11 +23,11 @@ Flowtra is a Next.js 15 application that delivers AI-generated marketing assets 
   - `api/`: Next.js Route Handlers that back the product surface (credit checks, uploads, generation triggers, analytics, webhook ingestion).
 - `components/`: Reusable UI components (Tailwind v4). Keep files in PascalCase.
 - `contexts/`: Client-side React contexts (credits, toast notifications) that bridge server data to React components.
-- `hooks/`: Custom hooks orchestrating ads workflows on the client (`useStandardAdsWorkflow`, `useMultiVariantAdsWorkflow`, `useVideoAudio`).
+- `hooks/`: Custom hooks orchestrating ads workflows on the client (`useStandardAdsWorkflow`, `useVideoAudio`).
 - `lib/`: Server utilities and integrations, including
   - `constants.ts`: Source of truth for pricing, credit costs, package info, and helper guards.
   - `credits.ts`: Supabase credit ledger helpers (initialize, deduct, refund).
-  - `character-ads-workflow.ts`, `standard-ads-workflow.ts`, `multi-variant-ads-workflow.ts`: Prompt and job orchestration for each video product line.
+  - `character-ads-workflow.ts`, `standard-ads-workflow.ts`: Prompt and job orchestration for each video product line.
   - `kie-credits-check.ts`, `kie-sora2-pro.ts`, `kie-watermark-removal.ts`: KIE-specific API clients and safeguards.
   - `watermark-removal-workflow.ts`: Sora2 watermark removal pipeline.
   - `error-tracking.ts`, `posthog*.ts`, `fetchWithRetry.ts`, `httpRequest.ts`: cross-cutting concerns.
@@ -38,7 +38,7 @@ Flowtra is a Next.js 15 application that delivers AI-generated marketing assets 
 
 ## Backend Surface Map
 `app/api/` hosts route handlers grouped by feature:
-- **Generation**: `standard-ads`, `multi-variant-ads`, `character-ads`, `download-video`.
+- **Generation**: `standard-ads`, `character-ads`, `download-video`.
 - **Assets & uploads**: `upload`, `upload-temp-images`, `user-photos`, `user-products`, `recent-videos`, `history`.
 - **Billing & credits**: `credits`, `check-kie-credits`, `create-checkout`, `webhooks/creem`.
 - **Discovery & lead capture**: `discover`, `lead`, `public/*`.

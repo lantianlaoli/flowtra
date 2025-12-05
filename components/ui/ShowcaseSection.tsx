@@ -20,7 +20,7 @@ interface ShowcaseItem {
 }
 
 interface ShowcaseSectionProps {
-  workflowType: 'standard-ads' | 'multi-variant-ads' | 'character-ads';
+  workflowType: 'standard-ads' | 'character-ads';
   className?: string;
 }
 
@@ -55,20 +55,19 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
         setLoading(true);
         
         // Use different API endpoints based on workflow type
-        // For character-ads and multi-variant-ads, use global showcase API to show latest examples from all users
-        // For other types, use user-specific history API
-        const apiEndpoint = (workflowType === 'character-ads' || workflowType === 'multi-variant-ads')
-          ? `/api/${workflowType}/showcase?limit=2`
-          : `/api/${workflowType}/history?limit=6`;
+        // Character ads use the global showcase API; standard ads pull from the history endpoint
+        const apiEndpoint = workflowType === 'character-ads'
+          ? '/api/character-ads/showcase?limit=2'
+          : '/api/standard-ads/history?limit=6';
         
         const response = await fetch(apiEndpoint);
         if (response.ok) {
           const result = await response.json();
           const projects = result.data || result.history || [];
           
-          // For character-ads and multi-variant-ads showcase APIs, data is already filtered
-          // For other APIs, filter for completed items with cover images
-          const completedItems = (workflowType === 'character-ads' || workflowType === 'multi-variant-ads')
+          // For character-ads showcase API data is already filtered
+          // For standard ads, filter for completed items with cover images
+          const completedItems = workflowType === 'character-ads'
             ? projects 
             : projects.filter((item: ProjectItem) => 
                 item.status === 'completed' && item.cover_image_url
@@ -118,8 +117,8 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
           const userMap = new Map(userInfos.map(user => [user.id, user]));
           
           // Combine project data with user information
-          // For character-ads and multi-variant-ads, API already limits to 2 items; for others, slice to 2
-          const itemsToShow = (workflowType === 'character-ads' || workflowType === 'multi-variant-ads') ? completedItems : completedItems.slice(0, 2);
+          // Character-ads showcase already limits to 2 items; slice standard-ads list to keep UI consistent
+          const itemsToShow = workflowType === 'character-ads' ? completedItems : completedItems.slice(0, 2);
           const showcaseData = itemsToShow.map((item: ProjectItem) => {
             const fallbackImage = item.original_image_url || item.cover_image_url || '';
             const baseItem = {

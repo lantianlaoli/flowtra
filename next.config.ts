@@ -51,11 +51,6 @@ const nextConfig: NextConfig = {
         destination: '/dashboard/single-video-generator',
         permanent: false,
       },
-      {
-        source: '/dashboard/generate-v2',
-        destination: '/dashboard/multi-variant-generator',
-        permanent: false,
-      },
     ];
   },
   async headers() {
