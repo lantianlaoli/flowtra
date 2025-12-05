@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { getSupabase } from '@/lib/supabase';
+import type { VideoModel } from '@/lib/constants';
 
 interface StandardAdsItem {
   id: string;
@@ -14,7 +15,7 @@ interface StandardAdsItem {
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
   imagePrompt?: string;
-  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
+  videoModel: VideoModel;
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;
@@ -90,6 +91,14 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
   return normalizeAspectRatio(ratio);
 };
 
+const ALLOWED_STANDARD_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro', 'grok', 'kling'];
+
+const normalizeStandardVideoModel = (model?: string | null): VideoModel => {
+  return ALLOWED_STANDARD_VIDEO_MODELS.includes(model as VideoModel)
+    ? (model as VideoModel)
+    : 'veo3_fast';
+};
+
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -162,34 +171,33 @@ export async function GET() {
     }
 
     // Transform Standard Ads data
-    const transformedStandardAdsHistory: StandardAdsItem[] = (standardAdsItems || []).map(item => ({
-      id: item.id,
-      coverImageUrl: item.cover_image_url,
-      videoUrl: item.video_url,
-      photoOnly: !!item.photo_only,
-      downloaded: item.downloaded,
-      downloadCreditsUsed: item.download_credits_used,
-      generationCreditsUsed: 0,
-      imagePrompt: item.image_prompt,
-      coverAspectRatio: resolveCoverAspectRatio(item.cover_image_aspect_ratio),
-      videoModel:
-        item.video_model === 'sora2' || item.video_model === 'sora2_pro'
-          ? item.video_model
-          : (item.video_model === 'veo3' || item.video_model === 'veo3_fast')
-            ? item.video_model
-            : 'veo3_fast',
-      creditsUsed: item.credits_cost || 0,
-      status: mapWorkflowStatus(item.status),
-      createdAt: item.created_at,
-      progress: item.progress_percentage,
-      currentStep: item.current_step,
-      adType: 'standard',
-      videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio),
-      // Segment information for accurate cost calculation
-      isSegmented: item.is_segmented || false,
-      segmentCount: item.segment_count || undefined,
-      videoDuration: item.video_duration || undefined
-    }));
+    const transformedStandardAdsHistory: StandardAdsItem[] = (standardAdsItems || []).map(item => {
+      const videoModel = normalizeStandardVideoModel(item.video_model);
+
+      return {
+        id: item.id,
+        coverImageUrl: item.cover_image_url,
+        videoUrl: item.video_url,
+        photoOnly: !!item.photo_only,
+        downloaded: item.downloaded,
+        downloadCreditsUsed: item.download_credits_used,
+        generationCreditsUsed: 0,
+        imagePrompt: item.image_prompt,
+        coverAspectRatio: resolveCoverAspectRatio(item.cover_image_aspect_ratio),
+        videoModel,
+        creditsUsed: item.credits_cost || 0,
+        status: mapWorkflowStatus(item.status),
+        createdAt: item.created_at,
+        progress: item.progress_percentage,
+        currentStep: item.current_step,
+        adType: 'standard',
+        videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio),
+        // Segment information for accurate cost calculation
+        isSegmented: item.is_segmented || false,
+        segmentCount: item.segment_count || undefined,
+        videoDuration: item.video_duration || undefined
+      };
+    });
 
     // Transform Character Ads data - show all items (processing, completed, and failed)
     const transformedCharacterAdsHistory: CharacterAdsItem[] = (characterAdsItems || [])

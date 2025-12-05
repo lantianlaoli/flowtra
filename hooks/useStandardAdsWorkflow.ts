@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { VideoDuration } from '@/lib/constants';
+import { snapDurationToModel, type VideoDuration } from '@/lib/constants';
 
 export type WorkflowStep = 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'complete';
 export type WorkflowStatus = 'started' | 'uploaded_waiting_config' | 'workflow_initiated' | 'in_progress' | 'completed' | 'failed';
@@ -23,7 +23,7 @@ export interface WorkflowState {
     };
     errorMessage?: string;
     creditsUsed?: number;
-    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
     watermark?: {
       enabled: boolean;
       text: string;
@@ -37,7 +37,7 @@ export interface WorkflowState {
 
 export const useStandardAdsWorkflow = (
   userId?: string | null,
-  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' = 'veo3_fast',
+  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling' = 'veo3_fast',
   selectedImageModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' = 'nano_banana',
   updateCredits?: (newCredits: number) => void,
   refetchCredits?: () => Promise<void>,
@@ -114,6 +114,9 @@ export const useStandardAdsWorkflow = (
       if (!allowed.includes(normalizedDuration)) {
         normalizedDuration = '6';
       }
+    } else if (selectedModel === 'kling') {
+      const targetSeconds = Number(normalizedDuration);
+      normalizedDuration = snapDurationToModel('kling', Number.isFinite(targetSeconds) ? targetSeconds : 10);
     } else if (normalizedDuration !== '8' && normalizedDuration !== '10' && normalizedDuration !== '15') {
       normalizedDuration = '8';
     }

@@ -69,6 +69,23 @@ export async function GET() {
         }
       }
 
+      const modelUsed = (() => {
+        switch (item.video_model) {
+          case 'veo3':
+            return 'Veo3 High Quality';
+          case 'sora2':
+            return 'Sora2';
+          case 'sora2_pro':
+            return 'Sora2 Pro';
+          case 'grok':
+            return 'Grok Imagine';
+          case 'kling':
+            return 'Kling 2.6';
+          default:
+            return 'Veo3 Fast';
+        }
+      })();
+
       allVideos.push({
         id: item.id,
         thumbnail: item.cover_image_url || undefined,
@@ -76,7 +93,7 @@ export async function GET() {
         createdAt: item.created_at,
         status: 'completed' as const,
         generationTime: item.generation_time_minutes || undefined,
-        modelUsed: item.video_model === 'veo3' ? 'VEO3 High Quality' : 'VEO3 Fast',
+        modelUsed,
         creditsConsumed: item.download_credits_used || undefined,
         creativePrompt,
         workflowVersion: 'v1'

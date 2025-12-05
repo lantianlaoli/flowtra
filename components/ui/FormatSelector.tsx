@@ -34,6 +34,7 @@ interface FormatSelectorProps {
   label?: string;
   className?: string;
   imageModel?: 'nano_banana' | 'seedream';
+  disabled?: boolean;
 }
 
 // Format options for image mode - nano_banana
@@ -76,7 +77,8 @@ export default function FormatSelector({
   onFormatChange,
   label = 'Format',
   className,
-  imageModel = 'nano_banana'
+  imageModel = 'nano_banana',
+  disabled = false
 }: FormatSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -145,8 +147,14 @@ export default function FormatSelector({
       <div className="relative">
         {/* Dropdown Button */}
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-md transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+          className={cn(
+            "w-full px-3 py-2 text-sm border rounded-md transition-colors duration-150 text-gray-900 text-left flex items-center justify-between",
+            disabled
+              ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
+              : 'bg-white border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 cursor-pointer'
+          )}
         >
           <div className="flex items-center gap-2">
             <selectedOption.icon className="w-4 h-4 text-gray-600" />
@@ -162,7 +170,7 @@ export default function FormatSelector({
 
         {/* Dropdown Options */}
         <AnimatePresence>
-          {isOpen && (
+          {isOpen && !disabled && (
             <motion.div
               ref={optionsRef}
               initial={{ opacity: 0, y: -4, scale: 0.98 }}

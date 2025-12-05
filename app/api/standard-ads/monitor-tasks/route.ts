@@ -8,6 +8,7 @@ import {
   createSmartSegmentFrame,
   deriveSegmentDetails,
   buildSegmentPlanFromCompetitorShots,
+  normalizeKlingDuration,
   type SegmentPrompt
 } from '@/lib/standard-ads-workflow';
 import { parseCompetitorTimeline, type CompetitorShot } from '@/lib/competitor-shots';
@@ -1138,10 +1139,10 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     console.log('Generated custom script video prompt (first 300 chars):', fullPrompt.substring(0, 300));
 
     // Skip to API call section below (continue with existing API logic)
-    const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+    const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
     const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-    const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok';
+    const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok' || videoModel === 'kling';
     const apiEndpoint = usesJobsEndpoint
       ? 'https://api.kie.ai/api/v1/jobs/createTask'
       : 'https://api.kie.ai/api/v1/veo/generate';
@@ -1159,6 +1160,17 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
           image_urls: imageUrls,
           prompt: fullPrompt,
           mode: 'normal'
+        }
+      };
+    } else if (videoModel === 'kling') {
+      const klingDuration = normalizeKlingDuration(record.video_duration);
+      requestBody = {
+        model: 'kling-2.6/image-to-video',
+        input: {
+          prompt: fullPrompt,
+          image_urls: imageUrls,
+          sound: true,
+          duration: klingDuration
         }
       };
     } else if (videoModel === 'sora2' || videoModel === 'sora2_pro') {
@@ -1255,10 +1267,10 @@ Voice: Use a ${voiceDescriptor} with a ${voiceToneDescriptor} tone to maintain c
 
   console.log('Generated video prompt:', fullPrompt);
 
-  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
   const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-  const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok';
+  const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok' || videoModel === 'kling';
   const apiEndpoint = usesJobsEndpoint
     ? 'https://api.kie.ai/api/v1/jobs/createTask'
     : 'https://api.kie.ai/api/v1/veo/generate';
@@ -1275,6 +1287,17 @@ Voice: Use a ${voiceDescriptor} with a ${voiceToneDescriptor} tone to maintain c
         image_urls: imageUrls,
         prompt: fullPrompt,
         mode: 'normal'
+      }
+    };
+  } else if (videoModel === 'kling') {
+    const klingDuration = normalizeKlingDuration(record.video_duration);
+    requestBody = {
+      model: 'kling-2.6/image-to-video',
+      input: {
+        prompt: fullPrompt,
+        image_urls: imageUrls,
+        sound: true,
+        duration: klingDuration
       }
     };
   } else if (videoModel === 'sora2' || videoModel === 'sora2_pro') {
@@ -1408,7 +1431,7 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
 }
 
 async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{status: string, videoUrl?: string, errorMessage?: string, isRetryable?: boolean}> {
-  const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok';
+  const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok' || videoModel === 'kling';
   const endpoint = usesJobsEndpoint
     ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
     : `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`;

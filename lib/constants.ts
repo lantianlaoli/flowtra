@@ -7,11 +7,12 @@ export const BLACK_FRIDAY_DISCOUNT = 0.2; // 20% off all packages
 
 // Model classification
 export const FREE_GENERATION_MODELS = ['veo3_fast', 'sora2', 'grok'] as const;
-export const PAID_GENERATION_MODELS = ['veo3', 'sora2_pro'] as const;
+export const PAID_GENERATION_MODELS = ['veo3', 'sora2_pro', 'kling'] as const;
 
 // Generation costs (only for PAID generation models)
 export const GENERATION_COSTS = {
   'veo3': 150,        // Veo3 High Quality: 150 credits at generation
+  'kling': 110,       // Kling 2.6: 110 credits per 5-second block
   // Sora2 Pro: See SORA2_PRO_CREDIT_COSTS (36-160 credits)
 } as const;
 
@@ -27,7 +28,8 @@ export const CREDIT_COSTS = {
   'veo3_fast': 20,
   'veo3': 150,
   'sora2': 6,
-  'grok': 20
+  'grok': 20,
+  'kling': 110
 } as const;
 
 // Sora2 Pro credit costs based on duration and quality
@@ -123,7 +125,8 @@ export const VIDEO_ASPECT_RATIO_OPTIONS = {
   'veo3_fast': ['16:9', '9:16'],
   'sora2': ['16:9', '9:16'],  // Sora2 supports both portrait and landscape
   'sora2_pro': ['16:9', '9:16'],  // Sora2 Pro supports both portrait and landscape
-  'grok': ['16:9', '9:16']
+  'grok': ['16:9', '9:16'],
+  'kling': ['16:9']
 } as const
 
 // Credit costs for different image models (all free)
@@ -139,7 +142,8 @@ export const MODEL_PROCESSING_TIMES = {
   'veo3': '5-8 min',         // Veo3 High Quality: 5-8 minutes processing time
   'sora2': '8-12 min',       // Sora2: 8-12 minutes processing time (premium quality)
   'sora2_pro': '8-15 min',   // Sora2 Pro: 8-15 minutes processing time (varies by duration)
-  'grok': '3-5 min'
+  'grok': '3-5 min',
+  'kling': '4-6 min'
 } as const
 
 // Processing times for different image models
@@ -240,12 +244,12 @@ export function getSora2ProCreditCost(duration: '10' | '15', quality: 'standard'
 // ===== VERSION 3.0: MIXED BILLING HELPERS =====
 
 // Check if model uses free generation (paid download)
-export function isFreeGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'): boolean {
+export function isFreeGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'): boolean {
   return FREE_GENERATION_MODELS.includes(model as typeof FREE_GENERATION_MODELS[number]);
 }
 
 // Check if model uses paid generation (free download)
-export function isPaidGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'): boolean {
+export function isPaidGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'): boolean {
   return PAID_GENERATION_MODELS.includes(model as typeof PAID_GENERATION_MODELS[number]);
 }
 
@@ -253,7 +257,7 @@ export function isPaidGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 's
 // IMPORTANT: videoDuration and videoQuality are generic parameters applicable to all models
 // They are currently only used by Sora2 Pro, but kept generic for future model support
 export function getGenerationCost(
-  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok',
+  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling',
   videoDuration?: string, // Generic: e.g., '8', '10', '15' (seconds)
   videoQuality?: 'standard' | 'high' // Generic: applicable to all models
 ): number {
@@ -272,12 +276,18 @@ export function getGenerationCost(
     return GENERATION_COSTS.veo3 * segmentMultiplier;
   }
 
+  if (model === 'kling') {
+    const durationSeconds = Math.max(5, Number(videoDuration) || 5);
+    const blocks = Math.ceil(durationSeconds / 5);
+    return GENERATION_COSTS.kling * blocks;
+  }
+
   return 0;
 }
 
 // Get download cost (0 for paid generation models)
 export function getDownloadCost(
-  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok',
+  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling',
   videoDuration?: string | null,
   segmentCount?: number | null
 ): number {
@@ -328,7 +338,7 @@ export function getImageCreditCost(model: keyof typeof IMAGE_CREDIT_COSTS): numb
 }
 
 // Auto mode intelligent model selection based on user credits (prioritize cheapest first)
-export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | null {
+export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling' | null {
   // Prioritize cheapest model first: Sora2 (6) < Veo3 Fast (20) < Veo3 (150)
   if (userCredits >= CREDIT_COSTS.sora2) {
     return 'sora2'  // Cheapest option (6 credits)
@@ -344,7 +354,7 @@ export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' 
 // Check if user has sufficient credits for a model
 // Version 3.0: Free generation models always affordable (generation is free)
 // Paid generation models require credits upfront
-export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'): boolean {
+export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'): boolean {
   if (model === 'auto') {
     // Auto mode: user needs credits for at least one model
     // Since free-gen models are always available, auto is always affordable
@@ -363,12 +373,15 @@ export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 've
   if (model === 'veo3') {
     return userCredits >= GENERATION_COSTS.veo3
   }
+  if (model === 'kling') {
+    return userCredits >= GENERATION_COSTS.kling
+  }
 
   return true
 }
 
 // Get the actual model that will be used (resolves auto to specific model)
-export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok', userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | null {
+export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling', userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling' | null {
   if (selectedModel === 'auto') {
     return getAutoModeSelection(userCredits)
   }
@@ -458,7 +471,7 @@ export function getImageSizeOptions(model: 'nano_banana' | 'seedream'): readonly
 }
 
 // Get video aspect ratio options for a specific model
-export function getVideoAspectRatioOptions(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'): readonly string[] {
+export function getVideoAspectRatioOptions(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'): readonly string[] {
   return VIDEO_ASPECT_RATIO_OPTIONS[model]
 }
 
@@ -482,6 +495,7 @@ export function getAutoImageSize(videoAspectRatio: '16:9' | '9:16', imageModel: 
 // Video model capabilities based on quality and duration
 export type VideoQuality = 'standard' | 'high';
 export type VideoDuration =
+  | '5'
   | '6'
   | '8'
   | '10'
@@ -504,7 +518,7 @@ export type VideoDuration =
   | '64'
   | '70'
   | '80';
-export type VideoModel = 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+export type VideoModel = 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
 
 interface ModelCapabilities {
   model: VideoModel;
@@ -538,6 +552,11 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
     model: 'grok',
     supportedQualities: ['standard'],
     supportedDurations: ['6', '12', '18', '24', '30', '36', '42', '48', '54', '60']
+  },
+  {
+    model: 'kling',
+    supportedQualities: ['standard'],
+    supportedDurations: ['5', '10', '15', '20', '30', '40', '50', '60', '70', '80']
   }
 ];
 
@@ -627,6 +646,10 @@ export function getSegmentCountFromDuration(videoDuration?: string | null, model
     return Math.ceil(duration / 10);
   }
 
+  if (model === 'kling') {
+    return 1;
+  }
+
   const segmentLength = model === 'grok' ? 6 : 8;
   const maxSegments = model === 'grok' ? 10 : 8;
 
@@ -678,6 +701,7 @@ export function getModelCostByConfig(
   if (model === 'veo3_fast') return CREDIT_COSTS.veo3_fast;
   if (model === 'sora2') return CREDIT_COSTS.sora2;
   if (model === 'grok') return DOWNLOAD_COSTS.grok * getSegmentCountFromDuration(duration, 'grok');
+  if (model === 'kling') return getGenerationCost('kling', duration);
 
   return 0;
 }

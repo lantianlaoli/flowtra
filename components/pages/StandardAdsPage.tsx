@@ -146,11 +146,17 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 };
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
-const ALL_VIDEO_DURATIONS: VideoDuration[] = ['6', '8', '10', '12', '15', '16', '18', '20', '24', '30', '32', '36', '40', '42', '48', '50', '54', '56', '60', '64', '70', '80'];
-const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'grok', 'sora2', 'sora2_pro'];
+const ALL_VIDEO_DURATIONS: VideoDuration[] = ['5', '6', '8', '10', '12', '15', '16', '18', '20', '24', '30', '32', '36', '40', '42', '48', '50', '54', '56', '60', '64', '70', '80'];
+const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'grok', 'sora2', 'sora2_pro', 'kling'];
 const SESSION_STORAGE_KEY = 'flowtra_standard_ads_generations';
 
 const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
+  {
+    value: '5',
+    label: '5 seconds',
+    description: 'Micro hook format',
+    features: 'Kling 2.6 base block'
+  },
   {
     value: '6',
     label: '6 seconds',
@@ -944,6 +950,20 @@ export default function StandardAdsPage() {
   }, []);
 
   // Calculate available and disabled options
+  const isKlingModel = selectedModel === 'kling';
+
+  useEffect(() => {
+    if (isKlingModel && format !== '16:9') {
+      setFormat('16:9');
+    }
+  }, [isKlingModel, format]);
+
+  useEffect(() => {
+    if (isKlingModel && videoQuality !== 'standard') {
+      setVideoQuality('standard');
+    }
+  }, [isKlingModel, videoQuality]);
+
   const availableDurations = useMemo(
     () => getModelSupportedDurations(selectedModel, videoQuality),
     [selectedModel, videoQuality]
@@ -983,6 +1003,8 @@ export default function StandardAdsPage() {
     },
     []
   );
+
+  const formatHelperText = isKlingModel ? 'Kling 2.6 outputs landscape (16:9) with audio enabled.' : undefined;
 
   // Calculate recommended duration based on competitor ad
   const recommendedDuration = useMemo(() => {
@@ -1082,9 +1104,11 @@ export default function StandardAdsPage() {
       ? getSegmentCountFromDuration(videoDuration, selectedModel)
       : null;
 
-    const selectedVideoAspectRatio = !isCompetitorPhotoMode && (format === '16:9' || format === '9:16')
-      ? (format as '16:9' | '9:16')
-      : '16:9';
+    const selectedVideoAspectRatio = isKlingModel
+      ? '16:9'
+      : (!isCompetitorPhotoMode && (format === '16:9' || format === '9:16')
+        ? (format as '16:9' | '9:16')
+        : '16:9');
 
     // Create new generation entry
     const newGeneration: SessionGeneration = {
@@ -1389,6 +1413,8 @@ export default function StandardAdsPage() {
               onLanguageChange={setSelectedLanguage}
               format={format}
               onFormatChange={setFormat}
+              formatDisabled={isKlingModel}
+              formatHelperText={formatHelperText}
               watermarkEnabled={watermarkEnabled}
               onWatermarkEnabledChange={setWatermarkEnabled}
               disabled={isGenerating}

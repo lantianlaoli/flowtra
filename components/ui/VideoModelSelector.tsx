@@ -18,8 +18,8 @@ import {
 
 interface VideoModelSelectorProps {
   credits: number;
-  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
-  onModelChange: (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok') => void;
+  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
+  onModelChange: (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling') => void;
   // NEW: Top-level quality and duration filters (optional for backwards compatibility)
   videoQuality?: VideoQuality;
   videoDuration?: VideoDuration;
@@ -27,8 +27,8 @@ interface VideoModelSelectorProps {
   className?: string;
   showIcon?: boolean;
   hideCredits?: boolean;
-  disabledModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'>;
-  hiddenModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'>;
+  disabledModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'>;
+  hiddenModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'>;
   adsCount?: number;
   videoDurationSeconds?: number;
 }
@@ -58,7 +58,7 @@ export default function VideoModelSelector({
     const autoSelection = getAutoModeSelection(credits);
 
     // Helper function to calculate duration-based cost for character ads
-    const calculateDurationCost = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok'): number => {
+    const calculateDurationCost = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'): number => {
       if (!videoDurationSeconds) {
         // Use new config-based cost calculation (if quality/duration provided)
         if (videoQuality && videoDuration) {
@@ -79,7 +79,7 @@ export default function VideoModelSelector({
     };
 
     // Check if model is supported by current quality config or disabledModels list
-    const isModelSupported = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok') => {
+    const isModelSupported = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling') => {
       // First check disabledModels prop (takes precedence)
       if (disabledModels.includes(model)) {
         return false;
@@ -137,6 +137,16 @@ export default function VideoModelSelector({
         supported: isModelSupported('grok')
       },
       {
+        value: 'kling',
+        label: 'Kling 2.6',
+        description: '',
+        cost: calculateDurationCost('kling'),
+        processingTime: getProcessingTime('kling'),
+        affordable: canAffordModel(credits, 'kling'),
+        features: 'Audio-enabled, 16:9 only',
+        supported: isModelSupported('kling')
+      },
+      {
         value: 'sora2_pro',
         label: 'Sora2 Pro',
         description: '',
@@ -164,7 +174,7 @@ export default function VideoModelSelector({
   const visibleOptions = useMemo(
     () =>
       modelOptions.filter(
-        (option) => !hiddenModels?.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok')
+        (option) => !hiddenModels?.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling')
       ),
     [modelOptions, hiddenModels]
   );
@@ -173,7 +183,7 @@ export default function VideoModelSelector({
     if (hiddenModels?.includes(selectedModel)) {
       const fallback = visibleOptions[0];
       if (fallback && fallback.value !== selectedModel) {
-        onModelChange(fallback.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok');
+        onModelChange(fallback.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling');
       }
     }
   }, [hiddenModels, selectedModel, visibleOptions, onModelChange]);
@@ -213,7 +223,7 @@ export default function VideoModelSelector({
 
   const selectedOption = visibleOptions.find(opt => opt.value === selectedModel) || visibleOptions[0];
 
-  const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok', affordable: boolean) => {
+  const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling', affordable: boolean) => {
     if (!affordable) return;
     onModelChange(value);
     try {
@@ -269,13 +279,13 @@ export default function VideoModelSelector({
             className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-[280px] overflow-y-auto"
           >
             {visibleOptions.map((option) => {
-              const disabledByConstraint = disabledModels.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok');
+              const disabledByConstraint = disabledModels.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling');
               const disabledByConfig = !option.supported; // NEW: Disable if not supported by quality/duration
               const isDisabled = !option.affordable || disabledByConstraint || disabledByConfig;
               return (
               <button
                 key={option.value}
-                onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok', !isDisabled)}
+                onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling', !isDisabled)}
                 disabled={isDisabled}
                 className={cn(
                   "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between",
@@ -326,7 +336,7 @@ export default function VideoModelSelector({
                     </span>
                   )}
                   {!hideCredits && (() => {
-                    const model = option.value as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto' | 'grok';
+                    const model = option.value as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto' | 'grok' | 'kling';
                     const isFreeGen = model !== 'auto' && isFreeGenerationModel(model);
 
                     return (

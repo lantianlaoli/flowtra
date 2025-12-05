@@ -47,7 +47,7 @@ Flowtra is an AI-powered video creation platform that helps users generate profe
 **How It Works in Our App**:
 
 #### Step 1: Video Creation
-- Users generate videos using our AI tools (Standard Ads, Multi-Variant Ads, Character Ads)
+- Users generate videos using our AI tools (Standard Ads, Character Ads)
 - Videos are processed and stored in our cloud storage (Supabase)
 - Videos meet TikTok's technical requirements:
   - Format: MP4 with H.264 codec

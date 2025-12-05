@@ -28,7 +28,7 @@ Flowtra is a modern **Next.js 15** application designed to help small businesses
     - `(app-shell)/`: Layouts for the main application experience.
 - **`components/`**: Reusable UI components (PascalCase).
 - **`lib/`**: The "Brain" of the backend. Contains business logic, workflow orchestration, and API clients.
-    - `*-workflow.ts`: Orchestrates complex AI generation tasks (Standard, Multi-variant, Character).
+    - `*-workflow.ts`: Orchestrates complex AI generation tasks (Standard Ads, Character Ads).
     - `kie-*.ts`: KIE API wrappers and credit checks.
     - `supabase.ts`: Database client initialization.
     - `constants.ts`: **CRITICAL**. Contains pricing models, credit costs, and configuration.
@@ -37,9 +37,8 @@ Flowtra is a modern **Next.js 15** application designed to help small businesses
 
 ### Key Workflows (The "Product")
 1.  **Standard Ads**: Single video generation from product images.
-2.  **Multi-Variant Ads**: Multiple video variants from a single image.
-3.  **Character Ads**: Character-driven advertisements.
-4.  **Watermark Removal**: Specialized tool for cleaning video outputs.
+2.  **Character Ads**: Character-driven advertisements.
+3.  **Watermark Removal**: Specialized tool for cleaning video outputs.
 
 ## 3. Billing & Credit Model (Version 3.0)
 

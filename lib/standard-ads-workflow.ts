@@ -52,7 +52,7 @@ export interface StartWorkflowRequest {
   selectedBrandId?: string; // NEW: Brand selection for ending frame
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
   userId: string;
-  videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+  videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
   imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
   watermark?: {
     text: string;
@@ -80,7 +80,7 @@ export interface StartWorkflowRequest {
   // NEW: Custom Script mode
   customScript?: string; // User-provided video script for direct video generation
   useCustomScript?: boolean; // Flag to enable custom script mode
-  resolvedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+  resolvedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
 }
 
 interface WorkflowResult {
@@ -200,7 +200,13 @@ export interface SegmentStatusPayload {
 
 export const SEGMENTED_DURATIONS = new Set(['16', '24', '32', '40', '48', '56', '64']);
 
-function shouldForceSingleSegmentGrok(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok', videoDuration?: string | null): boolean {
+export function normalizeKlingDuration(duration?: string | null): VideoDuration {
+  const numericDuration = Number(duration);
+  const targetSeconds = Number.isFinite(numericDuration) && numericDuration > 0 ? numericDuration : 10;
+  return snapDurationToModel('kling', targetSeconds);
+}
+
+function shouldForceSingleSegmentGrok(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling', videoDuration?: string | null): boolean {
   if (model !== 'grok' || !videoDuration) return false;
   const duration = Number(videoDuration);
   if (!Number.isFinite(duration)) return false;
@@ -208,7 +214,7 @@ function shouldForceSingleSegmentGrok(model: 'veo3' | 'veo3_fast' | 'sora2' | 's
 }
 
 export function isSegmentedVideoRequest(
-  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok',
+  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling',
   videoDuration?: string | null
 ): boolean {
   if (!videoDuration) return false;
@@ -404,7 +410,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     }
 
     // Convert 'auto' to specific model
-    let actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+    let actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
     let competitorShotTimeline: { shots: CompetitorShot[]; totalDurationSeconds: number } | null = null;
 
     if (request.videoModel === 'auto') {
@@ -412,6 +418,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         actualVideoModel = autoSelection || 'sora2'; // Fallback to cheapest
     } else {
       actualVideoModel = request.videoModel;
+    }
+
+    if (actualVideoModel === 'kling') {
+      request.videoAspectRatio = '16:9';
+      request.videoQuality = 'standard';
+      request.videoDuration = normalizeKlingDuration(request.videoDuration);
     }
 
     if (competitorAdContext?.existing_analysis) {
@@ -791,7 +803,7 @@ async function startAIWorkflow(
   projectId: string,
   request: StartWorkflowRequest & {
     imageUrl?: string; // UPDATED: Now optional to support brand-only mode
-    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
   },
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
   competitorAdContext?: {
@@ -946,7 +958,8 @@ async function startAIWorkflow(
         parsedTimeline.videoDurationSeconds &&
         (request.resolvedVideoModel === 'veo3' ||
           request.resolvedVideoModel === 'veo3_fast' ||
-          request.resolvedVideoModel === 'grok')
+          request.resolvedVideoModel === 'grok' ||
+          request.resolvedVideoModel === 'kling')
       ) {
         const snappedDuration = snapDurationToModel(request.resolvedVideoModel, parsedTimeline.videoDurationSeconds);
         if (snappedDuration && request.videoDuration !== snappedDuration) {
@@ -1076,7 +1089,7 @@ async function startReplicaWorkflow(
   projectId: string,
   request: StartWorkflowRequest & {
     imageUrl: string | undefined;
-    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
   },
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
   competitorAdContext?: {

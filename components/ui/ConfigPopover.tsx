@@ -13,7 +13,7 @@ import FormatSelector, { type Format } from './FormatSelector';
 import type { VideoDuration } from '@/lib/constants';
 
 // VideoModel type from constants (including 'auto')
-type VideoModel = 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok';
+type VideoModel = 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
 
 interface ConfigPopoverProps {
   // Duration props
@@ -40,6 +40,8 @@ interface ConfigPopoverProps {
   // Format props
   format: Format;
   onFormatChange: (format: Format) => void;
+  formatDisabled?: boolean;
+  formatHelperText?: string;
 
   // Watermark props
   watermarkEnabled: boolean;
@@ -75,6 +77,8 @@ export default function ConfigPopover({
   onLanguageChange,
   format,
   onFormatChange,
+  formatDisabled = false,
+  formatHelperText,
   watermarkEnabled,
   onWatermarkEnabledChange,
   disabled = false,
@@ -247,7 +251,11 @@ export default function ConfigPopover({
         selectedFormat={format}
         onFormatChange={onFormatChange}
         label="Aspect Ratio"
+        disabled={formatDisabled}
       />
+      {formatHelperText && (
+        <p className="text-xs text-gray-500">{formatHelperText}</p>
+      )}
 
       <VideoModelSelector
         credits={userCredits}
