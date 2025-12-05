@@ -98,19 +98,19 @@ export default function CharacterAdsShowcasePage() {
           <div className="flex justify-center lg:justify-end">
             <blockquote
               className="tiktok-embed"
-              cite="https://www.tiktok.com/@laolilantian/video/7575453353417657618"
-              data-video-id="7575453353417657618"
+              cite="https://www.tiktok.com/@laolilantian/video/7580211134284745991"
+              data-video-id="7580211134284745991"
               style={{ maxWidth: '605px', minWidth: '325px' }}
             >
               <section>
                 <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
-                This video explains how to use UGC advertising to introduce products in flowtra ai.{' '}
-                <a title="aimarket" target="_blank" href="https://www.tiktok.com/tag/aimarket?refer=embed">#aimarket</a>{' '}
-                <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#ai</a>{' '}
-                <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a>{' '}
-                <a title="advertising" target="_blank" href="https://www.tiktok.com/tag/advertising?refer=embed">#advertising</a>{' '}
+                Flowtra AI supports the generation of videos introducing products held by a single person.{' '}
+                <a title="ugccontentcreator" target="_blank" href="https://www.tiktok.com/tag/ugccontentcreator?refer=embed">#ugccontentcreator</a>{' '}
                 <a title="ugccreator" target="_blank" href="https://www.tiktok.com/tag/ugccreator?refer=embed">#ugccreator</a>{' '}
-                <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7575453429700233992?refer=embed">♬ original sound - Lantian laoli</a>
+                <a title="aiads" target="_blank" href="https://www.tiktok.com/tag/aiads?refer=embed">#aiads</a>{' '}
+                <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#ugc</a>{' '}
+                <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#AI</a>{' '}
+                <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7580211250157292296?refer=embed">♬ original sound - Lantian laoli</a>
               </section>
             </blockquote>
             <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
