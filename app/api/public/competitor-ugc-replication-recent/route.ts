@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabaseAdmin } from '@/lib/supabase';
 
-interface StandardAdProjectRow {
+interface CompetitorUgcReplicationProjectRow {
   id: string;
   created_at: string;
   cover_image_url: string | null;
@@ -14,7 +14,7 @@ interface StandardAdProjectRow {
   video_quality: 'standard' | 'high' | null;
 }
 
-interface StandardAdProject {
+interface CompetitorUgcReplicationProject {
   id: string;
   createdAt: string;
   coverImageUrl?: string;
@@ -25,7 +25,7 @@ interface StandardAdProject {
   videoQuality?: 'standard' | 'high';
 }
 
-function mapProjectRow(row: StandardAdProjectRow): StandardAdProject {
+function mapProjectRow(row: CompetitorUgcReplicationProjectRow): CompetitorUgcReplicationProject {
   return {
     id: row.id,
     createdAt: row.created_at,
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     const supabase = getSupabaseAdmin();
 
     const { data, error } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .select(
         'id, created_at, cover_image_url, video_url, video_model, status, video_duration, video_quality'
       )
@@ -55,8 +55,8 @@ export async function GET(request: Request) {
       .limit(limit);
 
     if (error) {
-      console.error('Failed to fetch recent standard ads:', error);
-      return NextResponse.json({ success: false, error: 'Failed to fetch recent standard ads' }, { status: 500 });
+      console.error('Failed to fetch recent Competitor UGC Replication projects:', error);
+      return NextResponse.json({ success: false, error: 'Failed to fetch recent Competitor UGC Replication projects' }, { status: 500 });
     }
 
     const projects = (data ?? []).map(mapProjectRow);
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
       projects
     });
   } catch (error) {
-    console.error('Unexpected error fetching public standard ads:', error);
+    console.error('Unexpected error fetching public Competitor UGC Replication projects:', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

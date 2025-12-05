@@ -93,7 +93,7 @@ export default function SuccessStoriesSection() {
                         wrapperClassName="aspect-[3/4] w-full bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl"
                         className="h-full w-full rounded-2xl object-cover"
                         src={successCase.content.videoUrl}
-                        ariaLabel="Standard Ads success story: video created with Flowtra AI"
+                        ariaLabel="Competitor UGC Replication success story: video created with Flowtra AI"
                       />
                     </div>
                   </div>

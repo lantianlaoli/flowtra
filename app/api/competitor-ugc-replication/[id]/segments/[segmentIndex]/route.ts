@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
-import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
+import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
 import {
   buildSegmentStatusPayload,
   createSmartSegmentFrame,
   startSegmentVideoTask,
   type SegmentPrompt
-} from '@/lib/standard-ads-workflow';
+} from '@/lib/competitor-ugc-replication-workflow';
 import { getGenerationCost, getReplicaPhotoCredits } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const supabase = getSupabaseAdmin();
     const { data: project, error: projectError } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .select(
         'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,selected_product_id,competitor_ad_id'
       )
@@ -75,7 +75,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const { data: segmentRow, error: segmentError } = await supabase
-      .from('standard_ads_segments')
+      .from('competitor_ugc_replication_segments')
       .select('*')
       .eq('project_id', projectId)
       .eq('segment_index', index)
@@ -233,7 +233,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (shouldRegeneratePhoto) {
       const photoCredits = getReplicaPhotoCredits();
       if (photoCredits > 0) {
-        await ensureCredits(photoCredits, 'Standard Ads - Segment first frame regeneration');
+        await ensureCredits(photoCredits, 'Competitor UGC Replication - Segment first frame regeneration');
       }
 
       const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
@@ -296,7 +296,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const videoCredits = totalVideoCost > 0 ? Math.max(1, Math.ceil(totalVideoCost / segmentsCount)) : 0;
       if (videoCredits > 0) {
         const descriptor = project.video_model ? project.video_model.toUpperCase() : 'VIDEO';
-        await ensureCredits(videoCredits, `Standard Ads - Segment video regeneration (${descriptor})`);
+        await ensureCredits(videoCredits, `Competitor UGC Replication - Segment video regeneration (${descriptor})`);
       }
 
       const hasFreshFirstFrame = shouldRegeneratePhoto ? false : Boolean(segmentRow.first_frame_url);
@@ -328,7 +328,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const { error: updateError } = await supabase
-      .from('standard_ads_segments')
+      .from('competitor_ugc_replication_segments')
       .update(segmentUpdates)
       .eq('id', segmentRow.id);
 
@@ -338,7 +338,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const { data: allSegments, error: fetchSegmentsError } = await supabase
-      .from('standard_ads_segments')
+      .from('competitor_ugc_replication_segments')
       .select('*')
       .eq('project_id', projectId)
       .order('segment_index', { ascending: true });
@@ -347,17 +347,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Failed to refresh segment status' }, { status: 500 });
     }
 
-    const segmentStatus = buildSegmentStatusPayload(allSegments as StandardAdsSegment[], project.merged_video_url || null);
+    const segmentStatus = buildSegmentStatusPayload(allSegments as CompetitorUgcReplicationSegment[], project.merged_video_url || null);
 
     await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update({
         segment_status: segmentStatus,
         last_processed_at: now
       })
       .eq('id', projectId);
 
-    const updatedSegment = (allSegments as StandardAdsSegment[]).find(seg => seg.segment_index === index);
+    const updatedSegment = (allSegments as CompetitorUgcReplicationSegment[]).find(seg => seg.segment_index === index);
     creditCharges.length = 0;
     return NextResponse.json({
       success: true,

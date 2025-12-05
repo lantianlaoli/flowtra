@@ -339,9 +339,9 @@ export default function CreateCompetitorAdModal({
 
   if (!isOpen) return null;
 
-  const handleGoToStandardAds = () => {
+  const handleGoToCompetitorUgcReplication = () => {
     onClose();
-    router.push('/dashboard/standard-ads');
+    router.push('/dashboard/competitor-ugc-replication');
   };
 
   return (
@@ -633,7 +633,7 @@ export default function CreateCompetitorAdModal({
                   <div className="pt-4 space-y-3">
                     <button
                       type="button"
-                      onClick={handleGoToStandardAds}
+                      onClick={handleGoToCompetitorUgcReplication}
                       className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 font-semibold"
                     >
                       Create your own UGC →

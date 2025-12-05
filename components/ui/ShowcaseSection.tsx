@@ -20,7 +20,7 @@ interface ShowcaseItem {
 }
 
 interface ShowcaseSectionProps {
-  workflowType: 'standard-ads' | 'character-ads';
+  workflowType: 'competitor-ugc-replication' | 'character-ads';
   className?: string;
 }
 
@@ -55,10 +55,10 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
         setLoading(true);
         
         // Use different API endpoints based on workflow type
-        // Character ads use the global showcase API; standard ads pull from the history endpoint
+        // Character ads use the global showcase API; Competitor UGC Replication pulls from the history endpoint
         const apiEndpoint = workflowType === 'character-ads'
           ? '/api/character-ads/showcase?limit=2'
-          : '/api/standard-ads/history?limit=6';
+          : '/api/competitor-ugc-replication/history?limit=6';
         
         const response = await fetch(apiEndpoint);
         if (response.ok) {
@@ -66,7 +66,7 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
           const projects = result.data || result.history || [];
           
           // For character-ads showcase API data is already filtered
-          // For standard ads, filter for completed items with cover images
+          // For Competitor UGC Replication, filter for completed items with cover images
           const completedItems = workflowType === 'character-ads'
             ? projects 
             : projects.filter((item: ProjectItem) => 
@@ -117,7 +117,7 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
           const userMap = new Map(userInfos.map(user => [user.id, user]));
           
           // Combine project data with user information
-          // Character-ads showcase already limits to 2 items; slice standard-ads list to keep UI consistent
+          // Character-ads showcase already limits to 2 items; slice competitor-ugc-replication list to keep UI consistent
           const itemsToShow = workflowType === 'character-ads' ? completedItems : completedItems.slice(0, 2);
           const showcaseData = itemsToShow.map((item: ProjectItem) => {
             const fallbackImage = item.original_image_url || item.cover_image_url || '';

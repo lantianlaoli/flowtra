@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
+import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import {
@@ -10,7 +10,7 @@ import {
   buildSegmentPlanFromCompetitorShots,
   normalizeKlingDuration,
   type SegmentPrompt
-} from '@/lib/standard-ads-workflow';
+} from '@/lib/competitor-ugc-replication-workflow';
 import { parseCompetitorTimeline, type CompetitorShot } from '@/lib/competitor-shots';
 import { checkFalTaskStatus } from '@/lib/video-merge';
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       // No body – treat as bulk run
     }
 
-    console.log('Starting standard ads task monitoring...');
+    console.log('Starting Competitor UGC Replication task monitoring...');
 
     // Find records that need monitoring
     const supabase = getSupabaseAdmin();
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     if (targetProjectId) {
       const { data: project, error } = await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .select('*')
         .eq('id', targetProjectId)
         .single();
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       records = project ? [project as HistoryRecord] : [];
     } else {
       const { data, error } = await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .select('*')
         .in('status', ['processing', 'generating_cover', 'generating_video', 'failed'])
         .or(
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
             console.warn(`⚠️ Retryable error for record ${record.id}, will retry on next monitor run: ${error instanceof Error ? error.message : 'Unknown error'}`);
             // Update last_processed_at to track retry attempts
             await supabase
-              .from('standard_ads_projects')
+              .from('competitor_ugc_replication_projects')
               .update({
                 last_processed_at: new Date().toISOString()
               })
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
             // For non-retryable errors, mark as failed immediately
             console.error(`❌ Non-retryable error for record ${record.id}, marking as failed`);
             await supabase
-              .from('standard_ads_projects')
+              .from('competitor_ugc_replication_projects')
               .update({
                 status: 'failed',
                 error_message: error instanceof Error ? error.message : 'Processing error',
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
       // Count completed records from this run
       const { count: completedCount } = await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'completed')
         .gte('updated_at', new Date(Date.now() - 60000).toISOString()); // Updated in last minute
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       completed = completedCount || 0;
     }
 
-    console.log(`Standard ads task monitoring completed: ${processed} processed, ${completed} completed, ${failed} failed`);
+    console.log(`Competitor UGC Replication task monitoring completed: ${processed} processed, ${completed} completed, ${failed} failed`);
 
     return NextResponse.json({
       success: true,
@@ -139,11 +139,11 @@ export async function POST(request: NextRequest) {
       completed,
       failed,
       totalRecords: records?.length || 0,
-      message: 'Standard ads task monitoring completed'
+      message: 'Competitor UGC Replication task monitoring completed'
     });
 
   } catch (error) {
-    console.error('Standard ads task monitoring error:', error);
+    console.error('Competitor UGC Replication task monitoring error:', error);
     return NextResponse.json({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -226,7 +226,7 @@ async function processRecord(record: HistoryRecord) {
     console.warn(`⏱️ Record ${record.id} exceeded ${MAX_WORKFLOW_AGE_MINUTES} minutes since creation, marking as failed`);
 
     const { error: timeoutErr } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update({
         status: 'failed',
         error_message: 'Workflow timeout: exceeded 30 minutes since creation',
@@ -255,7 +255,7 @@ async function processRecord(record: HistoryRecord) {
     const videoTaskId = await startVideoGeneration(record, record.cover_image_url);
 
     const { error: vidStartErr } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update({
         video_task_id: videoTaskId,
         current_step: 'generating_video',
@@ -284,7 +284,7 @@ async function processRecord(record: HistoryRecord) {
       console.error(`❌ Record ${record.id} stuck in generating_cover for ${ageInMinutes.toFixed(1)} minutes without cover_task_id`);
 
       const { error: failErr } = await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update({
           status: 'failed',
           error_message: 'Workflow timeout: Failed to start cover generation (possible AI prompt generation failure or video download timeout)',
@@ -315,7 +315,7 @@ async function processRecord(record: HistoryRecord) {
       // If photo_only, complete workflow here
       if (record.photo_only === true) {
         const { error: updErr } = await supabase
-          .from('standard_ads_projects')
+          .from('competitor_ugc_replication_projects')
           .update({
             cover_image_url: coverResult.imageUrl,
             status: 'completed',
@@ -336,7 +336,7 @@ async function processRecord(record: HistoryRecord) {
         const videoTaskId = await startVideoGeneration(record, coverResult.imageUrl);
 
         const { error: startErr } = await supabase
-          .from('standard_ads_projects')
+          .from('competitor_ugc_replication_projects')
           .update({
             cover_image_url: coverResult.imageUrl,
             video_task_id: videoTaskId,
@@ -370,7 +370,7 @@ async function processRecord(record: HistoryRecord) {
       console.log(`✅ Workflow completed for user ${record.user_id}`);
 
       const { error: vidUpdErr } = await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update({
           video_url: videoResult.videoUrl,
           status: 'completed',
@@ -399,7 +399,7 @@ async function processRecord(record: HistoryRecord) {
 
         // Update project with new task ID and increment retry count
         const { error: retryErr } = await supabase
-          .from('standard_ads_projects')
+          .from('competitor_ugc_replication_projects')
           .update({
             video_task_id: newVideoTaskId,
             retry_count: currentRetryCount + 1,
@@ -474,7 +474,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
     if (!segments.length) {
       console.error(`❌ Failed to reinitialize segments for project ${record.id}. Marking as failed.`);
       await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update({
           status: 'failed',
           error_message: 'Failed to initialize segment tasks. Please restart this generation.',
@@ -522,7 +522,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
     );
 
     await supabase
-      .from('standard_ads_segments')
+      .from('competitor_ugc_replication_segments')
       .update({
         video_task_id: taskId,
         status: 'generating_video',
@@ -537,7 +537,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
 
   if (videosStarted) {
     await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update({
         current_step: 'generating_segment_videos',
         progress_percentage: 70,
@@ -553,7 +553,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
 
       if (videoResult.status === 'SUCCESS' && videoResult.videoUrl) {
         await supabase
-          .from('standard_ads_segments')
+          .from('competitor_ugc_replication_segments')
           .update({
             video_url: videoResult.videoUrl,
             status: 'video_ready',
@@ -591,7 +591,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
 
           // Update segment with new task ID and increment retry count
           await supabase
-            .from('standard_ads_segments')
+            .from('competitor_ugc_replication_segments')
             .update({
               video_task_id: newTaskId,
               status: 'generating_video',
@@ -614,7 +614,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
           }
 
           await supabase
-            .from('standard_ads_segments')
+            .from('competitor_ugc_replication_segments')
             .update({
               status: 'failed',
               error_message: videoResult.errorMessage || 'Segment video generation failed',
@@ -630,7 +630,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
           const failureMessage = videoResult.errorMessage || 'Segment video generation failed';
 
           await supabase
-            .from('standard_ads_projects')
+            .from('competitor_ugc_replication_projects')
             .update({
               status: 'processing',
               current_step: 'generating_segment_videos',
@@ -657,7 +657,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
     console.log(`📊 Video progress: ${videosReady}/${totalSegments} videos ready → ${videoProgress}%`);
 
     await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update({
         segment_status: buildSegmentStatusPayload(segments),
         progress_percentage: videoProgress,
@@ -670,7 +670,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
   if (videosReady && !record.fal_merge_task_id) {
     if (record.current_step !== 'awaiting_merge') {
       await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update({
           current_step: 'awaiting_merge',
           segment_status: buildSegmentStatusPayload(segments),
@@ -692,7 +692,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
     if (ageInMinutes > mergeTimeoutMinutes) {
       console.error(`❌ Record ${record.id} stuck in merging_segments for ${ageInMinutes.toFixed(1)} minutes, marking as failed`);
       await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update({
           status: 'failed',
           error_message: `Video merging timeout after ${ageInMinutes.toFixed(1)} minutes. Please retry.`,
@@ -706,7 +706,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
 
     if (status.status === 'COMPLETED' && status.resultUrl) {
       await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update({
           video_url: status.resultUrl,
           merged_video_url: status.resultUrl,
@@ -722,7 +722,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
       // Network error - will retry on next monitor run
       console.warn(`⚠️ Network error checking merge status for record ${record.id}, will retry: ${status.error}`);
       await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update({
           last_processed_at: new Date().toISOString()
         })
@@ -731,9 +731,9 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
   }
 }
 
-async function fetchSegments(projectId: string, supabase: ReturnType<typeof getSupabaseAdmin>): Promise<StandardAdsSegment[]> {
+async function fetchSegments(projectId: string, supabase: ReturnType<typeof getSupabaseAdmin>): Promise<CompetitorUgcReplicationSegment[]> {
   const { data, error } = await supabase
-    .from('standard_ads_segments')
+    .from('competitor_ugc_replication_segments')
     .select('*')
     .eq('project_id', projectId)
     .order('segment_index', { ascending: true });
@@ -742,14 +742,14 @@ async function fetchSegments(projectId: string, supabase: ReturnType<typeof getS
     throw new Error(`Failed to fetch segments: ${error.message}`);
   }
 
-  return (data || []) as StandardAdsSegment[];
+  return (data || []) as CompetitorUgcReplicationSegment[];
 }
 
 async function reinitializeMissingSegments(
   record: HistoryRecord,
   supabase: ReturnType<typeof getSupabaseAdmin>,
   options?: { competitorShots?: CompetitorShot[] }
-): Promise<StandardAdsSegment[]> {
+): Promise<CompetitorUgcReplicationSegment[]> {
   const competitorShots = options?.competitorShots;
   const planSegments = (record.segment_plan as { segments?: SegmentPrompt[] } | null)?.segments;
   let promptSegments =
@@ -802,7 +802,7 @@ async function reinitializeMissingSegments(
     }
 
     const { error: planUpdateError } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update(updatePayload)
       .eq('id', record.id);
 
@@ -827,7 +827,7 @@ async function reinitializeMissingSegments(
   });
 
   const { data, error } = await supabase
-    .from('standard_ads_segments')
+    .from('competitor_ugc_replication_segments')
     .insert(rows)
     .select('*');
 
@@ -836,9 +836,9 @@ async function reinitializeMissingSegments(
     return [];
   }
 
-  const insertedSegments = data as StandardAdsSegment[];
+  const insertedSegments = data as CompetitorUgcReplicationSegment[];
   await supabase
-    .from('standard_ads_projects')
+    .from('competitor_ugc_replication_projects')
     .update({
       segment_status: buildSegmentStatusPayload(insertedSegments),
       last_processed_at: now
@@ -851,7 +851,7 @@ async function reinitializeMissingSegments(
 
 async function ensureProjectInProgress(
   record: HistoryRecord,
-  segments: StandardAdsSegment[],
+  segments: CompetitorUgcReplicationSegment[],
   supabase: ReturnType<typeof getSupabaseAdmin>
 ) {
   if (record.status !== 'failed') return;
@@ -870,7 +870,7 @@ async function ensureProjectInProgress(
   } as const;
 
   const { error } = await supabase
-    .from('standard_ads_projects')
+    .from('competitor_ugc_replication_projects')
     .update(updatePayload)
     .eq('id', record.id);
 
@@ -886,10 +886,10 @@ async function ensureProjectInProgress(
 
 async function syncSegmentFrameTasks(
   record: HistoryRecord,
-  segments: StandardAdsSegment[],
+  segments: CompetitorUgcReplicationSegment[],
   supabase: ReturnType<typeof getSupabaseAdmin>,
   competitorFileType: 'video' | 'image' | null
-): Promise<StandardAdsSegment[]> {
+): Promise<CompetitorUgcReplicationSegment[]> {
   let updated = false;
   const now = new Date().toISOString();
 
@@ -917,7 +917,7 @@ async function syncSegmentFrameTasks(
         );
 
         await supabase
-          .from('standard_ads_segments')
+          .from('competitor_ugc_replication_segments')
           .update({
             first_frame_task_id: firstFrameTaskId,
             status: 'generating_first_frame',
@@ -945,7 +945,7 @@ async function syncSegmentFrameTasks(
           );
 
           await supabase
-            .from('standard_ads_segments')
+            .from('competitor_ugc_replication_segments')
             .update({
               closing_frame_task_id: closingFrameTaskId,
               updated_at: now
@@ -966,7 +966,7 @@ async function syncSegmentFrameTasks(
 
       if (frameStatus.status === 'SUCCESS' && frameStatus.imageUrl) {
         await supabase
-          .from('standard_ads_segments')
+          .from('competitor_ugc_replication_segments')
           .update({
             first_frame_url: frameStatus.imageUrl,
             status: 'first_frame_ready',
@@ -986,7 +986,7 @@ async function syncSegmentFrameTasks(
           const prev = segments.find(s => s.segment_index === segment.segment_index - 1);
           if (prev && !prev.closing_frame_url) {
             await supabase
-              .from('standard_ads_segments')
+              .from('competitor_ugc_replication_segments')
               .update({
                 closing_frame_url: frameStatus.imageUrl,
                 updated_at: now
@@ -1008,7 +1008,7 @@ async function syncSegmentFrameTasks(
 
       if (closingStatus.status === 'SUCCESS' && closingStatus.imageUrl) {
         await supabase
-          .from('standard_ads_segments')
+          .from('competitor_ugc_replication_segments')
           .update({
             closing_frame_url: closingStatus.imageUrl,
             updated_at: now
@@ -1033,7 +1033,7 @@ async function syncSegmentFrameTasks(
     console.log(`📊 Frame progress: ${framesReady}/${totalSegments} frames ready → ${frameProgress}%`);
 
     await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update({
         cover_image_url: record.cover_image_url,
         segment_status: buildSegmentStatusPayload(segments),
@@ -1045,7 +1045,7 @@ async function syncSegmentFrameTasks(
     // Even if no segments were updated, refresh timestamp to indicate backend is still processing
     // This prevents the frontend from showing a "frozen" progress bar
     await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update({
         last_processed_at: now
       })

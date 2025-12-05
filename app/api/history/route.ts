@@ -5,7 +5,7 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabase } from '@/lib/supabase';
 import type { VideoModel } from '@/lib/constants';
 
-interface StandardAdsItem {
+interface CompetitorUgcReplicationItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
@@ -21,7 +21,7 @@ interface StandardAdsItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  adType: 'standard';
+  adType: 'competitor-ugc-replication';
   videoAspectRatio?: string;
   // Segment information for cost calculation
   isSegmented?: boolean;
@@ -60,7 +60,7 @@ interface WatermarkRemovalItem {
   errorMessage?: string;
 }
 
-type HistoryItem = StandardAdsItem | CharacterAdsItem | WatermarkRemovalItem;
+type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem | WatermarkRemovalItem;
 
 type SupportedAspectRatio = '16:9' | '9:16' | '1:1';
 
@@ -91,10 +91,10 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
   return normalizeAspectRatio(ratio);
 };
 
-const ALLOWED_STANDARD_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro', 'grok', 'kling'];
+const ALLOWED_COMPETITOR_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro', 'grok', 'kling'];
 
-const normalizeStandardVideoModel = (model?: string | null): VideoModel => {
-  return ALLOWED_STANDARD_VIDEO_MODELS.includes(model as VideoModel)
+const normalizeCompetitorVideoModel = (model?: string | null): VideoModel => {
+  return ALLOWED_COMPETITOR_VIDEO_MODELS.includes(model as VideoModel)
     ? (model as VideoModel)
     : 'veo3_fast';
 };
@@ -137,15 +137,15 @@ export async function GET() {
       }
     };
 
-    // Fetch Standard Ads data
-    const { data: standardAdsItems, error: standardAdsError } = await supabase
-      .from('standard_ads_projects')
+    // Fetch Competitor UGC Replication data
+    const { data: competitorUgcReplicationItems, error: competitorUgcReplicationError } = await supabase
+      .from('competitor_ugc_replication_projects')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (standardAdsError) {
-      console.error('Failed to fetch Standard Ads history:', standardAdsError);
+    if (competitorUgcReplicationError) {
+      console.error('Failed to fetch Competitor UGC Replication history:', competitorUgcReplicationError);
     }
 
     // Fetch Character Ads data
@@ -170,9 +170,9 @@ export async function GET() {
       console.error('Failed to fetch Watermark Removal history:', watermarkRemovalError);
     }
 
-    // Transform Standard Ads data
-    const transformedStandardAdsHistory: StandardAdsItem[] = (standardAdsItems || []).map(item => {
-      const videoModel = normalizeStandardVideoModel(item.video_model);
+    // Transform Competitor UGC Replication data
+    const transformedCompetitorUgcReplicationHistory: CompetitorUgcReplicationItem[] = (competitorUgcReplicationItems || []).map(item => {
+      const videoModel = normalizeCompetitorVideoModel(item.video_model);
 
       return {
         id: item.id,
@@ -190,7 +190,7 @@ export async function GET() {
         createdAt: item.created_at,
         progress: item.progress_percentage,
         currentStep: item.current_step,
-        adType: 'standard',
+        adType: 'competitor-ugc-replication',
         videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio),
         // Segment information for accurate cost calculation
         isSegmented: item.is_segmented || false,
@@ -258,7 +258,7 @@ export async function GET() {
 
     // Combine and sort by creation date
     const combinedHistory: HistoryItem[] = [
-      ...transformedStandardAdsHistory,
+      ...transformedCompetitorUgcReplicationHistory,
       ...transformedCharacterAdsHistory,
       ...transformedWatermarkRemovalHistory
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

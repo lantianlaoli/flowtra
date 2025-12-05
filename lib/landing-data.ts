@@ -25,7 +25,7 @@ export interface SuccessCase {
 
 export const successCases: SuccessCase[] = [
   {
-    id: 'standard-ads',
+    id: 'competitor-ugc-replication',
     user: '@cheerslinkou',
     avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_1.jpg',
     quote: 'Flowtra turned my product photo into a professional ad video that showcases quality perfectly.',

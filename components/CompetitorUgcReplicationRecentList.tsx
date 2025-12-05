@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 
-interface StandardAdProject {
+interface CompetitorUgcReplicationProject {
   id: string;
   createdAt: string;
   coverImageUrl?: string;
@@ -17,12 +17,12 @@ interface StandardAdProject {
 
 interface ApiResponse {
   success: boolean;
-  projects?: StandardAdProject[];
+  projects?: CompetitorUgcReplicationProject[];
   error?: string;
 }
 
-export function StandardAdsRecentList() {
-  const [projects, setProjects] = useState<StandardAdProject[]>([]);
+export function CompetitorUgcReplicationRecentList() {
+  const [projects, setProjects] = useState<CompetitorUgcReplicationProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +34,7 @@ export function StandardAdsRecentList() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch('/api/public/standard-ads-recent', {
+        const response = await fetch('/api/public/competitor-ugc-replication-recent', {
           method: 'GET',
           cache: 'no-store'
         });
@@ -73,7 +73,7 @@ export function StandardAdsRecentList() {
   if (loading) {
     return (
       <div className="rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
-        <p className="text-sm text-neutral-600">Loading recent standard ads…</p>
+        <p className="text-sm text-neutral-600">Loading recent Competitor UGC Replication projects…</p>
       </div>
     );
   }
@@ -81,7 +81,7 @@ export function StandardAdsRecentList() {
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-6 shadow-sm">
-        <p className="text-sm font-medium text-red-700">Failed to load standard ads</p>
+        <p className="text-sm font-medium text-red-700">Failed to load Competitor UGC Replication projects</p>
         <p className="mt-2 text-sm text-red-600">{error}</p>
       </div>
     );
@@ -90,7 +90,7 @@ export function StandardAdsRecentList() {
   if (projects.length === 0) {
     return (
       <div className="rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
-        <p className="text-sm text-neutral-600">No standard ads found yet.</p>
+        <p className="text-sm text-neutral-600">No Competitor UGC Replication projects found yet.</p>
       </div>
     );
   }
@@ -163,4 +163,4 @@ export function StandardAdsRecentList() {
   );
 }
 
-export default StandardAdsRecentList;
+export default CompetitorUgcReplicationRecentList;

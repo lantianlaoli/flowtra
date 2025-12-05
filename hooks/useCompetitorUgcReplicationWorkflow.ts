@@ -35,7 +35,7 @@ export interface WorkflowState {
   maxGuestUsage: number;
 }
 
-export const useStandardAdsWorkflow = (
+export const useCompetitorUgcReplicationWorkflow = (
   userId?: string | null,
   selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling' = 'veo3_fast',
   selectedImageModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' = 'nano_banana',
@@ -300,7 +300,7 @@ export const useStandardAdsWorkflow = (
 
       console.log('🔍 useWorkflow startWorkflowWithSelectedProduct requestData:', requestData);
 
-      const response = await fetch('/api/standard-ads/create', {
+      const response = await fetch('/api/competitor-ugc-replication/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -426,7 +426,7 @@ export const useStandardAdsWorkflow = (
 
       console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
 
-      const response = await fetch('/api/standard-ads/create', {
+      const response = await fetch('/api/competitor-ugc-replication/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -567,7 +567,7 @@ export const useStandardAdsWorkflow = (
 
       console.log('🔍 useWorkflow startWorkflowWithTemporaryImages requestData:', requestData);
 
-      const response = await fetch('/api/standard-ads/create', {
+      const response = await fetch('/api/competitor-ugc-replication/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

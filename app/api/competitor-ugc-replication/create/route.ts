@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-import { startWorkflowProcess, StartWorkflowRequest } from '@/lib/standard-ads-workflow';
+import { startWorkflowProcess, StartWorkflowRequest } from '@/lib/competitor-ugc-replication-workflow';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 
 export async function POST(request: NextRequest) {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       requestData.adCopy = trimmed.length > 0 ? trimmed : undefined;
     }
 
-    console.log('🚀 Standard ads workflow request received:', {
+    console.log('🚀 Competitor UGC Replication workflow request received:', {
       imageUrl: requestData.imageUrl,
       selectedProductId: requestData.selectedProductId,
       selectedBrandId: requestData.selectedBrandId, // NEW: Log brand ID
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     if (result.success) {
       return NextResponse.json(result);
     } else {
-      console.error('❌ Standard ads workflow failed:', result.error, result.details);
+      console.error('❌ Competitor UGC Replication workflow failed:', result.error, result.details);
       return NextResponse.json(
         { error: result.error, details: result.details },
         { status: 500 }
@@ -101,9 +101,9 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('💥 Standard ads API error:', error);
+    console.error('💥 Competitor UGC Replication API error:', error);
     return NextResponse.json({
-      error: 'Failed to start standard ads workflow',
+      error: 'Failed to start Competitor UGC Replication workflow',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }

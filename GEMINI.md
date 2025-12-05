@@ -28,15 +28,15 @@ Flowtra is a modern **Next.js 15** application designed to help small businesses
     - `(app-shell)/`: Layouts for the main application experience.
 - **`components/`**: Reusable UI components (PascalCase).
 - **`lib/`**: The "Brain" of the backend. Contains business logic, workflow orchestration, and API clients.
-    - `*-workflow.ts`: Orchestrates complex AI generation tasks (Standard Ads, Character Ads).
+    - `*-workflow.ts`: Orchestrates complex AI generation tasks (Competitor UGC Replication, Character Ads).
     - `kie-*.ts`: KIE API wrappers and credit checks.
     - `supabase.ts`: Database client initialization.
     - `constants.ts`: **CRITICAL**. Contains pricing models, credit costs, and configuration.
-- **`hooks/`**: Custom React hooks (`useStandardAdsWorkflow`, etc.).
+- **`hooks/`**: Custom React hooks (`useCompetitorUgcReplicationWorkflow`, etc.).
 - **`contexts/`**: Global state (Credits, Toasts).
 
 ### Key Workflows (The "Product")
-1.  **Standard Ads**: Single video generation from product images.
+1.  **Competitor UGC Replication**: Single video generation from product images.
 2.  **Character Ads**: Character-driven advertisements.
 3.  **Watermark Removal**: Specialized tool for cleaning video outputs.
 
@@ -72,7 +72,7 @@ Flowtra is a modern **Next.js 15** application designed to help small businesses
 ### AI Prompt Engineering
 -   Prompts live in code (e.g., `lib/*-ads-workflow.ts`).
 -   When modifying prompts, ensure you understand the JSON schema expected by the AI models.
--   **Dual-Mode:** "Standard Ads" supports both "Traditional" (pure generation) and "Competitor Reference" (cloning structure) modes.
+-   **Dual-Mode:** "Competitor UGC Replication" supports both "Traditional" (pure generation) and "Competitor Reference" (cloning structure) modes.
 
 ## 5. Environment Variables
 (See `.env.example` for the full list)

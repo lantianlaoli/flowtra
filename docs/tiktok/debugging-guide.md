@@ -184,7 +184,7 @@ curl -I "视频 URL"
 
 # 检查数据库中的视频状态
 SELECT id, status, video_url
-FROM standard_ads_projects
+FROM competitor_ugc_replication_projects
 WHERE id = '<history-id>'
   AND user_id = 'user_31j68a38A3Q4CDNgdXvWRgiCK7A';
 ```

@@ -134,7 +134,7 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Standard Ads, Character Ads</span>
+                  <span className="text-gray-600">Competitor UGC Replication, Character Ads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
@@ -173,7 +173,7 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Standard Ads, Character Ads</span>
+                  <span className="text-gray-600">Competitor UGC Replication, Character Ads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
@@ -209,7 +209,7 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Standard Ads, Character Ads</span>
+                  <span className="text-gray-600">Competitor UGC Replication, Character Ads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>

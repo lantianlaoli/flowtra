@@ -142,15 +142,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       .eq('user_id', userId);
 
     // Count how many projects reference this product (for logging purposes)
-    const [standardAdsCount, characterAdsCount] = await Promise.all([
-      supabase.from('standard_ads_projects').select('id', { count: 'exact', head: true })
+    const [competitorUgcReplicationCount, characterAdsCount] = await Promise.all([
+      supabase.from('competitor_ugc_replication_projects').select('id', { count: 'exact', head: true })
         .eq('selected_product_id', id),
       supabase.from('character_ads_projects').select('id', { count: 'exact', head: true })
         .eq('selected_product_id', id),
     ]);
 
     const totalReferencedProjects =
-      (standardAdsCount.count || 0) +
+      (competitorUgcReplicationCount.count || 0) +
       (characterAdsCount.count || 0);
 
     // Delete the product

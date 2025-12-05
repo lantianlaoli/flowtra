@@ -50,7 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     // Get the history record
     const supabase = getSupabase();
     const { data: historyRecord, error: historyError } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .select('*')
       .eq('id', historyId)
       .eq('user_id', userId)
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
           userId,
           'usage',
           -downloadCost,
-          `Standard Ads - Downloaded video (${videoModel.toUpperCase()})`,
+          `Competitor UGC Replication - Downloaded video (${videoModel.toUpperCase()})`,
           historyId
         );
 
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
 
       // Mark as downloaded
       const { error: updateError } = await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update({
           downloaded: true,
           download_credits_used: downloadCostApplied,

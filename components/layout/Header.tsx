@@ -62,13 +62,6 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                 <div className="absolute left-0 top-full mt-1 w-60 bg-white border border-gray-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                   <div className="py-3">
                     <Link
-                      href="/features/standard-ads"
-                      className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                    >
-                      <div className="font-semibold">Standard Ads</div>
-                      <div className="text-xs text-gray-600">Product images to videos</div>
-                    </Link>
-                    <Link
                       href="/features/character-ads"
                       className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                     >
@@ -183,14 +176,6 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                   aria-hidden={!featuresOpen}
                 >
                   <div className="pl-4 flex flex-col gap-2">
-                    <Link
-                      href="/features/standard-ads"
-                      className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      <div className="font-semibold text-sm">Standard Ads</div>
-                      <div className="text-xs text-gray-600">Product images to videos</div>
-                    </Link>
                     <Link
                       href="/features/character-ads"
                       className="text-gray-600 hover:text-gray-900 transition-colors px-2 py-2 rounded-md hover:bg-gray-50"

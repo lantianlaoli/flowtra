@@ -80,7 +80,7 @@
 │  ├──────────────────────────────────────────────┤           │
 │  │  - user_tiktok_connections                   │           │
 │  │  - tiktok_publish_history        [Phase 2]  │           │
-│  │  - standard_ads_projects                     │           │
+│  │  - competitor_ugc_replication_projects                     │           │
 │  │  - character_ads_projects                    │           │
 │  └──────────────────────────────────────────────┘           │
 │                                                               │
@@ -367,7 +367,7 @@ CREATE TABLE tiktok_publish_history (
   created_at TIMESTAMPTZ DEFAULT now(),
   completed_at TIMESTAMPTZ,
 
-  FOREIGN KEY (history_id) REFERENCES standard_ads_projects(id)
+  FOREIGN KEY (history_id) REFERENCES competitor_ugc_replication_projects(id)
 );
 ```
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { analyzeCompetitorAdWithLanguage } from '@/lib/standard-ads-workflow';
+import { analyzeCompetitorAdWithLanguage } from '@/lib/competitor-ugc-replication-workflow';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

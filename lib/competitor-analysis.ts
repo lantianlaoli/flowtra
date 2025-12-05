@@ -1,4 +1,4 @@
-import { analyzeCompetitorAdWithLanguage } from '@/lib/standard-ads-workflow';
+import { analyzeCompetitorAdWithLanguage } from '@/lib/competitor-ugc-replication-workflow';
 
 type CompetitorAnalysisParams = {
   file_url: string;

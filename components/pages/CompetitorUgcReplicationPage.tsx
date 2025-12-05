@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { useStandardAdsWorkflow } from '@/hooks/useStandardAdsWorkflow';
+import { useCompetitorUgcReplicationWorkflow } from '@/hooks/useCompetitorUgcReplicationWorkflow';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -16,7 +16,7 @@ import CompetitorAdSelector from '@/components/ui/CompetitorAdSelector';
 import RequirementsInput from '@/components/ui/RequirementsInput';
 import ConfigPopover from '@/components/ui/ConfigPopover';
 import GenerationProgressDisplay, { type Generation, type SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
-import SegmentInspector, { type SegmentPromptPayload } from '@/components/standard-ads/SegmentInspector';
+import SegmentInspector, { type SegmentPromptPayload } from '@/components/competitor-ugc-replication/SegmentInspector';
 import type { VideoDurationOption } from '@/components/ui/VideoDurationSelector';
 
 import {
@@ -37,7 +37,7 @@ import {
 import { Format } from '@/components/ui/FormatSelector';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
 import { UserProduct, UserBrand, CompetitorAd } from '@/lib/supabase';
-import type { SegmentStatusPayload, SegmentPrompt } from '@/lib/standard-ads-workflow';
+import type { SegmentStatusPayload, SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -90,7 +90,7 @@ type SessionGeneration = Generation & {
   mergeTaskId?: string | null;
 };
 
-interface StandardAdsStatusPayload {
+interface CompetitorUgcReplicationStatusPayload {
   success?: boolean;
   status?: string;
   workflowStatus?: string;
@@ -148,9 +148,9 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
 const ALL_VIDEO_DURATIONS: VideoDuration[] = ['5', '6', '8', '10', '12', '15', '16', '18', '20', '24', '30', '32', '36', '40', '42', '48', '50', '54', '56', '60', '64', '70', '80'];
 const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'grok', 'sora2', 'sora2_pro', 'kling'];
-const SESSION_STORAGE_KEY = 'flowtra_standard_ads_generations';
+const SESSION_STORAGE_KEY = 'flowtra_competitor_ugc_replication_generations';
 
-const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
+const COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS: VideoDurationOption[] = [
   {
     value: '5',
     label: '5 seconds',
@@ -279,7 +279,7 @@ const STANDARD_ADS_DURATION_OPTIONS: VideoDurationOption[] = [
   }
 ];
 
-export default function StandardAdsPage() {
+export default function CompetitorUgcReplicationPage() {
   const { user } = useUser();
   const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
   const { showSuccess, showError } = useToast();
@@ -365,14 +365,14 @@ export default function StandardAdsPage() {
 
   // Show welcome modal for first-time visitors with no selections
   useEffect(() => {
-    const hasSeenWelcome = localStorage.getItem('flowtra_standard_ads_welcome_seen');
+    const hasSeenWelcome = localStorage.getItem('flowtra_competitor_ugc_replication_welcome_seen');
     const hasNoSelections = !selectedBrand && !selectedProduct;
 
     if (!hasSeenWelcome && hasNoSelections && generations.length === 0) {
       // Wait a bit before showing to let the page load
       const timer = setTimeout(() => {
         setShowWelcomeModal(true);
-        localStorage.setItem('flowtra_standard_ads_welcome_seen', 'true');
+        localStorage.setItem('flowtra_competitor_ugc_replication_welcome_seen', 'true');
       }, 1000);
 
       return () => clearTimeout(timer);
@@ -477,7 +477,7 @@ export default function StandardAdsPage() {
         }))
       );
     } catch (error) {
-      console.error('Failed to restore Standard Ads session state:', error);
+      console.error('Failed to restore Competitor UGC Replication session state:', error);
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     }
   }, []);
@@ -495,7 +495,7 @@ export default function StandardAdsPage() {
       }));
       window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(serialized));
     } catch (error) {
-      console.error('Failed to persist Standard Ads session state:', error);
+      console.error('Failed to persist Competitor UGC Replication session state:', error);
     }
   }, [generations]);
 
@@ -519,7 +519,7 @@ export default function StandardAdsPage() {
     return `${basePrompt}\n\nAdditional requirements: ${additionalRequirements}`;
   }, [derivedAdCopy, additionalRequirements]);
 
-  const { startWorkflowWithSelectedProduct } = useStandardAdsWorkflow(
+  const { startWorkflowWithSelectedProduct } = useCompetitorUgcReplicationWorkflow(
     user?.id,
     selectedModel,
     effectiveImageModel,
@@ -536,14 +536,14 @@ export default function StandardAdsPage() {
     ''
   );
 
-  const updateGenerationFromStatus = useCallback((projectId: string, payload: StandardAdsStatusPayload) => {
+  const updateGenerationFromStatus = useCallback((projectId: string, payload: CompetitorUgcReplicationStatusPayload) => {
     if (!payload?.success) return;
 
     const normalized = (payload.status || payload.workflowStatus || '').toLowerCase();
     const status = STATUS_MAP[normalized] ||
       (payload.isCompleted ? 'completed' : payload.isFailed ? 'failed' : 'processing');
 
-    console.log(`[StandardAdsPage] Updating project ${projectId}:`, {
+    console.log(`[CompetitorUgcReplicationPage] Updating project ${projectId}:`, {
       normalized,
       status,
       isCompleted: payload.isCompleted,
@@ -673,7 +673,7 @@ export default function StandardAdsPage() {
   const fetchStatusForProject = useCallback(async (projectId: string) => {
     if (!projectId) return;
     try {
-      const response = await fetch(`/api/standard-ads/${projectId}/status`, {
+      const response = await fetch(`/api/competitor-ugc-replication/${projectId}/status`, {
         cache: 'no-store'
       });
 
@@ -681,7 +681,7 @@ export default function StandardAdsPage() {
         throw new Error(`Failed to fetch status for ${projectId}`);
       }
 
-      const payload: StandardAdsStatusPayload = await response.json();
+      const payload: CompetitorUgcReplicationStatusPayload = await response.json();
       if (!isMountedRef.current) return;
       updateGenerationFromStatus(projectId, payload);
     } catch (error) {
@@ -766,7 +766,7 @@ export default function StandardAdsPage() {
         requestBody.productIds = productIds.slice(0, 10);
       }
 
-      const response = await fetch(`/api/standard-ads/${projectId}/segments/${segmentIndex}`, {
+      const response = await fetch(`/api/competitor-ugc-replication/${projectId}/segments/${segmentIndex}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
@@ -800,7 +800,7 @@ export default function StandardAdsPage() {
     if (!projectId) return;
     setMergeSubmitting(prev => ({ ...prev, [projectId]: true }));
     try {
-      const response = await fetch(`/api/standard-ads/${projectId}/merge`, {
+      const response = await fetch(`/api/competitor-ugc-replication/${projectId}/merge`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -930,7 +930,7 @@ export default function StandardAdsPage() {
 
       showSuccess('Video download started');
     } catch (error) {
-      console.error('Standard Ads download failed:', error);
+      console.error('Competitor UGC Replication download failed:', error);
       showError(error instanceof Error ? error.message : 'Failed to download video');
     } finally {
       setDownloadingProjects(prev => {
@@ -984,7 +984,7 @@ export default function StandardAdsPage() {
 
   // Filter duration options to only show supported durations for current model
   const filteredDurationOptions = useMemo(
-    () => STANDARD_ADS_DURATION_OPTIONS.filter(option => availableDurations.includes(option.value)),
+    () => COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS.filter(option => availableDurations.includes(option.value)),
     [availableDurations]
   );
 
@@ -1293,7 +1293,7 @@ export default function StandardAdsPage() {
               <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
                 <TrendingUp className="w-5 h-5 text-gray-700" />
               </div>
-              <h1 className="text-2xl font-semibold text-gray-900">Standard Ads</h1>
+              <h1 className="text-2xl font-semibold text-gray-900">Competitor UGC Replication</h1>
             </div>
           </header>
 
@@ -1314,7 +1314,7 @@ export default function StandardAdsPage() {
                       >
                         <section>
                           <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>
-                          {' '}Standard Advertising Demo Latest November 2025
+                          {' '}Competitor UGC Replication Demo Latest November 2025
                         </section>
                       </blockquote>
                     }
@@ -1532,7 +1532,7 @@ export default function StandardAdsPage() {
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
               <Boxes className="w-6 h-6 text-blue-600" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900">Welcome to Standard Ads!</h3>
+            <h3 className="text-xl font-bold text-gray-900">Welcome to Competitor UGC Replication!</h3>
           </div>
           <p className="text-gray-600 mb-6">
             To create amazing videos, you need to set up your brands and products first.

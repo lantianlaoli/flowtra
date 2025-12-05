@@ -24,12 +24,12 @@ This is a Next.js 15 app using the App Router with TypeScript and Supabase integ
 ### Key Workflows
 The application implements two main AI workflows:
 
-1. **Standard Ads** (`/dashboard/single-video-generator`)
+1. **Competitor UGC Replication** (`/dashboard/single-video-generator`)
    - Single video generation from product images
    - Uses OpenRouter AI for image description and prompt generation
    - Integrates with KIE API for cover image and video generation
-   - Table: `standard_ads_projects`
-   - Workflow: `lib/standard-ads-workflow.ts`
+   - Table: `competitor_ugc_replication_projects`
+   - Workflow: `lib/competitor-ugc-replication-workflow.ts`
 
 2. **Character Ads**
    - Character-based advertisement generation
@@ -37,7 +37,7 @@ The application implements two main AI workflows:
    - Workflow: `lib/character-ads-workflow.ts`
 
 ### Database Schema
-- **Main Tables**: `standard_ads_projects`, `character_ads_projects`
+- **Main Tables**: `competitor_ugc_replication_projects`, `character_ads_projects`
 - **Legacy Tables**: Old table names (`single_video_projects`) have been migrated
 - **Authentication**: Managed by Clerk
 - **Credits System**: User credits stored in Supabase, costs defined in `lib/constants.ts`
@@ -116,7 +116,7 @@ When modifying any AI prompts in the codebase:
 
 ### Prompt Documentation Structure
 - `prompts/README.md` - Overview of all workflows
-- `prompts/standard-ads-workflow.md` - Standard Ads complete workflow
+- `prompts/competitor-ugc-replication-workflow.md` - Competitor UGC Replication complete workflow
 - `prompts/character-ads-workflow.md` - Character Ads complete workflow
 
 ---
@@ -133,7 +133,7 @@ When modifying any AI prompts in the codebase:
 3. **Automatic Refunds**: Workflow error handlers refund credits if generation fails
 
 **Modified Files:**
-- `lib/standard-ads-workflow.ts` - Upfront billing for all models
+- `lib/competitor-ugc-replication-workflow.ts` - Upfront billing for all models
 - `app/api/character-ads/create/route.ts` - Sora2 Pro support
 - `app/api/download-video/route.ts` - Removed credit deduction
 - `app/api/character-ads/download/route.ts` - Removed credit deduction
@@ -196,7 +196,7 @@ export const DOWNLOAD_COSTS = { 'veo3_fast': 20, 'sora2': 6 };
 
 **Modified Files:**
 - `lib/constants.ts` - Added model classification, helper functions
-- `lib/standard-ads-workflow.ts` - Generation billing logic
+- `lib/competitor-ugc-replication-workflow.ts` - Generation billing logic
 - `app/api/download-video/route.ts` - Download billing logic
 - `app/api/character-ads/download/route.ts` - Download billing logic
 - `components/ui/VideoModelSelector.tsx` - UI shows "Generation: X credits" vs "Download: X credits"
@@ -238,12 +238,12 @@ getDownloadCost(model): number // Get download cost (0 for paid models)
 
 ---
 
-### Dual-Mode Standard Ads Workflow (Version 2.0)
+### Dual-Mode Competitor UGC Replication Workflow (Version 2.0)
 
 **Implementation Date**: 2025-01-16
 
 **Overview:**
-Standard Ads workflow now supports two distinct generation modes:
+Competitor UGC Replication workflow now supports two distinct generation modes:
 - **Traditional Auto-Generation Mode**: AI deeply analyzes product photos to create original creative content
 - **Competitor Reference Mode**: AI analyzes competitor ads to clone creative structure for our product
 
@@ -251,7 +251,7 @@ The mode is automatically determined based on whether the user selects a competi
 
 **Key Changes:**
 
-1. **Workflow Path Separation** (`lib/standard-ads-workflow.ts`):
+1. **Workflow Path Separation** (`lib/competitor-ugc-replication-workflow.ts`):
    - Modified `generateImageBasedPrompts()` function to support dual modes
    - Mode detection: `if (competitorAdContext)` → Competitor Reference Mode
    - Different prompt strategies for each mode
@@ -278,8 +278,8 @@ The mode is automatically determined based on whether the user selects a competi
    - AI clones competitor structure but replaces their product with ours
 
 **Modified Files:**
-- `lib/standard-ads-workflow.ts` - Core prompt generation logic (lines 754-854)
-- `prompts/standard-ads-workflow.md` - Complete documentation of both modes
+- `lib/competitor-ugc-replication-workflow.ts` - Core prompt generation logic (lines 754-854)
+- `prompts/competitor-ugc-replication-workflow.md` - Complete documentation of both modes
 - `CLAUDE.md` - This implementation note
 
 **Prompt Strategy Differences:**
@@ -353,4 +353,4 @@ The mode is automatically determined based on whether the user selects a competi
 - Verify JSON format consistency across modes
 
 **Related Documentation:**
-- `prompts/standard-ads-workflow.md` - Complete prompt templates for both modes
+- `prompts/competitor-ugc-replication-workflow.md` - Complete prompt templates for both modes

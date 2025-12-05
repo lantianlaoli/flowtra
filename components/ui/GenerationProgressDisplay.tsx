@@ -21,7 +21,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
-import type { SegmentStatusPayload } from '@/lib/standard-ads-workflow';
+import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
 
 export interface Generation {
   id: string;

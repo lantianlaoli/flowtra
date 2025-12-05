@@ -117,21 +117,21 @@ export async function POST(request: NextRequest) {
     let videoUrl: string | null = null;
     let videoFound = false;
 
-    // Try standard_ads_projects
-    const { data: standardAd } = await supabase
-      .from('standard_ads_projects')
+    // Try competitor_ugc_replication_projects
+    const { data: competitorProject } = await supabase
+      .from('competitor_ugc_replication_projects')
       .select('video_url, user_id, status')
       .eq('id', historyId)
       .maybeSingle();
 
-    if (standardAd && standardAd.user_id === userId) {
-      if (standardAd.status !== 'completed') {
+    if (competitorProject && competitorProject.user_id === userId) {
+      if (competitorProject.status !== 'completed') {
         return NextResponse.json(
           { success: false, error: 'Video is not ready yet' },
           { status: 400 }
         );
       }
-      videoUrl = standardAd.video_url;
+      videoUrl = competitorProject.video_url;
       videoFound = true;
     }
 

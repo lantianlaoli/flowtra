@@ -187,7 +187,7 @@ Total Time = API Call + TikTok Download + Processing Time
 
 ### 当前存储结构
 ```typescript
-// standard_ads_projects
+// competitor_ugc_replication_projects
 {
   id: string,
   video_url: string,  // ← KIE/Supabase 返回的 URL

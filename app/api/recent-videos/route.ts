@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { getSupabase } from '@/lib/supabase';
-import { deriveSegmentDetails, type SegmentPrompt } from '@/lib/standard-ads-workflow';
+import { deriveSegmentDetails, type SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 
 export async function GET() {
   try {
@@ -17,7 +17,7 @@ export async function GET() {
 
     // Fetch latest completed video from V1 workflow (single_video_projects)
     const { data: historyV1, error: errorV1 } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'completed')

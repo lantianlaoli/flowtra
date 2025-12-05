@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type DiscoverType = 'all' | 'standard' | 'character';
+type DiscoverType = 'all' | 'competitor-ugc-replication' | 'character';
 
 interface DiscoverItem {
   id: string;
@@ -24,10 +24,10 @@ export async function GET(request: NextRequest) {
 
     const items: DiscoverItem[] = [];
 
-    // Standard Ads
-    if (type === 'all' || type === 'standard') {
+    // Competitor UGC Replication
+    if (type === 'all' || type === 'competitor-ugc-replication') {
       const { data, error } = await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .select('id, cover_image_url, video_url, status, created_at')
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
           if (!r.cover_image_url && !r.video_url) continue;
           items.push({
             id: r.id,
-            type: 'standard',
+            type: 'competitor-ugc-replication',
             coverImageUrl: r.cover_image_url || r.video_url,
             videoUrl: r.video_url || undefined,
             createdAt: r.created_at,

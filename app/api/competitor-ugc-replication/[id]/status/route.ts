@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const supabase = getSupabase();
     let query = supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .select('*')
       .eq('id', id);
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { data: record, error } = await query.single();
 
     if (error) {
-      console.error('Error fetching standard ads project status:', error);
+      console.error('Error fetching Competitor UGC Replication project status:', error);
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (record.is_segmented) {
       const { data: segmentRows, error: segmentError } = await supabase
-        .from('standard_ads_segments')
+        .from('competitor_ugc_replication_segments')
         .select('segment_index,status,first_frame_url,closing_frame_url,video_url,prompt,updated_at,error_message')
         .eq('project_id', record.id)
         .order('segment_index', { ascending: true });
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Standard ads project status error:', error);
+    console.error('Competitor UGC Replication project status error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -37,10 +37,10 @@ const navigation = [
     onboardingId: 'sidebar-home'
   },
   {
-    name: 'Standard Ads',
-    href: '/dashboard/standard-ads',
+    name: 'Competitor UGC Replication',
+    href: '/dashboard/competitor-ugc-replication',
     icon: Sparkles,
-    onboardingId: 'sidebar-standard-ads'
+    onboardingId: 'sidebar-competitor-ugc-replication'
   },
   {
     name: 'Character Ads',

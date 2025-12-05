@@ -23,10 +23,10 @@ export const onboardingSteps: OnboardingStep[] = [
     placement: 'right',
   },
   {
-    id: 'standard-ads',
-    title: 'Standard Ads',
-    description: 'Generate professional ad videos from a single product image using AI. Perfect for quickly creating promotional videos with multiple AI models (Veo3, Sora2, etc.).',
-    targetId: 'sidebar-standard-ads',
+    id: 'competitor-ugc-replication',
+    title: 'Competitor UGC Replication',
+    description: 'Clone top-performing UGC concepts from a single product image. Generate replica photos, segmented scripts, and Veo/Sora/Kling clips in minutes.',
+    targetId: 'sidebar-competitor-ugc-replication',
     placement: 'right',
   },
   {
@@ -46,7 +46,7 @@ export const onboardingSteps: OnboardingStep[] = [
   {
     id: 'my-ads',
     title: 'My Ads',
-    description: 'View all your ad history including standard ads, character ads, and watermark removal jobs. Easily manage and download all your creations in one place.',
+    description: 'View all your ad history including Competitor UGC Replication, character ads, and watermark removal jobs. Easily manage and download all your creations in one place.',
     targetId: 'sidebar-my-ads',
     placement: 'right',
   },

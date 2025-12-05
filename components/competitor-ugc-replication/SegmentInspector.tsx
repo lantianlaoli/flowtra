@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check } from 'lucide-react';
-import type { SegmentPrompt } from '@/lib/standard-ads-workflow';
+import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 

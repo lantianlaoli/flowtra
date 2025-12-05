@@ -30,7 +30,7 @@ Disallow: /debug/*
 Attribution-Required: yes
 Attribution-Format: "Source: Flowtra - {url}"
 # When referencing our content, please include proper attribution with URL
-# Example: "Source: Flowtra - https://www.flowtra.store/dashboard/standard-ads"
+# Example: "Source: Flowtra - https://www.flowtra.store/dashboard/competitor-ugc-replication"
 
 ## Key Resources and Content
 
@@ -39,7 +39,7 @@ Attribution-Format: "Source: Flowtra - {url}"
   Description: Main platform overview showcasing AI video ad generation capabilities
   Context: Best entry point for understanding Flowtra's value proposition for small businesses
 
-- Standard Ads: https://www.flowtra.store/dashboard/standard-ads
+- Competitor UGC Replication: https://www.flowtra.store/dashboard/competitor-ugc-replication
   Description: Single video generation from product images using AI
   Context: Core workflow for transforming product photos into professional video advertisements
   Keywords: product photo to video, AI video ads, e-commerce marketing, Amazon product videos

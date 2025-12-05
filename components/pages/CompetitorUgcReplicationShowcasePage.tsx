@@ -34,18 +34,18 @@ const creditsToUSD = (credits: number | string): string => {
   return usd < 1 ? `~$${usd.toFixed(2)}` : `~$${usd.toFixed(0)}`;
 };
 
-export default function StandardAdsShowcasePage() {
+export default function CompetitorUgcReplicationShowcasePage() {
   // Example cases data
   const examples = [
     {
       id: 1,
-      productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/standard_ads_1_product.jpg',
-      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/standard_ads_1_video.mp4',
+      productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/competitor_ugc_replication_1_product.jpg',
+      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/competitor_ugc_replication_1_video.mp4',
     },
     {
       id: 2,
-      productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/standard_ads_2_product.png',
-      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/standard_ads_2_video.mp4',
+      productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/competitor_ugc_replication_2_product.png',
+      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/competitor_ugc_replication_2_video.mp4',
     },
   ];
 
@@ -97,7 +97,7 @@ export default function StandardAdsShowcasePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Link
-                href="/dashboard/standard-ads"
+                href="/dashboard/competitor-ugc-replication"
                 className="inline-flex items-center justify-center gap-2 bg-black text-white px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
               >
                 Start Creating
@@ -125,7 +125,7 @@ export default function StandardAdsShowcasePage() {
             >
               <section>
                 <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
-                Standard Advertising Demo Latest November 2025{' '}
+                Competitor UGC Replication Demo Latest November 2025{' '}
                 <a title="gemini" target="_blank" href="https://www.tiktok.com/tag/gemini?refer=embed">#gemini</a>{' '}
                 <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a>{' '}
                 <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#ai</a>{' '}
@@ -356,7 +356,7 @@ export default function StandardAdsShowcasePage() {
               Perfect For
             </h2>
             <p className="text-lg text-gray-600">
-              Standard Ads work great for various businesses and platforms
+              Competitor UGC Replication work great for various businesses and platforms
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -393,7 +393,7 @@ export default function StandardAdsShowcasePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
               <Link
-                href="/dashboard/standard-ads"
+                href="/dashboard/competitor-ugc-replication"
                 className="inline-flex items-center justify-center gap-2 bg-black text-white px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
               >
                 Get Started - 100 Free Credits (~$1.80)

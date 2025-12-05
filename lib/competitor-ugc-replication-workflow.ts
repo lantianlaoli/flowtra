@@ -1,4 +1,4 @@
-import { getSupabaseAdmin, type StandardAdsSegment, type SingleVideoProject } from '@/lib/supabase';
+import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import {
   getActualImageModel,
@@ -565,7 +565,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         request.userId,
         'usage',
         generationCost,
-        `Standard Ads - Replica photo generation (Nano Banana Pro, ${replicaResolution})`,
+        `Competitor UGC Replication - Replica photo generation (Nano Banana Pro, ${replicaResolution})`,
         undefined,
         true
       );
@@ -613,7 +613,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           request.userId,
           'usage',
           generationCost,
-          `Standard Ads - Video generation (${actualVideoModel.toUpperCase()})`,
+          `Competitor UGC Replication - Video generation (${actualVideoModel.toUpperCase()})`,
           undefined,
           true
         );
@@ -634,9 +634,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       actualCoverAspectRatio = request.imageSize;
     }
 
-    // Create project record in standard_ads_projects table
+    // Create project record in competitor_ugc_replication_projects table
     const { data: project, error: insertError} = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .insert({
         user_id: request.userId,
         selected_product_id: request.selectedProductId,
@@ -691,7 +691,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     if (precomputedSegmentPlan?.length === segmentCount) {
       const { error: planSeedError } = await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update({ segment_plan: { segments: precomputedSegmentPlan } })
         .eq('id', project.id);
       if (planSeedError) {
@@ -744,8 +744,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
               'refund',
               generationCost,
               isReplicaMode
-                ? 'Standard Ads - Refund for failed replica photo generation'
-                : `Standard Ads - Refund for failed ${actualVideoModel.toUpperCase()} generation`,
+                ? 'Competitor UGC Replication - Refund for failed replica photo generation'
+                : `Competitor UGC Replication - Refund for failed ${actualVideoModel.toUpperCase()} generation`,
               project.id,
               true
             );
@@ -760,7 +760,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         // Update project status to failed
         try {
           const { error: updateError } = await supabase
-            .from('standard_ads_projects')
+            .from('competitor_ugc_replication_projects')
             .update({
               status: 'failed',
               error_message: `Workflow failed: ${workflowError instanceof Error ? workflowError.message : 'Unknown error'}`,
@@ -850,7 +850,7 @@ async function startAIWorkflow(
       console.log('💾 Updating project with custom script data');
 
       const { data: updateResult, error: updateError } = await supabase
-        .from('standard_ads_projects')
+        .from('competitor_ugc_replication_projects')
         .update(updateData)
         .eq('id', projectId)
         .select();
@@ -979,7 +979,7 @@ async function startAIWorkflow(
       : 1;
 
     const { error: projectConfigUpdateError } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update({
         video_duration: request.videoDuration || request.sora2ProDuration || null,
         is_segmented: segmentedFlow,
@@ -1066,7 +1066,7 @@ async function startAIWorkflow(
     console.log('💾 Updating project with image-driven data' + (competitorDescription ? ' (competitor reference mode)' : ''));
 
     const { error: updateError } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update(updateData)
       .eq('id', projectId)
       .select();
@@ -1164,7 +1164,7 @@ async function startReplicaWorkflow(
   };
 
   const { error: updateError } = await supabase
-    .from('standard_ads_projects')
+    .from('competitor_ugc_replication_projects')
     .update(updateData)
     .eq('id', projectId);
 
@@ -2145,7 +2145,7 @@ async function startSegmentedWorkflow(
 
   // Clear any previous segment rows for this project to avoid unique key conflicts when restarting workflows
   const { error: cleanupError } = await supabase
-    .from('standard_ads_segments')
+    .from('competitor_ugc_replication_segments')
     .delete()
     .eq('project_id', projectId);
   if (cleanupError) {
@@ -2161,7 +2161,7 @@ async function startSegmentedWorkflow(
   }));
 
   const { data: insertedSegments, error } = await supabase
-    .from('standard_ads_segments')
+    .from('competitor_ugc_replication_segments')
     .insert(segmentRows)
     .select();
 
@@ -2170,10 +2170,10 @@ async function startSegmentedWorkflow(
     throw new Error('Failed to initialize segment records');
   }
 
-  const segments = insertedSegments as StandardAdsSegment[];
+  const segments = insertedSegments as CompetitorUgcReplicationSegment[];
 
   await supabase
-    .from('standard_ads_projects')
+    .from('competitor_ugc_replication_projects')
     .update({
       video_prompts: prompts,
       segment_plan: { segments: normalizedSegments },
@@ -2200,7 +2200,7 @@ async function startSegmentedWorkflow(
     );
 
     const { error: updateError } = await supabase
-      .from('standard_ads_segments')
+      .from('competitor_ugc_replication_segments')
       .update({
         first_frame_task_id: firstFrameTaskId,
         status: 'generating_first_frame',
@@ -2230,7 +2230,7 @@ async function startSegmentedWorkflow(
       );
 
       await supabase
-        .from('standard_ads_segments')
+        .from('competitor_ugc_replication_segments')
         .update({
           closing_frame_task_id: closingFrameTaskId,
           updated_at: new Date().toISOString()
@@ -2242,7 +2242,7 @@ async function startSegmentedWorkflow(
   }
 
   await supabase
-    .from('standard_ads_projects')
+    .from('competitor_ugc_replication_projects')
     .update({
       segment_status: buildSegmentStatusPayload(segments),
       last_processed_at: new Date().toISOString()
@@ -2403,7 +2403,7 @@ export function buildSegmentPlanFromCompetitorShots(segmentCount: number, compet
 }
 
 export function buildSegmentStatusPayload(
-  segments: StandardAdsSegment[],
+  segments: CompetitorUgcReplicationSegment[],
   mergedVideoUrl: string | null = null
 ): SegmentStatusPayload {
   const total = segments.length;

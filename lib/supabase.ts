@@ -67,7 +67,7 @@ export interface Article {
   actual_indexing_state?: string // Actual indexing state from Google Search Console (coverageState)
 }
 
-// Database types for single_video_projects table (now standard_ads_projects)
+// Database types for single_video_projects table (now competitor_ugc_replication_projects)
 export interface SingleVideoProject {
   id: string
   user_id: string
@@ -109,7 +109,7 @@ export interface SingleVideoProject {
   updated_at: string
 }
 
-export interface StandardAdsSegment {
+export interface CompetitorUgcReplicationSegment {
   id: string
   project_id: string
   segment_index: number
@@ -220,15 +220,15 @@ export type Database = {
         Insert: Omit<UserCredits, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<UserCredits, 'id' | 'created_at' | 'updated_at'>>
       }
-      standard_ads_projects: {
+      competitor_ugc_replication_projects: {
         Row: SingleVideoProject
         Insert: Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>>
       }
-      standard_ads_segments: {
-        Row: StandardAdsSegment
-        Insert: Omit<StandardAdsSegment, 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Omit<StandardAdsSegment, 'id' | 'created_at' | 'updated_at'>>
+      competitor_ugc_replication_segments: {
+        Row: CompetitorUgcReplicationSegment
+        Insert: Omit<CompetitorUgcReplicationSegment, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<CompetitorUgcReplicationSegment, 'id' | 'created_at' | 'updated_at'>>
       }
       user_photos: {
         Row: UserPhoto

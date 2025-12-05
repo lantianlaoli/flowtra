@@ -81,7 +81,7 @@ export default function CompetitorReplicaShowcasePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                href="/dashboard/standard-ads"
+                href="/dashboard/competitor-ugc-replication"
                 className="inline-flex items-center justify-center px-8 py-4 bg-black text-white rounded-lg font-semibold hover:bg-gray-900 transition-colors"
               >
                 Try It Now
@@ -356,7 +356,7 @@ export default function CompetitorReplicaShowcasePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/dashboard/standard-ads"
+              href="/dashboard/competitor-ugc-replication"
               className="inline-flex items-center justify-center px-8 py-4 bg-white text-black rounded-lg font-semibold hover:bg-gray-100 transition-colors"
             >
               Start Creating

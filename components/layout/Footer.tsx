@@ -32,11 +32,6 @@ export default function Footer() {
               <h3 id="footer-features" className="text-sm font-semibold text-gray-900 mb-4">Features</h3>
               <ul className="space-y-2.5">
                 <li>
-                  <Link href="/features/standard-ads" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
-                    Standard Ads
-                  </Link>
-                </li>
-                <li>
                   <Link href="/features/character-ads" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
                     Character Ads
                   </Link>

@@ -21,25 +21,25 @@ export async function GET(request: NextRequest) {
 
     // Get total count
     const { count: totalCount, error: countError } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
 
     if (countError) {
-      console.error('Error getting standard ads count:', countError);
+      console.error('Error getting Competitor UGC Replication count:', countError);
       return NextResponse.json({ error: 'Failed to get count' }, { status: 500 });
     }
 
     // Get paginated results
     const { data: projects, error } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) {
-      console.error('Error fetching standard ads history:', error);
+      console.error('Error fetching Competitor UGC Replication history:', error);
       return NextResponse.json({ error: 'Failed to fetch history' }, { status: 500 });
     }
 
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Standard ads history error:', error);
+    console.error('Competitor UGC Replication history error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

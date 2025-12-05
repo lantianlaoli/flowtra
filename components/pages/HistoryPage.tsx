@@ -6,14 +6,14 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send } from 'lucide-react';
-import { getCreditCost, getDownloadCost } from '@/lib/constants';
+import { getCreditCost, getDownloadCost, type VideoModel } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 
-interface StandardAdsItem {
+interface CompetitorUgcReplicationItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
@@ -23,13 +23,13 @@ interface StandardAdsItem {
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
   imagePrompt?: string;
-  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
+  videoModel: VideoModel;
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  adType: 'standard';
+  adType: 'competitor-ugc-replication';
   videoAspectRatio?: string;
   // Segment information for cost calculation
   isSegmented?: boolean;
@@ -68,7 +68,7 @@ interface WatermarkRemovalItem {
   errorMessage?: string;
 }
 
-type HistoryItem = StandardAdsItem | CharacterAdsItem | WatermarkRemovalItem;
+type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem | WatermarkRemovalItem;
 
 const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns (desktop) = 8 items per page
 
@@ -80,10 +80,10 @@ const AD_TYPE_OPTIONS = [
     description: 'Every campaign you have generated so far',
   },
   {
-    value: 'standard',
-    label: 'Standard',
+    value: 'competitor-ugc-replication',
+    label: 'Competitor UGC Replication',
     icon: ImageIcon,
-    description: 'Single-product ads generated from one photo',
+    description: 'Segmented UGC workflows cloned from real competitors',
   },
   {
     value: 'character',
@@ -111,12 +111,21 @@ const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
   return 'adType' in item && item.adType === 'character';
 };
 
-const isStandardAds = (item: HistoryItem): item is StandardAdsItem => {
-  return 'adType' in item && item.adType === 'standard';
+const isCompetitorUgcReplication = (item: HistoryItem): item is CompetitorUgcReplicationItem => {
+  return 'adType' in item && item.adType === 'competitor-ugc-replication';
 };
 
 const isWatermarkRemoval = (item: HistoryItem): item is WatermarkRemovalItem => {
   return 'adType' in item && item.adType === 'watermark-removal';
+};
+
+type DownloadCreditEligibleModel = Exclude<VideoModel, 'sora2_pro'>;
+
+const getBaseDownloadCost = (model: VideoModel) => {
+  if (model === 'sora2_pro') {
+    return 0;
+  }
+  return getCreditCost(model as DownloadCreditEligibleModel);
 };
 
 export default function HistoryPage() {
@@ -165,7 +174,7 @@ export default function HistoryPage() {
     return history.filter(item => {
       return (
         adTypeFilter === 'all' ||
-        (adTypeFilter === 'standard' && isStandardAds(item)) ||
+        (adTypeFilter === 'competitor-ugc-replication' && isCompetitorUgcReplication(item)) ||
         (adTypeFilter === 'character' && isCharacterAds(item)) ||
         (adTypeFilter === 'watermark-removal' && isWatermarkRemoval(item))
       );
@@ -384,7 +393,7 @@ export default function HistoryPage() {
   // Removed unused getStepMessage helper to satisfy lint
 
   // Download function for videos (supports V1, V2, and Character Ads)
-const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast' | 'sora2') => {
+const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     if (!user?.id || !userCredits) return;
 
     const item = history.find(h => h.id === historyId);
@@ -396,15 +405,16 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     const isPrepaid = item && 'generationCreditsUsed' in item ? (item.generationCreditsUsed || 0) > 0 : false;
 
     // Calculate download cost based on video duration for Character Ads
-    // For Standard Ads with segments, use getDownloadCost to account for segment_count
-    let downloadCost = getCreditCost(videoModel);
+    // For Competitor UGC Replication with segments, use getDownloadCost to account for segment_count
+    let downloadCost = getBaseDownloadCost(videoModel);
     if (isCharacterAds(item) && item.videoDurationSeconds) {
+      const characterModel = item.videoModel;
       // For Character Ads: cost = (duration / unitSeconds) * base_cost_per_unit
-      const unitSeconds = videoModel === 'sora2' ? 10 : 8;
-      const baseCostPerUnit = getCreditCost(videoModel);
+      const unitSeconds = characterModel === 'sora2' ? 10 : 8;
+      const baseCostPerUnit = getCreditCost(characterModel);
       downloadCost = Math.round((item.videoDurationSeconds / unitSeconds) * baseCostPerUnit);
     } else if ('isSegmented' in item && item.isSegmented && item.segmentCount) {
-      // For Standard Ads with segments: use getDownloadCost which multiplies by segment_count
+      // For Competitor UGC Replication with segments: use getDownloadCost which multiplies by segment_count
       downloadCost = getDownloadCost(videoModel, item.videoDuration || null, item.segmentCount);
     }
 
@@ -519,8 +529,8 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
   const getPackingText = (stage: 'packing' | 'done') =>
     stage === 'packing' ? 'Packing…' : 'Ready!';
 
-  // Standard ads cover download function (free) — show phrase only, no video download state
-  const downloadStandardAdsCover = async (historyId: string) => {
+  // Competitor UGC Replication cover download function (free) — show phrase only, no video download state
+  const downloadCompetitorUgcReplicationCover = async (historyId: string) => {
     if (!user?.id) return;
 
     const item = history.find(h => h.id === historyId);
@@ -548,7 +558,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     }
   };
 
-  // Character ads cover download function (free) — similar to standard ads
+  // Character ads cover download function (free) — similar to Competitor UGC Replication
   const downloadCharacterAdsCover = async (historyId: string) => {
     if (!user?.id) return;
 
@@ -611,8 +621,8 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     const id = item.id;
     setCoverStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (isStandardAds(item)) {
-        await downloadStandardAdsCover(item.id);
+      if (isCompetitorUgcReplication(item)) {
+        await downloadCompetitorUgcReplicationCover(item.id);
       } else if (isCharacterAds(item)) {
         await downloadCharacterAdsCover(item.id);
       }
@@ -633,7 +643,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
     try {
       if (isWatermarkRemoval(item)) {
         await downloadWatermarkRemovalVideo(item.id);
-      } else if (isStandardAds(item) || isCharacterAds(item)) {
+      } else if (isCompetitorUgcReplication(item) || isCharacterAds(item)) {
         await downloadVideo(item.id, item.videoModel);
       }
       setVideoStates(prev => ({ ...prev, [id]: 'done' }));
@@ -811,7 +821,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                           ? 'Sora2 Watermark Removal'
                           : isCharacterAds(item)
                           ? 'Character'
-                          : 'Standard'
+                          : 'Competitor UGC Replication'
                         }
                       </span>
                     </div>
@@ -1128,17 +1138,17 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
                                             }
 
                                             // Compute dynamic cost for Character Ads based on duration; others use model cost
-                                            // For Standard Ads with segments, account for segment_count
+                                            // For Competitor UGC Replication with segments, account for segment_count
                                             let cost = 0;
                                             if (isCharacterAds(item) && item.videoDurationSeconds) {
                                               const unitSeconds = item.videoModel === 'sora2' ? 10 : 8;
                                               const base = getCreditCost(item.videoModel);
                                               cost = Math.round((item.videoDurationSeconds / unitSeconds) * base);
                                             } else if ('isSegmented' in item && item.isSegmented && item.segmentCount) {
-                                              // For Standard Ads with segments: use getDownloadCost which multiplies by segment_count
+                                              // For Competitor UGC Replication with segments: use getDownloadCost which multiplies by segment_count
                                               cost = getDownloadCost(item.videoModel, item.videoDuration || null, item.segmentCount);
                                             } else {
-                                              cost = getCreditCost(item.videoModel);
+                                              cost = getBaseDownloadCost(item.videoModel);
                                             }
                                             return (
                                               <>
@@ -1323,7 +1333,7 @@ const downloadVideo = async (historyId: string, videoModel: 'veo3' | 'veo3_fast'
         historyId={selectedItemForTikTok?.id || ''}
         coverImageUrl={
           (selectedItemForTikTok && 'coverImageUrl' in (selectedItemForTikTok || {}))
-            ? (selectedItemForTikTok as StandardAdsItem | CharacterAdsItem).coverImageUrl
+            ? (selectedItemForTikTok as CompetitorUgcReplicationItem | CharacterAdsItem).coverImageUrl
             : undefined
         }
       />

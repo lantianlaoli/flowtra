@@ -190,7 +190,7 @@ export default function HomePage() {
 }
 
 // --- Discover Section --- //
-type DiscoverType = 'all' | 'standard' | 'character';
+type DiscoverType = 'all' | 'competitor-ugc-replication' | 'character';
 
 interface DiscoverItem {
   id: string;
@@ -336,7 +336,7 @@ function DiscoverSection() {
           {(
             [
               { k: 'all', icon: ImageIcon, label: 'All' },
-              { k: 'standard', icon: ImageIcon, label: 'Standard' },
+              { k: 'competitor-ugc-replication', icon: ImageIcon, label: 'Competitor UGC Replication' },
               { k: 'character', icon: VideoIcon, label: 'Character' },
             ] as const
           ).map(({ k, icon: Icon, label }) => (

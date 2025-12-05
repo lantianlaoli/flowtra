@@ -29,17 +29,17 @@ export async function GET() {
       hoursSaved: 0,
     };
 
-    // Query Standard Ads projects
-    type StandardAdsRow = { status: string; created_at: string; download_credits_used?: number | null };
-    const { data: standardAdsHistory, error: errorStandard } = await supabase
-      .from('standard_ads_projects')
+    // Query Competitor UGC Replication projects
+    type CompetitorUgcReplicationRow = { status: string; created_at: string; download_credits_used?: number | null };
+    const { data: competitorUgcReplicationHistory, error: errorStandard } = await supabase
+      .from('competitor_ugc_replication_projects')
       .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
     if (errorStandard) {
-      console.error('❌ Error querying standard_ads_projects:', errorStandard);
+      console.error('❌ Error querying competitor_ugc_replication_projects:', errorStandard);
     } else {
-      console.log('📈 Standard Ads records:', standardAdsHistory?.length || 0);
+      console.log('📈 Competitor UGC Replication records:', competitorUgcReplicationHistory?.length || 0);
     }
 
     // Query Character Ads projects
@@ -55,9 +55,9 @@ export async function GET() {
       console.log('📈 Character Ads records:', characterAdsHistory?.length || 0);
     }
 
-    // Calculate stats from Standard Ads data
-    if (standardAdsHistory && standardAdsHistory.length > 0) {
-      for (const record of standardAdsHistory as StandardAdsRow[]) {
+    // Calculate stats from Competitor UGC Replication data
+    if (competitorUgcReplicationHistory && competitorUgcReplicationHistory.length > 0) {
+      for (const record of competitorUgcReplicationHistory as CompetitorUgcReplicationRow[]) {
         stats.totalVideos++;
 
         // Check if this month
@@ -92,8 +92,8 @@ export async function GET() {
     let completedCount = 0;
     let totalCount = 0;
 
-    if (standardAdsHistory) {
-      for (const record of standardAdsHistory as StandardAdsRow[]) {
+    if (competitorUgcReplicationHistory) {
+      for (const record of competitorUgcReplicationHistory as CompetitorUgcReplicationRow[]) {
         totalCount++;
         if (record.status === 'completed') {
           completedCount++;

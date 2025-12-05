@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
-import { getSupabaseAdmin, type StandardAdsSegment } from '@/lib/supabase';
+import { getSupabaseAdmin, type CompetitorUgcReplicationSegment } from '@/lib/supabase';
 import { mergeVideosWithFal } from '@/lib/video-merge';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const supabase = getSupabaseAdmin();
     const { data: project, error: projectError } = await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .select('id,user_id,is_segmented,segment_status,video_aspect_ratio,segment_count,fal_merge_task_id,current_step,video_url,merged_video_url')
       .eq('id', id)
       .single();
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const { data: segments, error: segmentError } = await supabase
-      .from('standard_ads_segments')
+      .from('competitor_ugc_replication_segments')
       .select('*')
       .eq('project_id', id)
       .order('segment_index', { ascending: true });
@@ -64,10 +64,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
-    const { taskId } = await mergeVideosWithFal((segments as StandardAdsSegment[]).map(seg => seg.video_url as string), aspectRatio);
+    const { taskId } = await mergeVideosWithFal((segments as CompetitorUgcReplicationSegment[]).map(seg => seg.video_url as string), aspectRatio);
 
     await supabase
-      .from('standard_ads_projects')
+      .from('competitor_ugc_replication_projects')
       .update({
         fal_merge_task_id: taskId,
         current_step: 'merging_segments',
