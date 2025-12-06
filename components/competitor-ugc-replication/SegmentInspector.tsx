@@ -2,35 +2,25 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check } from 'lucide-react';
+import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2 } from 'lucide-react';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 
-type EditableVideoPrompt = {
+export type SegmentShotPayload = {
+  id: number;
+  time_range: string;
+  audio: string;
+  style: string;
   action: string;
   subject: string;
-  style: string;
   dialogue: string;
-  audio: string;
+  language: LanguageCode;
   composition: string;
   context_environment: string;
-  camera_motion_positioning: string;
   ambiance_colour_lighting: string;
-  language: LanguageCode;
+  camera_motion_positioning: string;
 };
-
-const VIDEO_TEXT_FIELDS: Array<{ key: Exclude<keyof EditableVideoPrompt, 'language'>; label: string; placeholder: string; required?: boolean }> = [
-  { key: 'action', label: 'Action', placeholder: 'Describe what happens in this shot', required: true },
-  { key: 'subject', label: 'Subject', placeholder: 'Who/what is featured?', required: true },
-  { key: 'style', label: 'Style', placeholder: 'Cinematic, vlog, documentary, etc.' },
-  { key: 'dialogue', label: 'Dialogue / VO', placeholder: 'Exact line or narration tone' },
-  { key: 'audio', label: 'Audio / Music', placeholder: 'Music vibe or sound design' },
-  { key: 'composition', label: 'Composition', placeholder: 'Camera framing guidance' },
-  { key: 'context_environment', label: 'Environment', placeholder: 'Location, props, background' },
-  { key: 'camera_motion_positioning', label: 'Camera Motion', placeholder: 'Dolly, handheld, static…' },
-  { key: 'ambiance_colour_lighting', label: 'Lighting', placeholder: 'Mood, colors, lighting cues' }
-];
 
 const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: string }> = [
   { value: 'en', label: 'English', native: 'English' },
@@ -58,6 +48,47 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
 const DEFAULT_LANGUAGE: LanguageCode = 'en';
 const MAX_REFERENCE_PRODUCTS = 10;
 const PRODUCT_FETCH_MAX_ATTEMPTS = 3;
+
+const normalizeShotLanguage = (value?: string): LanguageCode => {
+  if (!value) return DEFAULT_LANGUAGE;
+  const match = LANGUAGE_OPTIONS.find(option => option.value === value);
+  return match ? match.value : DEFAULT_LANGUAGE;
+};
+
+const createEmptyShotPayload = (id: number, language: LanguageCode): SegmentShotPayload => ({
+  id,
+  time_range: '00:00 - 00:02',
+  audio: '',
+  style: '',
+  action: '',
+  subject: '',
+  dialogue: '',
+  language,
+  composition: '',
+  context_environment: '',
+  ambiance_colour_lighting: '',
+  camera_motion_positioning: ''
+});
+
+const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: LanguageCode): SegmentShotPayload[] => {
+  if (Array.isArray(shots) && shots.length > 0) {
+    return shots.map((shot, index) => ({
+      id: shot.id || index + 1,
+      time_range: shot.time_range || '00:00 - 00:02',
+      audio: shot.audio || '',
+      style: shot.style || '',
+      action: shot.action || '',
+      subject: shot.subject || '',
+      dialogue: shot.dialogue || '',
+      language: normalizeShotLanguage(shot.language),
+      composition: shot.composition || '',
+      context_environment: shot.context_environment || '',
+      ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
+      camera_motion_positioning: shot.camera_motion_positioning || ''
+    }));
+  }
+  return [createEmptyShotPayload(1, fallbackLanguage)];
+};
 
 type BrandProduct = {
   id: string;
@@ -87,7 +118,8 @@ type SegmentInspectorProps = {
 
 export type SegmentPromptPayload = {
   first_frame_description: string;
-  video: EditableVideoPrompt;
+  shots: SegmentShotPayload[];
+  is_continuation_from_prev: boolean;
 };
 
 export default function SegmentInspector({
@@ -115,15 +147,15 @@ export default function SegmentInspector({
   }, [segment?.prompt, segmentPlanEntry]);
 
   const initialPhotoPrompt = normalizedPrompt.first_frame_description || '';
-  const initialVideoPrompt = useMemo(
-    () => createEditableVideoPrompt(normalizedPrompt),
+  const initialShots = useMemo(
+    () => convertShotsForEditor(normalizedPrompt.shots, normalizeShotLanguage(normalizedPrompt.language || DEFAULT_LANGUAGE)),
     [normalizedPrompt]
   );
 
   const [photoPrompt, setPhotoPrompt] = useState(initialPhotoPrompt);
-  const [videoPrompt, setVideoPrompt] = useState<EditableVideoPrompt>(initialVideoPrompt);
-  const [photoFocused, setPhotoFocused] = useState(false);
-  const [videoFocusedField, setVideoFocusedField] = useState<keyof EditableVideoPrompt | null>(null);
+  const [shots, setShots] = useState<SegmentShotPayload[]>(initialShots);
+  const [shotExpansion, setShotExpansion] = useState<Record<number, boolean>>({});
+  const [isContinuation, setIsContinuation] = useState(Boolean(normalizedPrompt.is_continuation_from_prev));
   const [photoPreviewPending, setPhotoPreviewPending] = useState(false);
   const [videoPreviewPending, setVideoPreviewPending] = useState(false);
   const [productOptions, setProductOptions] = useState<BrandProduct[]>([]);
@@ -137,8 +169,8 @@ export default function SegmentInspector({
   const lastVideoUrlRef = useRef<string | null>(videoUrl);
   const promptSeedSignature = useMemo(() => JSON.stringify({
     photo: initialPhotoPrompt?.trim() || '',
-    video: initialVideoPrompt
-  }), [initialPhotoPrompt, initialVideoPrompt]);
+    shots: initialShots
+  }), [initialPhotoPrompt, initialShots]);
   const promptSeedRef = useRef(promptSeedSignature);
 
   useEffect(() => {
@@ -147,8 +179,22 @@ export default function SegmentInspector({
     }
     promptSeedRef.current = promptSeedSignature;
     setPhotoPrompt(initialPhotoPrompt);
-    setVideoPrompt(initialVideoPrompt);
-  }, [initialPhotoPrompt, initialVideoPrompt, promptSeedSignature]);
+    setShots(initialShots);
+    const continuationDefault = Boolean(normalizedPrompt.is_continuation_from_prev);
+    setIsContinuation(continuationDefault);
+    setShotExpansion({});
+  }, [initialPhotoPrompt, initialShots, promptSeedSignature, normalizedPrompt.is_continuation_from_prev]);
+
+  useEffect(() => {
+    setShotExpansion(prev => {
+      const next: Record<number, boolean> = {};
+      shots.forEach((shot, index) => {
+        const existing = Object.prototype.hasOwnProperty.call(prev, shot.id) ? prev[shot.id] : undefined;
+        next[shot.id] = typeof existing === 'boolean' ? existing : index === 0;
+      });
+      return next;
+    });
+  }, [shots]);
 
   useEffect(() => {
     if (!open) {
@@ -240,13 +286,64 @@ export default function SegmentInspector({
     };
   }, [open, brandId]);
 
-  const photoChanged = photoPrompt.trim() !== initialPhotoPrompt.trim();
-  const videoChanged = !areVideoPromptsEqual(videoPrompt, initialVideoPrompt);
+  const handleAddShot = () => {
+    setShots(prev => {
+      if (prev.length >= 4) return prev;
+      const nextId = prev.length + 1;
+      setShotExpansion(expansion => ({
+        ...expansion,
+        [nextId]: true
+      }));
+      const fallbackLanguage = prev[0]?.language || DEFAULT_LANGUAGE;
+      return [...prev, createEmptyShotPayload(nextId, fallbackLanguage)];
+    });
+  };
+
+  const handleRemoveShot = (shotId: number) => {
+    setShots(prev => {
+      if (prev.length <= 1) return prev;
+      return prev
+        .filter(shot => shot.id !== shotId)
+        .map((shot, index) => ({ ...shot, id: index + 1 }));
+    });
+  };
+
+  const handleShotChange = <K extends keyof SegmentShotPayload>(shotId: number, key: K, value: SegmentShotPayload[K]) => {
+    setShots(prev => prev.map(shot => (shot.id === shotId ? { ...shot, [key]: value } : shot)));
+  };
+
+  const toggleShotExpansion = (shotId: number) => {
+    setShotExpansion(prev => ({
+      ...prev,
+      [shotId]: !prev[shotId]
+    }));
+  };
+
   const regenEnabled = Boolean(onRegenerate);
   const photoPromptTooLong = photoPrompt.length > PHOTO_CHAR_LIMIT;
-  const missingLanguage = !videoPrompt.language?.trim();
-  const requiredVideoFieldsMissing =
-    VIDEO_TEXT_FIELDS.some(field => field.required && !videoPrompt[field.key].trim()) || missingLanguage;
+  const shotRequiredFields: Array<keyof Omit<SegmentShotPayload, 'id'>> = [
+    'time_range',
+    'audio',
+    'style',
+    'action',
+    'subject',
+    'dialogue',
+    'language',
+    'composition',
+    'context_environment',
+    'ambiance_colour_lighting',
+    'camera_motion_positioning'
+  ];
+  const shotsIncomplete = shots.some(shot =>
+    shotRequiredFields.some(field => {
+      if (field === 'language') {
+        return !shot.language;
+      }
+      return !shot[field].trim();
+    })
+  );
+  const hasPhotoUpdates = true;
+  const hasVideoUpdates = true;
   const previewAspectClass = getAspectRatioClass(videoAspectRatio);
   const isPortraitPreview = videoAspectRatio === '9:16';
   const previewLayoutClass = isPortraitPreview
@@ -314,9 +411,24 @@ export default function SegmentInspector({
 
   const handleRegenerate = (type: 'photo' | 'video') => {
     if (!onRegenerate) return;
+    const normalizedShots = shots.map((shot, idx) => ({
+      id: idx + 1,
+      time_range: shot.time_range.trim(),
+      audio: shot.audio.trim(),
+      style: shot.style.trim(),
+      action: shot.action.trim(),
+      subject: shot.subject.trim(),
+      dialogue: shot.dialogue.trim(),
+      language: shot.language,
+      composition: shot.composition.trim(),
+      context_environment: shot.context_environment.trim(),
+      ambiance_colour_lighting: shot.ambiance_colour_lighting.trim(),
+      camera_motion_positioning: shot.camera_motion_positioning.trim()
+    }));
     const payload: SegmentPromptPayload = {
       first_frame_description: photoPrompt,
-      video: videoPrompt
+      shots: normalizedShots,
+      is_continuation_from_prev: isContinuation
     };
     const referenceProductIds = type === 'photo' && selectedProductIds.length ? selectedProductIds : undefined;
     if (type === 'photo') {
@@ -341,9 +453,6 @@ export default function SegmentInspector({
   };
 
   const handleClose = () => {
-    if ((photoChanged || videoChanged) && !window.confirm('Discard unsaved edits?')) {
-      return;
-    }
     onClose();
   };
 
@@ -447,8 +556,6 @@ export default function SegmentInspector({
               <textarea
                 value={photoPrompt}
                 onChange={e => setPhotoPrompt(e.target.value)}
-                onFocus={() => setPhotoFocused(true)}
-                onBlur={() => setPhotoFocused(false)}
                 rows={6}
                 className={`w-full rounded-2xl border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 ${photoPromptTooLong ? 'border-red-500 focus:ring-red-500' : 'border-gray-200 focus:ring-gray-900 focus:border-gray-900'}`}
                 placeholder="Describe the exact frame you want..."
@@ -457,11 +564,42 @@ export default function SegmentInspector({
                 <span className={photoPromptTooLong ? 'text-red-600' : undefined}>
                   {photoPrompt.length}/{PHOTO_CHAR_LIMIT} characters
                 </span>
-                {photoFocused && photoChanged && !photoPromptTooLong && <span className="text-indigo-600">Unsaved edits</span>}
               </div>
               {photoPromptTooLong && (
                 <p className="text-xs text-red-600">Photo prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
               )}
+              <button
+                type="button"
+                aria-pressed={isContinuation}
+                onClick={() => setIsContinuation(prev => !prev)}
+                className={clsx(
+                  'w-full text-left rounded-2xl border px-4 py-3 flex items-center gap-3 transition',
+                  isContinuation
+                    ? 'border-gray-900 bg-gray-50 text-gray-900'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-900 hover:text-gray-900'
+                )}
+              >
+                <span
+                  className={clsx(
+                    'inline-flex items-center justify-center rounded-full border w-9 h-9 flex-shrink-0',
+                    isContinuation ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300'
+                  )}
+                >
+                  <Link2 className="w-4 h-4" />
+                </span>
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold">Link to previous frame</span>
+                  <span className="block text-xs text-gray-500">
+                    Use the prior segment&apos;s first frame as a reference to keep characters consistent.
+                  </span>
+                </span>
+                <span
+                  className={clsx(
+                    'w-3 h-3 rounded-full border',
+                    isContinuation ? 'bg-gray-900 border-gray-900' : 'border-gray-300'
+                  )}
+                />
+              </button>
               <div className="pt-3 border-t border-dashed border-gray-100 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -543,68 +681,218 @@ export default function SegmentInspector({
             </div>
 
             <div className="rounded-3xl border border-gray-200 p-4 space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Video prompt</p>
-                <p className="text-xs text-gray-500">Controls the segment narration + visuals.</p>
-              </div>
-              <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
-                {VIDEO_TEXT_FIELDS.map(field => (
-                  <label key={field.key} className="block">
-                    <span className="text-xs font-semibold text-gray-700">{field.label}</span>
-                    <textarea
-                      rows={field.key === 'dialogue' ? 2 : 1}
-                      value={videoPrompt[field.key]}
-                      onChange={e =>
-                        setVideoPrompt(prev => ({
-                          ...prev,
-                          [field.key]: e.target.value
-                        }))
-                      }
-                      onFocus={() => setVideoFocusedField(field.key)}
-                      onBlur={() => setVideoFocusedField(current => (current === field.key ? null : current))}
-                      placeholder={field.placeholder}
-                      className={`mt-1 w-full rounded-2xl border px-3 py-2 text-sm text-gray-900 focus:outline-none transition-colors ${field.required && !videoPrompt[field.key].trim() ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-gray-900'}`}
-                    />
-                    {videoFocusedField === field.key && videoPrompt[field.key].trim() !==
-                      initialVideoPrompt[field.key].trim() && (
-                      <span className="text-[11px] text-indigo-600">Edited</span>
-                    )}
-                    {field.required && !videoPrompt[field.key].trim() && (
-                      <span className="text-[11px] text-red-600">This field is required.</span>
-                    )}
-                  </label>
-                ))}
-                <label className="block">
-                  <span className="text-xs font-semibold text-gray-700">Language</span>
-                  <select
-                    value={videoPrompt.language}
-                    onChange={e =>
-                      setVideoPrompt(prev => ({
-                        ...prev,
-                        language: normalizeLanguageCode(e.target.value)
-                      }))
-                    }
-                    className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 border-gray-200 focus:ring-gray-900 focus:border-gray-900 bg-white"
-                  >
-                    {LANGUAGE_OPTIONS.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label} · {option.native}
-                      </option>
-                    ))}
-                  </select>
-                  {videoPrompt.language !== initialVideoPrompt.language && (
-                    <span className="text-[11px] text-indigo-600">Edited</span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Shots</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {shots.length >= 4 && (
+                    <span className="text-[11px] text-gray-500">Max 4 shots</span>
                   )}
-                </label>
+                  <button
+                    type="button"
+                    onClick={handleAddShot}
+                    disabled={shots.length >= 4}
+                    className={clsx(
+                      'inline-flex items-center justify-center rounded-full border text-xs font-semibold transition w-9 h-9',
+                      shots.length >= 4
+                        ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
+                    )}
+                    title="Add shot"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="sr-only">Add shot</span>
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {shots.map(shot => {
+                  const expanded = shotExpansion[shot.id] ?? false;
+                  const summaryText = shot.subject?.trim() || shot.action?.trim() || shot.dialogue?.trim() || 'Add more shot detail.';
+                  const toggleCard = () => toggleShotExpansion(shot.id);
+                  return (
+                    <div key={shot.id} className="rounded-2xl border border-gray-200 p-3 space-y-3 bg-white">
+                      <div className="flex items-start justify-between gap-3">
+                        <div
+                          className="flex-1 cursor-pointer select-none"
+                          role="button"
+                          tabIndex={0}
+                          onClick={toggleCard}
+                          onKeyDown={event => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              toggleCard();
+                            }
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-semibold text-gray-900">Shot {shot.id}</div>
+                            <span className="text-[11px] font-medium text-gray-500">{shot.time_range || '00:00 - 00:02'}</span>
+                          </div>
+                          {!expanded && (
+                            <p className="mt-1 text-xs text-gray-500 line-clamp-2">{summaryText}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            data-shot-control="true"
+                            onClick={() => handleRemoveShot(shot.id)}
+                            disabled={shots.length <= 1}
+                            className={clsx(
+                              'inline-flex items-center justify-center rounded-full border w-8 h-8',
+                              shots.length <= 1
+                                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                                : 'border-red-200 text-red-500 hover:bg-red-50'
+                            )}
+                            title="Remove shot"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="sr-only">Remove shot</span>
+                          </button>
+                          <button
+                            type="button"
+                            data-shot-control="true"
+                            onClick={() => toggleShotExpansion(shot.id)}
+                            className="inline-flex items-center justify-center rounded-full border border-gray-200 p-1 text-gray-600 hover:bg-gray-50"
+                          >
+                            <ChevronDown className={clsx('w-4 h-4 transition-transform', expanded ? 'rotate-180' : '')} />
+                            <span className="sr-only">Toggle shot</span>
+                          </button>
+                        </div>
+                      </div>
+                      {expanded && (
+                        <>
+                          <label className="block text-xs font-semibold text-gray-700">
+                            Time range (relative)
+                            <input
+                              type="text"
+                              value={shot.time_range}
+                              onChange={e => handleShotChange(shot.id, 'time_range', e.target.value)}
+                              className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                              placeholder="00:00 - 00:02"
+                            />
+                          </label>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Subject
+                              <textarea
+                                value={shot.subject}
+                                onChange={e => handleShotChange(shot.id, 'subject', e.target.value)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                                rows={2}
+                              />
+                            </label>
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Action
+                              <textarea
+                                value={shot.action}
+                                onChange={e => handleShotChange(shot.id, 'action', e.target.value)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                                rows={2}
+                              />
+                            </label>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Style
+                              <textarea
+                                value={shot.style}
+                                onChange={e => handleShotChange(shot.id, 'style', e.target.value)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                                rows={2}
+                              />
+                            </label>
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Audio / Music
+                              <textarea
+                                value={shot.audio}
+                                onChange={e => handleShotChange(shot.id, 'audio', e.target.value)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                                rows={2}
+                              />
+                            </label>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Dialogue / VO
+                              <textarea
+                                value={shot.dialogue}
+                                onChange={e => handleShotChange(shot.id, 'dialogue', e.target.value)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                                rows={2}
+                              />
+                            </label>
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Language
+                              <select
+                                value={shot.language}
+                                onChange={e => handleShotChange(shot.id, 'language', e.target.value as LanguageCode)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                              >
+                                {LANGUAGE_OPTIONS.map(option => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Composition / Camera
+                              <textarea
+                                value={shot.composition}
+                                onChange={e => handleShotChange(shot.id, 'composition', e.target.value)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                                rows={2}
+                              />
+                            </label>
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Camera Motion
+                              <textarea
+                                value={shot.camera_motion_positioning}
+                                onChange={e => handleShotChange(shot.id, 'camera_motion_positioning', e.target.value)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                                rows={2}
+                              />
+                            </label>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Environment
+                              <textarea
+                                value={shot.context_environment}
+                                onChange={e => handleShotChange(shot.id, 'context_environment', e.target.value)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                                rows={2}
+                              />
+                            </label>
+                            <label className="block text-xs font-semibold text-gray-700">
+                              Ambiance / Lighting
+                              <textarea
+                                value={shot.ambiance_colour_lighting}
+                                onChange={e => handleShotChange(shot.id, 'ambiance_colour_lighting', e.target.value)}
+                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
+                                rows={2}
+                              />
+                            </label>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-              <div className="rounded-3xl border border-gray-200 p-4 space-y-3">
+            <div className="rounded-3xl border border-gray-200 p-4 space-y-3">
                 <div className="flex flex-col gap-2">
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-gray-900 text-white py-2.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!regenEnabled || !photoChanged || submittingPhoto || photoPromptTooLong}
+                  disabled={!regenEnabled || !hasPhotoUpdates || submittingPhoto || photoPromptTooLong}
                   onClick={() => handleRegenerate('photo')}
                 >
                   {submittingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
@@ -613,12 +901,17 @@ export default function SegmentInspector({
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!regenEnabled || !videoChanged || submittingVideo || requiredVideoFieldsMissing}
+                  disabled={!regenEnabled || !hasVideoUpdates || submittingVideo || shotsIncomplete}
                   onClick={() => handleRegenerate('video')}
                 >
                   {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   Regenerate Video
                 </button>
+                {shotsIncomplete && (
+                  <p className="text-[11px] text-red-600 text-center">
+                    Please complete every shot field (audio, action, dialogue, etc.) before regenerating the video.
+                  </p>
+                )}
                 {!regenEnabled && (
                   <p className="text-xs text-gray-500 text-center">
                     Backend endpoint not wired yet. Edits will stay local until regeneration is enabled.
@@ -631,31 +924,6 @@ export default function SegmentInspector({
       </div>
     </div>
   );
-}
-
-function createEditableVideoPrompt(prompt?: Partial<SegmentPrompt>): EditableVideoPrompt {
-  return {
-    action: prompt?.action || '',
-    subject: prompt?.subject || '',
-    style: prompt?.style || '',
-    dialogue: prompt?.dialogue || '',
-    audio: prompt?.audio || '',
-    composition: prompt?.composition || '',
-    context_environment: prompt?.context_environment || '',
-    camera_motion_positioning: prompt?.camera_motion_positioning || '',
-    ambiance_colour_lighting: prompt?.ambiance_colour_lighting || '',
-    language: normalizeLanguageCode(prompt?.language)
-  };
-}
-
-function areVideoPromptsEqual(a: EditableVideoPrompt, b: EditableVideoPrompt) {
-  return Object.keys(a).every(key => a[key as keyof EditableVideoPrompt].trim() === b[key as keyof EditableVideoPrompt].trim());
-}
-
-function normalizeLanguageCode(value?: string): LanguageCode {
-  if (!value) return DEFAULT_LANGUAGE;
-  const lower = value.toLowerCase() as LanguageCode;
-  return (LANGUAGE_OPTIONS.find(option => option.value === lower)?.value) || DEFAULT_LANGUAGE;
 }
 
 function getAspectRatioClass(ratio?: string | null) {
@@ -684,6 +952,8 @@ function formatSegmentStatus(status: string) {
   switch ((status || '').toLowerCase()) {
     case 'pending_first_frame':
       return 'Waiting for first frame';
+    case 'awaiting_prev_first_frame':
+      return 'Waiting for previous frame';
     case 'generating_first_frame':
       return 'Generating first frame';
     case 'first_frame_ready':

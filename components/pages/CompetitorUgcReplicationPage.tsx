@@ -1593,18 +1593,35 @@ function composeSegmentPromptUpdate(
   payload: SegmentPromptPayload,
   current?: Partial<SegmentPrompt>
 ): Partial<SegmentPrompt> {
+  const normalizedShots = payload.shots.map((shot, index) => ({
+    id: shot.id ?? index + 1,
+    time_range: shot.time_range.trim(),
+    audio: shot.audio.trim(),
+    style: shot.style.trim(),
+    action: shot.action.trim(),
+    subject: shot.subject.trim(),
+    dialogue: shot.dialogue.trim(),
+    language: shot.language,
+    composition: shot.composition.trim(),
+    context_environment: shot.context_environment.trim(),
+    ambiance_colour_lighting: shot.ambiance_colour_lighting.trim(),
+    camera_motion_positioning: shot.camera_motion_positioning.trim()
+  }));
+  const primaryShot = normalizedShots[0];
   return {
     ...current,
     first_frame_description: payload.first_frame_description,
-    action: payload.video.action,
-    subject: payload.video.subject,
-    style: payload.video.style,
-    dialogue: payload.video.dialogue,
-    audio: payload.video.audio,
-    composition: payload.video.composition,
-    context_environment: payload.video.context_environment,
-    camera_motion_positioning: payload.video.camera_motion_positioning,
-    ambiance_colour_lighting: payload.video.ambiance_colour_lighting,
-    language: payload.video.language
+    action: primaryShot?.action || current?.action || '',
+    subject: primaryShot?.subject || current?.subject || '',
+    style: primaryShot?.style || current?.style || '',
+    dialogue: primaryShot?.dialogue || current?.dialogue || '',
+    audio: primaryShot?.audio || current?.audio || '',
+    composition: primaryShot?.composition || current?.composition || '',
+    context_environment: primaryShot?.context_environment || current?.context_environment || '',
+    camera_motion_positioning: primaryShot?.camera_motion_positioning || current?.camera_motion_positioning || '',
+    ambiance_colour_lighting: primaryShot?.ambiance_colour_lighting || current?.ambiance_colour_lighting || '',
+    language: primaryShot?.language || current?.language || 'en',
+    is_continuation_from_prev: payload.is_continuation_from_prev,
+    shots: normalizedShots
   };
 }

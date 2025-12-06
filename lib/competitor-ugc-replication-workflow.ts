@@ -12,7 +12,13 @@ import {
   type LanguageCode,
   type VideoDuration
 } from '@/lib/constants';
-import { parseCompetitorTimeline, sumShotDurations, type CompetitorShot } from '@/lib/competitor-shots';
+import {
+  parseCompetitorTimeline,
+  sumShotDurations,
+  parseTimecode,
+  formatTimecode,
+  type CompetitorShot
+} from '@/lib/competitor-shots';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 async function retryAsync<T>(fn: () => Promise<T>, options?: { maxAttempts?: number; baseDelayMs?: number; label?: string }): Promise<T> {
@@ -92,6 +98,24 @@ interface WorkflowResult {
   details?: string;
 }
 
+export type SegmentShot = {
+  id: number;
+  time_range: string;
+  start_seconds?: number;
+  end_seconds?: number;
+  duration_seconds?: number;
+  audio: string;
+  style: string;
+  action: string;
+  subject: string;
+  dialogue: string;
+  language: string;
+  composition: string;
+  context_environment: string;
+  ambiance_colour_lighting: string;
+  camera_motion_positioning: string;
+};
+
 export type SegmentPrompt = {
   audio: string;
   style: string;
@@ -109,6 +133,18 @@ export type SegmentPrompt = {
   contains_product?: boolean; // Whether this segment/shot contains product
   description?: string;
   first_frame_image_size?: string;
+  is_continuation_from_prev?: boolean;
+  shots?: SegmentShot[];
+};
+
+export type SerializedSegmentPlan = {
+  segments: Array<SerializedSegmentPlanSegment>;
+};
+
+export type SerializedSegmentPlanSegment = {
+  first_frame_description?: string;
+  is_continuation_from_prev?: boolean;
+  shots?: SegmentShot[];
 };
 
 type DerivedSegmentDetails = {
@@ -147,10 +183,155 @@ const cleanSegmentText = (value: unknown): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+export const DEFAULT_SEGMENT_DURATION_SECONDS = 8;
+
+const normalizeShotTimeRange = (
+  raw: unknown,
+  fallbackStart: number,
+  fallbackDuration: number
+): { display: string; start: number; end: number; duration: number } => {
+  if (typeof raw === 'string') {
+    const parts = raw.split('-').map(part => part.trim());
+    if (parts.length === 2) {
+      const start = parseTimecode(parts[0]) ?? fallbackStart;
+      const parsedEnd = parseTimecode(parts[1]);
+      if (parsedEnd !== null && parsedEnd !== undefined && parsedEnd > start) {
+        const duration = Math.max(1, Math.round(parsedEnd - start));
+        return {
+          display: `${formatTimecode(start)} - ${formatTimecode(parsedEnd)}`,
+          start,
+          end: parsedEnd,
+          duration
+        };
+      }
+      const end = fallbackStart + fallbackDuration;
+      const duration = Math.max(1, Math.round(end - start));
+      return {
+        display: `${formatTimecode(start)} - ${formatTimecode(end)}`,
+        start,
+        end,
+        duration
+      };
+    }
+  }
+
+  const start = fallbackStart;
+  const end = fallbackStart + fallbackDuration;
+  return {
+    display: `${formatTimecode(start)} - ${formatTimecode(end)}`,
+    start,
+    end,
+    duration: Math.max(1, Math.round(fallbackDuration))
+  };
+};
+
+const buildFallbackShot = (
+  id: number,
+  language: string,
+  segment: Partial<SegmentPrompt>,
+  durationSeconds: number
+): SegmentShot => {
+  const { display, start, end, duration } = normalizeShotTimeRange(undefined, 0, durationSeconds);
+  return {
+    id,
+    time_range: display,
+    start_seconds: start,
+    end_seconds: end,
+    duration_seconds: duration,
+    audio: cleanSegmentText(segment.audio) || '',
+    style: cleanSegmentText(segment.style) || '',
+    action: cleanSegmentText(segment.action) || '',
+    subject: cleanSegmentText(segment.subject) || '',
+    dialogue: cleanSegmentText(segment.dialogue) || '',
+    language,
+    composition: cleanSegmentText(segment.composition) || '',
+    context_environment: cleanSegmentText(segment.context_environment) || '',
+    ambiance_colour_lighting: cleanSegmentText(segment.ambiance_colour_lighting) || '',
+    camera_motion_positioning: cleanSegmentText(segment.camera_motion_positioning) || ''
+  };
+};
+
+const convertCompetitorShotToSegmentShot = (
+  id: number,
+  language: string,
+  shot: CompetitorShot,
+  fallbackDuration: number
+): SegmentShot => {
+  const startSeconds = parseTimecode(shot.startTime) ?? 0;
+  const endSeconds = parseTimecode(shot.endTime) ?? startSeconds + Math.max(1, shot.durationSeconds || fallbackDuration);
+  const durationSeconds = Math.max(1, Math.round(endSeconds - startSeconds));
+  return {
+    id,
+    time_range: `${formatTimecode(startSeconds)} - ${formatTimecode(endSeconds)}`,
+    start_seconds: startSeconds,
+    end_seconds: endSeconds,
+    duration_seconds: durationSeconds,
+    audio: shot.audio || '',
+    style: shot.style || '',
+    action: shot.action || '',
+    subject: shot.subject || '',
+    dialogue: '',
+    language,
+    composition: shot.composition || '',
+    context_environment: shot.contextEnvironment || '',
+    ambiance_colour_lighting: shot.ambianceColourLighting || '',
+    camera_motion_positioning: shot.cameraMotionPositioning || ''
+  };
+};
+
+const normalizeSegmentShots = (
+  rawShots: unknown,
+  segmentDurationSeconds: number,
+  defaultLanguage: string,
+  fallbackSegment: Partial<SegmentPrompt>,
+  competitorShot?: CompetitorShot
+): SegmentShot[] => {
+  const duration = Number.isFinite(segmentDurationSeconds) && segmentDurationSeconds > 0
+    ? segmentDurationSeconds
+    : DEFAULT_SEGMENT_DURATION_SECONDS;
+
+  if (Array.isArray(rawShots) && rawShots.length > 0) {
+    return rawShots.map((shot, index) => {
+      const record = (shot && typeof shot === 'object') ? (shot as Record<string, unknown>) : {};
+      const perShotDuration = duration / rawShots.length;
+      const { display, start, end, duration: normalizedDuration } = normalizeShotTimeRange(
+        record.time_range,
+        Math.round(index * perShotDuration),
+        perShotDuration
+      );
+
+      return {
+        id: index + 1,
+        time_range: display,
+        start_seconds: start,
+        end_seconds: end,
+        duration_seconds: normalizedDuration,
+        audio: cleanSegmentText(record.audio) || cleanSegmentText(fallbackSegment.audio) || '',
+        style: cleanSegmentText(record.style) || cleanSegmentText(fallbackSegment.style) || '',
+        action: cleanSegmentText(record.action) || cleanSegmentText(fallbackSegment.action) || '',
+        subject: cleanSegmentText(record.subject) || cleanSegmentText(fallbackSegment.subject) || '',
+        dialogue: cleanSegmentText(record.dialogue) || cleanSegmentText(fallbackSegment.dialogue) || '',
+        language: cleanSegmentText(record.language) || defaultLanguage,
+        composition: cleanSegmentText(record.composition) || cleanSegmentText(fallbackSegment.composition) || '',
+        context_environment: cleanSegmentText(record.context_environment) || cleanSegmentText(fallbackSegment.context_environment) || '',
+        ambiance_colour_lighting: cleanSegmentText(record.ambiance_colour_lighting) || cleanSegmentText(fallbackSegment.ambiance_colour_lighting) || '',
+        camera_motion_positioning: cleanSegmentText(record.camera_motion_positioning) || cleanSegmentText(fallbackSegment.camera_motion_positioning) || ''
+      };
+    });
+  }
+
+  if (competitorShot) {
+    return [convertCompetitorShotToSegmentShot(1, defaultLanguage, competitorShot, duration)];
+  }
+
+  return [buildFallbackShot(1, defaultLanguage, fallbackSegment, duration)];
+};
+
 export function deriveSegmentDetails(segment: SegmentPrompt): DerivedSegmentDetails {
-  const subject = cleanSegmentText(segment.subject);
-  const action = cleanSegmentText(segment.action);
-  const style = cleanSegmentText(segment.style);
+  const primaryShot = Array.isArray(segment.shots) && segment.shots.length > 0 ? segment.shots[0] : undefined;
+  const subject = cleanSegmentText(primaryShot?.subject) || cleanSegmentText(segment.subject);
+  const action = cleanSegmentText(primaryShot?.action) || cleanSegmentText(segment.action);
+  const style = cleanSegmentText(primaryShot?.style) || cleanSegmentText(segment.style);
   const descriptionParts = [
     action,
     subject ? `Hero focus: ${subject}` : undefined,
@@ -158,12 +339,12 @@ export function deriveSegmentDetails(segment: SegmentPrompt): DerivedSegmentDeta
   ].filter(Boolean);
 
   const description = descriptionParts.join('. ') || SEGMENT_DEFAULTS.description;
-  const setting = cleanSegmentText(segment.context_environment) || SEGMENT_DEFAULTS.setting;
-  const cameraType = cleanSegmentText(segment.composition) || SEGMENT_DEFAULTS.camera_type;
-  const cameraMovement = cleanSegmentText(segment.camera_motion_positioning) || SEGMENT_DEFAULTS.camera_movement;
-  const lighting = cleanSegmentText(segment.ambiance_colour_lighting) || SEGMENT_DEFAULTS.lighting;
-  const dialogue = cleanSegmentText(segment.dialogue) || SEGMENT_DEFAULTS.dialogue;
-  const music = cleanSegmentText(segment.audio) || SEGMENT_DEFAULTS.music;
+  const setting = cleanSegmentText(primaryShot?.context_environment) || cleanSegmentText(segment.context_environment) || SEGMENT_DEFAULTS.setting;
+  const cameraType = cleanSegmentText(primaryShot?.composition) || cleanSegmentText(segment.composition) || SEGMENT_DEFAULTS.camera_type;
+  const cameraMovement = cleanSegmentText(primaryShot?.camera_motion_positioning) || cleanSegmentText(segment.camera_motion_positioning) || SEGMENT_DEFAULTS.camera_movement;
+  const lighting = cleanSegmentText(primaryShot?.ambiance_colour_lighting) || cleanSegmentText(segment.ambiance_colour_lighting) || SEGMENT_DEFAULTS.lighting;
+  const dialogue = cleanSegmentText(primaryShot?.dialogue) || cleanSegmentText(segment.dialogue) || SEGMENT_DEFAULTS.dialogue;
+  const music = cleanSegmentText(primaryShot?.audio) || cleanSegmentText(segment.audio) || SEGMENT_DEFAULTS.music;
   const otherDetails = style ? `Visual style: ${style}` : SEGMENT_DEFAULTS.other_details;
   const firstFrame = cleanSegmentText(segment.first_frame_description) || description;
 
@@ -290,70 +471,38 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       // Store brand logo URL for brand-only shots
       brandLogoUrl = product.brand?.brand_logo_url || null;
     }
-    // NEW: If no product selected but brand is selected, get default product from brand
-    else if (request.selectedBrandId && !imageUrl) {
-      console.log(`🏢 No product selected, fetching default from brand: ${request.selectedBrandId}`);
 
-      const fetchBrand = async () => {
-        const { data: brand, error: brandError } = await supabase
-          .from('user_brands')
-          .select(`
-            id,
-            brand_name,
-            brand_slogan,
-            brand_details,
-            brand_logo_url,
-            user_products (
-              id,
-              product_details,
-              user_product_photos (
-                photo_url,
-                is_primary
-              )
-            )
-          `)
-          .eq('id', request.selectedBrandId)
-          .eq('user_id', request.userId)
-          .single();
-        if (brandError) throw brandError;
-        return brand;
-      };
-
-      const brand = await retryAsync(fetchBrand, { maxAttempts: 3, baseDelayMs: 500, label: 'Brand fetch' });
-
-      if (!brand) {
-        console.error('Brand query failed after retries');
-        return {
-          success: false,
-          error: 'Brand not found',
-          details: 'Selected brand does not exist or does not belong to this user'
+    if (request.selectedBrandId) {
+      const shouldFetchBrand = !brandLogoUrl || !productContext.brand_name;
+      if (shouldFetchBrand) {
+        const fetchBrand = async () => {
+          const { data: brand, error: brandError } = await supabase
+            .from('user_brands')
+            .select('id,brand_name,brand_slogan,brand_details,brand_logo_url')
+            .eq('id', request.selectedBrandId)
+            .eq('user_id', request.userId)
+            .single();
+          if (brandError) throw brandError;
+          return brand;
         };
-      }
 
-      // Store brand context
-      productContext = {
-        product_details: '',
-        brand_name: brand.brand_name || '',
-        brand_slogan: brand.brand_slogan || '',
-        brand_details: brand.brand_details || ''
-      };
-
-      // Store brand logo URL
-      brandLogoUrl = brand.brand_logo_url || null;
-
-      // Try to get the first product as default
-      const firstProduct = brand.user_products?.[0];
-      if (firstProduct && firstProduct.user_product_photos?.length > 0) {
-        const primaryPhoto = firstProduct.user_product_photos.find((photo: { is_primary: boolean }) => photo.is_primary);
-        const fallbackPhoto = firstProduct.user_product_photos[0];
-        const selectedPhoto = primaryPhoto || fallbackPhoto;
-
-        imageUrl = selectedPhoto.photo_url;
-        productContext.product_details = firstProduct.product_details || '';
-
-        console.log(`✅ Using brand's first product as default: ${imageUrl}`);
-      } else {
-        console.log(`ℹ️  No products found for brand. Will use Text-to-Image for product shots.`);
+        const brand = await retryAsync(fetchBrand, { maxAttempts: 3, baseDelayMs: 500, label: 'Brand fetch' });
+        if (brand) {
+          productContext = {
+            ...productContext,
+            brand_name: brand.brand_name || productContext.brand_name,
+            brand_slogan: brand.brand_slogan || productContext.brand_slogan,
+            brand_details: brand.brand_details || productContext.brand_details
+          };
+          brandLogoUrl = brand.brand_logo_url || brandLogoUrl;
+        } else {
+          console.error('Brand query failed after retries');
+          return {
+            success: false,
+            error: 'Brand not found',
+            details: 'Selected brand does not exist or does not belong to this user'
+          };
+        }
       }
     }
 
@@ -692,7 +841,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     if (precomputedSegmentPlan?.length === segmentCount) {
       const { error: planSeedError } = await supabase
         .from('competitor_ugc_replication_projects')
-        .update({ segment_plan: { segments: precomputedSegmentPlan } })
+        .update({ segment_plan: serializeSegmentPlan(precomputedSegmentPlan) })
         .eq('id', project.id);
       if (planSeedError) {
         console.error('⚠️ Failed to seed segment plan with competitor timeline:', planSeedError);
@@ -1004,7 +1153,10 @@ async function startAIWorkflow(
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
-    const primarySegmentPrompt = segmentCount === 1 ? normalizeSegmentPrompts(prompts, 1)[0] : undefined;
+    const singleSegmentDuration = segmentCount === 1 ? (totalDurationSeconds || DEFAULT_SEGMENT_DURATION_SECONDS) : undefined;
+    const primarySegmentPrompt = segmentCount === 1
+      ? normalizeSegmentPrompts(prompts, 1, undefined, singleSegmentDuration)[0]
+      : undefined;
     const primarySegmentDetails = primarySegmentPrompt ? deriveSegmentDetails(primarySegmentPrompt) : undefined;
 
     if (!shotPlanForSegments && segmentedFlow && competitorTimelineShots && competitorTimelineShots.length > 0) {
@@ -1030,7 +1182,8 @@ async function startAIWorkflow(
         shotPlanForSegments,
         brandLogoUrl, // NEW: Pass brand logo URL
         request.imageUrl ? [request.imageUrl] : null, // Provide initial product reference if available
-        productContext // NEW: Pass product context for fallback text generation
+        productContext, // NEW: Pass product context for fallback text generation
+        competitorAdContext?.file_type || null
       );
       return;
     }
@@ -1647,64 +1800,94 @@ async function generateImageBasedPrompts(
   const perSegmentDuration = Math.max(8, Math.round(duration / Math.max(1, segmentCount)));
   const dialogueWordLimit = Math.max(12, Math.round(perSegmentDuration * 2.2));
 
-  const segmentProperties: Record<string, unknown> = {
+  const shotProperties = {
+    time_range: { type: "string", description: `Shot-relative time span formatted as MM:SS - MM:SS (starts at 00:00, ends at ${formatTimecode(perSegmentDuration)})` },
     audio: { type: "string", description: "Music or sound cue" },
     style: { type: "string", description: "Visual style for the shot" },
     action: { type: "string", description: "Exact moment to recreate" },
     subject: { type: "string", description: "Primary actors or objects" },
+    dialogue: { type: "string", description: "Voiceover/dialogue line" },
+    language: { type: "string", description: "Language short code (e.g., en, zh)" },
     composition: { type: "string", description: "Shot framing" },
     context_environment: { type: "string", description: "Location/environment context" },
-    first_frame_description: { type: "string", description: "Detailed opening frame" },
     ambiance_colour_lighting: { type: "string", description: "Color and lighting mood" },
-    camera_motion_positioning: { type: "string", description: "Camera motion and placement" },
-    dialogue: { type: "string", description: "Voiceover/dialogue line" },
-    language: { type: "string", description: "Language identifier" },
-    index: { type: "integer", description: "1-indexed order of the shot" }
+    camera_motion_positioning: { type: "string", description: "Camera motion and placement" }
+  } as const;
+
+  const shotRequiredFields = [
+    'time_range',
+    'audio',
+    'style',
+    'action',
+    'subject',
+    'dialogue',
+    'language',
+    'composition',
+    'context_environment',
+    'ambiance_colour_lighting',
+    'camera_motion_positioning'
+  ];
+
+  const segmentProperties: Record<string, unknown> = {
+    first_frame_description: { type: "string", description: "Detailed opening frame" },
+    is_continuation_from_prev: { type: "boolean", description: "true if this segment continues the same camera setup as the previous segment" },
+    shots: {
+      type: "array",
+      minItems: 2,
+      maxItems: 4,
+      description: `Timeline beats that cover the entire ${perSegmentDuration}-second segment (each entry is a relative time span)`,
+      items: {
+        type: "object",
+        properties: shotProperties,
+        required: shotRequiredFields,
+        additionalProperties: false
+      }
+    }
   };
 
   const segmentRequiredFields = [
-    "audio",
-    "style",
-    "action",
-    "subject",
-    "composition",
-    "context_environment",
     "first_frame_description",
-    "ambiance_colour_lighting",
-    "camera_motion_positioning",
-    "dialogue",
-    "language",
-    "index"
+    "is_continuation_from_prev",
+    "shots"
   ];
 
-  const segmentFieldList = '"audio", "style", "action", "subject", "composition", "context_environment", "first_frame_description", "ambiance_colour_lighting", "camera_motion_positioning", "dialogue", "language", "index"';
+  const segmentFieldList = '"first_frame_description", "is_continuation_from_prev", "shots"';
 
   const strictSegmentFormat = `Segment Output Requirements:
 - Output EXACTLY ${segmentCount} segment objects inside the "segments" array.
 - Each segment MUST include only: ${segmentFieldList}.
+- DO NOT add keys like "audio", "style", or "action" at the segment level — that information belongs inside each shot.
 - Dialogue must stay under ${dialogueWordLimit} words and be natural.
+- "is_continuation_from_prev" must be false for Segment 1, and only true when the current segment continues the exact same camera move/subject as the previous segment.
+- "shots" must contain 2-4 entries that evenly cover the entire ${perSegmentDuration}-second segment runtime. Each shot's "time_range" is RELATIVE to the start of the segment (e.g., "00:00 - 00:02", "00:02 - 00:04"), and the final shot must end at ${formatTimecode(perSegmentDuration)}.
+
 
 Return JSON:
 {
   "segments": [
     {
-      "audio": string,
-      "style": string,
-      "action": string,
-      "subject": string,
-      "composition": string,
-      "context_environment": string,
       "first_frame_description": string,
-      "ambiance_colour_lighting": string,
-      "camera_motion_positioning": string,
-      "dialogue": string,
-      "language": string,
-      "index": number
+      "is_continuation_from_prev": boolean,
+      "shots": [
+        {
+          "time_range": "00:00 - 00:02",
+          "audio": string,
+          "style": string,
+          "action": string,
+          "subject": string,
+          "dialogue": string,
+          "language": string,
+          "composition": string,
+          "context_environment": string,
+          "ambiance_colour_lighting": string,
+          "camera_motion_positioning": string
+        }
+      ]
     }
   ]
 }
 
-No other top-level keys or metadata. Do not include timing fields, summaries, or additional properties.`;
+No other top-level keys or metadata.`;
 
   const responseFormat = {
     type: "json_schema",
@@ -1967,7 +2150,7 @@ async function generateCover(
   }
 
   const kieModelName = IMAGE_MODELS[actualImageModel];
-  const [primarySegment] = normalizeSegmentPrompts(prompts, 1);
+  const [primarySegment] = normalizeSegmentPrompts(prompts, 1, undefined, DEFAULT_SEGMENT_DURATION_SECONDS);
   const primarySegmentDetails = primarySegment ? deriveSegmentDetails(primarySegment) : undefined;
 
   // Build prompt that preserves original product appearance
@@ -2132,12 +2315,14 @@ async function startSegmentedWorkflow(
   competitorShots?: CompetitorShot[],
   brandLogoUrl?: string | null, // NEW: Brand logo URL for brand shots
   productImageUrls?: string[] | null, // UPDATED: Multiple product image URLs for product shots
-  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string } // NEW: For text fallback
+  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string }, // NEW: For text fallback
+  competitorFileType?: 'video' | 'image' | null
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
   const defaultFrameSize = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
-  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, competitorShots).map(segment => ({
+  const perSegmentDurationSeconds = request.videoModel === 'grok' ? 6 : DEFAULT_SEGMENT_DURATION_SECONDS;
+  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, competitorShots, perSegmentDurationSeconds).map(segment => ({
     ...segment,
     first_frame_image_size: segment.first_frame_image_size || defaultFrameSize
   }));
@@ -2157,7 +2342,9 @@ async function startSegmentedWorkflow(
     project_id: projectId,
     segment_index: index,
     status: 'pending_first_frame',
-    prompt: segmentPrompt
+    prompt: serializeSegmentPrompt(segmentPrompt),
+    contains_brand: segmentPrompt.contains_brand === true,
+    contains_product: segmentPrompt.contains_product === true
   }));
 
   const { data: insertedSegments, error } = await supabase
@@ -2176,7 +2363,7 @@ async function startSegmentedWorkflow(
     .from('competitor_ugc_replication_projects')
     .update({
       video_prompts: prompts,
-      segment_plan: { segments: normalizedSegments },
+      segment_plan: serializeSegmentPlan(normalizedSegments),
       current_step: 'generating_segment_frames',
       progress_percentage: 35,
       last_processed_at: now,
@@ -2187,6 +2374,22 @@ async function startSegmentedWorkflow(
   for (const segment of segments) {
     const promptData = normalizedSegments[segment.segment_index];
     const aspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
+    const shouldWaitForContinuation = Boolean(
+      promptData.is_continuation_from_prev && segment.segment_index > 0
+    );
+
+    if (shouldWaitForContinuation) {
+      await supabase
+        .from('competitor_ugc_replication_segments')
+        .update({
+          status: 'awaiting_prev_first_frame',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', segment.id);
+
+      segment.status = 'awaiting_prev_first_frame';
+      continue;
+    }
 
     // Use smart frame generation with automatic routing
     const firstFrameTaskId = await createSmartSegmentFrame(
@@ -2196,7 +2399,10 @@ async function startSegmentedWorkflow(
       aspectRatio,
       brandLogoUrl || null,
       productImageUrls || null,
-      productContext
+      productContext,
+      competitorFileType || null,
+      undefined,
+      null
     );
 
     const { error: updateError } = await supabase
@@ -2226,7 +2432,10 @@ async function startSegmentedWorkflow(
         aspectRatio,
         brandLogoUrl || null,
         productImageUrls || null,
-        productContext
+        productContext,
+        competitorFileType || null,
+        undefined,
+        null
       );
 
       await supabase
@@ -2253,7 +2462,8 @@ async function startSegmentedWorkflow(
 export function normalizeSegmentPrompts(
   prompts: Record<string, unknown>,
   segmentCount: number,
-  competitorShots?: CompetitorShot[]
+  competitorShots?: CompetitorShot[],
+  segmentDurationSeconds?: number
 ): SegmentPrompt[] {
   type LooseSegment = Partial<SegmentPrompt> & Record<string, unknown>;
 
@@ -2261,25 +2471,40 @@ export function normalizeSegmentPrompts(
     ? ((prompts as { segments?: LooseSegment[] }).segments || [])
     : [];
 
+  const durationPerSegment = Number.isFinite(segmentDurationSeconds) && segmentDurationSeconds
+    ? Number(segmentDurationSeconds)
+    : DEFAULT_SEGMENT_DURATION_SECONDS;
+
   const normalized: SegmentPrompt[] = [];
 
   for (let index = 0; index < segmentCount; index++) {
     const source = (rawSegments[index] || rawSegments[rawSegments.length - 1] || {}) as LooseSegment;
     const shot = competitorShots?.[index];
     const shotOverrides = shot ? buildSegmentOverridesFromShot(shot) : undefined;
+    const defaultLanguage = cleanSegmentText(source.language) || 'en';
+    const normalizedShots = normalizeSegmentShots(
+      (source as { shots?: unknown }).shots,
+      durationPerSegment,
+      defaultLanguage,
+      source,
+      shot
+    );
+
+    const primaryShot = normalizedShots[0];
+    const fromShot = (field: keyof SegmentShot): string | undefined => cleanSegmentText((primaryShot as Record<string, unknown> | undefined)?.[field]);
 
     const segment: SegmentPrompt = {
-      audio: cleanSegmentText(source.audio) ?? '',
-      style: cleanSegmentText(source.style) ?? '',
-      action: cleanSegmentText(source.action) ?? '',
-      subject: cleanSegmentText(source.subject) ?? '',
-      composition: cleanSegmentText(source.composition) ?? '',
-      context_environment: cleanSegmentText(source.context_environment) ?? '',
+      audio: cleanSegmentText(source.audio) ?? fromShot('audio') ?? '',
+      style: cleanSegmentText(source.style) ?? fromShot('style') ?? '',
+      action: cleanSegmentText(source.action) ?? fromShot('action') ?? '',
+      subject: cleanSegmentText(source.subject) ?? fromShot('subject') ?? '',
+      composition: cleanSegmentText(source.composition) ?? fromShot('composition') ?? '',
+      context_environment: cleanSegmentText(source.context_environment) ?? fromShot('context_environment') ?? '',
       first_frame_description: cleanSegmentText(source.first_frame_description) ?? '',
-      ambiance_colour_lighting: cleanSegmentText(source.ambiance_colour_lighting) ?? '',
-      camera_motion_positioning: cleanSegmentText(source.camera_motion_positioning) ?? '',
-      dialogue: cleanSegmentText(source.dialogue) ?? '',
-      language: cleanSegmentText(source.language) ?? 'en',
+      ambiance_colour_lighting: cleanSegmentText(source.ambiance_colour_lighting) ?? fromShot('ambiance_colour_lighting') ?? '',
+      camera_motion_positioning: cleanSegmentText(source.camera_motion_positioning) ?? fromShot('camera_motion_positioning') ?? '',
+      dialogue: cleanSegmentText(source.dialogue) ?? fromShot('dialogue') ?? '',
+      language: cleanSegmentText(source.language) ?? fromShot('language') ?? defaultLanguage,
       index:
         typeof source.index === 'number'
           ? source.index
@@ -2292,13 +2517,96 @@ export function normalizeSegmentPrompts(
       contains_product: typeof source.contains_product === 'boolean'
         ? source.contains_product
         : shotOverrides?.contains_product,
-      first_frame_image_size: source.first_frame_image_size
+      first_frame_image_size: source.first_frame_image_size,
+      is_continuation_from_prev: index === 0
+        ? false
+        : typeof source.is_continuation_from_prev === 'boolean'
+          ? source.is_continuation_from_prev
+          : false,
+      shots: normalizedShots
     };
 
     normalized.push(segment);
   }
 
   return normalized;
+}
+
+export function serializeSegmentPlan(segments: SegmentPrompt[]): SerializedSegmentPlan {
+  return {
+    segments: segments.map(serializeSegmentPrompt)
+  };
+}
+
+export function serializeSegmentPrompt(segment: SegmentPrompt): SerializedSegmentPlanSegment {
+  return {
+    first_frame_description: segment.first_frame_description || '',
+    is_continuation_from_prev: Boolean(segment.is_continuation_from_prev),
+    shots: Array.isArray(segment.shots)
+      ? segment.shots.map(shot => ({
+          id: shot.id,
+          time_range: shot.time_range,
+          start_seconds: shot.start_seconds,
+          end_seconds: shot.end_seconds,
+          duration_seconds: shot.duration_seconds,
+          audio: shot.audio,
+          style: shot.style,
+          action: shot.action,
+          subject: shot.subject,
+          dialogue: shot.dialogue,
+          language: shot.language,
+          composition: shot.composition,
+          context_environment: shot.context_environment,
+          ambiance_colour_lighting: shot.ambiance_colour_lighting,
+          camera_motion_positioning: shot.camera_motion_positioning
+        }))
+      : []
+  };
+}
+
+export function hydrateSerializedSegmentPrompt(
+  planSegment: SerializedSegmentPlanSegment | Record<string, unknown> | null | undefined,
+  segmentIndex: number,
+  segmentDurationSeconds?: number,
+  containsBrand?: boolean,
+  containsProduct?: boolean
+): SegmentPrompt {
+  const hydrated = hydrateSegmentPlan(
+    { segments: [planSegment || {}] },
+    1,
+    segmentDurationSeconds
+  )[0];
+  hydrated.index = segmentIndex + 1;
+  if (planSegment && typeof (planSegment as Record<string, unknown>).is_continuation_from_prev === 'boolean') {
+    hydrated.is_continuation_from_prev = Boolean((planSegment as Record<string, unknown>).is_continuation_from_prev);
+  }
+  hydrated.contains_brand = containsBrand;
+  hydrated.contains_product = containsProduct;
+  return hydrated;
+}
+
+export function hydrateSegmentPlan(
+  plan: SerializedSegmentPlan | Record<string, unknown> | null | undefined,
+  segmentCount: number,
+  segmentDurationSeconds?: number,
+  competitorShots?: CompetitorShot[]
+): SegmentPrompt[] {
+  if (!plan || typeof plan !== 'object') {
+    return [];
+  }
+  const segments = Array.isArray((plan as { segments?: unknown[] }).segments)
+    ? ((plan as { segments?: unknown[] }).segments || [])
+    : [];
+  if (!segments.length) {
+    return [];
+  }
+  const resolvedCount = segmentCount > 0 ? segmentCount : segments.length;
+  return normalizeSegmentPrompts(
+    plan as Record<string, unknown>,
+    resolvedCount,
+    competitorShots,
+    segmentDurationSeconds
+  );
 }
 
 function compressCompetitorShotsToSegments(shots: CompetitorShot[], segmentCount: number): CompetitorShot[] {
@@ -2395,11 +2703,14 @@ export function buildSegmentPlanFromCompetitorShots(segmentCount: number, compet
     ? competitorShots
     : compressCompetitorShotsToSegments(competitorShots, segmentCount);
 
+  const totalDuration = effectiveShots.reduce((sum, shot) => sum + (shot.durationSeconds || DEFAULT_SEGMENT_DURATION_SECONDS), 0);
+  const perSegmentDuration = segmentCount > 0 ? Math.max(1, Math.round(totalDuration / segmentCount)) : DEFAULT_SEGMENT_DURATION_SECONDS;
+
   const placeholderPrompts = {
     segments: Array.from({ length: segmentCount }, (_, index) => ({ index: index + 1 }))
   } as { segments: Array<Partial<SegmentPrompt>> };
 
-  return normalizeSegmentPrompts(placeholderPrompts, segmentCount, effectiveShots);
+  return normalizeSegmentPrompts(placeholderPrompts, segmentCount, effectiveShots, perSegmentDuration);
 }
 
 export function buildSegmentStatusPayload(
@@ -2439,7 +2750,7 @@ async function createFrameFromText(
 ): Promise<string> {
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
-  const imageModel = 'google/nano-banana';
+  const imageModel = IMAGE_MODELS.nano_banana_pro;
 
   // Build prompt from shot description + brand context
   const brandInfo = brandContext && brandContext.brand_name
@@ -2476,7 +2787,8 @@ Technical Requirements:
       model: imageModel,
       input: {
         prompt,
-        image_size: aspectRatio,
+        aspect_ratio: aspectRatio,
+        resolution: '1K',
         output_format: 'png'
       }
     })
@@ -2523,21 +2835,13 @@ async function createFrameFromImage(
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
 
-  // CRITICAL: Competitor reference defaults to nano_banana_pro, but overrides can force a specific model (e.g., docs/kie/nano_banana.md for manual edits)
-  let imageModelKey: 'nano_banana' | 'seedream' | 'nano_banana_pro';
-  if (overrides?.imageModelOverride) {
-    imageModelKey = overrides.imageModelOverride;
-    console.log(`🎛️ Frame override → Using ${imageModelKey} (manual override)`);
-  } else if (competitorFileType) {
-    console.log(`📎 Competitor ${competitorFileType} detected → Using nano_banana_pro (docs/kie/nano_banana_pro.md)`);
-    imageModelKey = 'nano_banana_pro';
-  } else {
-    console.log('🎬 No competitor reference → Using nano_banana (google/nano-banana-edit)');
-    imageModelKey = 'nano_banana';
+  let imageModelKey: 'nano_banana' | 'seedream' | 'nano_banana_pro' = overrides?.imageModelOverride || 'nano_banana_pro';
+  if (!overrides?.imageModelOverride) {
+    console.log('🎨 Forcing nano_banana_pro for all keyframes (docs/kie/nano_banana_pro.md)');
   }
   const imageModel = IMAGE_MODELS[imageModelKey];
   const resolvedAspectRatio = overrides?.imageSizeOverride || aspectRatio;
-  const resolvedResolution = overrides?.resolutionOverride || (imageModelKey === 'nano_banana_pro' ? '1K' : undefined);
+  const resolvedResolution = overrides?.resolutionOverride || '1K';
 
   const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
 
@@ -2634,23 +2938,41 @@ export async function createSmartSegmentFrame(
   productImageUrls: string[] | null,
   brandContext?: { brand_name: string; brand_slogan: string; brand_details: string },
   competitorFileType?: 'video' | 'image' | null,
-  overrides?: FrameGenerationOverrides
+  overrides?: FrameGenerationOverrides,
+  continuationReferenceUrl?: string | null
 ): Promise<string> {
   const containsBrand = segmentPrompt.contains_brand === true;
   const containsProduct = segmentPrompt.contains_product === true;
   const normalizedProductImages = Array.isArray(productImageUrls)
     ? productImageUrls.filter(url => typeof url === 'string' && url.length > 0)
     : [];
+  const shouldUseContinuationReference = Boolean(
+    continuationReferenceUrl && frameType === 'first' && segmentPrompt.is_continuation_from_prev
+  );
+  const continuationReferences: string[] = shouldUseContinuationReference && continuationReferenceUrl
+    ? [continuationReferenceUrl]
+    : [];
 
   console.log(`🎬 Segment ${segmentIndex + 1} ${frameType} frame generation:`);
   console.log(`   - contains_brand: ${containsBrand}, brandLogoUrl: ${brandLogoUrl ? 'available' : 'missing'}`);
   console.log(`   - contains_product: ${containsProduct}, productImageRefs: ${normalizedProductImages.length}`);
+  if (shouldUseContinuationReference) {
+    console.log(`   - continuation_from_prev: using previous first frame as reference`);
+  }
+
+  const combinedReferenceImages = Array.from(
+    new Set([
+      ...continuationReferences,
+      ...(containsBrand && brandLogoUrl ? [brandLogoUrl] : []),
+      ...(containsProduct ? normalizedProductImages : [])
+    ])
+  );
 
   // Priority 1: Brand shots use brand logo (if available)
   if (containsBrand && brandLogoUrl) {
     console.log(`   ✅ Using Image-to-Image with brand logo`);
     return createFrameFromImage(
-      [brandLogoUrl],
+      combinedReferenceImages.length ? combinedReferenceImages : [brandLogoUrl],
       segmentPrompt,
       segmentIndex,
       frameType,
@@ -2665,7 +2987,7 @@ export async function createSmartSegmentFrame(
   if (containsProduct && normalizedProductImages.length > 0) {
     console.log(`   ✅ Using Image-to-Image with product image`);
     return createFrameFromImage(
-      normalizedProductImages,
+      combinedReferenceImages.length ? combinedReferenceImages : normalizedProductImages,
       segmentPrompt,
       segmentIndex,
       frameType,
@@ -2676,7 +2998,22 @@ export async function createSmartSegmentFrame(
     );
   }
 
-  // Priority 3: Fallback to Text-to-Image for pure scene shots
+  // Priority 3: Continuation shots without brand/product references should still reuse previous frame
+  if (shouldUseContinuationReference && combinedReferenceImages.length) {
+    console.log(`   ✅ Using Image-to-Image with continuation reference`);
+    return createFrameFromImage(
+      combinedReferenceImages,
+      segmentPrompt,
+      segmentIndex,
+      frameType,
+      aspectRatio,
+      false,
+      competitorFileType,
+      overrides
+    );
+  }
+
+  // Priority 4: Fallback to Text-to-Image for pure scene shots
   // OR when brand/product is flagged but no image available
   if (!containsBrand && !containsProduct) {
     console.log(`   ✅ Using Text-to-Image (pure scene shot)`);
@@ -2715,35 +3052,57 @@ export async function startSegmentVideoTask(
   const prompts = (project.video_prompts || {}) as { ad_copy?: string };
   const providedAdCopyRaw = typeof prompts.ad_copy === 'string' ? prompts.ad_copy.trim() : undefined;
   const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
-  const description = cleanSegmentText(segmentPrompt.description) || cleanSegmentText(segmentPrompt.first_frame_description) || '';
-  const setting = cleanSegmentText(segmentPrompt.context_environment) || '';
-  const cameraType = cleanSegmentText(segmentPrompt.composition) || '';
-  const cameraMovement = cleanSegmentText(segmentPrompt.camera_motion_positioning) || '';
   const action = cleanSegmentText(segmentPrompt.action) || '';
-  const lighting = cleanSegmentText(segmentPrompt.ambiance_colour_lighting) || '';
   const dialogueContent = providedAdCopy || segmentPrompt.dialogue || '';
   const music = cleanSegmentText(segmentPrompt.audio) || '';
-  const ending = cleanSegmentText(segmentPrompt.action) || '';
-  const otherDetails = segmentPrompt.style ? `Style: ${segmentPrompt.style}` : '';
-
-  const languagePrefix = languageName !== 'English'
-    ? `"language": "${languageName}"\n\n`
-    : '';
 
   const voiceDescriptor = 'Calm professional narrator';
   const voiceToneDescriptor = 'warm and confident';
 
-  const fullPrompt = `${languagePrefix}${description}
+  const perSegmentDuration = project.segment_duration_seconds || (project.video_model === 'grok' ? 6 : DEFAULT_SEGMENT_DURATION_SECONDS);
+  const normalizedShots = (segmentPrompt.shots && segmentPrompt.shots.length > 0
+    ? segmentPrompt.shots
+    : [
+        {
+          id: 1,
+          time_range: `00:00 - ${formatTimecode(perSegmentDuration)}`,
+          audio: music,
+          style: segmentPrompt.style || '',
+          action: action,
+          subject: segmentPrompt.subject || '',
+          dialogue: dialogueContent,
+          language: segmentPrompt.language || languageCode,
+          composition: segmentPrompt.composition || '',
+          context_environment: segmentPrompt.context_environment || '',
+          ambiance_colour_lighting: segmentPrompt.ambiance_colour_lighting || '',
+          camera_motion_positioning: segmentPrompt.camera_motion_positioning || ''
+        }
+      ]
+  ).map(shot => ({
+    time_range: shot.time_range || `00:00 - ${formatTimecode(perSegmentDuration)}`,
+    audio: cleanSegmentText(shot.audio) || music,
+    style: cleanSegmentText(shot.style) || segmentPrompt.style || '',
+    action: cleanSegmentText(shot.action) || action,
+    subject: cleanSegmentText(shot.subject) || segmentPrompt.subject || '',
+    dialogue: cleanSegmentText(shot.dialogue) || dialogueContent,
+    language: cleanSegmentText(shot.language) || languageCode,
+    composition: cleanSegmentText(shot.composition) || segmentPrompt.composition || '',
+    context_environment: cleanSegmentText(shot.context_environment) || segmentPrompt.context_environment || '',
+    ambiance_colour_lighting: cleanSegmentText(shot.ambiance_colour_lighting) || segmentPrompt.ambiance_colour_lighting || '',
+    camera_motion_positioning: cleanSegmentText(shot.camera_motion_positioning) || segmentPrompt.camera_motion_positioning || ''
+  }));
 
-Setting: ${setting}
-Camera: ${cameraType} with ${cameraMovement}
-Action: ${action}
-Lighting: ${lighting}
-Dialogue: ${dialogueContent}
-Music: ${music}
-Ending: ${ending}
-Other details: ${otherDetails}
-Voice: This is segment ${segmentIndex + 1} of ${totalSegments}. Use the exact same narrator voice across all segments — ${voiceDescriptor} with a ${voiceToneDescriptor} tone. Match timbre, accent, gender, pacing, and energy perfectly so the audience cannot tell the clips were generated separately.`;
+  const structuredPromptPayload = {
+    is_continuation_from_prev: Boolean(segmentPrompt.is_continuation_from_prev && segmentIndex > 0),
+    first_frame_description: segmentPrompt.first_frame_description,
+    narrator: {
+      descriptor: voiceDescriptor,
+      tone: voiceToneDescriptor
+    },
+    dialogue_language: languageName,
+    shots: normalizedShots
+  };
+  const fullPrompt = JSON.stringify(structuredPromptPayload);
 
   // Determine imageUrls based on whether a closing frame exists
   // generationType remains 'FIRST_AND_LAST_FRAMES_2_VIDEO' but with 1 or 2 images
@@ -2785,7 +3144,7 @@ Voice: This is segment ${segmentIndex + 1} of ${totalSegments}. Use the exact sa
   }
 
   const requestBody = {
-    prompt: fullPrompt,
+    prompt: JSON.stringify(structuredPromptPayload),
     model: videoModel,
     aspectRatio,
     generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',

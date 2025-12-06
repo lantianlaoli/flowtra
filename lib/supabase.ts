@@ -115,6 +115,8 @@ export interface CompetitorUgcReplicationSegment {
   segment_index: number
   status: string
   prompt?: Record<string, unknown> | null
+  contains_brand?: boolean
+  contains_product?: boolean
   first_frame_task_id?: string | null
   first_frame_url?: string | null
   closing_frame_task_id?: string | null

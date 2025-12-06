@@ -7,7 +7,11 @@ import {
   buildSegmentStatusPayload,
   createSmartSegmentFrame,
   startSegmentVideoTask,
-  type SegmentPrompt
+  serializeSegmentPrompt,
+  hydrateSerializedSegmentPrompt,
+  DEFAULT_SEGMENT_DURATION_SECONDS,
+  type SegmentPrompt,
+  type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
 import { getGenerationCost, getReplicaPhotoCredits } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
@@ -56,7 +60,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { data: project, error: projectError } = await supabase
       .from('competitor_ugc_replication_projects')
       .select(
-        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,selected_product_id,competitor_ad_id'
+        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,selected_product_id,competitor_ad_id'
       )
       .eq('id', projectId)
       .single();
@@ -85,11 +89,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Segment not found' }, { status: 404 });
     }
 
-    const existingPrompt = (segmentRow.prompt || {}) as SegmentPrompt;
+    const segmentDurationSeconds = project.segment_duration_seconds || (project.video_model === 'grok' ? 6 : DEFAULT_SEGMENT_DURATION_SECONDS);
+    const existingPrompt = hydrateSerializedSegmentPrompt(
+      segmentRow.prompt as SerializedSegmentPlanSegment,
+      index,
+      segmentDurationSeconds,
+      segmentRow.contains_brand,
+      segmentRow.contains_product
+    );
     const mergedPrompt = {
       ...existingPrompt,
       ...(payload.prompt || {})
     } as SegmentPrompt;
+    mergedPrompt.contains_brand = existingPrompt.contains_brand;
+    mergedPrompt.contains_product = existingPrompt.contains_product;
     const defaultFrameImageSize = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
     const previousFrameSize = typeof existingPrompt.first_frame_image_size === 'string'
       ? existingPrompt.first_frame_image_size
@@ -118,7 +131,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const now = new Date().toISOString();
     const segmentUpdates: Record<string, unknown> = {
-      prompt: mergedPrompt,
+      prompt: serializeSegmentPrompt(mergedPrompt),
+      contains_brand: mergedPrompt.contains_brand === true,
+      contains_product: mergedPrompt.contains_product === true,
       updated_at: now
     };
 
@@ -230,6 +245,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       await ensureBrandAndProductAssets();
     }
 
+    let continuationReferenceUrl: string | null = null;
+    if (mergedPrompt.is_continuation_from_prev && index > 0) {
+      const { data: prevSegment } = await supabase
+        .from('competitor_ugc_replication_segments')
+        .select('first_frame_url')
+        .eq('project_id', projectId)
+        .eq('segment_index', index - 1)
+        .single();
+      continuationReferenceUrl = prevSegment?.first_frame_url || null;
+      if (!continuationReferenceUrl) {
+        return NextResponse.json({
+          error: 'Previous segment frame not ready',
+          details: 'Wait for the previous segment to finish before regenerating this continuation segment.'
+        }, { status: 409 });
+      }
+    }
+
     if (shouldRegeneratePhoto) {
       const photoCredits = getReplicaPhotoCredits();
       if (photoCredits > 0) {
@@ -251,7 +283,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           imageModelOverride: 'nano_banana_pro',
           imageSizeOverride: frameImageSize,
           resolutionOverride: '1K'
-        }
+        },
+        continuationReferenceUrl
       );
 
       segmentUpdates.first_frame_task_id = firstFrameTaskId;
@@ -274,7 +307,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             imageModelOverride: 'nano_banana_pro',
             imageSizeOverride: frameImageSize,
             resolutionOverride: '1K'
-          }
+          },
+          null
         );
         segmentUpdates.closing_frame_task_id = closingTaskId;
         segmentUpdates.closing_frame_url = null;

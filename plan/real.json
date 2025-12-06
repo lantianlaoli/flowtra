@@ -1,0 +1,94 @@
+{
+    "segments": [
+        {
+            "is_continuation_from_prev": false,
+            "first_frame_description": "The frame opens with a medium close-up of a dark-skinned woman wearing maroon scrubs and a matching surgical cap, framed slightly right of center. She wears black-rimmed glasses and a thin gold necklace. Her left hand is raised slightly to her chest. Behind her, a small inset video box in the top center shows a close-up of a bathroom shelf filled with various bottles and containers (shampoos, serums, supplements), suggesting treatment overload. The text 'IT'S GONNA BE' is overlaid near the bottom on the woman's shirt.",
+            "shots": [
+                {
+                    "audio": "Woman's voiceover: \"It's going to be too many treatments and it's going to be too expensive.\"",
+                    "style": "Informative, advocacy, direct address",
+                    "action": "The woman speaks directly to camera, gesturing to the treatment overload.",
+                    "subject": "Woman (healthcare worker), hair products",
+                    "dialogue": "It's going to be",
+                    "language": "en",
+                    "time_range": "00:00 - 00:02",
+                    "composition": "Medium close-up; hair products inset",
+                    "context_environment": "Medical office",
+                    "ambiance_colour_lighting": "Bright, white balanced light",
+                    "camera_motion_positioning": "Static"
+                },
+                {
+                    "audio": "Woman's voiceover: \"Grab our Rosemary DHT Blocker.\"",
+                    "style": "Informative, direct address",
+                    "action": "The woman gestures and speaks about the high cost of hair loss treatments.",
+                    "subject": "Woman (healthcare worker), $100 bill",
+                    "dialogue": "Grab our Rosemary DHT Blocker.",
+                    "language": "en",
+                    "time_range": "00:02 - 00:04",
+                    "composition": "Medium close-up; $100 bill inset",
+                    "context_environment": "Medical office",
+                    "ambiance_colour_lighting": "Bright, professional lighting.",
+                    "camera_motion_positioning": "Static, front-facing"
+                },
+                {
+                    "audio": "Woman's voiceover: \"It combines natural DHT blocking with root strengthening power.\"",
+                    "style": "Product introduction, direct address",
+                    "action": "The woman introduces the alternative product (Rosemary DHT Blocker) and a detached hand displays the pouch.",
+                    "subject": "Woman (healthcare worker), hand holding 'lunavo Rosemary' pouch",
+                    "dialogue": "It combines natural DHT blocking with root strengthening power.",
+                    "language": "en",
+                    "time_range": "00:04 - 00:06",
+                    "composition": "Medium close-up, product overlay showing the 'lunavo Rosemary' pouch.",
+                    "context_environment": "Medical office",
+                    "ambiance_colour_lighting": "Bright, even lighting.",
+                    "camera_motion_positioning": "Static"
+                },
+                {
+                    "audio": "Woman's voiceover: \"It combines natural DHT blocking with root strengthening power, including the ones I just mentioned.\"",
+                    "style": "Educational, hair health focus",
+                    "action": "The woman explains the compound nature of the product, while the visual inset highlights the active ingredients.",
+                    "subject": "Woman (healthcare worker), rosemary sprigs and hair roots graphic",
+                    "dialogue": "including the ones I just mentioned.",
+                    "language": "en",
+                    "time_range": "00:06 - 00:08",
+                    "composition": "Medium close-up; rosemary sprigs and root diagram still life inset",
+                    "context_environment": "Medical office; visual representation of ingredients",
+                    "ambiance_colour_lighting": "Warm, natural tones in the inset contrast with the bright foreground.",
+                    "camera_motion_positioning": "Static"
+                }
+            ]
+        },
+        {
+            "is_continuation_from_prev": false,
+            "first_frame_description": "The woman remains centered, smiling confidently, now wearing the text 'INCLUDING THE ONES'. A large, looping green circular checkmark animation appears above her head, indicating approval or a successful step in dealing with hair loss. Her hands are placed over her chest in a gesture of sincerity. The background of the medical office is clearly visible, featuring a white examination table and large window on the right.",
+            "shots": [
+                {
+                    "audio": "Woman's voiceover: \"If you still see the orange cart, that means they have not sold out yet. These usually sell out pretty fast...\"",
+                    "style": "Affirmative, conclusive",
+                    "action": "The woman confirms the product's benefits and composition, with a graphic reinforcing the positive message.",
+                    "subject": "Woman (healthcare worker), checkmark graphic",
+                    "dialogue": "If you still see the orange cart, that means they have not sold out yet.",
+                    "language": "en",
+                    "time_range": "00:00 - 00:04",
+                    "composition": "Medium close-up; animated graphic overlay",
+                    "context_environment": "Medical examination room/office setting",
+                    "ambiance_colour_lighting": "Bright, professional, high-key lighting.",
+                    "camera_motion_positioning": "Static"
+                },
+                {
+                    "audio": "Woman's voiceover: \"...just because of the extremely low price they're offering it at.\"",
+                    "style": "Urgency, scarcity marketing",
+                    "action": "The woman encourages viewers to purchase quickly before the product runs out, highlighted by the 'Out of Stock' graphic.",
+                    "subject": "Woman (healthcare worker), 'Out of Stock' signs, red arrow graphic",
+                    "dialogue": "just because of the extremely low price they're offering it at.",
+                    "language": "en",
+                    "time_range": "00:04 - 00:08",
+                    "composition": "Medium close-up; animated arrow and 'Out of Stock' warning label inset.",
+                    "context_environment": "Medical office, retail shelf visualization in inset",
+                    "ambiance_colour_lighting": "High contrast between the white setting and red warning signs/arrow.",
+                    "camera_motion_positioning": "Static; inset video shows slight camera movement/scrolling across shelves."
+                }
+            ]
+        }
+    ]
+}

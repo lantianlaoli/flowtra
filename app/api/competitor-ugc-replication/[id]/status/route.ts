@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { getSupabase } from '@/lib/supabase';
+import { hydrateSerializedSegmentPrompt, DEFAULT_SEGMENT_DURATION_SECONDS, type SerializedSegmentPlanSegment } from '@/lib/competitor-ugc-replication-workflow';
+import { hydrateSegmentPlan, type SerializedSegmentPlan } from '@/lib/competitor-ugc-replication-workflow';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -50,10 +52,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       updatedAt: string | null;
     }> | null = null;
 
+    const perSegmentDuration = record.segment_duration_seconds || (record.video_model === 'grok' ? 6 : DEFAULT_SEGMENT_DURATION_SECONDS);
+
     if (record.is_segmented) {
       const { data: segmentRows, error: segmentError } = await supabase
         .from('competitor_ugc_replication_segments')
-        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,prompt,updated_at,error_message')
+        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,prompt,updated_at,error_message,contains_brand,contains_product')
         .eq('project_id', record.id)
         .order('segment_index', { ascending: true });
 
@@ -67,7 +71,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           closingFrameUrl: row.closing_frame_url,
           videoUrl: row.video_url,
           errorMessage: row.error_message,
-          prompt: (row.prompt as Record<string, unknown> | null) ?? null,
+          prompt: hydrateSerializedSegmentPrompt(
+            row.prompt as SerializedSegmentPlanSegment,
+            row.segment_index,
+            perSegmentDuration,
+            row.contains_brand,
+            row.contains_product
+          ),
           updatedAt: row.updated_at
         }));
       }
@@ -77,6 +87,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       (record.segment_status as { mergedVideoUrl?: string | null } | null)?.mergedVideoUrl || null;
     const segmentStatus = record.is_segmented
       ? buildSegmentStatusFallback(segments, storedMergeUrl)
+      : null;
+
+    const normalizedPlanSegments = hydrateSegmentPlan(
+      record.segment_plan as SerializedSegmentPlan | Record<string, unknown> | null,
+      record.segment_count || 0,
+      record.segment_duration_seconds || undefined
+    );
+    const segmentPlanPayload = normalizedPlanSegments.length > 0
+      ? { segments: normalizedPlanSegments }
       : null;
 
     const response = {
@@ -104,7 +123,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         isSegmented: record.is_segmented || false,
         videoAspectRatio: record.video_aspect_ratio || null,
         segmentStatus,
-        segmentPlan: record.segment_plan || null,
+        segmentPlan: segmentPlanPayload,
         segments,
         awaitingMerge: record.current_step === 'awaiting_merge',
         mergeTaskId: record.fal_merge_task_id || null,

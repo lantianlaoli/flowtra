@@ -8,10 +8,18 @@ import {
   createSmartSegmentFrame,
   deriveSegmentDetails,
   buildSegmentPlanFromCompetitorShots,
+  normalizeSegmentPrompts,
   normalizeKlingDuration,
-  type SegmentPrompt
+  serializeSegmentPlan,
+  serializeSegmentPrompt,
+  hydrateSegmentPlan,
+  hydrateSerializedSegmentPrompt,
+  type SegmentPrompt,
+  type SegmentShot,
+  type SerializedSegmentPlan,
+  type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
-import { parseCompetitorTimeline, type CompetitorShot } from '@/lib/competitor-shots';
+import { formatTimecode, parseCompetitorTimeline, type CompetitorShot } from '@/lib/competitor-shots';
 import { checkFalTaskStatus } from '@/lib/video-merge';
 
 export async function POST(request: NextRequest) {
@@ -202,14 +210,17 @@ interface HistoryRecord {
   video_quality?: 'standard' | 'high' | null;
   is_segmented?: boolean | null;
   segment_count?: number | null;
-  segment_plan?: { segments?: SegmentPrompt[] } | Record<string, unknown> | null;
+  segment_duration_seconds?: number | null;
+  segment_plan?: SerializedSegmentPlan | Record<string, unknown> | null;
   segment_status?: Record<string, unknown> | null;
   fal_merge_task_id?: string | null;
   merged_video_url?: string | null;
   retry_count?: number; // Number of automatic retries for server errors
+  __hydrated_plan_segments?: SegmentPrompt[] | null;
 }
 
 const MAX_WORKFLOW_AGE_MINUTES = 30;
+const MONITOR_DEFAULT_SEGMENT_DURATION = 8;
 
 async function processRecord(record: HistoryRecord) {
   const supabase = getSupabaseAdmin();
@@ -511,7 +522,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
     const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url || null;
     // Don't skip if closingFrameUrl is null - startSegmentVideoTask will handle single-frame mode
 
-    const prompt = getSegmentPrompt(record, segment.segment_index);
+    const prompt = getSegmentPrompt(record, segment.segment_index, segments);
     const taskId = await startSegmentVideoTask(
       record as unknown as SingleVideoProject,
       prompt,
@@ -579,7 +590,7 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
           const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url || null;
 
           // Restart video generation
-          const prompt = getSegmentPrompt(record, segment.segment_index);
+          const prompt = getSegmentPrompt(record, segment.segment_index, segments);
           const newTaskId = await startSegmentVideoTask(
             record as unknown as SingleVideoProject,
             prompt,
@@ -751,7 +762,7 @@ async function reinitializeMissingSegments(
   options?: { competitorShots?: CompetitorShot[] }
 ): Promise<CompetitorUgcReplicationSegment[]> {
   const competitorShots = options?.competitorShots;
-  const planSegments = (record.segment_plan as { segments?: SegmentPrompt[] } | null)?.segments;
+  const planSegments = getPlanSegments(record);
   let promptSegments =
     (Array.isArray(planSegments) && planSegments.length > 0
       ? planSegments
@@ -793,8 +804,9 @@ async function reinitializeMissingSegments(
   if (needsPlanUpdate || needsPromptUpdate) {
     const updatePayload: Record<string, unknown> = { last_processed_at: now };
     if (needsPlanUpdate) {
-      updatePayload.segment_plan = { segments: promptSegments };
-      record.segment_plan = { segments: promptSegments };
+      updatePayload.segment_plan = serializeSegmentPlan(promptSegments);
+      record.segment_plan = updatePayload.segment_plan as SerializedSegmentPlan;
+      record.__hydrated_plan_segments = promptSegments;
     }
     if (needsPromptUpdate) {
       updatePayload.video_prompts = { segments: promptSegments };
@@ -820,7 +832,9 @@ async function reinitializeMissingSegments(
       project_id: record.id,
       segment_index: index,
       status: 'pending_first_frame',
-      prompt,
+      prompt: serializeSegmentPrompt(prompt as SegmentPrompt),
+      contains_brand: Boolean(prompt.contains_brand),
+      contains_product: Boolean(prompt.contains_product),
       created_at: now,
       updated_at: now
     };
@@ -894,13 +908,71 @@ async function syncSegmentFrameTasks(
   const now = new Date().toISOString();
 
   for (const segment of segments) {
+    const promptData = getSegmentPrompt(record, segment.segment_index, segments);
+    const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+    const needsContinuation = Boolean(
+      promptData.is_continuation_from_prev && segment.segment_index > 0
+    );
+    const previousSegment = segments.find(s => s.segment_index === segment.segment_index - 1);
+    const previousFirstFrameUrl = previousSegment?.first_frame_url || null;
+
+    if (segment.status === 'awaiting_prev_first_frame') {
+      if (!needsContinuation || previousFirstFrameUrl) {
+        console.log(`🔁 Continuation segment ${segment.segment_index} ready to start (prev frame available: ${Boolean(previousFirstFrameUrl)})`);
+        try {
+          const firstFrameTaskId = await createSmartSegmentFrame(
+            promptData,
+            segment.segment_index,
+            'first',
+            aspectRatio,
+            null,
+            null,
+            undefined,
+            competitorFileType,
+            undefined,
+            previousFirstFrameUrl
+          );
+
+          await supabase
+            .from('competitor_ugc_replication_segments')
+            .update({
+              first_frame_task_id: firstFrameTaskId,
+              status: 'generating_first_frame',
+              updated_at: now
+            })
+            .eq('id', segment.id);
+
+          segment.first_frame_task_id = firstFrameTaskId;
+          segment.status = 'generating_first_frame';
+          updated = true;
+          console.log(`✅ Started continuation first frame for segment ${segment.segment_index}, taskId: ${firstFrameTaskId}`);
+        } catch (error) {
+          console.error(`❌ Failed to start continuation frame for segment ${segment.segment_index}:`, error);
+          throw error;
+        }
+      } else {
+        console.log(`⏳ Waiting for previous frame before starting segment ${segment.segment_index}`);
+      }
+      continue;
+    }
+
     // FIX: Handle stuck segments in pending_first_frame without task_id
     // This can happen when initial workflow fails mid-way (e.g., insufficient credits)
     if (segment.status === 'pending_first_frame' && !segment.first_frame_task_id) {
-      console.log(`🔧 Recovering stuck segment ${segment.segment_index} - creating first frame task`);
+      if (needsContinuation && !previousFirstFrameUrl) {
+        await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            status: 'awaiting_prev_first_frame',
+            updated_at: now
+          })
+          .eq('id', segment.id);
+        segment.status = 'awaiting_prev_first_frame';
+        console.log(`⏸ Segment ${segment.segment_index} now waiting for previous frame before generation`);
+        continue;
+      }
 
-      const promptData = getSegmentPrompt(record, segment.segment_index);
-      const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+      console.log(`🔧 Recovering stuck segment ${segment.segment_index} - creating first frame task`);
 
       try {
         // Use createSmartSegmentFrame with null for brand/product to fallback to Text-to-Image
@@ -913,7 +985,9 @@ async function syncSegmentFrameTasks(
           null, // brandLogoUrl - will fallback to Text-to-Image
           null, // productImageUrl - will fallback to Text-to-Image
           undefined, // brandContext
-          competitorFileType // Pass competitor file type for model optimization
+          competitorFileType, // Pass competitor file type for model optimization
+          undefined,
+          needsContinuation ? previousFirstFrameUrl : null
         );
 
         await supabase
@@ -941,7 +1015,9 @@ async function syncSegmentFrameTasks(
             null,
             null,
             undefined,
-            competitorFileType // Pass competitor file type for model optimization
+            competitorFileType,
+            undefined,
+            null // Continuation not required for closing frames
           );
 
           await supabase
@@ -1057,21 +1133,43 @@ async function syncSegmentFrameTasks(
   return segments;
 }
 
-function getSegmentPrompt(record: HistoryRecord, index: number): SegmentPrompt {
-  const planSegments = (record.segment_plan as { segments?: SegmentPrompt[] })?.segments;
+function getSegmentPrompt(
+  record: HistoryRecord,
+  index: number,
+  segments?: CompetitorUgcReplicationSegment[]
+): SegmentPrompt {
+  const duration = record.segment_duration_seconds || MONITOR_DEFAULT_SEGMENT_DURATION;
+
+  if (segments) {
+    const match = segments.find(seg => seg.segment_index === index);
+    if (match) {
+      return ensureSegmentShots(
+        record,
+        hydrateSerializedSegmentPrompt(
+          match.prompt as SerializedSegmentPlanSegment,
+          match.segment_index,
+          duration,
+          match.contains_brand,
+          match.contains_product
+        )
+      );
+    }
+  }
+
+  const planSegments = getPlanSegments(record);
   if (Array.isArray(planSegments) && planSegments[index]) {
-    return planSegments[index] as SegmentPrompt;
+    return ensureSegmentShots(record, planSegments[index] as SegmentPrompt);
   }
 
   const promptContainer = record.video_prompts as { segments?: SegmentPrompt[] } | null;
   const promptSegments = promptContainer?.segments;
   if (Array.isArray(promptSegments) && promptSegments[index]) {
-    return promptSegments[index] as SegmentPrompt;
+    return ensureSegmentShots(record, promptSegments[index] as SegmentPrompt);
   }
 
   const legacy = record.video_prompts as LegacyVideoPrompt | null;
   if (legacy) {
-    return {
+    return ensureSegmentShots(record, {
       audio: legacy.music || 'Warm instrumental',
       style: 'Premium lifestyle realism',
       action: legacy.action || 'Showcase product details',
@@ -1084,10 +1182,10 @@ function getSegmentPrompt(record: HistoryRecord, index: number): SegmentPrompt {
       dialogue: legacy.dialogue || 'Narrate the primary benefit in one sentence',
       language: legacy.language || record.language || 'English',
       index: index + 1
-    };
+    });
   }
 
-  return {
+  return ensureSegmentShots(record, {
     audio: 'Warm instrumental underscore',
     style: 'Premium lifestyle realism',
     action: 'Showcase product hero shot',
@@ -1100,7 +1198,63 @@ function getSegmentPrompt(record: HistoryRecord, index: number): SegmentPrompt {
     dialogue: 'Narrate the core benefit in a concise line',
     language: record.language || 'English',
     index: index + 1
+  });
+}
+
+function getPlanSegments(record: HistoryRecord): SegmentPrompt[] | null {
+  if (record.__hydrated_plan_segments) {
+    return record.__hydrated_plan_segments;
+  }
+  const hydrated = hydrateSegmentPlan(
+    record.segment_plan as SerializedSegmentPlan | Record<string, unknown> | null,
+    record.segment_count || 0,
+    record.segment_duration_seconds || undefined
+  );
+  record.__hydrated_plan_segments = hydrated.length > 0 ? hydrated : null;
+  return record.__hydrated_plan_segments;
+}
+
+function ensureSegmentShots(record: HistoryRecord, prompt: SegmentPrompt): SegmentPrompt {
+  const duration = record.segment_duration_seconds || MONITOR_DEFAULT_SEGMENT_DURATION;
+  const hydrate = (segment: SegmentPrompt): SegmentPrompt => {
+    const normalized = normalizeSegmentPrompts({ segments: [segment] }, 1, undefined, duration);
+    if (normalized.length > 0) {
+      return normalized[0];
+    }
+    return segment;
   };
+
+  if (!Array.isArray(prompt.shots) || prompt.shots.length === 0) {
+    const fallbackSegment = {
+      ...prompt,
+      shots: [
+        {
+          id: 1,
+          time_range: `00:00 - ${formatTimecode(duration)}`,
+          audio: prompt.audio || 'Warm instrumental underscore',
+          style: prompt.style || 'Premium lifestyle realism',
+          action: prompt.action || 'Showcase hero product',
+          subject: prompt.subject || 'Hero product',
+          dialogue: prompt.dialogue || 'Narrate the core benefit in a concise line',
+          language: prompt.language || record.language || 'English',
+          composition: prompt.composition || 'Wide cinematic shot',
+          context_environment: prompt.context_environment || 'Professional studio',
+          ambiance_colour_lighting: prompt.ambiance_colour_lighting || 'Soft commercial lighting',
+          camera_motion_positioning: prompt.camera_motion_positioning || 'Slow push-in'
+        }
+      ]
+    } as SegmentPrompt;
+
+    return hydrate(fallbackSegment);
+  }
+
+  const needsMetadata = !prompt.audio || !prompt.style || !prompt.action || !prompt.subject || !prompt.context_environment || !prompt.composition || !prompt.ambiance_colour_lighting || !prompt.camera_motion_positioning || !prompt.dialogue || !prompt.language;
+
+  if (needsMetadata) {
+    return hydrate(prompt);
+  }
+
+  return prompt;
 }
 
 async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string): Promise<string> {
