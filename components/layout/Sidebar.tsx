@@ -37,7 +37,7 @@ const navigation = [
     onboardingId: 'sidebar-home'
   },
   {
-    name: 'Competitor UGC Replication',
+    name: 'UGC Clone',
     href: '/dashboard/competitor-ugc-replication',
     icon: Sparkles,
     onboardingId: 'sidebar-competitor-ugc-replication'

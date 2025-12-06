@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import {
-  PlayCircleIcon,
   SparklesIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
@@ -15,19 +14,6 @@ import Footer from '@/components/layout/Footer';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 
 export default function CompetitorReplicaShowcasePage() {
-  const replicaCases = [
-    {
-      id: '01',
-      competitorVideo: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/replica_competitor_01.mp4',
-      resultVideo: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/replica_result_01.mp4',
-    },
-    {
-      id: '02',
-      competitorVideo: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/replica_competitor_02.mp4',
-      resultVideo: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/replica_result_02.mp4',
-    },
-  ];
-
   const features = [
     {
       icon: Copy,
@@ -67,91 +53,63 @@ export default function CompetitorReplicaShowcasePage() {
       <Header />
 
       {/* Hero Section */}
-      <section className="pt-24 pb-16 lg:pt-32 lg:pb-24">
+      <section className="pt-24 pb-16 lg:pt-32 lg:pb-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-block px-4 py-2 bg-black text-white rounded-full mb-6">
-              <span className="text-sm font-semibold">Replica UGC Demo</span>
-            </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-6 leading-tight">
-              Recreate Competitor Videos in Minutes
-            </h1>
-            <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-              Flowtra replicates top-performing UGC so you can launch proven creatives faster. Clone the creative structure, replace the product, and dominate your market.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/dashboard/competitor-ugc-replication"
-                className="inline-flex items-center justify-center px-8 py-4 bg-black text-white rounded-lg font-semibold hover:bg-gray-900 transition-colors"
-              >
-                Try It Now
-                <ArrowRightIcon className="ml-2 w-5 h-5" />
-              </Link>
-              <Link
-                href="/pricing"
-                className="inline-flex items-center justify-center px-8 py-4 bg-white text-black border-2 border-black rounded-lg font-semibold hover:bg-gray-50 transition-colors"
-              >
-                View Pricing
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Examples Section */}
-      <section className="py-16 lg:py-24 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
-              See It In Action
-            </h2>
-            <p className="text-lg text-gray-600">
-              Real examples of competitor videos transformed into your branded content
-            </p>
-          </div>
-          <div className="space-y-16">
-            {replicaCases.map((example, index) => {
-              const isReversed = index % 2 === 1;
-
-              return (
-                <div
-                  key={example.id}
-                  className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center"
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="inline-block px-4 py-2 bg-black text-white rounded-full mb-6">
+                <span className="text-sm font-semibold">Replica UGC Demo</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-6 leading-tight">
+                Clone a Top Competitor Video
+              </h1>
+              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+                Flowtra mapped this entire competitor ad beat-for-beat, swapped the product, and delivered a launch-ready clone in minutes. Same structure. Same energy. Your brand.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link
+                  href="/dashboard/competitor-ugc-replication"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-black text-white rounded-lg font-semibold hover:bg-gray-900 transition-colors"
                 >
-                  <div className={`${isReversed ? 'lg:order-2' : 'lg:order-1'}`}>
-                    <div className="space-y-4">
-                      <div className="inline-block px-4 py-2 bg-white border border-gray-300 rounded-full">
-                        <span className="text-sm font-semibold text-gray-700">
-                          Competitor Video
-                        </span>
-                      </div>
-                      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                        <LazyVideoPlayer
-                          src={example.competitorVideo}
-                          wrapperClassName="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
-                        />
-                      </div>
-                    </div>
+                  Start Cloning
+                  <ArrowRightIcon className="ml-2 w-5 h-5" />
+                </Link>
+                <Link
+                  href="/#pricing"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-black border-2 border-black rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  View Pricing
+                </Link>
+              </div>
+            </div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-full text-sm font-semibold text-gray-700">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    Competitor Video
                   </div>
-                  <div className={`${isReversed ? 'lg:order-1' : 'lg:order-2'}`}>
-                    <div className="space-y-4">
-                      <div className="inline-block px-4 py-2 bg-black text-white rounded-full">
-                        <span className="text-sm font-semibold flex items-center gap-2">
-                          <PlayCircleIcon className="w-4 h-4" />
-                          Flowtra Result
-                        </span>
-                      </div>
-                      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-lg">
-                        <LazyVideoPlayer
-                          src={example.resultVideo}
-                          wrapperClassName="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
-                        />
-                      </div>
-                    </div>
+                  <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                    <LazyVideoPlayer
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_origin.mp4"
+                      wrapperClassName="relative aspect-[9/16] w-full max-w-[280px] mx-auto overflow-hidden rounded-xl"
+                    />
                   </div>
                 </div>
-              );
-            })}
+                <div className="space-y-3">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-sm font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    Flowtra Clone
+                  </div>
+                  <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-lg">
+                    <LazyVideoPlayer
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_result.mp4"
+                      wrapperClassName="relative aspect-[9/16] w-full max-w-[280px] mx-auto overflow-hidden rounded-xl"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
