@@ -80,8 +80,6 @@ export interface SingleVideoProject {
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string
   language?: string | null // Preferred language code for prompts and narration
-  watermark_text?: string | null
-  watermark_location?: string | null
   cover_image_aspect_ratio?: string | null // Aspect ratio of the cover image (e.g., "16:9", "9:16", "1:1")
   photo_only?: boolean // If true, workflow skips video generation and only produces a cover image
   downloaded?: boolean // Whether user has downloaded the video
@@ -91,8 +89,8 @@ export interface SingleVideoProject {
   current_step?: 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'completed'
   progress_percentage?: number
   last_processed_at?: string
-  selected_product_id?: string | null // Reference to user_products table
   selected_brand_id?: string | null // Reference to user_brands table
+  video_generation_requested?: boolean | null // Whether user approved moving from cover to video
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
   video_generation_prompt?: Record<string, unknown> // JSONB field containing the prompt used for video generation
   video_duration?: string | null // Video duration in seconds (e.g., '8', '10', '15') - applicable to all video models

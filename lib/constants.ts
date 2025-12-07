@@ -635,6 +635,14 @@ export function getAvailableQualities(duration: VideoDuration): VideoQuality[] {
   return Array.from(qualities);
 }
 
+export const DEFAULT_SEGMENT_DURATION_SECONDS = 8;
+
+export function getSegmentDurationForModel(model?: VideoModel | null): number {
+  if (model === 'grok') return 6;
+  if (model === 'kling') return 5;
+  return DEFAULT_SEGMENT_DURATION_SECONDS;
+}
+
 export function getSegmentCountFromDuration(videoDuration?: string | null, model?: VideoModel): number {
   const duration = Number(videoDuration);
 
@@ -646,12 +654,12 @@ export function getSegmentCountFromDuration(videoDuration?: string | null, model
     return Math.ceil(duration / 10);
   }
 
-  if (model === 'kling') {
-    return 1;
-  }
-
-  const segmentLength = model === 'grok' ? 6 : 8;
-  const maxSegments = model === 'grok' ? 10 : 8;
+  const segmentLength = getSegmentDurationForModel(model);
+  const maxSegments = (() => {
+    if (model === 'grok') return 10;
+    if (model === 'kling') return 16; // 80 seconds max / 5-second blocks
+    return 8;
+  })();
 
   if (!Number.isFinite(duration) || duration <= segmentLength) {
     return 1;

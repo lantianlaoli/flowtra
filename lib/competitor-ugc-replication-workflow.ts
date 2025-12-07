@@ -7,10 +7,13 @@ import {
   getGenerationCost,
   getLanguagePromptName,
   getSegmentCountFromDuration,
+  getSegmentDurationForModel,
   getReplicaPhotoCredits,
+  DEFAULT_SEGMENT_DURATION_SECONDS,
   snapDurationToModel,
   type LanguageCode,
-  type VideoDuration
+  type VideoDuration,
+  type VideoModel
 } from '@/lib/constants';
 import {
   parseCompetitorTimeline,
@@ -54,17 +57,11 @@ const clampPromptLength = (value: string) => {
 
 export interface StartWorkflowRequest {
   imageUrl?: string;
-  selectedProductId?: string;
   selectedBrandId?: string; // NEW: Brand selection for ending frame
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
   userId: string;
   videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
   imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
-  watermark?: {
-    text: string;
-    location: string;
-  };
-  watermarkLocation?: string;
   imageSize?: string;
   elementsCount?: number;
   photoOnly?: boolean;
@@ -182,8 +179,6 @@ const cleanSegmentText = (value: unknown): string | undefined => {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 };
-
-export const DEFAULT_SEGMENT_DURATION_SECONDS = 8;
 
 const normalizeShotTimeRange = (
   raw: unknown,
@@ -403,6 +398,10 @@ export function isSegmentedVideoRequest(
     const duration = Number(videoDuration);
     return Number.isFinite(duration) && duration > 6;
   }
+  if (model === 'kling') {
+    const duration = Number(videoDuration);
+    return Number.isFinite(duration) && duration > getSegmentDurationForModel('kling');
+  }
   if (model !== 'veo3' && model !== 'veo3_fast') return false;
   return SEGMENTED_DURATIONS.has(videoDuration);
 }
@@ -412,64 +411,23 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
   try {
     const supabase = getSupabaseAdmin();
 
-    // Handle product selection - get the image URL from the selected product
     let imageUrl = request.imageUrl;
     let brandLogoUrl: string | null = null;
     let productContext = { product_details: '', brand_name: '', brand_slogan: '', brand_details: '' };
 
-    if (request.selectedProductId && !imageUrl) {
-      const { data: product, error: productError } = await supabase
-        .from('user_products')
-        .select(`
-          *,
-          user_product_photos (*),
-          brand:user_brands (
-            id,
-            brand_name,
-            brand_slogan,
-            brand_details,
-            brand_logo_url
-          )
-        `)
-        .eq('id', request.selectedProductId)
-        .eq('user_id', request.userId)
-        .single();
-
-      if (productError || !product) {
-        console.error('Product query error:', productError);
-        console.error('Product query params:', { id: request.selectedProductId, userId: request.userId });
-        return {
-          success: false,
-          error: 'Product not found',
-          details: productError?.message || 'Selected product does not exist or does not belong to this user'
-        };
-      }
-
-      // Get the primary photo or the first available photo
-      const primaryPhoto = product.user_product_photos?.find((photo: { is_primary: boolean }) => photo.is_primary);
-      const fallbackPhoto = product.user_product_photos?.[0];
-      const selectedPhoto = primaryPhoto || fallbackPhoto;
-
-      if (!selectedPhoto) {
-        return {
-          success: false,
-          error: 'No product photos found',
-          details: 'The selected product has no photos available'
-        };
-      }
-
-      imageUrl = selectedPhoto.photo_url;
-
-      // Store product and brand context for AI prompt
-      productContext = {
-        product_details: product.product_details || '',
-        brand_name: product.brand?.brand_name || '',
-        brand_slogan: product.brand?.brand_slogan || '',
-        brand_details: product.brand?.brand_details || ''
+    if (!request.selectedBrandId) {
+      return {
+        success: false,
+        error: 'Brand selection required',
+        details: 'Please select one of your brands before starting a generation.'
       };
-
-      // Store brand logo URL for brand-only shots
-      brandLogoUrl = product.brand?.brand_logo_url || null;
+    }
+    if (!request.competitorAdId) {
+      return {
+        success: false,
+        error: 'Competitor reference required',
+        details: 'Select a competitor video or photo to clone before generating.'
+      };
     }
 
     if (request.selectedBrandId) {
@@ -504,6 +462,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           };
         }
       }
+    }
+
+    if (!imageUrl && brandLogoUrl) {
+      imageUrl = brandLogoUrl;
     }
 
     // imageUrl is now optional when using competitor reference mode
@@ -588,8 +550,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
         // NEW: Recommend duration based on competitor shot count, but let user decide
         // If user hasn't chosen duration yet, recommend shot_count × segment_duration
-        if (!request.videoDuration && (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' || actualVideoModel === 'grok')) {
-          const segmentDuration = actualVideoModel === 'grok' ? 6 : 8;
+        if (!request.videoDuration && (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' || actualVideoModel === 'grok' || actualVideoModel === 'kling')) {
+          const segmentDuration = getSegmentDurationForModel(actualVideoModel);
           const recommendedDuration = competitorShotTimeline.shots.length * segmentDuration;
 
           console.log(`🎯 [SEGMENT DEBUG] Competitor shot analysis:`);
@@ -614,6 +576,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     const forceSingleSegmentGrok = shouldForceSingleSegmentGrok(actualVideoModel, request.videoDuration);
     const segmentedByDuration = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
     const isSegmented = forceSingleSegmentGrok || segmentedByDuration;
+    const resolvedSegmentDuration = getSegmentDurationForModel(actualVideoModel);
 
     // NEW: Smart segment count calculation
     // Priority 1: If competitor shots exist and match user's segment count → use 1:1 mapping
@@ -788,7 +751,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       .from('competitor_ugc_replication_projects')
       .insert({
         user_id: request.userId,
-        selected_product_id: request.selectedProductId,
         selected_brand_id: request.selectedBrandId, // NEW: Brand selection
         competitor_ad_id: request.competitorAdId || null, // NEW: Competitor ad reference
         video_model: actualVideoModel,
@@ -801,8 +763,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             : 'generating_cover',
         progress_percentage: request.useCustomScript ? 50 : isSegmented ? 25 : 20,
         credits_cost: generationCost, // Only generation cost (download cost charged separately)
-        watermark_text: request.watermark?.text,
-        watermark_location: request.watermark?.location || request.watermarkLocation,
         cover_image_aspect_ratio: actualCoverAspectRatio, // Store actual ratio, never 'auto'
         photo_only: request.photoOnly || false,
         language: request.language || 'en', // Language for AI-generated content
@@ -816,7 +776,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         download_credits_used: 0,
         is_segmented: isSegmented,
         segment_count: segmentCount,
-        segment_duration_seconds: isSegmented ? (actualVideoModel === 'grok' ? 6 : 8) : null,
+        segment_duration_seconds: isSegmented ? resolvedSegmentDuration : null,
         segment_status: isSegmented
           ? {
               total: segmentCount,
@@ -1133,7 +1093,7 @@ async function startAIWorkflow(
         video_duration: request.videoDuration || request.sora2ProDuration || null,
         is_segmented: segmentedFlow,
         segment_count: segmentedFlow ? segmentCount : 1,
-        segment_duration_seconds: segmentedFlow ? (request.resolvedVideoModel === 'grok' ? 6 : 8) : null
+        segment_duration_seconds: segmentedFlow ? getSegmentDurationForModel(request.resolvedVideoModel) : null
       })
       .eq('id', projectId);
     if (projectConfigUpdateError) {
@@ -2216,18 +2176,7 @@ Requirements:
 ${competitorDescription ? '- CRITICAL: Replicate the exact scene elements and spatial layout described above' : '- Only enhance lighting, background, or add subtle marketing elements'}
 - The product must remain visually identical to the original`;
 
-  // Extract watermark information from request
-  const watermarkText = request.watermark?.text?.trim();
-  const watermarkLocation = request.watermark?.location || request.watermarkLocation;
   const providedAdCopy = request.adCopy?.trim() || '';
-  
-  if (watermarkText) {
-    prompt += `\n\nWatermark Requirements:
-- Add text watermark: "${watermarkText}"
-- Watermark location: ${watermarkLocation || 'bottom left'}
-- Make the watermark visible but not overpowering
-- Use appropriate font size and opacity for the watermark`;
-  }
 
   if (providedAdCopy) {
     const escapedAdCopy = providedAdCopy.replace(/"/g, '\\"');
@@ -2240,25 +2189,19 @@ ${competitorDescription ? '- CRITICAL: Replicate the exact scene elements and sp
   // Ensure prompt doesn't exceed KIE API's 5000 character limit
   const MAX_PROMPT_LENGTH = KIE_PROMPT_LIMIT;
   if (prompt.length > MAX_PROMPT_LENGTH) {
-    // Truncate the description part while keeping the critical instructions and watermark
+    // Truncate the description part while keeping the critical instructions
     const criticalInstructions = `IMPORTANT: Use the provided product image as the EXACT BASE. Maintain the original product's exact visual appearance, shape, design, colors, textures, and all distinctive features. DO NOT change the product itself.
 
 Based on the provided product image, create an enhanced advertising version that keeps the EXACT SAME product while only improving the presentation for marketing purposes.`;
 
-    const watermarkSection = watermarkText ? `\n\nWatermark Requirements:
-- Add text watermark: "${watermarkText}"
-- Watermark location: ${watermarkLocation || 'bottom left'}
-- Make the watermark visible but not overpowering
-- Use appropriate font size and opacity for the watermark` : '';
-
-    const remainingLength = MAX_PROMPT_LENGTH - criticalInstructions.length - watermarkSection.length - 100; // Reserve space for requirements
+    const remainingLength = MAX_PROMPT_LENGTH - criticalInstructions.length - 100; // Reserve space for requirements
     const truncatedDescription = baseDescription.length > remainingLength
       ? baseDescription.substring(0, remainingLength - 3) + "..."
       : baseDescription;
 
     prompt = `${criticalInstructions} ${truncatedDescription}
 
-Requirements: Keep exact product appearance, only enhance presentation.${watermarkSection}`;
+Requirements: Keep exact product appearance, only enhance presentation.`;
   }
   prompt = clampPromptLength(prompt);
 
@@ -2321,7 +2264,8 @@ async function startSegmentedWorkflow(
   const supabase = getSupabaseAdmin();
 
   const defaultFrameSize = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
-  const perSegmentDurationSeconds = request.videoModel === 'grok' ? 6 : DEFAULT_SEGMENT_DURATION_SECONDS;
+  const segmentModelForDuration = request.resolvedVideoModel || (request.videoModel === 'auto' ? undefined : request.videoModel);
+  const perSegmentDurationSeconds = getSegmentDurationForModel(segmentModelForDuration);
   const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, competitorShots, perSegmentDurationSeconds).map(segment => ({
     ...segment,
     first_frame_image_size: segment.first_frame_image_size || defaultFrameSize
@@ -3040,10 +2984,11 @@ export async function startSegmentVideoTask(
   segmentIndex: number,
   totalSegments: number
 ): Promise<string> {
-  const videoModel = (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'grok';
+  const videoModel = (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'grok' | 'kling';
 
-  if (videoModel !== 'veo3' && videoModel !== 'veo3_fast' && videoModel !== 'grok') {
-    throw new Error(`Segmented workflow only supports Veo3 or Grok models. Received ${videoModel}`);
+  const supportedSegmentModels: Array<'veo3' | 'veo3_fast' | 'grok' | 'kling'> = ['veo3', 'veo3_fast', 'grok', 'kling'];
+  if (!supportedSegmentModels.includes(videoModel)) {
+    throw new Error(`Segmented workflow only supports Veo3, Grok, or Kling (see docs/kie/kling_2.6.md). Received ${videoModel}`);
   }
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
@@ -3059,7 +3004,8 @@ export async function startSegmentVideoTask(
   const voiceDescriptor = 'Calm professional narrator';
   const voiceToneDescriptor = 'warm and confident';
 
-  const perSegmentDuration = project.segment_duration_seconds || (project.video_model === 'grok' ? 6 : DEFAULT_SEGMENT_DURATION_SECONDS);
+  const projectVideoModel = (project.video_model ?? null) as VideoModel | null;
+  const perSegmentDuration = project.segment_duration_seconds || getSegmentDurationForModel(projectVideoModel);
   const normalizedShots = (segmentPrompt.shots && segmentPrompt.shots.length > 0
     ? segmentPrompt.shots
     : [
@@ -3141,6 +3087,54 @@ export async function startSegmentVideoTask(
     }
 
     return data.data.taskId;
+  }
+
+  if (videoModel === 'kling') {
+    const klingDurationSeconds = Math.min(80, Math.max(5, Math.round(perSegmentDuration / 5) * 5));
+    const klingPromptText = [
+      segmentPrompt.first_frame_description ? `First frame: ${segmentPrompt.first_frame_description}` : null,
+      action ? `Action: ${action}` : null,
+      segmentPrompt.subject ? `Subject: ${segmentPrompt.subject}` : null,
+      segmentPrompt.style ? `Style: ${segmentPrompt.style}` : null,
+      segmentPrompt.context_environment ? `Environment: ${segmentPrompt.context_environment}` : null,
+      segmentPrompt.ambiance_colour_lighting ? `Lighting: ${segmentPrompt.ambiance_colour_lighting}` : null,
+      dialogueContent ? `Dialogue/Narration: ${dialogueContent}` : null
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    console.log(`🎥 Kling 2.6 segment request (docs/kie/kling_2.6.md) – duration ${klingDurationSeconds}s block`);
+
+    const klingRequest = {
+      model: 'kling-2.6/image-to-video',
+      input: {
+        prompt: klingPromptText || `Segment ${segmentIndex + 1} commercial beat`,
+        image_urls: [firstFrameUrl],
+        sound: true,
+        duration: String(klingDurationSeconds)
+      }
+    };
+
+    const klingResponse = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(klingRequest)
+    }, 5, 30000);
+
+    if (!klingResponse.ok) {
+      const errorData = await klingResponse.text();
+      throw new Error(`Failed to generate Kling segment video: ${klingResponse.status} ${errorData}`);
+    }
+
+    const klingData = await klingResponse.json();
+    if (klingData.code !== 200) {
+      throw new Error(klingData.msg || 'Failed to generate Kling segment video');
+    }
+
+    return klingData.data.taskId;
   }
 
   const requestBody = {

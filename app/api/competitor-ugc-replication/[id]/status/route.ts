@@ -3,8 +3,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { getSupabase } from '@/lib/supabase';
-import { hydrateSerializedSegmentPrompt, DEFAULT_SEGMENT_DURATION_SECONDS, type SerializedSegmentPlanSegment } from '@/lib/competitor-ugc-replication-workflow';
+import { hydrateSerializedSegmentPrompt, type SerializedSegmentPlanSegment } from '@/lib/competitor-ugc-replication-workflow';
 import { hydrateSegmentPlan, type SerializedSegmentPlan } from '@/lib/competitor-ugc-replication-workflow';
+import { getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -52,7 +53,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       updatedAt: string | null;
     }> | null = null;
 
-    const perSegmentDuration = record.segment_duration_seconds || (record.video_model === 'grok' ? 6 : DEFAULT_SEGMENT_DURATION_SECONDS);
+    const recordModel = (record.video_model ?? null) as VideoModel | null;
+    const perSegmentDuration = record.segment_duration_seconds || getSegmentDurationForModel(recordModel);
 
     if (record.is_segmented) {
       const { data: segmentRows, error: segmentError } = await supabase
@@ -129,6 +131,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         mergeTaskId: record.fal_merge_task_id || null,
         videoQuality: record.video_quality || null,
         selectedBrandId: record.selected_brand_id || null,
+        photoOnly: record.photo_only || false,
+        videoGenerationRequested: record.video_generation_requested || false,
         downloaded: record.downloaded || false,
         downloadCreditsUsed: record.download_credits_used || 0,
         retryCount: 0,
@@ -140,6 +144,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         describing: 'Analyzing your product image with AI...',
         generating_prompts: 'Creating creative advertisement concepts...',
         generating_cover: 'Designing your advertisement cover...',
+        ready_for_video: 'Awaiting your approval to generate the full video...',
         generating_video: 'Producing your professional video advertisement...'
       },
       isCompleted: record.status === 'completed',

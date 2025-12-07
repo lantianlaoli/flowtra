@@ -11,7 +11,7 @@ import { Sparkles, Coins, TrendingUp, AlertCircle, Boxes } from 'lucide-react';
 
 // New components for redesigned UX
 import PlatformSelector, { type Platform } from '@/components/ui/PlatformSelector';
-import BrandProductSelector from '@/components/ui/BrandProductSelector';
+import BrandDropdownSelector from '@/components/ui/BrandDropdownSelector';
 import CompetitorAdSelector from '@/components/ui/CompetitorAdSelector';
 import RequirementsInput from '@/components/ui/RequirementsInput';
 import ConfigPopover from '@/components/ui/ConfigPopover';
@@ -36,8 +36,8 @@ import {
 } from '@/lib/constants';
 import { Format } from '@/components/ui/FormatSelector';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
-import { UserProduct, UserBrand, CompetitorAd } from '@/lib/supabase';
 import type { SegmentStatusPayload, SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
+import type { UserBrand, CompetitorAd } from '@/lib/supabase';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -50,7 +50,6 @@ type ReplicaAspectRatio = '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '4:5' | '5:4' 
 type ReplicaResolution = '1K' | '2K' | '4K';
 type ReplicaOutputFormat = 'png' | 'jpg';
 
-const MAX_REPLICA_ASSETS = 9;
 const REPLICA_ASPECT_RATIOS: ReplicaAspectRatio[] = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
 const REPLICA_RESOLUTIONS: ReplicaResolution[] = ['1K', '2K', '4K'];
 const REPLICA_OUTPUT_FORMATS: ReplicaOutputFormat[] = ['png', 'jpg'];
@@ -61,7 +60,7 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   generating_segment_videos: 'Rendering segmented clips…',
   merging_segments: 'Stitching clips…',
   awaiting_merge: 'Segments ready – awaiting merge',
-  ready_for_video: 'Preparing video prompts…',
+  ready_for_video: 'Awaiting approval to generate video…',
   generating_video: 'Generating video…',
   processing: 'Processing…',
   completed: 'Completed',
@@ -76,7 +75,7 @@ const STATUS_MAP: Record<string, Generation['status']> = {
   generating_segment_frames: 'processing',
   generating_segment_videos: 'processing',
   merging_segments: 'processing',
-  ready_for_video: 'processing',
+  ready_for_video: 'awaiting_review',
   generating_video: 'processing'
 };
 
@@ -88,6 +87,8 @@ type SessionGeneration = Generation & {
   segments?: SegmentCardSummary[] | null;
   awaitingMerge?: boolean;
   mergeTaskId?: string | null;
+  videoGenerationRequested?: boolean;
+  isPhotoOnly?: boolean;
 };
 
 interface CompetitorUgcReplicationStatusPayload {
@@ -117,13 +118,15 @@ interface CompetitorUgcReplicationStatusPayload {
     awaitingMerge?: boolean;
     mergeTaskId?: string | null;
     selectedBrandId?: string | null;
+    photoOnly?: boolean | null;
+    videoGenerationRequested?: boolean | null;
   };
   error?: string;
 }
 
 const STEP_PROGRESS_HINTS: Record<string, number> = {
   generating_cover: 20,
-  ready_for_video: 50,
+  ready_for_video: 60,
   generating_segment_frames: 25,
   generating_segment_videos: 70,
   merging_segments: 80,
@@ -316,7 +319,6 @@ export default function CompetitorUgcReplicationPage() {
   const [videoDuration, setVideoDuration] = useState<VideoDuration>('8');
   const [selectedModel, setSelectedModel] = useState<VideoModel>('veo3_fast');
   const [format, setFormat] = useState<Format>('9:16');
-  const [watermarkEnabled, setWatermarkEnabled] = useState(true); // NEW: Watermark toggle
 
   // Auto-adjust quality when model changes
   useEffect(() => {
@@ -339,13 +341,11 @@ export default function CompetitorUgcReplicationPage() {
     loading: true
   });
   const elementsCount = 1;
-  const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
   const [selectedCompetitorAd, setSelectedCompetitorAd] = useState<CompetitorAd | null>(null);
   const hasCompetitorReference = Boolean(selectedCompetitorAd);
   const isCompetitorPhotoMode = selectedCompetitorAd?.file_type === 'image';
   const competitorImageUrl = isCompetitorPhotoMode ? selectedCompetitorAd?.ad_file_url ?? null : null;
-  const [replicaSelectedProducts, setReplicaSelectedProducts] = useState<UserProduct[]>([]);
   const [photoAspectRatio, setPhotoAspectRatio] = useState<ReplicaAspectRatio>('9:16');
   const [photoResolution, setPhotoResolution] = useState<ReplicaResolution>('2K');
   const [photoOutputFormat, setPhotoOutputFormat] = useState<ReplicaOutputFormat>('png');
@@ -366,7 +366,7 @@ export default function CompetitorUgcReplicationPage() {
   // Show welcome modal for first-time visitors with no selections
   useEffect(() => {
     const hasSeenWelcome = localStorage.getItem('flowtra_competitor_ugc_replication_welcome_seen');
-    const hasNoSelections = !selectedBrand && !selectedProduct;
+    const hasNoSelections = !selectedBrand && !selectedCompetitorAd;
 
     if (!hasSeenWelcome && hasNoSelections && generations.length === 0) {
       // Wait a bit before showing to let the page load
@@ -377,7 +377,7 @@ export default function CompetitorUgcReplicationPage() {
 
       return () => clearTimeout(timer);
     }
-  }, [selectedBrand, selectedProduct, generations.length]);
+  }, [selectedBrand, selectedCompetitorAd, generations.length]);
 
   // Auto-switch language when competitor ad with language is selected
   useEffect(() => {
@@ -413,55 +413,6 @@ export default function CompetitorUgcReplicationPage() {
     }
   }, [selectedCompetitorAd, selectedModel]);
 
-  const selectedBrandId = selectedBrand?.id || null;
-  const selectedCompetitorAdId = selectedCompetitorAd?.id || null;
-
-  useEffect(() => {
-    if (!selectedBrandId || !isCompetitorPhotoMode) {
-      setReplicaSelectedProducts(() => []);
-      return;
-    }
-    setReplicaSelectedProducts(() => []);
-    setSelectedProduct(prev => (prev ? null : prev));
-  }, [selectedBrandId, selectedCompetitorAdId, isCompetitorPhotoMode]);
-
-  const selectedReplicaAssetUrls = useMemo(() => {
-    if (!isCompetitorPhotoMode) {
-      return [];
-    }
-
-    const urls: string[] = [];
-    const seen = new Set<string>();
-
-    const addUrl = (url?: string | null) => {
-      if (!url || seen.has(url)) return;
-      seen.add(url);
-      urls.push(url);
-    };
-
-    addUrl(selectedBrand?.brand_logo_url || null);
-
-    replicaSelectedProducts.forEach((product) => {
-      const photo = product.user_product_photos?.find((p) => p.is_primary) || product.user_product_photos?.[0];
-      addUrl(photo?.photo_url);
-    });
-
-    return urls.slice(0, MAX_REPLICA_ASSETS);
-  }, [isCompetitorPhotoMode, replicaSelectedProducts, selectedBrand?.brand_logo_url]);
-
-  const replicaSelectedProductIds = useMemo(
-    () => replicaSelectedProducts.map(product => product.id),
-    [replicaSelectedProducts]
-  );
-
-  const handleReplicaSelectionChange = useCallback((products: UserProduct[]) => {
-    setReplicaSelectedProducts(products);
-    setSelectedProduct(products[0] ?? null);
-  }, []);
-
-  const handleReplicaSelectionLimitReached = useCallback((limit: number) => {
-    showError(`You can select up to ${limit} products.`);
-  }, [showError]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -507,7 +458,6 @@ export default function CompetitorUgcReplicationPage() {
 
   // Auto-derive brand info
   const derivedAdCopy = selectedBrand?.brand_slogan || '';
-  const derivedWatermark = selectedBrand?.brand_name || '';
   const shouldGenerateVideo = !isCompetitorPhotoMode;
 
   // Build final prompt with additional requirements
@@ -617,7 +567,12 @@ export default function CompetitorUgcReplicationPage() {
       const hasVideoReady = Boolean(payloadData?.videoUrl);
       const resolvedStatus = hasVideoReady ? 'completed' as Generation['status'] : status;
       let resolvedProgress = hasVideoReady ? 100 : baseProgress;
-      const stageLabel = getStageLabel(resolvedStatus, effectiveStep || payload.current_step);
+      let stageLabel = getStageLabel(resolvedStatus, effectiveStep || payload.current_step);
+      if (resolvedStatus === 'awaiting_review') {
+        stageLabel = payloadData?.videoGenerationRequested
+          ? 'Video queued…'
+          : 'Awaiting approval…';
+      }
       const resolvedStage = hasVideoReady ? 'Completed' : stageLabel;
 
       if (nextIsSegmented) {
@@ -663,6 +618,12 @@ export default function CompetitorUgcReplicationPage() {
         segments: hasSegmentsArray ? (payloadData?.segments ?? null) : gen.segments,
         awaitingMerge,
         mergeTaskId,
+        videoGenerationRequested: typeof payloadData?.videoGenerationRequested === 'boolean'
+          ? payloadData.videoGenerationRequested
+          : gen.videoGenerationRequested,
+        isPhotoOnly: typeof payloadData?.photoOnly === 'boolean'
+          ? payloadData.photoOnly
+          : gen.isPhotoOnly,
         error: payload.data?.errorMessage || (resolvedStatus === 'failed'
           ? (payload.error || 'Video generation failed')
           : undefined)
@@ -941,6 +902,41 @@ export default function CompetitorUgcReplicationPage() {
     }
   }, [user?.id, downloadingProjects, refetchCredits, showError, showSuccess]);
 
+  const handleRequestVideoGeneration = useCallback(async (generation: SessionGeneration) => {
+    if (!generation.projectId) {
+      showError('Cover is still preparing. Please try again soon.');
+      return;
+    }
+
+    setGenerations(prev => prev.map(gen =>
+      gen.projectId === generation.projectId
+        ? { ...gen, videoGenerationRequested: true, stage: 'Video queued…' }
+        : gen
+    ));
+
+    try {
+      const response = await fetch(`/api/competitor-ugc-replication/${generation.projectId}/start-video`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to start video generation');
+      }
+
+      showSuccess('Video generation resumed. We will notify you once it is ready.');
+      fetchStatusForProject(generation.projectId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to start video generation';
+      showError(message);
+      setGenerations(prev => prev.map(gen =>
+        gen.projectId === generation.projectId
+          ? { ...gen, videoGenerationRequested: false }
+          : gen
+      ));
+    }
+  }, [fetchStatusForProject, showError, showSuccess]);
+
   // Handle platform change - auto-set recommended config
   const handlePlatformChange = useCallback((platform: Platform) => {
     setSelectedPlatform(platform);
@@ -1078,22 +1074,16 @@ export default function CompetitorUgcReplicationPage() {
       return;
     }
 
-    if (isCompetitorPhotoMode) {
-      if (!competitorImageUrl) {
-        setValidationMessage('Select a competitor photo in the Assets panel before generating.');
-        setShowValidationModal(true);
-        return;
-      }
-      if (replicaSelectedProducts.length === 0) {
-        setValidationMessage('Select at least one of your products to replace the competitor assets.');
-        setShowValidationModal(true);
-        return;
-      }
-      if (selectedReplicaAssetUrls.length === 0) {
-        setValidationMessage('Add brand or product photos in Assets before running competitor replicas.');
-        setShowValidationModal(true);
-        return;
-      }
+    if (!selectedCompetitorAd) {
+      setValidationMessage('Select a competitor video or photo to clone before generating.');
+      setShowValidationModal(true);
+      return;
+    }
+
+    if (isCompetitorPhotoMode && !competitorImageUrl) {
+      setValidationMessage('Select a competitor photo in the Assets panel before generating.');
+      setShowValidationModal(true);
+      return;
     }
 
     if (isGenerating) return;
@@ -1120,7 +1110,6 @@ export default function CompetitorUgcReplicationPage() {
       platform: selectedPlatform,
       brand: selectedBrand.brand_name,
       brandId: selectedBrand.id,
-      product: selectedProduct?.product_name,
       videoModel: shouldGenerateVideo ? selectedModel : undefined,
       videoAspectRatio: shouldGenerateVideo ? selectedVideoAspectRatio : null,
       downloaded: false,
@@ -1132,41 +1121,31 @@ export default function CompetitorUgcReplicationPage() {
       segments: null,
       awaitingMerge: false,
       mergeTaskId: null,
-      mergeLoading: false
+      mergeLoading: false,
+      videoGenerationRequested: false,
+      isPhotoOnly: isCompetitorPhotoMode
     };
 
     setGenerations(prev => [newGeneration, ...prev]);
 
     try {
-      const watermarkConfig = watermarkEnabled ? {
-        enabled: true,
-        text: derivedWatermark,
-        location: 'bottom-right' as const,
-      } : {
-        enabled: false,
-        text: '',
-        location: 'bottom-right' as const,
-      };
-
       const replicaPayload = isCompetitorPhotoMode ? {
         photoOnly: true,
         replicaMode: true,
-        referenceImageUrls: [competitorImageUrl!, ...selectedReplicaAssetUrls].slice(0, MAX_REPLICA_ASSETS + 1),
+        referenceImageUrls: competitorImageUrl ? [competitorImageUrl] : [],
         photoAspectRatio,
         photoResolution,
         photoOutputFormat
       } : undefined;
 
-      const workflowResult = await startWorkflowWithSelectedProduct(
-        selectedProduct?.id,
-        watermarkConfig,
-        elementsCount,
-        format,
-        shouldGenerateVideo,
-        selectedBrand.id,
-        selectedCompetitorAd?.id || null,
-        replicaPayload
-      );
+      const workflowResult = await startWorkflowWithSelectedProduct({
+        elementsCountOverride: elementsCount,
+        imageSizeOverride: format,
+        generateVideo: shouldGenerateVideo,
+        selectedBrandId: selectedBrand.id,
+        competitorAdId: selectedCompetitorAd.id,
+        replicaOptions: replicaPayload
+      });
 
       const projectId = workflowResult?.historyId || workflowResult?.projectId;
 
@@ -1198,7 +1177,7 @@ export default function CompetitorUgcReplicationPage() {
         fetchStatusForProject(projectId);
       }
 
-      showSuccess(isCompetitorPhotoMode ? 'Replica photo generation started!' : 'Video generation started! Check progress above.');
+      showSuccess(isCompetitorPhotoMode ? 'Replica photo generation started!' : 'Cover generation started! Review the result above before generating the video.');
 
     } catch (error: unknown) {
       console.error('Failed to start workflow:', error);
@@ -1229,11 +1208,8 @@ export default function CompetitorUgcReplicationPage() {
   const canAfford = isCompetitorPhotoMode
     ? (userCredits || 0) >= generationCost
     : canAffordModel(userCredits || 0, selectedModel);
-  const hasReplicaAssetSelection = selectedReplicaAssetUrls.length > 0;
-  const hasReplicaProductsSelected = replicaSelectedProducts.length > 0;
-  const replicaSelectionValid = !isCompetitorPhotoMode || (competitorImageUrl && hasReplicaProductsSelected && hasReplicaAssetSelection);
-  // UPDATED: Support brand-only mode - require at least brand OR product
-  const canGenerate = !isGenerating && (selectedProduct || selectedBrand) && replicaSelectionValid;
+  const replicaSelectionValid = !isCompetitorPhotoMode || Boolean(competitorImageUrl);
+  const canGenerate = !isGenerating && Boolean(selectedBrand && selectedCompetitorAd) && replicaSelectionValid;
 
   // Render insufficient credits or maintenance message
   if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
@@ -1305,6 +1281,9 @@ export default function CompetitorUgcReplicationPage() {
                   <GenerationProgressDisplay
                     generations={displayedGenerations}
                     onDownload={handleDownloadGeneration}
+                    noticeVariant="competitor-ugc"
+                    onReview={handleRequestVideoGeneration}
+                    reviewCtaLabel="Generate Video"
                     emptyStateRightContent={
                       <blockquote
                         className="tiktok-embed"
@@ -1368,18 +1347,14 @@ export default function CompetitorUgcReplicationPage() {
               variant="compact"
             />
 
-            <BrandProductSelector
+            <BrandDropdownSelector
               selectedBrand={selectedBrand}
-              selectedProduct={selectedProduct}
-              onBrandSelect={setSelectedBrand}
-              onProductSelect={setSelectedProduct}
-              className="flex items-center gap-2"
-              variant="compact"
-              replicaMode={isCompetitorPhotoMode}
-              replicaSelectedProductIds={replicaSelectedProductIds}
-              onReplicaSelectionChange={handleReplicaSelectionChange}
-              replicaSelectionLimit={MAX_REPLICA_ASSETS}
-              onReplicaSelectionLimitReached={handleReplicaSelectionLimitReached}
+              onSelect={(brand) => {
+                setSelectedBrand(brand);
+                setSelectedCompetitorAd(null);
+              }}
+              disabled={isGenerating}
+              className="flex-shrink-0"
             />
           </div>
 
@@ -1415,8 +1390,6 @@ export default function CompetitorUgcReplicationPage() {
               onFormatChange={setFormat}
               formatDisabled={isKlingModel}
               formatHelperText={formatHelperText}
-              watermarkEnabled={watermarkEnabled}
-              onWatermarkEnabledChange={setWatermarkEnabled}
               disabled={isGenerating}
               variant="minimal"
               mode={isCompetitorPhotoMode ? 'photo' : 'video'}

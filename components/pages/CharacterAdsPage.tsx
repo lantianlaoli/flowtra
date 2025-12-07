@@ -1063,6 +1063,7 @@ const formatDurationLabel = (seconds: number) => {
                             <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
                           </>
                         }
+                        noticeVariant="character-ads"
                         onReview={(generation) => setInspectorProjectId((generation as CharacterGeneration).projectId!)}
                       />
                     </div>

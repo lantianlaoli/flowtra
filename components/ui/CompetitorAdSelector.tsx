@@ -169,7 +169,7 @@ export default function CompetitorAdSelector({
           <Target className="w-5 h-5 text-purple-600" />
           <div className="text-left">
             <h3 className="text-sm font-semibold text-purple-900">
-              Reference Competitor Ad (Optional)
+              Reference Competitor Ad
             </h3>
             <p className="text-xs text-purple-700">
               {selectedCompetitorAd

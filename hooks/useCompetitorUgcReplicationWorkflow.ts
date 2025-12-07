@@ -227,14 +227,19 @@ export const useCompetitorUgcReplicationWorkflow = (
     });
   }, [selectedModel, guestUsageCount, userId, maxUserUsage, maxGuestUsage]);
 
-  const startWorkflowWithSelectedProduct = useCallback(async (
-    selectedProductId: string | undefined,
-    watermarkConfig: { enabled: boolean; text: string; location?: string },
-    currentElementsCount?: number,
-    currentImageSize?: string,
-    generateVideo?: boolean,
-    selectedBrandId?: string,
-    competitorAdId?: string | null,
+  const startWorkflowWithSelectedProduct = useCallback(async ({
+    elementsCountOverride,
+    imageSizeOverride,
+    generateVideo = true,
+    selectedBrandId,
+    competitorAdId,
+    replicaOptions
+  }: {
+    elementsCountOverride?: number;
+    imageSizeOverride?: string;
+    generateVideo?: boolean;
+    selectedBrandId: string;
+    competitorAdId: string;
     replicaOptions?: {
       photoOnly?: boolean;
       replicaMode?: boolean;
@@ -242,8 +247,8 @@ export const useCompetitorUgcReplicationWorkflow = (
       photoAspectRatio?: string;
       photoResolution?: '1K' | '2K' | '4K';
       photoOutputFormat?: 'png' | 'jpg';
-    }
-  ) => {
+    };
+  }) => {
     const previousStatus = state.workflowStatus;
 
     try {
@@ -268,16 +273,11 @@ export const useCompetitorUgcReplicationWorkflow = (
           : !generateVideo;
 
       const requestData = {
-        selectedProductId,
         userId: userId,
         videoModel: selectedModel,
         imageModel: selectedImageModel,
-        watermark: watermarkConfig.enabled ? {
-          text: watermarkConfig.text,
-          location: watermarkConfig.location || 'bottom left'
-        } : undefined,
-        elementsCount: currentElementsCount ?? elementsCount,
-        imageSize: currentImageSize ?? imageSize,
+        elementsCount: elementsCountOverride ?? elementsCount,
+        imageSize: imageSizeOverride ?? imageSize,
         shouldGenerateVideo: generateVideo,
         photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
@@ -322,10 +322,7 @@ export const useCompetitorUgcReplicationWorkflow = (
         historyId: normalizedHistoryId,
         workflowStatus: 'workflow_initiated',
         workflowInitiatedCount: prev.workflowInitiatedCount + 1,
-        data: {
-          ...prev.data,
-          watermark: watermarkConfig
-        }
+        data: prev.data
       }));
 
       // Update credits immediately after successful workflow start
@@ -345,273 +342,6 @@ export const useCompetitorUgcReplicationWorkflow = (
       }
 
       const message = error instanceof Error ? error.message : 'Failed to start workflow';
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        workflowStatus: previousStatus,
-        error: message
-      }));
-    }
-  }, [
-    userId,
-    selectedModel,
-    selectedImageModel,
-    elementsCount,
-    imageSize,
-    videoAspectRatio,
-    resolveVideoConfig,
-    adCopy,
-    selectedLanguage,
-    useCustomScript,
-    customScript,
-    updateCredits,
-    refetchCredits,
-    state.workflowStatus
-  ]);
-
-  const startWorkflowWithConfig = useCallback(async (
-    watermarkConfig: { enabled: boolean; text: string; location?: string },
-    currentElementsCount?: number,
-    currentImageSize?: string,
-    generateVideo?: boolean,
-    selectedBrandId?: string
-  ) => {
-    if (!state.data.uploadedFile?.url || !state.data.uploadedFile?.path) {
-      setError('No uploaded file found');
-      return;
-    }
-
-    const previousStatus = state.workflowStatus;
-
-    try {
-      setState(prev => ({
-        ...prev,
-        isLoading: true,
-        error: null,
-        workflowStatus:
-          prev.workflowStatus === 'started' || prev.workflowStatus === 'uploaded_waiting_config'
-            ? 'workflow_initiated'
-            : prev.workflowStatus
-      }));
-
-      const { videoDuration: resolvedDuration, videoQuality: resolvedQuality } = resolveVideoConfig();
-      const sora2ProDuration = selectedModel === 'sora2_pro' && resolvedDuration
-        ? (resolvedDuration === '15' ? '15' : '10')
-        : undefined;
-
-      const requestData = {
-        imageUrl: state.data.uploadedFile.url,
-        imagePath: state.data.uploadedFile.path,
-        userId: userId,
-        videoModel: selectedModel,
-        imageModel: selectedImageModel,
-        watermark: watermarkConfig.enabled ? {
-          text: watermarkConfig.text,
-          location: watermarkConfig.location || 'bottom left'
-        } : undefined,
-        elementsCount: currentElementsCount ?? elementsCount,
-        imageSize: currentImageSize ?? imageSize,
-        shouldGenerateVideo: generateVideo,
-        videoAspectRatio: videoAspectRatio,
-        videoDuration: resolvedDuration,
-        videoQuality: resolvedQuality,
-        sora2ProDuration,
-        sora2ProQuality: selectedModel === 'sora2_pro' ? resolvedQuality : undefined,
-        adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
-        selectedBrandId: selectedBrandId,
-        language: selectedLanguage,
-        useCustomScript: useCustomScript,
-        customScript: customScript?.trim() ? customScript.trim() : undefined
-      };
-
-      console.log('🔍 useWorkflow startWorkflowWithConfig requestData:', requestData);
-
-      const response = await fetch('/api/competitor-ugc-replication/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to start workflow');
-      }
-
-      const normalizedHistoryId = result.historyId || result.projectId || null;
-
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        historyId: normalizedHistoryId,
-        workflowStatus: 'workflow_initiated',
-        workflowInitiatedCount: prev.workflowInitiatedCount + 1,
-        data: {
-          ...prev.data,
-          watermark: watermarkConfig
-        }
-      }));
-
-      // Update credits immediately after successful workflow start
-      if (result.remainingCredits !== undefined && updateCredits && userId) {
-        console.log(`🔄 Updating credits in sidebar: ${result.remainingCredits} remaining after using ${result.creditsUsed}`);
-        updateCredits(result.remainingCredits);
-      }
-
-      // No polling - workflow runs completely in background via monitor-tasks
-      return { ...result, historyId: normalizedHistoryId };
-
-    } catch (error: any) {
-      // Refetch credits in case of error (credits might have been refunded)
-      if (userId && refetchCredits) {
-        console.log('🔄 Refetching credits due to workflow start error');
-        refetchCredits();
-      }
-      
-      const message = error instanceof Error ? error.message : 'Failed to start workflow';
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        workflowStatus: previousStatus,
-        error: message
-      }));
-    }
-  }, [
-    state.data.uploadedFile,
-    userId,
-    selectedModel,
-    selectedImageModel,
-    elementsCount,
-    imageSize,
-    videoAspectRatio,
-    resolveVideoConfig,
-    adCopy,
-    selectedLanguage,
-    useCustomScript,
-    customScript,
-    updateCredits,
-    refetchCredits,
-    state.workflowStatus
-  ]);
-
-  const startWorkflowWithTemporaryImages = useCallback(async (
-    imageFiles: File[],
-    watermarkConfig: { enabled: boolean; text: string; location?: string },
-    currentElementsCount?: number,
-    currentImageSize?: string,
-    generateVideo?: boolean,
-    selectedBrandId?: string
-  ) => {
-    const previousStatus = state.workflowStatus;
-
-    try {
-      setState(prev => ({
-        ...prev,
-        isLoading: true,
-        error: null,
-        workflowStatus:
-          prev.workflowStatus === 'started' || prev.workflowStatus === 'uploaded_waiting_config'
-            ? 'workflow_initiated'
-            : prev.workflowStatus
-      }));
-
-      // Upload images to Supabase first
-      const formData = new FormData();
-      imageFiles.forEach((file, index) => {
-        formData.append(`file_${index}`, file);
-      });
-
-      const uploadResponse = await fetch('/api/upload-temp-images', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const uploadResult = await uploadResponse.json();
-      if (!uploadResult.success) {
-        throw new Error(uploadResult.error || 'Failed to upload images');
-      }
-
-      const primaryImageUrl = uploadResult.imageUrls[0];
-
-      // Start workflow with uploaded image URL
-      const { videoDuration: resolvedDuration, videoQuality: resolvedQuality } = resolveVideoConfig();
-      const sora2ProDuration = selectedModel === 'sora2_pro' && resolvedDuration
-        ? (resolvedDuration === '15' ? '15' : '10')
-        : undefined;
-
-      const requestData = {
-        imageUrl: primaryImageUrl,
-        userId: userId,
-        videoModel: selectedModel,
-        imageModel: selectedImageModel,
-        watermark: watermarkConfig.enabled ? {
-          text: watermarkConfig.text,
-          location: watermarkConfig.location || 'bottom left'
-        } : undefined,
-        elementsCount: currentElementsCount ?? elementsCount,
-        imageSize: currentImageSize ?? imageSize,
-        shouldGenerateVideo: generateVideo,
-        videoAspectRatio: videoAspectRatio,
-        videoDuration: resolvedDuration,
-        videoQuality: resolvedQuality,
-        sora2ProDuration,
-        sora2ProQuality: selectedModel === 'sora2_pro' ? resolvedQuality : undefined,
-        adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
-        selectedBrandId: selectedBrandId,
-        language: selectedLanguage,
-        useCustomScript: useCustomScript,
-        customScript: customScript?.trim() ? customScript.trim() : undefined
-      };
-
-      console.log('🔍 useWorkflow startWorkflowWithTemporaryImages requestData:', requestData);
-
-      const response = await fetch('/api/competitor-ugc-replication/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to start workflow');
-      }
-
-      const normalizedHistoryId = result.historyId || result.projectId || null;
-
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        historyId: normalizedHistoryId,
-        workflowStatus: 'workflow_initiated',
-        workflowInitiatedCount: prev.workflowInitiatedCount + 1,
-        data: {
-          ...prev.data,
-          uploadedFile: { url: primaryImageUrl },
-          watermark: watermarkConfig
-        }
-      }));
-
-      // Update credits immediately after successful workflow start
-      if (result.remainingCredits !== undefined && updateCredits && userId) {
-        console.log(`🔄 Updating credits in sidebar: ${result.remainingCredits} remaining after using ${result.creditsUsed}`);
-        updateCredits(result.remainingCredits);
-      }
-
-      // No polling - workflow runs completely in background via monitor-tasks
-
-    } catch (error: any) {
-      // Refetch credits in case of error
-      if (userId && refetchCredits) {
-        console.log('🔄 Refetching credits due to workflow start error');
-        refetchCredits();
-      }
-
-      const message = error instanceof Error ? error.message : 'Failed to start workflow with temporary images';
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -639,9 +369,7 @@ export const useCompetitorUgcReplicationWorkflow = (
   return {
     state,
     uploadFile,
-    startWorkflowWithConfig,
     startWorkflowWithSelectedProduct,
-    startWorkflowWithTemporaryImages,
     resetWorkflow
   };
 };

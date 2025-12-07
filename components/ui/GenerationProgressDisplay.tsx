@@ -19,7 +19,8 @@ import {
   Image as ImageIcon,
   PenSquare,
   Package,
-  User
+  User,
+  AlertCircle
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
@@ -50,6 +51,8 @@ export interface Generation {
   awaitingMerge?: boolean;
   mergeTaskId?: string | null;
   mergeLoading?: boolean;
+  videoGenerationRequested?: boolean;
+  isPhotoOnly?: boolean;
 }
 
 export interface SegmentCardSummary {
@@ -87,6 +90,65 @@ const DEFAULT_STEPS: EmptyStateStep[] = [
   },
 ];
 
+function renderEmptyStateNotice(variant: 'competitor-ugc' | 'character-ads') {
+  if (variant === 'character-ads') {
+    return (
+      <div className="mb-6 bg-blue-50 border border-blue-100 rounded-2xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-2xl bg-white/80 border border-blue-100 flex items-center justify-center">
+            <Rocket className="w-4 h-4 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-blue-900">Two flexible formats</p>
+            <p className="text-xs text-blue-800">Add a product or keep it as a pure talking head recording.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex items-center gap-3 rounded-xl bg-white/80 border border-blue-100 p-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
+              <Package className="w-5 h-5 text-blue-700" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-blue-900">Character + Product</p>
+              <p className="text-xs text-blue-700">Let the talent hold or wear your product while delivering the script.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-xl bg-white/80 border border-blue-100 p-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
+              <User className="w-5 h-5 text-blue-700" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-blue-900">Talking Head</p>
+              <p className="text-xs text-blue-700">Skip product assets and have the character share a message directly to camera.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-2xl bg-white/90 border border-amber-200 flex items-center justify-center">
+          <AlertCircle className="w-4 h-4 text-amber-700" />
+        </div>
+        <div className="space-y-2 text-sm text-amber-900">
+          <p className="font-semibold text-base">Model usage reminders</p>
+          <ul className="space-y-2 text-amber-900">
+            <li>
+              <span className="font-semibold">Veo3 Fast & Veo3:</span> These Google models cannot feature children or minors. Avoid kid-focused products or scenes.
+            </li>
+            <li>
+              <span className="font-semibold">Sora2 & Sora2 Pro:</span> These OpenAI models forbid showcasing products intended for direct human use (skincare, ingestibles, supplements, etc.).
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface GenerationProgressDisplayProps {
   generations: Generation[];
   onDownload?: (generation: Generation) => void;
@@ -97,6 +159,8 @@ interface GenerationProgressDisplayProps {
   onSegmentSelect?: (generation: Generation, segment: SegmentCardSummary) => void;
   onMerge?: (generation: Generation, updatedPlan?: any) => void;
   onReview?: (generation: Generation) => void;
+  noticeVariant?: 'competitor-ugc' | 'character-ads';
+  reviewCtaLabel?: string;
 }
 
 export default function GenerationProgressDisplay({
@@ -108,8 +172,11 @@ export default function GenerationProgressDisplay({
   onToggleSegments,
   onSegmentSelect,
   onMerge,
-  onReview
+  onReview,
+  noticeVariant = 'competitor-ugc',
+  reviewCtaLabel = 'Review & Generate'
 }: GenerationProgressDisplayProps) {
+  const noticePanel = useMemo(() => renderEmptyStateNotice(noticeVariant), [noticeVariant]);
   // Load TikTok script when in empty state
   useEffect(() => {
     if (generations.length === 0) {
@@ -132,38 +199,7 @@ export default function GenerationProgressDisplay({
         <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-10 lg:gap-12">
           {/* Left Side: Steps */}
           <div className="flex-1 max-w-lg">
-            {/* Character Ads format guidance */}
-            <div className="mb-6 bg-blue-50 border border-blue-100 rounded-2xl p-5">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-2xl bg-white/80 border border-blue-100 flex items-center justify-center">
-                  <Rocket className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-blue-900">Two flexible formats</p>
-                  <p className="text-xs text-blue-800">Add a product or keep it as a pure talking head recording.</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex items-center gap-3 rounded-xl bg-white/80 border border-blue-100 p-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
-                    <Package className="w-5 h-5 text-blue-700" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-blue-900">Character + Product</p>
-                    <p className="text-xs text-blue-700">Let the talent hold or wear your product while delivering the script.</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl bg-white/80 border border-blue-100 p-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
-                    <User className="w-5 h-5 text-blue-700" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-blue-900">Talking Head</p>
-                    <p className="text-xs text-blue-700">Skip product assets and have the character share a message directly to camera.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {noticePanel}
 
             <div className="mb-8">
               <div className="flex items-center gap-3 mb-2">
@@ -226,6 +262,7 @@ export default function GenerationProgressDisplay({
           onSegmentSelect={onSegmentSelect}
           onMerge={onMerge}
           onReview={onReview}
+          reviewCtaLabel={reviewCtaLabel}
         />
       ))}
     </div>
@@ -240,6 +277,7 @@ interface GenerationCardProps {
   onSegmentSelect?: (generation: Generation, segment: SegmentCardSummary) => void;
   onMerge?: (generation: Generation) => void;
   onReview?: (generation: Generation) => void;
+  reviewCtaLabel: string;
 }
 
 function GenerationCard({
@@ -249,7 +287,8 @@ function GenerationCard({
   onToggleSegments,
   onSegmentSelect,
   onMerge,
-  onReview
+  onReview,
+  reviewCtaLabel
 }: GenerationCardProps) {
   const {
     status,
@@ -265,7 +304,9 @@ function GenerationCard({
     isDownloading,
     downloaded,
     segmentCount,
-    videoDuration
+    videoDuration,
+    videoGenerationRequested,
+    isPhotoOnly
   } = generation;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -394,13 +435,18 @@ function GenerationCard({
           </div>
           <div className="flex items-center gap-2">
             {/* Review Button for Character Ads - Hide during processing/video generation */}
-            {onReview && (status === 'pending' || status === 'awaiting_review') && coverUrl && !videoUrl && (
+            {onReview &&
+              !isPhotoOnly &&
+              !videoGenerationRequested &&
+              (status === 'pending' || status === 'awaiting_review') &&
+              coverUrl &&
+              !videoUrl && (
               <button
                 onClick={() => onReview(generation)}
                 className="inline-flex items-center gap-2 px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold shadow-sm hover:bg-blue-100 hover:border-blue-300 transition-colors cursor-pointer"
               >
                 <PenSquare className="w-3.5 h-3.5" />
-                <span>Review & Generate</span>
+                <span>{reviewCtaLabel}</span>
               </button>
             )}
 
@@ -606,7 +652,7 @@ function SegmentBoard({
     <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
         <div className="font-semibold text-gray-900">
-          Shots ready: {segmentStatus?.framesReady ?? 0}/{segmentStatus?.total ?? derivedSegments.length}
+         Segments ready: {segmentStatus?.framesReady ?? 0}/{segmentStatus?.total ?? derivedSegments.length}
         </div>
         <div>Videos ready: {segmentStatus?.videosReady ?? 0}/{segmentStatus?.total ?? derivedSegments.length}</div>
         {segmentStatus?.mergedVideoUrl && (
@@ -640,7 +686,7 @@ function SegmentSummaryCard({ segment, onSelect }: { segment: SegmentCardSummary
   const title =
     (typeof (prompt as { segment_title?: string }).segment_title === 'string' && (prompt as { segment_title?: string }).segment_title) ||
     (typeof (prompt as { segment_goal?: string }).segment_goal === 'string' && (prompt as { segment_goal?: string }).segment_goal) ||
-    `Shot ${segment.index + 1}`;
+    `Segment ${segment.index + 1}`;
   const summary =
     (typeof (prompt as { action?: string }).action === 'string' && (prompt as { action?: string }).action) ||
     (typeof (prompt as { description?: string }).description === 'string' && (prompt as { description?: string }).description) ||

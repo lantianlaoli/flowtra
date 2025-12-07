@@ -59,14 +59,11 @@ export async function POST(request: NextRequest) {
 
     console.log('🚀 Competitor UGC Replication workflow request received:', {
       imageUrl: requestData.imageUrl,
-      selectedProductId: requestData.selectedProductId,
-      selectedBrandId: requestData.selectedBrandId, // NEW: Log brand ID
-      competitorAdId: requestData.competitorAdId, // NEW: Log competitor ad ID
+      selectedBrandId: requestData.selectedBrandId,
+      competitorAdId: requestData.competitorAdId,
       userId: requestData.userId,
       videoModel: requestData.videoModel,
       imageModel: requestData.imageModel,
-      watermark: requestData.watermark,
-      watermarkLocation: requestData.watermarkLocation,
       imageSize: requestData.imageSize,
       elementsCount: requestData.elementsCount,
       photoOnly: requestData.photoOnly,
@@ -76,11 +73,16 @@ export async function POST(request: NextRequest) {
       customScriptProvided: !!requestData.customScript
     });
 
-    // NEW: Updated validation to support brand-only mode
-    // At least one of: imageUrl, selectedProductId, or selectedBrandId is required
-    if (!requestData.imageUrl && !requestData.selectedProductId && !requestData.selectedBrandId) {
+    if (!requestData.selectedBrandId) {
       return NextResponse.json(
-        { error: 'Either imageUrl, selectedProductId, or selectedBrandId is required' },
+        { error: 'Brand is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!requestData.competitorAdId) {
+      return NextResponse.json(
+        { error: 'Competitor reference is required' },
         { status: 400 }
       );
     }

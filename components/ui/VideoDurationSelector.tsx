@@ -182,6 +182,12 @@ export default function VideoDurationSelector({
                 {selectedOption.features}
               </span>
             )}
+            {recommendedDuration && selectedOption?.value === recommendedDuration && (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mt-1">
+                <Sparkles className="w-3 h-3" />
+                Recommended
+              </span>
+            )}
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
             <ChevronDown className="h-3 w-3 text-gray-600" />

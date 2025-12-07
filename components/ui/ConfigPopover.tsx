@@ -43,10 +43,6 @@ interface ConfigPopoverProps {
   formatDisabled?: boolean;
   formatHelperText?: string;
 
-  // Watermark props
-  watermarkEnabled: boolean;
-  onWatermarkEnabledChange: (enabled: boolean) => void;
-
   disabled?: boolean;
   variant?: 'default' | 'minimal';
   mode?: 'video' | 'photo';
@@ -79,8 +75,6 @@ export default function ConfigPopover({
   onFormatChange,
   formatDisabled = false,
   formatHelperText,
-  watermarkEnabled,
-  onWatermarkEnabledChange,
   disabled = false,
   variant = 'default',
   mode = 'video',
@@ -374,40 +368,6 @@ export default function ConfigPopover({
                 showIcon
               />
 
-              {/* Watermark Toggle */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Brand Watermark
-                </label>
-                <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-900 font-medium">
-                      Add brand watermark
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Display brand name on cover image
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={watermarkEnabled}
-                    onClick={() => onWatermarkEnabledChange(!watermarkEnabled)}
-                    className={cn(
-                      'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
-                      watermarkEnabled ? 'bg-blue-600' : 'bg-gray-300'
-                    )}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                        watermarkEnabled ? 'translate-x-5' : 'translate-x-0'
-                      )}
-                    />
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Footer tip */}

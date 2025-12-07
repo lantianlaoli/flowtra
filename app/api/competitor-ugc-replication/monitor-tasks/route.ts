@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
+import { getLanguagePromptName, getSegmentDurationForModel, type LanguageCode, type VideoModel } from '@/lib/constants';
 import {
   startSegmentVideoTask,
   buildSegmentStatusPayload,
@@ -201,6 +201,7 @@ interface HistoryRecord {
   photo_only?: boolean | null;
   selected_brand_id?: string;
   competitor_ad_id?: string;
+  video_generation_requested?: boolean | null;
   image_model?: 'nano_banana' | 'seedream';
   language?: string;
   // NEW: Custom script fields
@@ -220,7 +221,10 @@ interface HistoryRecord {
 }
 
 const MAX_WORKFLOW_AGE_MINUTES = 30;
-const MONITOR_DEFAULT_SEGMENT_DURATION = 8;
+function resolveSegmentDuration(record: HistoryRecord): number {
+  const recordModel = (record.video_model ?? null) as VideoModel | null;
+  return record.segment_duration_seconds || getSegmentDurationForModel(recordModel);
+}
 
 async function processRecord(record: HistoryRecord) {
   const supabase = getSupabaseAdmin();
@@ -322,6 +326,7 @@ async function processRecord(record: HistoryRecord) {
 
     if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
       console.log(`Cover completed for record ${record.id}`);
+      record.cover_image_url = coverResult.imageUrl;
 
       // If photo_only, complete workflow here
       if (record.photo_only === true) {
@@ -342,8 +347,24 @@ async function processRecord(record: HistoryRecord) {
         }
 
         console.log(`Completed image-only workflow for record ${record.id}`);
+      } else if (!record.video_generation_requested) {
+        const { error: pauseErr } = await supabase
+          .from('competitor_ugc_replication_projects')
+          .update({
+            cover_image_url: coverResult.imageUrl,
+            current_step: 'ready_for_video',
+            progress_percentage: 60,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', record.id);
+
+        if (pauseErr) {
+          console.error(`Failed to update record ${record.id} after cover completion:`, pauseErr);
+          throw new Error(`DB update failed for record ${record.id}`);
+        }
+
+        console.log(`🛑 Awaiting user approval before video generation for record ${record.id}`);
       } else {
-        // Cover completed, start video generation
         const videoTaskId = await startVideoGeneration(record, coverResult.imageUrl);
 
         const { error: startErr } = await supabase
@@ -368,6 +389,33 @@ async function processRecord(record: HistoryRecord) {
     } else if (coverResult.status === 'FAILED') {
       throw new Error('Cover generation failed');
     }
+  }
+
+  if (
+    record.current_step === 'ready_for_video' &&
+    record.video_generation_requested &&
+    record.cover_image_url &&
+    !record.video_task_id &&
+    record.photo_only !== true
+  ) {
+    const videoTaskId = await startVideoGeneration(record, record.cover_image_url);
+    const { error: startVideoErr } = await supabase
+      .from('competitor_ugc_replication_projects')
+      .update({
+        video_task_id: videoTaskId,
+        current_step: 'generating_video',
+        progress_percentage: 85,
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', record.id);
+
+    if (startVideoErr) {
+      console.error(`Failed to update record ${record.id} after manual video trigger:`, startVideoErr);
+      throw new Error(`DB update failed for record ${record.id}`);
+    }
+
+    console.log(`🎬 User-approved video generation started for ${record.id}, taskId: ${videoTaskId}`);
+    return;
   }
 
   // Handle video generation monitoring
@@ -1138,7 +1186,7 @@ function getSegmentPrompt(
   index: number,
   segments?: CompetitorUgcReplicationSegment[]
 ): SegmentPrompt {
-  const duration = record.segment_duration_seconds || MONITOR_DEFAULT_SEGMENT_DURATION;
+  const duration = resolveSegmentDuration(record);
 
   if (segments) {
     const match = segments.find(seg => seg.segment_index === index);
@@ -1208,14 +1256,14 @@ function getPlanSegments(record: HistoryRecord): SegmentPrompt[] | null {
   const hydrated = hydrateSegmentPlan(
     record.segment_plan as SerializedSegmentPlan | Record<string, unknown> | null,
     record.segment_count || 0,
-    record.segment_duration_seconds || undefined
+    resolveSegmentDuration(record)
   );
   record.__hydrated_plan_segments = hydrated.length > 0 ? hydrated : null;
   return record.__hydrated_plan_segments;
 }
 
 function ensureSegmentShots(record: HistoryRecord, prompt: SegmentPrompt): SegmentPrompt {
-  const duration = record.segment_duration_seconds || MONITOR_DEFAULT_SEGMENT_DURATION;
+  const duration = resolveSegmentDuration(record);
   const hydrate = (segment: SegmentPrompt): SegmentPrompt => {
     const normalized = normalizeSegmentPrompts({ segments: [segment] }, 1, undefined, duration);
     if (normalized.length > 0) {

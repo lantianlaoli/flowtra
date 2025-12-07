@@ -9,11 +9,10 @@ import {
   startSegmentVideoTask,
   serializeSegmentPrompt,
   hydrateSerializedSegmentPrompt,
-  DEFAULT_SEGMENT_DURATION_SECONDS,
   type SegmentPrompt,
   type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
-import { getGenerationCost, getReplicaPhotoCredits } from '@/lib/constants';
+import { getGenerationCost, getReplicaPhotoCredits, getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 type PatchPayload = {
@@ -89,7 +88,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Segment not found' }, { status: 404 });
     }
 
-    const segmentDurationSeconds = project.segment_duration_seconds || (project.video_model === 'grok' ? 6 : DEFAULT_SEGMENT_DURATION_SECONDS);
+    const projectModel = (project.video_model ?? null) as VideoModel | null;
+    const segmentDurationSeconds = project.segment_duration_seconds || getSegmentDurationForModel(projectModel);
     const existingPrompt = hydrateSerializedSegmentPrompt(
       segmentRow.prompt as SerializedSegmentPlanSegment,
       index,
