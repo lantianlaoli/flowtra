@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
     const language = (formData.get('language') as string) || 'en';
     const clientProjectIdRaw = formData.get('project_id');
     const clientProjectId = typeof clientProjectIdRaw === 'string' ? clientProjectIdRaw.trim() : null;
+    const talkingHeadModeFlag = formData.get('talking_head_mode');
+    let talkingHeadMode = typeof talkingHeadModeFlag === 'string' && talkingHeadModeFlag.toLowerCase() === 'true';
 
     console.log('Extracted form data:', { userId, videoDurationSeconds, imageModel, imageSize, videoModel, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId, language, clientProjectId });
 
@@ -197,7 +199,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (productImageUrls.length === 0 && productFiles.length === 0) {
+    const hasProductAssets = productImageUrls.length > 0 || productFiles.length > 0 || !!selectedProductId;
+    talkingHeadMode = !hasProductAssets;
+
+    if (!talkingHeadMode && productImageUrls.length === 0 && productFiles.length === 0) {
       return NextResponse.json(
         { error: 'At least one product image is required' },
         { status: 400 }
@@ -210,6 +215,15 @@ export async function POST(request: NextRequest) {
       const fileName = `character-ads/person/${userId}/${Date.now()}_${i}_${file.name}`;
       const uploadResult = await uploadImageToStorage(file, fileName);
       personImageUrls.push(uploadResult.publicUrl);
+    }
+
+    if (talkingHeadMode && !productContext) {
+      const trimmedDialogue = (customDialogue || '').trim();
+      productContext = {
+        product_details: trimmedDialogue
+          ? `Talking head delivery. Have the character speak directly to camera and read this script verbatim: ${trimmedDialogue}`
+          : 'Talking head delivery. Have the character speak directly to camera about their experience or advice without showing a specific product.'
+      };
     }
 
     // Upload product images to Supabase if we have files

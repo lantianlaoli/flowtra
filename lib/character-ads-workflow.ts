@@ -35,6 +35,12 @@ interface CharacterAdsProject {
   fal_merge_task_id?: string;
   error_message?: string;
   last_processed_at?: string;
+  product_context?: {
+    product_details?: string;
+    brand_name?: string;
+    brand_slogan?: string;
+    brand_details?: string;
+  } | null;
 }
 
 interface ProcessResult {
@@ -99,20 +105,41 @@ async function generatePrompts(
     brand_name?: string;
     brand_slogan?: string;
     brand_details?: string;
-  },
+  } | null,
   personImageUrl: string,
-  productImageUrl: string,
+  productImageUrl: string | null,
   videoDurationSeconds: number,
   language?: string,
-  userDialogue?: string
+  userDialogue?: string,
+  options?: { talkingHeadMode?: boolean }
 ): Promise<Record<string, unknown>> {
   const videoScenes = videoDurationSeconds / UNIT_SECONDS;
 
   // Get language name for prompts
   const languageCode = (language || 'en') as LanguageCode;
   const languageName = getLanguagePromptName(languageCode);
+  const isTalkingHeadMode = options?.talkingHeadMode ?? false;
 
-  const systemPrompt = `
+  if (!personImageUrl) {
+    throw new Error('Person image URL is required for prompt generation');
+  }
+
+  if (!isTalkingHeadMode) {
+    if (!productContext || !productContext.product_details) {
+      throw new Error('Product context is required for product-based character ads');
+    }
+    if (!productImageUrl) {
+      throw new Error('Product image URL is required for product-based character ads');
+    }
+  }
+
+  const talkHeadContext = userDialogue
+    ? `The user provided this script. Split it across ${videoScenes} scene(s) and keep every word verbatim: "${userDialogue.replace(/"/g, '\\"')}"`
+    : productContext?.product_details
+      ? `Use this talking head context to guide the monologue: ${productContext.product_details}`
+      : 'No script provided. Create an authentic, upbeat personal message where the talent shares a helpful insight or story directly to camera.';
+
+  const productSystemPrompt = `
 UGC Image + Video Prompt Generator 🎥🖼️
 
 Generate a complete JSON structure with ${videoScenes} video scene(s) for a character-based product advertisement.
@@ -191,6 +218,75 @@ OUTPUT FORMAT (JSON):
 
 CRITICAL: Ensure voice_type gender matches the person in the image!`;
 
+  const talkingHeadSystemPrompt = `
+Talking Head Prompt Generator 🎥
+
+Generate a complete JSON structure with ${videoScenes} video scene(s) for a direct-to-camera monologue. There is NO physical product being shown—only the talent speaking sincerely to camera.
+
+You will receive ONE PERSON image (the character/influencer).
+
+Your task:
+1. Analyze the PERSON image: Determine their ACTUAL GENDER, age, style, and appearance
+2. Generate ${videoScenes} scene prompt(s) with CORRECT gender-specific voice
+3. Generate 1 cover image prompt showing the talent speaking to camera without any props
+
+${talkHeadContext}
+
+CRITICAL RULES FOR GENDER:
+- Analyze the person's ACTUAL GENDER from the image - do NOT guess or assume
+- For MALE characters: Use "${languageName} accent, warm male voice"
+- For FEMALE characters: Use "${languageName} accent, warm female voice"
+- The gender MUST match what you see in the person image
+
+TALKING HEAD STYLE PRINCIPLES:
+- Amateur iPhone selfie video aesthetic
+- Character faces camera the entire time
+- Natural, casual background (desk, living room, office, etc.)
+- Slight hand gestures, natural blinking, subtle movement
+- No product props, nothing held in hand
+
+VIDEO SCENE REQUIREMENTS:
+- Each scene is ${UNIT_SECONDS} seconds long
+- Write ALL dialogue in ENGLISH (regardless of target language)
+- The 'language' field is metadata - actual dialogue text is always English
+- Keep dialogue concise (under 20 words per scene) and conversational
+- Camera movement: always "fixed"
+- Emotion: "confident, genuine, and helpful"
+- The dialog content should follow the provided script/context exactly when supplied.
+
+IMAGE PROMPT REQUIREMENTS:
+- Describe the character centered in frame, speaking to camera
+- Mention outfit, hairstyle, and environment to match the person image
+- No props or product references
+- Amateur iPhone selfie aesthetic
+
+OUTPUT FORMAT (JSON):
+{
+  "scenes": [
+    {
+      "scene": 1,
+      "prompt": {
+        "subject": "A confident [man/woman] in [clothing description] speaking directly to the camera...",
+        "context_environment": "A cozy home office with natural daylight...",
+        "action": "The character delivers their point with subtle hand gestures and a warm smile...",
+        "style": "Authentic talking head vlog style...",
+        "camera_motion_positioning": "Fixed Medium Shot (MS). The camera is stable...",
+        "composition": "Centered framing with soft depth of field...",
+        "ambiance_color_lighting": "Natural daylight with warm tones...",
+        "audio": "Soft room tone...",
+        "dialog": "Hey team, I just wrapped up my 5th project of the week...",
+        "voice_type": "${languageName} accent, warm [male/female] voice"
+      }
+    }
+  ],
+  "language": "${languageName}",
+  "image_prompt": "Show the character from the person image speaking directly to camera, centered in frame, no props, authentic vlog lighting."
+}
+
+CRITICAL: Keep everything focused on the person speaking directly to the viewer!`;
+
+  const systemPrompt = isTalkingHeadMode ? talkingHeadSystemPrompt : productSystemPrompt;
+
   const messages = [
     {
       role: 'system',
@@ -201,10 +297,12 @@ CRITICAL: Ensure voice_type gender matches the person in the image!`;
       content: [
         {
           type: 'text',
-          text: `Generate prompts for this character and product:\n\nPERSON IMAGE: Analyze for gender, age, style\nPRODUCT IMAGE: Identify the product\n\n${productContext.product_details ? `Product Details: ${productContext.product_details}` : ''}`
+          text: isTalkingHeadMode
+            ? `Generate prompts for this character speaking directly to camera.\nPERSON IMAGE: Analyze for gender, age, and style.\n${productContext?.product_details ? `Talking Head Context: ${productContext.product_details}` : ''}`
+            : `Generate prompts for this character and product:\n\nPERSON IMAGE: Analyze for gender, age, style\nPRODUCT IMAGE: Identify the product\n\n${productContext?.product_details ? `Product Details: ${productContext.product_details}` : ''}`
         },
         { type: 'image_url', image_url: { url: personImageUrl } },
-        { type: 'image_url', image_url: { url: productImageUrl } }
+        ...(!isTalkingHeadMode && productImageUrl ? [{ type: 'image_url', image_url: { url: productImageUrl } }] : [])
       ]
     }
   ];
@@ -826,12 +924,14 @@ export async function processCharacterAdsProject(
         console.log('Project product_image_urls:', project.product_image_urls);
 
         // Extract product context from project (typed safely)
-        const projectData = project as CharacterAdsProject & { product_context?: { product_details?: string; brand_name?: string; brand_slogan?: string; brand_details?: string } };
-        let productContext = projectData.product_context;
+        let productContext = project.product_context;
         console.log('Product context from project:', JSON.stringify(productContext, null, 2));
 
+        const hasProductImages = Array.isArray(project.product_image_urls) && project.product_image_urls.length > 0;
+        const talkingHeadMode = !hasProductImages;
+
         // Fallback: analyze temp product if no context
-        if (!productContext && project.product_image_urls?.length > 0) {
+        if (!productContext && hasProductImages) {
           console.log('Temporary product - running fallback analysis');
 
           const productAnalysis = await analyzeProductImageOnly(project.product_image_urls[0]);
@@ -845,7 +945,14 @@ export async function processCharacterAdsProject(
             .eq('id', project.id);
         }
 
-        if (!productContext || !productContext.product_details) {
+        if ((!productContext || !productContext.product_details) && talkingHeadMode) {
+          const fallbackScript = project.custom_dialogue?.trim();
+          productContext = {
+            product_details: fallbackScript
+              ? `Talking head delivery. Have the character speak directly to camera and read this script verbatim: ${fallbackScript}`
+              : 'Talking head delivery. Have the character speak directly to camera about their expertise or story with no props.'
+          };
+        } else if (!productContext || !productContext.product_details) {
           throw new Error(`Product context validation failed: ${JSON.stringify({
             hasContext: !!productContext,
             hasProductDetails: !!productContext?.product_details,
@@ -863,28 +970,32 @@ export async function processCharacterAdsProject(
           throw new Error(`Invalid person image URL: ${JSON.stringify(personImageUrl)}`);
         }
 
-        // Validate product image URLs
-        if (!project.product_image_urls || project.product_image_urls.length === 0) {
-          throw new Error('Product image URLs are required but not found in project');
-        }
+        let productImageUrl: string | null = null;
+        if (!talkingHeadMode) {
+          if (!project.product_image_urls || project.product_image_urls.length === 0) {
+            throw new Error('Product image URLs are required but not found in project');
+          }
 
-        const productImageUrl = project.product_image_urls[0];
-        if (!productImageUrl || typeof productImageUrl !== 'string') {
-          throw new Error(`Invalid product image URL: ${JSON.stringify(productImageUrl)}`);
+          productImageUrl = project.product_image_urls[0];
+          if (!productImageUrl || typeof productImageUrl !== 'string') {
+            throw new Error(`Invalid product image URL: ${JSON.stringify(productImageUrl)}`);
+          }
         }
 
         console.log('Generating prompts with direct Gemini analysis...');
         console.log('Person image:', personImageUrl);
         console.log('Product image:', productImageUrl);
+        console.log('Talking head mode:', talkingHeadMode);
 
         // ✅ Fix Bug 2: Direct Gemini analysis - no separate person analysis or gender detection
         const prompts = await generatePrompts(
-          productContext as { product_details: string; brand_name?: string; brand_slogan?: string; brand_details?: string },
+          productContext as { product_details: string; brand_name?: string; brand_slogan?: string; brand_details?: string } | null,
           personImageUrl,
           productImageUrl,
           project.video_duration_seconds,
           project.language,
-          project.custom_dialogue || undefined
+          project.custom_dialogue || undefined,
+          { talkingHeadMode }
         );
 
         // Create scene records (video scenes only, starting from 1)

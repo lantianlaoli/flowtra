@@ -17,6 +17,7 @@ interface ShowcaseItem {
   person_image_url?: string;
   product_image_url?: string;
   video_url?: string;
+  talking_head_mode?: boolean;
 }
 
 interface ShowcaseSectionProps {
@@ -35,6 +36,7 @@ interface ProjectItem {
   product_image_urls?: string[];
   generated_video_urls?: string[];
   merged_video_url?: string;
+  talking_head_mode?: boolean;
 }
 
 interface UserData {
@@ -134,11 +136,13 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
 
             // Add character-ads specific data
             if (workflowType === 'character-ads') {
+              const isTalkingHead = item.talking_head_mode ?? !(item.product_image_urls?.length);
               return {
                 ...baseItem,
                 person_image_url: item.person_image_urls?.[0] || fallbackImage,
                 product_image_url: item.product_image_urls?.[0],
-                video_url: item.merged_video_url || item.generated_video_urls?.[0]
+                video_url: item.merged_video_url || item.generated_video_urls?.[0],
+                talking_head_mode: isTalkingHead
               };
             }
 
@@ -201,6 +205,11 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
                 />
               </div>
               <span className="text-sm font-medium text-gray-900">{item.user.name || 'Anonymous'}</span>
+              {item.talking_head_mode && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                  Talking Head
+                </span>
+              )}
             </div>
 
             {/* Process flow: Person + Product → Video - Minimal Layout */}
@@ -217,24 +226,32 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
                 )}
               </div>
 
+              {/* Only show product column when mode is product-based */}
+              {!item.talking_head_mode && (
+                <>
+                  <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center text-white font-medium text-xs">
+                    +
+                  </div>
+
+                  {/* Product Image */}
+                  <div className="relative w-40 h-52 lg:w-48 lg:h-64 rounded-lg overflow-hidden bg-white shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
+                    {item.product_image_url ? (
+                      <Image
+                        src={item.product_image_url}
+                        alt="Product"
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                        No product
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
               {/* Plus Icon */}
-              <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center text-white font-medium text-xs">
-                +
-              </div>
-
-              {/* Product Image */}
-              <div className="relative w-40 h-52 lg:w-48 lg:h-64 rounded-lg overflow-hidden bg-white shadow-sm border border-gray-200 hover:border-gray-300 transition-colors">
-                {item.product_image_url && (
-                  <Image
-                    src={item.product_image_url}
-                    alt="Product"
-                    fill
-                    className="object-cover"
-                  />
-                )}
-              </div>
-
-              {/* Arrow */}
               <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center text-white">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

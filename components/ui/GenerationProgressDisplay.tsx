@@ -18,7 +18,8 @@ import {
   Film,
   Image as ImageIcon,
   PenSquare,
-  AlertTriangle
+  Package,
+  User
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
@@ -131,22 +132,35 @@ export default function GenerationProgressDisplay({
         <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-10 lg:gap-12">
           {/* Left Side: Steps */}
           <div className="flex-1 max-w-lg">
-            {/* Model Usage Restrictions Warning */}
-            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-amber-900 mb-2">
-                    Model Usage Restrictions
-                  </h4>
-                  <ul className="space-y-2 text-sm text-amber-800">
-                    <li>
-                      <span className="font-medium">Sora2 (OpenAI):</span> Does not allow images containing unauthorized portraits. If your video contains human faces (adults or children), please do not select this model.
-                    </li>
-                    <li>
-                      <span className="font-medium">Veo3 (Google):</span> Does not allow images containing children. If your brand targets children or content features minors, please do not select this model.
-                    </li>
-                  </ul>
+            {/* Character Ads format guidance */}
+            <div className="mb-6 bg-blue-50 border border-blue-100 rounded-2xl p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-2xl bg-white/80 border border-blue-100 flex items-center justify-center">
+                  <Rocket className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-blue-900">Two flexible formats</p>
+                  <p className="text-xs text-blue-800">Add a product or keep it as a pure talking head recording.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="flex items-center gap-3 rounded-xl bg-white/80 border border-blue-100 p-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
+                    <Package className="w-5 h-5 text-blue-700" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900">Character + Product</p>
+                    <p className="text-xs text-blue-700">Let the talent hold or wear your product while delivering the script.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 rounded-xl bg-white/80 border border-blue-100 p-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
+                    <User className="w-5 h-5 text-blue-700" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900">Talking Head</p>
+                    <p className="text-xs text-blue-700">Skip product assets and have the character share a message directly to camera.</p>
+                  </div>
                 </div>
               </div>
             </div>

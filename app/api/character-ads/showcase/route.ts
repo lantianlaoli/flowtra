@@ -29,20 +29,20 @@ export async function GET(request: NextRequest) {
     const transformedProjects = (projects || [])
       .filter(project => 
         project.generated_image_url && 
-        project.person_image_urls?.[0] &&
-        project.product_image_urls?.[0] // Ensure we have all required images
+        project.person_image_urls?.[0]
       )
       .map(project => ({
         id: project.id,
         original_image_url: project.person_image_urls[0], // Use first person image as original
         cover_image_url: project.generated_image_url, // Use generated image as cover
         person_image_urls: project.person_image_urls, // Include person images
-        product_image_urls: project.product_image_urls, // Include product images
+        product_image_urls: project.product_image_urls, // Include product images (may be empty for talking head)
         generated_video_urls: project.generated_video_urls, // Include video URLs
         merged_video_url: project.merged_video_url, // Include merged video URL
         user_id: project.user_id,
         status: project.status,
-        created_at: project.created_at
+        created_at: project.created_at,
+        talking_head_mode: !project.product_image_urls || project.product_image_urls.length === 0
       }));
 
     return NextResponse.json({

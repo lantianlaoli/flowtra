@@ -84,19 +84,19 @@ const sortGenerations = (items: CharacterGeneration[]) =>
   [...items].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 const CHARACTER_EMPTY_STEPS = [
   {
-    icon: '📦',
+    icon: '👤',
     title: 'Step 1',
-    description: 'Create your brands & products in Assets',
+    description: 'Upload a clear portrait of your character',
   },
   {
-    icon: '🎭',
+    icon: '🛍️',
     title: 'Step 2',
-    description: 'Select character, brand, and product above',
+    description: 'Optionally pick a product or skip for talking head',
   },
   {
     icon: '✨',
     title: 'Step 3',
-    description: 'Click Generate to create your video',
+    description: 'Type or generate dialogue and click Generate',
   },
 ];
 
@@ -253,7 +253,8 @@ const formatDurationLabel = (seconds: number) => {
     loading: true
   });
 
-  const canStartGeneration = !!selectedPersonPhotoUrl && !!selectedProduct;
+  const isTalkingHeadMode = !selectedProduct;
+  const canStartGeneration = !!selectedPersonPhotoUrl;
 
   // Check KIE credits on page load
   useEffect(() => {
@@ -358,6 +359,7 @@ const formatDurationLabel = (seconds: number) => {
       if (productId) {
         formData.append('selected_product_id', productId);
       }
+      formData.append('talking_head_mode', isTalkingHeadMode ? 'true' : 'false');
       formData.append('video_duration_seconds', videoDuration.toString());
       formData.append('image_model', DEFAULT_IMAGE_MODEL);
       formData.append('image_size', IMAGE_SIZE_BY_ASPECT[videoAspectRatio]);
@@ -1079,7 +1081,7 @@ const formatDurationLabel = (seconds: number) => {
               <div className="flex items-end gap-3 flex-wrap">
                 <button
                   onClick={() => setIsPersonPickerOpen(true)}
-                  className={`w-12 h-12 rounded-full border transition flex items-center justify-center text-sm font-medium ${hasPersonPhoto ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
+                  className={`flex-shrink-0 w-12 h-12 rounded-full border transition flex items-center justify-center text-sm font-medium ${hasPersonPhoto ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
                   title={hasPersonPhoto ? 'Change character photo' : 'Select character'}
                 >
                   {hasPersonPhoto ? (
@@ -1091,8 +1093,8 @@ const formatDurationLabel = (seconds: number) => {
 
                 <button
                   onClick={() => setIsProductPickerOpen(true)}
-                  className={`w-12 h-12 rounded-full border transition flex items-center justify-center ${selectedProduct ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
-                  title={selectedProduct ? 'Change product' : 'Select brand & product'}
+                  className={`flex-shrink-0 w-12 h-12 rounded-full border transition flex items-center justify-center ${selectedProduct ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
+                  title={selectedProduct ? 'Change product' : 'Optional: select brand & product'}
                 >
                   {primaryProductPhoto ? (
                     <Image src={primaryProductPhoto} alt="Product" width={48} height={48} className="object-cover w-full h-full rounded-full" />
@@ -1454,7 +1456,9 @@ const formatDurationLabel = (seconds: number) => {
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Select Brand & Product</h3>
-                <p className="text-xs text-gray-500">Pick a product to unlock AI-scripted dialogue.</p>
+                <p className="text-xs text-gray-500">
+                  Pick a product to unlock AI-scripted dialogue, or close this panel to create a simple talking head video.
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <button
