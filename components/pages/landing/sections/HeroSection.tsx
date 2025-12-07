@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { GiftIcon, Check, UserPlus, Play, Lightbulb } from 'lucide-react';
+import { SiDiscord } from 'react-icons/si';
 import { HeroPrimaryButton } from '@/components/pages/landing/HeroPrimaryButton';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 import BlackFridayBadge from '@/components/landing/BlackFridayBadge';
@@ -19,6 +20,16 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         <div className="flex flex-wrap items-center gap-3">
           <BlackFridayBadge />
           <FounderCard variant="hero" showGreeting={false} className="hidden lg:inline-flex" />
+          {/* Discord Channel */}
+          <a
+            href="https://discord.gg/dd5Qh54S"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden lg:inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold text-gray-800 bg-gray-100 border border-gray-200 hover:bg-gray-200 transition-colors"
+          >
+            <SiDiscord className="w-4 h-4" />
+            <span>Join our Community</span>
+          </a>
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">

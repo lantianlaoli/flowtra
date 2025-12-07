@@ -1,164 +1,224 @@
 export default function ComparisonSection() {
   return (
-    <div className="py-12">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Why Choose Flowtra?</h2>
-        <p className="text-base text-gray-600">Core advantages over other workflows</p>
+    <section className="py-16 lg:py-24 bg-white">
+      <div className="text-center mb-12 px-4">
+        <h2 className="text-3xl md:text-4xl font-bold text-black mb-4">Arcads Alternative</h2>
+        <p className="text-lg text-gray-600">Discover a superior alternative for your video generation needs</p>
       </div>
 
-      <div className="max-w-5xl mx-auto">
-        {/* Desktop/tablet: comparison table */}
-        <div className="hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="min-w-full border border-gray-200 rounded-xl overflow-hidden">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left text-sm font-semibold text-gray-600 px-4 py-3 border-b border-gray-200 w-40">Feature</th>
-                  <th className="text-left text-sm font-semibold px-4 py-3 border-b border-gray-200 bg-gray-900 text-white">Flowtra</th>
-                  <th className="text-left text-sm font-semibold text-gray-900 px-4 py-3 border-b border-gray-200">Traditional Ads</th>
-                  <th className="text-left text-sm font-semibold text-gray-900 px-4 py-3 border-b border-gray-200">n8n Workflow</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Core Focus</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100 font-semibold bg-gray-50 border-x border-gray-200">AI ads for retail</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Manual production</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Manual AI setup</td>
-                </tr>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Ease of Use</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100 font-semibold bg-gray-50 border-x border-gray-200">Photo → Ad instantly</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Agency coordination</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Needs dev skills</td>
-                </tr>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Cost</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">FREE photos • Pay when satisfied • &lt;$1 per ad</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">$500–$5000 per video</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">$20+/month + API costs</td>
-                </tr>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Platforms / Integrations</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">Amazon, Walmart, Gumroad, Stan, Payhip, TikTok, Instagram, Local screens</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Any (manual delivery)</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Requires custom integrations</td>
-                </tr>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Learning</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">Minutes</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Days</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Hours–days</td>
-                </tr>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Maintenance</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">No pipelines to maintain</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Reshoots, edits, versions</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Maintain flows, tokens, failures</td>
-                </tr>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Timeline</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">Seconds</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Days–weeks</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Hours–days</td>
-                </tr>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="text-gray-600 px-4 py-3 border-b border-gray-100">Best For</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100 bg-gray-50 border-x border-gray-200 font-semibold">E-commerce sellers & digital creators</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Established brands</td>
-                  <td className="text-gray-900 px-4 py-3 border-b border-gray-100">Dev teams</td>
-                </tr>
-              </tbody>
-            </table>
+      <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Desktop Table View */}
+        <div className="hidden lg:block overflow-x-auto rounded-xl border border-gray-200">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-200 text-sm font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 w-48">Platform</th>
+                <th className="px-6 py-4 w-64">Features</th>
+                <th className="px-6 py-4 w-32">Billing Type</th>
+                <th className="px-6 py-4 w-32">Cost</th>
+                <th className="px-6 py-4">Included</th>
+                <th className="px-6 py-4 w-40">Cost / Credit</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {/* Flowtra AI */}
+              <tr className="bg-white hover:bg-gray-50/50 transition-colors">
+                <td className="px-6 py-6 align-top">
+                  <div className="font-bold text-lg text-black">Flowtra AI</div>
+                </td>
+                <td className="px-6 py-6 align-top text-gray-700 space-y-1">
+                  <p>1. Character UGC Video Generation</p>
+                  <p>2. Competitor UGC Video & Photo Cloning</p>
+                </td>
+                <td className="px-6 py-6 align-top text-gray-700">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    One-time
+                  </span>
+                </td>
+                <td className="px-6 py-6 align-top font-bold text-black text-lg">
+                  $29
+                </td>
+                <td className="px-6 py-6 align-top text-gray-700 space-y-2 text-sm">
+                  <p>1. <span className="font-semibold text-black">2000 credits</span></p>
+                  <p>2. Character UGC Video & Competitor Replica</p>
+                  <p>3. Free, unlimited Veo3.1 Fast generation</p>
+                  <p>4. 800 mins UGC video download quota (based on Veo3.1 Fast 20 credits/8 mins)</p>
+                  <p>5. Unlimited, free competitor photo cloning</p>
+                </td>
+                <td className="px-6 py-6 align-top font-bold text-black text-lg">
+                  $0.0145
+                </td>
+              </tr>
+
+              {/* Mintly */}
+              <tr className="bg-white hover:bg-gray-50/50 transition-colors">
+                <td className="px-6 py-6 align-top">
+                  <div className="font-medium text-gray-900">Mintly</div>
+                </td>
+                <td className="px-6 py-6 align-top text-gray-600 space-y-1 text-sm">
+                  <p>1. Clone Competitor Photos</p>
+                  <p>2. Product Photo to Ad Video</p>
+                  <p>3. Ad Image Generation</p>
+                  <p>4. Image Editor</p>
+                </td>
+                <td className="px-6 py-6 align-top text-gray-600">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    Subscription
+                  </span>
+                </td>
+                <td className="px-6 py-6 align-top font-medium text-gray-900">
+                  $49
+                </td>
+                <td className="px-6 py-6 align-top text-gray-600 space-y-1 text-sm">
+                  <p>1. Meta Ad Image Cloning</p>
+                  <p>2. 300 Ads</p>
+                  <p>3. 60 Credits</p>
+                  <p>4. 3 Brand Configs</p>
+                  <p>5. Image + Video Ads</p>
+                </td>
+                <td className="px-6 py-6 align-top text-gray-500 font-medium">
+                  $0.8166
+                </td>
+              </tr>
+
+              {/* Arcads */}
+              <tr className="bg-white hover:bg-gray-50/50 transition-colors">
+                <td className="px-6 py-6 align-top">
+                  <div className="font-medium text-gray-900">Arcads</div>
+                </td>
+                <td className="px-6 py-6 align-top text-gray-600 space-y-1 text-sm">
+                  <p>1. Character UGC Video Generation</p>
+                </td>
+                <td className="px-6 py-6 align-top text-gray-600">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    Subscription
+                  </span>
+                </td>
+                <td className="px-6 py-6 align-top text-gray-900">
+                  $220
+                </td>
+                <td className="px-6 py-6 align-top text-gray-600 space-y-1 text-sm">
+                  <p className="text-gray-600">20 Credits / Month</p>
+                </td>
+                <td className="px-6 py-6 align-top text-black">
+                  $11.00
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="lg:hidden space-y-6">
+          {/* Flowtra AI Card */}
+          <div className="bg-white rounded-xl border border-black/10 shadow-lg p-6 space-y-4 relative overflow-hidden">
+             <div className="absolute top-0 right-0 bg-black text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
+              BEST VALUE
+            </div>
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-xl font-bold text-black">Flowtra AI</h3>
+                <div className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-black text-white">
+                  One-time: $29
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Per Credit</div>
+                <div className="text-xl font-bold text-black">$0.0145</div>
+              </div>
+            </div>
+            
+            <div className="space-y-4 pt-4 border-t border-gray-100">
+              <div>
+                <h4 className="text-sm font-semibold text-black mb-2">Features</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Character UGC Video Generation</li>
+                  <li>• Competitor UGC Video & Photo Cloning</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="text-sm font-semibold text-black mb-2">Included</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• <span className="font-semibold text-black">2000 credits</span></li>
+                  <li>• Unlimited, free Veo3.1 Fast generation</li>
+                  <li>• 800 mins UGC video download quota</li>
+                  <li>• Unlimited, free competitor photo cloning</li>
+                </ul>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Mobile: stacked Flowtra + n8n cards */}
-        <div className="md:hidden space-y-5 sm:space-y-6">
-          {/* Flowtra Card */}
-          <article className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 sm:p-6">
-            <header className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-gray-900">Flowtra</h3>
-              <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-900 text-white">Best Choice</span>
-            </header>
-            <dl className="text-sm border border-gray-100 rounded-md overflow-hidden">
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                <dt className="text-gray-500">Core Focus</dt>
-                <dd className="text-gray-900 font-medium">AI ads for retail</dd>
+          {/* Mintly Card */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-xl font-medium text-gray-900">Mintly</h3>
+                <div className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-900/5 text-gray-700">
+                  Sub: $49/mo
+                </div>
               </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                <dt className="text-gray-500">Ease of Use</dt>
-                <dd className="text-gray-900 font-medium">Photo → Ad instantly</dd>
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Per Credit</div>
+                <div className="text-xl font-medium text-gray-600">$0.82</div>
               </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                <dt className="text-gray-500">Cost</dt>
-                <dd className="text-gray-900">FREE photos • Pay when satisfied • &lt;$1 per ad</dd>
+            </div>
+            
+            <div className="space-y-4 pt-4 border-t border-gray-100">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Features</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Clone Competitor Photos</li>
+                  <li>• Product Photo to Ad Video</li>
+                  <li>• Ad Image Generation</li>
+                </ul>
               </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                <dt className="text-gray-500">Platforms</dt>
-                <dd className="text-gray-900">Amazon, Walmart, Gumroad, Stan, Payhip, TikTok, Instagram, Local screens</dd>
+              
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Included</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• 60 Credits</li>
+                  <li>• 300 Ads</li>
+                  <li>• Meta Ad Image Cloning</li>
+                </ul>
               </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                <dt className="text-gray-500">Learning</dt>
-                <dd className="text-gray-900">Minutes</dd>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                <dt className="text-gray-500">Maintenance</dt>
-                <dd className="text-gray-900">No pipelines to maintain</dd>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                <dt className="text-gray-500">Timeline</dt>
-                <dd className="text-gray-900">Seconds</dd>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                <dt className="text-gray-500">Best For</dt>
-                <dd className="text-gray-900">E-commerce sellers & digital creators</dd>
-              </div>
-            </dl>
-          </article>
+            </div>
+          </div>
 
-          {/* n8n Card */}
-          <article className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 sm:p-6">
-            <header className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-gray-900">n8n Workflow</h3>
-            </header>
-            <dl className="text-sm border border-gray-100 rounded-md overflow-hidden">
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                <dt className="text-gray-500">Core Focus</dt>
-                <dd className="text-gray-900">Manual AI setup</dd>
+           {/* Arcads Card */}
+           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-xl font-medium text-gray-900">Arcads</h3>
+                <div className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-900/5 text-gray-700">
+                  Sub: $220/mo
+                </div>
               </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                <dt className="text-gray-500">Ease of Use</dt>
-                <dd className="text-gray-900">Needs dev skills</dd>
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Per Credit</div>
+                <div className="text-xl font-medium text-black">$11.00</div>
               </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                <dt className="text-gray-500">Cost</dt>
-                <dd className="text-gray-900">$20+/month + API costs</dd>
+            </div>
+            
+            <div className="space-y-4 pt-4 border-t border-gray-100">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Features</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Character UGC Video Generation</li>
+                </ul>
               </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                <dt className="text-gray-500">Integrations</dt>
-                <dd className="text-gray-900">Requires custom integrations</dd>
+              
+              <div>
+                <h4 className="text-sm text-gray-600 mb-2">Included</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• 20 Credits / Month</li>
+                </ul>
               </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                <dt className="text-gray-500">Learning</dt>
-                <dd className="text-gray-900">Hours–days</dd>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                <dt className="text-gray-500">Maintenance</dt>
-                <dd className="text-gray-900">Maintain flows, tokens, failures</dd>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-white">
-                <dt className="text-gray-500">Timeline</dt>
-                <dd className="text-gray-900">Hours–days</dd>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] items-start gap-2 px-3 py-2.5 bg-gray-50">
-                <dt className="text-gray-500">Best For</dt>
-                <dd className="text-gray-900">Dev teams</dd>
-              </div>
-            </dl>
-          </article>
+            </div>
+          </div>
+
         </div>
       </div>
-    </div>
+    </section>
   );
 }

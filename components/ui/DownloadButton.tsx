@@ -69,7 +69,7 @@ export default function DownloadButton({
         setCurrentMessage('');
       }, 3000);
       
-    } catch (error) { // eslint-disable-line @typescript-eslint/no-unused-vars
+    } catch (error) {  
       setDownloadState('error');
       setCurrentMessage('Download failed, please try again');
       

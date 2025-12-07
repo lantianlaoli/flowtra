@@ -23,7 +23,7 @@ export interface WorkflowState {
     };
     errorMessage?: string;
     creditsUsed?: number;
-    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
+    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
     watermark?: {
       enabled: boolean;
       text: string;
@@ -37,7 +37,7 @@ export interface WorkflowState {
 
 export const useCompetitorUgcReplicationWorkflow = (
   userId?: string | null,
-  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling' = 'veo3_fast',
+  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6' = 'veo3_fast',
   selectedImageModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' = 'nano_banana',
   updateCredits?: (newCredits: number) => void,
   refetchCredits?: () => Promise<void>,
@@ -114,9 +114,9 @@ export const useCompetitorUgcReplicationWorkflow = (
       if (!allowed.includes(normalizedDuration)) {
         normalizedDuration = '6';
       }
-    } else if (selectedModel === 'kling') {
+    } else if (selectedModel === 'kling_2_6') {
       const targetSeconds = Number(normalizedDuration);
-      normalizedDuration = snapDurationToModel('kling', Number.isFinite(targetSeconds) ? targetSeconds : 10);
+      normalizedDuration = snapDurationToModel('kling_2_6', Number.isFinite(targetSeconds) ? targetSeconds : 10);
     } else if (normalizedDuration !== '8' && normalizedDuration !== '10' && normalizedDuration !== '15') {
       normalizedDuration = '8';
     }

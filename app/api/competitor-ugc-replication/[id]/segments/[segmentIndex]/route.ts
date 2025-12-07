@@ -322,7 +322,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       segmentUpdates.error_message = null;
 
       const totalVideoCost = getGenerationCost(
-        (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling',
+        (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6',
         project.video_duration,
         project.video_quality || 'standard'
       );

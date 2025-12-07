@@ -150,7 +150,7 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
 const ALL_VIDEO_DURATIONS: VideoDuration[] = ['5', '6', '8', '10', '12', '15', '16', '18', '20', '24', '30', '32', '36', '40', '42', '48', '50', '54', '56', '60', '64', '70', '80'];
-const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'grok', 'sora2', 'sora2_pro', 'kling'];
+const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'grok', 'sora2', 'sora2_pro', 'kling_2_6'];
 const SESSION_STORAGE_KEY = 'flowtra_competitor_ugc_replication_generations';
 
 const COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS: VideoDurationOption[] = [
@@ -946,7 +946,7 @@ export default function CompetitorUgcReplicationPage() {
   }, []);
 
   // Calculate available and disabled options
-  const isKlingModel = selectedModel === 'kling';
+  const isKlingModel = selectedModel === 'kling_2_6';
 
   useEffect(() => {
     if (isKlingModel && format !== '16:9') {

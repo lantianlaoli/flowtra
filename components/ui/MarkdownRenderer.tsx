@@ -31,9 +31,9 @@ const isVideoEmbed = (src: string): boolean => {
 
 // Rehype plugin to unwrap video images from paragraphs
 function rehypeUnwrapVideos() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return (tree: any) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     visit(tree, 'element', (node: any, index: number | undefined, parent: any) => {
       if (index !== undefined && node.tagName === 'p' && node.children && node.children.length === 1) {
         const child = node.children[0];

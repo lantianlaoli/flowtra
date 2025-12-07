@@ -67,6 +67,18 @@ export default function ModelPricingSection() {
       ],
       quality: ['720p', '1080p'],
     },
+    {
+      name: 'Kling 2.6',
+      description: '',
+      icon: Zap, // Using Zap icon from lucide-react
+      badge: null,
+      durationRange: '1m 20s',
+      billingType: 'generation' as const, // User specified "生成收费"
+      pricingOptions: [
+        { duration: '5s', credits: 110, unit: 'per 5s' }, // User specified "5 s 110 credits"
+      ],
+      quality: ['1080p'], // User specified "画质是1080P"
+    },
   ];
 
   return (
@@ -86,9 +98,7 @@ export default function ModelPricingSection() {
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
                 Model
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                Max duration
-              </th>
+
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
                 Quality
               </th>
@@ -144,12 +154,7 @@ export default function ModelPricingSection() {
                       </td>
                     )}
 
-                    {/* Duration */}
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-gray-900">
-                        {option.duration}
-                      </span>
-                    </td>
+
 
                     {/* Quality */}
                     {isFirstRow && (
@@ -249,9 +254,7 @@ export default function ModelPricingSection() {
                   <p className="text-sm text-gray-600 mt-0.5">
                     {model.description}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Max duration: <span className="font-medium text-gray-700">{model.durationRange}</span>
-                  </p>
+
                   <p className="text-xs text-gray-500 mt-1">
                     Quality: <span className="font-medium text-gray-700">{model.quality.join(', ')}</span>
                   </p>

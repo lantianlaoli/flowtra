@@ -79,7 +79,7 @@ export async function GET() {
             return 'Sora2 Pro';
           case 'grok':
             return 'Grok Imagine';
-          case 'kling':
+          case 'kling_2_6':
             return 'Kling 2.6';
           default:
             return 'Veo3 Fast';

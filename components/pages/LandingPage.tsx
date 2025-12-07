@@ -6,7 +6,7 @@ import BlogPreview from '@/components/sections/BlogPreview';
 import { getActivatedUserCount } from '@/lib/publicMetrics';
 import { demoVideos } from '@/lib/landing-data';
 import HeroSection from '@/components/pages/landing/sections/HeroSection';
-import SuccessStoriesSection from '@/components/pages/landing/sections/SuccessStoriesSection';
+
 import FeaturesSection from '@/components/pages/landing/sections/FeaturesSection';
 import ComparisonSection from '@/components/pages/landing/sections/ComparisonSection';
 import ModelPricingSection from '@/components/pages/landing/sections/ModelPricingSection';
@@ -37,8 +37,7 @@ export default async function LandingPage() {
       <main className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
         <HeroSection activatedUserCount={activatedUserCount} />
 
-        {/* Success Stories Section */}
-        <SuccessStoriesSection />
+
 
         {/* Features Section */}
         <FeaturesSection />

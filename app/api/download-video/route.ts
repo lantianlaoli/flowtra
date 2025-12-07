@@ -75,7 +75,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     // FREE generation models (veo3_fast, sora2): Charge at download
     // PAID generation models (veo3, sora2_pro): Download is FREE (already paid at generation)
     const isFirstDownload = !historyRecord.downloaded;
-    const videoModel = historyRecord.video_model as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
+    const videoModel = historyRecord.video_model as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
 
     let downloadCostApplied = 0;
 

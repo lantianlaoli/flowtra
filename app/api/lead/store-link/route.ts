@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     // Basic URL validation
     try {
-      // eslint-disable-next-line no-new
+       
       new URL(storeUrl)
     } catch {
       return NextResponse.json({ success: false, error: 'Invalid URL' }, { status: 400 })

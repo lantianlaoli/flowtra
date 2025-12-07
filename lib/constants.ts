@@ -7,12 +7,12 @@ export const BLACK_FRIDAY_DISCOUNT = 0.2; // 20% off all packages
 
 // Model classification
 export const FREE_GENERATION_MODELS = ['veo3_fast', 'sora2', 'grok'] as const;
-export const PAID_GENERATION_MODELS = ['veo3', 'sora2_pro', 'kling'] as const;
+export const PAID_GENERATION_MODELS = ['veo3', 'sora2_pro', 'kling_2_6'] as const;
 
 // Generation costs (only for PAID generation models)
 export const GENERATION_COSTS = {
   'veo3': 150,        // Veo3 High Quality: 150 credits at generation
-  'kling': 110,       // Kling 2.6: 110 credits per 5-second block
+  'kling_2_6': 110,       // Kling 2.6: 110 credits per 5-second block
   // Sora2 Pro: See SORA2_PRO_CREDIT_COSTS (36-160 credits)
 } as const;
 
@@ -29,7 +29,7 @@ export const CREDIT_COSTS = {
   'veo3': 150,
   'sora2': 6,
   'grok': 20,
-  'kling': 110
+  'kling_2_6': 110
 } as const;
 
 // Sora2 Pro credit costs based on duration and quality
@@ -126,7 +126,7 @@ export const VIDEO_ASPECT_RATIO_OPTIONS = {
   'sora2': ['16:9', '9:16'],  // Sora2 supports both portrait and landscape
   'sora2_pro': ['16:9', '9:16'],  // Sora2 Pro supports both portrait and landscape
   'grok': ['16:9', '9:16'],
-  'kling': ['16:9']
+  'kling_2_6': ['16:9']
 } as const
 
 // Credit costs for different image models (all free)
@@ -143,7 +143,7 @@ export const MODEL_PROCESSING_TIMES = {
   'sora2': '8-12 min',       // Sora2: 8-12 minutes processing time (premium quality)
   'sora2_pro': '8-15 min',   // Sora2 Pro: 8-15 minutes processing time (varies by duration)
   'grok': '3-5 min',
-  'kling': '4-6 min'
+  'kling_2_6': '4-6 min'
 } as const
 
 // Processing times for different image models
@@ -244,12 +244,12 @@ export function getSora2ProCreditCost(duration: '10' | '15', quality: 'standard'
 // ===== VERSION 3.0: MIXED BILLING HELPERS =====
 
 // Check if model uses free generation (paid download)
-export function isFreeGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'): boolean {
+export function isFreeGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6'): boolean {
   return FREE_GENERATION_MODELS.includes(model as typeof FREE_GENERATION_MODELS[number]);
 }
 
 // Check if model uses paid generation (free download)
-export function isPaidGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'): boolean {
+export function isPaidGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6'): boolean {
   return PAID_GENERATION_MODELS.includes(model as typeof PAID_GENERATION_MODELS[number]);
 }
 
@@ -257,7 +257,7 @@ export function isPaidGenerationModel(model: 'veo3' | 'veo3_fast' | 'sora2' | 's
 // IMPORTANT: videoDuration and videoQuality are generic parameters applicable to all models
 // They are currently only used by Sora2 Pro, but kept generic for future model support
 export function getGenerationCost(
-  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling',
+  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6',
   videoDuration?: string, // Generic: e.g., '8', '10', '15' (seconds)
   videoQuality?: 'standard' | 'high' // Generic: applicable to all models
 ): number {
@@ -276,10 +276,10 @@ export function getGenerationCost(
     return GENERATION_COSTS.veo3 * segmentMultiplier;
   }
 
-  if (model === 'kling') {
+  if (model === 'kling_2_6') {
     const durationSeconds = Math.max(5, Number(videoDuration) || 5);
     const blocks = Math.ceil(durationSeconds / 5);
-    return GENERATION_COSTS.kling * blocks;
+    return GENERATION_COSTS.kling_2_6 * blocks;
   }
 
   return 0;
@@ -287,7 +287,7 @@ export function getGenerationCost(
 
 // Get download cost (0 for paid generation models)
 export function getDownloadCost(
-  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling',
+  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6',
   videoDuration?: string | null,
   segmentCount?: number | null
 ): number {
@@ -338,7 +338,7 @@ export function getImageCreditCost(model: keyof typeof IMAGE_CREDIT_COSTS): numb
 }
 
 // Auto mode intelligent model selection based on user credits (prioritize cheapest first)
-export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling' | null {
+export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6' | null {
   // Prioritize cheapest model first: Sora2 (6) < Veo3 Fast (20) < Veo3 (150)
   if (userCredits >= CREDIT_COSTS.sora2) {
     return 'sora2'  // Cheapest option (6 credits)
@@ -354,7 +354,7 @@ export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' 
 // Check if user has sufficient credits for a model
 // Version 3.0: Free generation models always affordable (generation is free)
 // Paid generation models require credits upfront
-export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'): boolean {
+export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6'): boolean {
   if (model === 'auto') {
     // Auto mode: user needs credits for at least one model
     // Since free-gen models are always available, auto is always affordable
@@ -373,15 +373,15 @@ export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 've
   if (model === 'veo3') {
     return userCredits >= GENERATION_COSTS.veo3
   }
-  if (model === 'kling') {
-    return userCredits >= GENERATION_COSTS.kling
+  if (model === 'kling_2_6') {
+    return userCredits >= GENERATION_COSTS.kling_2_6
   }
 
   return true
 }
 
 // Get the actual model that will be used (resolves auto to specific model)
-export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling', userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling' | null {
+export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6', userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6' | null {
   if (selectedModel === 'auto') {
     return getAutoModeSelection(userCredits)
   }
@@ -395,7 +395,7 @@ export function getAutoImageModeSelection(): 'nano_banana' | 'seedream' {
 }
 
 // Check if user has sufficient credits for an image model (always true since free)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function canAffordImageModel(_userCredits: number, _model: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro'): boolean {
   // All image models are free, so always affordable
   return true
@@ -471,7 +471,7 @@ export function getImageSizeOptions(model: 'nano_banana' | 'seedream'): readonly
 }
 
 // Get video aspect ratio options for a specific model
-export function getVideoAspectRatioOptions(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling'): readonly string[] {
+export function getVideoAspectRatioOptions(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6'): readonly string[] {
   return VIDEO_ASPECT_RATIO_OPTIONS[model]
 }
 
@@ -518,7 +518,7 @@ export type VideoDuration =
   | '64'
   | '70'
   | '80';
-export type VideoModel = 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling';
+export type VideoModel = 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
 
 interface ModelCapabilities {
   model: VideoModel;
@@ -554,8 +554,8 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
     supportedDurations: ['6', '12', '18', '24', '30', '36', '42', '48', '54', '60']
   },
   {
-    model: 'kling',
-    supportedQualities: ['standard'],
+    model: 'kling_2_6',
+    supportedQualities: ['standard', 'high'],
     supportedDurations: ['5', '10', '15', '20', '30', '40', '50', '60', '70', '80']
   }
 ];
@@ -639,7 +639,7 @@ export const DEFAULT_SEGMENT_DURATION_SECONDS = 8;
 
 export function getSegmentDurationForModel(model?: VideoModel | null): number {
   if (model === 'grok') return 6;
-  if (model === 'kling') return 5;
+  if (model === 'kling_2_6') return 5;
   return DEFAULT_SEGMENT_DURATION_SECONDS;
 }
 
@@ -657,7 +657,7 @@ export function getSegmentCountFromDuration(videoDuration?: string | null, model
   const segmentLength = getSegmentDurationForModel(model);
   const maxSegments = (() => {
     if (model === 'grok') return 10;
-    if (model === 'kling') return 16; // 80 seconds max / 5-second blocks
+    if (model === 'kling_2_6') return 16; // 80 seconds max / 5-second blocks
     return 8;
   })();
 
@@ -709,7 +709,7 @@ export function getModelCostByConfig(
   if (model === 'veo3_fast') return CREDIT_COSTS.veo3_fast;
   if (model === 'sora2') return CREDIT_COSTS.sora2;
   if (model === 'grok') return DOWNLOAD_COSTS.grok * getSegmentCountFromDuration(duration, 'grok');
-  if (model === 'kling') return getGenerationCost('kling', duration);
+  if (model === 'kling_2_6') return getGenerationCost('kling_2_6', duration);
 
   return 0;
 }

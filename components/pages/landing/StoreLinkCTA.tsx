@@ -27,7 +27,7 @@ export function StoreLinkCTA() {
     }
 
     try {
-      // eslint-disable-next-line no-new
+       
       new URL(url);
     } catch {
       setError('Please enter a valid URL (including https://).');

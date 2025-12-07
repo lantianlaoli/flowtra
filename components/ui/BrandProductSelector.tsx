@@ -71,7 +71,7 @@ export default function BrandProductSelector({
   useEffect(() => {
     console.log('[BrandProductSelector] Component mounted, calling loadAllData');
     loadAllData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Update displayed products when brand changes (instant, from cache)

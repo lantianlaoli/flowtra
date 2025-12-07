@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Script from 'next/script';
 import {
   SparklesIcon,
   ArrowRightIcon
@@ -53,7 +54,7 @@ export default function CompetitorReplicaShowcasePage() {
       <Header />
 
       {/* Hero Section */}
-      <section className="pt-24 pb-16 lg:pt-32 lg:pb-24 bg-gray-50">
+      <section className="pt-24 pb-16 lg:pt-32 lg:pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -82,17 +83,23 @@ export default function CompetitorReplicaShowcasePage() {
                 </Link>
               </div>
             </div>
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Hero Right: Side-by-Side Comparison */}
+            <div className="flex justify-center lg:justify-end w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-[600px]">
                 <div className="space-y-3">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-full text-sm font-semibold text-gray-700">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-300 rounded-full text-sm font-semibold text-gray-700">
                     <span className="w-2 h-2 rounded-full bg-rose-500" />
                     Competitor Video
                   </div>
-                  <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                  <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
                     <LazyVideoPlayer
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_origin.mp4"
-                      wrapperClassName="relative aspect-[9/16] w-full max-w-[280px] mx-auto overflow-hidden rounded-xl"
+                      wrapperClassName="h-full w-full"
+                      className="h-full w-full object-cover"
+                      showControls
+                      playsInline
+                      loop
                     />
                   </div>
                 </div>
@@ -101,16 +108,98 @@ export default function CompetitorReplicaShowcasePage() {
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
                     Flowtra Clone
                   </div>
-                  <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-lg">
+                  <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
                     <LazyVideoPlayer
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_result.mp4"
-                      wrapperClassName="relative aspect-[9/16] w-full max-w-[280px] mx-auto overflow-hidden rounded-xl"
+                      wrapperClassName="h-full w-full"
+                      className="h-full w-full object-cover"
+                      showControls
+                      playsInline
+                      loop
                     />
                   </div>
                 </div>
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Tutorial Section (New) */}
+      <section className="py-16 lg:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="grid lg:grid-cols-2 gap-12 items-center">
+              {/* Left: Steps */}
+              <div className="space-y-8">
+                 <h2 className="text-3xl md:text-4xl font-bold text-black mb-6">
+                    Clone in 5 Simple Steps
+                 </h2>
+                 <div className="space-y-6">
+                    {/* Step 1 */}
+                    <div className="flex gap-4">
+                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">1</div>
+                       <div>
+                          <h3 className="text-xl font-semibold text-black">Configure Brand & Product</h3>
+                          <p className="text-gray-600 mt-1">Upload your product image and define your brand details.</p>
+                       </div>
+                    </div>
+                    {/* Step 2 */}
+                    <div className="flex gap-4">
+                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">2</div>
+                       <div>
+                          <h3 className="text-xl font-semibold text-black">Upload & Analyze</h3>
+                          <p className="text-gray-600 mt-1">Upload a competitor UGC video. AI automatically analyzes the shot content.</p>
+                       </div>
+                    </div>
+                    {/* Step 3 */}
+                    <div className="flex gap-4">
+                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">3</div>
+                       <div>
+                          <h3 className="text-xl font-semibold text-black">Select Video to Clone</h3>
+                          <p className="text-gray-600 mt-1">Choose the specific video you want to replicate.</p>
+                       </div>
+                    </div>
+                    {/* Step 4 */}
+                    <div className="flex gap-4">
+                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">4</div>
+                       <div>
+                          <h3 className="text-xl font-semibold text-black">Edit Segments & Prompts</h3>
+                          <p className="text-gray-600 mt-1">Edit segment photos and video prompts until satisfied.</p>
+                       </div>
+                    </div>
+                    {/* Step 5 */}
+                    <div className="flex gap-4">
+                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">5</div>
+                       <div>
+                          <h3 className="text-xl font-semibold text-black">Merge Final Video</h3>
+                          <p className="text-gray-600 mt-1">Combine segments to generate the final video.</p>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Right: TikTok Video */}
+              <div className="flex justify-center lg:justify-end w-full">
+                <blockquote
+                  className="tiktok-embed"
+                  cite="https://www.tiktok.com/@laolilantian/video/7580211134284745991"
+                  data-video-id="7580211134284745991"
+                  style={{ maxWidth: '605px', minWidth: '325px' }}
+                >
+                  <section>
+                    <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
+                    Flowtra AI supports the generation of videos introducing products held by a single person.{' '}
+                    <a title="ugccontentcreator" target="_blank" href="https://www.tiktok.com/tag/ugccontentcreator?refer=embed">#ugccontentcreator</a>{' '}
+                    <a title="ugccreator" target="_blank" href="https://www.tiktok.com/tag/ugccreator?refer=embed">#ugccreator</a>{' '}
+                    <a title="aiads" target="_blank" href="https://www.tiktok.com/tag/aiads?refer=embed">#aiads</a>{' '}
+                    <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#ugc</a>{' '}
+                    <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#AI</a>{' '}
+                    <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7580211250157292296?refer=embed">♬ original sound - Lantian laoli</a>
+                  </section>
+                </blockquote>
+                <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
+              </div>
+           </div>
         </div>
       </section>
 
@@ -134,7 +223,7 @@ export default function CompetitorReplicaShowcasePage() {
                   className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow"
                 >
                   <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                    <IconComponent className="w-6 h-6 text-gray-900" />
+                    <IconComponent className="w-6 h-6 text-black" />
                   </div>
                   <h3 className="text-xl font-bold text-black mb-2">
                     {feature.title}
@@ -145,134 +234,6 @@ export default function CompetitorReplicaShowcasePage() {
                 </div>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section className="py-16 lg:py-24 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
-              How It Works
-            </h2>
-            <p className="text-lg text-gray-600">
-              Three simple steps to clone competitor success
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white rounded-2xl border border-gray-200 p-8">
-              <div className="w-12 h-12 bg-black text-white rounded-full flex items-center justify-center text-xl font-bold mb-4">
-                1
-              </div>
-              <h3 className="text-2xl font-bold text-black mb-3">
-                Upload Competitor Video
-              </h3>
-              <p className="text-gray-600 leading-relaxed">
-                Select a high-performing competitor video that you want to replicate. Our AI will analyze the complete structure.
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-200 p-8">
-              <div className="w-12 h-12 bg-black text-white rounded-full flex items-center justify-center text-xl font-bold mb-4">
-                2
-              </div>
-              <h3 className="text-2xl font-bold text-black mb-3">
-                AI Analyzes Structure
-              </h3>
-              <p className="text-gray-600 leading-relaxed">
-                Our AI extracts the video script, camera movements, visual style, and narrative flow from the competitor ad.
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-200 p-8">
-              <div className="w-12 h-12 bg-black text-white rounded-full flex items-center justify-center text-xl font-bold mb-4">
-                3
-              </div>
-              <h3 className="text-2xl font-bold text-black mb-3">
-                Generate Your Version
-              </h3>
-              <p className="text-gray-600 leading-relaxed">
-                Receive a video that clones the structure but features your product, maintaining the proven creative framework.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Price Comparison Section */}
-      <section className="py-16 lg:py-24 bg-gray-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <div className="inline-block px-4 py-2 bg-green-100 text-green-800 rounded-full mb-4">
-              <span className="text-sm font-semibold">Price Comparison</span>
-            </div>
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
-              Up to 6.5X Cheaper Than Creatify
-            </h2>
-            <p className="text-lg text-gray-600">
-              Get the same quality videos at a fraction of the cost
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl border-2 border-gray-200 overflow-hidden shadow-xl">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-gray-200">
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-900 bg-gray-50">Feature</th>
-                    <th className="px-6 py-4 text-center text-sm font-bold text-gray-900 bg-gray-50">Creatify.ai</th>
-                    <th className="px-6 py-4 text-center text-sm font-bold text-white bg-black">Flowtra AI</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-gray-200">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">Credit Value</td>
-                    <td className="px-6 py-4 text-center text-sm text-gray-600">$0.39 per credit</td>
-                    <td className="px-6 py-4 text-center text-sm font-semibold text-green-600">$0.0144 per credit</td>
-                  </tr>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">Video Length</td>
-                    <td className="px-6 py-4 text-center text-sm text-gray-600">5 seconds</td>
-                    <td className="px-6 py-4 text-center text-sm text-gray-900">5 seconds</td>
-                  </tr>
-                  <tr className="border-b border-gray-200">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">Credits Required</td>
-                    <td className="px-6 py-4 text-center text-sm text-gray-600">3 credits</td>
-                    <td className="px-6 py-4 text-center text-sm text-gray-900">12.5 credits</td>
-                  </tr>
-                  <tr className="border-b-2 border-gray-300 bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-bold text-gray-900">Total Cost</td>
-                    <td className="px-6 py-4 text-center text-lg font-bold text-red-600">$1.17</td>
-                    <td className="px-6 py-4 text-center text-lg font-bold text-green-600">$0.18</td>
-                  </tr>
-                  <tr className="bg-green-50">
-                    <td className="px-6 py-5 text-sm font-bold text-gray-900">Cost Per Second</td>
-                    <td className="px-6 py-5 text-center text-base text-gray-600">$0.234/sec</td>
-                    <td className="px-6 py-5 text-center text-xl font-bold text-green-600">$0.036/sec</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div className="px-6 py-5 bg-gradient-to-r from-green-50 to-emerald-50 border-t-2 border-green-200">
-              <div className="flex items-center justify-center gap-3">
-                <div className="text-3xl font-bold text-green-600">💰</div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-gray-900">
-                    Save up to <span className="text-green-600">$0.99 per video</span>
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    That&apos;s <span className="font-semibold">~85% cheaper</span> than Creatify!
-                  </p>
-                </div>
-                <div className="text-3xl font-bold text-green-600">🎉</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 text-center">
-            <p className="text-sm text-gray-500">
-              * Prices based on Black Friday discounts. Flowtra subscription: $7.20 for 500 credits
-            </p>
           </div>
         </div>
       </section>
@@ -292,7 +253,7 @@ export default function CompetitorReplicaShowcasePage() {
             {useCases.map((useCase, index) => (
               <div
                 key={index}
-                className="bg-gray-50 rounded-xl px-6 py-4 text-center border border-gray-200"
+                className="bg-white rounded-xl px-6 py-6 text-center border border-gray-200 hover:shadow-md transition-shadow"
               >
                 <span className="text-sm font-semibold text-gray-900">
                   {useCase}
