@@ -5,6 +5,7 @@ import { X, Tag, Upload, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { UserBrand } from '@/lib/supabase';
+import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 interface CreateBrandModalProps {
   isOpen: boolean;
@@ -54,11 +55,33 @@ export default function CreateBrandModal({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, isCreating, onClose]);
 
+  const renderErrorMessage = (message: string) => {
+    if (!message.includes(IMAGE_CONVERSION_LINK)) {
+      return message;
+    }
+    const [before, after] = message.split(IMAGE_CONVERSION_LINK);
+    return (
+      <>
+        {before}
+        <a
+          href={IMAGE_CONVERSION_LINK}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-red-800"
+        >
+          {IMAGE_CONVERSION_LINK}
+        </a>
+        {after}
+      </>
+    );
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('Please upload an image file');
+      const validationResult = validateImageFormat(file);
+      if (!validationResult.isValid) {
+        setError(validationResult.error);
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
@@ -259,7 +282,7 @@ export default function CreateBrandModal({
                     <label className="block">
                       <input
                         type="file"
-                        accept="image/*"
+                        accept={getAcceptedImageFormats()}
                         onChange={handleLogoUpload}
                         className="hidden"
                         disabled={isCreating}
@@ -276,7 +299,7 @@ export default function CreateBrandModal({
 
               {/* Error Message */}
               {error && (
-                <p className="text-sm text-red-600">{error}</p>
+                <p className="text-sm text-red-600">{renderErrorMessage(error)}</p>
               )}
 
               {/* Action Buttons */}

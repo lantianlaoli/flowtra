@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { uploadProductPhotoToStorage, deleteProductPhotoFromStorage } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { validateImageFormat } from '@/lib/image-validation';
 
 const MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite';
 
@@ -19,8 +20,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Product photo is required' }, { status: 400 });
     }
 
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ error: 'Only image files are supported' }, { status: 400 });
+    const validationResult = validateImageFormat(file);
+    if (!validationResult.isValid) {
+      return NextResponse.json({ error: validationResult.error }, { status: 400 });
     }
 
     const uploadResult = await uploadProductPhotoToStorage(file, userId);

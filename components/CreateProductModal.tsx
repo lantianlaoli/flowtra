@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { AlertCircle, Loader2, Package, Upload, X } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -83,8 +84,10 @@ export default function CreateProductModal({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setFormError('Please upload a PNG or JPG file.');
+    const validationResult = validateImageFormat(file);
+    if (!validationResult.isValid) {
+      setFormError(validationResult.error);
+      if (event.target) event.target.value = '';
       return;
     }
 
@@ -98,6 +101,27 @@ export default function CreateProductModal({
     reader.readAsDataURL(file);
 
     analyzePhoto(file);
+  };
+
+  const renderErrorMessage = (message: string) => {
+    if (!message.includes(IMAGE_CONVERSION_LINK)) {
+      return message;
+    }
+    const [before, after] = message.split(IMAGE_CONVERSION_LINK);
+    return (
+      <>
+        {before}
+        <a
+          href={IMAGE_CONVERSION_LINK}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-red-800"
+        >
+          {IMAGE_CONVERSION_LINK}
+        </a>
+        {after}
+      </>
+    );
   };
 
   const analyzePhoto = async (file: File) => {
@@ -257,7 +281,7 @@ export default function CreateProductModal({
               {formError && (
                 <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   <AlertCircle className="h-4 w-4" />
-                  <span>{formError}</span>
+                  <span>{renderErrorMessage(formError)}</span>
                 </div>
               )}
 
@@ -316,7 +340,7 @@ export default function CreateProductModal({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept={getAcceptedImageFormats()}
                       className="hidden"
                       onChange={handleImageUpload}
                       disabled={isCreating}

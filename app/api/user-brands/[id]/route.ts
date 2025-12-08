@@ -7,6 +7,7 @@ import {
   uploadBrandLogoToStorage
 } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
+import { validateImageFormat } from '@/lib/image-validation';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -104,9 +105,9 @@ export async function PUT(
 
       // Handle logo replacement
       if (newLogoFile) {
-        // Validate file
-        if (!newLogoFile.type.startsWith('image/')) {
-          return NextResponse.json({ error: 'Logo must be an image file' }, { status: 400 });
+        const validationResult = validateImageFormat(newLogoFile);
+        if (!validationResult.isValid) {
+          return NextResponse.json({ error: validationResult.error }, { status: 400 });
         }
 
         if (newLogoFile.size > 5 * 1024 * 1024) {

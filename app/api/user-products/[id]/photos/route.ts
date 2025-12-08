@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin, uploadProductPhotoToStorage, deleteProductPhotoFromStorage } from '@/lib/supabase';
 import sharp from 'sharp';
+import { validateImageFormat } from '@/lib/image-validation';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -67,9 +68,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
+    const validationResult = validateImageFormat(file);
+    if (!validationResult.isValid) {
+      return NextResponse.json({ error: validationResult.error }, { status: 400 });
     }
 
     // Validate image dimensions (> 300px for both width and height)

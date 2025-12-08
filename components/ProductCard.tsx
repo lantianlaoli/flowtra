@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Edit2, Trash2, Plus, X, Loader2 } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog from './ConfirmDialog';
+import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 interface ProductCardProps {
   product: UserProduct;
@@ -42,6 +43,7 @@ export default function ProductCard({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState('');
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const photos = product.user_product_photos || [];
 
   const isCompactMode = mode === 'compact';
@@ -112,9 +114,44 @@ export default function ProductCard({
     }
   };
 
+  useEffect(() => {
+    setPhotoError(null);
+  }, [product.id]);
+
+  const renderErrorMessage = (message: string) => {
+    if (!message.includes(IMAGE_CONVERSION_LINK)) {
+      return message;
+    }
+    const [before, after] = message.split(IMAGE_CONVERSION_LINK);
+    return (
+      <>
+        {before}
+        <a
+          href={IMAGE_CONVERSION_LINK}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-red-800"
+        >
+          {IMAGE_CONVERSION_LINK}
+        </a>
+        {after}
+      </>
+    );
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/') && onPhotoUpload) {
+    if (!file) return;
+
+    const validationResult = validateImageFormat(file);
+    if (!validationResult.isValid) {
+      setPhotoError(validationResult.error);
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    if (onPhotoUpload) {
+      setPhotoError(null);
       onPhotoUpload(product.id, file);
     }
     if (e.target) e.target.value = '';
@@ -342,7 +379,7 @@ export default function ProductCard({
               <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
                 <input
                   type="file"
-                  accept="image/*"
+                  accept={getAcceptedImageFormats()}
                   onChange={handleFileUpload}
                   className="hidden"
                   onClick={(e) => e.stopPropagation()}
@@ -366,7 +403,7 @@ export default function ProductCard({
               <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
                 <input
                   type="file"
-                  accept="image/*"
+                  accept={getAcceptedImageFormats()}
                   onChange={handleFileUpload}
                   className="hidden"
                   onClick={(e) => e.stopPropagation()}
@@ -374,6 +411,12 @@ export default function ProductCard({
                 <Plus className="w-6 h-6 text-gray-400 group-hover:text-gray-600" />
               </label>
             </div>
+          )}
+
+          {photoError && (
+            <p className="mt-2 text-sm text-red-600">
+              {renderErrorMessage(photoError)}
+            </p>
           )}
 
           {photos.length === 0 && isSelectableMode && (

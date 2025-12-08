@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog from './ConfirmDialog';
+import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 interface ProductDetailModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export default function ProductDetailModal({
   const [photoToDelete, setPhotoToDelete] = useState<UserProductPhoto | null>(null);
   const [showDeleteProductDialog, setShowDeleteProductDialog] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Handle ESC key
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function ProductDetailModal({
   useEffect(() => {
     if (isOpen) {
       setSelectedPhotoIndex(0);
+      setUploadError(null);
     }
   }, [isOpen]);
 
@@ -84,11 +87,40 @@ export default function ProductDetailModal({
     }
   };
 
+  const renderErrorMessage = (message: string) => {
+    if (!message.includes(IMAGE_CONVERSION_LINK)) {
+      return message;
+    }
+    const [before, after] = message.split(IMAGE_CONVERSION_LINK);
+    return (
+      <>
+        {before}
+        <a
+          href={IMAGE_CONVERSION_LINK}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-red-800"
+        >
+          {IMAGE_CONVERSION_LINK}
+        </a>
+        {after}
+      </>
+    );
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      onPhotoUpload(product.id, file);
+    if (!file) return;
+
+    const validationResult = validateImageFormat(file);
+    if (!validationResult.isValid) {
+      setUploadError(validationResult.error);
+      if (e.target) e.target.value = '';
+      return;
     }
+
+    setUploadError(null);
+    onPhotoUpload(product.id, file);
     if (e.target) e.target.value = '';
   };
 
@@ -219,7 +251,7 @@ export default function ProductDetailModal({
                     <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer group">
                       <input
                         type="file"
-                        accept="image/*"
+                        accept={getAcceptedImageFormats()}
                         onChange={handleFileUpload}
                         className="hidden"
                       />
@@ -227,6 +259,11 @@ export default function ProductDetailModal({
                     </label>
                   )}
                 </div>
+                {uploadError && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {renderErrorMessage(uploadError)}
+                  </p>
+                )}
               </div>
 
               {/* Actions */}
