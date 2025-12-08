@@ -252,9 +252,17 @@ const convertCompetitorShotToSegmentShot = (
   shot: CompetitorShot,
   fallbackDuration: number
 ): SegmentShot => {
-  const startSeconds = parseTimecode(shot.startTime) ?? 0;
-  const endSeconds = parseTimecode(shot.endTime) ?? startSeconds + Math.max(1, shot.durationSeconds || fallbackDuration);
-  const durationSeconds = Math.max(1, Math.round(endSeconds - startSeconds));
+  const startSeconds = 0;
+  const rawDuration = (() => {
+    const parsedStart = parseTimecode(shot.startTime) ?? 0;
+    const parsedEnd = parseTimecode(shot.endTime);
+    if (parsedEnd && parsedEnd > parsedStart) {
+      return parsedEnd - parsedStart;
+    }
+    return Math.max(shot.durationSeconds || 0, 0);
+  })();
+  const durationSeconds = Math.max(1, Math.min(Math.round(rawDuration) || fallbackDuration, fallbackDuration));
+  const endSeconds = startSeconds + durationSeconds;
   return {
     id,
     time_range: `${formatTimecode(startSeconds)} - ${formatTimecode(endSeconds)}`,
@@ -1114,9 +1122,13 @@ async function startAIWorkflow(
 
     console.log('🎯 Generated creative prompts:', prompts);
     const singleSegmentDuration = segmentCount === 1 ? (totalDurationSeconds || DEFAULT_SEGMENT_DURATION_SECONDS) : undefined;
-    const primarySegmentPrompt = segmentCount === 1
-      ? normalizeSegmentPrompts(prompts, 1, undefined, singleSegmentDuration)[0]
+    const normalizedSingleSegment = segmentCount === 1
+      ? normalizeSegmentPrompts(prompts, 1, undefined, singleSegmentDuration)
       : undefined;
+    const primarySegmentPrompt = normalizedSingleSegment?.[0];
+    const storedVideoPrompts = normalizedSingleSegment
+      ? buildStoredVideoPromptsPayload(normalizedSingleSegment, prompts as Record<string, unknown>)
+      : null;
     const primarySegmentDetails = primarySegmentPrompt ? deriveSegmentDetails(primarySegmentPrompt) : undefined;
 
     if (!shotPlanForSegments && segmentedFlow && competitorTimelineShots && competitorTimelineShots.length > 0) {
@@ -1170,7 +1182,7 @@ async function startAIWorkflow(
     // Update project with cover task ID and prompts
     const updateData = {
       cover_task_id: finalCoverTaskId,
-      video_prompts: prompts,
+      video_prompts: storedVideoPrompts || prompts,
       image_prompt: primarySegmentDetails?.description || 'Product hero shot in premium environment',
       current_step: 'generating_cover' as const,
       progress_percentage: 30,
@@ -1713,13 +1725,24 @@ EXAMPLE OUTPUT STRUCTURE:
     throw new Error('Failed to parse competitor analysis response');
   }
 
-  const apiResponse = data as { choices?: Array<{ message?: { content?: string } }> };
-  if (!apiResponse.choices?.[0]?.message?.content) {
+  const apiResponse = data as { choices?: Array<{ message?: { content?: unknown } }> };
+  const rawContent = apiResponse.choices?.[0]?.message?.content;
+  const normalizedContent = extractStructuredContent(rawContent);
+
+  if (!normalizedContent) {
     console.error('[analyzeCompetitorAdWithLanguage] Invalid API response structure:', data);
+    console.error('[analyzeCompetitorAdWithLanguage] Raw response text preview:', responseText.substring(0, 400));
     throw new Error('Invalid competitor analysis response format');
   }
 
-  const result = JSON.parse(apiResponse.choices[0].message.content) as Record<string, unknown>;
+  let result: Record<string, unknown>;
+  try {
+    result = JSON.parse(normalizedContent) as Record<string, unknown>;
+  } catch (error) {
+    console.error('[analyzeCompetitorAdWithLanguage] Failed to parse normalized content:', error);
+    console.error('[analyzeCompetitorAdWithLanguage] Normalized content preview:', normalizedContent.substring(0, 400));
+    throw new Error('Invalid competitor analysis response format');
+  }
 
   // Extract language and validate it's a valid LanguageCode
   const rawDetectedLanguage = typeof result.detected_language === 'string' ? (result.detected_language as string) : undefined;
@@ -1734,6 +1757,55 @@ EXAMPLE OUTPUT STRUCTURE:
 
   return { analysis, language };
 }
+
+type StructuredContentChunk =
+  | string
+  | {
+      type?: string;
+      text?: unknown;
+      content?: unknown;
+    };
+
+const extractStructuredContent = (content: unknown): string | null => {
+  if (!content) return null;
+  if (typeof content === 'string') {
+    return content.trim() || null;
+  }
+
+  if (Array.isArray(content)) {
+    const combined = content
+      .map(chunk => getChunkText(chunk))
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+
+    return combined || null;
+  }
+
+  if (typeof content === 'object') {
+    const maybeText = getChunkText(content as StructuredContentChunk);
+    if (maybeText) {
+      return maybeText;
+    }
+  }
+
+  return null;
+};
+
+const getChunkText = (chunk: StructuredContentChunk): string => {
+  if (typeof chunk === 'string') {
+    return chunk;
+  }
+  if (chunk && typeof chunk === 'object') {
+    if (typeof chunk.text === 'string') {
+      return chunk.text;
+    }
+    if (typeof chunk.content === 'string') {
+      return chunk.content;
+    }
+  }
+  return '';
+};
 
 /**
  * Step 2: Generate prompts for our product (Second API call)
@@ -2270,6 +2342,8 @@ async function startSegmentedWorkflow(
     ...segment,
     first_frame_image_size: segment.first_frame_image_size || defaultFrameSize
   }));
+  const serializedPlan = serializeSegmentPlan(normalizedSegments);
+  const storedVideoPrompts = buildStoredVideoPromptsPayload(normalizedSegments, prompts as Record<string, unknown>);
   const now = new Date().toISOString();
 
   // Clear any previous segment rows for this project to avoid unique key conflicts when restarting workflows
@@ -2306,8 +2380,8 @@ async function startSegmentedWorkflow(
   await supabase
     .from('competitor_ugc_replication_projects')
     .update({
-      video_prompts: prompts,
-      segment_plan: serializeSegmentPlan(normalizedSegments),
+      video_prompts: storedVideoPrompts,
+      segment_plan: serializedPlan,
       current_step: 'generating_segment_frames',
       progress_percentage: 35,
       last_processed_at: now,
@@ -2479,6 +2553,32 @@ export function normalizeSegmentPrompts(
 export function serializeSegmentPlan(segments: SegmentPrompt[]): SerializedSegmentPlan {
   return {
     segments: segments.map(serializeSegmentPrompt)
+  };
+}
+
+const extractPromptMetadata = (raw: Record<string, unknown> | null | undefined): Record<string, unknown> => {
+  if (!raw || typeof raw !== 'object') {
+    return {};
+  }
+
+  return Object.entries(raw).reduce<Record<string, unknown>>((acc, [key, value]) => {
+    if (key === 'segments') {
+      return acc;
+    }
+    acc[key] = value;
+    return acc;
+  }, {});
+};
+
+export function buildStoredVideoPromptsPayload(
+  segments: SegmentPrompt[],
+  metadataSource?: Record<string, unknown> | null
+): Record<string, unknown> {
+  const serializedPlan = serializeSegmentPlan(segments);
+  const metadata = extractPromptMetadata(metadataSource || null);
+  return {
+    ...metadata,
+    ...serializedPlan
   };
 }
 

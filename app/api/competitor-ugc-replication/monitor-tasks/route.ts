@@ -14,6 +14,7 @@ import {
   serializeSegmentPrompt,
   hydrateSegmentPlan,
   hydrateSerializedSegmentPrompt,
+  buildStoredVideoPromptsPayload,
   type SegmentPrompt,
   type SegmentShot,
   type SerializedSegmentPlan,
@@ -187,7 +188,7 @@ interface HistoryRecord {
   video_task_id: string;
   cover_image_url: string;
   video_url: string;
-  video_prompts: { segments?: SegmentPrompt[] } | LegacyVideoPrompt | null;
+  video_prompts: Record<string, unknown> | LegacyVideoPrompt | string | null;
   video_model: string;
   video_aspect_ratio?: string;
   credits_cost: number;
@@ -814,7 +815,7 @@ async function reinitializeMissingSegments(
   let promptSegments =
     (Array.isArray(planSegments) && planSegments.length > 0
       ? planSegments
-      : ((record.video_prompts as { segments?: SegmentPrompt[] } | null)?.segments ?? [])) || [];
+      : getVideoPromptSegments(record)) || [];
 
   let segmentCount = record.segment_count && record.segment_count > 0
     ? record.segment_count
@@ -845,9 +846,9 @@ async function reinitializeMissingSegments(
 
   // Persist recovered prompts for future retries so we don't fall back to generic templates again
   const hasPlanSegments = Array.isArray(planSegments) && planSegments.length > 0;
-  const storedVideoSegments = (record.video_prompts as { segments?: SegmentPrompt[] } | null)?.segments;
+  const storedVideoSegments = getVideoPromptSegments(record);
   const needsPlanUpdate = !hasPlanSegments;
-  const needsPromptUpdate = !Array.isArray(storedVideoSegments) || storedVideoSegments.length === 0;
+  const needsPromptUpdate = storedVideoSegments.length === 0;
 
   if (needsPlanUpdate || needsPromptUpdate) {
     const updatePayload: Record<string, unknown> = { last_processed_at: now };
@@ -857,8 +858,10 @@ async function reinitializeMissingSegments(
       record.__hydrated_plan_segments = promptSegments;
     }
     if (needsPromptUpdate) {
-      updatePayload.video_prompts = { segments: promptSegments };
-      record.video_prompts = { segments: promptSegments };
+      const parsedContainer = parseVideoPromptContainer(record);
+      const sanitizedPrompts = buildStoredVideoPromptsPayload(promptSegments, parsedContainer);
+      updatePayload.video_prompts = sanitizedPrompts;
+      record.video_prompts = sanitizedPrompts;
     }
 
     const { error: planUpdateError } = await supabase
@@ -1209,10 +1212,9 @@ function getSegmentPrompt(
     return ensureSegmentShots(record, planSegments[index] as SegmentPrompt);
   }
 
-  const promptContainer = record.video_prompts as { segments?: SegmentPrompt[] } | null;
-  const promptSegments = promptContainer?.segments;
-  if (Array.isArray(promptSegments) && promptSegments[index]) {
-    return ensureSegmentShots(record, promptSegments[index] as SegmentPrompt);
+  const promptSegments = getVideoPromptSegments(record);
+  if (promptSegments[index]) {
+    return ensureSegmentShots(record, promptSegments[index]);
   }
 
   const legacy = record.video_prompts as LegacyVideoPrompt | null;
@@ -1260,6 +1262,55 @@ function getPlanSegments(record: HistoryRecord): SegmentPrompt[] | null {
   );
   record.__hydrated_plan_segments = hydrated.length > 0 ? hydrated : null;
   return record.__hydrated_plan_segments;
+}
+
+function parseVideoPromptContainer(record: HistoryRecord): Record<string, unknown> | null {
+  const raw = record.video_prompts;
+  if (!raw) {
+    return null;
+  }
+
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      record.video_prompts = parsed as Record<string, unknown>;
+      return parsed;
+    } catch (error) {
+      console.warn(`⚠️ Failed to parse video_prompts JSON for project ${record.id}:`, error);
+      return null;
+    }
+  }
+
+  if (typeof raw === 'object') {
+    return raw as Record<string, unknown>;
+  }
+
+  return null;
+}
+
+function getVideoPromptSegments(record: HistoryRecord): SegmentPrompt[] {
+  const container = parseVideoPromptContainer(record);
+  if (!container) {
+    return [];
+  }
+
+  const rawSegments = Array.isArray((container as { segments?: unknown[] }).segments)
+    ? ((container as { segments?: unknown[] }).segments as unknown[])
+    : null;
+
+  if (!rawSegments || rawSegments.length === 0) {
+    return [];
+  }
+
+  const segmentCount = record.segment_count && record.segment_count > 0
+    ? record.segment_count
+    : rawSegments.length;
+
+  return hydrateSegmentPlan(
+    { segments: rawSegments },
+    segmentCount,
+    resolveSegmentDuration(record)
+  );
 }
 
 function ensureSegmentShots(record: HistoryRecord, prompt: SegmentPrompt): SegmentPrompt {
