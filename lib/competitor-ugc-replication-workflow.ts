@@ -644,9 +644,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       request.referenceImageUrls.length > 0
     );
 
-    // ===== VERSION 3.0: MIXED BILLING - Generation Phase =====
-    // Basic models (veo3_fast, sora2): FREE generation, paid download
-    // Premium models (veo3, sora2_pro): PAID generation, free download
+    // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
+    // ALL models: PAID generation, FREE download
     let generationCost = 0;
     const duration = request.videoDuration || request.sora2ProDuration;
     const quality = request.videoQuality || request.sora2ProQuality;
@@ -697,7 +696,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         quality
       );
 
-      // Only check and deduct credits if generation is paid
+      // Check and deduct credits for ALL models
       if (generationCost > 0) {
         // Check if user has enough credits
         const creditCheck = await checkCredits(request.userId, generationCost);
@@ -717,7 +716,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           };
         }
 
-        // Deduct credits UPFRONT for paid generation models
+        // Deduct credits UPFRONT for ALL models
         const deductResult = await deductCredits(request.userId, generationCost);
         if (!deductResult.success) {
           return {
@@ -738,7 +737,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           true
         );
       }
-      // If generationCost is 0, generation is FREE (will charge at download)
     } else {
       generationCost = 0; // Photo-only mode is free
     }
@@ -851,7 +849,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           isReplicaMode
         });
 
-        // REFUND credits on failure (only for paid generation models)
+        // REFUND credits on failure (ALL models now charge at generation)
         if (generationCost > 0) {
           console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure`);
           try {

@@ -13,10 +13,10 @@ import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector'
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
-import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe } from 'lucide-react';
+import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe, Coins } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getActualModel, isFreeGenerationModel, getGenerationCost } from '@/lib/constants';
+import { getActualModel, getGenerationCost } from '@/lib/constants';
 import { CharacterAdsDuration, CHARACTER_ADS_DURATION_OPTIONS } from '@/lib/character-ads-dialogue';
 import { CharacterAdInspector, StructuredVideoPrompt } from '@/components/character-ads/CharacterAdInspector';
 import {
@@ -1154,18 +1154,14 @@ const formatDurationLabel = (seconds: number) => {
                   {(() => {
                     const actualModel = getActualModel(DEFAULT_VIDEO_MODEL, userCredits || 0);
                     if (!actualModel) return null;
-                    const isFreeGen = isFreeGenerationModel(actualModel);
-                    if (isFreeGen) {
-                      return (
-                        <span className="ml-1 px-2 py-0.5 bg-green-500 text-white text-[10px] font-semibold rounded-full">
-                          FREE
-                        </span>
-                      );
-                    }
+                    // Version 2.0: ALL models charge at generation
                     const scenesCount = Math.ceil(videoDuration / 8);
                     const cost = getGenerationCost(actualModel) * scenesCount;
                     return (
-                      <span className="ml-1 text-xs opacity-90">(-{cost})</span>
+                      <span className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-white/20 rounded-full text-xs font-bold backdrop-blur-sm">
+                        <Coins className="w-3.5 h-3.5" />
+                        {cost}
+                      </span>
                     );
                   })()}
                 </motion.button>

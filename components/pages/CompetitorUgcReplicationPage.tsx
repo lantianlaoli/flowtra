@@ -25,7 +25,6 @@ import {
   getAvailableQualities,
   getModelSupportedDurations,
   getGenerationCost,
-  getDownloadCost,
   getSegmentCountFromDuration,
   snapDurationToModel,
   MODEL_CAPABILITIES,
@@ -1202,9 +1201,7 @@ export default function CompetitorUgcReplicationPage() {
   const generationCost = isCompetitorPhotoMode
     ? replicaPhotoCredits
     : getGenerationCost(selectedModel, videoDuration.toString(), videoQuality);
-  const downloadCost = isCompetitorPhotoMode
-    ? 0
-    : getDownloadCost(selectedModel, videoDuration.toString());
+  const downloadCost = 0; // Version 2.0: ALL downloads are FREE
   const canAfford = isCompetitorPhotoMode
     ? (userCredits || 0) >= generationCost
     : canAffordModel(userCredits || 0, selectedModel);

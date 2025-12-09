@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getDownloadCost, isFreeGenerationModel } from '@/lib/constants';
-import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 
 export async function POST(request: NextRequest) {
   try {
@@ -82,62 +80,21 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // ===== VERSION 3.0: MIXED BILLING - Download Phase =====
-    // Character Ads only supports veo3_fast (free generation, paid download)
+    // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
+    // Character Ads (veo3_fast): Download is FREE (already paid at generation)
     const isFirstDownload = !project.downloaded;
-    const videoModel = 'veo3_fast' as const; // Character Ads only supports veo3_fast
 
     if (isFirstDownload) {
-      // Check if this model has download cost (free-generation models)
-      if (isFreeGenerationModel(videoModel)) {
-        const downloadCost = getDownloadCost(videoModel);
-
-        // Check if user has enough credits
-        const creditCheck = await checkCredits(userId, downloadCost);
-        if (!creditCheck.hasEnoughCredits) {
-          return NextResponse.json({
-            error: `Insufficient credits. Need ${downloadCost} credits, have ${creditCheck.currentCredits}`
-          }, { status: 402 });
-        }
-
-        // ✅ VALIDATE-ONLY MODE: If validateOnly=true, return success without downloading
-        if (validateOnly) {
-          return NextResponse.json({
-            success: true,
-            message: 'Validation successful',
-            downloadCost: downloadCost
-          }, { status: 200 });
-        }
-
-        // Deduct download cost
-        const deductResult = await deductCredits(userId, downloadCost);
-        if (!deductResult.success) {
-          return NextResponse.json({
-            error: 'Failed to deduct credits for download'
-          }, { status: 500 });
-        }
-
-        // Record credit transaction
-        await recordCreditTransaction(
-          userId,
-          'usage',
-          downloadCost,
-          `Character Ads - Downloaded video (${videoModel.toUpperCase()})`,
-          historyId
-        );
-
-        console.log(`[Download Billing] Charged ${downloadCost} credits for ${videoModel} download (user: ${userId})`);
-      } else if (validateOnly) {
-        // Paid-generation model + validate-only: just return success
+      // ✅ VALIDATE-ONLY MODE: Always successful (no credits needed)
+      if (validateOnly) {
         return NextResponse.json({
           success: true,
-          message: 'Validation successful (already paid)',
+          message: 'Validation successful (download is free)',
           downloadCost: 0
         }, { status: 200 });
       }
-      // If paid-generation model, download is FREE (no credit deduction)
 
-      // Mark project as downloaded
+      // Mark project as downloaded (no credit deduction)
       const { error: updateError } = await supabase
         .from('character_ads_projects')
         .update({

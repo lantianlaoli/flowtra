@@ -1,7 +1,8 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { IMAGE_MODELS, getLanguagePromptName, getLanguageVoiceStyle, type LanguageCode } from '@/lib/constants';
+import { IMAGE_MODELS, GENERATION_COSTS, getLanguagePromptName, getLanguageVoiceStyle, type LanguageCode } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
+import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 // Events table removed: no tracking imports
 
 // Character Ads fixed configuration - only supports veo3_fast
@@ -1156,12 +1157,52 @@ export async function processCharacterAdsProject(
           videoDuration: project.video_duration_seconds
         });
 
+        // ===== VERSION 2.0: GENERATION-TIME BILLING =====
+        // Calculate video generation cost (veo3_fast: 20 credits per 8s segment)
+        const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
+        const generationCost = GENERATION_COSTS.veo3_fast * videoScenes; // 20 * number of segments
+
+        console.log(`💰 Billing check: ${generationCost} credits for ${videoScenes} scenes (veo3_fast)`);
+
+        // Check if user has enough credits
+        const creditCheck = await checkCredits(project.user_id, generationCost);
+        if (!creditCheck.success) {
+          throw new Error(`Failed to check credits: ${creditCheck.error || 'Credit check failed'}`);
+        }
+
+        if (!creditCheck.hasEnoughCredits) {
+          throw new Error(
+            `Insufficient credits: Need ${generationCost} credits for ${videoScenes} video scenes (veo3_fast), have ${creditCheck.currentCredits || 0}`
+          );
+        }
+
+        // Deduct credits UPFRONT before video generation
+        const deductResult = await deductCredits(project.user_id, generationCost);
+        if (!deductResult.success) {
+          throw new Error(`Failed to deduct credits: ${deductResult.error || 'Credit deduction failed'}`);
+        }
+
+        console.log(`✅ Credits deducted: ${generationCost} credits, remaining: ${deductResult.remainingCredits}`);
+
+        // Record the transaction
+        await recordCreditTransaction(
+          project.user_id,
+          'usage',
+          generationCost,
+          `Character Ads - Video generation (VEO3_FAST, ${videoScenes} scenes)`,
+          project.id,
+          true
+        );
+
+        // Store generation cost in a variable for potential refund
+        const paidGenerationCost = generationCost;
+
         // Step 4: Generate video scenes using KIE
         if (!project.generated_image_url) {
           throw new Error('Generated image not found - required for video generation');
         }
 
-        const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
+        // videoScenes already defined above for billing calculation
 
         const existingTaskIds = Array.isArray(project.kie_video_task_ids)
           ? project.kie_video_task_ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
@@ -1569,6 +1610,37 @@ export async function processCharacterAdsProject(
 
   } catch (error) {
     console.error(`Error processing step ${step}:`, error);
+
+    // ===== VERSION 2.0: REFUND ON FAILURE =====
+    // Determine if we need to refund credits (only if video generation was attempted)
+    const videoGenerationSteps = ['generate_videos', 'check_videos_status', 'merge_videos', 'check_merge_status'];
+    const shouldRefund = videoGenerationSteps.includes(step);
+
+    if (shouldRefund) {
+      // Calculate what we charged at generation time
+      const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
+      const generationCost = GENERATION_COSTS.veo3_fast * videoScenes;
+
+      if (generationCost > 0) {
+        console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure in step: ${step}`);
+        try {
+          await deductCredits(project.user_id, -generationCost); // Negative = refund
+          await recordCreditTransaction(
+            project.user_id,
+            'refund',
+            generationCost,
+            `Character Ads - Refund for failed video generation (step: ${step})`,
+            project.id,
+            true
+          );
+          console.log(`✅ Successfully refunded ${generationCost} credits to user ${project.user_id}`);
+        } catch (refundError) {
+          console.error('❌ CRITICAL: Refund failed:', refundError);
+          console.error('Refund error details:', refundError instanceof Error ? refundError.message : 'Unknown error');
+          // TODO: This should trigger alerting - user paid but didn't get service
+        }
+      }
+    }
 
     // Update project with error
     await supabase

@@ -10,7 +10,6 @@ import {
   getAutoModeSelection,
   getProcessingTime,
   getModelCostByConfig,
-  isFreeGenerationModel,
   MODEL_CAPABILITIES,
   type VideoQuality,
   type VideoDuration
@@ -335,32 +334,24 @@ export default function VideoModelSelector({
                       {option.features}
                     </span>
                   )}
-                  {!hideCredits && (() => {
-                    const model = option.value as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'auto' | 'grok' | 'kling_2_6';
-                    const isFreeGen = model !== 'auto' && isFreeGenerationModel(model);
-
-                    return (
-                      <div className="flex items-center gap-3 text-xs mt-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-gray-500">{isFreeGen ? 'Download:' : 'Generation:'}</span>
-                          <div className={cn(
-                            "flex items-center gap-1 font-semibold",
-                            !isDisabled ? "text-gray-900" : "text-red-500"
-                          )}>
-                            <Coins className="w-3.5 h-3.5" />
-                            <span>{option.cost * adsCount}</span>
-                          </div>
-                        </div>
+                  {!hideCredits && (
+                    <div className="flex items-center gap-3 text-xs mt-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-gray-500">Generation:</span>
                         <div className={cn(
-                          "flex items-center gap-1",
-                          isFreeGen ? "text-green-700" : "text-blue-700"
+                          "flex items-center gap-1 font-semibold",
+                          !isDisabled ? "text-gray-900" : "text-red-500"
                         )}>
-                          <Zap className="w-3 h-3" />
-                          <span className="font-medium">{isFreeGen ? 'Generation FREE' : 'Download FREE'}</span>
+                          <Coins className="w-3.5 h-3.5" />
+                          <span>{option.cost * adsCount}</span>
                         </div>
                       </div>
-                    );
-                  })()}
+                      <div className="flex items-center gap-1 text-blue-700">
+                        <Zap className="w-3 h-3" />
+                        <span className="font-medium">Download FREE</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {selectedModel === option.value && !isDisabled && (
                   <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">

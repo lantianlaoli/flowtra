@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send } from 'lucide-react';
-import { getCreditCost, getDownloadCost, type VideoModel } from '@/lib/constants';
+import { getCreditCost, type VideoModel } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
@@ -404,19 +404,8 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     // Check if VEO3 prepaid (credits already deducted at generation)
     const isPrepaid = item && 'generationCreditsUsed' in item ? (item.generationCreditsUsed || 0) > 0 : false;
 
-    // Calculate download cost based on video duration for Character Ads
-    // For Competitor UGC Replication with segments, use getDownloadCost to account for segment_count
-    let downloadCost = getBaseDownloadCost(videoModel);
-    if (isCharacterAds(item) && item.videoDurationSeconds) {
-      const characterModel = item.videoModel;
-      // For Character Ads: cost = (duration / unitSeconds) * base_cost_per_unit
-      const unitSeconds = characterModel === 'sora2' ? 10 : 8;
-      const baseCostPerUnit = getCreditCost(characterModel);
-      downloadCost = Math.round((item.videoDurationSeconds / unitSeconds) * baseCostPerUnit);
-    } else if ('isSegmented' in item && item.isSegmented && item.segmentCount) {
-      // For Competitor UGC Replication with segments: use getDownloadCost which multiplies by segment_count
-      downloadCost = getDownloadCost(videoModel, item.videoDuration || null, item.segmentCount);
-    }
+    // Version 2.0: ALL downloads are FREE (credits charged at generation time)
+    const downloadCost = 0;
 
     // For prepaid VEO3, no credit check needed
     if (!isPrepaid && isFirstDownload && userCredits < downloadCost) {
@@ -1137,19 +1126,8 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                                               );
                                             }
 
-                                            // Compute dynamic cost for Character Ads based on duration; others use model cost
-                                            // For Competitor UGC Replication with segments, account for segment_count
-                                            let cost = 0;
-                                            if (isCharacterAds(item) && item.videoDurationSeconds) {
-                                              const unitSeconds = item.videoModel === 'sora2' ? 10 : 8;
-                                              const base = getCreditCost(item.videoModel);
-                                              cost = Math.round((item.videoDurationSeconds / unitSeconds) * base);
-                                            } else if ('isSegmented' in item && item.isSegmented && item.segmentCount) {
-                                              // For Competitor UGC Replication with segments: use getDownloadCost which multiplies by segment_count
-                                              cost = getDownloadCost(item.videoModel, item.videoDuration || null, item.segmentCount);
-                                            } else {
-                                              cost = getBaseDownloadCost(item.videoModel);
-                                            }
+                                            // Version 2.0: ALL downloads are FREE
+                                            const cost = 0;
                                             return (
                                               <>
                                                 <Coins className="w-3.5 h-3.5 md:w-4 md:h-4" />

@@ -12,7 +12,7 @@ export default function ModelPricingSection() {
       icon: SiGoogle,
       badge: 'Popular',
       durationRange: '1m 20s',
-      billingType: 'download' as const,
+      billingType: 'generation' as const,
       pricingOptions: [
         { duration: '1m 20s', credits: 20, unit: 'per 8s' },
       ],
@@ -24,7 +24,7 @@ export default function ModelPricingSection() {
       icon: SiOpenai,
       badge: null,
       durationRange: '1m 20s',
-      billingType: 'download' as const,
+      billingType: 'generation' as const,
       pricingOptions: [
         { duration: '1m 20s', credits: 6, unit: 'per 10s' },
       ],
@@ -36,7 +36,7 @@ export default function ModelPricingSection() {
       icon: SiX,
       badge: 'New',
       durationRange: '1m 20s',
-      billingType: 'download' as const,
+      billingType: 'generation' as const,
       pricingOptions: [
         { duration: '1m 20s', credits: 20, unit: 'per 6s' },
       ],
@@ -188,23 +188,13 @@ export default function ModelPricingSection() {
 
                     {/* Download Cost */}
                     <td className="px-6 py-4">
-                      {model.billingType === 'download' ? (
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">
-                            {option.credits} credits
-                          </span>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {option.unit}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-900">
-                            Free
-                          </span>
-                          <Check className="w-3.5 h-3.5 text-gray-900" />
-                        </div>
-                      )}
+                      {/* Version 2.0: All downloads are FREE */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900">
+                          Free
+                        </span>
+                        <Check className="w-3.5 h-3.5 text-gray-900" />
+                      </div>
                     </td>
 
                     {/* Est. Cost USD */}
@@ -288,15 +278,10 @@ export default function ModelPricingSection() {
                       </div>
                       <div className="flex justify-between items-center">
                         <span>Download:</span>
-                        {model.billingType === 'download' ? (
-                          <span className="font-medium text-gray-900">
-                            {option.credits} credits
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-gray-900 font-semibold">
-                            Free <Check className="w-3 h-3 text-gray-900" />
-                          </span>
-                        )}
+                        {/* Version 2.0: All downloads are FREE */}
+                        <span className="flex items-center gap-1 text-gray-900 font-semibold">
+                          Free <Check className="w-3 h-3 text-gray-900" />
+                        </span>
                       </div>
                       <p className="text-gray-500 mt-1 italic">
                         {option.unit}
