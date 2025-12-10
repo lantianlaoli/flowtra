@@ -37,7 +37,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id, segmentIndex } = await params;
     projectId = id;
     const index = Number(segmentIndex);
+
+    console.log('[SEGMENT API] Request received:', { projectId, segmentIndex, index, userId });
+
     if (!projectId || Number.isNaN(index) || index < 0) {
+      console.error('[SEGMENT API] Invalid parameters:', { projectId, segmentIndex, index });
       return NextResponse.json({ error: 'Invalid segment index' }, { status: 400 });
     }
 
@@ -55,16 +59,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ).slice(0, PRODUCT_REFERENCE_LIMIT)
       : [];
 
+    console.log('[SEGMENT API] Payload parsed:', { regenerate, shouldRegeneratePhoto, shouldRegenerateVideo });
+
     const supabase = getSupabaseAdmin();
+    console.log('[SEGMENT API] Querying project:', projectId);
+
     const { data: project, error: projectError } = await supabase
       .from('competitor_ugc_replication_projects')
       .select(
-        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,selected_product_id,competitor_ad_id'
+        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,competitor_ad_id'
       )
       .eq('id', projectId)
       .single();
 
+    console.log('[SEGMENT API] Project query result:', {
+      found: !!project,
+      error: projectError,
+      projectUserId: project?.user_id,
+      currentUserId: userId
+    });
+
     if (projectError || !project) {
+      console.error('[SEGMENT API] Project not found:', { projectId, error: projectError });
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
@@ -215,19 +231,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             const fallback = match.user_product_photos[0];
             addProductPhotoUrl(primary?.photo_url || fallback?.photo_url || null);
           });
-        }
-      }
-
-      if (!productImageUrls.length && project.selected_product_id) {
-        const { data: product } = await supabase
-          .from('user_products')
-          .select('user_product_photos(photo_url,is_primary)')
-          .eq('id', project.selected_product_id)
-          .single();
-        if (product?.user_product_photos?.length) {
-          const primary = product.user_product_photos.find((photo: { is_primary?: boolean }) => photo.is_primary);
-          const fallback = product.user_product_photos[0];
-          addProductPhotoUrl(primary?.photo_url || fallback?.photo_url || null);
         }
       }
 

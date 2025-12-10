@@ -630,8 +630,20 @@ export default function CompetitorUgcReplicationPage() {
     }));
   }, []);
 
+  // Track ongoing status fetches to prevent duplicate requests
+  const statusFetchesRef = useRef<Set<string>>(new Set());
+
   const fetchStatusForProject = useCallback(async (projectId: string) => {
     if (!projectId) return;
+
+    // Prevent duplicate concurrent requests for the same project
+    if (statusFetchesRef.current.has(projectId)) {
+      console.log(`[DEBUG] Skipping duplicate status fetch for project ${projectId}`);
+      return;
+    }
+
+    statusFetchesRef.current.add(projectId);
+
     try {
       const response = await fetch(`/api/competitor-ugc-replication/${projectId}/status`, {
         cache: 'no-store'
@@ -648,6 +660,8 @@ export default function CompetitorUgcReplicationPage() {
       if (isMountedRef.current) {
         console.error('Failed to fetch project status:', error);
       }
+    } finally {
+      statusFetchesRef.current.delete(projectId);
     }
   }, [updateGenerationFromStatus]);
 
@@ -711,29 +725,73 @@ export default function CompetitorUgcReplicationPage() {
   const inspectorPrompt = inspectorContext?.segment?.prompt as Partial<SegmentPrompt> | undefined;
 
   const handleSegmentRegenerate = useCallback(async ({ type, prompt, productIds }: { type: 'photo' | 'video'; prompt: SegmentPromptPayload; productIds?: string[]; }) => {
-    if (!segmentInspector) return;
-    const projectId = segmentInspector.projectId;
-    const segmentIndex = segmentInspector.segmentIndex;
-
-    // Validate projectId before making API call
-    if (!projectId || typeof projectId !== 'string' || projectId === 'undefined') {
-      showError('Project ID missing. Please refresh the page and try again.');
-      return;
-    }
-
-    const mergedPrompt = composeSegmentPromptUpdate(prompt, inspectorPrompt);
-
     try {
+      // Validate segmentInspector
+      if (!segmentInspector) {
+        console.error('[DEBUG] segmentInspector is null');
+        showError('Segment inspector not initialized');
+        return;
+      }
+
+      const projectId = segmentInspector.projectId;
+      const segmentIndex = segmentInspector.segmentIndex;
+
+      console.log('[DEBUG] Regenerate started', { type, projectId, segmentIndex });
+
+      // Validate projectId
+      if (!projectId || typeof projectId !== 'string' || projectId === 'undefined') {
+        console.error('[DEBUG] Invalid projectId:', projectId);
+        showError('Project ID missing. Please refresh the page and try again.');
+        return;
+      }
+
+      // Validate prompt data
+      if (!prompt || !prompt.shots || !Array.isArray(prompt.shots)) {
+        console.error('[DEBUG] Invalid prompt data:', prompt);
+        showError('Invalid prompt data');
+        return;
+      }
+
+      // Execute composeSegmentPromptUpdate with error handling
+      let mergedPrompt;
+      try {
+        mergedPrompt = composeSegmentPromptUpdate(prompt, inspectorPrompt);
+        console.log('[DEBUG] Merged prompt created successfully');
+      } catch (error) {
+        console.error('[DEBUG] composeSegmentPromptUpdate failed:', error);
+        showError('Failed to prepare prompt data');
+        return;
+      }
+
+      // Validate serializable
+      try {
+        JSON.stringify(mergedPrompt);
+        console.log('[DEBUG] mergedPrompt is serializable');
+      } catch (error) {
+        console.error('[DEBUG] mergedPrompt not serializable:', error);
+        showError('Invalid prompt data (not serializable)');
+        return;
+      }
+
       setSegmentInspectorSubmitting(prev => ({ ...prev, [type]: true }));
+
       const requestBody: Record<string, unknown> = {
         prompt: mergedPrompt,
         regenerate: type
       };
+
       if (type === 'photo' && productIds?.length) {
         requestBody.productIds = productIds.slice(0, 10);
       }
 
-      const response = await fetch(`/api/competitor-ugc-replication/${projectId}/segments/${segmentIndex}`, {
+      const url = `/api/competitor-ugc-replication/${projectId}/segments/${segmentIndex}`;
+      console.log('[DEBUG] Sending request:', {
+        url,
+        method: 'PATCH',
+        bodyKeys: Object.keys(requestBody)
+      });
+
+      const response = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
@@ -741,13 +799,16 @@ export default function CompetitorUgcReplicationPage() {
         body: JSON.stringify(requestBody)
       });
 
+      console.log('[DEBUG] Response received:', response.status);
+
       if (!response.ok) {
         let message = 'Failed to update segment';
         try {
           const data = await response.json();
           message = data?.error || data?.message || message;
-        } catch {
-          // ignore
+          console.error('[DEBUG] Error response:', data);
+        } catch (parseError) {
+          console.error('[DEBUG] Failed to parse error response:', parseError);
         }
         throw new Error(message);
       }
@@ -756,6 +817,7 @@ export default function CompetitorUgcReplicationPage() {
       const successText = type === 'photo' ? 'First frame regeneration queued.' : 'Video regeneration queued.';
       showSuccess(successText);
     } catch (error) {
+      console.error('[DEBUG] Caught error in handleSegmentRegenerate:', error);
       const message = error instanceof Error ? error.message : 'Segment regeneration failed';
       showError(message);
     } finally {
@@ -802,14 +864,22 @@ export default function CompetitorUgcReplicationPage() {
     if (!activeProjectIds.length) return;
 
     const poll = () => {
+      console.log(`[DEBUG] Polling status for ${activeProjectIds.length} project(s)`);
       activeProjectIds.forEach(projectId => {
         fetchStatusForProject(projectId);
       });
     };
 
-    poll();
-    const interval = setInterval(poll, 5000);
-    return () => clearInterval(interval);
+    // Initial poll after a short delay to avoid race conditions
+    const initialTimer = setTimeout(poll, 1000);
+
+    // Poll every 15 seconds (increased from 8s for better readability)
+    const interval = setInterval(poll, 15000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
   }, [activeProjectIds, fetchStatusForProject]);
 
   const handleDownloadGeneration = useCallback(async (generation: SessionGeneration) => {
