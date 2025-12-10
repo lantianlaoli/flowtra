@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '@clerk/nextjs';
 
 interface CreditsContextType {
@@ -38,7 +38,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
 
   const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-  const fetchCredits = async () => {
+  const fetchCredits = useCallback(async () => {
     if (!user?.id || isLoading) return;
 
     setIsLoading(true);
@@ -85,13 +85,13 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
     } finally {
       if (isMountedRef.current) setIsLoading(false);
     }
-  };
+  }, [user?.id, isLoading]);
 
   useEffect(() => {
     if (user?.id && credits === undefined) {
       fetchCredits();
     }
-  }, [user?.id, credits]);
+  }, [user?.id, credits, fetchCredits]);
 
   const refetchCredits = async () => {
     await fetchCredits();

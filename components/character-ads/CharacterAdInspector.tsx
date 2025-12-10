@@ -153,7 +153,7 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
         return prev;
       });
     }
-  }, [projectId, onClose, showError, submitting]);
+  }, [projectId, onClose, showError]);
 
   useEffect(() => {
     if (project && !isInitialized.current) {

@@ -252,16 +252,9 @@ const convertCompetitorShotToSegmentShot = (
   shot: CompetitorShot,
   fallbackDuration: number
 ): SegmentShot => {
+  // Each segment is independent with 0-8s timing (segment-relative, not competitor absolute timing)
   const startSeconds = 0;
-  const rawDuration = (() => {
-    const parsedStart = parseTimecode(shot.startTime) ?? 0;
-    const parsedEnd = parseTimecode(shot.endTime);
-    if (parsedEnd && parsedEnd > parsedStart) {
-      return parsedEnd - parsedStart;
-    }
-    return Math.max(shot.durationSeconds || 0, 0);
-  })();
-  const durationSeconds = Math.max(1, Math.min(Math.round(rawDuration) || fallbackDuration, fallbackDuration));
+  const durationSeconds = fallbackDuration; // Use segment duration directly (e.g., 8s for veo3_fast)
   const endSeconds = startSeconds + durationSeconds;
   return {
     id,
@@ -297,10 +290,11 @@ const normalizeSegmentShots = (
     return rawShots.map((shot, index) => {
       const record = (shot && typeof shot === 'object') ? (shot as Record<string, unknown>) : {};
       const perShotDuration = duration / rawShots.length;
+      // For segment-relative timing, always start from 0 and use segment duration
       const { display, start, end, duration: normalizedDuration } = normalizeShotTimeRange(
-        record.time_range,
-        Math.round(index * perShotDuration),
-        perShotDuration
+        undefined,  // Ignore existing time_range, force segment-relative timing
+        Math.round(index * perShotDuration),  // Offset for this shot within segment
+        perShotDuration  // Duration for this shot within segment
       );
 
       return {
@@ -995,36 +989,6 @@ async function startAIWorkflow(
         console.log(`   - Skipping API call to OpenRouter (saving time & cost)`);
 
         competitorDescription = competitorAdContext.existing_analysis as Record<string, unknown>;
-
-        // Optional: Validate analysis structure
-        const requiredFields = ['subject', 'context', 'action', 'style', 'camera_motion', 'composition', 'ambiance', 'audio', 'shots'];
-        const hasAllFields = requiredFields.every(field => field in competitorDescription!);
-
-        if (!hasAllFields) {
-          console.warn('⚠️ Existing analysis incomplete or invalid, re-analyzing...');
-          const { analysis, language } = await analyzeCompetitorAdWithLanguage({
-            file_url: competitorAdContext.file_url,
-            file_type: competitorAdContext.file_type,
-            competitor_name: competitorAdContext.competitor_name
-          });
-          competitorDescription = analysis;
-
-          if (competitorAdContext.id && competitorDescription) {
-            const timeline = parseCompetitorTimeline(
-              competitorDescription as Record<string, unknown>,
-              competitorAdContext.video_duration_seconds
-            );
-            await supabase
-              .from('competitor_ads')
-              .update({
-                analysis_result: competitorDescription,
-                analysis_status: 'completed',
-                language: language,
-                video_duration_seconds: timeline.videoDurationSeconds
-              })
-              .eq('id', competitorAdContext.id);
-          }
-        }
       } else {
         // No existing analysis or analysis failed/pending - perform fresh analysis
         const statusReason = !competitorAdContext.analysis_status
@@ -1119,15 +1083,6 @@ async function startAIWorkflow(
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
-    const singleSegmentDuration = segmentCount === 1 ? (totalDurationSeconds || DEFAULT_SEGMENT_DURATION_SECONDS) : undefined;
-    const normalizedSingleSegment = segmentCount === 1
-      ? normalizeSegmentPrompts(prompts, 1, undefined, singleSegmentDuration)
-      : undefined;
-    const primarySegmentPrompt = normalizedSingleSegment?.[0];
-    const storedVideoPrompts = normalizedSingleSegment
-      ? buildStoredVideoPromptsPayload(normalizedSingleSegment, prompts as Record<string, unknown>)
-      : null;
-    const primarySegmentDetails = primarySegmentPrompt ? deriveSegmentDetails(primarySegmentPrompt) : undefined;
 
     if (!shotPlanForSegments && segmentedFlow && competitorTimelineShots && competitorTimelineShots.length > 0) {
       if (competitorTimelineShots.length === segmentCount) {
@@ -1141,66 +1096,21 @@ async function startAIWorkflow(
       }
     }
 
-    if (segmentedFlow) {
-      console.log('🎬 Segmented workflow enabled - orchestrating multi-segment pipeline');
-      await startSegmentedWorkflow(
-        projectId,
-        request,
-        prompts,
-        segmentCount,
-        competitorDescription,
-        shotPlanForSegments,
-        brandLogoUrl, // NEW: Pass brand logo URL
-        request.imageUrl ? [request.imageUrl] : null, // Provide initial product reference if available
-        productContext, // NEW: Pass product context for fallback text generation
-        competitorAdContext?.file_type || null
-      );
-      return;
-    }
-
-    // Non-segmented flow: Requires product image
-    if (!request.imageUrl) {
-      throw new Error('Non-segmented workflow requires a product image. Please use segmented workflow with competitor reference or provide a product image.');
-    }
-
-    // Step 1: Start cover generation
-    console.log('🎨 Starting cover generation...');
-    const coverTaskId = await generateCover(
-      request.imageUrl,
-      prompts,
+    // All workflows are segmented (even single 8s segment)
+    console.log('🎬 Segmented workflow enabled - orchestrating multi-segment pipeline');
+    await startSegmentedWorkflow(
+      projectId,
       request,
+      prompts,
+      segmentCount,
       competitorDescription,
-      competitorAdContext?.file_type,
-      competitorAdContext?.file_type === 'image' ? competitorAdContext.file_url : undefined
+      shotPlanForSegments,
+      brandLogoUrl, // NEW: Pass brand logo URL
+      request.imageUrl ? [request.imageUrl] : null, // Provide initial product reference if available
+      productContext, // NEW: Pass product context for fallback text generation
+      competitorAdContext?.file_type || null
     );
-    console.log('🆔 Cover task ID:', coverTaskId);
-
-    const finalCoverTaskId = coverTaskId;
-
-    // Update project with cover task ID and prompts
-    const updateData = {
-      cover_task_id: finalCoverTaskId,
-      video_prompts: storedVideoPrompts || prompts,
-      image_prompt: primarySegmentDetails?.description || 'Product hero shot in premium environment',
-      current_step: 'generating_cover' as const,
-      progress_percentage: 30,
-      last_processed_at: new Date().toISOString()
-    };
-    console.log('💾 Updating project with image-driven data' + (competitorDescription ? ' (competitor reference mode)' : ''));
-
-    const { error: updateError } = await supabase
-      .from('competitor_ugc_replication_projects')
-      .update(updateData)
-      .eq('id', projectId)
-      .select();
-
-    if (updateError) {
-      console.error('❌ Database update error:', updateError);
-      throw updateError;
-    }
-
-    console.log('✅ Database updated successfully');
-    console.log('✅ Auto mode workflow started successfully (image-based prompts)');
+    return;
 
   } catch (error) {
     console.error('AI workflow error:', error);
@@ -1859,7 +1769,11 @@ async function generateImageBasedPrompts(
   ];
 
   const segmentProperties: Record<string, unknown> = {
-    first_frame_description: { type: "string", description: "Detailed opening frame" },
+    first_frame_description: {
+      type: "string",
+      minLength: 20,
+      description: "Detailed description of the opening frame: scene setup, subject positioning, visual composition, key elements. This describes the exact moment when the segment begins - what viewers see first. REQUIRED: Must be at least 20 characters describing the visual scene."
+    },
     is_continuation_from_prev: { type: "boolean", description: "true if this segment continues the same camera setup as the previous segment" },
     shots: {
       type: "array",
@@ -1888,6 +1802,7 @@ async function generateImageBasedPrompts(
 - Each segment MUST include only: ${segmentFieldList}.
 - DO NOT add keys like "audio", "style", or "action" at the segment level — that information belongs inside each shot.
 - Dialogue must stay under ${dialogueWordLimit} words and be natural.
+- "first_frame_description" must provide a DETAILED visual description of the opening frame: scene setup, subject positioning, camera angle, key visual elements. This is used to generate the keyframe image. Example: "Close-up of woman's hands gently applying moisturizer to her face, soft natural lighting from the right, white marble bathroom counter in background, serene morning ambiance."
 - "is_continuation_from_prev" must be false for Segment 1, and only true when the current segment continues the exact same camera move/subject as the previous segment.
 - "shots" must contain 2-4 entries that evenly cover the entire ${perSegmentDuration}-second segment runtime. Each shot's "time_range" is RELATIVE to the start of the segment (e.g., "00:00 - 00:02", "00:02 - 00:04"), and the final shot must end at ${formatTimecode(perSegmentDuration)}.
 
@@ -1968,6 +1883,13 @@ Your task is to create a similar advertisement for OUR product${imageUrl ? ' (sh
 4. PRESERVING the camera work, composition, and ambiance
 5. MATCH EVERY SHOT EXACTLY: number of segments, graphic title cards, text overlays, and the final brand sign-off must appear in the same order as the competitor. Do not drop or rearrange any shots.
 
+**CRITICAL: For "first_frame_description" field:**
+- You MUST preserve the competitor's detailed visual descriptions
+- ONLY replace product-specific details (product name, brand, packaging) with our product
+- DO NOT simplify, shorten, or omit any environmental details, lighting, composition, or scene elements
+- Keep the same level of detail and specificity as the competitor's analysis
+- Example: If competitor has "A medium shot captures a woman with shoulder-length blonde wavy hair...", you should keep all those details but replace their product with ours
+
 ${imageUrl ? 'Remember: The user\'s image is OUR product - adapt the competitor\'s ad to showcase OUR product instead.' : 'Note: No product image provided - use brand context to adapt the competitor\'s ad.'}`
           },
           {
@@ -1984,6 +1906,12 @@ ${imageUrl ? 'Remember: The user\'s image is OUR product - adapt the competitor\
 
 Use the competitor analysis provided in the system message to recreate the same storyboard for OUR product. Replace logos, subjects, and props with our brand while keeping framing, movement, pacing, and energy identical.
 
+**CRITICAL REQUIREMENTS:**
+- For each segment's "first_frame_description", you MUST preserve the competitor's detailed visual descriptions
+- ONLY replace the competitor's product/brand with our product/brand
+- DO NOT simplify or shorten scene descriptions - maintain the same level of detail
+- Example transformation: "Woman applying Competitor Brand lotion..." → "Woman applying ${productContext?.brand_name || 'our product'} lotion..." (keep all other details unchanged)
+
 ${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this to ensure accurate product replacement)\n` : ''}${userRequirements ? `\nUser Requirements:\n${userRequirements}\n(Apply without changing the competitor's creative structure)\n` : ''}
 
 ${strictSegmentFormat}`
@@ -1993,6 +1921,12 @@ ${strictSegmentFormat}`
                   {
                     type: 'text',
                     text: `Recreate the competitor advertisement for our brand using ONLY the information provided in the system message.
+
+**CRITICAL REQUIREMENTS:**
+- For each segment's "first_frame_description", you MUST preserve the competitor's detailed visual descriptions
+- ONLY replace the competitor's product/brand with our product/brand
+- DO NOT simplify or shorten scene descriptions - maintain the same level of detail
+- Keep all environmental details, lighting descriptions, composition specifics unchanged
 
 ${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this context when replacing subjects or props)\n` : ''}${userRequirements ? `\nUser Requirements:\n${userRequirements}\n(Apply without inventing new structure)\n` : ''}
 
@@ -2125,7 +2059,17 @@ ${strictSegmentFormat}`
 
           if (missingSegmentFields.length > 0) {
             console.error(`❌ Segment ${index + 1} missing required fields:`, missingSegmentFields);
-            throw new Error(`Segment ${index + 1} missing fields: ${missingSegmentFields.join(', ')}`);
+            console.error(`❌ Segment ${index + 1} data:`, JSON.stringify(segment, null, 2));
+            throw new Error(`[generateImageBasedPrompts] Segment ${index + 1} missing fields: ${missingSegmentFields.join(', ')}`);
+          }
+
+          // CRITICAL: Validate first_frame_description is not empty
+          const firstFrameDesc = (segment as Record<string, unknown>).first_frame_description;
+          if (typeof firstFrameDesc === 'string' && firstFrameDesc.trim().length < 20) {
+            console.error(`❌ [generateImageBasedPrompts] Segment ${index + 1} has invalid first_frame_description (length: ${firstFrameDesc.trim().length})`);
+            console.error(`❌ [generateImageBasedPrompts] Content: "${firstFrameDesc}"`);
+            console.error(`❌ [generateImageBasedPrompts] Full segment data:`, JSON.stringify(segment, null, 2));
+            throw new Error(`[generateImageBasedPrompts] Segment ${index + 1} has invalid first_frame_description - must be at least 20 characters describing the visual scene. Received: "${firstFrameDesc}"`);
           }
         });
 
@@ -2155,168 +2099,6 @@ ${strictSegmentFormat}`
       lastPromptError instanceof Error ? `: ${lastPromptError.message}` : ''
     }`
   );
-}
-
-async function generateCover(
-  imageUrl: string,
-  prompts: Record<string, unknown>,
-  request: StartWorkflowRequest,
-  competitorDescription?: Record<string, unknown>,
-  competitorFileType?: 'image' | 'video',
-  competitorImageUrl?: string
-): Promise<string> {
-  // Get the actual image model to use
-  // CRITICAL: When using competitor reference mode, always upgrade to nano_banana_pro per docs/kie/nano_banana_pro.md
-  let actualImageModel: 'nano_banana' | 'seedream' | 'nano_banana_pro';
-  const hasCompetitorPhotoReference = Boolean(competitorFileType === 'image' && competitorImageUrl);
-  const isCompetitorReferenceMode = Boolean(competitorDescription || hasCompetitorPhotoReference);
-
-  if (isCompetitorReferenceMode) {
-    console.log(`📎 Competitor ${competitorFileType} detected → Using nano_banana_pro (docs/kie/nano_banana_pro.md)`);
-    actualImageModel = 'nano_banana_pro';
-  } else {
-    // Normal mode: use user's selection or auto mode
-    actualImageModel = getActualImageModel(request.imageModel || 'auto');
-  }
-
-  const kieModelName = IMAGE_MODELS[actualImageModel];
-  const [primarySegment] = normalizeSegmentPrompts(prompts, 1, undefined, DEFAULT_SEGMENT_DURATION_SECONDS);
-  const primarySegmentDetails = primarySegment ? deriveSegmentDetails(primarySegment) : undefined;
-
-  // Build prompt that preserves original product appearance
-  const baseDescription = primarySegmentDetails?.description || primarySegmentDetails?.first_frame_prompt || 'Professional product advertisement';
-
-  // COMPETITOR REFERENCE MODE: Extract detailed scene elements
-  let sceneReplicationSection = '';
-  if (competitorDescription) {
-    const sceneElements = competitorDescription.scene_elements as Array<{ element: string; position: string; details: string }> | undefined;
-    const firstFrameComp = competitorDescription.first_frame_composition as string | undefined;
-
-    if (sceneElements && sceneElements.length > 0) {
-      const elementsList = sceneElements.map(el =>
-        `- ${el.element} (${el.position}): ${el.details}`
-      ).join('\n');
-
-      sceneReplicationSection = `
-🎯 SCENE REPLICATION MODE (CRITICAL - EXACT MATCH REQUIRED)
-
-You are recreating a competitor's advertisement scene with our product. The scene must be IDENTICAL except for the product.
-
-**SCENE ELEMENTS TO REPLICATE EXACTLY:**
-${elementsList}
-
-**SPATIAL LAYOUT (First Frame Composition):**
-${firstFrameComp || 'Maintain original composition'}
-
-**REPLICATION RULES:**
-1. Every background element listed above MUST appear in the exact position
-2. Colors, materials, and sizes must match the descriptions precisely
-3. Lighting direction and quality must be identical
-4. Only the product should be different - all scene elements stay the same
-5. Think: "I'm placing our product into their exact scene"
-
-`;
-    }
-  }
-  if (!competitorDescription && hasCompetitorPhotoReference) {
-    sceneReplicationSection = `
-📷 COMPETITOR PHOTO REPLICATION
-
-You are provided TWO reference images:
-- Reference 1: Competitor advertisement photo. This shows the exact background, lighting, pose, props, and camera framing you must COPY.
-- Reference 2: Our actual product photo. This shows the exact product you must insert into the replicated scene.
-
-Rules:
-1. Copy the entire composition, perspective, lighting, and styling from reference image 1.
-2. Replace ONLY the competitor's product with the product from reference image 2.
-3. Keep every background prop, surface, and material identical to reference image 1.
-4. Maintain the same camera angle, crop, and aspect ratio from reference image 1.
-5. The product appearance must match reference image 2 exactly (shape, color, branding).`;
-  }
-
-  // Create a prompt that explicitly instructs to maintain original product appearance
-  let prompt = `IMPORTANT: Use the provided product image as the EXACT BASE. Maintain the original product's exact visual appearance, shape, design, colors, textures, and all distinctive features. DO NOT change the product itself.
-
-${sceneReplicationSection}Based on the provided product image, create an enhanced advertising version that keeps the EXACT SAME product while only improving the presentation for marketing purposes. ${baseDescription}
-
-Requirements:
-- Keep the original product's exact shape, size, and proportions
-- Maintain all original colors, textures, and materials
-- Preserve all distinctive design features and details
-${competitorDescription ? '- CRITICAL: Replicate the exact scene elements and spatial layout described above' : '- Only enhance lighting, background, or add subtle marketing elements'}
-- The product must remain visually identical to the original`;
-
-  const providedAdCopy = request.adCopy?.trim() || '';
-
-  if (providedAdCopy) {
-    const escapedAdCopy = providedAdCopy.replace(/"/g, '\\"');
-    prompt += `\n\nAd Copy Requirements:
-- Prominently include the headline text "${escapedAdCopy}" in the design
-- Keep typography clean and highly legible against the background
-- Use the provided text exactly as written without paraphrasing`;
-  }
-
-  // Ensure prompt doesn't exceed KIE API's 5000 character limit
-  const MAX_PROMPT_LENGTH = KIE_PROMPT_LIMIT;
-  if (prompt.length > MAX_PROMPT_LENGTH) {
-    // Truncate the description part while keeping the critical instructions
-    const criticalInstructions = `IMPORTANT: Use the provided product image as the EXACT BASE. Maintain the original product's exact visual appearance, shape, design, colors, textures, and all distinctive features. DO NOT change the product itself.
-
-Based on the provided product image, create an enhanced advertising version that keeps the EXACT SAME product while only improving the presentation for marketing purposes.`;
-
-    const remainingLength = MAX_PROMPT_LENGTH - criticalInstructions.length - 100; // Reserve space for requirements
-    const truncatedDescription = baseDescription.length > remainingLength
-      ? baseDescription.substring(0, remainingLength - 3) + "..."
-      : baseDescription;
-
-    prompt = `${criticalInstructions} ${truncatedDescription}
-
-Requirements: Keep exact product appearance, only enhance presentation.`;
-  }
-  prompt = clampPromptLength(prompt);
-
-  const targetAspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
-  const referenceImages = hasCompetitorPhotoReference
-    ? [competitorImageUrl!, imageUrl]
-    : [imageUrl];
-  const inputPayload: Record<string, unknown> = {
-    prompt,
-    image_urls: referenceImages,
-    output_format: "png"
-  };
-
-  if (actualImageModel === 'nano_banana_pro') {
-    inputPayload.aspect_ratio = targetAspectRatio;
-    inputPayload.resolution = '1K';
-  } else {
-    inputPayload.image_size = targetAspectRatio;
-  }
-
-  const requestBody = {
-    model: kieModelName,
-    input: inputPayload
-  };
-
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody)
-  }, 5, 30000);
-
-  if (!response.ok) {
-    throw new Error(`Cover generation failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-
-  if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to generate cover');
-  }
-
-  return data.data.taskId;
 }
 
 async function startSegmentedWorkflow(
@@ -2516,7 +2298,12 @@ export function normalizeSegmentPrompts(
       subject: cleanSegmentText(source.subject) ?? fromShot('subject') ?? '',
       composition: cleanSegmentText(source.composition) ?? fromShot('composition') ?? '',
       context_environment: cleanSegmentText(source.context_environment) ?? fromShot('context_environment') ?? '',
-      first_frame_description: cleanSegmentText(source.first_frame_description) ?? '',
+      // FIX: Add fallback to competitor shot description if AI returns empty/invalid
+      first_frame_description:
+        cleanSegmentText(source.first_frame_description) ??
+        (shotOverrides?.first_frame_description ? cleanSegmentText(shotOverrides.first_frame_description) : undefined) ??
+        (shot?.firstFrameDescription ? cleanSegmentText(shot.firstFrameDescription) : undefined) ??
+        '',
       ambiance_colour_lighting: cleanSegmentText(source.ambiance_colour_lighting) ?? fromShot('ambiance_colour_lighting') ?? '',
       camera_motion_positioning: cleanSegmentText(source.camera_motion_positioning) ?? fromShot('camera_motion_positioning') ?? '',
       dialogue: cleanSegmentText(source.dialogue) ?? fromShot('dialogue') ?? '',
@@ -2732,7 +2519,8 @@ function buildSegmentOverridesFromShot(shot: CompetitorShot): Partial<SegmentPro
   return {
     index: shot.id,
     contains_brand: shot.containsBrand,
-    contains_product: shot.containsProduct
+    contains_product: shot.containsProduct,
+    first_frame_description: shot.firstFrameDescription || ''
   };
 }
 
@@ -2983,6 +2771,62 @@ export async function createSmartSegmentFrame(
   overrides?: FrameGenerationOverrides,
   continuationReferenceUrl?: string | null
 ): Promise<string> {
+  // 🎯 COMPETITOR CLONE MODE: Direct text-to-image shortcut
+  const isCompetitorCloneMode = competitorFileType === 'video' || competitorFileType === 'image';
+
+  if (isCompetitorCloneMode) {
+    console.log(`🎨 Competitor clone mode detected: Using direct text-to-image`);
+    console.log(`   - Segment ${segmentIndex + 1} ${frameType} frame`);
+
+    const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
+    const imageModel = IMAGE_MODELS.nano_banana_pro;
+
+    // Check if continuation reference is needed
+    const shouldUseContinuation = Boolean(
+      continuationReferenceUrl && frameType === 'first' && segmentPrompt.is_continuation_from_prev
+    );
+    const imageInput: string[] = shouldUseContinuation && continuationReferenceUrl
+      ? [continuationReferenceUrl]
+      : [];
+
+    if (shouldUseContinuation) {
+      console.log(`   - 🔗 Continuation mode: Using previous segment's first frame as reference`);
+    }
+
+    console.log(`   - Prompt: ${frameDescription.substring(0, 100)}...`);
+
+    const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: imageModel,
+        input: {
+          prompt: frameDescription,
+          ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
+          aspect_ratio: aspectRatio,
+          resolution: overrides?.resolutionOverride || '1K',
+          output_format: 'png'
+        }
+      })
+    }, 5, 30000);
+
+    if (!response.ok) {
+      throw new Error(`Competitor clone frame generation failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.code !== 200) {
+      throw new Error(data.msg || 'Failed to generate competitor clone frame');
+    }
+
+    console.log(`   ✅ Task created: ${data.data.taskId}`);
+    return data.data.taskId;
+  }
+
+  // 传统模式继续执行现有逻辑
   const containsBrand = segmentPrompt.contains_brand === true;
   const containsProduct = segmentPrompt.contains_product === true;
   const normalizedProductImages = Array.isArray(productImageUrls)

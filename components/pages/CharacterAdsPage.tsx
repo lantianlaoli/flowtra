@@ -591,14 +591,15 @@ const formatDurationLabel = (seconds: number) => {
 
     // Re-check when customDialogue changes or window resizes
     const resizeObserver = new ResizeObserver(checkOverflow);
-    if (textareaRef.current) {
-      resizeObserver.observe(textareaRef.current);
+    const currentTextarea = textareaRef.current;
+    if (currentTextarea) {
+      resizeObserver.observe(currentTextarea);
     }
     window.addEventListener('resize', checkOverflow);
 
     return () => {
-      if (textareaRef.current) {
-        resizeObserver.unobserve(textareaRef.current);
+      if (currentTextarea) {
+        resizeObserver.unobserve(currentTextarea);
       }
       window.removeEventListener('resize', checkOverflow);
     };

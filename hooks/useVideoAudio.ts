@@ -27,10 +27,11 @@ export function useVideoAudio({ videoRef, instanceId }: UseVideoAudioOptions) {
   // Initialize manager and register this video instance
   useEffect(() => {
     managerRef.current = VideoAudioManager.getInstance();
-    managerRef.current.register(videoInstanceId.current, videoRef, setAudioEnabled);
+    const currentInstanceId = videoInstanceId.current;
+    managerRef.current.register(currentInstanceId, videoRef, setAudioEnabled);
 
     return () => {
-      managerRef.current?.unregister(videoInstanceId.current);
+      managerRef.current?.unregister(currentInstanceId);
     };
   }, [videoRef]);
 

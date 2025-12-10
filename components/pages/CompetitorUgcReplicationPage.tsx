@@ -714,6 +714,13 @@ export default function CompetitorUgcReplicationPage() {
     if (!segmentInspector) return;
     const projectId = segmentInspector.projectId;
     const segmentIndex = segmentInspector.segmentIndex;
+
+    // Validate projectId before making API call
+    if (!projectId || typeof projectId !== 'string' || projectId === 'undefined') {
+      showError('Project ID missing. Please refresh the page and try again.');
+      return;
+    }
+
     const mergedPrompt = composeSegmentPromptUpdate(prompt, inspectorPrompt);
 
     try {

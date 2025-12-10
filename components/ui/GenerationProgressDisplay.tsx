@@ -681,7 +681,13 @@ function SegmentBoard({
   );
 }
 
-function SegmentSummaryCard({ segment, onSelect }: { segment: SegmentCardSummary; onSelect?: () => void }) {
+function SegmentSummaryCard({
+  segment,
+  onSelect
+}: {
+  segment: SegmentCardSummary;
+  onSelect?: () => void;
+}) {
   const prompt = (segment.prompt || {}) as Record<string, unknown>;
   const title =
     (typeof (prompt as { segment_title?: string }).segment_title === 'string' && (prompt as { segment_title?: string }).segment_title) ||
@@ -735,15 +741,17 @@ function SegmentSummaryCard({ segment, onSelect }: { segment: SegmentCardSummary
           {segment.errorMessage || 'Segment failed. Adjust the prompt and regenerate.'}
         </div>
       )}
-      <button
-        type="button"
-        className="mt-4 inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-        disabled={!onSelect}
-        onClick={onSelect}
-      >
-        <PenSquare className="w-3.5 h-3.5" />
-        Edit
-      </button>
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+          disabled={!onSelect}
+          onClick={onSelect}
+        >
+          <PenSquare className="w-3.5 h-3.5" />
+          Edit
+        </button>
+      </div>
     </div>
   );
 }

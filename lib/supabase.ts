@@ -123,6 +123,7 @@ export interface CompetitorUgcReplicationSegment {
   video_url?: string | null
   error_message?: string | null
   retry_count?: number // Number of automatic retries for server errors (failCode: 500)
+  video_generation_approved?: boolean // Tracks whether user has approved this segment for video generation
   created_at: string
   updated_at: string
 }

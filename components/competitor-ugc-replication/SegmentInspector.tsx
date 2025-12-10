@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import NextImage from 'next/image';
 import clsx from 'clsx';
 import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2 } from 'lucide-react';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
@@ -506,10 +507,12 @@ export default function SegmentInspector({
                     <span className="mt-2">Rendering first frame…</span>
                   </div>
                 ) : segment?.firstFrameUrl ? (
-                  <img
+                  <NextImage
                     src={segment.firstFrameUrl}
                     alt="Segment still"
                     className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 400px"
                   />
                 ) : (
                   <div className="text-center text-sm text-gray-500">
@@ -646,9 +649,9 @@ export default function SegmentInspector({
                             disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer bg-white'
                           )}
                         >
-                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 relative">
                             {photoUrl ? (
-                              <img src={photoUrl} alt={product.product_name} className="w-full h-full object-cover" />
+                              <NextImage src={photoUrl} alt={product.product_name} className="object-cover" fill sizes="48px" />
                             ) : (
                               <ImageIcon className="w-5 h-5 text-gray-400" />
                             )}

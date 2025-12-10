@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       const { data, error } = await supabase
         .from('competitor_ugc_replication_projects')
         .select('*')
-        .in('status', ['processing', 'generating_cover', 'generating_video', 'failed'])
+        .in('status', ['processing', 'generating_cover', 'generating_video', 'segment_frames_ready', 'failed'])
         .or(
           'cover_task_id.not.is.null,' +
           'use_custom_script.eq.true,' +
@@ -289,135 +289,37 @@ async function processRecord(record: HistoryRecord) {
     return;
   }
 
-  // Handle stuck records: generating_cover but no cover_task_id (workflow failed before calling generateCover)
-  if (record.current_step === 'generating_cover' && !record.cover_task_id) {
-    const createdAt = new Date(record.created_at);
-    const now = new Date();
-    const ageInMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+  // Handle replica mode (photo-only) monitoring
+  // Replica mode generates a single photo using reference images (not project-level cover for video)
+  if (record.current_step === 'generating_cover' && record.cover_task_id && !record.cover_image_url && record.photo_only === true) {
+    const coverResult = await checkCoverStatus(record.cover_task_id);
 
-    // If record is older than 5 minutes and still has no cover_task_id, mark as failed
-    if (ageInMinutes > 5) {
-      console.error(`❌ Record ${record.id} stuck in generating_cover for ${ageInMinutes.toFixed(1)} minutes without cover_task_id`);
+    if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
+      console.log(`Replica photo completed for record ${record.id}`);
 
-      const { error: failErr } = await supabase
+      const { error: updErr } = await supabase
         .from('competitor_ugc_replication_projects')
         .update({
-          status: 'failed',
-          error_message: 'Workflow timeout: Failed to start cover generation (possible AI prompt generation failure or video download timeout)',
+          cover_image_url: coverResult.imageUrl,
+          status: 'completed',
+          current_step: 'completed',
+          progress_percentage: 100,
           last_processed_at: new Date().toISOString()
         })
         .eq('id', record.id);
 
-      if (failErr) {
-        console.error(`Failed to mark stuck record ${record.id} as failed:`, failErr);
-        throw new Error(`DB update failed for stuck record ${record.id}`);
+      if (updErr) {
+        console.error(`Failed to mark record ${record.id} as completed (replica photo):`, updErr);
+        throw new Error(`DB update failed for record ${record.id}`);
       }
 
-      console.log(`✅ Marked stuck record ${record.id} as failed`);
+      console.log(`Completed replica photo workflow for record ${record.id}`);
       return;
-    } else {
-      console.log(`⏳ Record ${record.id} is ${ageInMinutes.toFixed(1)} minutes old, waiting for cover_task_id (will timeout at 5min)`);
-      return; // Still within timeout window, skip for now
-    }
-  }
-
-  // Handle cover generation monitoring
-  if (record.current_step === 'generating_cover' && record.cover_task_id && !record.cover_image_url) {
-    const coverResult = await checkCoverStatus(record.cover_task_id);
-
-    if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
-      console.log(`Cover completed for record ${record.id}`);
-      record.cover_image_url = coverResult.imageUrl;
-
-      // If photo_only, complete workflow here
-      if (record.photo_only === true) {
-        const { error: updErr } = await supabase
-          .from('competitor_ugc_replication_projects')
-          .update({
-            cover_image_url: coverResult.imageUrl,
-            status: 'completed',
-            current_step: 'completed',
-            progress_percentage: 100,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', record.id);
-
-        if (updErr) {
-          console.error(`Failed to mark record ${record.id} as completed (photo-only):`, updErr);
-          throw new Error(`DB update failed for record ${record.id}`);
-        }
-
-        console.log(`Completed image-only workflow for record ${record.id}`);
-      } else if (!record.video_generation_requested) {
-        const { error: pauseErr } = await supabase
-          .from('competitor_ugc_replication_projects')
-          .update({
-            cover_image_url: coverResult.imageUrl,
-            current_step: 'ready_for_video',
-            progress_percentage: 60,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', record.id);
-
-        if (pauseErr) {
-          console.error(`Failed to update record ${record.id} after cover completion:`, pauseErr);
-          throw new Error(`DB update failed for record ${record.id}`);
-        }
-
-        console.log(`🛑 Awaiting user approval before video generation for record ${record.id}`);
-      } else {
-        const videoTaskId = await startVideoGeneration(record, coverResult.imageUrl);
-
-        const { error: startErr } = await supabase
-          .from('competitor_ugc_replication_projects')
-          .update({
-            cover_image_url: coverResult.imageUrl,
-            video_task_id: videoTaskId,
-            current_step: 'generating_video',
-            progress_percentage: 85,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', record.id);
-
-        if (startErr) {
-          console.error(`Failed to update record ${record.id} after starting video:`, startErr);
-          throw new Error(`DB update failed for record ${record.id}`);
-        }
-
-        console.log(`Started video generation for record ${record.id}, taskId: ${videoTaskId}`);
-      }
-
     } else if (coverResult.status === 'FAILED') {
-      throw new Error('Cover generation failed');
+      throw new Error('Replica photo generation failed');
     }
   }
 
-  if (
-    record.current_step === 'ready_for_video' &&
-    record.video_generation_requested &&
-    record.cover_image_url &&
-    !record.video_task_id &&
-    record.photo_only !== true
-  ) {
-    const videoTaskId = await startVideoGeneration(record, record.cover_image_url);
-    const { error: startVideoErr } = await supabase
-      .from('competitor_ugc_replication_projects')
-      .update({
-        video_task_id: videoTaskId,
-        current_step: 'generating_video',
-        progress_percentage: 85,
-        last_processed_at: new Date().toISOString()
-      })
-      .eq('id', record.id);
-
-    if (startVideoErr) {
-      console.error(`Failed to update record ${record.id} after manual video trigger:`, startVideoErr);
-      throw new Error(`DB update failed for record ${record.id}`);
-    }
-
-    console.log(`🎬 User-approved video generation started for ${record.id}, taskId: ${videoTaskId}`);
-    return;
-  }
 
   // Handle video generation monitoring
   if (record.current_step === 'generating_video' && record.video_task_id && !record.video_url) {
@@ -564,6 +466,12 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
 
     if (!segment.first_frame_url) {
       continue;
+    }
+
+    // NEW: Check approval before starting video
+    if (!segment.video_generation_approved) {
+      console.log(`[Semi-Automatic] Segment ${segment.segment_index} awaiting user approval for video generation`);
+      continue;  // Skip automatic video generation
     }
 
     // For other products, use next segment's first frame as fallback for continuity
@@ -846,23 +754,17 @@ async function reinitializeMissingSegments(
 
   // Persist recovered prompts for future retries so we don't fall back to generic templates again
   const hasPlanSegments = Array.isArray(planSegments) && planSegments.length > 0;
-  const storedVideoSegments = getVideoPromptSegments(record);
   const needsPlanUpdate = !hasPlanSegments;
-  const needsPromptUpdate = storedVideoSegments.length === 0;
 
-  if (needsPlanUpdate || needsPromptUpdate) {
+  if (needsPlanUpdate) {
     const updatePayload: Record<string, unknown> = { last_processed_at: now };
-    if (needsPlanUpdate) {
-      updatePayload.segment_plan = serializeSegmentPlan(promptSegments);
-      record.segment_plan = updatePayload.segment_plan as SerializedSegmentPlan;
-      record.__hydrated_plan_segments = promptSegments;
-    }
-    if (needsPromptUpdate) {
-      const parsedContainer = parseVideoPromptContainer(record);
-      const sanitizedPrompts = buildStoredVideoPromptsPayload(promptSegments, parsedContainer);
-      updatePayload.video_prompts = sanitizedPrompts;
-      record.video_prompts = sanitizedPrompts;
-    }
+    updatePayload.segment_plan = serializeSegmentPlan(promptSegments);
+    record.segment_plan = updatePayload.segment_plan as SerializedSegmentPlan;
+    record.__hydrated_plan_segments = promptSegments;
+
+    // NOTE: No longer updating video_prompts here - it's already correct from initial write
+    // The normalizeSegmentPrompts() fallback mechanism ensures first_frame_description
+    // is populated from competitor shots if AI doesn't provide it
 
     const { error: planUpdateError } = await supabase
       .from('competitor_ugc_replication_projects')
@@ -1097,6 +999,7 @@ async function syncSegmentFrameTasks(
           .update({
             first_frame_url: frameStatus.imageUrl,
             status: 'first_frame_ready',
+            video_generation_approved: false,  // NEW: Explicitly set to false (awaiting approval)
             updated_at: now
           })
           .eq('id', segment.id);
@@ -1107,6 +1010,29 @@ async function syncSegmentFrameTasks(
 
         if (segment.segment_index === 0 && !record.cover_image_url) {
           record.cover_image_url = frameStatus.imageUrl;
+        }
+
+        // NEW: Update project status to indicate manual review needed
+        const { data: allSegments } = await supabase
+          .from('competitor_ugc_replication_segments')
+          .select('first_frame_url, video_generation_approved, video_url')
+          .eq('project_id', record.id)
+          .order('segment_index', { ascending: true });
+
+        const hasFramesAwaitingReview = allSegments?.some(seg =>
+          seg.first_frame_url && !seg.video_generation_approved && !seg.video_url
+        );
+
+        if (hasFramesAwaitingReview) {
+          await supabase
+            .from('competitor_ugc_replication_projects')
+            .update({
+              status: 'segment_frames_ready',
+              current_step: 'reviewing_segment_frames',
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', record.id);
+          console.log(`[Semi-Automatic] Project ${record.id} status updated to segment_frames_ready - awaiting user review`);
         }
 
         if (segment.segment_index > 0) {

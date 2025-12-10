@@ -206,7 +206,7 @@ export const useCompetitorUgcReplicationWorkflow = (
       
       setError(error.message || 'Upload failed');
     }
-  }, [userId, guestUsageCount, maxGuestUsage, updateGuestUsage, setLoading, setError, selectedModel]);
+  }, [userId, guestUsageCount, maxGuestUsage, updateGuestUsage, setLoading, setError, selectedModel, refetchCredits, updateCredits]);
 
   // Polling removed - workflow runs completely in background via monitor-tasks API
 
