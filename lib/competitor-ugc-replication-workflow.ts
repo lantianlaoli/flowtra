@@ -2781,16 +2781,25 @@ export async function createSmartSegmentFrame(
     const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
     const imageModel = IMAGE_MODELS.nano_banana_pro;
 
-    // Check if continuation reference is needed
+    // Build image_input from multiple sources
+    const imageInput: string[] = [];
+
+    // 1. Continuation reference (for segment continuity)
     const shouldUseContinuation = Boolean(
       continuationReferenceUrl && frameType === 'first' && segmentPrompt.is_continuation_from_prev
     );
-    const imageInput: string[] = shouldUseContinuation && continuationReferenceUrl
-      ? [continuationReferenceUrl]
-      : [];
-
-    if (shouldUseContinuation) {
+    if (shouldUseContinuation && continuationReferenceUrl) {
+      imageInput.push(continuationReferenceUrl);
       console.log(`   - 🔗 Continuation mode: Using previous segment's first frame as reference`);
+    }
+
+    // 2. Product images (manually selected by user via Product References)
+    const normalizedProductImages = Array.isArray(productImageUrls)
+      ? productImageUrls.filter(url => typeof url === 'string' && url.length > 0)
+      : [];
+    if (normalizedProductImages.length > 0) {
+      imageInput.push(...normalizedProductImages);
+      console.log(`   - 📦 Product references: Using ${normalizedProductImages.length} product photo(s)`);
     }
 
     console.log(`   - Prompt: ${frameDescription.substring(0, 100)}...`);

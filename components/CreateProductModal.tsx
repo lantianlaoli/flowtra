@@ -15,13 +15,18 @@ interface CreateProductModalProps {
   preselectedBrandId?: string | null;
 }
 
-type AnalysisState = 'idle' | 'analyzing' | 'completed' | 'failed';
+type AnalysisState = 'idle' | 'purifying' | 'analyzing' | 'completed' | 'failed';
 
 const STATUS_COPY: Record<AnalysisState, { label: string; badge: string; helper: string }> = {
   idle: {
     label: 'Waiting for photo',
     badge: 'bg-gray-200 text-gray-700',
-    helper: 'Upload a clear product photo and Flowtra will describe it automatically.'
+    helper: 'Upload a clear product photo and Flowtra will purify and describe it automatically.'
+  },
+  purifying: {
+    label: 'Purifying photo…',
+    badge: 'bg-purple-100 text-purple-800',
+    helper: 'AI is removing background and centering your product. This takes 1-2 minutes.'
   },
   analyzing: {
     label: 'Analyzing photo…',
@@ -34,9 +39,9 @@ const STATUS_COPY: Record<AnalysisState, { label: string; badge: string; helper:
     helper: 'Review or tweak the generated name and description before saving.'
   },
   failed: {
-    label: 'Analysis failed',
+    label: 'Processing failed',
     badge: 'bg-red-100 text-red-800',
-    helper: 'Upload a new photo to retry the automatic analysis.'
+    helper: 'Upload a new photo to retry the automatic processing.'
   }
 };
 
@@ -57,6 +62,12 @@ export default function CreateProductModal({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Purification state tracking
+  const [purificationStatus, setPurificationStatus] = useState<'idle' | 'uploading' | 'purifying' | 'completed' | 'failed'>('idle');
+  const [purificationTaskId, setPurificationTaskId] = useState<string | null>(null);
+  const [purifiedImageUrl, setPurifiedImageUrl] = useState<string | null>(null);
+  const [purificationError, setPurificationError] = useState<string | null>(null);
+
   useEffect(() => {
     if (isOpen) {
       setProductName('');
@@ -66,6 +77,10 @@ export default function CreateProductModal({
       setAnalysisStatus('idle');
       setAnalysisError(null);
       setFormError(null);
+      setPurificationStatus('idle');
+      setPurificationTaskId(null);
+      setPurifiedImageUrl(null);
+      setPurificationError(null);
     }
   }, [isOpen]);
 
@@ -91,16 +106,21 @@ export default function CreateProductModal({
       return;
     }
 
+    // Reset all states
     setFormError(null);
     setAnalysisError(null);
+    setPurificationError(null);
     setUploadedImage(file);
-    setAnalysisStatus('analyzing');
+    setAnalysisStatus('purifying');
+    setPurificationStatus('uploading');
 
+    // Show original preview while purifying
     const reader = new FileReader();
     reader.onload = () => setImagePreview(reader.result as string);
     reader.readAsDataURL(file);
 
-    analyzePhoto(file);
+    // Start purification workflow
+    purifyAndAnalyzePhoto(file);
   };
 
   const renderErrorMessage = (message: string) => {
@@ -122,6 +142,142 @@ export default function CreateProductModal({
         {after}
       </>
     );
+  };
+
+  // NEW: Complete purification + analysis workflow
+  const purifyAndAnalyzePhoto = async (file: File) => {
+    try {
+      // STEP 1: Upload to temporary storage for purification
+      setPurificationStatus('uploading');
+      console.log('[purify-workflow] Starting temporary upload');
+
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+
+      const tempUploadResponse = await fetch('/api/user-products/temp-upload', {
+        method: 'POST',
+        body: uploadFormData
+      });
+
+      if (!tempUploadResponse.ok) {
+        const uploadError = await tempUploadResponse.json().catch(() => ({}));
+        throw new Error(uploadError?.error || 'Failed to upload photo for purification');
+      }
+
+      const { publicUrl: originalImageUrl } = await tempUploadResponse.json();
+      console.log('[purify-workflow] Temporary upload complete:', originalImageUrl);
+
+      // STEP 2: Start purification
+      setPurificationStatus('purifying');
+      console.log('[purify-workflow] Starting purification');
+
+      const purifyResponse = await fetch('/api/user-products/purify-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: originalImageUrl })
+      });
+
+      if (!purifyResponse.ok) {
+        const purifyError = await purifyResponse.json().catch(() => ({}));
+
+        // Check for insufficient credits
+        if (purifyResponse.status === 402) {
+          setAnalysisStatus('failed');
+          setPurificationStatus('failed');
+          setPurificationError(purifyError?.details || 'Insufficient credits for photo purification');
+          setFormError(purifyError?.details || 'Insufficient credits for photo purification');
+          return;
+        }
+
+        throw new Error(purifyError?.error || 'Failed to start photo purification');
+      }
+
+      const { taskId } = await purifyResponse.json();
+      setPurificationTaskId(taskId);
+      console.log('[purify-workflow] Purification task created:', taskId);
+
+      // STEP 3: Poll purification status
+      const purifiedUrl = await pollPurificationStatus(taskId);
+
+      setPurifiedImageUrl(purifiedUrl);
+      setPurificationStatus('completed');
+      console.log('[purify-workflow] Purification complete:', purifiedUrl);
+
+      // STEP 4: Update preview with purified image
+      setImagePreview(purifiedUrl);
+
+      // STEP 5: Analyze purified photo with Gemini
+      setAnalysisStatus('analyzing');
+      await analyzePhotoByUrl(purifiedUrl);
+
+    } catch (error) {
+      console.error('[purify-workflow] Workflow failed:', error);
+      setPurificationStatus('failed');
+      setAnalysisStatus('failed');
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to purify product photo';
+      setPurificationError(errorMessage);
+      setAnalysisError(errorMessage);
+      setFormError(errorMessage);
+    }
+  };
+
+  // NEW: Poll purification status
+  const pollPurificationStatus = async (taskId: string, maxAttempts = 60, intervalMs = 2000): Promise<string> => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+
+      console.log(`[purify-workflow] Polling attempt ${attempt + 1}/${maxAttempts}`);
+
+      const statusResponse = await fetch(`/api/user-products/purify-photo?taskId=${taskId}`);
+
+      if (!statusResponse.ok) {
+        throw new Error('Failed to check purification status');
+      }
+
+      const statusData = await statusResponse.json();
+
+      if (statusData.status === 'success' && statusData.imageUrl) {
+        console.log('[purify-workflow] Purification succeeded');
+        return statusData.imageUrl;
+      }
+
+      if (statusData.status === 'fail') {
+        throw new Error('Photo purification failed. Please try a different photo.');
+      }
+
+      // Status is still 'waiting', continue polling
+    }
+
+    throw new Error('Photo purification timed out. Please try again.');
+  };
+
+  // NEW: Analyze photo by URL (for purified images)
+  const analyzePhotoByUrl = async (imageUrl: string) => {
+    try {
+      console.log('[purify-workflow] Starting analysis of purified photo');
+
+      const response = await fetch('/api/user-products/analyze-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.productName) {
+        const message = payload?.error || payload?.details || 'Failed to analyze product photo';
+        throw new Error(message);
+      }
+
+      setProductName(payload.productName.slice(0, 100));
+      setProductDetails(payload.productDetails || '');
+      setAnalysisStatus('completed');
+      console.log('[purify-workflow] Analysis complete');
+    } catch (error) {
+      console.error('[purify-workflow] Analysis failed:', error);
+      setAnalysisStatus('failed');
+      setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze product photo');
+    }
   };
 
   const analyzePhoto = async (file: File) => {
@@ -187,25 +343,47 @@ export default function CreateProductModal({
 
       setIsUploading(true);
       try {
-        const uploadForm = new FormData();
-        uploadForm.append('file', uploadedImage);
-        uploadForm.append('is_primary', 'true');
-
-        const photoResponse = await fetch(`/api/user-products/${newProduct.id}/photos`, {
-          method: 'POST',
-          body: uploadForm
-        });
-
-        const photoPayload = await photoResponse.json().catch(() => ({}));
-        if (!photoResponse.ok || !photoPayload?.photo) {
-          console.error('Product photo upload failed:', {
-            status: photoResponse.status,
-            payload: photoPayload
+        // Use purified image URL if available, otherwise use original file
+        if (purifiedImageUrl) {
+          console.log('[submit] Uploading purified image from URL');
+          const photoResponse = await fetch(`/api/user-products/${newProduct.id}/photos/from-url`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrl: purifiedImageUrl })
           });
-          throw new Error(photoPayload?.error || photoPayload?.details || 'Failed to upload product photo');
-        }
 
-        newProduct.user_product_photos = [photoPayload.photo];
+          const photoPayload = await photoResponse.json().catch(() => ({}));
+          if (!photoResponse.ok || !photoPayload?.photo) {
+            console.error('Purified photo upload failed:', {
+              status: photoResponse.status,
+              payload: photoPayload
+            });
+            throw new Error(photoPayload?.error || photoPayload?.details || 'Failed to save purified photo');
+          }
+
+          newProduct.user_product_photos = [photoPayload.photo];
+        } else {
+          console.log('[submit] Uploading original image file (fallback)');
+          const uploadForm = new FormData();
+          uploadForm.append('file', uploadedImage);
+          uploadForm.append('is_primary', 'true');
+
+          const photoResponse = await fetch(`/api/user-products/${newProduct.id}/photos`, {
+            method: 'POST',
+            body: uploadForm
+          });
+
+          const photoPayload = await photoResponse.json().catch(() => ({}));
+          if (!photoResponse.ok || !photoPayload?.photo) {
+            console.error('Product photo upload failed:', {
+              status: photoResponse.status,
+              payload: photoPayload
+            });
+            throw new Error(photoPayload?.error || photoPayload?.details || 'Failed to upload product photo');
+          }
+
+          newProduct.user_product_photos = [photoPayload.photo];
+        }
       } catch (photoError) {
         await fetch(`/api/user-products/${newProduct.id}`, { method: 'DELETE' }).catch(() => null);
         throw photoError;
@@ -346,9 +524,14 @@ export default function CreateProductModal({
                       disabled={isCreating}
                     />
 
-                    {analysisStatus === 'analyzing' && (
+                    {(analysisStatus === 'purifying' || analysisStatus === 'analyzing') && (
                       <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-                        <Loader2 className="h-6 w-6 animate-spin text-gray-700" />
+                        <div className="text-center">
+                          <Loader2 className="h-6 w-6 animate-spin text-gray-700 mx-auto mb-2" />
+                          <p className="text-xs text-gray-600">
+                            {analysisStatus === 'purifying' ? 'Purifying photo...' : 'Analyzing...'}
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>

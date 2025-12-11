@@ -40,7 +40,15 @@ export default function CompetitorAdsList({ brandId, brandName }: CompetitorAdsL
   };
 
   const handleCompetitorAdCreated = (newCompetitorAd: CompetitorAd) => {
-    setCompetitorAds(prev => [newCompetitorAd, ...prev]);
+    setCompetitorAds(prev => {
+      // Prevent duplicate IDs (safety net against race conditions)
+      const exists = prev.some(ad => ad.id === newCompetitorAd.id);
+      if (exists) {
+        console.warn('[CompetitorAdsList] Duplicate competitor ad prevented:', newCompetitorAd.id);
+        return prev; // Don't add duplicate
+      }
+      return [newCompetitorAd, ...prev];
+    });
   };
 
   const handleCompetitorAdUpdated = (updatedCompetitorAd: CompetitorAd) => {

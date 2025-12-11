@@ -259,16 +259,18 @@ export default function CreateCompetitorAdModal({
           }
         };
 
-        // Poll every 3 seconds
-        const pollInterval = setInterval(async () => {
-          const shouldStop = await pollAnalysis();
-          if (shouldStop) {
-            clearInterval(pollInterval);
-          }
-        }, 3000);
+        // Initial check first - prevents race condition
+        const initialCheckCompleted = await pollAnalysis();
 
-        // Initial check
-        await pollAnalysis();
+        // Only start polling if not completed yet
+        if (!initialCheckCompleted) {
+          const pollInterval = setInterval(async () => {
+            const shouldStop = await pollAnalysis();
+            if (shouldStop) {
+              clearInterval(pollInterval);
+            }
+          }, 3000);
+        }
 
       } catch (err) {
         console.error('[CreateCompetitorAdModal] Upload error:', err);

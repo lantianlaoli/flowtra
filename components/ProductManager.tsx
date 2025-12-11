@@ -41,7 +41,22 @@ export default function ProductManager({
   };
 
   const handleProductCreated = (newProduct: UserProduct) => {
-    setProducts(prev => [newProduct, ...prev]);
+    setProducts(prev => {
+      // Prevent duplicate IDs (safety net against race conditions)
+      const exists = prev.some(p => p.id === newProduct.id);
+      if (exists) {
+        console.warn('[ProductManager] Duplicate product prevented:', newProduct.id);
+        return prev; // Don't add duplicate
+      }
+
+      console.log('[ProductManager] Product created successfully:', {
+        id: newProduct.id,
+        name: newProduct.product_name,
+        photosCount: newProduct.user_product_photos?.length || 0
+      });
+
+      return [newProduct, ...prev]; // Prepend to list for instant visibility
+    });
   };
 
   const handleEditProduct = async (productId: string, newName: string) => {
