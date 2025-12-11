@@ -1035,19 +1035,27 @@ async function syncSegmentFrameTasks(
           console.log(`[Semi-Automatic] Project ${record.id} status updated to segment_frames_ready - awaiting user review`);
         }
 
+        // FRAME SYNCHRONIZATION FIX:
+        // Always update the previous segment's closing_frame_url when the next segment's
+        // first_frame_url is ready. This ensures smooth transitions even after regeneration.
         if (segment.segment_index > 0) {
           const prev = segments.find(s => s.segment_index === segment.segment_index - 1);
-          if (prev && !prev.closing_frame_url) {
-            await supabase
-              .from('competitor_ugc_replication_segments')
-              .update({
-                closing_frame_url: frameStatus.imageUrl,
-                updated_at: now
-              })
-              .eq('id', prev.id);
+          if (prev) {
+            // Only update if the closing frame has actually changed (prevents unnecessary DB writes)
+            if (prev.closing_frame_url !== frameStatus.imageUrl) {
+              await supabase
+                .from('competitor_ugc_replication_segments')
+                .update({
+                  closing_frame_url: frameStatus.imageUrl,
+                  updated_at: now
+                })
+                .eq('id', prev.id);
 
-            prev.closing_frame_url = frameStatus.imageUrl;
-            updated = true;
+              prev.closing_frame_url = frameStatus.imageUrl;
+              updated = true;
+
+              console.log(`✅ Synchronized segment ${prev.segment_index} closing frame with segment ${segment.segment_index} first frame`);
+            }
           }
         }
       } else if (frameStatus.status === 'FAILED') {
