@@ -383,7 +383,17 @@ async function processRecord(record: HistoryRecord) {
           console.error(`❌ Max retries (${MAX_RETRIES}) exceeded for project ${record.id}`);
         }
 
-        throw new Error(`Video generation failed: ${videoResult.errorMessage || 'Unknown error'}`);
+        // SIMPLIFY ERROR MESSAGE for user
+        let simplifiedError = videoResult.errorMessage || 'Unknown error';
+
+        // Simplify content policy errors
+        if (videoResult.errorMessage?.toLowerCase().includes('content polic') ||
+            videoResult.errorMessage?.toLowerCase().includes('violating content') ||
+            videoResult.errorMessage?.toLowerCase().includes('flagged by')) {
+          simplifiedError = 'Content policy violation. Please try regenerating with a different prompt or adjust your requirements.';
+        }
+
+        throw new Error(`Video generation failed: ${simplifiedError}`);
       }
     }
     // If still generating, do nothing and wait for next check
@@ -581,11 +591,21 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
             console.error(`❌ Max retries (${MAX_RETRIES}) exceeded for segment ${segment.segment_index}`);
           }
 
+          // SIMPLIFY ERROR MESSAGE for user
+          let simplifiedError = videoResult.errorMessage || 'Segment video generation failed';
+
+          // Simplify content policy errors
+          if (videoResult.errorMessage?.toLowerCase().includes('content polic') ||
+              videoResult.errorMessage?.toLowerCase().includes('violating content') ||
+              videoResult.errorMessage?.toLowerCase().includes('flagged by')) {
+            simplifiedError = 'Content policy violation. Please try regenerating with a different prompt or adjust your requirements.';
+          }
+
           await supabase
             .from('competitor_ugc_replication_segments')
             .update({
               status: 'failed',
-              error_message: videoResult.errorMessage || 'Segment video generation failed',
+              error_message: simplifiedError,
               updated_at: new Date().toISOString()
             })
             .eq('id', segment.id);
@@ -595,20 +615,19 @@ async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnTyp
           segment.video_task_id = null;
 
           const failureStatus = buildSegmentStatusPayload(segments);
-          const failureMessage = videoResult.errorMessage || 'Segment video generation failed';
 
           await supabase
             .from('competitor_ugc_replication_projects')
             .update({
               status: 'processing',
               current_step: 'generating_segment_videos',
-              error_message: failureMessage,
+              error_message: simplifiedError,
               segment_status: failureStatus,
               last_processed_at: new Date().toISOString()
             })
             .eq('id', record.id);
 
-          console.error(`❌ Segment ${segment.segment_index} video failed: ${failureMessage}`);
+          console.error(`❌ Segment ${segment.segment_index} video failed: ${simplifiedError}`);
           continue;
         }
       }
@@ -1680,16 +1699,26 @@ async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{s
     if (isFailed) {
       const errorMessage = taskData.failMsg || taskData.errorMessage || 'Video generation failed';
 
-      // If it's a server error (failCode: 500), mark as retryable
-      if (isServerError) {
-        console.warn(`⚠️ KIE server error (failCode: 500) for task ${taskId}: ${errorMessage}`);
+      // Check for content policy violations (retryable)
+      const isContentPolicyError = errorMessage && (
+        errorMessage.toLowerCase().includes('content polic') ||
+        errorMessage.toLowerCase().includes('violating content policies') ||
+        errorMessage.toLowerCase().includes('flagged by') ||
+        errorMessage.toLowerCase().includes('safety check failed')
+      );
+
+      // If it's a content policy or server error, mark as retryable
+      if (isContentPolicyError || isServerError) {
+        const errorType = isContentPolicyError ? 'Content policy violation' : 'KIE server error';
+        console.warn(`⚠️ ${errorType} (retryable) for task ${taskId}: ${errorMessage}`);
         return {
           status: 'FAILED',
-          errorMessage: `KIE server error (retryable): ${errorMessage}`,
+          errorMessage: `${errorType} (retryable): ${errorMessage}`,
           isRetryable: true
         };
       }
 
+      // Non-retryable error
       return {
         status: 'FAILED',
         errorMessage,
@@ -1708,18 +1737,29 @@ async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{s
   } else if (taskData.successFlag === 2 || taskData.successFlag === 3) {
     const errorMessage = taskData.errorMessage || taskData.failMsg || 'Video generation failed';
     const failCode: string | undefined = typeof taskData.failCode === 'string' ? taskData.failCode : undefined;
+
+    // Check for content policy violations (retryable)
+    const isContentPolicyError = errorMessage && (
+      errorMessage.toLowerCase().includes('content polic') ||
+      errorMessage.toLowerCase().includes('violating content policies') ||
+      errorMessage.toLowerCase().includes('flagged by') ||
+      errorMessage.toLowerCase().includes('safety check failed')
+    );
+
     const isServerError = failCode === '500';
 
-    // Check for retryable server errors (failCode: 500)
-    if (isServerError) {
-      console.warn(`⚠️ VEO3 server error (failCode: 500) for task ${taskId}: ${errorMessage}`);
+    // Check for retryable errors
+    if (isContentPolicyError || isServerError) {
+      const errorType = isContentPolicyError ? 'Content policy violation' : 'VEO3 server error';
+      console.warn(`⚠️ ${errorType} (retryable) for task ${taskId}: ${errorMessage}`);
       return {
         status: 'FAILED',
-        errorMessage: `KIE server error (retryable): ${errorMessage}`,
+        errorMessage: `${errorType} (retryable): ${errorMessage}`,
         isRetryable: true
       };
     }
 
+    // Non-retryable error
     return {
       status: 'FAILED',
       errorMessage,

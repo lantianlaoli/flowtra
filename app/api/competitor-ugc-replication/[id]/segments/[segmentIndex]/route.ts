@@ -134,15 +134,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
     }
 
-    if (
-      shouldRegenerateVideo &&
-      (segmentRow.status === 'generating_video' ||
-        (segmentRow.video_task_id && !segmentRow.video_url))
-    ) {
-      return NextResponse.json(
-        { error: 'Video regeneration already running. Please wait until the current job finishes.' },
-        { status: 409 }
-      );
+    if (shouldRegenerateVideo) {
+      // Only block if ACTIVELY generating (not failed)
+      const isActivelyGenerating = segmentRow.status === 'generating_video';
+
+      if (isActivelyGenerating) {
+        return NextResponse.json(
+          { error: 'Video regeneration already running. Please wait until the current job finishes.' },
+          { status: 409 }
+        );
+      }
+
+      // Allow retry even if video_task_id exists (might be from failed attempt)
+      // The cleanup at lines 322-325 will clear task_id and reset retry_count to 0
     }
 
     const now = new Date().toISOString();
