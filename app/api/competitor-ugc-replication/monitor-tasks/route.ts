@@ -1009,6 +1009,103 @@ async function syncSegmentFrameTasks(
       }
     }
 
+    // FIX: Handle stuck segments in generating_first_frame without task_id
+    // This can happen when workflow updates status but API call fails
+    if (segment.status === 'generating_first_frame' && !segment.first_frame_task_id) {
+      console.warn(`⚠️ Segment ${segment.segment_index} stuck in generating_first_frame without task_id - recovering...`);
+
+      // Check if this requires continuation from previous segment
+      if (needsContinuation && !previousFirstFrameUrl) {
+        console.log(`⏳ Segment ${segment.segment_index} needs previous frame, setting to awaiting_prev_first_frame`);
+        await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            status: 'awaiting_prev_first_frame',
+            updated_at: now
+          })
+          .eq('id', segment.id);
+        segment.status = 'awaiting_prev_first_frame';
+        continue;
+      }
+
+      console.log(`🔧 Recovering stuck segment ${segment.segment_index} - creating first frame task`);
+
+      try {
+        const firstFrameTaskId = await createSmartSegmentFrame(
+          promptData,
+          segment.segment_index,
+          'first',
+          aspectRatio,
+          null, // brandLogoUrl - will fallback to Text-to-Image
+          null, // productImageUrl - will fallback to Text-to-Image
+          undefined, // brandContext
+          competitorFileType,
+          undefined,
+          needsContinuation ? previousFirstFrameUrl : null
+        );
+
+        await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            first_frame_task_id: firstFrameTaskId,
+            status: 'generating_first_frame', // Keep status unchanged
+            updated_at: now
+          })
+          .eq('id', segment.id);
+
+        segment.first_frame_task_id = firstFrameTaskId;
+        updated = true;
+
+        console.log(`✅ Successfully recovered segment ${segment.segment_index}, taskId: ${firstFrameTaskId}`);
+
+        // Also generate closing frame for the last segment
+        if (segment.segment_index === segments.length - 1) {
+          const closingFrameTaskId = await createSmartSegmentFrame(
+            promptData,
+            segment.segment_index,
+            'closing',
+            aspectRatio,
+            null,
+            null,
+            undefined,
+            competitorFileType,
+            undefined,
+            null
+          );
+
+          await supabase
+            .from('competitor_ugc_replication_segments')
+            .update({
+              closing_frame_task_id: closingFrameTaskId,
+              updated_at: now
+            })
+            .eq('id', segment.id);
+
+          segment.closing_frame_task_id = closingFrameTaskId;
+          console.log(`✅ Started closing frame for last segment ${segment.segment_index}, taskId: ${closingFrameTaskId}`);
+        }
+      } catch (error) {
+        console.error(`❌ Failed to recover segment ${segment.segment_index}:`, error);
+
+        // Mark segment as failed so user can retry
+        await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            status: 'failed',
+            error_message: error instanceof Error ? error.message : 'Recovery failed',
+            updated_at: now
+          })
+          .eq('id', segment.id);
+
+        segment.status = 'failed';
+        updated = true;
+
+        throw error;
+      }
+
+      continue; // Skip to next segment
+    }
+
     if (segment.first_frame_task_id && !segment.first_frame_url) {
       const frameStatus = await checkCoverStatus(segment.first_frame_task_id);
 
