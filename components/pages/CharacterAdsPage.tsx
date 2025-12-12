@@ -13,7 +13,7 @@ import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector'
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
-import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe, Coins } from 'lucide-react';
+import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe, Coins, AlertCircle } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getActualModel, getGenerationCost } from '@/lib/constants';
@@ -254,7 +254,22 @@ const formatDurationLabel = (seconds: number) => {
   });
 
   const isTalkingHeadMode = !selectedProduct;
-  const canStartGeneration = !!selectedPersonPhotoUrl;
+
+  // Calculate required credits for the current duration selection
+  const requiredCredits = useMemo(() => {
+    const actualModel = getActualModel(DEFAULT_VIDEO_MODEL, userCredits || 0);
+    if (!actualModel) return 0;
+
+    const scenesCount = Math.ceil(videoDuration / 8);
+    return getGenerationCost(actualModel) * scenesCount;
+  }, [videoDuration, userCredits]);
+
+  // Check if user has sufficient credits
+  const hasInsufficientCredits = useMemo(() => {
+    return (userCredits || 0) < requiredCredits;
+  }, [userCredits, requiredCredits]);
+
+  const canStartGeneration = !!selectedPersonPhotoUrl && !hasInsufficientCredits;
 
   // Check KIE credits on page load
   useEffect(() => {
@@ -953,6 +968,12 @@ const formatDurationLabel = (seconds: number) => {
     return CHARACTER_ADS_DURATION_OPTIONS[CHARACTER_ADS_DURATION_OPTIONS.length - 1];
   };
 
+  const recommendedDuration = useMemo(() => {
+    const words = countDialogueWords(customDialogue);
+    if (words === 0) return null; // No recommendation for empty script
+    return getDurationForWordCount(words);
+  }, [customDialogue]);
+
   const handleCustomDialogueChange = (value: string) => {
     const limitedValue = clampDialogueToWordLimit(value, maxWordLimit);
     setCustomDialogue(limitedValue);
@@ -1078,7 +1099,24 @@ const formatDurationLabel = (seconds: number) => {
 
       {composerVisible && (
         <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-6 sm:px-8 lg:px-10 pb-4">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-7xl mx-auto space-y-3">
+            {/* Insufficient Credits Warning Banner */}
+            {hasInsufficientCredits && selectedPersonPhotoUrl && (
+              <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-500 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-semibold">Insufficient Credits</p>
+                    <p className="mt-1 text-red-700">
+                      You need <span className="font-bold">{requiredCredits} credits</span> to generate a {videoDuration}s video,
+                      but you only have <span className="font-bold">{userCredits || 0} credits</span>.
+                      Please reduce the duration or <a href="/pricing" className="underline font-semibold hover:text-red-900">purchase more credits</a>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="relative bg-white/95 backdrop-blur border border-gray-200 rounded-[60px] shadow-2xl px-4 sm:px-6 py-4">
               <div className="flex items-end gap-3 flex-wrap">
                 <button
@@ -1151,20 +1189,31 @@ const formatDurationLabel = (seconds: number) => {
                   whileTap={{ scale: !composerDisabled ? 0.98 : 1 }}
                 >
                   <Sparkles className="w-4 h-4" />
-                  Generate Ad
-                  {(() => {
-                    const actualModel = getActualModel(DEFAULT_VIDEO_MODEL, userCredits || 0);
-                    if (!actualModel) return null;
-                    // Version 2.0: ALL models charge at generation
-                    const scenesCount = Math.ceil(videoDuration / 8);
-                    const cost = getGenerationCost(actualModel) * scenesCount;
-                    return (
-                      <span className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-white/20 rounded-full text-xs font-bold backdrop-blur-sm">
-                        <Coins className="w-3.5 h-3.5" />
-                        {cost}
+                  {hasInsufficientCredits && selectedPersonPhotoUrl ? (
+                    <>
+                      Insufficient Credits
+                      <span className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-red-500/30 rounded-full text-xs font-bold backdrop-blur-sm">
+                        Need {requiredCredits}, Have {userCredits || 0}
                       </span>
-                    );
-                  })()}
+                    </>
+                  ) : (
+                    <>
+                      Generate Ad
+                      {(() => {
+                        const actualModel = getActualModel(DEFAULT_VIDEO_MODEL, userCredits || 0);
+                        if (!actualModel) return null;
+                        // Version 2.0: ALL models charge at generation
+                        const scenesCount = Math.ceil(videoDuration / 8);
+                        const cost = getGenerationCost(actualModel) * scenesCount;
+                        return (
+                          <span className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-white/20 rounded-full text-xs font-bold backdrop-blur-sm">
+                            <Coins className="w-3.5 h-3.5" />
+                            {cost}
+                          </span>
+                        );
+                      })()}
+                    </>
+                  )}
                 </motion.button>
               </div>
               {showConfigPanel && (
@@ -1190,19 +1239,51 @@ const formatDurationLabel = (seconds: number) => {
                     </button>
                     {showDurationMenu && (
                       <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-gray-200 bg-white shadow-xl divide-y divide-gray-100 max-h-64 overflow-y-auto z-10">
-                        {CHARACTER_ADS_DURATION_OPTIONS.map((seconds) => (
-                          <button
-                            key={seconds}
-                            onClick={() => {
-                              setVideoDuration(seconds);
-                              setShowDurationMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${videoDuration === seconds ? 'bg-gray-50 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}
-                          >
-                            <span>{formatDurationLabel(seconds)}</span>
-                            {videoDuration === seconds && <span className="text-xs text-gray-500">Selected</span>}
-                          </button>
-                        ))}
+                        {CHARACTER_ADS_DURATION_OPTIONS.map((seconds) => {
+                          const scenes = Math.ceil(seconds / 8);
+                          const cost = 20 * scenes; // veo3_fast cost
+                          const canAfford = (userCredits || 0) >= cost;
+
+                          return (
+                            <button
+                              key={seconds}
+                              onClick={() => {
+                                setVideoDuration(seconds);
+                                setShowDurationMenu(false);
+                              }}
+                              className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${
+                                videoDuration === seconds
+                                  ? 'bg-gray-50 text-gray-900 font-semibold'
+                                  : canAfford
+                                    ? 'text-gray-600 hover:bg-gray-50'
+                                    : 'text-gray-400 hover:bg-gray-50 opacity-60'
+                              }`}
+                              disabled={!canAfford}
+                            >
+                              <span className="flex items-center gap-2">
+                                {formatDurationLabel(seconds)}
+                                <span className={`text-xs ${canAfford ? 'text-gray-500' : 'text-red-500'}`}>
+                                  ({cost} credits)
+                                </span>
+                              </span>
+                              <span className="flex items-center gap-2">
+                                {!canAfford && (
+                                  <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600 font-semibold">
+                                    Insufficient
+                                  </span>
+                                )}
+                                {recommendedDuration === seconds && canAfford && (
+                                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-600 font-semibold">
+                                    Recommend
+                                  </span>
+                                )}
+                                {videoDuration === seconds && (
+                                  <span className="text-xs text-gray-500">Selected</span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
