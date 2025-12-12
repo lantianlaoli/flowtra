@@ -322,27 +322,6 @@ export default function SegmentInspector({
 
   const regenEnabled = Boolean(onRegenerate);
   const photoPromptTooLong = photoPrompt.length > PHOTO_CHAR_LIMIT;
-  const shotRequiredFields: Array<keyof Omit<SegmentShotPayload, 'id'>> = [
-    'time_range',
-    'audio',
-    'style',
-    'action',
-    'subject',
-    'dialogue',
-    'language',
-    'composition',
-    'context_environment',
-    'ambiance_colour_lighting',
-    'camera_motion_positioning'
-  ];
-  const shotsIncomplete = shots.some(shot =>
-    shotRequiredFields.some(field => {
-      if (field === 'language') {
-        return !shot.language;
-      }
-      return !shot[field].trim();
-    })
-  );
   const hasPhotoUpdates = true;
   const hasVideoUpdates = true;
   const previewAspectClass = getAspectRatioClass(videoAspectRatio);
@@ -904,17 +883,12 @@ export default function SegmentInspector({
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!regenEnabled || !hasVideoUpdates || submittingVideo || shotsIncomplete}
+                  disabled={!regenEnabled || !hasVideoUpdates || submittingVideo}
                   onClick={() => handleRegenerate('video')}
                 >
                   {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Regenerate Video
+                  {videoUrl ? 'Regenerate Video' : 'Generate Video'}
                 </button>
-                {shotsIncomplete && (
-                  <p className="text-[11px] text-red-600 text-center">
-                    Please complete every shot field (audio, action, dialogue, etc.) before regenerating the video.
-                  </p>
-                )}
                 {!regenEnabled && (
                   <p className="text-xs text-gray-500 text-center">
                     Backend endpoint not wired yet. Edits will stay local until regeneration is enabled.
