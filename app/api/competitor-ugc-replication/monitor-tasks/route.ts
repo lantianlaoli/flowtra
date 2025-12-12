@@ -221,7 +221,7 @@ interface HistoryRecord {
   __hydrated_plan_segments?: SegmentPrompt[] | null;
 }
 
-const MAX_WORKFLOW_AGE_MINUTES = 30;
+const MAX_WORKFLOW_AGE_MINUTES = 60;
 function resolveSegmentDuration(record: HistoryRecord): number {
   const recordModel = (record.video_model ?? null) as VideoModel | null;
   return record.segment_duration_seconds || getSegmentDurationForModel(recordModel);
@@ -245,7 +245,7 @@ async function processRecord(record: HistoryRecord) {
       .from('competitor_ugc_replication_projects')
       .update({
         status: 'failed',
-        error_message: 'Workflow timeout: exceeded 30 minutes since creation',
+        error_message: 'Workflow timeout: exceeded 60 minutes since creation',
         last_processed_at: new Date().toISOString()
       })
       .eq('id', record.id);
