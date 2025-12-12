@@ -7,6 +7,7 @@ import { AlertCircle, Loader2, Package, Upload, X } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
+import { useImageCompression } from '@/hooks/useImageCompression';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -67,6 +68,9 @@ export default function CreateProductModal({
   const [purificationTaskId, setPurificationTaskId] = useState<string | null>(null);
   const [purifiedImageUrl, setPurifiedImageUrl] = useState<string | null>(null);
   const [purificationError, setPurificationError] = useState<string | null>(null);
+
+  // Image compression hook
+  const { compressImage, isCompressing, compressionProgress } = useImageCompression();
 
   useEffect(() => {
     if (isOpen) {
@@ -147,12 +151,30 @@ export default function CreateProductModal({
   // NEW: Complete purification + analysis workflow
   const purifyAndAnalyzePhoto = async (file: File) => {
     try {
+      // STEP 0: Compress if file > 4MB (to avoid Vercel 4.5MB limit)
+      let fileToUpload = file;
+      const fileSizeMB = file.size / 1024 / 1024;
+
+      if (fileSizeMB > 4) {
+        console.log(`[purify-workflow] File size ${fileSizeMB.toFixed(2)}MB exceeds 4MB, compressing...`);
+        setPurificationStatus('uploading'); // Show "Uploading..." during compression
+
+        const compressionResult = await compressImage(file);
+        fileToUpload = compressionResult.compressedFile;
+
+        console.log('[purify-workflow] Compression complete:', {
+          originalSizeMB: (compressionResult.originalSize / 1024 / 1024).toFixed(2),
+          compressedSizeMB: (compressionResult.compressedSize / 1024 / 1024).toFixed(2),
+          compressionRatio: `${compressionResult.compressionRatio.toFixed(1)}%`
+        });
+      }
+
       // STEP 1: Upload to temporary storage for purification
       setPurificationStatus('uploading');
       console.log('[purify-workflow] Starting temporary upload');
 
       const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
+      uploadFormData.append('file', fileToUpload);
 
       const tempUploadResponse = await fetch('/api/user-products/temp-upload', {
         method: 'POST',
@@ -511,7 +533,7 @@ export default function CreateProductModal({
                       <div className="flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-600">
                         <Upload className="mb-3 h-6 w-6 text-gray-400" />
                         <p className="font-semibold text-gray-900">Drop a product photo or click to browse</p>
-                        <p className="mt-1 text-xs text-gray-500">PNG or JPG, up to 8MB. Clear shots work best.</p>
+                        <p className="mt-1 text-xs text-gray-500">PNG or JPG, up to 8MB. Auto-compressed for upload if needed.</p>
                       </div>
                     )}
 
