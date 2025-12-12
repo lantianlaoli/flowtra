@@ -42,13 +42,18 @@ export async function POST(
     }
 
     // 4. Create photo record with purified image URL
-    console.log('[from-url] Creating photo record:', { productId, userId, imageUrl });
+    // Extract filename from URL or generate a default one
+    const urlParts = imageUrl.split('/');
+    const fileName = urlParts[urlParts.length - 1] || `product-photo-${Date.now()}.png`;
+
+    console.log('[from-url] Creating photo record:', { productId, userId, imageUrl, fileName });
 
     const { data: photo, error: photoError } = await supabase
       .from('user_product_photos')
       .insert({
         product_id: productId,
         photo_url: imageUrl,
+        file_name: fileName,
         is_primary: true,
         user_id: userId
       })
