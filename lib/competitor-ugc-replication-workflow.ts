@@ -1057,11 +1057,14 @@ async function startAIWorkflow(
         : getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
       : 1;
 
+    // BUG FIX: Do NOT update is_segmented here, as it was already set correctly during project creation
+    // Updating it here can cause data inconsistency if videoDuration was modified (line 1046)
+    // between initial creation and this update, leading to is_segmented=false but having segment records
     const { error: projectConfigUpdateError } = await supabase
       .from('competitor_ugc_replication_projects')
       .update({
         video_duration: request.videoDuration || request.sora2ProDuration || null,
-        is_segmented: segmentedFlow,
+        // is_segmented: segmentedFlow, // REMOVED: Do not overwrite is_segmented
         segment_count: segmentedFlow ? segmentCount : 1,
         segment_duration_seconds: segmentedFlow ? getSegmentDurationForModel(request.resolvedVideoModel) : null
       })

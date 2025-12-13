@@ -1719,8 +1719,8 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
   console.log(`Task ${taskId} responseUrls:`, responseUrls);
   console.log(`Task ${taskId} flatUrls:`, flatUrls);
 
-  const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!imageUrl && (state === undefined));
-  const isFailed = (state && state.toLowerCase() === 'failed') || successFlag === 2 || successFlag === 3;
+  const isSuccess = (state && state.toLowerCase() === 'success') || successFlag === 1 || (!!imageUrl && directUrls && directUrls.length > 0);
+  const isFailed = (state && (state.toLowerCase() === 'failed' || state.toLowerCase() === 'fail')) || successFlag === 2 || successFlag === 3;
 
   console.log(`Task ${taskId} isSuccess: ${isSuccess}, isFailed: ${isFailed}`);
 
