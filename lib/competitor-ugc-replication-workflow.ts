@@ -774,7 +774,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         use_custom_script: request.useCustomScript || false,
         // DEPRECATED: download_credits_used (downloads are now free)
         download_credits_used: 0,
-        is_segmented: isSegmented,
+        is_segmented: segmentCount >= 1, // FIX: Use segmentCount instead of isSegmented to avoid data inconsistency
         segment_count: segmentCount,
         segment_duration_seconds: isSegmented ? resolvedSegmentDuration : null,
         segment_status: isSegmented

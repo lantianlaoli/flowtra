@@ -25,8 +25,8 @@ const normalizeHeaders = (headers?: HeadersInit): Record<string, string> => {
 export async function fetchWithRetry(
   url: string,
   options: RequestInit = {},
-  maxRetries = 5, // Increased from 3 to 5
-  timeoutMs = 60000 // Increased from 30000 to 60000 (60 seconds)
+  maxRetries = 10, // Increased from 5 to 10 for better reliability with KIE API
+  timeoutMs = 45000 // 45 seconds per request (balanced for KIE API response time)
 ): Promise<Response> {
   let lastError: Error | null = null;
   
