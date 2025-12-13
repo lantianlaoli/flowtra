@@ -2223,32 +2223,6 @@ async function startSegmentedWorkflow(
 
     segment.first_frame_task_id = firstFrameTaskId;
     segment.status = 'generating_first_frame';
-
-    if (segment.segment_index === normalizedSegments.length - 1) {
-      // For non-children products, only the last segment gets a closing frame
-      const closingFrameTaskId = await createSmartSegmentFrame(
-        promptData,
-        segment.segment_index,
-        'closing',
-        aspectRatio,
-        brandLogoUrl || null,
-        productImageUrls || null,
-        productContext,
-        competitorFileType || null,
-        undefined,
-        null
-      );
-
-      await supabase
-        .from('competitor_ugc_replication_segments')
-        .update({
-          closing_frame_task_id: closingFrameTaskId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', segment.id);
-
-      segment.closing_frame_task_id = closingFrameTaskId;
-    }
   }
 
   await supabase

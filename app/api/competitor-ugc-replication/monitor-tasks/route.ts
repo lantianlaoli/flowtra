@@ -1178,26 +1178,6 @@ async function syncSegmentFrameTasks(
         throw new Error(`Segment ${segment.segment_index} first frame failed`);
       }
     }
-
-    const isLastSegment = segment.segment_index === segments.length - 1;
-    if (isLastSegment && segment.closing_frame_task_id && !segment.closing_frame_url) {
-      const closingStatus = await checkCoverStatus(segment.closing_frame_task_id);
-
-      if (closingStatus.status === 'SUCCESS' && closingStatus.imageUrl) {
-        await supabase
-          .from('competitor_ugc_replication_segments')
-          .update({
-            closing_frame_url: closingStatus.imageUrl,
-            updated_at: now
-          })
-          .eq('id', segment.id);
-
-        segment.closing_frame_url = closingStatus.imageUrl;
-        updated = true;
-      } else if (closingStatus.status === 'FAILED') {
-        throw new Error(`Segment ${segment.segment_index} closing frame failed`);
-      }
-    }
   }
 
   if (updated) {
