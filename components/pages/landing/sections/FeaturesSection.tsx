@@ -83,11 +83,10 @@ export default function FeaturesSection() {
                 <LazyVideoPlayer
                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/character-ad-case-1.mp4"
                   wrapperClassName="h-full w-full"
-                                    className="h-full w-full object-cover"
-                                    showControls
-                                    playsInline
-                                    loop
-                                  />              </div>
+                  className="h-full w-full object-cover"
+                  playsInline
+                  loop
+                />              </div>
             </div>
           </article>
 
@@ -158,11 +157,10 @@ export default function FeaturesSection() {
                     <LazyVideoPlayer
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_origin.mp4"
                       wrapperClassName="h-full w-full"
-                                        className="h-full w-full object-cover"
-                                        showControls
-                                        playsInline
-                                        loop
-                                      />                  </div>
+                      className="h-full w-full object-cover"
+                      playsInline
+                      loop
+                    />                  </div>
                 </div>
                 <div className="space-y-3">
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-sm font-semibold">
@@ -173,11 +171,10 @@ export default function FeaturesSection() {
                     <LazyVideoPlayer
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_result.mp4"
                       wrapperClassName="h-full w-full"
-                                        className="h-full w-full object-cover"
-                                        showControls
-                                        playsInline
-                                        loop
-                                      />                  </div>
+                      className="h-full w-full object-cover"
+                      playsInline
+                      loop
+                    />                  </div>
                 </div>
               </div>
             </div>

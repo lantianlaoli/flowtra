@@ -517,7 +517,11 @@ export default function SegmentInspector({
                 ) : segment?.videoUrl ? (
                   <video
                     src={segment.videoUrl}
-                    controls
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    controlsList="nodownload nofullscreen noplaybackrate"
                     className="w-full h-full object-contain bg-black rounded-2xl"
                   />
                 ) : (
