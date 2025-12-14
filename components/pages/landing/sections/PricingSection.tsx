@@ -57,7 +57,7 @@ export default function PricingSection() {
               <div className="w-4 h-4 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
                 <Check className="w-2.5 h-2.5 text-blue-600" />
               </div>
-              <span className="text-gray-700"><span className="font-semibold text-gray-900">200 minutes</span> of UGC video generation quota</span>
+              <span className="text-gray-700"><span className="font-semibold text-gray-900">200 seconds</span> of UGC video generation quota</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-4 h-4 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
@@ -122,7 +122,7 @@ export default function PricingSection() {
               <div className="w-4 h-4 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
                 <Check className="w-2.5 h-2.5 text-blue-600" />
               </div>
-              <span className="text-gray-700"><span className="font-semibold text-gray-900">800 minutes</span> of UGC video generation quota</span>
+              <span className="text-gray-700"><span className="font-semibold text-gray-900">800 seconds</span> of UGC video generation quota</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-4 h-4 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
@@ -184,7 +184,7 @@ export default function PricingSection() {
               <div className="w-4 h-4 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
                 <Check className="w-2.5 h-2.5 text-blue-600" />
               </div>
-              <span className="text-gray-700"><span className="font-semibold text-gray-900">1,400 minutes</span> of UGC video generation quota</span>
+              <span className="text-gray-700"><span className="font-semibold text-gray-900">1,400 seconds</span> of UGC video generation quota</span>
             </li>
             <li className="flex items-center gap-3">
               <div className="w-4 h-4 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0" aria-hidden="true">
