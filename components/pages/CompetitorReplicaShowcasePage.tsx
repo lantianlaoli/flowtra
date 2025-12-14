@@ -261,7 +261,7 @@ export default function CompetitorReplicaShowcasePage() {
       </section>
 
       {/* AI Analysis Demo Section */}
-      <section className="py-16 lg:py-24 bg-gray-50 border-y border-gray-200">
+      <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-start">
             
@@ -497,32 +497,6 @@ export default function CompetitorReplicaShowcasePage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-16 lg:py-24 bg-black text-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-            Ready to Clone Winning Ads?
-          </h2>
-          <p className="text-xl text-gray-300 mb-8">
-            Start replicating top-performing competitor videos today. No credit card required to try.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/dashboard/competitor-ugc-replication"
-              className="inline-flex items-center justify-center px-8 py-4 bg-white text-black rounded-lg font-semibold hover:bg-gray-100 transition-colors"
-            >
-              Start Creating
-              <SparklesIcon className="ml-2 w-5 h-5" />
-            </Link>
-            <Link
-              href="/pricing"
-              className="inline-flex items-center justify-center px-8 py-4 bg-transparent text-white border-2 border-white rounded-lg font-semibold hover:bg-white hover:text-black transition-colors"
-            >
-              View Pricing
-            </Link>
-          </div>
-        </div>
-      </section>
 
       <Footer />
     </div>
