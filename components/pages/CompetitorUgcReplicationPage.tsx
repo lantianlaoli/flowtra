@@ -1283,7 +1283,7 @@ export default function CompetitorUgcReplicationPage() {
     ? (userCredits || 0) >= generationCost
     : canAffordModel(userCredits || 0, selectedModel);
   const replicaSelectionValid = !isCompetitorPhotoMode || Boolean(competitorImageUrl);
-  const canGenerate = !isGenerating && Boolean(selectedBrand && selectedCompetitorAd) && replicaSelectionValid;
+  const canGenerate = !isGenerating && Boolean(selectedBrand && selectedCompetitorAd) && replicaSelectionValid && canAfford;
 
   // Render insufficient credits or maintenance message
   if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
@@ -1304,32 +1304,6 @@ export default function CompetitorUgcReplicationPage() {
     );
   }
 
-  if (!canAfford) {
-    const insufficientMessage = isCompetitorPhotoMode
-      ? `Replica photo mode requires ${generationCost} credits but you only have ${userCredits || 0} credits.`
-      : `You need ${generationCost} credits but only have ${userCredits || 0} credits.`;
-    const insufficientAction = isCompetitorPhotoMode
-      ? 'Please top up credits to continue generating competitor replica photos.'
-      : `Please purchase more credits to continue using ${selectedModel}.`;
-    return (
-      <div className="flex h-screen bg-gray-50">
-        <Sidebar {...sidebarProps} />
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-6xl mx-auto px-4 py-8">
-            <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Insufficient Credits</h2>
-              <p className="text-gray-600 mb-2">
-                {insufficientMessage}
-              </p>
-              <p className="text-gray-600">
-                {insufficientAction}
-              </p>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -1493,8 +1467,13 @@ export default function CompetitorUgcReplicationPage() {
                 `}
               >
                 <Sparkles className="w-4 h-4" />
-                <span>Generate</span>
-                {!isCompetitorPhotoMode && (
+                <span>{!canAfford ? 'Insufficient Credits' : 'Generate'}</span>
+                {!canAfford && (
+                  <span className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-red-500/30 rounded-full text-xs font-bold backdrop-blur-sm">
+                    Need {generationCost}, Have {userCredits || 0}
+                  </span>
+                )}
+                {!isCompetitorPhotoMode && canAfford && (
                   <div className="flex items-center gap-2 ml-auto text-xs">
                     {/* Generation Cost */}
                     <div className="flex items-center gap-1">
@@ -1526,7 +1505,7 @@ export default function CompetitorUgcReplicationPage() {
                     </div>
                   </div>
                 )}
-                {isCompetitorPhotoMode && generationCost > 0 && (
+                {isCompetitorPhotoMode && canAfford && generationCost > 0 && (
                   <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded ml-auto">
                     <Coins className="w-3 h-3" />
                     {generationCost}

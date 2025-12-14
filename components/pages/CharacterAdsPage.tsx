@@ -13,7 +13,7 @@ import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector'
 import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
-import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe, Coins, AlertCircle } from 'lucide-react';
+import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe, Coins } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getActualModel, getGenerationCost } from '@/lib/constants';
@@ -1100,23 +1100,6 @@ const formatDurationLabel = (seconds: number) => {
       {composerVisible && (
         <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-6 sm:px-8 lg:px-10 pb-4">
           <div className="max-w-7xl mx-auto space-y-3">
-            {/* Insufficient Credits Warning Banner */}
-            {hasInsufficientCredits && selectedPersonPhotoUrl && (
-              <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-lg">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-500 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="font-semibold">Insufficient Credits</p>
-                    <p className="mt-1 text-red-700">
-                      You need <span className="font-bold">{requiredCredits} credits</span> to generate a {videoDuration}s video,
-                      but you only have <span className="font-bold">{userCredits || 0} credits</span>.
-                      Please reduce the duration or <a href="/pricing" className="underline font-semibold hover:text-red-900">purchase more credits</a>.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="relative bg-white/95 backdrop-blur border border-gray-200 rounded-[60px] shadow-2xl px-4 sm:px-6 py-4">
               <div className="flex items-end gap-3 flex-wrap">
                 <button

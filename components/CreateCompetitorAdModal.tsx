@@ -116,15 +116,9 @@ export default function CreateCompetitorAdModal({
       }
 
       // Validate file size
-      const maxSize = isVideo ? 12 * 1024 * 1024 : 10 * 1024 * 1024;
-      if (file.size > maxSize) {
-        if (isVideo) {
-          setError('File size must be less than 12MB.');
-          setCompressionLink('https://www.onlineconverter.com/compress-video');
-        } else {
-          setError('File size must be less than 10MB.');
-          setCompressionLink(null);
-        }
+      if (file.size > 12 * 1024 * 1024) {
+        setError('File size must be less than 12MB.');
+        setCompressionLink('https://www.onlineconverter.com/compress-video');
         return;
       }
 
@@ -347,7 +341,7 @@ export default function CreateCompetitorAdModal({
   };
 
   return (
-    <AnimatePresence>
+    <>
       <input
         ref={fileInputRef}
         id="ad-file"
@@ -357,9 +351,12 @@ export default function CreateCompetitorAdModal({
         onChange={handleFileUpload}
         disabled={!canSelectFile}
       />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <AnimatePresence>
+        {isOpen && (
+          <div key="competitor-ad-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4">
         {/* Backdrop */}
         <motion.div
+          key="backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -369,6 +366,7 @@ export default function CreateCompetitorAdModal({
 
         {/* Modal */}
         <motion.div
+          key="modal-content"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
@@ -409,7 +407,7 @@ export default function CreateCompetitorAdModal({
                   <p className="text-lg font-medium text-gray-800 mb-2">Upload a file</p>
                   <p className="text-sm text-gray-500">Choose a competitor image or video to preview and analyze.</p>
                   <p className="text-xs text-gray-400 mt-3">
-                    Images: max 10MB · Videos: max 12MB
+                    Max file size: 12MB
                   </p>
                   {!canSelectFile && (
                     <p className="text-xs text-gray-500 mt-2">Finish the current upload before adding another file.</p>
@@ -676,6 +674,8 @@ export default function CreateCompetitorAdModal({
           </div>
         </motion.div>
       </div>
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
