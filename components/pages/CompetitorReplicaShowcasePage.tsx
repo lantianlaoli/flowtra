@@ -8,7 +8,11 @@ import {
   Copy,
   Zap,
   Target,
-  Sparkles
+  Sparkles,
+  Users,
+  Globe,
+  Clock,
+  Scissors
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -36,6 +40,11 @@ export default function CompetitorReplicaShowcasePage() {
       title: 'Proven Performance',
       description: 'Build on top-performing competitor ads that have already proven to resonate with your target audience.',
     },
+    {
+      icon: Users,
+      title: 'Consistent Characters',
+      description: 'Maintain the same character appearance across all segments and shots, ensuring a seamless and believable narrative.',
+    },
   ];
 
   const useCases = [
@@ -48,6 +57,54 @@ export default function CompetitorReplicaShowcasePage() {
     'Dropshipping Stores',
     'Brand Competition',
   ];
+
+  const demoAnalysisData = {
+    name: "elf-glow-reviver-lip-oil-swatch",
+    detected_language: "es",
+    video_duration_seconds: 15,
+    shots: [
+      {
+        shot_id: 1,
+        start_time: "00:00",
+        end_time: "00:03",
+        action: "Hand presents four boxes of lip oil to the camera",
+        audio: "Voiceover: 'Te pedí cuatro tonos...'",
+        first_frame_description: "A close-up, first-person perspective shot features a hand holding four distinct boxes..."
+      },
+      {
+        shot_id: 2,
+        start_time: "00:03",
+        end_time: "00:05",
+        action: "Woman holds up the specific shade 'Crystal Baller'",
+        audio: "Voiceover: 'El primero es Crystal Baller...'",
+        first_frame_description: "A close-up of a single rectangular product bottle held between thumb and forefinger..."
+      },
+      {
+        shot_id: 3,
+        start_time: "00:05",
+        end_time: "00:09",
+        action: "Applying the lip oil to lips",
+        audio: "Voiceover: '...que tiene destellitos...'",
+        first_frame_description: "A medium close-up centers on a young woman with long brunette hair..."
+      },
+      {
+        shot_id: 4,
+        start_time: "00:09",
+        end_time: "00:13",
+        action: "Detailed application and display of glossy finish",
+        audio: "Voiceover: 'De una vez les digo...'",
+        first_frame_description: "An extreme close-up focuses entirely on the lower half of the woman's face..."
+      },
+      {
+        shot_id: 5,
+        start_time: "00:13",
+        end_time: "00:15",
+        action: "Presenting the 'Candy Coated' shade",
+        audio: "Voiceover: 'Seguimos con el tono...'",
+        first_frame_description: "The frame transitions to the model holding a new shade open..."
+      }
+    ]
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -199,6 +256,182 @@ export default function CompetitorReplicaShowcasePage() {
                 </blockquote>
                 <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
               </div>
+           </div>
+        </div>
+      </section>
+
+      {/* AI Analysis Demo Section */}
+      <section className="py-16 lg:py-24 bg-gray-50 border-y border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 items-start">
+            
+            {/* Left: AI Analysis Results (Notion Style) */}
+            <div className="space-y-8">
+               <div>
+                  <div className="inline-block px-3 py-1 bg-black text-white text-xs font-mono rounded mb-4">
+                    AI Analysis Result
+                  </div>
+                  <h2 className="text-3xl font-bold text-black mb-4">Deep Video Understanding</h2>
+                  <p className="text-gray-600 mb-6 leading-relaxed">
+                    Our AI deconstructs every second of the video, capturing timing, actions, voiceovers, and camera angles to recreate the winning formula.
+                  </p>
+                  
+                  {/* Selling Points */}
+                  <div className="flex flex-wrap gap-3 mb-8">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm">
+                      <Globe className="w-4 h-4 text-blue-500" />
+                      <span>10+ Languages Detected</span>
+                    </div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm">
+                      <Clock className="w-4 h-4 text-orange-500" />
+                      <span>Up to 60s Video</span>
+                    </div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm">
+                      <Scissors className="w-4 h-4 text-purple-500" />
+                      <span>Auto-Scene Detection</span>
+                    </div>
+                  </div>
+
+                  <Link
+                    href="/dashboard/competitor-ugc-replication"
+                    className="inline-flex items-center justify-center px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+                  >
+                    Start Analyzing for Free
+                    <ArrowRightIcon className="ml-2 w-4 h-4" />
+                  </Link>
+               </div>
+
+               <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden font-mono text-sm">
+                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 flex justify-between items-center">
+                    <span className="font-semibold text-gray-700">Video Blueprint</span>
+                    <span className="text-xs text-gray-500">15s • {demoAnalysisData.shots.length} shots detected</span>
+                  </div>
+                  <div className="max-h-[400px] overflow-y-auto p-0">
+                    {demoAnalysisData.shots.map((shot) => (
+                      <div key={shot.shot_id} className="border-b border-gray-100 last:border-0 p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex gap-4 mb-2">
+                           <span className="text-xs font-bold text-gray-400 w-16 shrink-0 font-sans">
+                             {shot.start_time} - {shot.end_time}
+                           </span>
+                           <span className="text-xs font-semibold text-purple-600 uppercase tracking-wider font-sans">
+                             Shot {shot.shot_id}
+                           </span>
+                        </div>
+                        <div className="grid gap-2 pl-20">
+                           <div>
+                             <span className="text-gray-400 text-[10px] uppercase tracking-wide font-sans block mb-1">Action</span>
+                             <p className="text-gray-800 leading-snug">{shot.action}</p>
+                           </div>
+                           <div>
+                             <span className="text-gray-400 text-[10px] uppercase tracking-wide font-sans block mb-1">Audio</span>
+                             <p className="text-gray-600 italic leading-snug">"{shot.audio}"</p>
+                           </div>
+                           <div>
+                             <span className="text-gray-400 text-[10px] uppercase tracking-wide font-sans block mb-1">Visual</span>
+                             <p className="text-gray-500 text-xs leading-relaxed">{shot.first_frame_description}</p>
+                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+               </div>
+            </div>
+
+            {/* Right: Video */}
+            <div className="sticky top-24">
+                <div className="relative aspect-[9/16] w-full max-w-sm mx-auto bg-black rounded-[2rem] overflow-hidden shadow-2xl border-4 border-black">
+                    <LazyVideoPlayer
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_parse.mp4"
+                      wrapperClassName="h-full w-full"
+                      className="h-full w-full object-cover"
+                      showControls
+                      playsInline
+                      loop
+                      autoPlay
+                    />
+                </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* Segment Editor Demo Section */}
+      <section className="py-16 lg:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
+              
+              {/* Image Side */}
+              <div className="w-full lg:w-3/5">
+                 <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50">
+                    <img 
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/clone_competitor_segment_edit.png" 
+                      alt="Flowtra Segment Editor Interface" 
+                      className="w-full h-auto"
+                      loading="lazy"
+                    />
+                    {/* Optional subtle gradient overlay for depth */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent pointer-events-none" />
+                 </div>
+              </div>
+
+              {/* Text Side */}
+              <div className="w-full lg:w-2/5 space-y-8">
+                 <div>
+                    <div className="inline-block px-3 py-1 bg-black text-white text-xs font-mono rounded mb-4">
+                      Granular Control
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-bold text-black mb-4 leading-tight">
+                       Fine-Tune Every Shot
+                    </h2>
+                    <p className="text-gray-600 text-lg leading-relaxed">
+                       Don't just clone—perfect it. Our advanced Segment Editor gives you complete control over each shot in the sequence.
+                    </p>
+                 </div>
+                 
+                 <div className="space-y-6">
+                    <div className="flex gap-4 items-start">
+                       <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                          <Target className="w-5 h-5 text-purple-600" />
+                       </div>
+                       <div>
+                          <h3 className="text-lg font-semibold text-gray-900">Custom First Frames</h3>
+                          <p className="text-gray-600 mt-1">Upload or generate specific starting images for each segment to guide the AI's visual consistency.</p>
+                       </div>
+                    </div>
+                    
+                    <div className="flex gap-4 items-start">
+                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                          <Copy className="w-5 h-5 text-blue-600" />
+                       </div>
+                       <div>
+                          <h3 className="text-lg font-semibold text-gray-900">Prompt Engineering</h3>
+                          <p className="text-gray-600 mt-1">Edit the AI-generated prompts directly. Tweak character details, lighting, and action descriptions.</p>
+                       </div>
+                    </div>
+
+                    <div className="flex gap-4 items-start">
+                       <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                          <Sparkles className="w-5 h-5 text-green-600" />
+                       </div>
+                       <div>
+                          <h3 className="text-lg font-semibold text-gray-900">Motion & Camera</h3>
+                          <p className="text-gray-600 mt-1">Refine camera movements and subject motion to ensure smooth transitions between shots.</p>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="pt-4">
+                    <Link
+                      href="/dashboard/competitor-ugc-replication"
+                      className="inline-flex items-center justify-center px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+                    >
+                      Start Editing
+                      <ArrowRightIcon className="ml-2 w-4 h-4" />
+                    </Link>
+                 </div>
+              </div>
+
            </div>
         </div>
       </section>
