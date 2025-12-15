@@ -233,6 +233,15 @@ export default function CompetitorReplicaShowcasePage() {
                        </div>
                     </div>
                  </div>
+                 <div className="pt-6">
+                    <Link
+                      href="/dashboard/competitor-ugc-replication"
+                      className="inline-flex items-center justify-center gap-2 bg-black text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
+                    >
+                      Start Cloning
+                      <ArrowRightIcon className="w-4 h-4" />
+                    </Link>
+                 </div>
               </div>
 
               {/* Right: TikTok Video */}
@@ -363,7 +372,7 @@ export default function CompetitorReplicaShowcasePage() {
               
               {/* Image Side */}
               <div className="w-full lg:w-3/5">
-                 <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50">
+                 <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
                     <img 
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/clone_competitor_segment_edit.png" 
                       alt="Flowtra Segment Editor Interface" 

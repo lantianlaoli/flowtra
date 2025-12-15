@@ -10,7 +10,6 @@ import Sidebar from '@/components/layout/Sidebar';
 import UserPhotoGallery from '@/components/UserPhotoGallery';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
-import ProductManager from '@/components/ProductManager';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
 import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe, Coins } from 'lucide-react';
@@ -177,7 +176,6 @@ export default function CharacterAdsPage() {
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
-  const [showProductManager, setShowProductManager] = useState(false);
   const [isPersonPickerOpen, setIsPersonPickerOpen] = useState(false);
   const [isProductPickerOpen, setIsProductPickerOpen] = useState(false);
   const [showConfigPanel, setShowConfigPanel] = useState(false);
@@ -431,7 +429,7 @@ const formatDurationLabel = (seconds: number) => {
   const selectedProductName = selectedProduct?.product_name;
   const hasPersonPhoto = Boolean(selectedPersonPhotoUrl);
   const showMaintenance = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
-  const composerVisible = !showMaintenance && !showProductManager;
+  const composerVisible = !showMaintenance;
   const composerDisabled = !canStartGeneration;
 
   const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
@@ -1028,25 +1026,6 @@ const formatDurationLabel = (seconds: number) => {
               >
                 <MaintenanceMessage />
               </motion.div>
-            ) : showProductManager ? (
-              <motion.div
-                key="product-manager"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="flex-1 overflow-y-auto px-6 sm:px-8 lg:px-10 py-8"
-              >
-                <div className="max-w-7xl mx-auto space-y-6">
-                  <button
-                    onClick={() => setShowProductManager(false)}
-                    className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    ← Back to Character Ads
-                  </button>
-                  <ProductManager />
-                </div>
-              </motion.div>
             ) : (
               <motion.section
                 key="preview"
@@ -1523,15 +1502,6 @@ const formatDurationLabel = (seconds: number) => {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    setIsProductPickerOpen(false);
-                    setShowProductManager(true);
-                  }}
-                  className="px-3 py-1 rounded-full border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-100 transition"
-                >
-                  Manage Products
-                </button>
                 <button
                   onClick={() => setIsProductPickerOpen(false)}
                   className="px-3 py-1 rounded-full border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-100 transition"

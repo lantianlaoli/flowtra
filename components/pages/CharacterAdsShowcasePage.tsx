@@ -9,7 +9,8 @@ import {
   UserCircle,
   MessageSquare,
   Sparkles,
-  Video
+  Video,
+  Check
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -162,6 +163,174 @@ export default function CharacterAdsShowcasePage() {
                   </section>
                 </blockquote>
                 <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
+              </div>
+           </div>
+        </div>
+      </section>
+
+      {/* Feature Configuration Section */}
+      <section className="py-16 lg:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="grid lg:grid-cols-2 gap-12 items-center">
+              {/* Left: Text */}
+              <div className="space-y-6">
+                 <h2 className="text-3xl md:text-4xl font-bold text-black mb-6">
+                    Flexible Configuration
+                 </h2>
+                 <ul className="space-y-4">
+                    <li className="flex items-start gap-3">
+                       <div className="mt-1 bg-black rounded-full p-1">
+                          <Check className="w-4 h-4 text-white" />
+                       </div>
+                       <div>
+                          <h3 className="font-semibold text-xl text-black">Extended Duration</h3>
+                          <p className="text-gray-600">Support for video lengths up to 1 minute 20 seconds.</p>
+                       </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                       <div className="mt-1 bg-black rounded-full p-1">
+                           <Check className="w-4 h-4 text-white" />
+                       </div>
+                       <div>
+                          <h3 className="font-semibold text-xl text-black">Multi-Language Support</h3>
+                          <p className="text-gray-600">Supports over 10 languages including English and Spanish.</p>
+                       </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                       <div className="mt-1 bg-black rounded-full p-1">
+                           <Check className="w-4 h-4 text-white" />
+                       </div>
+                       <div>
+                          <h3 className="font-semibold text-xl text-black">Multi-Platform Optimized</h3>
+                          <p className="text-gray-600">9:16 and 16:9 aspect ratios perfect for Instagram, TikTok, and other platforms.</p>
+                       </div>
+                    </li>
+                 </ul>
+                 <div className="pt-4">
+                    <Link
+                      href="/dashboard/character-ads"
+                      className="inline-flex items-center justify-center gap-2 bg-black text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
+                    >
+                      Start Configuring
+                      <ArrowRightIcon className="w-4 h-4" />
+                    </Link>
+                 </div>
+              </div>
+              {/* Right: Image */}
+              <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-200 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
+                 <Image
+                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/character-ad-config.png"
+                   alt="Character Ad Configuration Interface"
+                   width={800}
+                   height={600}
+                   className="w-full h-auto"
+                 />
+              </div>
+           </div>
+        </div>
+      </section>
+
+      {/* Character Selection Section */}
+      <section className="py-16 lg:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="grid lg:grid-cols-2 gap-12 items-center">
+              {/* Left: Image (Alternating layout) */}
+              <div className="order-2 lg:order-1 relative rounded-2xl overflow-hidden shadow-xl border border-gray-200 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
+                 <Image
+                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/character-ads-avatar.png"
+                   alt="Character Selection Interface"
+                   width={800}
+                   height={600}
+                   className="w-full h-auto"
+                 />
+              </div>
+              {/* Right: Text */}
+              <div className="order-1 lg:order-2 space-y-6">
+                 <h2 className="text-3xl md:text-4xl font-bold text-black mb-6">
+                    Unlimited Character Customization
+                 </h2>
+                 <ul className="space-y-4">
+                    <li className="flex items-start gap-3">
+                       <div className="mt-1 bg-black rounded-full p-1">
+                          <Check className="w-4 h-4 text-white" />
+                       </div>
+                       <div>
+                          <h3 className="font-semibold text-xl text-black">Custom Uploads</h3>
+                          <p className="text-gray-600">Unlimited uploads for custom characters. Bring your own brand mascot or spokesperson.</p>
+                       </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                       <div className="mt-1 bg-black rounded-full p-1">
+                           <Check className="w-4 h-4 text-white" />
+                       </div>
+                       <div>
+                          <h3 className="font-semibold text-xl text-black">AI Enhancement</h3>
+                          <p className="text-gray-600">Automatic AI clarity enhancement for uploaded photos ensures professional quality.</p>
+                       </div>
+                    </li>
+                 </ul>
+                 <div className="pt-4">
+                    <Link
+                      href="/dashboard/character-ads"
+                      className="inline-flex items-center justify-center gap-2 bg-black text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
+                    >
+                      Choose Character
+                      <ArrowRightIcon className="w-4 h-4" />
+                    </Link>
+                 </div>
+              </div>
+           </div>
+        </div>
+      </section>
+
+      {/* Advanced Prompt Control Section */}
+      <section className="py-16 lg:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="grid lg:grid-cols-2 gap-12 items-center">
+              {/* Left: Text */}
+              <div className="space-y-6">
+                 <h2 className="text-3xl md:text-4xl font-bold text-black mb-6">
+                    Advanced Scene & Action Control
+                 </h2>
+                 <ul className="space-y-4">
+                    <li className="flex items-start gap-3">
+                       <div className="mt-1 bg-black rounded-full p-1">
+                          <Check className="w-4 h-4 text-white" />
+                       </div>
+                       <div>
+                          <h3 className="font-semibold text-xl text-black">Precision Regeneration</h3>
+                          <p className="text-gray-600">Refine your video by regenerating specific elements. Modify actions, backgrounds, and scene details with custom prompts.</p>
+                       </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                       <div className="mt-1 bg-black rounded-full p-1">
+                           <Check className="w-4 h-4 text-white" />
+                       </div>
+                       <div>
+                          <h3 className="font-semibold text-xl text-black">Powered by Nano Banana Pro</h3>
+                          <p className="text-gray-600">Utilizing the strongest Nano Banana Pro model for unparalleled prompt understanding and visual fidelity.</p>
+                       </div>
+                    </li>
+                 </ul>
+                 <div className="pt-4">
+                    <Link
+                      href="/dashboard/character-ads"
+                      className="inline-flex items-center justify-center gap-2 bg-black text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
+                    >
+                      Try Pro Control
+                      <ArrowRightIcon className="w-4 h-4" />
+                    </Link>
+                 </div>
+              </div>
+              {/* Right: Image */}
+              <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-200 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
+                 <Image
+                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/character-ad-config-frame.png"
+                   alt="Advanced Prompt Control Interface"
+                   width={800}
+                   height={600}
+                   className="w-full h-auto"
+                 />
               </div>
            </div>
         </div>
