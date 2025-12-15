@@ -205,6 +205,15 @@ export default function CharacterAdsShowcasePage() {
                           <p className="text-gray-600">9:16 and 16:9 aspect ratios perfect for Instagram, TikTok, and other platforms.</p>
                        </div>
                     </li>
+                    <li className="flex items-start gap-3">
+                       <div className="mt-1 bg-black rounded-full p-1">
+                           <Check className="w-4 h-4 text-white" />
+                       </div>
+                       <div>
+                          <h3 className="font-semibold text-xl text-black">Default to Strongest Model</h3>
+                          <p className="text-gray-600">Automatically selects the most powerful Veo3.1 video model by default, so you don't have to worry about complex choices.</p>
+                       </div>
+                    </li>
                  </ul>
                  <div className="pt-4">
                     <Link
