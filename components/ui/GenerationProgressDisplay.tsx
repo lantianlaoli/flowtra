@@ -20,7 +20,8 @@ import {
   PenSquare,
   Package,
   User,
-  AlertCircle
+  AlertCircle,
+  Eye
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
@@ -381,6 +382,8 @@ function GenerationCard({
         return <XCircle className="w-5 h-5 text-red-500" />;
       case 'attention':
         return <XCircle className="w-5 h-5 text-amber-500" />;
+      case 'awaiting_review':
+        return <Eye className="w-5 h-5 text-blue-500" />;
       case 'processing':
       case 'pending':
         return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
@@ -443,9 +446,9 @@ function GenerationCard({
               !videoUrl && (
               <button
                 onClick={() => onReview(generation)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold shadow-sm hover:bg-blue-100 hover:border-blue-300 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold shadow-md hover:bg-blue-700 hover:shadow-lg transition-all cursor-pointer animate-pulse"
               >
-                <PenSquare className="w-3.5 h-3.5" />
+                <PenSquare className="w-4 h-4" />
                 <span>{reviewCtaLabel}</span>
               </button>
             )}
