@@ -27,7 +27,7 @@ const STATUS_COPY: Record<AnalysisState, { label: string; badge: string; helper:
   purifying: {
     label: 'Purifying photo…',
     badge: 'bg-purple-100 text-purple-800',
-    helper: 'AI is removing background and centering your product. This takes 1-2 minutes.'
+    helper: 'AI is removing background and centering your product. This may take up to 10 minutes.'
   },
   analyzing: {
     label: 'Analyzing photo…',
@@ -245,7 +245,7 @@ export default function CreateProductModal({
   };
 
   // NEW: Poll purification status
-  const pollPurificationStatus = async (taskId: string, maxAttempts = 60, intervalMs = 2000): Promise<string> => {
+  const pollPurificationStatus = async (taskId: string, maxAttempts = 300, intervalMs = 2000): Promise<string> => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise(resolve => setTimeout(resolve, intervalMs));
 
