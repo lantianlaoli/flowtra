@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@clerk/nextjs/server';
-import { uploadUserPhotoToStorage, getUserPhotos, deleteUserPhoto, uploadUserPhotoFromUrl } from '@/lib/supabase';
+import { uploadAvatarToStorage, getUserAvatars, deleteAvatar, uploadAvatarFromUrl, updateAvatarName } from '@/lib/supabase';
 
-// GET: Fetch all user photos
+// GET: Fetch all user avatars
 export async function GET(request: NextRequest) {
   try {
     const { userId } = getAuth(request);
@@ -11,18 +11,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const photos = await getUserPhotos(userId);
+    const avatars = await getUserAvatars(userId);
 
     return NextResponse.json({
       success: true,
-      photos
+      avatars
     });
 
   } catch (error) {
-    console.error('Get user photos error:', error);
+    console.error('Get user avatars error:', error);
     return NextResponse.json(
       {
-        error: 'Failed to fetch photos',
+        error: 'Failed to fetch avatars',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Upload a new user photo
+// POST: Upload a new user avatar
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   let userId: string | null = null;
@@ -41,37 +41,38 @@ export async function POST(request: NextRequest) {
     userId = authUserId;
 
     if (!userId) {
-      console.log('[User Photo Upload] Unauthorized request');
+      console.log('[Avatar Upload] Unauthorized request');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
-      console.log(`[User Photo Upload] JSON request detected for user: ${userId}`);
+      console.log(`[Avatar Upload] JSON request detected for user: ${userId}`);
       const body = await request.json();
-      const { imageUrl } = body;
+      const { imageUrl, avatarName = 'Unnamed Avatar' } = body;
 
       if (!imageUrl) {
         return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
       }
 
-      const result = await uploadUserPhotoFromUrl(imageUrl, userId);
+      const result = await uploadAvatarFromUrl(imageUrl, userId, avatarName);
       return NextResponse.json({
         success: true,
-        photo: result.photoRecord,
+        avatar: result.avatarRecord,
         imageUrl: result.publicUrl,
         path: result.path,
-        message: 'Photo saved successfully'
+        message: 'Avatar saved successfully'
       });
     }
 
-    console.log(`[User Photo Upload] Starting upload for user: ${userId}`);
+    console.log(`[Avatar Upload] Starting upload for user: ${userId}`);
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
+    const avatarName = (formData.get('avatarName') as string) || 'Unnamed Avatar';
 
     if (!file) {
-      console.log(`[User Photo Upload] No file provided by user: ${userId}`);
+      console.log(`[Avatar Upload] No file provided by user: ${userId}`);
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
@@ -81,18 +82,18 @@ export async function POST(request: NextRequest) {
       type: file.type
     };
 
-    console.log(`[User Photo Upload] File info for user ${userId}:`, fileInfo);
+    console.log(`[Avatar Upload] File info for user ${userId}:`, fileInfo);
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      console.log(`[User Photo Upload] Invalid file type: ${file.type} for user: ${userId}`);
+      console.log(`[Avatar Upload] Invalid file type: ${file.type} for user: ${userId}`);
       return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
     }
 
     // Additional file size validation (8MB)
     const maxSize = 8 * 1024 * 1024;
     if (file.size > maxSize) {
-      console.log(`[User Photo Upload] File too large: ${file.size} bytes for user: ${userId}`);
+      console.log(`[Avatar Upload] File too large: ${file.size} bytes for user: ${userId}`);
       return NextResponse.json({
         error: `File too large. Maximum size is 8MB, received ${(file.size / 1024 / 1024).toFixed(1)}MB`
       }, { status: 400 });
@@ -100,28 +101,34 @@ export async function POST(request: NextRequest) {
 
     // Validate file name
     if (file.name.length > 255) {
-      console.log(`[User Photo Upload] File name too long for user: ${userId}`);
+      console.log(`[Avatar Upload] File name too long for user: ${userId}`);
       return NextResponse.json({ error: 'File name too long' }, { status: 400 });
     }
 
-    console.log(`[User Photo Upload] Starting storage upload for user: ${userId}`);
+    // Validate avatar name
+    if (avatarName.length > 255) {
+      console.log(`[Avatar Upload] Avatar name too long for user: ${userId}`);
+      return NextResponse.json({ error: 'Avatar name too long' }, { status: 400 });
+    }
 
-    // Upload photo to storage and save to database
-    const uploadResult = await uploadUserPhotoToStorage(file, userId);
+    console.log(`[Avatar Upload] Starting storage upload for user: ${userId}`);
+
+    // Upload avatar to storage and save to database
+    const uploadResult = await uploadAvatarToStorage(file, userId, avatarName);
 
     const duration = Date.now() - startTime;
-    console.log(`[User Photo Upload] Success for user ${userId} in ${duration}ms:`, {
+    console.log(`[Avatar Upload] Success for user ${userId} in ${duration}ms:`, {
       url: uploadResult.publicUrl,
       path: uploadResult.path,
-      photoId: uploadResult.photoRecord?.id
+      avatarId: uploadResult.avatarRecord?.id
     });
 
     return NextResponse.json({
       success: true,
-      photo: uploadResult.photoRecord,
+      avatar: uploadResult.avatarRecord,
       imageUrl: uploadResult.publicUrl,
       path: uploadResult.path,
-      message: 'Photo uploaded successfully'
+      message: 'Avatar uploaded successfully'
     });
 
   } catch (error) {
@@ -137,11 +144,11 @@ export async function POST(request: NextRequest) {
       } : error
     };
 
-    console.error('[User Photo Upload] Error:', errorDetails);
+    console.error('[Avatar Upload] Error:', errorDetails);
 
     // Return more specific error messages based on error type
     let statusCode = 500;
-    let errorMessage = 'Photo upload failed';
+    let errorMessage = 'Avatar upload failed';
 
     if (error instanceof Error) {
       // Check for specific Supabase storage errors
@@ -150,7 +157,7 @@ export async function POST(request: NextRequest) {
         errorMessage = 'Storage bucket not found';
       } else if (error.message.includes('duplicate key')) {
         statusCode = 409;
-        errorMessage = 'Photo with this name already exists';
+        errorMessage = 'Avatar with this name already exists';
       } else if (error.message.includes('File size too large')) {
         statusCode = 413;
         errorMessage = 'File size exceeds limit';
@@ -177,7 +184,56 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE: Delete a user photo
+// PUT: Update avatar name
+export async function PUT(request: NextRequest) {
+  try {
+    const { userId } = getAuth(request);
+
+    if (!userId) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const avatarId = searchParams.get('avatarId');
+
+    if (!avatarId) {
+      return NextResponse.json({ error: 'Avatar ID is required' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const { avatarName } = body;
+
+    if (!avatarName || typeof avatarName !== 'string') {
+      return NextResponse.json({ error: 'Avatar name is required' }, { status: 400 });
+    }
+
+    if (avatarName.length > 255) {
+      return NextResponse.json({ error: 'Avatar name too long (max 255 characters)' }, { status: 400 });
+    }
+
+    const updatedAvatar = await updateAvatarName(avatarId, userId, avatarName);
+
+    console.log('Avatar name updated successfully:', avatarId);
+
+    return NextResponse.json({
+      success: true,
+      avatar: updatedAvatar,
+      message: 'Avatar name updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Avatar update error:', error);
+    return NextResponse.json(
+      {
+        error: 'Avatar update failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: Delete a user avatar
 export async function DELETE(request: NextRequest) {
   try {
     const { userId } = getAuth(request);
@@ -187,26 +243,26 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const photoId = searchParams.get('photoId');
+    const avatarId = searchParams.get('avatarId');
 
-    if (!photoId) {
-      return NextResponse.json({ error: 'Photo ID is required' }, { status: 400 });
+    if (!avatarId) {
+      return NextResponse.json({ error: 'Avatar ID is required' }, { status: 400 });
     }
 
-    await deleteUserPhoto(photoId, userId);
+    await deleteAvatar(avatarId, userId);
 
-    console.log('User photo deleted successfully:', photoId);
+    console.log('User avatar deleted successfully:', avatarId);
 
     return NextResponse.json({
       success: true,
-      message: 'Photo deleted successfully'
+      message: 'Avatar deleted successfully'
     });
 
   } catch (error) {
-    console.error('User photo delete error:', error);
+    console.error('Avatar delete error:', error);
     return NextResponse.json(
       {
-        error: 'Photo deletion failed',
+        error: 'Avatar deletion failed',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }

@@ -19,6 +19,7 @@ type PatchPayload = {
   prompt?: Partial<SegmentPrompt>;
   regenerate?: 'photo' | 'video' | 'both' | 'none';
   productIds?: string[];
+  characterId?: string | null;
 };
 
 const PRODUCT_REFERENCE_LIMIT = 10;
@@ -58,8 +59,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           )
         ).slice(0, PRODUCT_REFERENCE_LIMIT)
       : [];
+    const requestedCharacterId = typeof payload.characterId === 'string' && payload.characterId.trim().length > 0
+      ? payload.characterId.trim()
+      : null;
 
-    console.log('[SEGMENT API] Payload parsed:', { regenerate, shouldRegeneratePhoto, shouldRegenerateVideo });
+    console.log('[SEGMENT API] Payload parsed:', { regenerate, shouldRegeneratePhoto, shouldRegenerateVideo, characterId: requestedCharacterId });
 
     const supabase = getSupabaseAdmin();
     console.log('[SEGMENT API] Querying project:', projectId);
@@ -167,6 +171,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         productImageUrls.push(url);
       }
     };
+    let characterPhotoUrl: string | null = null;
     let brandContext: { brand_name: string; brand_slogan: string; brand_details: string } | undefined;
     let competitorFileType: 'video' | 'image' | null = null;
 
@@ -238,6 +243,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
+      if (requestedCharacterId) {
+        const { data: character } = await supabase
+          .from('user_avatars')
+          .select('photo_url')
+          .eq('id', requestedCharacterId)
+          .eq('user_id', project.user_id)
+          .single();
+
+        characterPhotoUrl = character?.photo_url || null;
+      }
+
       if (project.competitor_ad_id) {
         const { data: competitor } = await supabase
           .from('competitor_ads')
@@ -289,7 +305,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         {
           imageModelOverride: 'nano_banana_pro',
           imageSizeOverride: frameImageSize,
-          resolutionOverride: '1K'
+          resolutionOverride: '1K',
+          characterPhotoUrl
         },
         continuationReferenceUrl
       );
@@ -313,7 +330,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           {
             imageModelOverride: 'nano_banana_pro',
             imageSizeOverride: frameImageSize,
-            resolutionOverride: '1K'
+            resolutionOverride: '1K',
+            characterPhotoUrl
           },
           null
         );

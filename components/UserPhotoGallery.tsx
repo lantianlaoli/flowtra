@@ -3,17 +3,17 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, Plus } from 'lucide-react';
 import Image from 'next/image';
-import { UserPhoto } from '@/lib/supabase';
+import { UserAvatar } from '@/lib/supabase';
 
 interface UserPhotoGalleryProps {
-  onPhotoSelect: (photoUrl: string, photoId?: string, isNewUpload?: boolean) => void;
+  onPhotoSelect: (photoUrl: string, avatarId?: string, isNewUpload?: boolean) => void;
   selectedPhotoUrl?: string;
 }
 
 interface DefaultPhoto {
   id: string;
   photo_url: string;
-  file_name: string;
+  avatar_name: string;
 }
 
 // Default photos that are always available
@@ -21,43 +21,44 @@ const DEFAULT_PHOTOS: DefaultPhoto[] = [
   {
     id: 'default-male',
     photo_url: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/user_default_male.png',
-    file_name: 'Default Male'
+    avatar_name: 'Default Male'
   },
   {
     id: 'default-female',
     photo_url: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/user_default_female.png',
-    file_name: 'Default Female'
+    avatar_name: 'Default Female'
   },
   {
     id: 'default-founder',
     photo_url: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/user_default_founder.png',
-    file_name: 'Default Founder'
+    avatar_name: 'Default Founder'
   }
 ];
 
 export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: UserPhotoGalleryProps) {
-  const [photos, setPhotos] = useState<UserPhoto[]>([]);
+  const [avatars, setAvatars] = useState<UserAvatar[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [avatarName, setAvatarName] = useState('');
 
-  // Load user photos on component mount
+  // Load user avatars on component mount
   useEffect(() => {
-    loadUserPhotos();
+    loadUserAvatars();
   }, []);
 
-  const loadUserPhotos = async () => {
+  const loadUserAvatars = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/user-photos');
+      const response = await fetch('/api/user-avatars');
       if (response.ok) {
         const data = await response.json();
-        setPhotos(data.photos || []);
+        setAvatars(data.avatars || []);
       } else {
-        console.error('Failed to load user photos');
+        console.error('Failed to load user avatars');
       }
     } catch (error) {
-      console.error('Error loading user photos:', error);
+      console.error('Error loading user avatars:', error);
     } finally {
       setIsLoading(false);
     }
@@ -87,6 +88,9 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
       return;
     }
 
+    // Prompt for avatar name
+    const name = avatarName.trim() || 'Unnamed Avatar';
+
     setIsUploading(true);
     setUploadError(null);
 
@@ -94,12 +98,13 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
       try {
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('avatarName', name);
 
         // Add timeout to the request
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-        const response = await fetch('/api/user-photos', {
+        const response = await fetch('/api/user-avatars', {
           method: 'POST',
           body: formData,
           signal: controller.signal
@@ -109,10 +114,11 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
 
         if (response.ok) {
           const data = await response.json();
-          // Refresh the photos list
-          await loadUserPhotos();
-          // Auto-select the newly uploaded photo
-          onPhotoSelect(data.imageUrl, data.photo?.id, true);
+          // Refresh the avatars list
+          await loadUserAvatars();
+          // Auto-select the newly uploaded avatar
+          onPhotoSelect(data.imageUrl, data.avatar?.id, true);
+          setAvatarName(''); // Reset name input
           return;
         } else {
           // Try to parse error response
@@ -164,29 +170,29 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
     }
   };
 
-  const handleDeletePhoto = async (photoId: string) => {
-    if (!confirm('Are you sure you want to delete this photo?')) {
+  const handleDeleteAvatar = async (avatarId: string) => {
+    if (!confirm('Are you sure you want to delete this avatar?')) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/user-photos?photoId=${photoId}`, {
+      const response = await fetch(`/api/user-avatars?avatarId=${avatarId}`, {
         method: 'DELETE'
       });
 
       if (response.ok) {
         // Remove from local state
-        setPhotos(photos.filter(photo => photo.id !== photoId));
-        // If this was the selected photo, clear selection
-        const deletedPhoto = photos.find(photo => photo.id === photoId);
-        if (deletedPhoto && selectedPhotoUrl === deletedPhoto.photo_url) {
+        setAvatars(avatars.filter(avatar => avatar.id !== avatarId));
+        // If this was the selected avatar, clear selection
+        const deletedAvatar = avatars.find(avatar => avatar.id === avatarId);
+        if (deletedAvatar && selectedPhotoUrl === deletedAvatar.photo_url) {
           onPhotoSelect('');
         }
       } else {
-        console.error('Failed to delete photo');
+        console.error('Failed to delete avatar');
       }
     } catch (error) {
-      console.error('Error deleting photo:', error);
+      console.error('Error deleting avatar:', error);
     }
   };
 
@@ -207,6 +213,22 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
         </div>
       )}
 
+      {/* Avatar Name Input (for upload) */}
+      <div>
+        <label htmlFor="avatar-name-quick" className="block text-sm font-medium text-gray-700 mb-1">
+          Avatar Name (optional)
+        </label>
+        <input
+          id="avatar-name-quick"
+          type="text"
+          value={avatarName}
+          onChange={(e) => setAvatarName(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors text-sm"
+          placeholder="e.g., Founder, Model, Demo Character"
+          maxLength={255}
+        />
+      </div>
+
       {/* Photo Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {/* Default Photos */}
@@ -225,7 +247,7 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
             >
               <Image
                 src={photo.photo_url}
-                alt={photo.file_name}
+                alt={photo.avatar_name}
                 fill
                 className="object-cover"
                 sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -234,23 +256,23 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
           </div>
         ))}
 
-        {/* Existing Photos */}
-        {photos.map((photo) => (
-          <div key={photo.id} className="relative group">
+        {/* Existing Avatars */}
+        {avatars.map((avatar) => (
+          <div key={avatar.id} className="relative group">
             <div
               className={`
                   relative w-full aspect-square rounded-lg overflow-hidden border-4 cursor-pointer
                   transition-all duration-200
-                  ${selectedPhotoUrl === photo.photo_url
+                  ${selectedPhotoUrl === avatar.photo_url
                     ? 'border-blue-500 shadow-lg ring-4 ring-blue-200'
                     : 'border-gray-200 hover:border-gray-300'
                   }
                 `}
-                                onClick={() => onPhotoSelect(photo.photo_url, photo.id, false)}
+                                onClick={() => onPhotoSelect(avatar.photo_url, avatar.id, false)}
               >
                 <Image
-                  src={photo.photo_url}
-                  alt={photo.file_name}
+                  src={avatar.photo_url}
+                  alt={avatar.avatar_name}
                   fill
                   className="object-cover"
                   sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -261,7 +283,7 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleDeletePhoto(photo.id);
+                  handleDeleteAvatar(avatar.id);
                 }}
                 className="
                   absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full

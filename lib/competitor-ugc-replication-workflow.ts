@@ -2622,6 +2622,7 @@ type FrameGenerationOverrides = {
   imageModelOverride?: 'nano_banana' | 'seedream' | 'nano_banana_pro';
   imageSizeOverride?: string;
   resolutionOverride?: '1K' | '2K' | '4K';
+  characterPhotoUrl?: string | null;
 };
 
 async function createFrameFromImage(
@@ -2771,7 +2772,14 @@ export async function createSmartSegmentFrame(
       console.log(`   - 🔗 Continuation mode: Using previous segment's first frame as reference`);
     }
 
-    // 2. Product images (manually selected by user via Product References)
+    // 2. Character photo (manually selected by user via Character Reference)
+    const characterPhoto = overrides?.characterPhotoUrl;
+    if (characterPhoto && typeof characterPhoto === 'string' && characterPhoto.length > 0) {
+      imageInput.push(characterPhoto);
+      console.log(`   - 👤 Character reference: Using character photo as reference`);
+    }
+
+    // 3. Product images (manually selected by user via Product References)
     const normalizedProductImages = Array.isArray(productImageUrls)
       ? productImageUrls.filter(url => typeof url === 'string' && url.length > 0)
       : [];
@@ -2826,9 +2834,13 @@ export async function createSmartSegmentFrame(
     ? [continuationReferenceUrl]
     : [];
 
+  const characterPhoto = overrides?.characterPhotoUrl;
+  const hasCharacterPhoto = Boolean(characterPhoto && typeof characterPhoto === 'string' && characterPhoto.length > 0);
+
   console.log(`🎬 Segment ${segmentIndex + 1} ${frameType} frame generation:`);
   console.log(`   - contains_brand: ${containsBrand}, brandLogoUrl: ${brandLogoUrl ? 'available' : 'missing'}`);
   console.log(`   - contains_product: ${containsProduct}, productImageRefs: ${normalizedProductImages.length}`);
+  console.log(`   - character reference: ${hasCharacterPhoto ? 'available' : 'none'}`);
   if (shouldUseContinuationReference) {
     console.log(`   - continuation_from_prev: using previous first frame as reference`);
   }
@@ -2836,6 +2848,7 @@ export async function createSmartSegmentFrame(
   const combinedReferenceImages = Array.from(
     new Set([
       ...continuationReferences,
+      ...(hasCharacterPhoto && characterPhoto ? [characterPhoto] : []),
       ...(containsBrand && brandLogoUrl ? [brandLogoUrl] : []),
       ...(containsProduct ? normalizedProductImages : [])
     ])

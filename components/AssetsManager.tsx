@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Loader2, Package, Tag, BarChart3, ExternalLink } from 'lucide-react';
-import { UserBrand, UserProduct } from '@/lib/supabase';
+import { Search, Loader2, Package, Tag, BarChart3, ExternalLink, UserCircle } from 'lucide-react';
+import { UserBrand, UserProduct, UserAvatar } from '@/lib/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import BrandSection from './BrandSection';
 import ProductCard from './ProductCard';
@@ -11,6 +11,9 @@ import EditBrandModal from './EditBrandModal';
 import EditProductModal from './EditProductModal';
 import CreateProductModal from './CreateProductModal';
 import SelectProductToBrandModal from './SelectProductToBrandModal';
+import CreateAvatarModal from './CreateAvatarModal';
+import EditAvatarModal from './EditAvatarModal';
+import AvatarCard from './AvatarCard';
 
 interface AssetsData {
   brands: (UserBrand & { products?: UserProduct[] })[];
@@ -32,18 +35,25 @@ export default function AssetsManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  const [deletingAvatarId, setDeletingAvatarId] = useState<string | null>(null);
+
+  // Avatar state
+  const [avatars, setAvatars] = useState<UserAvatar[]>([]);
 
   // Modal states
   const [showCreateBrandModal, setShowCreateBrandModal] = useState(false);
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
   const [showSelectProductModal, setShowSelectProductModal] = useState(false);
+  const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<UserBrand | null>(null);
   const [editingProduct, setEditingProduct] = useState<UserProduct | null>(null);
+  const [editingAvatar, setEditingAvatar] = useState<UserAvatar | null>(null);
   const [selectedBrandIdForProduct, setSelectedBrandIdForProduct] = useState<string | null>(null);
   const [selectedBrandForProductSelection, setSelectedBrandForProductSelection] = useState<UserBrand | null>(null);
 
   useEffect(() => {
     loadAssets();
+    loadAvatars();
   }, []);
 
   const loadAssets = async () => {
@@ -57,6 +67,18 @@ export default function AssetsManager() {
       console.error('Error loading assets:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadAvatars = async () => {
+    try {
+      const response = await fetch('/api/user-avatars');
+      if (response.ok) {
+        const data = await response.json();
+        setAvatars(data.avatars || []);
+      }
+    } catch (error) {
+      console.error('Error loading avatars:', error);
     }
   };
 
@@ -245,6 +267,50 @@ export default function AssetsManager() {
     }
   };
 
+  // Avatar handlers
+  const handleAvatarCreated = (newAvatar: UserAvatar) => {
+    setAvatars(prev => [newAvatar, ...prev]);
+    showSuccess('Avatar created successfully');
+  };
+
+  const handleAvatarUpdated = (updatedAvatar: UserAvatar) => {
+    setAvatars(prev => prev.map(a => a.id === updatedAvatar.id ? updatedAvatar : a));
+    showSuccess('Avatar updated successfully');
+  };
+
+  const handleEditAvatar = (avatar: UserAvatar) => {
+    setEditingAvatar(avatar);
+  };
+
+  const handleDeleteAvatar = async (avatarId: string) => {
+    if (deletingAvatarId) {
+      return; // Prevent multiple simultaneous deletes
+    }
+
+    try {
+      setDeletingAvatarId(avatarId);
+
+      const response = await fetch(`/api/user-avatars?avatarId=${avatarId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        setAvatars(prev => prev.filter(a => a.id !== avatarId));
+        showSuccess('Avatar deleted successfully');
+      } else {
+        const data = await response.json();
+        const errorMessage = data.message || data.error || 'Failed to delete avatar';
+        console.error('Error deleting avatar:', data);
+        showError(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error deleting avatar:', error);
+      showError('An error occurred while deleting the avatar. Please try again.');
+    } finally {
+      setDeletingAvatarId(null);
+    }
+  };
+
   // Search filtering
   const filteredBrands = assetsData.brands.filter(brand => {
     const brandMatch = brand.brand_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -261,6 +327,10 @@ export default function AssetsManager() {
   const filteredUnbrandedProducts = assetsData.unbrandedProducts.filter(product =>
     product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (product.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+  );
+
+  const filteredAvatars = avatars.filter(avatar =>
+    avatar.avatar_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (isLoading) {
@@ -405,6 +475,47 @@ export default function AssetsManager() {
               </div>
             )}
 
+            {/* Avatars Section */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <UserCircle className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900">
+                    Avatars ({filteredAvatars.length})
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowCreateAvatarModal(true)}
+                  className="flex items-center gap-1.5 md:gap-2 bg-gray-900 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm"
+                >
+                  <UserCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Add Avatar</span>
+                  <span className="sm:hidden">Add</span>
+                </button>
+              </div>
+              {filteredAvatars.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                  {filteredAvatars.map((avatar) => (
+                    <AvatarCard
+                      key={avatar.id}
+                      avatar={avatar}
+                      onEdit={handleEditAvatar}
+                      onDelete={handleDeleteAvatar}
+                      isDeleting={deletingAvatarId === avatar.id}
+                      mode="full"
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <UserCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm text-gray-600">
+                    {searchTerm ? 'No avatars match your search' : 'No avatars yet. Add your first avatar to use in video generation.'}
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Empty State */}
             {assetsData.brands.length === 0 && assetsData.unbrandedProducts.length === 0 && !searchTerm && (
               <div className="bg-white rounded-xl border border-gray-200 p-8 md:p-12 text-center">
@@ -464,6 +575,19 @@ export default function AssetsManager() {
         brandName={selectedBrandForProductSelection?.brand_name || ''}
         availableProducts={assetsData.unbrandedProducts}
         onProductsSelected={handleProductsSelectedForBrand}
+      />
+
+      <CreateAvatarModal
+        isOpen={showCreateAvatarModal}
+        onClose={() => setShowCreateAvatarModal(false)}
+        onAvatarCreated={handleAvatarCreated}
+      />
+
+      <EditAvatarModal
+        isOpen={!!editingAvatar}
+        avatar={editingAvatar}
+        onClose={() => setEditingAvatar(null)}
+        onAvatarUpdated={handleAvatarUpdated}
       />
     </div>
   );

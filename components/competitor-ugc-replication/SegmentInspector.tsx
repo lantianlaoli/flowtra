@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import NextImage from 'next/image';
 import clsx from 'clsx';
-import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2 } from 'lucide-react';
+import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2, UserCircle } from 'lucide-react';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
+import type { UserAvatar } from '@/lib/supabase';
 
 export type SegmentShotPayload = {
   id: number;
@@ -113,6 +114,7 @@ type SegmentInspectorProps = {
     type: 'photo' | 'video';
     prompt: SegmentPromptPayload;
     productIds?: string[];
+    characterId?: string | null;
   }) => Promise<void> | void;
   isSubmitting?: { photo: boolean; video: boolean };
 };
@@ -164,6 +166,10 @@ export default function SegmentInspector({
   const [productError, setProductError] = useState<string | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const productCacheRef = useRef<Record<string, { items: BrandProduct[]; error?: string }>>({});
+  const [characterOptions, setCharacterOptions] = useState<UserAvatar[]>([]);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
+  const [characterLoading, setCharacterLoading] = useState(false);
+  const [characterError, setCharacterError] = useState<string | null>(null);
   const firstFrameUrl = segment?.firstFrameUrl || null;
   const videoUrl = segment?.videoUrl || null;
   const lastFirstFrameUrlRef = useRef<string | null>(firstFrameUrl);
@@ -287,6 +293,46 @@ export default function SegmentInspector({
     };
   }, [open, brandId]);
 
+  // Fetch characters (avatars) when modal opens
+  useEffect(() => {
+    if (!open) {
+      setSelectedCharacterId(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchCharacters = async () => {
+      setCharacterLoading(true);
+      setCharacterError(null);
+
+      try {
+        const response = await fetch('/api/user-avatars');
+        if (!response.ok) {
+          throw new Error('Failed to load characters');
+        }
+        const data = await response.json();
+        if (cancelled) return;
+
+        const characters: UserAvatar[] = Array.isArray(data?.avatars) ? data.avatars : [];
+        setCharacterOptions(characters);
+        setCharacterLoading(false);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Failed to fetch characters:', error);
+        setCharacterError('Unable to load characters. Please refresh and try again.');
+        setCharacterOptions([]);
+        setCharacterLoading(false);
+      }
+    };
+
+    fetchCharacters();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
   const handleAddShot = () => {
     setShots(prev => {
       if (prev.length >= 4) return prev;
@@ -369,6 +415,10 @@ export default function SegmentInspector({
     });
   };
 
+  const handleCharacterToggle = (character: UserAvatar) => {
+    setSelectedCharacterId(prev => (prev === character.id ? null : character.id));
+  };
+
   useEffect(() => {
     if (firstFrameUrl && firstFrameUrl !== lastFirstFrameUrlRef.current) {
       lastFirstFrameUrlRef.current = firstFrameUrl;
@@ -411,12 +461,18 @@ export default function SegmentInspector({
       is_continuation_from_prev: isContinuation
     };
     const referenceProductIds = type === 'photo' && selectedProductIds.length ? selectedProductIds : undefined;
+    const referenceCharacterId = type === 'photo' && selectedCharacterId ? selectedCharacterId : undefined;
     if (type === 'photo') {
       setPhotoPreviewPending(true);
     } else {
       setVideoPreviewPending(true);
     }
-    const maybePromise = onRegenerate({ type, prompt: payload, productIds: referenceProductIds });
+    const maybePromise = onRegenerate({
+      type,
+      prompt: payload,
+      productIds: referenceProductIds,
+      characterId: referenceCharacterId
+    });
     if (
       type === 'photo' &&
       maybePromise &&
@@ -659,6 +715,76 @@ export default function SegmentInspector({
                 {productSelectionLimitReached && (
                   <p className="text-[11px] text-gray-500">
                     You’ve reached the {MAX_REFERENCE_PRODUCTS}-product limit. Deselect one to add another.
+                  </p>
+                )}
+              </div>
+
+              <div className="pt-3 border-t border-dashed border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Character reference</p>
+                    <p className="text-xs text-gray-500">
+                      Optional · Select a character to guide the generation.
+                    </p>
+                  </div>
+                  {selectedCharacterId && (
+                    <span className="text-xs text-gray-500">1 selected</span>
+                  )}
+                </div>
+
+                {characterLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading characters…
+                  </div>
+                ) : characterError ? (
+                  <p className="text-xs text-red-600">{characterError}</p>
+                ) : characterOptions.length === 0 ? (
+                  <p className="text-xs text-gray-500">
+                    No avatars found. Add avatars in Assets to use this feature.
+                  </p>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {characterOptions.map(character => {
+                      const isSelected = selectedCharacterId === character.id;
+
+                      return (
+                        <button
+                          key={character.id}
+                          type="button"
+                          onClick={() => handleCharacterToggle(character)}
+                          className={clsx(
+                            'relative flex items-center gap-3 rounded-2xl border px-3 py-2 text-left transition',
+                            isSelected ? 'border-gray-900 shadow-sm' : 'border-gray-200 hover:border-gray-300',
+                            'cursor-pointer bg-white'
+                          )}
+                        >
+                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 relative">
+                            <NextImage
+                              src={character.photo_url}
+                              alt={character.avatar_name}
+                              className="object-cover"
+                              fill
+                              sizes="48px"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {character.avatar_name}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <Check className="w-4 h-4 text-gray-900 flex-shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedCharacterId && (
+                  <p className="text-[11px] text-gray-500">
+                    First-frame regeneration will use this character as visual reference.
                   </p>
                 )}
               </div>

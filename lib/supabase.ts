@@ -128,10 +128,11 @@ export interface CompetitorUgcReplicationSegment {
   updated_at: string
 }
 
-// Database types for user_photos table
-export interface UserPhoto {
+// Database types for user_avatars table
+export interface UserAvatar {
   id: string
   user_id: string
+  avatar_name: string
   photo_url: string
   file_name: string
   is_active: boolean
@@ -231,10 +232,10 @@ export type Database = {
         Insert: Omit<CompetitorUgcReplicationSegment, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<CompetitorUgcReplicationSegment, 'id' | 'created_at' | 'updated_at'>>
       }
-      user_photos: {
-        Row: UserPhoto
-        Insert: Omit<UserPhoto, 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Omit<UserPhoto, 'id' | 'created_at' | 'updated_at'>>
+      user_avatars: {
+        Row: UserAvatar
+        Insert: Omit<UserAvatar, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<UserAvatar, 'id' | 'created_at' | 'updated_at'>>
       }
       sora2_watermark_removal_tasks: {
         Row: Sora2WatermarkRemovalTask
@@ -358,17 +359,17 @@ export function extractExcerpt(content: string, maxLength: number = 160): string
   return plainText.substring(0, maxLength).replace(/\s+\S*$/, '') + '...'
 }
 
-// User photo management functions
-export const uploadUserPhotoToStorage = async (file: File, userId: string) => {
-  console.log(`[uploadUserPhotoToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes)`);
+// User avatar management functions
+export const uploadAvatarToStorage = async (file: File, userId: string, avatarName: string) => {
+  console.log(`[uploadAvatarToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes), name: ${avatarName}`);
 
   const fileName = `${userId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-  const filePath = `user-photos/${fileName}`
+  const filePath = `avatars/${fileName}`
 
   const supabase = getSupabase()
 
   // Upload to storage
-  console.log(`[uploadUserPhotoToStorage] Uploading to storage path: ${filePath}`);
+  console.log(`[uploadAvatarToStorage] Uploading to storage path: ${filePath}`);
   const { data, error } = await supabase.storage
     .from('images')
     .upload(filePath, file, {
@@ -377,7 +378,7 @@ export const uploadUserPhotoToStorage = async (file: File, userId: string) => {
     })
 
   if (error) {
-    console.error(`[uploadUserPhotoToStorage] Storage upload error for user ${userId}:`, {
+    console.error(`[uploadAvatarToStorage] Storage upload error for user ${userId}:`, {
       error: error.message,
       filePath,
       fileSize: file.size,
@@ -386,20 +387,21 @@ export const uploadUserPhotoToStorage = async (file: File, userId: string) => {
     throw new Error(`Storage upload failed: ${error.message}`);
   }
 
-  console.log(`[uploadUserPhotoToStorage] Storage upload successful for user ${userId}, path: ${data.path}`);
+  console.log(`[uploadAvatarToStorage] Storage upload successful for user ${userId}, path: ${data.path}`);
 
   const { data: { publicUrl } } = supabase.storage
     .from('images')
     .getPublicUrl(filePath)
 
-  console.log(`[uploadUserPhotoToStorage] Generated public URL for user ${userId}: ${publicUrl}`);
+  console.log(`[uploadAvatarToStorage] Generated public URL for user ${userId}: ${publicUrl}`);
 
-  // Save to database
-  console.log(`[uploadUserPhotoToStorage] Saving to database for user ${userId}`);
-  const { data: photoRecord, error: dbError } = await supabase
-    .from('user_photos')
+  // Save to database with avatar_name
+  console.log(`[uploadAvatarToStorage] Saving to database for user ${userId}`);
+  const { data: avatarRecord, error: dbError } = await supabase
+    .from('user_avatars')
     .insert({
       user_id: userId,
+      avatar_name: avatarName,
       photo_url: publicUrl,
       file_name: fileName,
       is_active: true
@@ -408,38 +410,38 @@ export const uploadUserPhotoToStorage = async (file: File, userId: string) => {
     .single()
 
   if (dbError) {
-    console.error(`[uploadUserPhotoToStorage] Database insert error for user ${userId}:`, {
+    console.error(`[uploadAvatarToStorage] Database insert error for user ${userId}:`, {
       error: dbError.message,
       code: dbError.code,
       filePath
     });
 
     // If database insert fails, cleanup the uploaded file
-    console.log(`[uploadUserPhotoToStorage] Cleaning up uploaded file due to database error: ${filePath}`);
+    console.log(`[uploadAvatarToStorage] Cleaning up uploaded file due to database error: ${filePath}`);
     try {
       await supabase.storage.from('images').remove([filePath])
-      console.log(`[uploadUserPhotoToStorage] Cleanup successful for file: ${filePath}`);
+      console.log(`[uploadAvatarToStorage] Cleanup successful for file: ${filePath}`);
     } catch (cleanupError) {
-      console.error(`[uploadUserPhotoToStorage] Cleanup failed for file ${filePath}:`, cleanupError);
+      console.error(`[uploadAvatarToStorage] Cleanup failed for file ${filePath}:`, cleanupError);
     }
 
     throw new Error(`Database insert failed: ${dbError.message}`);
   }
 
-  console.log(`[uploadUserPhotoToStorage] Complete success for user ${userId}, record ID: ${photoRecord?.id}`);
+  console.log(`[uploadAvatarToStorage] Complete success for user ${userId}, record ID: ${avatarRecord?.id}`);
 
   return {
     path: data.path,
     publicUrl,
     fullUrl: publicUrl,
-    photoRecord
+    avatarRecord
   }
 }
 
-export const getUserPhotos = async (userId: string): Promise<UserPhoto[]> => {
+export const getUserAvatars = async (userId: string): Promise<UserAvatar[]> => {
   const supabase = getSupabase()
   const { data, error } = await supabase
-    .from('user_photos')
+    .from('user_avatars')
     .select('*')
     .eq('user_id', userId)
     .eq('is_active', true)
@@ -452,26 +454,26 @@ export const getUserPhotos = async (userId: string): Promise<UserPhoto[]> => {
   return data || []
 }
 
-export const deleteUserPhoto = async (photoId: string, userId: string): Promise<void> => {
+export const deleteAvatar = async (avatarId: string, userId: string): Promise<void> => {
   const supabase = getSupabase()
 
-  // First get the photo record to find the file path
-  const { data: photo, error: fetchError } = await supabase
-    .from('user_photos')
+  // First get the avatar record to find the file path
+  const { data: avatar, error: fetchError } = await supabase
+    .from('user_avatars')
     .select('*')
-    .eq('id', photoId)
+    .eq('id', avatarId)
     .eq('user_id', userId)
     .single()
 
-  if (fetchError || !photo) {
-    throw new Error('Photo not found or unauthorized')
+  if (fetchError || !avatar) {
+    throw new Error('Avatar not found or unauthorized')
   }
 
   // Mark as inactive in database (soft delete)
   const { error: updateError } = await supabase
-    .from('user_photos')
+    .from('user_avatars')
     .update({ is_active: false })
-    .eq('id', photoId)
+    .eq('id', avatarId)
     .eq('user_id', userId)
 
   if (updateError) {
@@ -479,31 +481,31 @@ export const deleteUserPhoto = async (photoId: string, userId: string): Promise<
   }
 
   // Delete from storage (hard delete)
-  const filePath = `user-photos/${photo.file_name}`
+  const filePath = `avatars/${avatar.file_name}`
   const { error: storageError } = await supabase.storage.from('images').remove([filePath])
 
   // Optionally delete from storage (uncomment if you want hard delete)
-  // const filePath = `user-photos/${photo.file_name}`
+  // const filePath = `avatars/${avatar.file_name}`
   // await supabase.storage.from('images').remove([filePath])
 }
 
-export const uploadUserPhotoFromUrl = async (imageUrl: string, userId: string) => {
-  console.log(`[uploadUserPhotoFromUrl] Starting upload for user: ${userId}, url: ${imageUrl}`);
+export const uploadAvatarFromUrl = async (imageUrl: string, userId: string, avatarName: string = 'Optimized Avatar') => {
+  console.log(`[uploadAvatarFromUrl] Starting upload for user: ${userId}, url: ${imageUrl}`);
 
   try {
     const response = await fetch(imageUrl);
     if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
-    
+
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const contentType = response.headers.get('content-type') || 'image/png';
     // Handle content-type like "image/jpeg; charset=utf-8"
     const mimeType = contentType.split(';')[0].trim();
     const ext = mimeType.split('/')[1] || 'png';
-    
+
     const fileName = `${userId}_${Date.now()}_optimized.${ext}`;
-    const filePath = `user-photos/${fileName}`;
-    
+    const filePath = `avatars/${fileName}`;
+
     const supabase = getSupabaseAdmin();
 
     const { data, error } = await supabase.storage
@@ -520,10 +522,11 @@ export const uploadUserPhotoFromUrl = async (imageUrl: string, userId: string) =
       .from('images')
       .getPublicUrl(filePath);
 
-    const { data: photoRecord, error: dbError } = await supabase
-      .from('user_photos')
+    const { data: avatarRecord, error: dbError } = await supabase
+      .from('user_avatars')
       .insert({
         user_id: userId,
+        avatar_name: avatarName,
         photo_url: publicUrl,
         file_name: fileName,
         is_active: true
@@ -540,13 +543,42 @@ export const uploadUserPhotoFromUrl = async (imageUrl: string, userId: string) =
       path: data.path,
       publicUrl,
       fullUrl: publicUrl,
-      photoRecord
+      avatarRecord
     };
 
   } catch (error) {
-    console.error('[uploadUserPhotoFromUrl] Error:', error);
+    console.error('[uploadAvatarFromUrl] Error:', error);
     throw error;
   }
+}
+
+export const updateAvatarName = async (
+  avatarId: string,
+  userId: string,
+  newName: string
+): Promise<UserAvatar> => {
+  const supabase = getSupabase()
+
+  // Update avatar_name in database, verify user_id matches for security
+  const { data, error } = await supabase
+    .from('user_avatars')
+    .update({ avatar_name: newName })
+    .eq('id', avatarId)
+    .eq('user_id', userId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error(`[updateAvatarName] Error updating avatar ${avatarId}:`, error);
+    throw new Error(`Failed to update avatar name: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error('Avatar not found or unauthorized');
+  }
+
+  console.log(`[updateAvatarName] Successfully updated avatar ${avatarId} to name: ${newName}`);
+  return data;
 }
 
 // Upload product photo to storage in the correct product folder
