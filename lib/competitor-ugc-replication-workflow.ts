@@ -2538,7 +2538,8 @@ export function buildSegmentStatusPayload(
       firstFrameUrl: seg.first_frame_url,
       closingFrameUrl: seg.closing_frame_url,
       videoUrl: seg.video_url,
-      errorMessage: (seg as { error_message?: string | null }).error_message || null
+      errorMessage: (seg as { error_message?: string | null }).error_message || null,
+      retryCount: (seg as { retry_count?: number | null }).retry_count || null
     })),
     mergedVideoUrl
   };

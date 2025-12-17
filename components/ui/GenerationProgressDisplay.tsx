@@ -65,6 +65,7 @@ export interface SegmentCardSummary {
   prompt?: Record<string, unknown> | null;
   updatedAt?: string | null;
   errorMessage?: string | null;
+  retryCount?: number | null;
 }
 
 interface EmptyStateStep {
@@ -739,6 +740,11 @@ function SegmentSummaryCard({
         </div>
         <p className="text-xs text-gray-600 leading-relaxed">{summary}</p>
       </div>
+      {segment.status === 'retrying_first_frame' && segment.retryCount && (
+        <div className="mt-2 text-[11px] text-yellow-600">
+          Retrying first frame generation (Attempt {segment.retryCount}/5)
+        </div>
+      )}
       {segment.status === 'failed' && (
         <div className="mt-2 text-[11px] text-red-600">
           {segment.errorMessage || 'Segment failed. Adjust the prompt and regenerate.'}
@@ -766,6 +772,8 @@ function getSegmentStatusBadge(status: string) {
       return { label: 'Photo ready', className: 'text-amber-600 bg-amber-50' };
     case 'generating_first_frame':
       return { label: 'Photo generating', className: 'text-amber-600 bg-amber-50' };
+    case 'retrying_first_frame':
+      return { label: 'Retrying...', className: 'text-yellow-700 bg-yellow-50' };
     case 'generating_video':
       return { label: 'Video rendering', className: 'text-sky-700 bg-sky-50' };
     case 'video_ready':

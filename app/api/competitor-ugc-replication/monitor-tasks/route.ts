@@ -23,6 +23,32 @@ import {
 import { formatTimecode, parseCompetitorTimeline, type CompetitorShot } from '@/lib/competitor-shots';
 import { checkFalTaskStatus } from '@/lib/video-merge';
 
+// Retry configuration for first frame generation
+const MAX_FIRST_FRAME_RETRIES = 5;
+const RETRYABLE_ERROR_CODES = ['429', '500', '502', '503', '504'];
+
+/**
+ * Determines if a KIE API error is retryable
+ * @param failCode - Error code from KIE API
+ * @param failMsg - Error message from KIE API
+ * @returns true if error should trigger automatic retry
+ */
+function isRetryableError(failCode?: string, failMsg?: string): boolean {
+  if (!failCode) return false;
+
+  // Check if error code is in the retryable list
+  if (RETRYABLE_ERROR_CODES.includes(failCode)) return true;
+
+  // Check error message for timeout or network issues
+  if (failMsg) {
+    const msg = failMsg.toLowerCase();
+    if (msg.includes('timeout')) return true;
+    if (msg.includes('network')) return true;
+  }
+
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
     let targetProjectId: string | null = null;
@@ -1106,6 +1132,75 @@ async function syncSegmentFrameTasks(
       continue; // Skip to next segment
     }
 
+    // Handle segments in retrying_first_frame status - trigger regeneration
+    if (segment.status === 'retrying_first_frame' && !segment.first_frame_task_id) {
+      if (needsContinuation && !previousFirstFrameUrl) {
+        await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            status: 'awaiting_prev_first_frame',
+            updated_at: now
+          })
+          .eq('id', segment.id);
+        segment.status = 'awaiting_prev_first_frame';
+        console.log(`⏸ Retrying segment ${segment.segment_index} now waiting for previous frame before retry`);
+        continue;
+      }
+
+      console.log(`🔄 Retrying first frame generation for segment ${segment.segment_index} (attempt ${segment.retry_count || 0})`);
+
+      try {
+        // Use createSmartSegmentFrame to regenerate the first frame
+        const firstFrameTaskId = await createSmartSegmentFrame(
+          promptData,
+          segment.segment_index,
+          'first',
+          aspectRatio,
+          null, // brandLogoUrl - will fallback to Text-to-Image
+          null, // productImageUrl - will fallback to Text-to-Image
+          undefined, // brandContext
+          competitorFileType, // Pass competitor file type for model optimization
+          undefined,
+          needsContinuation ? previousFirstFrameUrl : null
+        );
+
+        await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            first_frame_task_id: firstFrameTaskId,
+            status: 'generating_first_frame',
+            updated_at: now
+          })
+          .eq('id', segment.id);
+
+        segment.first_frame_task_id = firstFrameTaskId;
+        segment.status = 'generating_first_frame';
+        updated = true;
+
+        console.log(`✅ Retry started for segment ${segment.segment_index}, taskId: ${firstFrameTaskId}`);
+      } catch (error) {
+        console.error(`❌ Failed to retry segment ${segment.segment_index}:`, error);
+
+        // Mark segment as failed if retry creation fails
+        const errorMsg = `Failed to start retry: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            status: 'failed',
+            error_message: errorMsg,
+            updated_at: now
+          })
+          .eq('id', segment.id);
+
+        segment.status = 'failed';
+        updated = true;
+
+        throw error;
+      }
+
+      continue; // Skip to next segment
+    }
+
     if (segment.first_frame_task_id && !segment.first_frame_url) {
       const frameStatus = await checkCoverStatus(segment.first_frame_task_id);
 
@@ -1175,7 +1270,51 @@ async function syncSegmentFrameTasks(
           }
         }
       } else if (frameStatus.status === 'FAILED') {
-        throw new Error(`Segment ${segment.segment_index} first frame failed`);
+        const retryCount = segment.retry_count || 0;
+        const isRetryable = isRetryableError(frameStatus.failCode, frameStatus.failMsg);
+
+        if (isRetryable && retryCount < MAX_FIRST_FRAME_RETRIES) {
+          // Retry: Reset task and increment counter (no delay, immediate retry on next poll)
+          console.log(`⚠️ Segment ${segment.segment_index} first frame failed (${frameStatus.failCode}). Retrying... (${retryCount + 1}/${MAX_FIRST_FRAME_RETRIES})`);
+
+          await supabase
+            .from('competitor_ugc_replication_segments')
+            .update({
+              first_frame_task_id: null,  // Trigger re-generation
+              status: 'retrying_first_frame',
+              retry_count: retryCount + 1,
+              error_message: `Retrying after error: ${frameStatus.failMsg || frameStatus.failCode} (Attempt ${retryCount + 1}/${MAX_FIRST_FRAME_RETRIES})`,
+              updated_at: now
+            })
+            .eq('id', segment.id);
+
+          segment.first_frame_task_id = null;
+          segment.status = 'retrying_first_frame';
+          segment.retry_count = retryCount + 1;
+          updated = true;
+        } else {
+          // Max retries exceeded or non-retryable error
+          const errorMsg = retryCount >= MAX_FIRST_FRAME_RETRIES
+            ? `First frame generation failed after ${MAX_FIRST_FRAME_RETRIES} retries. Last error: ${frameStatus.failMsg || frameStatus.failCode}`
+            : `First frame generation failed: ${frameStatus.failMsg || frameStatus.failCode}`;
+
+          console.error(`❌ Segment ${segment.segment_index}: ${errorMsg}`);
+
+          await supabase
+            .from('competitor_ugc_replication_segments')
+            .update({
+              status: 'failed',
+              error_message: errorMsg,
+              updated_at: now
+            })
+            .eq('id', segment.id);
+
+          segment.status = 'failed';
+          segment.error_message = errorMsg;
+          updated = true;
+
+          throw new Error(`Segment ${segment.segment_index}: ${errorMsg}`);
+        }
       }
     }
   }
@@ -1640,9 +1779,13 @@ Voice: Use a ${voiceDescriptor} with a ${voiceToneDescriptor} tone to maintain c
   return data.data.taskId;
 }
 
-async function checkCoverStatus(taskId: string): Promise<{status: string, imageUrl?: string}> {
+async function checkCoverStatus(taskId: string): Promise<
+  | { status: 'SUCCESS'; imageUrl: string }
+  | { status: 'FAILED'; failCode?: string; failMsg?: string }
+  | { status: 'GENERATING' }
+> {
   console.log(`Checking cover status for taskId: ${taskId}`);
-  
+
   const response = await fetchWithRetry(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
     method: 'GET',
     headers: {
@@ -1670,8 +1813,11 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
   // Normalize state flags and extract URL robustly
   const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
   const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+  const failCode: string | undefined = typeof taskData.failCode === 'string' ? taskData.failCode : undefined;
+  const failMsg: string | undefined = typeof taskData.failMsg === 'string' ? taskData.failMsg : undefined;
 
   console.log(`Task ${taskId} state: ${state}, successFlag: ${successFlag}`);
+  console.log(`Task ${taskId} failCode: ${failCode}, failMsg: ${failMsg}`);
   console.log(`Task ${taskId} resultJson:`, taskData.resultJson);
   console.log(`Task ${taskId} response:`, taskData.response);
   console.log(`Task ${taskId} resultUrls:`, taskData.resultUrls);
@@ -1705,10 +1851,10 @@ async function checkCoverStatus(taskId: string): Promise<{status: string, imageU
   console.log(`Task ${taskId} isSuccess: ${isSuccess}, isFailed: ${isFailed}`);
 
   if (isSuccess) {
-    return { status: 'SUCCESS', imageUrl };
+    return { status: 'SUCCESS', imageUrl: imageUrl! };
   }
   if (isFailed) {
-    return { status: 'FAILED' };
+    return { status: 'FAILED', failCode, failMsg };
   }
   return { status: 'GENERATING' };
 }

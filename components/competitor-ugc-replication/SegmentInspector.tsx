@@ -935,6 +935,8 @@ function formatSegmentStatus(status: string) {
       return 'Waiting for previous frame';
     case 'generating_first_frame':
       return 'Generating first frame';
+    case 'retrying_first_frame':
+      return 'Retrying first frame';
     case 'first_frame_ready':
       return 'First frame ready';
     case 'generating_video':
