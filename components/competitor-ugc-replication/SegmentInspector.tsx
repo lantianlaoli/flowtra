@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import NextImage from 'next/image';
 import clsx from 'clsx';
-import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2, UserCircle } from 'lucide-react';
+import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2, UserCircle, Clock, User, Clapperboard, Palette, Music, MessageSquare, Globe, Camera, Move, MapPin, Sun } from 'lucide-react';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
@@ -49,6 +49,7 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
 
 const DEFAULT_LANGUAGE: LanguageCode = 'en';
 const MAX_REFERENCE_PRODUCTS = 10;
+const MAX_TOTAL_REFERENCES = 10;
 const PRODUCT_FETCH_MAX_ATTEMPTS = 3;
 
 const normalizeShotLanguage = (value?: string): LanguageCode => {
@@ -114,7 +115,7 @@ type SegmentInspectorProps = {
     type: 'photo' | 'video';
     prompt: SegmentPromptPayload;
     productIds?: string[];
-    characterId?: string | null;
+    characterIds?: string[];
   }) => Promise<void> | void;
   isSubmitting?: { photo: boolean; video: boolean };
 };
@@ -158,7 +159,20 @@ export default function SegmentInspector({
   const [photoPrompt, setPhotoPrompt] = useState(initialPhotoPrompt);
   const [shots, setShots] = useState<SegmentShotPayload[]>(initialShots);
   const [shotExpansion, setShotExpansion] = useState<Record<number, boolean>>({});
+  const [openLanguageDropdownId, setOpenLanguageDropdownId] = useState<number | null>(null); // New state for custom dropdown
   const [isContinuation, setIsContinuation] = useState(Boolean(normalizedPrompt.is_continuation_from_prev));
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openLanguageDropdownId === null) return;
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-language-dropdown]')) {
+        setOpenLanguageDropdownId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openLanguageDropdownId]);
   const [photoPreviewPending, setPhotoPreviewPending] = useState(false);
   const [videoPreviewPending, setVideoPreviewPending] = useState(false);
   const [productOptions, setProductOptions] = useState<BrandProduct[]>([]);
@@ -167,7 +181,7 @@ export default function SegmentInspector({
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const productCacheRef = useRef<Record<string, { items: BrandProduct[]; error?: string }>>({});
   const [characterOptions, setCharacterOptions] = useState<UserAvatar[]>([]);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const [characterLoading, setCharacterLoading] = useState(false);
   const [characterError, setCharacterError] = useState<string | null>(null);
   const firstFrameUrl = segment?.firstFrameUrl || null;
@@ -195,9 +209,9 @@ export default function SegmentInspector({
   useEffect(() => {
     setShotExpansion(prev => {
       const next: Record<number, boolean> = {};
-      shots.forEach((shot, index) => {
+      shots.forEach(shot => {
         const existing = Object.prototype.hasOwnProperty.call(prev, shot.id) ? prev[shot.id] : undefined;
-        next[shot.id] = typeof existing === 'boolean' ? existing : index === 0;
+        next[shot.id] = typeof existing === 'boolean' ? existing : false;
       });
       return next;
     });
@@ -296,7 +310,7 @@ export default function SegmentInspector({
   // Fetch characters (avatars) when modal opens
   useEffect(() => {
     if (!open) {
-      setSelectedCharacterId(null);
+      setSelectedCharacterIds([]);
       return;
     }
 
@@ -408,7 +422,9 @@ export default function SegmentInspector({
       if (prev.includes(product.id)) {
         return prev.filter(id => id !== product.id);
       }
-      if (prev.length >= MAX_REFERENCE_PRODUCTS) {
+      // Check combined limit with characters
+      const totalReferences = prev.length + selectedCharacterIds.length;
+      if (totalReferences >= MAX_TOTAL_REFERENCES) {
         return prev;
       }
       return [...prev, product.id];
@@ -416,7 +432,16 @@ export default function SegmentInspector({
   };
 
   const handleCharacterToggle = (character: UserAvatar) => {
-    setSelectedCharacterId(prev => (prev === character.id ? null : character.id));
+    setSelectedCharacterIds(prev => {
+      if (prev.includes(character.id)) {
+        return prev.filter(id => id !== character.id);
+      }
+      const totalReferences = selectedProductIds.length + prev.length;
+      if (totalReferences >= MAX_TOTAL_REFERENCES) {
+        return prev;
+      }
+      return [...prev, character.id];
+    });
   };
 
   useEffect(() => {
@@ -461,7 +486,7 @@ export default function SegmentInspector({
       is_continuation_from_prev: isContinuation
     };
     const referenceProductIds = type === 'photo' && selectedProductIds.length ? selectedProductIds : undefined;
-    const referenceCharacterId = type === 'photo' && selectedCharacterId ? selectedCharacterId : undefined;
+    const referenceCharacterIds = type === 'photo' && selectedCharacterIds.length > 0 ? selectedCharacterIds : undefined;
     if (type === 'photo') {
       setPhotoPreviewPending(true);
     } else {
@@ -471,7 +496,7 @@ export default function SegmentInspector({
       type,
       prompt: payload,
       productIds: referenceProductIds,
-      characterId: referenceCharacterId
+      characterIds: referenceCharacterIds
     });
     if (
       type === 'photo' &&
@@ -608,38 +633,40 @@ export default function SegmentInspector({
               {photoPromptTooLong && (
                 <p className="text-xs text-red-600">Photo prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
               )}
-              <button
-                type="button"
-                aria-pressed={isContinuation}
-                onClick={() => setIsContinuation(prev => !prev)}
-                className={clsx(
-                  'w-full text-left rounded-2xl border px-4 py-3 flex items-center gap-3 transition',
-                  isContinuation
-                    ? 'border-gray-900 bg-gray-50 text-gray-900'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-900 hover:text-gray-900'
-                )}
-              >
-                <span
+              {segmentIndex >= 1 && (
+                <button
+                  type="button"
+                  aria-pressed={isContinuation}
+                  onClick={() => setIsContinuation(prev => !prev)}
                   className={clsx(
-                    'inline-flex items-center justify-center rounded-full border w-9 h-9 flex-shrink-0',
-                    isContinuation ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300'
+                    'w-full text-left rounded-2xl border px-4 py-3 flex items-center gap-3 transition',
+                    isContinuation
+                      ? 'border-gray-900 bg-gray-50 text-gray-900'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-900 hover:text-gray-900'
                   )}
                 >
-                  <Link2 className="w-4 h-4" />
-                </span>
-                <span className="flex-1">
-                  <span className="block text-sm font-semibold">Link to previous frame</span>
-                  <span className="block text-xs text-gray-500">
-                    Use the prior segment&apos;s first frame as a reference to keep characters consistent.
+                  <span
+                    className={clsx(
+                      'inline-flex items-center justify-center rounded-full border w-9 h-9 flex-shrink-0',
+                      isContinuation ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300'
+                    )}
+                  >
+                    <Link2 className="w-4 h-4" />
                   </span>
-                </span>
-                <span
-                  className={clsx(
-                    'w-3 h-3 rounded-full border',
-                    isContinuation ? 'bg-gray-900 border-gray-900' : 'border-gray-300'
-                  )}
-                />
-              </button>
+                  <span className="flex-1">
+                    <span className="block text-sm font-semibold">Link to previous frame</span>
+                    <span className="block text-xs text-gray-500">
+                      Use the prior segment&apos;s first frame as a reference to keep characters consistent.
+                    </span>
+                  </span>
+                  <span
+                    className={clsx(
+                      'w-3 h-3 rounded-full border',
+                      isContinuation ? 'bg-gray-900 border-gray-900' : 'border-gray-300'
+                    )}
+                  />
+                </button>
+              )}
               <div className="pt-3 border-t border-dashed border-gray-100 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -649,7 +676,7 @@ export default function SegmentInspector({
                     </p>
                   </div>
                   <span className="text-xs text-gray-500">
-                    {selectedProductCount}/{MAX_REFERENCE_PRODUCTS}
+                    {selectedProductIds.length + selectedCharacterIds.length}/{MAX_TOTAL_REFERENCES} total references
                   </span>
                 </div>
                 {!brandId ? (
@@ -724,11 +751,13 @@ export default function SegmentInspector({
                   <div>
                     <p className="text-sm font-semibold text-gray-900">Character reference</p>
                     <p className="text-xs text-gray-500">
-                      Optional · Select a character to guide the generation.
+                      Optional · Select characters to guide the generation.
                     </p>
                   </div>
-                  {selectedCharacterId && (
-                    <span className="text-xs text-gray-500">1 selected</span>
+                  {selectedCharacterIds.length > 0 && (
+                    <span className="text-xs text-gray-500">
+                      {selectedCharacterIds.length} selected
+                    </span>
                   )}
                 </div>
 
@@ -746,17 +775,20 @@ export default function SegmentInspector({
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {characterOptions.map(character => {
-                      const isSelected = selectedCharacterId === character.id;
+                      const isSelected = selectedCharacterIds.includes(character.id);
+                      const totalReferences = selectedProductIds.length + selectedCharacterIds.length;
+                      const disabled = !isSelected && totalReferences >= MAX_TOTAL_REFERENCES;
 
                       return (
                         <button
                           key={character.id}
                           type="button"
                           onClick={() => handleCharacterToggle(character)}
+                          disabled={disabled}
                           className={clsx(
                             'relative flex items-center gap-3 rounded-2xl border px-3 py-2 text-left transition',
                             isSelected ? 'border-gray-900 shadow-sm' : 'border-gray-200 hover:border-gray-300',
-                            'cursor-pointer bg-white'
+                            disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer bg-white'
                           )}
                         >
                           <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 relative">
@@ -782,9 +814,15 @@ export default function SegmentInspector({
                   </div>
                 )}
 
-                {selectedCharacterId && (
+                {selectedCharacterIds.length > 0 && (
                   <p className="text-[11px] text-gray-500">
-                    First-frame regeneration will use this character as visual reference.
+                    First-frame regeneration will use {selectedCharacterIds.length} character{selectedCharacterIds.length > 1 ? 's' : ''} as visual reference.
+                  </p>
+                )}
+
+                {(selectedProductIds.length + selectedCharacterIds.length >= MAX_TOTAL_REFERENCES) && (
+                  <p className="text-[11px] text-amber-600">
+                    You've reached the {MAX_TOTAL_REFERENCES}-image limit for references (products + characters). Deselect one to add another.
                   </p>
                 )}
               </div>
@@ -872,125 +910,291 @@ export default function SegmentInspector({
                           </button>
                         </div>
                       </div>
-                      {expanded && (
-                        <>
-                          <label className="block text-xs font-semibold text-gray-700">
-                            Time range (relative)
-                            <input
-                              type="text"
-                              value={shot.time_range}
-                              onChange={e => handleShotChange(shot.id, 'time_range', e.target.value)}
-                              className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                              placeholder="00:00 - 00:02"
-                            />
-                          </label>
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Subject
+                      <div
+                        className={clsx(
+                          'overflow-hidden transition-all duration-300 ease-in-out space-y-3', // Added space-y-3 for consistent spacing
+                          expanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
+                        )}
+                      >
+                          <div className="space-y-4 pt-1">
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Time range (relative)</span>
+                              </div>
+                              <input
+                                type="text"
+                                value={shot.time_range}
+                                onChange={e => handleShotChange(shot.id, 'time_range', e.target.value)}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5"
+                                placeholder="00:00 - 00:02"
+                              />
+                            </div>
+                            
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <User className="w-3.5 h-3.5" />
+                                <span>Subject</span>
+                              </div>
                               <textarea
                                 value={shot.subject}
-                                onChange={e => handleShotChange(shot.id, 'subject', e.target.value)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                                rows={2}
+                                rows={1}
+                                onFocus={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'subject', target.value);
+                                }}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
                               />
-                            </label>
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Action
+                            </div>
+
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <Clapperboard className="w-3.5 h-3.5" />
+                                <span>Action</span>
+                              </div>
                               <textarea
                                 value={shot.action}
-                                onChange={e => handleShotChange(shot.id, 'action', e.target.value)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                                rows={2}
+                                rows={1}
+                                onFocus={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'action', target.value);
+                                }}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
                               />
-                            </label>
-                          </div>
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Style
+                            </div>
+
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <Palette className="w-3.5 h-3.5" />
+                                <span>Style</span>
+                              </div>
                               <textarea
                                 value={shot.style}
-                                onChange={e => handleShotChange(shot.id, 'style', e.target.value)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                                rows={2}
+                                rows={1}
+                                onFocus={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'style', target.value);
+                                }}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
                               />
-                            </label>
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Audio / Music
+                            </div>
+
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <Music className="w-3.5 h-3.5" />
+                                <span>Audio / Music</span>
+                              </div>
                               <textarea
                                 value={shot.audio}
-                                onChange={e => handleShotChange(shot.id, 'audio', e.target.value)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                                rows={2}
+                                rows={1}
+                                onFocus={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'audio', target.value);
+                                }}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
                               />
-                            </label>
-                          </div>
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Dialogue / VO
+                            </div>
+
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Dialogue / VO</span>
+                              </div>
                               <textarea
                                 value={shot.dialogue}
-                                onChange={e => handleShotChange(shot.id, 'dialogue', e.target.value)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                                rows={2}
+                                rows={1}
+                                onFocus={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'dialogue', target.value);
+                                }}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
                               />
-                            </label>
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Language
-                              <select
-                                value={shot.language}
-                                onChange={e => handleShotChange(shot.id, 'language', e.target.value as LanguageCode)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                              >
-                                {LANGUAGE_OPTIONS.map(option => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </div>
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Composition / Camera
+                            </div>
+
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <Globe className="w-3.5 h-3.5" />
+                                <span>Language</span>
+                              </div>
+                              <div className="relative" data-language-dropdown>
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenLanguageDropdownId(openLanguageDropdownId === shot.id ? null : shot.id)}
+                                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 pr-8 text-left text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5"
+                                >
+                                  {LANGUAGE_OPTIONS.find(opt => opt.value === shot.language)?.native || 'Select language'}
+                                </button>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                {openLanguageDropdownId === shot.id && (
+                                  <div className="absolute z-50 mt-1 w-full rounded-xl border border-gray-100 bg-white shadow-lg max-h-60 overflow-y-auto py-1 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+                                    {LANGUAGE_OPTIONS.map(option => (
+                                      <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => {
+                                          handleShotChange(shot.id, 'language', option.value);
+                                          setOpenLanguageDropdownId(null);
+                                        }}
+                                        className={clsx(
+                                          "w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between transition-colors",
+                                          shot.language === option.value ? "bg-gray-50 font-medium text-gray-900" : "text-gray-700"
+                                        )}
+                                      >
+                                        <span>{option.native}</span>
+                                        {shot.language === option.value && <Check className="w-3.5 h-3.5" />}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <Camera className="w-3.5 h-3.5" />
+                                <span>Composition / Camera</span>
+                              </div>
                               <textarea
                                 value={shot.composition}
-                                onChange={e => handleShotChange(shot.id, 'composition', e.target.value)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                                rows={2}
+                                rows={1}
+                                onFocus={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'composition', target.value);
+                                }}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
                               />
-                            </label>
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Camera Motion
+                            </div>
+
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <Move className="w-3.5 h-3.5" />
+                                <span>Camera Motion</span>
+                              </div>
                               <textarea
                                 value={shot.camera_motion_positioning}
-                                onChange={e => handleShotChange(shot.id, 'camera_motion_positioning', e.target.value)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                                rows={2}
+                                rows={1}
+                                onFocus={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'camera_motion_positioning', target.value);
+                                }}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
                               />
-                            </label>
-                          </div>
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Environment
+                            </div>
+
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <MapPin className="w-3.5 h-3.5" />
+                                <span>Environment</span>
+                              </div>
                               <textarea
                                 value={shot.context_environment}
-                                onChange={e => handleShotChange(shot.id, 'context_environment', e.target.value)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                                rows={2}
+                                rows={1}
+                                onFocus={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'context_environment', target.value);
+                                }}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
                               />
-                            </label>
-                            <label className="block text-xs font-semibold text-gray-700">
-                              Ambiance / Lighting
+                            </div>
+
+                            <div className="group">
+                              <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-gray-700">
+                                <Sun className="w-3.5 h-3.5" />
+                                <span>Ambiance / Lighting</span>
+                              </div>
                               <textarea
                                 value={shot.ambiance_colour_lighting}
-                                onChange={e => handleShotChange(shot.id, 'ambiance_colour_lighting', e.target.value)}
-                                className="mt-1 w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900"
-                                rows={2}
+                                rows={1}
+                                onFocus={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'ambiance_colour_lighting', target.value);
+                                }}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
                               />
-                            </label>
+                            </div>
                           </div>
-                        </>
-                      )}
+                      </div>
                     </div>
                   );
                 })}

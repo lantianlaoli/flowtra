@@ -2622,7 +2622,7 @@ type FrameGenerationOverrides = {
   imageModelOverride?: 'nano_banana' | 'seedream' | 'nano_banana_pro';
   imageSizeOverride?: string;
   resolutionOverride?: '1K' | '2K' | '4K';
-  characterPhotoUrl?: string | null;
+  characterPhotoUrls?: string[] | null;
 };
 
 async function createFrameFromImage(
@@ -2772,11 +2772,13 @@ export async function createSmartSegmentFrame(
       console.log(`   - 🔗 Continuation mode: Using previous segment's first frame as reference`);
     }
 
-    // 2. Character photo (manually selected by user via Character Reference)
-    const characterPhoto = overrides?.characterPhotoUrl;
-    if (characterPhoto && typeof characterPhoto === 'string' && characterPhoto.length > 0) {
-      imageInput.push(characterPhoto);
-      console.log(`   - 👤 Character reference: Using character photo as reference`);
+    // 2. Character photos (manually selected by user via Character Reference)
+    const characterPhotos = Array.isArray(overrides?.characterPhotoUrls)
+      ? overrides.characterPhotoUrls.filter(url => typeof url === 'string' && url.length > 0)
+      : [];
+    if (characterPhotos.length > 0) {
+      imageInput.push(...characterPhotos);
+      console.log(`   - 👤 Character references: Using ${characterPhotos.length} character photo(s)`);
     }
 
     // 3. Product images (manually selected by user via Product References)
@@ -2834,13 +2836,15 @@ export async function createSmartSegmentFrame(
     ? [continuationReferenceUrl]
     : [];
 
-  const characterPhoto = overrides?.characterPhotoUrl;
-  const hasCharacterPhoto = Boolean(characterPhoto && typeof characterPhoto === 'string' && characterPhoto.length > 0);
+  const characterPhotos = Array.isArray(overrides?.characterPhotoUrls)
+    ? overrides.characterPhotoUrls.filter(url => typeof url === 'string' && url.length > 0)
+    : [];
+  const hasCharacterPhotos = characterPhotos.length > 0;
 
   console.log(`🎬 Segment ${segmentIndex + 1} ${frameType} frame generation:`);
   console.log(`   - contains_brand: ${containsBrand}, brandLogoUrl: ${brandLogoUrl ? 'available' : 'missing'}`);
   console.log(`   - contains_product: ${containsProduct}, productImageRefs: ${normalizedProductImages.length}`);
-  console.log(`   - character reference: ${hasCharacterPhoto ? 'available' : 'none'}`);
+  console.log(`   - character references: ${hasCharacterPhotos ? `${characterPhotos.length} photo(s)` : 'none'}`);
   if (shouldUseContinuationReference) {
     console.log(`   - continuation_from_prev: using previous first frame as reference`);
   }
@@ -2848,7 +2852,7 @@ export async function createSmartSegmentFrame(
   const combinedReferenceImages = Array.from(
     new Set([
       ...continuationReferences,
-      ...(hasCharacterPhoto && characterPhoto ? [characterPhoto] : []),
+      ...(hasCharacterPhotos ? characterPhotos : []),
       ...(containsBrand && brandLogoUrl ? [brandLogoUrl] : []),
       ...(containsProduct ? normalizedProductImages : [])
     ])

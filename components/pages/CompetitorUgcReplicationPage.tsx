@@ -724,7 +724,7 @@ export default function CompetitorUgcReplicationPage() {
   }, [segmentInspector, generations]);
   const inspectorPrompt = inspectorContext?.segment?.prompt as Partial<SegmentPrompt> | undefined;
 
-  const handleSegmentRegenerate = useCallback(async ({ type, prompt, productIds }: { type: 'photo' | 'video'; prompt: SegmentPromptPayload; productIds?: string[]; }) => {
+  const handleSegmentRegenerate = useCallback(async ({ type, prompt, productIds, characterIds }: { type: 'photo' | 'video'; prompt: SegmentPromptPayload; productIds?: string[]; characterIds?: string[]; }) => {
     try {
       // Validate segmentInspector
       if (!segmentInspector) {
@@ -780,8 +780,13 @@ export default function CompetitorUgcReplicationPage() {
         regenerate: type
       };
 
-      if (type === 'photo' && productIds?.length) {
-        requestBody.productIds = productIds.slice(0, 10);
+      if (type === 'photo') {
+        if (productIds?.length) {
+          requestBody.productIds = productIds.slice(0, 10);
+        }
+        if (characterIds?.length) {
+          requestBody.characterIds = characterIds.slice(0, 10);
+        }
       }
 
       const url = `/api/competitor-ugc-replication/${projectId}/segments/${segmentIndex}`;

@@ -19,7 +19,7 @@ type PatchPayload = {
   prompt?: Partial<SegmentPrompt>;
   regenerate?: 'photo' | 'video' | 'both' | 'none';
   productIds?: string[];
-  characterId?: string | null;
+  characterIds?: string[];
 };
 
 const PRODUCT_REFERENCE_LIMIT = 10;
@@ -59,11 +59,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           )
         ).slice(0, PRODUCT_REFERENCE_LIMIT)
       : [];
-    const requestedCharacterId = typeof payload.characterId === 'string' && payload.characterId.trim().length > 0
-      ? payload.characterId.trim()
-      : null;
+    const requestedCharacterIds = Array.isArray(payload.characterIds)
+      ? Array.from(
+          new Set(
+            payload.characterIds
+              .map(id => (typeof id === 'string' ? id.trim() : ''))
+              .filter(id => id.length > 0)
+          )
+        ).slice(0, PRODUCT_REFERENCE_LIMIT)
+      : [];
 
-    console.log('[SEGMENT API] Payload parsed:', { regenerate, shouldRegeneratePhoto, shouldRegenerateVideo, characterId: requestedCharacterId });
+    console.log('[SEGMENT API] Payload parsed:', { regenerate, shouldRegeneratePhoto, shouldRegenerateVideo, characterIds: requestedCharacterIds });
 
     const supabase = getSupabaseAdmin();
     console.log('[SEGMENT API] Querying project:', projectId);
@@ -171,7 +177,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         productImageUrls.push(url);
       }
     };
-    let characterPhotoUrl: string | null = null;
+    const characterPhotoUrls: string[] = [];
     let brandContext: { brand_name: string; brand_slogan: string; brand_details: string } | undefined;
     let competitorFileType: 'video' | 'image' | null = null;
 
@@ -243,15 +249,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
-      if (requestedCharacterId) {
-        const { data: character } = await supabase
+      if (requestedCharacterIds.length > 0) {
+        const { data: characters } = await supabase
           .from('user_avatars')
-          .select('photo_url')
-          .eq('id', requestedCharacterId)
-          .eq('user_id', project.user_id)
-          .single();
+          .select('id, photo_url')
+          .in('id', requestedCharacterIds)
+          .eq('user_id', project.user_id);
 
-        characterPhotoUrl = character?.photo_url || null;
+        if (characters && characters.length > 0) {
+          const charMap = new Map(characters.map(c => [c.id, c.photo_url]));
+          requestedCharacterIds.forEach(charId => {
+            const photoUrl = charMap.get(charId);
+            if (photoUrl && typeof photoUrl === 'string' && photoUrl.length > 0) {
+              characterPhotoUrls.push(photoUrl);
+            }
+          });
+        }
       }
 
       if (project.competitor_ad_id) {
@@ -306,7 +319,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           imageModelOverride: 'nano_banana_pro',
           imageSizeOverride: frameImageSize,
           resolutionOverride: '1K',
-          characterPhotoUrl
+          characterPhotoUrls: characterPhotoUrls.length > 0 ? characterPhotoUrls : null
         },
         continuationReferenceUrl
       );
@@ -331,7 +344,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             imageModelOverride: 'nano_banana_pro',
             imageSizeOverride: frameImageSize,
             resolutionOverride: '1K',
-            characterPhotoUrl
+            characterPhotoUrls: characterPhotoUrls.length > 0 ? characterPhotoUrls : null
           },
           null
         );
