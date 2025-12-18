@@ -15,7 +15,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const purchaseButtonClass = packageName === 'basic'
-    ? 'w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer'
+    ? 'w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer'
     : 'w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
 
   if (!isLoaded) {

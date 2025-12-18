@@ -68,7 +68,7 @@ export default function PricingPage() {
     if (user) {
       const isLoading = loadingPackage === packageName;
       const buttonClass = packageName === 'basic'
-        ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
 
       return (
@@ -83,7 +83,7 @@ export default function PricingPage() {
     }
 
     const buttonClass = packageName === 'basic'
-      ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
+      ? "w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-black transition-colors cursor-pointer"
       : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer";
 
     return (
@@ -145,13 +145,9 @@ export default function PricingPage() {
             </div>
 
             {/* Basic Plan (Recommended) */}
-            <div className="relative bg-white rounded-2xl border-2 border-blue-600 p-6 md:p-8 shadow-2xl shadow-blue-500/10 transform scale-105 flex flex-col z-10">
+            <div className="relative bg-white rounded-2xl border-2 border-gray-900 p-6 md:p-8 shadow-xl transform scale-105 flex flex-col z-10">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg whitespace-nowrap flex items-center gap-1.5 border border-white/20">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-100 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                  </span>
+                <div className="bg-gray-900 text-white px-4 py-1 rounded-full text-sm font-medium shadow-md whitespace-nowrap border border-gray-900">
                   Recommended
                 </div>
               </div>
