@@ -1,9 +1,6 @@
 // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
 // ALL models: PAID generation, FREE download
 
-// ===== BLACK FRIDAY PROMOTION =====
-export const BLACK_FRIDAY_DISCOUNT = 0.2; // 20% off all packages
-
 // Generation costs (ALL models charge at generation time)
 export const GENERATION_COSTS = {
   'veo3': 150,        // Veo3 High Quality: 150 credits at generation
@@ -156,60 +153,60 @@ export type ReplicaPhotoResolution = keyof typeof REPLICA_PHOTO_CREDITS;
 export const PACKAGES = {
   lite: {
     name: 'Lite',
-    price: 9,
+    price: 29,
     priceSymbol: '$',
-    credits: 500,
-    description: 'Entry Pack',
+    credits: 1930,
+    description: 'Entry Creator Pack',
     features: [
-      '500 credits',
-      '≈ 25 Veo3 Fast videos',
-      'or ≈ 83 Sora2 videos',
-      'or ≈ 3 Veo3 high-quality videos',
+      '1,930 credits',
+      '≈ 96 Veo3 Fast videos',
+      'or ≈ 321 Sora2 videos',
+      'or ≈ 12 Veo3 high-quality videos',
       'AI-powered video generation'
     ],
     videoEstimates: {
-      veo3_fast: 25,  // 500 / 20 = 25
-      veo3: 3,        // 500 / 150 ≈ 3
-      sora2: 83       // 500 / 6 ≈ 83
+      veo3_fast: 96,   // 1930 / 20 ≈ 96
+      veo3: 12,        // 1930 / 150 ≈ 12
+      sora2: 321       // 1930 / 6 ≈ 321
     }
   },
   basic: {
     name: 'Basic',
-    price: 29,
+    price: 59,
     priceSymbol: '$',
-    credits: 2000,
-    description: 'Recommended Plan',
+    credits: 3930,
+    description: 'Content Creator\'s Choice',
     features: [
-      '2,000 credits',
-      '≈ 100 Veo3 Fast videos',
-      'or ≈ 333 Sora2 videos',
-      'or ≈ 13 Veo3 high-quality videos',
+      '3,930 credits',
+      '≈ 196 Veo3 Fast videos',
+      'or ≈ 655 Sora2 videos',
+      'or ≈ 26 Veo3 high-quality videos',
       'AI-powered video generation'
     ],
     videoEstimates: {
-      veo3_fast: 100,  // 2000 / 20 = 100
-      veo3: 13,        // 2000 / 150 ≈ 13
-      sora2: 333       // 2000 / 6 ≈ 333
+      veo3_fast: 196,  // 3930 / 20 ≈ 196
+      veo3: 26,        // 3930 / 150 ≈ 26
+      sora2: 655       // 3930 / 6 ≈ 655
     }
   },
   pro: {
     name: 'Pro',
-    price: 49,
+    price: 99,
     priceSymbol: '$',
-    credits: 3500,
-    description: 'Advanced Pack',
+    credits: 6600,
+    description: 'Pro Video Production',
     features: [
-      '3,500 credits',
-      '≈ 175 Veo3 Fast videos',
-      'or ≈ 583 Sora2 videos',
-      'or ≈ 23 Veo3 high-quality videos',
+      '6,600 credits',
+      '≈ 330 Veo3 Fast videos',
+      'or ≈ 1100 Sora2 videos',
+      'or ≈ 44 Veo3 high-quality videos',
       'AI-powered video generation',
       'Priority processing queue'
     ],
     videoEstimates: {
-      veo3_fast: 175,  // 3500 / 20 = 175
-      veo3: 23,        // 3500 / 150 ≈ 23
-      sora2: 583       // 3500 / 6 ≈ 583
+      veo3_fast: 330,  // 6600 / 20 = 330
+      veo3: 44,        // 6600 / 150 = 44
+      sora2: 1100      // 6600 / 6 = 1100
     }
   }
 } as const

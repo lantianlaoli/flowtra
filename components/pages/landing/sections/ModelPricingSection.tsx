@@ -3,7 +3,7 @@ import { SiGoogle, SiOpenai, SiX } from 'react-icons/si';
 
 export default function ModelPricingSection() {
   // Credit to USD conversion rate
-  const CREDIT_TO_USD = 0.018; // $0.018 per credit
+  const CREDIT_TO_USD = 0.015; // $0.015 per credit
 
   const models = [
     {

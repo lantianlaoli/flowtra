@@ -36,17 +36,17 @@ export default function ComparisonSection() {
                   </span>
                 </td>
                 <td className="px-6 py-6 align-top font-bold text-black text-lg">
-                  $29
+                  $59
                 </td>
                 <td className="px-6 py-6 align-top text-gray-700 space-y-2 text-sm">
-                  <p>1. <span className="font-semibold text-black">2000 credits</span></p>
+                  <p>1. <span className="font-semibold text-black">3,930 credits</span></p>
                   <p>2. Character UGC Video & Competitor Replica</p>
                   <p>3. Free, unlimited Veo3.1 Fast generation</p>
-                  <p>4. 800 mins UGC video download quota (based on Veo3.1 Fast 20 credits/8 mins)</p>
+                  <p>4. 26.2 mins UGC video download quota (based on Veo3.1 Fast 20 credits/8s)</p>
                   <p>5. Unlimited, free competitor photo cloning</p>
                 </td>
                 <td className="px-6 py-6 align-top font-bold text-black text-lg">
-                  $0.0145
+                  $0.015
                 </td>
               </tr>
 
@@ -119,15 +119,15 @@ export default function ComparisonSection() {
               <div>
                 <h3 className="text-xl font-bold text-black">Flowtra AI</h3>
                 <div className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-black text-white">
-                  One-time: $29
+                  One-time: $59
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-sm text-gray-500">Per Credit</div>
-                <div className="text-xl font-bold text-black">$0.0145</div>
+                <div className="text-xl font-bold text-black">$0.015</div>
               </div>
             </div>
-            
+
             <div className="space-y-4 pt-4 border-t border-gray-100">
               <div>
                 <h4 className="text-sm font-semibold text-black mb-2">Features</h4>
@@ -136,13 +136,13 @@ export default function ComparisonSection() {
                   <li>• Competitor UGC Video & Photo Cloning</li>
                 </ul>
               </div>
-              
+
               <div>
                 <h4 className="text-sm font-semibold text-black mb-2">Included</h4>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• <span className="font-semibold text-black">2000 credits</span></li>
+                  <li>• <span className="font-semibold text-black">3,930 credits</span></li>
                   <li>• Unlimited, free Veo3.1 Fast generation</li>
-                  <li>• 800 mins UGC video download quota</li>
+                  <li>• 26.2 mins UGC video download quota</li>
                   <li>• Unlimited, free competitor photo cloning</li>
                 </ul>
               </div>

@@ -28,7 +28,7 @@ const faqData: FAQItem[] = [
   {
     question: 'How does Flowtra pricing work?',
     answer:
-      'Flowtra runs on one-time plans starting at $9—no subscriptions or recurring fees. Pay once, keep your credits forever, and unlock premium templates or tutorials whenever you’re ready.'
+      'Flowtra runs on one-time plans starting at $29—no subscriptions or recurring fees. Pay once, keep your credits forever, and unlock premium templates or tutorials whenever you\'re ready.'
   },
   {
     question: 'Can I use the images and videos commercially?',

@@ -126,13 +126,13 @@ export default function FeaturesSection() {
                     <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
                       <Check className="w-3 h-3 text-green-600" />
                     </div>
-                    <span className="font-medium">Veo3.1 Fast model unlimited free generation</span>
+                    <span className="font-medium">Replace your products, people, or pets</span>
                   </li>
                   <li className="flex items-center gap-3 text-gray-700">
                     <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
                       <Check className="w-3 h-3 text-green-600" />
                     </div>
-                    <span className="font-medium">Supports English, Chinese, and 10+ languages</span>
+                    <span className="font-medium">Supports English, Spanish, and 10+ languages</span>
                   </li>
                 </ul>
                 <Link

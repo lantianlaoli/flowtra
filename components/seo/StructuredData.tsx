@@ -65,53 +65,53 @@ export default function StructuredData() {
       '@type': 'AggregateOffer',
       '@id': 'https://www.flowtra.store/#offers',
       priceCurrency: 'USD',
-      lowPrice: '9',
-      highPrice: '49',
+      lowPrice: '29',
+      highPrice: '99',
       offerCount: '3',
       offers: [
         {
           '@type': 'Offer',
           name: 'Lite Package',
-          price: '9',
+          price: '29',
           priceCurrency: 'USD',
-          description: '500 credits. Approximately 25 Veo3 Fast videos. Includes Competitor UGC Replication and Character Ads. Mixed billing model with free image generation.',
+          description: '1,930 credits. Approximately 96 Veo3 Fast videos or 321 Sora2 videos. Includes Competitor UGC Replication and Character Ads. Generation-time billing with free downloads and image generation.',
           availability: 'https://schema.org/InStock',
           url: 'https://www.flowtra.store/#pricing',
           priceValidUntil: '2025-12-31',
           itemOffered: {
             '@type': 'Service',
             name: 'Flowtra Lite',
-            description: '500 AI video generation credits'
+            description: '1,930 AI video generation credits'
           }
         },
         {
           '@type': 'Offer',
           name: 'Basic Package',
-          price: '29',
+          price: '59',
           priceCurrency: 'USD',
-          description: '2,000 credits. Approximately 100 Veo3 Fast videos. Free unlimited downloads and image generation. Includes all features: Competitor UGC Replication and Character Ads.',
+          description: '3,930 credits. Approximately 196 Veo3 Fast videos or 655 Sora2 videos. Free unlimited downloads and image generation. Includes all features: Competitor UGC Replication and Character Ads.',
           availability: 'https://schema.org/InStock',
           url: 'https://www.flowtra.store/#pricing',
           priceValidUntil: '2025-12-31',
           itemOffered: {
             '@type': 'Service',
             name: 'Flowtra Basic',
-            description: '2,000 AI video generation credits'
+            description: '3,930 AI video generation credits'
           }
         },
         {
           '@type': 'Offer',
           name: 'Pro Package',
-          price: '49',
+          price: '99',
           priceCurrency: 'USD',
-          description: '3,500 credits. Approximately 175 Veo3 Fast videos. Priority processing, mixed billing model, free image generation. Includes Competitor UGC Replication and Character Ads.',
+          description: '6,600 credits. Approximately 330 Veo3 Fast videos or 1100 Sora2 videos. Priority processing, generation-time billing, free downloads and image generation. Includes Competitor UGC Replication and Character Ads.',
           availability: 'https://schema.org/InStock',
           url: 'https://www.flowtra.store/#pricing',
           priceValidUntil: '2025-12-31',
           itemOffered: {
             '@type': 'Service',
             name: 'Flowtra Pro',
-            description: '3,500 AI video generation credits with priority processing'
+            description: '6,600 AI video generation credits with priority processing'
           }
         }
       ]

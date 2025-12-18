@@ -112,13 +112,13 @@ export default function PricingPage() {
             <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col">
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Lite</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
-                $9
+                $29
                 <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600"><span className="font-bold text-gray-900">500</span> credits</span>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">1,930</span> credits</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
@@ -145,19 +145,25 @@ export default function PricingPage() {
             </div>
 
             {/* Basic Plan (Recommended) */}
-            <div className="bg-white rounded-2xl border-2 border-gray-900 p-6 md:p-8 shadow-sm transform scale-105 flex flex-col">
-              <div className="bg-gray-900 text-white px-3 py-1 rounded-md text-sm font-medium mb-4 inline-block">
-                Recommended
+            <div className="relative bg-white rounded-2xl border-2 border-blue-600 p-6 md:p-8 shadow-2xl shadow-blue-500/10 transform scale-105 flex flex-col z-10">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg whitespace-nowrap flex items-center gap-1.5 border border-white/20">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-100 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                  </span>
+                  Recommended
+                </div>
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Basic</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
-                $29
+                $59
                 <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600"><span className="font-bold text-gray-900">2,000</span> credits</span>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">3,930</span> credits</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
@@ -187,13 +193,13 @@ export default function PricingPage() {
             <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-sm hover:border-gray-300 transition-colors flex flex-col">
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Pro</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
-                $49
+                $99
                 <span className="text-lg font-normal text-gray-600">/package</span>
               </div>
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600"><span className="font-bold text-gray-900">3,500</span> credits</span>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">6,600</span> credits</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>

@@ -22,15 +22,15 @@ const creditsToUSD = (credits: number | string): string => {
     // Handle range like "36-160"
     if (credits.includes('-')) {
       const [min, max] = credits.split('-').map(n => parseInt(n.trim()));
-      const minUSD = min * 0.018;
-      const maxUSD = max * 0.018;
+      const minUSD = min * 0.015;
+      const maxUSD = max * 0.015;
       const minStr = minUSD < 1 ? minUSD.toFixed(2) : minUSD.toFixed(0);
       const maxStr = maxUSD < 1 ? maxUSD.toFixed(2) : maxUSD.toFixed(0);
       return `~$${minStr}-$${maxStr}`;
     }
     credits = parseInt(credits);
   }
-  const usd = credits * 0.018;
+  const usd = credits * 0.015;
   return usd < 1 ? `~$${usd.toFixed(2)}` : `~$${usd.toFixed(0)}`;
 };
 
