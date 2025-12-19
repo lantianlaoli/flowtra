@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 
+// Force show onboarding for all users when set to 'true' (useful for testing/demo)
+const FORCE_SHOW_ONBOARDING =
+  process.env.NEXT_PUBLIC_FORCE_SHOW_ONBOARDING === 'true';
+
 export interface OnboardingStatus {
   completed: boolean;
   current_step: number;
@@ -27,8 +31,8 @@ export function useOnboarding() {
 
       const data = await response.json();
       setStatus({
-        completed: data.completed || false,
-        current_step: data.current_step || 0,
+        completed: FORCE_SHOW_ONBOARDING ? false : (data.completed || false),
+        current_step: FORCE_SHOW_ONBOARDING ? 0 : (data.current_step || 0),
         loading: false,
         error: null,
       });

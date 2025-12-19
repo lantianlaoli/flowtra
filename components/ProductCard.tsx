@@ -23,7 +23,7 @@ interface ProductCardProps {
   isSelected?: boolean;
   isDeleting?: boolean;
   // Display modes
-  mode?: 'full' | 'compact' | 'selectable';
+  mode?: 'full' | 'compact' | 'selectable' | 'list';
 }
 
 export default function ProductCard({
@@ -49,6 +49,7 @@ export default function ProductCard({
   const isCompactMode = mode === 'compact';
   const isSelectableMode = mode === 'selectable';
   const isFullMode = mode === 'full';
+  const isListMode = mode === 'list';
 
   // Click handlers
   const handleCardClick = () => {
@@ -247,6 +248,106 @@ export default function ProductCard({
                   <Trash2 className="w-4 h-4" />
                 )}
               </button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          onConfirm={confirmDelete}
+          title="Delete Product"
+          message={`Are you sure you want to delete "${product.product_name}"? This action cannot be undone.`}
+          confirmText="Delete"
+          variant="danger"
+        />
+      </>
+    );
+  }
+
+  // List mode rendering
+  if (isListMode) {
+    return (
+      <>
+        <motion.div
+          className="bg-white rounded-lg border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer group"
+          onHoverStart={() => setIsHovered(true)}
+          onHoverEnd={() => setIsHovered(false)}
+          onClick={handleCardClick}
+          whileHover={{ y: -1 }}
+        >
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4">
+            {/* Product Photo (left side on desktop, top on mobile) */}
+            <div className="relative w-full sm:w-20 aspect-square sm:aspect-square flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+              {photos.length > 0 ? (
+                <>
+                  <Image
+                    src={photos[0].photo_url}
+                    alt={product.product_name}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 100vw, 80px"
+                  />
+                  {photos.length > 1 && (
+                    <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                      +{photos.length - 1}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  <span className="text-xs">No photo</span>
+                </div>
+              )}
+            </div>
+
+            {/* Product Info (center, takes remaining space) */}
+            <div className="flex-1 min-w-0 w-full sm:w-auto">
+              <h4 className="font-medium text-base text-gray-900 truncate mb-1">
+                {product.product_name}
+              </h4>
+              {product.description && (
+                <p className="text-sm text-gray-600 line-clamp-2">
+                  {product.description}
+                </p>
+              )}
+              {photos.length > 1 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {photos.length} photos
+                </p>
+              )}
+            </div>
+
+            {/* Action Buttons (right side on desktop, bottom on mobile) */}
+            <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-end">
+              <button
+                onClick={handleEditClick}
+                className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Edit product"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+
+              <AnimatePresence>
+                {(isHovered || isDeleting) && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                    title={isDeleting ? "Deleting..." : "Delete product"}
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </motion.button>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </motion.div>

@@ -39,6 +39,7 @@ export default function AssetsManager() {
 
   // Avatar state
   const [avatars, setAvatars] = useState<UserAvatar[]>([]);
+  const [activeTab, setActiveTab] = useState<'brands' | 'avatars'>('brands');
 
   // Modal states
   const [showCreateBrandModal, setShowCreateBrandModal] = useState(false);
@@ -349,8 +350,8 @@ export default function AssetsManager() {
       <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-1">Assets Management</h2>
-            <p className="text-sm md:text-base text-gray-600">Manage your brands and products in one place</p>
+            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-1">Assets</h2>
+            <p className="text-sm md:text-base text-gray-600">Manage your brands, products, and avatars</p>
           </div>
           <div className="flex gap-2 md:gap-3">
             <a
@@ -372,11 +373,19 @@ export default function AssetsManager() {
               <span className="hidden sm:inline">New Brand</span>
               <span className="sm:hidden">Brand</span>
             </button>
+            <button
+              onClick={() => setShowCreateAvatarModal(true)}
+              className="flex items-center gap-1.5 md:gap-2 bg-gray-900 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base"
+            >
+              <UserCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">Add Avatar</span>
+              <span className="sm:hidden">Avatar</span>
+            </button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
           <div className="bg-gray-50 rounded-lg p-3 md:p-4">
             <div className="flex items-center gap-2 md:gap-3">
               <div className="w-9 h-9 md:w-10 md:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -399,17 +408,6 @@ export default function AssetsManager() {
               </div>
             </div>
           </div>
-          <div className="bg-gray-50 rounded-lg p-3 md:p-4">
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="w-9 h-9 md:w-10 md:h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <BarChart3 className="w-4 h-4 md:w-5 md:h-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-xl md:text-2xl font-semibold text-gray-900">{assetsData.stats.unbrandedCount}</p>
-                <p className="text-xs md:text-sm text-gray-600">Unbranded</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Search */}
@@ -417,7 +415,7 @@ export default function AssetsManager() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search brands and products..."
+            placeholder={activeTab === 'brands' ? 'Search brands and products...' : 'Search avatars...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
@@ -425,110 +423,145 @@ export default function AssetsManager() {
         </div>
       </div>
 
-      {/* Brands List */}
+      {/* Tab Switcher */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('brands')}
+            className={`
+              flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+              ${activeTab === 'brands'
+                ? 'border-gray-900 text-gray-900 bg-gray-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}
+            `}
+          >
+            <Package className="w-4 h-4" />
+            <span>Brands & Products</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('avatars')}
+            className={`
+              flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+              ${activeTab === 'avatars'
+                ? 'border-gray-900 text-gray-900 bg-gray-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}
+            `}
+          >
+            <UserCircle className="w-4 h-4" />
+            <span>Avatars</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
       <div className="space-y-4">
-        {filteredBrands.length === 0 && filteredUnbrandedProducts.length === 0 && searchTerm ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <Search className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-            <p className="text-gray-600">Try adjusting your search terms</p>
-          </div>
+        {activeTab === 'brands' ? (
+          <>
+            {/* Brands & Products Tab */}
+            {filteredBrands.length === 0 && filteredUnbrandedProducts.length === 0 && searchTerm ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                <Search className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
+                <p className="text-gray-600">Try adjusting your search terms</p>
+              </div>
+            ) : (
+              <>
+                {/* Brands with Products */}
+                {filteredBrands.map((brand) => (
+                  <BrandSection
+                    key={brand.id}
+                    brand={brand}
+                    onEditBrand={handleEditBrand}
+                    onDeleteBrand={handleDeleteBrand}
+                    onViewProduct={() => {}}
+                    onEditProduct={handleEditProduct}
+                    onDeleteProduct={handleDeleteProduct}
+                    onAddProductToBrand={handleAddProductToBrand}
+                    defaultExpanded={!!searchTerm}
+                    deletingProductId={deletingProductId}
+                  />
+                ))}
+
+                {/* Unbranded Products Section */}
+                {filteredUnbrandedProducts.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
+                    <div className="flex items-center gap-2 md:gap-3 mb-4">
+                      <Package className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                      <h3 className="text-base md:text-lg font-semibold text-gray-900">
+                        Unbranded Products ({filteredUnbrandedProducts.length})
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+                      {filteredUnbrandedProducts.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          onEditClick={handleEditProduct}
+                          onDelete={handleDeleteProduct}
+                          isDeleting={deletingProductId === product.id}
+                          mode="compact"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {assetsData.brands.length === 0 && assetsData.unbrandedProducts.length === 0 && !searchTerm && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-8 md:p-12 text-center">
+                    <Tag className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 text-gray-300" />
+                    <h3 className="text-lg md:text-xl font-medium text-gray-900 mb-2">No brands yet</h3>
+                    <p className="text-sm md:text-base text-gray-600 mb-4 md:mb-6">Start by creating your first brand. All products must belong to a brand.</p>
+                    <button
+                      onClick={() => setShowCreateBrandModal(true)}
+                      className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base mx-auto"
+                    >
+                      <Tag className="w-4 h-4" />
+                      Create Brand
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </>
         ) : (
           <>
-            {/* Brands with Products */}
-            {filteredBrands.map((brand) => (
-              <BrandSection
-                key={brand.id}
-                brand={brand}
-                onEditBrand={handleEditBrand}
-                onDeleteBrand={handleDeleteBrand}
-                onViewProduct={() => {}}
-                onEditProduct={handleEditProduct}
-                onDeleteProduct={handleDeleteProduct}
-                onAddProductToBrand={handleAddProductToBrand}
-                defaultExpanded={!!searchTerm}
-                deletingProductId={deletingProductId}
-              />
-            ))}
-
-            {/* Unbranded Products Section */}
-            {filteredUnbrandedProducts.length > 0 && (
+            {/* Avatars Tab */}
+            {filteredAvatars.length === 0 && searchTerm ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                <Search className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
+                <p className="text-gray-600">Try adjusting your search terms</p>
+              </div>
+            ) : (
               <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
                 <div className="flex items-center gap-2 md:gap-3 mb-4">
-                  <Package className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-                  <h3 className="text-base md:text-lg font-semibold text-gray-900">
-                    Unbranded Products ({filteredUnbrandedProducts.length})
-                  </h3>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-                  {filteredUnbrandedProducts.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onEditClick={handleEditProduct}
-                      onDelete={handleDeleteProduct}
-                      isDeleting={deletingProductId === product.id}
-                      mode="compact"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Avatars Section */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 md:gap-3">
                   <UserCircle className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
                   <h3 className="text-base md:text-lg font-semibold text-gray-900">
                     Avatars ({filteredAvatars.length})
                   </h3>
                 </div>
-                <button
-                  onClick={() => setShowCreateAvatarModal(true)}
-                  className="flex items-center gap-1.5 md:gap-2 bg-gray-900 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm"
-                >
-                  <UserCircle className="w-4 h-4" />
-                  <span className="hidden sm:inline">Add Avatar</span>
-                  <span className="sm:hidden">Add</span>
-                </button>
-              </div>
-              {filteredAvatars.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-                  {filteredAvatars.map((avatar) => (
-                    <AvatarCard
-                      key={avatar.id}
-                      avatar={avatar}
-                      onEdit={handleEditAvatar}
-                      onDelete={handleDeleteAvatar}
-                      isDeleting={deletingAvatarId === avatar.id}
-                      mode="full"
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <UserCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p className="text-sm text-gray-600">
-                    {searchTerm ? 'No avatars match your search' : 'No avatars yet. Add your first avatar to use in video generation.'}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Empty State */}
-            {assetsData.brands.length === 0 && assetsData.unbrandedProducts.length === 0 && !searchTerm && (
-              <div className="bg-white rounded-xl border border-gray-200 p-8 md:p-12 text-center">
-                <Tag className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 text-gray-300" />
-                <h3 className="text-lg md:text-xl font-medium text-gray-900 mb-2">No brands yet</h3>
-                <p className="text-sm md:text-base text-gray-600 mb-4 md:mb-6">Start by creating your first brand. All products must belong to a brand.</p>
-                <button
-                  onClick={() => setShowCreateBrandModal(true)}
-                  className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base mx-auto"
-                >
-                  <Tag className="w-4 h-4" />
-                  Create Brand
-                </button>
+                {filteredAvatars.length > 0 ? (
+                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                    {filteredAvatars.map((avatar) => (
+                      <AvatarCard
+                        key={avatar.id}
+                        avatar={avatar}
+                        onEdit={handleEditAvatar}
+                        onDelete={handleDeleteAvatar}
+                        isDeleting={deletingAvatarId === avatar.id}
+                        mode="full"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <UserCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm text-gray-600">
+                      {searchTerm ? 'No avatars match your search' : 'No avatars yet. Add your first avatar to use in video generation.'}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </>

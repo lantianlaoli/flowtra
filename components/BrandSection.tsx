@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Edit2, Trash2, ChevronDown, ChevronRight, Plus, Package, Target } from 'lucide-react';
+import { Edit2, Trash2, ChevronDown, ChevronRight, Plus, Package, Target, Grid3x3, List } from 'lucide-react';
 import { UserBrand, UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProductCard from './ProductCard';
@@ -37,6 +37,7 @@ export default function BrandSection({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<'products' | 'competitors'>('products');
   const [competitorCount, setCompetitorCount] = useState(0);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const products = brand.products || [];
 
   // Fetch competitor count
@@ -244,28 +245,64 @@ export default function BrandSection({
                             Products ({products.length})
                           </h3>
                         </div>
-                        <button
-                          onClick={handleAddProduct}
-                          className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add Product
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {/* View Mode Toggle */}
+                          <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                            <button
+                              onClick={() => setViewMode('grid')}
+                              className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                              title="Grid view"
+                            >
+                              <Grid3x3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setViewMode('list')}
+                              className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                              title="List view"
+                            >
+                              <List className="w-4 h-4" />
+                            </button>
+                          </div>
+                          {/* Add Product Button */}
+                          <button
+                            onClick={handleAddProduct}
+                            className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add Product
+                          </button>
+                        </div>
                       </div>
-                      {/* Products Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-                      {products.map((product) => (
-                        <ProductCard
-                          key={product.id}
-                          product={product}
-                          onView={onViewProduct}
-                          onEditClick={onEditProduct}
-                          onDelete={onDeleteProduct}
-                          isDeleting={deletingProductId === product.id}
-                          mode="compact"
-                        />
-                      ))}
-                      </div>
+                      {/* Products Grid/List */}
+                      {viewMode === 'grid' ? (
+                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+                          {products.map((product) => (
+                            <ProductCard
+                              key={product.id}
+                              product={product}
+                              onView={onViewProduct}
+                              onEditClick={onEditProduct}
+                              onDelete={onDeleteProduct}
+                              isDeleting={deletingProductId === product.id}
+                              mode="compact"
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {products.map((product) => (
+                            <ProductCard
+                              key={product.id}
+                              product={product}
+                              onView={onViewProduct}
+                              onEditClick={onEditProduct}
+                              onDelete={onDeleteProduct}
+                              isDeleting={deletingProductId === product.id}
+                              mode="list"
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 ) : (
