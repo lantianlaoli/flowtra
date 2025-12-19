@@ -137,7 +137,7 @@ export default function CharacterAdsShowcasePage() {
                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">5</div>
                        <div>
                           <h3 className="text-xl font-semibold text-black">Start Generation</h3>
-                          <p className="text-gray-600 mt-1">Powered by state-of-the-art Veo3.1. Only $0.36 per 8 seconds.</p>
+                          <p className="text-gray-600 mt-1">Powered by state-of-the-art Veo3.1. Only $0.3 per 8 seconds.</p>
                        </div>
                     </div>
                  </div>

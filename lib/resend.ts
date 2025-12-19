@@ -88,7 +88,7 @@ export async function sendWelcomeEmail(options: {
                   <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:16px;line-height:1.6;color:#4b5563;">
                     <tr>
                       <td width="16" valign="top" style="padding-right:8px;">-</td>
-                      <td style="padding-bottom:8px;">Produce polished video ads for as low as <strong style="color:#111827;">$0.36 per run</strong>, so you can test ideas without burning budget.</td>
+                      <td style="padding-bottom:8px;">Produce polished video ads for as low as <strong style="color:#111827;">$0.3 per run</strong>, so you can test ideas without burning budget.</td>
                     </tr>
                     <tr>
                       <td width="16" valign="top" style="padding-right:8px;">-</td>
@@ -144,7 +144,7 @@ export async function sendWelcomeEmail(options: {
     </body>
   </html>`
 
-  const text = `Welcome to Flowtra — Here\'s 3% Off Your First Campaign\n\n${greetingLine}\nI'm Lantian Laoli, founder of Flowtra. We built this platform so small teams can launch standout ads without agencies or big budgets. Every dollar should push revenue forward, not disappear into production overhead.\n\nWant to see exactly how it works? The quick tutorial walks through the same flow top merchants use to launch winning creatives in minutes.\n\nWhat you'll find in your dashboard:\n- Video ads for as low as $0.36 per run, so you can test ideas without burning budget.\n- Unlimited product photo generation and downloads for free to keep every touchpoint fresh.\n- Faster launches that keep your brand visible and conversions climbing.\n\nGo to your dashboard: ${appUrl}\nWatch the quick tutorial: ${tutorialUrl}\n\nUse code ${code} at checkout for 3% off any credit pack—my welcome gift to help you test your first ideas.\n\nNeed a hand tailoring Flowtra to your business? Reply to this email and it comes straight to me.\n\nKeep building,\nLantian Laoli\nFounder, Flowtra`
+  const text = `Welcome to Flowtra — Here\'s 3% Off Your First Campaign\n\n${greetingLine}\nI'm Lantian Laoli, founder of Flowtra. We built this platform so small teams can launch standout ads without agencies or big budgets. Every dollar should push revenue forward, not disappear into production overhead.\n\nWant to see exactly how it works? The quick tutorial walks through the same flow top merchants use to launch winning creatives in minutes.\n\nWhat you'll find in your dashboard:\n- Video ads for as low as $0.3 per run, so you can test ideas without burning budget.\n- Unlimited product photo generation and downloads for free to keep every touchpoint fresh.\n- Faster launches that keep your brand visible and conversions climbing.\n\nGo to your dashboard: ${appUrl}\nWatch the quick tutorial: ${tutorialUrl}\n\nUse code ${code} at checkout for 3% off any credit pack—my welcome gift to help you test your first ideas.\n\nNeed a hand tailoring Flowtra to your business? Reply to this email and it comes straight to me.\n\nKeep building,\nLantian Laoli\nFounder, Flowtra`
 
   return await sendEmail({
     to: options.to,

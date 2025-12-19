@@ -58,7 +58,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         <div className="mt-4 space-y-2 text-gray-600 text-base">
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-green-500" />
-            <span>Videos from $0.36 per 8 seconds</span>
+            <span>Videos from $0.3 per 8 seconds</span>
           </div>
        
           <div className="flex items-center gap-2">
