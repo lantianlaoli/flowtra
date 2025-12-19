@@ -529,3 +529,18 @@ body {
     transform: translate(-50%, 0);
   }
 }
+
+/* Discord button styles */
+.discord-button {
+  background-color: #5865F2;
+  transition: background-color 200ms ease, transform 200ms ease;
+}
+
+.discord-button:hover {
+  background-color: #4752C4;
+  transform: translateY(-1px);
+}
+
+.discord-button:active {
+  transform: translateY(0);
+}

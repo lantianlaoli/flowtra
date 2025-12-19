@@ -1,10 +1,9 @@
 import Image from 'next/image';
-import { GiftIcon, Check, UserPlus, Play, Lightbulb } from 'lucide-react';
+import { GiftIcon, Check } from 'lucide-react';
 import { SiDiscord } from 'react-icons/si';
 import { HeroPrimaryButton } from '@/components/pages/landing/HeroPrimaryButton';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 import BlackFridayBadge from '@/components/landing/BlackFridayBadge';
-import { Download } from 'lucide-react';
 import FounderCard from '@/components/ui/FounderCard';
 
 interface HeroSectionProps {
@@ -20,16 +19,6 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         <div className="flex flex-wrap items-center gap-3">
           <BlackFridayBadge />
           <FounderCard variant="hero" showGreeting={false} className="hidden lg:inline-flex" />
-          {/* Discord Channel */}
-          <a
-            href="https://discord.gg/dd5Qh54S"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden lg:inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold text-gray-800 bg-gray-100 border border-gray-200 hover:bg-gray-200 transition-colors"
-          >
-            <SiDiscord className="w-4 h-4" />
-            <span>Join our Community</span>
-          </a>
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
@@ -74,25 +63,16 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         {/* CTA Buttons */}
         <div className="flex flex-row items-start gap-3">
           <HeroPrimaryButton />
-          {/* Tutorial Video Button */}
+          {/* Discord Community Button */}
           <a
-            href="https://www.youtube.com/watch?v=pMxwEIh6ciQ"
+            href="https://discord.gg/dd5Qh54S"
             target="_blank"
             rel="noopener noreferrer"
-            className="silk-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer"
-            title="See how easy it is"
+            className="discord-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer text-white"
+            title="Join our Discord community"
           >
-            <span className="sm:hidden">Watch</span>
-            <span className="hidden sm:inline silk-content">
-              <span className="silk-default">
-                <Play className="w-5 h-5" />
-                <span>See How Easy</span>
-              </span>
-              <span className="silk-hover">
-                <Lightbulb className="w-5 h-5" />
-                <span>Watch tutorial</span>
-              </span>
-            </span>
+            <SiDiscord className="w-5 h-5" />
+            <span>Join our Community</span>
           </a>
         </div>
 
