@@ -5,13 +5,14 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send, ArrowRight } from 'lucide-react';
 import { getCreditCost, type VideoModel } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import TikTokPublishDialog from '@/components/TikTokPublishDialog';
+import VideoDetailsModal from '@/components/VideoDetailsModal';
 
 interface CompetitorUgcReplicationItem {
   id: string;
@@ -102,10 +103,10 @@ const AD_TYPE_OPTIONS = [
 type AdTypeFilterValue = (typeof AD_TYPE_OPTIONS)[number]['value'];
 
 const interactiveCardActionClasses =
-  'cursor-pointer transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/20 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0';
+  'cursor-pointer transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0';
 
 const paginationButtonClasses =
-  'cursor-pointer transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/15 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0 disabled:pointer-events-none';
+  'cursor-pointer transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0 disabled:pointer-events-none';
 
 const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
   return 'adType' in item && item.adType === 'character';
@@ -147,6 +148,11 @@ export default function HistoryPage() {
   // TikTok publish dialog state
   const [tiktokDialogOpen, setTiktokDialogOpen] = useState(false);
   const [selectedItemForTikTok, setSelectedItemForTikTok] = useState<HistoryItem | null>(null);
+
+  // Video details modal state
+  const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalDownloading, setIsModalDownloading] = useState(false);
 
   // Helper function to get aspect ratio class
   const getAspectRatioClass = (aspectRatio?: string) => {
@@ -309,13 +315,13 @@ export default function HistoryPage() {
   // Loading state
   if (!isLoaded) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
       </div>
     );
   }
 
-  
+
 
 
 
@@ -336,13 +342,13 @@ export default function HistoryPage() {
   const getStatusBadgeClasses = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-gray-900 text-white border border-gray-900';
+        return 'bg-black text-white border border-black';
       case 'processing':
-        return 'bg-gray-100 text-gray-800 border border-gray-300';
+        return 'bg-white text-black border border-[#E5E5E5]';
       case 'failed':
-        return 'bg-white text-gray-900 border border-gray-900';
+        return 'bg-white text-black border border-black';
       default:
-        return 'bg-gray-100 text-gray-700 border border-gray-300';
+        return 'bg-white text-[#666666] border border-[#E5E5E5]';
     }
   };
 
@@ -363,7 +369,7 @@ export default function HistoryPage() {
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 1) {
       return 'Yesterday';
     } else if (diffDays < 7) {
@@ -651,37 +657,55 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     setTiktokDialogOpen(true);
   };
 
+  // Handler for opening video details modal
+  const handleViewDetails = (item: HistoryItem) => {
+    setSelectedItem(item);
+    setIsModalOpen(true);
+  };
+
+  // Handler for downloading video from modal
+  const handleModalDownload = async (historyId: string, videoModel: VideoModel) => {
+    setIsModalDownloading(true);
+    try {
+      await downloadVideo(historyId, videoModel);
+    } finally {
+      setIsModalDownloading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <Sidebar
         credits={userCredits}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
-      
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
-        <div className="p-4 md:p-8 max-w-7xl mx-auto">
-          <div className="mb-6 md:mb-8">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Play className="w-4 h-4 text-gray-700" />
-                </div>
-                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+
+      <div className="md:ml-72 ml-0 bg-white min-h-screen pt-14 md:pt-0">
+        <div className="p-6 md:p-12 max-w-[1280px] mx-auto">
+          {/* Header Section */}
+          <div className="mb-12">
+            <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+              {/* Title */}
+              <div>
+                <h1 className="text-4xl md:text-5xl font-bold text-black tracking-tight mb-3">
                   My Ads
                 </h1>
+                <p className="text-base text-[#666666] leading-relaxed">
+                  Your complete library of generated advertisements
+                </p>
               </div>
-              <div className="relative md:max-w-sm">
-                <div className="flex items-start gap-3 rounded-2xl border border-amber-200/70 bg-gradient-to-r from-white via-white to-amber-50/80 px-3.5 py-3 shadow-sm backdrop-blur-sm">
-                  <div className="mt-0.5">
-                    <CalendarClock className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs md:text-sm font-semibold text-amber-900 tracking-wide uppercase">
-                      Download within 15 days
+
+              {/* Warning Notice */}
+              <div className="md:max-w-md">
+                <div className="flex items-start gap-4 rounded-lg border border-[#E5E5E5] bg-white px-5 py-4">
+                  <CalendarClock className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-black tracking-wide uppercase">
+                      15-Day Retention
                     </p>
-                    <p className="text-[11px] md:text-xs text-amber-800 leading-relaxed max-w-xs">
-                      Every ad stays live for 15 days only. We automatically purge expired assets, so please download anything you love before it disappears.
+                    <p className="text-xs text-[#666666] leading-relaxed">
+                      All assets expire after 15 days. Download important files before automatic deletion.
                     </p>
                   </div>
                 </div>
@@ -690,8 +714,8 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
           </div>
 
           {/* Filter Controls */}
-          <div className="mb-4 md:mb-6">
-            <div className="flex w-full flex-wrap items-center gap-2 md:inline-flex md:w-auto md:gap-3 rounded-2xl border border-gray-200 bg-white/80 p-3 md:p-4 shadow-sm">
+          <div className="mb-8">
+            <div className="inline-flex flex-wrap items-center gap-3 rounded-lg border border-[#E5E5E5] bg-white p-2">
               {AD_TYPE_OPTIONS.map((option) => {
                 const isActive = adTypeFilter === option.value;
                 return (
@@ -702,18 +726,13 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                     onClick={() => setAdTypeFilter(option.value)}
                     aria-pressed={isActive}
                     className={cn(
-                      'inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/10',
+                      'inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20',
                       isActive
-                        ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:text-gray-900'
+                        ? 'bg-black text-white border-black'
+                        : 'bg-white text-black border-[#E5E5E5] hover:border-black'
                     )}
                   >
-                    <option.icon
-                      className={cn(
-                        'h-4 w-4',
-                        isActive ? 'text-white' : 'text-gray-500'
-                      )}
-                    />
+                    <option.icon className="h-4 w-4" />
                     <span>{option.label}</span>
                   </button>
                 );
@@ -723,31 +742,31 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
 
           {/* Projects Grid */}
           {isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="bg-white rounded-lg border border-gray-200 overflow-hidden animate-pulse">
-                  <div className="aspect-[3/4] bg-gray-200"></div>
-                  <div className="p-2 md:p-4">
-                    <div className="h-3 md:h-4 bg-gray-200 rounded mb-1.5 md:mb-2"></div>
-                    <div className="h-2.5 md:h-3 bg-gray-200 rounded w-3/4 mb-2 md:mb-3"></div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div key={index} className="bg-[#F7F7F7] rounded-lg border border-[#E5E5E5] overflow-hidden animate-pulse">
+                  <div className="aspect-[3/4] bg-[#E5E5E5]"></div>
+                  <div className="p-4">
+                    <div className="h-4 bg-[#E5E5E5] rounded mb-2"></div>
+                    <div className="h-3 bg-[#E5E5E5] rounded w-3/4 mb-3"></div>
                     <div className="flex items-center justify-between">
-                      <div className="h-5 md:h-6 bg-gray-200 rounded w-12 md:w-16"></div>
-                      <div className="h-6 md:h-8 bg-gray-200 rounded w-16 md:w-20"></div>
+                      <div className="h-6 bg-[#E5E5E5] rounded w-16"></div>
+                      <div className="h-8 bg-[#E5E5E5] rounded w-20"></div>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : filteredHistory.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <FileVideo className="w-6 h-6 text-gray-400" />
+            <div className="text-center py-20">
+              <div className="w-16 h-16 bg-[#F7F7F7] rounded-lg flex items-center justify-center mx-auto mb-6 border border-[#E5E5E5]">
+                <FileVideo className="w-8 h-8 text-[#666666]" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No projects yet</h3>
-              <p className="text-gray-500 mb-6">Start creating your first AI-powered advertisement</p>
+              <h3 className="text-xl font-semibold text-black mb-3">No projects yet</h3>
+              <p className="text-[#666666] mb-8 max-w-md mx-auto">Start creating your first AI-powered advertisement</p>
               <button
                 onClick={() => window.location.href = '/dashboard'}
-                className="bg-gray-900 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors font-medium flex items-center gap-2 mx-auto"
+                className="bg-black text-white px-6 py-3 rounded-lg hover:bg-black/90 transition-colors font-medium inline-flex items-center gap-2"
               >
                 <FileVideo className="w-4 h-4" />
                 Create Project
@@ -755,7 +774,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {currentHistory.map((item) => (
                   <motion.div
                     key={item.id}
@@ -765,62 +784,59 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                       y: visibleItems.has(item.id) ? 0 : 20
                     }}
                     transition={{ duration: 0.4, ease: "easeOut" }}
-                    className="relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 transition-all duration-200 hover:shadow-md flex flex-col"
+                    className="relative bg-[#F7F7F7] border border-[#E5E5E5] rounded-lg overflow-hidden hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-200 flex flex-col"
+                    style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
                   >
-                    <div className="absolute top-1.5 md:top-3 left-1.5 md:left-3 flex items-center gap-1 md:gap-2 pointer-events-none z-20">
-                      <div className="flex items-center gap-0.5 md:gap-1">
-                        <span
-                          className={cn(
-                            'px-1.5 md:px-2 py-0.5 rounded-full text-[10px] md:text-xs font-semibold flex items-center gap-0.5 md:gap-1 pointer-events-auto',
-                            getStatusBadgeClasses(item.status)
-                          )}
-                        >
-                          {getStatusText(item.status)}
-                          {item.status === 'failed' && (
-                            <div className="group">
-                              <HelpCircle className="w-3 h-3 md:w-4 md:h-4" aria-label="Failed generation details" />
-                              <div className="absolute left-0 right-auto top-full mt-2 w-[calc(100%-0.75rem)] max-w-[16rem] sm:max-w-[18rem] rounded-lg bg-gray-900 text-white text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto z-50 whitespace-normal break-words">
-                                <div className="font-medium mb-2">Generation Failed</div>
-                                <div className="space-y-2 mb-3">
-                                  <p>
-                                    {('coverImageUrl' in item && item.coverImageUrl)
-                                      ? 'We couldn\'t complete the video generation due to some technical issues. However, your cover image has been successfully generated and is ready to download.'
-                                      : 'We couldn\'t complete the generation due to some technical issues. Please try again with a different product photo.'}
-                                  </p>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    router.push('/dashboard/support');
-                                  }}
-                                  className={cn(
-                                    'w-full text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-center transition-colors',
-                                    interactiveCardActionClasses
-                                  )}
-                                >
-                                  Contact Support →
-                                </button>
-                              </div>
+                    {/* Status Badges */}
+                    <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none z-20">
+                      <span
+                        className={cn(
+                          'px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 pointer-events-auto',
+                          getStatusBadgeClasses(item.status)
+                        )}
+                      >
+                        {getStatusText(item.status)}
+                        {item.status === 'failed' && (
+                          <div className="group">
+                            <HelpCircle className="w-3.5 h-3.5" aria-label="Failed generation details" />
+                            <div className="absolute left-0 top-full mt-2 w-64 rounded-lg bg-black text-white text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto z-50">
+                              <div className="font-semibold mb-2">Generation Failed</div>
+                              <p className="mb-3">
+                                {('coverImageUrl' in item && item.coverImageUrl)
+                                  ? 'Video generation failed, but your cover image is ready to download.'
+                                  : 'Generation failed due to technical issues. Please try again with a different product photo.'}
+                              </p>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push('/dashboard/support');
+                                }}
+                                className={cn(
+                                  'w-full text-xs bg-white/20 hover:bg-white/30 px-2 py-1.5 rounded transition-colors',
+                                  interactiveCardActionClasses
+                                )}
+                              >
+                                Contact Support →
+                              </button>
                             </div>
-                          )}
-                        </span>
-                      </div>
-                      <span className={`px-1.5 md:px-2 py-0.5 rounded-full text-[10px] md:text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-300`}>
+                          </div>
+                        )}
+                      </span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white text-black border border-[#E5E5E5]">
                         {isWatermarkRemoval(item)
-                          ? 'Sora2 Watermark Removal'
+                          ? 'Watermark Removal'
                           : isCharacterAds(item)
                           ? 'Character'
-                          : 'Competitor UGC Replication'
+                          : 'UGC Clone'
                         }
                       </span>
                     </div>
-                    {/* Video Preview on Hover */}
-                    <div
-                      className="relative bg-black overflow-hidden"
-                    >
+
+                    {/* Video Preview */}
+                    <div className="relative bg-[#F1F1F1] overflow-hidden">
                       <div
                         className={cn(
-                          "w-full bg-black relative flex items-center justify-center",
+                          "w-full relative flex items-center justify-center",
                           getAspectRatioClass('videoAspectRatio' in item ? item.videoAspectRatio : '9:16')
                         )}
                         onMouseEnter={() => {
@@ -832,81 +848,73 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                           setHoveredVideo(null);
                         }}
                       >
-                        {
-                          // Watermark removal cards show a static placeholder to match layout
-                          isWatermarkRemoval(item) ? (
-                            <div className="w-full h-full bg-gray-900 text-white flex flex-col items-center justify-center gap-3 px-4 text-center">
-                              <AlertCircle className="w-8 h-8 text-white" />
-                              <div className="text-sm leading-snug text-gray-100">
-                                Sorry that we cannot preview newly de-watermarked videos. Please download to view the result.
-                              </div>
+                        {isWatermarkRemoval(item) ? (
+                          <div className="w-full h-full bg-black text-white flex flex-col items-center justify-center gap-3 px-4 text-center">
+                            <AlertCircle className="w-8 h-8" />
+                            <div className="text-sm leading-snug">
+                              Preview unavailable. Download to view.
                             </div>
-                          ) :
-                          // Regular video ad display
-                          item.status === 'completed' && 'videoUrl' in item && item.videoUrl &&
+                          </div>
+                        ) : item.status === 'completed' && 'videoUrl' in item && item.videoUrl &&
                           (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) &&
                           hoveredVideo === item.id ? (
-                            <VideoPlayer
-                              src={item.videoUrl}
-                              className="w-full h-full object-contain"
-                              autoPlay={true}
-                              loop={true}
-                              playsInline={true}
-                              showControls={false}
-                            />
-                          ) : 'coverImageUrl' in item && item.coverImageUrl ? (
-                            <Image
-                              src={item.coverImageUrl}
-                              alt="Generated cover"
-                              width={400}
-                              height={300}
-                              className="w-full h-full object-contain"
-                            />
-                          ) : 'originalImageUrl' in item && item.originalImageUrl ? (
-                            <Image
-                              src={item.originalImageUrl}
-                              alt="Original product"
-                              width={400}
-                              height={300}
-                              className="w-full h-full object-contain"
-                            />
-                          ) : (
-                            <Image
-                              src="/placeholder-image.png"
-                              alt="Placeholder"
-                              width={400}
-                              height={300}
-                              className="w-full h-full object-contain"
-                            />
-                          )
-                        }
+                          <VideoPlayer
+                            src={item.videoUrl}
+                            className="w-full h-full object-contain"
+                            autoPlay={true}
+                            loop={true}
+                            playsInline={true}
+                            showControls={false}
+                          />
+                        ) : 'coverImageUrl' in item && item.coverImageUrl ? (
+                          <Image
+                            src={item.coverImageUrl}
+                            alt="Generated cover"
+                            width={400}
+                            height={300}
+                            className="w-full h-full object-contain"
+                          />
+                        ) : 'originalImageUrl' in item && item.originalImageUrl ? (
+                          <Image
+                            src={item.originalImageUrl}
+                            alt="Original product"
+                            width={400}
+                            height={300}
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-[#E5E5E5]" />
+                        )}
+
+                        {/* Video Hover Indicator */}
                         {hoveredVideo === item.id &&
                           !isWatermarkRemoval(item) &&
                           item.status === 'completed' &&
                           'videoUrl' in item && item.videoUrl &&
                           (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) && (
-                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white pointer-events-none shadow-lg backdrop-blur-sm">
+                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/80 px-3 py-1.5 text-xs font-medium text-white pointer-events-none">
                               <Volume2 className="w-3.5 h-3.5" />
                               <span>Click for sound</span>
                             </div>
                           )}
-                        {/* Unified processing overlay with circular progress */}
+
+                        {/* Processing Overlay */}
                         {item.status === 'processing' && (
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]" />
+                            <div className="absolute inset-0 bg-white/50" />
                             {isWatermarkRemoval(item) ? (
-                              <Loader2 className="w-12 h-12 animate-spin text-gray-800" />
+                              <Loader2 className="w-12 h-12 animate-spin text-black" />
                             ) : (() => {
                               const pct = Math.round(Math.max(0, Math.min(100, item.progress ?? 0)));
                               return (
                                 <div className="relative w-20 h-20">
                                   <div
                                     className="absolute inset-0 rounded-full"
-                                    style={{ background: `conic-gradient(#111 ${pct}%, #e5e7eb 0)` }}
+                                    style={{ background: `conic-gradient(#000 ${pct}%, #E5E5E5 0)` }}
                                   />
-                                  <div className="absolute inset-1 rounded-full bg-white/70 backdrop-blur-sm" />
-                                  <div className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
-                                    <span className="text-sm font-semibold text-gray-800 tabular-nums">{pct}%</span>
+                                  <div className="absolute inset-1 rounded-full bg-white" />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-sm font-bold text-black">{pct}%</span>
                                   </div>
                                 </div>
                               );
@@ -914,291 +922,33 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                           </div>
                         )}
                       </div>
-                      
                     </div>
 
                     {/* Card Content */}
-                    <div className="p-2 md:p-4 flex-1 flex flex-col">
-
-                      {/* Enhanced metadata display */}
-                      <div className="space-y-1 md:space-y-2 mb-1 md:mb-2">
-                        <div className="flex items-center text-xs md:text-sm text-gray-500 gap-1 md:gap-2">
-                          <Clock className="w-3 h-3 md:w-4 md:h-4" />
-                          <span className="font-medium">
-                            {formatDate(item.createdAt)}
-                          </span>
-                          <span className="text-gray-300 hidden md:inline">•</span>
-                          <span className="text-gray-400 hidden md:inline">
-                            {formatTime(item.createdAt)}
-                          </span>
+                    <div className="p-4 flex-1 flex flex-col bg-[#F7F7F7]">
+                      {/* Metadata */}
+                      <div className="space-y-1 mb-3">
+                        <div className="flex items-center text-xs text-[#666666] gap-2">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span className="font-medium">{formatDate(item.createdAt)}</span>
+                          <span className="text-[#E5E5E5]">•</span>
+                          <span>{formatTime(item.createdAt)}</span>
                         </div>
                       </div>
 
-
-                      {/* Bottom action area - pinned to bottom for alignment */}
+                      {/* Action Button */}
                       <div className="mt-auto">
-                        <div className="border-t border-gray-200 bg-white -mx-2 md:-mx-4 -mb-2 md:-mb-4 px-2 md:px-4 py-2 md:py-3 flex items-center">
-                          {item.status === 'processing' && (
-                            <div className="flex flex-col gap-1.5 md:gap-2 w-full">
-                              {/* Watermark Removal: Only show processing video button */}
-                              {isWatermarkRemoval(item) ? (
-                                <button
-                                  disabled
-                                  className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed disabled:pointer-events-none"
-                                >
-                                  <div className="flex items-center gap-1.5 md:gap-2">
-                                    <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                    <span>Processing...</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 text-gray-500">
-                                    <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
-                                  </div>
-                                </button>
-                              ) : (
-                                <>
-                                  {/* Cover button: enabled if cover is ready during processing */}
-                                  <button
-                                    onClick={() => { if ('coverImageUrl' in item && item.coverImageUrl) handleCoverClick(item); }}
-                                    disabled={!('coverImageUrl' in item && item.coverImageUrl)}
-                                    className={cn(
-                                      'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm rounded-lg border transition-colors disabled:pointer-events-none',
-                                      'coverImageUrl' in item && item.coverImageUrl
-                                        ? cn('bg-black text-white hover:bg-gray-800 border-black', interactiveCardActionClasses)
-                                        : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
-                                    )}
-                                  >
-                                    <div className="flex items-center gap-1.5 md:gap-2">
-                                      <ImageIcon className={cn('w-3.5 h-3.5 md:w-4 md:h-4', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-white' : 'text-gray-500')} />
-                                      <span>{('coverImageUrl' in item && item.coverImageUrl) ? (coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover') : 'Cover'}</span>
-                                    </div>
-                                    <div className={cn('flex items-center gap-1', ('coverImageUrl' in item && item.coverImageUrl) ? 'text-green-400' : 'text-gray-500')}>
-                                      <span className="text-[10px] md:text-xs font-bold">FREE</span>
-                                    </div>
-                                  </button>
-
-                                  {/* Video button: always disabled while processing */}
-                                  <button
-                                    disabled
-                                    className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-gray-100 text-gray-500 rounded-lg border border-gray-200 cursor-not-allowed disabled:pointer-events-none"
-                                  >
-                                    <div className="flex items-center gap-1.5 md:gap-2">
-                                      <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                      <span>Video</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-gray-500">
-                                      <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
-                                    </div>
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                          {item.status === 'failed' && (
-                            <div className="flex flex-col gap-1.5 md:gap-2 w-full">
-                              {/* Watermark Removal & Regular Ads: Show no charge info */}
-                              {isWatermarkRemoval(item) ? (
-                                <div className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm border border-gray-300 rounded-lg">
-                                  <div className="flex items-center gap-1.5 md:gap-2.5">
-                                    <RotateCcw className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-600" />
-                                    <span className="font-medium text-gray-900">Credits refunded</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 md:gap-1.5 text-gray-700">
-                                    <Coins className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                    <span className="font-bold">0</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  {/* Cover Download Button */}
-                                  {'coverImageUrl' in item && item.coverImageUrl && (
-                                    <button
-                                      onClick={() => handleCoverClick(item)}
-                                      className={cn(
-                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black',
-                                        interactiveCardActionClasses
-                                      )}
-                                    >
-                                      <div className="flex items-center gap-1.5 md:gap-2">
-                                        <ImageIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
-                                        <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
-                                      </div>
-                                      <div className="flex items-center gap-1 text-green-400">
-                                        <span className="text-[10px] md:text-xs font-bold">FREE</span>
-                                      </div>
-                                    </button>
-                                  )}
-
-                                  {/* No charge info */}
-                                  <div className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm border border-gray-300 rounded-lg">
-                                    <div className="flex items-center gap-1.5 md:gap-2.5">
-                                      <RotateCcw className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-600" />
-                                      <span className="font-medium text-gray-900">No charge</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 md:gap-1.5 text-gray-700">
-                                      <Coins className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                      <span className="font-bold">0</span>
-                                    </div>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          )}
-
-                          {item.status === 'completed' && (
-                            <div className="flex flex-col gap-1.5 md:gap-2 w-full">
-                              {/* Watermark Removal: Only show video download (free) */}
-                              {isWatermarkRemoval(item) ? (
-                                <>
-                                  {item.videoUrl && (
-                                    <button
-                                      onClick={() => handleVideoClick(item)}
-                                      disabled={videoStates[item.id] === 'packing'}
-                                      className={cn(
-                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black disabled:pointer-events-none',
-                                        interactiveCardActionClasses
-                                      )}
-                                    >
-                                      <div className="flex items-center gap-1.5 md:gap-2">
-                                        <Download className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
-                                        <span className="truncate">
-                                          {videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Download'}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-1 text-green-400 flex-shrink-0">
-                                        <span className="text-[10px] md:text-xs font-bold">FREE</span>
-                                      </div>
-                                    </button>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  {/* Cover Download Button (always free) */}
-                                  {'coverImageUrl' in item && item.coverImageUrl && (
-                                    <button
-                                      onClick={() => handleCoverClick(item)}
-                                      className={cn(
-                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border border-black',
-                                        interactiveCardActionClasses
-                                      )}
-                                    >
-                                      <div className="flex items-center gap-1.5 md:gap-2">
-                                        <ImageIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" />
-                                        <span>{coverStates[item.id] ? getPackingText(coverStates[item.id]!) : 'Cover'}</span>
-                                      </div>
-                                      <div className="flex items-center gap-1 text-green-400">
-                                        <span className="text-[10px] md:text-xs font-bold">FREE</span>
-                                      </div>
-                                    </button>
-                                  )}
-
-                                  {/* Video Download Button (paid on first download) */}
-                                  {'videoUrl' in item && item.videoUrl && (
-                                    <button
-                                      onClick={() => handleVideoClick(item)}
-                                      disabled={videoStates[item.id] === 'packing'}
-                                      className={cn(
-                                        'w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2.5 text-xs md:text-sm bg-white text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors disabled:pointer-events-none',
-                                        interactiveCardActionClasses
-                                      )}
-                                    >
-                                      <div className="flex items-center gap-1.5 md:gap-2">
-                                        <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                        <span>{videoStates[item.id] ? getPackingText(videoStates[item.id]!) : 'Video'}</span>
-                                      </div>
-                                      {videoStates[item.id] === 'packing' ? (
-                                        <div className="flex items-center gap-1 md:gap-1.5 text-gray-600">
-                                          <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
-                                        </div>
-                                      ) : item.downloaded ? (
-                                        <div className="flex items-center gap-1 md:gap-1.5 text-green-600">
-                                          <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                          <span className="text-[10px] md:text-xs font-semibold">Downloaded</span>
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center gap-1 md:gap-1.5 text-gray-800">
-                                          {(() => {
-                                            // Check if VEO3 prepaid (credits already deducted at generation)
-                                            const isPrepaid = (item.generationCreditsUsed || 0) > 0;
-
-                                            if (isPrepaid) {
-                                              return (
-                                                <span className="text-[10px] md:text-xs font-bold text-green-600">Prepaid</span>
-                                              );
-                                            }
-
-                                            // Version 2.0: ALL downloads are FREE
-                                            const cost = 0;
-                                            return (
-                                              <>
-                                                <Coins className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                                <span className="font-bold">{cost}</span>
-                                              </>
-                                            );
-                                          })()}
-                                        </div>
-                                      )}
-                                    </button>
-                                  )}
-
-                                  {/* TikTok feature temporarily disabled - can be re-enabled by removing "false &&" */}
-                                  {/* TikTok Publish Button - Only for ads with videos */}
-                                  {false && 'videoUrl' in item && item.videoUrl && (
-                                    <button
-                                      onClick={() => handleTikTokPublish(item)}
-                                      className={cn(
-                                        'group relative w-full overflow-hidden rounded-lg transition-all duration-300',
-                                        interactiveCardActionClasses
-                                      )}
-                                    >
-                                      {/* Gradient background with animation */}
-                                      <div className={cn(
-                                        "absolute inset-0 bg-gradient-to-r from-[#00f2ea] via-[#ff0050] to-[#00f2ea] bg-[length:200%_100%]",
-                                        "animate-tiktok-shimmer"
-                                      )} />
-
-                                      {/* Dark overlay */}
-                                      <div className={cn(
-                                        "absolute inset-0 bg-black/80 transition-colors",
-                                        "group-hover:bg-black/70"
-                                      )} />
-
-                                      {/* Content */}
-                                      <div className="relative flex items-center justify-center gap-2 px-2 md:px-3 py-2 md:py-2.5">
-                                        {/* TikTok icon with music note style */}
-                                        <svg
-                                          className={cn(
-                                            "w-4 h-4 md:w-5 md:h-5 fill-white transition-transform",
-                                            "group-hover:scale-110"
-                                          )}
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-                                        </svg>
-
-                                        {/* Text with gradient */}
-                                        <span className={cn(
-                                          "text-xs md:text-sm font-bold bg-gradient-to-r from-[#00f2ea] to-[#ff0050] bg-clip-text text-transparent transition-all duration-500",
-                                          "group-hover:from-[#ff0050] group-hover:to-[#00f2ea]"
-                                        )}>
-                                          Post to TikTok
-                                        </span>
-
-                                        {/* Arrow icon */}
-                                        <Send className={cn(
-                                          "w-3 h-3 md:w-3.5 md:h-3.5 text-white transition-transform",
-                                          "group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                                        )} />
-                                      </div>
-
-                                      {/* Shine effect on hover - only if enabled */}
-                                      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          )}
+                        <div className="border-t border-[#E5E5E5] -mx-4 -mb-4 px-4 py-3 bg-white">
+                          <button
+                            onClick={() => handleViewDetails(item)}
+                            className={cn(
+                              'w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-black rounded-lg border border-[#E5E5E5] hover:border-black transition-all',
+                              interactiveCardActionClasses
+                            )}
+                          >
+                            <span className="font-medium">View Details</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1206,49 +956,43 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                 ))}
               </div>
 
-              {/* Pagination - Always show if there are items */}
+              {/* Pagination */}
               {filteredHistory.length > 0 && (
-                <div className="mt-8 flex items-center justify-center">
+                <div className="mt-12 flex items-center justify-center">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => goToPage(currentPage - 1)}
                       disabled={currentPage === 1}
                       className={cn(
-                        'px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+                        'px-3 py-2 text-sm font-medium text-black bg-white border border-[#E5E5E5] rounded-lg hover:border-black disabled:opacity-30 disabled:cursor-not-allowed transition-all',
                         paginationButtonClasses
                       )}
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
-                    
-                    {/* Page numbers with smart truncation */}
+
                     {(() => {
                       const pages = [];
                       const maxVisiblePages = 7;
-                      
+
                       if (totalPages <= maxVisiblePages) {
-                        // Show all pages if total is small
                         for (let i = 1; i <= totalPages; i++) {
                           pages.push(i);
                         }
                       } else {
-                        // Smart truncation for many pages
                         if (currentPage <= 4) {
-                          // Near start: show 1,2,3,4,5,...,last
                           for (let i = 1; i <= 5; i++) {
                             pages.push(i);
                           }
                           pages.push('...');
                           pages.push(totalPages);
                         } else if (currentPage >= totalPages - 3) {
-                          // Near end: show 1,...,last-4,last-3,last-2,last-1,last
                           pages.push(1);
                           pages.push('...');
                           for (let i = totalPages - 4; i <= totalPages; i++) {
                             pages.push(i);
                           }
                         } else {
-                          // Middle: show 1,...,current-1,current,current+1,...,last
                           pages.push(1);
                           pages.push('...');
                           for (let i = currentPage - 1; i <= currentPage + 1; i++) {
@@ -1258,19 +1002,19 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                           pages.push(totalPages);
                         }
                       }
-                      
+
                       return pages.map((page, index) => (
                         <div key={index}>
                           {page === '...' ? (
-                            <span className="px-3 py-2 text-sm text-gray-400">...</span>
+                            <span className="px-3 py-2 text-sm text-[#666666]">...</span>
                           ) : (
                             <button
                               onClick={() => goToPage(page as number)}
                               className={cn(
-                                'px-3 py-2 text-sm font-medium rounded-md transition-colors',
+                                'px-3 py-2 text-sm font-medium rounded-lg transition-all',
                                 currentPage === page
-                                  ? 'bg-gray-900 text-white'
-                                  : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50',
+                                  ? 'bg-black text-white'
+                                  : 'text-black bg-white border border-[#E5E5E5] hover:border-black',
                                 paginationButtonClasses
                               )}
                             >
@@ -1280,12 +1024,12 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                         </div>
                       ));
                     })()}
-                    
+
                     <button
                       onClick={() => goToPage(currentPage + 1)}
                       disabled={currentPage === totalPages}
                       className={cn(
-                        'px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+                        'px-3 py-2 text-sm font-medium text-black bg-white border border-[#E5E5E5] rounded-lg hover:border-black disabled:opacity-30 disabled:cursor-not-allowed transition-all',
                         paginationButtonClasses
                       )}
                     >
@@ -1299,7 +1043,6 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
         </div>
       </div>
 
-      {/* TikTok feature temporarily disabled - can be re-enabled by removing "false &&" */}
       {/* TikTok Publish Dialog */}
       {false && (
       <TikTokPublishDialog
@@ -1316,6 +1059,18 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
         }
       />
       )}
+
+      {/* Video Details Modal */}
+      <VideoDetailsModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedItem(null);
+        }}
+        item={selectedItem}
+        onDownload={handleModalDownload}
+        isDownloading={isModalDownloading}
+      />
     </div>
   );
 }

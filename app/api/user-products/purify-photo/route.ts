@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
-import { IMAGE_CREDIT_COSTS } from '@/lib/constants';
 
 const KIE_API_BASE_URL = 'https://api.kie.ai/api/v1/jobs';
-const PURIFICATION_COST = IMAGE_CREDIT_COSTS.nano_banana_pro; // 24 credits
+// Product photo purification is FREE - no credits required
 
 // Purification prompt - optimized for product photos
 const PURIFICATION_PROMPT =
@@ -33,25 +31,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 3. Check credits BEFORE processing
-    const creditCheck = await checkCredits(userId, PURIFICATION_COST);
-    if (!creditCheck.success || !creditCheck.hasEnoughCredits) {
-      return NextResponse.json({
-        error: 'Insufficient credits',
-        details: `Product photo purification requires ${PURIFICATION_COST} credits. Your balance: ${creditCheck.currentCredits || 0}`
-      }, { status: 402 });
-    }
-
-    // 4. Deduct credits upfront (Version 2.0 unified billing)
-    const deductResult = await deductCredits(userId, PURIFICATION_COST);
-    if (!deductResult.success) {
-      return NextResponse.json({
-        error: 'Failed to process credits',
-        details: 'Could not deduct credits from your account'
-      }, { status: 500 });
-    }
-
-    // 5. Create purification task with nano-banana-pro
+    // 3. Create purification task with nano-banana-pro (FREE - no credits required)
     const payload = {
       model: 'nano-banana-pro',
       input: {
@@ -63,7 +43,7 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    console.log('[purify-photo] Starting purification:', { userId, imageUrl, credits: PURIFICATION_COST });
+    console.log('[purify-photo] Starting FREE purification:', { userId, imageUrl });
 
     const response = await fetchWithRetry(`${KIE_API_BASE_URL}/createTask`, {
       method: 'POST',
@@ -75,8 +55,6 @@ export async function POST(request: NextRequest) {
     }, 3, 30000);
 
     if (!response.ok) {
-      // Refund credits on API failure
-      await deductCredits(userId, -PURIFICATION_COST);
       const errorText = await response.text();
       console.error('[purify-photo] KIE task creation failed:', errorText);
       return NextResponse.json({
@@ -88,8 +66,6 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
 
     if (data.code !== 200) {
-      // Refund credits on KIE error
-      await deductCredits(userId, -PURIFICATION_COST);
       console.error('[purify-photo] KIE API returned error:', data);
       return NextResponse.json({
         error: data.msg || 'KIE API error',
@@ -97,25 +73,17 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 6. Record credit transaction
-    await recordCreditTransaction(
-      userId,
-      'usage',
-      PURIFICATION_COST,
-      `Product photo purification task: ${data.data.taskId}`
-    );
+    // Product photo purification is FREE - no transaction recorded
 
-    console.log('[purify-photo] Task created successfully:', {
+    console.log('[purify-photo] Task created successfully (FREE):', {
       userId,
-      taskId: data.data.taskId,
-      remainingCredits: deductResult.remainingCredits
+      taskId: data.data.taskId
     });
 
     return NextResponse.json({
       success: true,
       taskId: data.data.taskId,
-      creditsDeducted: PURIFICATION_COST,
-      remainingCredits: deductResult.remainingCredits
+      creditsDeducted: 0
     });
 
   } catch (error) {
