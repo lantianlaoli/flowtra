@@ -73,29 +73,24 @@ export default function FounderCard({
     );
   }
 
-  // Featured variant - for support page
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-      className={`group relative ${className}`}
-    >
-      {/* Glass morphism card */}
-      <div className="relative overflow-hidden rounded-2xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl hover:shadow-2xl transition-all duration-300">
-        {/* Gradient background decoration */}
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
-        <div className={`relative ${variant === 'featured' ? 'p-8' : 'p-6'}`}>
-          <div className={`flex ${variant === 'featured' ? 'flex-col items-center text-center' : 'items-start gap-4'}`}>
-            {/* Avatar with glow effect */}
+    // Featured variant - for support page - Redesigned Minimalist (Horizontal)
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+        className={`group relative ${className}`}
+      >
+        <div className="relative overflow-hidden rounded-xl bg-[#F7F7F7] border border-[#E5E5E5] p-8 transition-all duration-300">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8 text-center md:text-left">
+            
+            {/* Avatar - Left Side */}
             <motion.div
               className="relative flex-shrink-0"
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.02 }}
               transition={{ type: 'spring', stiffness: 300 }}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full blur-xl opacity-30 group-hover:opacity-50 transition-opacity duration-500" />
-              <div className="relative rounded-full overflow-hidden border-4 border-white/50 dark:border-gray-800/50 shadow-lg">
+              <div className="relative rounded-full overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                 <Image
                   src={founderImageUrl}
                   alt="Founder"
@@ -106,65 +101,50 @@ export default function FounderCard({
                 />
               </div>
               {/* Online indicator */}
-              <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900 shadow-lg">
-                <div className="w-full h-full bg-green-400 rounded-full animate-ping opacity-75" />
-              </div>
+              <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#F7F7F7]" />
             </motion.div>
 
-            {/* Content */}
-            <div className={`flex-1 ${variant === 'featured' ? 'mt-6' : ''}`}>
+            {/* Content - Right Side */}
+            <div className="flex-1 min-w-0">
               {/* Greeting */}
               {showGreeting && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2 }}
-                  className="flex items-center gap-2 mb-2"
-                >
-                  <span className="text-2xl">👋</span>
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {showFullGreeting ? 'Got questions? Reach out anytime!' : 'Hi there!'}
-                  </span>
-                </motion.div>
+                <div className="mb-6 space-y-2">
+                  <h3 className="text-2xl md:text-3xl font-semibold text-black tracking-tight">
+                    {showFullGreeting ? 'Got questions?' : 'Hi there!'}
+                  </h3>
+                  <p className="text-[#666666] text-base leading-relaxed max-w-xl">
+                    {showFullGreeting ? 'Reach out directly. I usually reply within 24 hours.' : 'I\'m here to help.'}
+                  </p>
+                </div>
               )}
 
-              {/* TikTok link */}
-              <motion.a
-                href={tiktokUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-900 hover:to-black text-white font-medium text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <FaTiktok className="w-4 h-4" />
-                <span>{tiktokUsername}</span>
+              {/* Action Area */}
+              <div className="flex flex-col md:flex-row items-center md:items-center gap-4">
+                {/* TikTok link - Primary Button Style */}
+                <motion.a
+                  href={tiktokUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-black text-white font-medium text-sm transition-transform hover:-translate-y-0.5 w-full md:w-auto min-w-[200px]"
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                >
+                  <FaTiktok className="w-4 h-4" />
+                  <span>DM Founder on TikTok</span>
+                </motion.a>
+
+                {/* Featured variant extra message */}
                 {variant === 'featured' && (
-                  <span className="ml-1 px-2 py-0.5 text-xs bg-white/20 rounded-full">
-                    Fastest Reply
+                  <span className="text-xs font-medium text-[#666666] uppercase tracking-wide">
+                    Fastest Response Channel
                   </span>
                 )}
-              </motion.a>
-
-              {/* Featured variant extra message */}
-              {variant === 'featured' && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="mt-4 text-sm text-gray-600 dark:text-gray-400 italic"
-                >
-                  &quot;Don&apos;t hesitate - happy to help 😊&quot;
-                </motion.p>
-              )}
+              </div>
             </div>
+            
           </div>
         </div>
-
-        {/* Decorative floating elements */}
-        <div className="absolute top-2 right-2 w-20 h-20 bg-purple-400/10 rounded-full blur-2xl animate-float" />
-        <div className="absolute bottom-2 left-2 w-16 h-16 bg-pink-400/10 rounded-full blur-2xl animate-float" style={{ animationDelay: '1s' }} />
-      </div>
-    </motion.div>
-  );
+      </motion.div>
+    );
 }
+
