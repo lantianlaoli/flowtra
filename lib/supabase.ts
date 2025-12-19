@@ -128,6 +128,23 @@ export interface CompetitorUgcReplicationSegment {
   updated_at: string
 }
 
+// Database types for character_ads_scenes table
+export interface CharacterAdsScene {
+  id: string
+  project_id: string
+  scene_number: number
+  scene_prompt: Record<string, unknown>
+  status: 'pending' | 'generating' | 'completed' | 'failed'
+  kie_video_task_id?: string | null
+  video_url?: string | null
+  retry_count?: number // Number of automatic retries for server errors (failCode: 500, successFlag: 3). Max 3 retries.
+  last_retry_at?: string | null // Timestamp of last retry attempt for exponential backoff calculation
+  error_code?: string | null // KIE API error code (e.g., '500') for debugging
+  error_message?: string | null // Last error message from KIE API
+  created_at: string
+  updated_at: string
+}
+
 // Database types for user_avatars table
 export interface UserAvatar {
   id: string

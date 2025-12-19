@@ -540,7 +540,7 @@ async function generateImageWithKIE(
   return { taskId: data.data.taskId };
 }
 
-async function generateVideoWithKIE(
+export async function generateVideoWithKIE(
   prompt: Record<string, unknown>,
   referenceImageUrls: string[],
   videoAspectRatio?: '16:9' | '9:16',
@@ -839,10 +839,12 @@ async function checkKIEImageTaskStatus(taskId: string): Promise<{
   return { status: 'processing' };
 }
 
-async function checkKIEVideoTaskStatus(taskId: string): Promise<{
+export async function checkKIEVideoTaskStatus(taskId: string): Promise<{
   status: string;
   result_url?: string;
   error?: string;
+  errorCode?: string;  // NEW: Add error code for retry logic
+  isRetryable?: boolean; // NEW: Flag for retryable errors
 }> {
   const response = await fetchWithRetry(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
     headers: {
@@ -862,14 +864,16 @@ async function checkKIEVideoTaskStatus(taskId: string): Promise<{
 
   const taskData = data.data;
   if (!taskData) {
-  return { status: 'processing' };
-}
-
- 
+    return { status: 'processing' };
+  }
 
   // Use the same robust logic as other features - prioritize successFlag
   const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
   const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
+
+  // NEW: Extract failCode for server error detection
+  const failCode: string | undefined = typeof taskData.failCode === 'string' ? taskData.failCode : undefined;
+  const errorCode: string | undefined = typeof taskData.errorCode === 'number' ? String(taskData.errorCode) : failCode;
 
   // Extract video URL from multiple possible locations
   let result_url: string | undefined;
@@ -886,10 +890,24 @@ async function checkKIEVideoTaskStatus(taskId: string): Promise<{
       error: undefined
     };
   } else if (successFlag === 2 || successFlag === 3) {
+    const errorMessage = taskData.errorMessage || taskData.failureReason || 'Video generation failed';
+
+    // NEW: Detect server errors (retryable)
+    const isServerError = errorCode === '500' || failCode === '500';
+
+    // NEW: Detect content policy errors (already retried by existing logic)
+    const isContentPolicyError = errorMessage && (
+      errorMessage.toLowerCase().includes('content polic') ||
+      errorMessage.toLowerCase().includes('safety check failed') ||
+      errorMessage.toLowerCase().includes('violating content policies')
+    );
+
     return {
       status: 'failed',
       result_url: undefined,
-      error: taskData.errorMessage || taskData.failureReason || 'Video generation failed'
+      error: errorMessage,
+      errorCode: errorCode, // NEW: Pass error code
+      isRetryable: isServerError && !isContentPolicyError // NEW: Server errors are retryable
     };
   } else if (state === 'success' || state === 'SUCCESS') {
     return {
@@ -898,10 +916,20 @@ async function checkKIEVideoTaskStatus(taskId: string): Promise<{
       error: undefined
     };
   } else if (state === 'failed' || state === 'fail' || state === 'error') {
+    const errorMessage = taskData.errorMessage || taskData.failureReason || 'Video generation failed';
+    const isServerError = errorCode === '500' || failCode === '500';
+    const isContentPolicyError = errorMessage && (
+      errorMessage.toLowerCase().includes('content polic') ||
+      errorMessage.toLowerCase().includes('safety check failed') ||
+      errorMessage.toLowerCase().includes('violating content policies')
+    );
+
     return {
       status: 'failed',
       result_url: undefined,
-      error: taskData.errorMessage || taskData.failureReason || 'Video generation failed'
+      error: errorMessage,
+      errorCode: errorCode,
+      isRetryable: isServerError && !isContentPolicyError
     };
   } else {
     // Still processing (waiting, running, or other states)
@@ -1372,16 +1400,23 @@ export async function processCharacterAdsProject(
               .eq('scene_number', i + 1);
 
           } else if (status.status === 'failed') {
-            // Check if retryable error
-            const isRetryable = status.error && (
-              status.error.includes('content policy') || 
+            // NEW: Server errors are handled by monitor-tasks, not here
+            if (status.isRetryable) {
+              console.log(`⚠️ Server error for scene ${i + 1}: will be retried by monitor-tasks`);
+              allCompleted = false;
+              continue; // Don't throw - let monitor-tasks handle retry
+            }
+
+            // Check if content policy error (unlimited retry by workflow)
+            const isContentPolicy = status.error && (
+              status.error.includes('content policy') ||
               status.error.includes('Safety check failed') ||
               status.error.includes('violating content policies')
             );
 
-            if (isRetryable) {
-              console.log(`⚠️ Retryable error detected for scene ${i + 1}: ${status.error}. Retrying...`);
-              
+            if (isContentPolicy) {
+              console.log(`⚠️ Content policy error detected for scene ${i + 1}: ${status.error}. Retrying...`);
+
               // Retrieve prompt for this scene
               const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
               const videoPrompt = scenes?.[i]?.prompt;
@@ -1390,7 +1425,7 @@ export async function processCharacterAdsProject(
                 // Regenerate video task using updated generation logic (handles both structured and legacy)
                 const { taskId: newTaskId } = await generateVideoWithKIE(
                   videoPrompt as Record<string, unknown>,
-                  [project.generated_image_url!, project.generated_image_url!], 
+                  [project.generated_image_url!, project.generated_image_url!],
                   project.video_aspect_ratio as '16:9' | '9:16' | undefined,
                   project.language
                 );
@@ -1611,34 +1646,74 @@ export async function processCharacterAdsProject(
   } catch (error) {
     console.error(`Error processing step ${step}:`, error);
 
-    // ===== VERSION 2.0: REFUND ON FAILURE =====
+    // ===== VERSION 2.0: SCENE-LEVEL REFUND ON FAILURE =====
     // Determine if we need to refund credits (only if video generation was attempted)
     const videoGenerationSteps = ['generate_videos', 'check_videos_status', 'merge_videos', 'check_merge_status'];
     const shouldRefund = videoGenerationSteps.includes(step);
 
     if (shouldRefund) {
-      // Calculate what we charged at generation time
-      const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
-      const generationCost = GENERATION_COSTS.veo3_fast * videoScenes;
+      try {
+        // Fetch scenes to count permanently failed ones (retry_count >= 3)
+        const { data: scenes } = await supabase
+          .from('character_ads_scenes')
+          .select('status, retry_count')
+          .eq('project_id', project.id);
 
-      if (generationCost > 0) {
-        console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure in step: ${step}`);
-        try {
-          await deductCredits(project.user_id, -generationCost); // Negative = refund
-          await recordCreditTransaction(
+        const permanentlyFailedScenes = scenes?.filter(
+          s => s.status === 'failed' && (s.retry_count || 0) >= 3
+        ) || [];
+
+        if (permanentlyFailedScenes.length > 0) {
+          const costPerScene = GENERATION_COSTS.veo3_fast; // 20 credits per scene
+          const refundAmount = permanentlyFailedScenes.length * costPerScene;
+
+          console.log(`💸 Refunding ${refundAmount} credits for ${permanentlyFailedScenes.length} permanently failed scenes`);
+
+          const { refundCredits } = await import('@/lib/credits');
+          const refundResult = await refundCredits(
             project.user_id,
-            'refund',
-            generationCost,
-            `Character Ads - Refund for failed video generation (step: ${step})`,
-            project.id,
-            true
+            refundAmount,
+            `Character Ads - Refund for ${permanentlyFailedScenes.length} failed video scenes after max retries`,
+            project.id
           );
-          console.log(`✅ Successfully refunded ${generationCost} credits to user ${project.user_id}`);
-        } catch (refundError) {
-          console.error('❌ CRITICAL: Refund failed:', refundError);
-          console.error('Refund error details:', refundError instanceof Error ? refundError.message : 'Unknown error');
-          // TODO: This should trigger alerting - user paid but didn't get service
+
+          if (refundResult.success) {
+            console.log(`✅ Successfully refunded ${refundAmount} credits to user ${project.user_id}`);
+          } else {
+            console.error(`❌ Failed to refund credits:`, refundResult.error);
+            // TODO: This should trigger alerting - user paid but didn't get service
+          }
+        } else {
+          // No permanently failed scenes yet - might be a different error before scenes were created
+          // Or scenes are still retrying
+          console.log(`ℹ️ No permanently failed scenes found, checking if we should refund entire project cost`);
+
+          // If error occurred before scenes were created or during generation, refund full cost
+          if (!scenes || scenes.length === 0 || step === 'generate_videos') {
+            const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
+            const generationCost = GENERATION_COSTS.veo3_fast * videoScenes;
+
+            if (generationCost > 0) {
+              console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure in step: ${step}`);
+              const { refundCredits } = await import('@/lib/credits');
+              const refundResult = await refundCredits(
+                project.user_id,
+                generationCost,
+                `Character Ads - Refund for failed video generation (step: ${step})`,
+                project.id
+              );
+
+              if (refundResult.success) {
+                console.log(`✅ Successfully refunded ${generationCost} credits to user ${project.user_id}`);
+              } else {
+                console.error(`❌ Failed to refund credits:`, refundResult.error);
+              }
+            }
+          }
         }
+      } catch (refundError) {
+        console.error('❌ Error during refund process:', refundError);
+        // Don't throw - we still want to mark project as failed
       }
     }
 

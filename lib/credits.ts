@@ -359,6 +359,58 @@ export async function addCredits(userId: string, creditsToAdd: number): Promise<
   }
 }
 
+/**
+ * Refund credits to user account (wrapper for deductCredits with negative value)
+ * Used when generation fails after credits were deducted
+ */
+export async function refundCredits(
+  userId: string,
+  creditsToRefund: number,
+  reason: string,
+  projectId?: string
+): Promise<{
+  success: boolean;
+  newBalance?: number;
+  error?: string;
+}> {
+  try {
+    console.log(`💰 Refunding ${creditsToRefund} credits to user ${userId}: ${reason}`);
+
+    // Use deductCredits with negative value to add credits back
+    const refundResult = await deductCredits(userId, -creditsToRefund);
+
+    if (!refundResult.success) {
+      return {
+        success: false,
+        error: refundResult.error
+      };
+    }
+
+    // Record refund transaction
+    await recordCreditTransaction(
+      userId,
+      'refund',
+      creditsToRefund,
+      reason,
+      projectId,
+      true // Use admin client
+    );
+
+    console.log(`✅ Refunded ${creditsToRefund} credits, new balance: ${refundResult.remainingCredits}`);
+
+    return {
+      success: true,
+      newBalance: refundResult.remainingCredits
+    };
+  } catch (error) {
+    console.error('Refund credits error:', error);
+    return {
+      success: false,
+      error: 'Something went wrong'
+    };
+  }
+}
+
 // Record a credit transaction
 export async function recordCreditTransaction(
   userId: string,

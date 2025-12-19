@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { processCharacterAdsProject } from '@/lib/character-ads-workflow';
+import { processCharacterAdsProject, checkKIEVideoTaskStatus, generateVideoWithKIE } from '@/lib/character-ads-workflow';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 export async function POST() {
@@ -189,6 +189,11 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
     return;
   }
 
+  // NEW: Handle scene-level retries for video generation
+  if (project.status === 'generating_videos') {
+    await handleSceneVideoRetries(project, supabase);
+  }
+
   // Determine the next step to trigger based on current state
   let nextStep: string | null = null;
 
@@ -282,6 +287,170 @@ async function processCharacterAdsProjectStep(project: CharacterAdsProject) {
       .eq('id', project.id);
 
     console.log(`No action needed for project ${project.id} (status: ${project.status}, step: ${project.current_step})`);
+  }
+}
+
+/**
+ * Calculate exponential backoff delay in milliseconds
+ * Formula: baseDelay * 2^(retryCount - 1)
+ * Example: 5s, 10s, 20s for retries 1, 2, 3
+ */
+function calculateBackoffDelay(retryCount: number, baseDelayMs: number = 5000): number {
+  return baseDelayMs * Math.pow(2, retryCount - 1);
+}
+
+/**
+ * Check if scene is ready for retry based on exponential backoff
+ */
+function isReadyForRetry(lastRetryAt: string | null, retryCount: number): boolean {
+  if (!lastRetryAt) return true; // No previous retry, ready immediately
+
+  const lastRetryTime = new Date(lastRetryAt).getTime();
+  const now = Date.now();
+  const requiredDelay = calculateBackoffDelay(retryCount);
+
+  return (now - lastRetryTime) >= requiredDelay;
+}
+
+/**
+ * Process video generation failures with retry logic for character ads scenes
+ * Called from processCharacterAdsProjectStep when status is 'generating_videos'
+ */
+async function handleSceneVideoRetries(
+  project: any,
+  supabase: ReturnType<typeof getSupabaseAdmin>
+) {
+  const MAX_RETRIES = 3;
+
+  // Fetch all scenes for this project
+  const { data: scenes, error: scenesError } = await supabase
+    .from('character_ads_scenes')
+    .select('*')
+    .eq('project_id', project.id)
+    .eq('status', 'generating');
+
+  if (scenesError) {
+    console.error(`Failed to fetch scenes for project ${project.id}:`, scenesError);
+    return;
+  }
+
+  if (!scenes || scenes.length === 0) {
+    return; // No generating scenes to check
+  }
+
+  console.log(`🔍 Checking ${scenes.length} generating scenes for project ${project.id}`);
+
+  let hasRetries = false;
+
+  for (const scene of scenes) {
+    if (!scene.kie_video_task_id) continue;
+
+    // Check video task status
+    const status = await checkKIEVideoTaskStatus(scene.kie_video_task_id);
+
+    if (status.status === 'completed' && status.result_url) {
+      // Scene completed successfully
+      await supabase
+        .from('character_ads_scenes')
+        .update({
+          video_url: status.result_url,
+          status: 'completed',
+          error_code: null,
+          error_message: null
+        })
+        .eq('id', scene.id);
+
+      console.log(`✅ Scene ${scene.scene_number} completed for project ${project.id}`);
+
+    } else if (status.status === 'failed') {
+      const currentRetryCount = scene.retry_count || 0;
+
+      // Check if this is a retryable server error
+      if (status.isRetryable && currentRetryCount < MAX_RETRIES) {
+        // Check exponential backoff timing
+        if (!isReadyForRetry(scene.last_retry_at, currentRetryCount + 1)) {
+          const nextRetryIn = calculateBackoffDelay(currentRetryCount + 1) -
+            (Date.now() - new Date(scene.last_retry_at!).getTime());
+          console.log(`⏳ Scene ${scene.scene_number} not ready for retry yet. Next retry in ${Math.ceil(nextRetryIn / 1000)}s`);
+          continue;
+        }
+
+        console.warn(`⚠️ Retryable server error for scene ${scene.scene_number} (retry ${currentRetryCount + 1}/${MAX_RETRIES})`);
+        console.warn(`   Error: ${status.error}`);
+        console.warn(`   Error Code: ${status.errorCode}`);
+        console.warn(`   Restarting video generation...`);
+
+        // Retrieve prompt for this scene
+        const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
+        const videoPrompt = scenes?.[scene.scene_number - 1]?.prompt;
+
+        if (!videoPrompt) {
+          console.error(`❌ Cannot retry scene ${scene.scene_number}: prompt not found`);
+          continue;
+        }
+
+        try {
+          // Regenerate video task
+          const { taskId: newTaskId } = await generateVideoWithKIE(
+            videoPrompt as Record<string, unknown>,
+            [project.generated_image_url!, project.generated_image_url!],
+            project.video_aspect_ratio as '16:9' | '9:16' | undefined,
+            project.language
+          );
+
+          console.log(`✅ Retried scene ${scene.scene_number} with new task: ${newTaskId}`);
+
+          // Update scene with new task ID and increment retry count
+          await supabase
+            .from('character_ads_scenes')
+            .update({
+              kie_video_task_id: newTaskId,
+              retry_count: currentRetryCount + 1,
+              last_retry_at: new Date().toISOString(),
+              error_code: status.errorCode,
+              error_message: `Retrying after server error (attempt ${currentRetryCount + 1}/${MAX_RETRIES}): ${status.error}`,
+              status: 'generating'
+            })
+            .eq('id', scene.id);
+
+          hasRetries = true;
+
+        } catch (retryError) {
+          console.error(`❌ Failed to retry scene ${scene.scene_number}:`, retryError);
+          // Don't throw - continue checking other scenes
+        }
+
+      } else {
+        // Non-retryable error OR max retries exceeded
+        if (status.isRetryable) {
+          console.error(`❌ Max retries (${MAX_RETRIES}) exceeded for scene ${scene.scene_number}`);
+        }
+
+        // Mark scene as permanently failed
+        await supabase
+          .from('character_ads_scenes')
+          .update({
+            status: 'failed',
+            error_code: status.errorCode,
+            error_message: status.error
+          })
+          .eq('id', scene.id);
+
+        // Project-level failure will be handled by check_videos_status step
+        console.error(`❌ Scene ${scene.scene_number} permanently failed: ${status.error}`);
+      }
+    }
+    // If status === 'processing', do nothing - wait for next monitor run
+  }
+
+  if (hasRetries) {
+    // Update project last_processed_at to prevent timeout
+    await supabase
+      .from('character_ads_projects')
+      .update({
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', project.id);
   }
 }
 
