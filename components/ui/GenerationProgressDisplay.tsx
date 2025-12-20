@@ -69,87 +69,34 @@ export interface SegmentCardSummary {
 }
 
 interface EmptyStateStep {
-  icon: string;
-  title: string;
+  number: number;
   description: string;
+  link?: { text: string; href: string };
 }
 
 const DEFAULT_STEPS: EmptyStateStep[] = [
   {
-    icon: '📦',
-    title: 'Step 1',
-    description: 'Create your brands & products in Assets',
+    number: 1,
+    description: 'Configure brands, products, and upload viral videos in',
+    link: { text: 'Assets', href: '/dashboard/assets' }
   },
   {
-    icon: '🎯',
-    title: 'Step 2',
-    description: 'Select platform, brand, and product above',
+    number: 2,
+    description: 'Select brand and viral video'
   },
   {
-    icon: '✨',
-    title: 'Step 3',
-    description: 'Click Generate to create your video',
+    number: 3,
+    description: 'Review settings and start generation'
+  },
+  {
+    number: 4,
+    description: 'Edit segment photos and prompts'
+  },
+  {
+    number: 5,
+    description: 'Merge final results'
   },
 ];
-
-function renderEmptyStateNotice(variant: 'competitor-ugc' | 'character-ads') {
-  if (variant === 'character-ads') {
-    return (
-      <div className="mb-6 bg-blue-50 border border-blue-100 rounded-2xl p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-2xl bg-white/80 border border-blue-100 flex items-center justify-center">
-            <Rocket className="w-4 h-4 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-blue-900">Two flexible formats</p>
-            <p className="text-xs text-blue-800">Add a product or keep it as a pure talking head recording.</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex items-center gap-3 rounded-xl bg-white/80 border border-blue-100 p-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
-              <Package className="w-5 h-5 text-blue-700" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-blue-900">Character + Product</p>
-              <p className="text-xs text-blue-700">Let the talent hold or wear your product while delivering the script.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl bg-white/80 border border-blue-100 p-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
-              <User className="w-5 h-5 text-blue-700" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-blue-900">Talking Head</p>
-              <p className="text-xs text-blue-700">Skip product assets and have the character share a message directly to camera.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-2xl bg-white/90 border border-amber-200 flex items-center justify-center">
-          <AlertCircle className="w-4 h-4 text-amber-700" />
-        </div>
-        <div className="space-y-2 text-sm text-amber-900">
-          <p className="font-semibold text-base">Model usage reminders</p>
-          <ul className="space-y-2 text-amber-900">
-            <li>
-              <span className="font-semibold">Veo3 Fast & Veo3:</span> These Google models cannot feature children or minors. Avoid kid-focused products or scenes.
-            </li>
-            <li>
-              <span className="font-semibold">Sora2 & Sora2 Pro:</span> These OpenAI models forbid showcasing products intended for direct human use (skincare, ingestibles, supplements, etc.).
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface GenerationProgressDisplayProps {
   generations: Generation[];
@@ -161,7 +108,6 @@ interface GenerationProgressDisplayProps {
   onSegmentSelect?: (generation: Generation, segment: SegmentCardSummary) => void;
   onMerge?: (generation: Generation, updatedPlan?: any) => void;
   onReview?: (generation: Generation) => void;
-  noticeVariant?: 'competitor-ugc' | 'character-ads';
   reviewCtaLabel?: string;
 }
 
@@ -175,10 +121,8 @@ export default function GenerationProgressDisplay({
   onSegmentSelect,
   onMerge,
   onReview,
-  noticeVariant = 'competitor-ugc',
   reviewCtaLabel = 'Review & Generate'
 }: GenerationProgressDisplayProps) {
-  const noticePanel = useMemo(() => renderEmptyStateNotice(noticeVariant), [noticeVariant]);
   // Load TikTok script when in empty state
   useEffect(() => {
     if (generations.length === 0) {
@@ -201,42 +145,45 @@ export default function GenerationProgressDisplay({
         <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-10 lg:gap-12">
           {/* Left Side: Steps */}
           <div className="flex-1 max-w-lg">
-            {noticePanel}
-
             <div className="mb-8">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-                  <Rocket className="w-5 h-5 text-blue-600" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl flex items-center justify-center">
+                  <Rocket className="w-5 h-5 text-black" />
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-900">
-                  Get started
-                </h3>
+                <div>
+                  <h3 className="text-3xl font-semibold text-black">
+                    Get started
+                  </h3>
+                </div>
               </div>
-              <p className="text-base text-gray-500 ml-13">
+              <p className="text-base text-[#666666] mt-3">
                 Follow these steps to create your first video
               </p>
             </div>
 
-            <div className="space-y-4 mb-8">
-              {steps.map((step, index) => (
-                <div key={step.title} className="flex items-center gap-4 py-2">
-                  <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-base font-semibold text-gray-500 bg-gray-100 rounded-full">
-                    {index + 1}
+            <div className="space-y-3 mb-8">
+              {steps.map((step) => (
+                <div key={step.number} className="flex items-start gap-3 py-2">
+                  <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-sm font-semibold text-[#666666] bg-[#F7F7F7] border border-[#E5E5E5] rounded-full">
+                    {step.number}
                   </span>
-                  <p className="text-base text-gray-700 leading-relaxed">
+                  <p className="text-base text-black leading-relaxed pt-0.5">
                     {step.description}
+                    {step.link && (
+                      <>
+                        {' '}
+                        <Link
+                          href={step.link.href}
+                          className="font-semibold text-black underline hover:no-underline transition-all"
+                        >
+                          {step.link.text}
+                        </Link>
+                      </>
+                    )}
                   </p>
                 </div>
               ))}
             </div>
-
-            <Link
-              href="/dashboard/assets"
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
-            >
-              <Boxes className="w-5 h-5" />
-              Go to Assets
-            </Link>
           </div>
 
           {/* Right Side: Video Tutorial */}
@@ -509,8 +456,8 @@ function GenerationCard({
           </div>
         )}
 
-        {/* Segment breakdown toggle */}
-        {hasSegments && (
+        {/* Segment breakdown toggle - hide for single segments */}
+        {hasSegments && segmentCount !== 1 && (
           <div className="mb-3">
             <button
               type="button"
@@ -544,7 +491,8 @@ function GenerationCard({
             </div>
           </div>
         )}
-        {hasSegments && (
+        {/* Merge button section - hide for single segments */}
+        {hasSegments && segmentCount !== 1 && (
           <div className="mb-3">
             {mergeComplete ? (
               <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800">

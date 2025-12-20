@@ -118,14 +118,7 @@ export default function VideoAspectRatioSelector({
             {selectedOption?.icon && (
               <selectedOption.icon className="w-4 h-4 text-gray-500" />
             )}
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{selectedOption?.label}</span>
-              {selectedOption?.subtitle && (
-                <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                  {selectedOption.subtitle}
-                </span>
-              )}
-            </div>
+            <span className="font-medium">{selectedOption?.label}</span>
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
             <ChevronDown className="h-3 w-3 text-gray-600" />
@@ -155,19 +148,9 @@ export default function VideoAspectRatioSelector({
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-start gap-3">
-                    <option.icon className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{option.label}</span>
-                        <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                          {option.subtitle}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {option.platforms}
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <option.icon className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    <span className="font-medium">{option.label}</span>
                   </div>
                   {selectedAspectRatio === option.value && (
                     <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2 flex-shrink-0">

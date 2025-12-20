@@ -8,6 +8,7 @@ import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import { Sparkles, Coins, TrendingUp, AlertCircle, Boxes } from 'lucide-react';
+import BottomComposerBar from '@/components/ui/BottomComposerBar';
 
 // New components for redesigned UX
 import PlatformSelector, { type Platform } from '@/components/ui/PlatformSelector';
@@ -155,51 +156,36 @@ const SESSION_STORAGE_KEY = 'flowtra_competitor_ugc_replication_generations';
 const COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS: VideoDurationOption[] = [
   {
     value: '8',
-    label: '8 seconds',
-    description: 'Single-segment video',
-    features: '1 segment • Quick hook'
+    label: '8s',
+    recommended: true
   },
   {
     value: '16',
-    label: '16 seconds',
-    description: 'Dual-segment storyline',
-    features: '2 segments • Two-beat arc'
+    label: '16s'
   },
   {
     value: '24',
-    label: '24 seconds',
-    description: 'Mid-length narrative',
-    features: '3 segments • Balanced flow'
+    label: '24s'
   },
   {
     value: '32',
-    label: '32 seconds',
-    description: 'Full-funnel sequence',
-    features: '4 segments • Complete story'
+    label: '32s'
   },
   {
     value: '40',
-    label: '40 seconds',
-    description: 'Extended narrative',
-    features: '5 segments • Rich storytelling'
+    label: '40s'
   },
   {
     value: '48',
-    label: '48 seconds',
-    description: 'Comprehensive showcase',
-    features: '6 segments • Product journey'
+    label: '48s'
   },
   {
     value: '56',
-    label: '56 seconds',
-    description: 'Long-form content',
-    features: '7 segments • Deep engagement'
+    label: '56s'
   },
   {
     value: '64',
-    label: '64 seconds',
-    description: 'Full commercial',
-    features: '8 segments • Complete brand story'
+    label: '64s'
   }
 ];
 
@@ -1202,7 +1188,6 @@ export default function CompetitorUgcReplicationPage() {
                   <GenerationProgressDisplay
                     generations={displayedGenerations}
                     onDownload={handleDownloadGeneration}
-                    noticeVariant="competitor-ugc"
                     onReview={handleRequestVideoGeneration}
                     reviewCtaLabel="Generate Video"
                     emptyStateRightContent={
@@ -1254,137 +1239,74 @@ export default function CompetitorUgcReplicationPage() {
       </div>
     </div>
 
-    {/* Bottom Composer - Minimalist */}
-    <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-8 md:px-12 lg:px-16 pb-6">
-      <div className="max-w-[1280px] mx-auto space-y-3">
-        <div className="bg-white/98 backdrop-blur border border-[#E5E5E5] rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.1)] px-6 py-4 flex flex-wrap items-center gap-3">
-          {/* Left controls */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <PlatformSelector
-              selectedPlatform={selectedPlatform}
-              onPlatformChange={handlePlatformChange}
-              disabled={isGenerating}
-              label=""
-              variant="compact"
-            />
-
-            <BrandDropdownSelector
-              selectedBrand={selectedBrand}
-              onSelect={(brand) => {
-                setSelectedBrand(brand);
-                setSelectedCompetitorAd(null);
-              }}
-              disabled={isGenerating}
-              className="flex-shrink-0"
-            />
-          </div>
-
-          {/* Conversational Input */}
-          <RequirementsInput
-            value={additionalRequirements}
-            onChange={setAdditionalRequirements}
+    {/* Bottom Composer - Unified */}
+    <BottomComposerBar
+      leftControls={
+        <>
+          <PlatformSelector
+            selectedPlatform={selectedPlatform}
+            onPlatformChange={handlePlatformChange}
             disabled={isGenerating}
-            className="flex-1 min-w-[240px]"
-            textareaClassName="px-0"
-            variant="ghost"
-            hideCounter
+            label=""
+            variant="compact"
           />
-
-          {/* Replica asset selector */}
-          {/* Actions */}
-          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-            <ConfigPopover
-              videoDuration={videoDuration}
-              onDurationChange={setVideoDuration}
-              disabledDurations={disabledDurations}
-              durationOptions={filteredDurationOptions}
-              recommendedDuration={recommendedDuration}
-              selectedModel={selectedModel}
-              onModelChange={setSelectedModel}
-              userCredits={userCredits || 0}
-              selectedLanguage={selectedLanguage}
-              onLanguageChange={setSelectedLanguage}
-              format={format}
-              onFormatChange={setFormat}
-              disabled={isGenerating}
-              variant="minimal"
-              mode={isCompetitorPhotoMode ? 'photo' : 'video'}
-              photoAspectRatio={photoAspectRatio}
-              onPhotoAspectRatioChange={(value) => setPhotoAspectRatio(value as ReplicaAspectRatio)}
-              photoAspectRatioOptions={REPLICA_ASPECT_RATIOS}
-              photoResolution={photoResolution}
-              onPhotoResolutionChange={(value) => setPhotoResolution(value as ReplicaResolution)}
-              photoResolutionOptions={REPLICA_RESOLUTIONS}
-              photoOutputFormat={photoOutputFormat}
-              onPhotoOutputFormatChange={(value) => setPhotoOutputFormat(value as ReplicaOutputFormat)}
-              photoOutputFormatOptions={REPLICA_OUTPUT_FORMATS}
-            />
-
-            <div className="flex flex-col items-end gap-1">
-              <button
-                onClick={handleStartWorkflow}
-                disabled={!canGenerate}
-                className={`
-                  flex items-center gap-2.5 px-6 py-3 rounded-lg cursor-pointer
-                  font-semibold text-sm whitespace-nowrap min-w-[260px]
-                  transition-all duration-200
-                  ${canGenerate
-                    ? 'bg-black hover:bg-black/90 text-white shadow-[0_20px_40px_rgba(0,0,0,0.1)]'
-                    : 'bg-[#E5E5E5] text-[#666666] cursor-not-allowed'
-                  }
-                `}
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>{!canAfford ? 'Insufficient Credits' : 'Generate'}</span>
-                {!canAfford && (
-                  <span className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-red-500/30 rounded-full text-xs font-bold backdrop-blur-sm">
-                    Need {generationCost}, Have {userCredits || 0}
-                  </span>
-                )}
-                {!isCompetitorPhotoMode && canAfford && (
-                  <div className="flex items-center gap-2 ml-auto text-xs">
-                    {/* Generation Cost */}
-                    <div className="flex items-center gap-1">
-                      {generationCost > 0 ? (
-                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/20 rounded">
-                          <Coins className="w-3 h-3" />
-                          <span>{generationCost}</span>
-                        </span>
-                      ) : (
-                        <span className="px-1.5 py-0.5 bg-green-500/20 text-green-100 rounded text-[10px] font-bold">
-                          FREE
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-white/40">+</span>
-                    {/* Download Cost */}
-                    <div className="flex items-center gap-1">
-                      <span className="text-white/80">Download:</span>
-                      {downloadCost > 0 ? (
-                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/20 rounded">
-                          <Coins className="w-3 h-3" />
-                          <span>{downloadCost}</span>
-                        </span>
-                      ) : (
-                        <span className="px-1.5 py-0.5 bg-green-500/20 text-green-100 rounded text-[10px] font-bold">
-                          FREE
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {isCompetitorPhotoMode && canAfford && generationCost > 0 && (
-                  <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded ml-auto">
-                    <Coins className="w-3 h-3" />
-                    {generationCost}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-    </div>
-  </div>
+          <BrandDropdownSelector
+            selectedBrand={selectedBrand}
+            onSelect={(brand) => {
+              setSelectedBrand(brand);
+              setSelectedCompetitorAd(null);
+            }}
+            disabled={isGenerating}
+            className="flex-shrink-0"
+          />
+        </>
+      }
+      centerInput={
+        <RequirementsInput
+          value={additionalRequirements}
+          onChange={setAdditionalRequirements}
+          disabled={isGenerating}
+          className="flex-1"
+          textareaClassName="px-0"
+          variant="ghost"
+          hideCounter
+        />
+      }
+      configButton={
+        <ConfigPopover
+          videoDuration={videoDuration}
+          onDurationChange={setVideoDuration}
+          disabledDurations={disabledDurations}
+          durationOptions={filteredDurationOptions}
+          recommendedDuration={recommendedDuration}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          userCredits={userCredits || 0}
+          selectedLanguage={selectedLanguage}
+          onLanguageChange={setSelectedLanguage}
+          format={format}
+          onFormatChange={setFormat}
+          disabled={isGenerating}
+          variant="minimal"
+          mode={isCompetitorPhotoMode ? 'photo' : 'video'}
+          photoAspectRatio={photoAspectRatio}
+          onPhotoAspectRatioChange={(value) => setPhotoAspectRatio(value as ReplicaAspectRatio)}
+          photoAspectRatioOptions={REPLICA_ASPECT_RATIOS}
+          photoResolution={photoResolution}
+          onPhotoResolutionChange={(value) => setPhotoResolution(value as ReplicaResolution)}
+          photoResolutionOptions={REPLICA_RESOLUTIONS}
+          photoOutputFormat={photoOutputFormat}
+          onPhotoOutputFormatChange={(value) => setPhotoOutputFormat(value as ReplicaOutputFormat)}
+          photoOutputFormatOptions={REPLICA_OUTPUT_FORMATS}
+        />
+      }
+      onGenerate={handleStartWorkflow}
+      canGenerate={canGenerate}
+      isGenerating={isGenerating}
+      generationCost={generationCost}
+      userCredits={userCredits || 0}
+      generateButtonText="Generate"
+    />
 
     {segmentInspector && inspectorContext && (
       <SegmentInspector

@@ -23,6 +23,7 @@ interface ConfigPopoverProps {
   selectedModel: VideoModel;
   onModelChange: (model: VideoModel) => void;
   userCredits: number;
+  hideModelSelector?: boolean;
 
   // Language props
   selectedLanguage: LanguageCode;
@@ -57,6 +58,7 @@ export default function ConfigPopover({
   selectedModel,
   onModelChange,
   userCredits,
+  hideModelSelector = false,
   selectedLanguage,
   onLanguageChange,
   format,
@@ -239,14 +241,16 @@ export default function ConfigPopover({
         <p className="text-xs text-gray-500">{formatHelperText}</p>
       )}
 
-      <VideoModelSelector
-        credits={userCredits}
-        selectedModel={selectedModel}
-        onModelChange={onModelChange}
-        videoDuration={videoDuration}
-        label="AI Model"
-        showIcon
-      />
+      {!hideModelSelector && (
+        <VideoModelSelector
+          credits={userCredits}
+          selectedModel={selectedModel}
+          onModelChange={onModelChange}
+          videoDuration={videoDuration}
+          label="AI Model"
+          showIcon
+        />
+      )}
 
       <VideoDurationSelector
         selectedDuration={videoDuration}
@@ -348,12 +352,6 @@ export default function ConfigPopover({
 
             </div>
 
-            {/* Footer tip */}
-            <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
-              <p className="text-xs text-gray-500">
-                These settings will be applied to your next generation
-              </p>
-            </div>
             </motion.div>
           </>
         </AnimatePresence>,

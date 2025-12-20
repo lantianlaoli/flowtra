@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Lock, Coins, Video, Clock, Zap, HelpCircle } from 'lucide-react';
+import { ChevronDown, Check, Lock, Coins, Video, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   CREDIT_COSTS,
@@ -47,7 +47,6 @@ export default function VideoModelSelector({
   videoDurationSeconds
 }: VideoModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [tooltipData, setTooltipData] = useState<{ text: string; left: number; top: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
 
@@ -181,15 +180,10 @@ export default function VideoModelSelector({
           onClick={() => setIsOpen(!isOpen)}
           className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-md transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
-          <div className="min-w-0 flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="font-medium truncate">
-                {selectedOption?.label}
-              </span>
-            </div>
-            {selectedOption?.features && (
-              <span className="text-xs text-gray-500 truncate">{selectedOption?.features}</span>
-            )}
+          <div className="min-w-0">
+            <span className="font-medium truncate">
+              {selectedOption?.label}
+            </span>
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
             <ChevronDown className="h-3 w-3 text-gray-600" />
@@ -226,56 +220,12 @@ export default function VideoModelSelector({
                     : "text-gray-700"
                 )}
               >
-                <div className="flex flex-1 flex-col gap-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-medium">
-                        {option.label}
-                      </span>
-                      {option.description && (
-                        <div className="relative">
-                          <HelpCircle
-                            className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help transition-colors"
-                            onMouseEnter={(e) => {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setTooltipData({
-                                text: option.description,
-                                left: rect.right + 8,
-                                top: rect.top - 4
-                              });
-                            }}
-                            onMouseLeave={() => setTooltipData(null)}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    {isDisabled && (
-                      <Lock className="w-3 h-3 text-gray-400" />
-                    )}
-                  </div>
-                  {option.features && (
-                    <span className="text-xs text-gray-600 flex items-center gap-1.5">
-                      <Clock className="w-3 h-3" />
-                      {option.features}
-                    </span>
-                  )}
-                  {!hideCredits && (
-                    <div className="flex items-center gap-3 text-xs mt-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-gray-500">Generation:</span>
-                        <div className={cn(
-                          "flex items-center gap-1 font-semibold",
-                          !isDisabled ? "text-gray-900" : "text-red-500"
-                        )}>
-                          <Coins className="w-3.5 h-3.5" />
-                          <span>{option.cost * adsCount}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-blue-700">
-                        <Zap className="w-3 h-3" />
-                        <span className="font-medium">Download FREE</span>
-                      </div>
-                    </div>
+                <div className="flex flex-1 items-center gap-2">
+                  <span className="font-medium">
+                    {option.label}
+                  </span>
+                  {isDisabled && (
+                    <Lock className="w-3 h-3 text-gray-400" />
                   )}
                 </div>
                 {selectedModel === option.value && !isDisabled && (
@@ -290,20 +240,6 @@ export default function VideoModelSelector({
         </AnimatePresence>
       </div>
     </div>
-
-      {/* Fixed position tooltip */}
-      {tooltipData && (
-        <div
-          className="fixed w-72 p-3 bg-gray-900 text-white text-xs rounded-md shadow-xl z-[10001] pointer-events-none whitespace-normal leading-relaxed"
-          style={{
-            left: `${tooltipData.left}px`,
-            top: `${tooltipData.top}px`,
-          }}
-        >
-          {tooltipData.text}
-          <div className="absolute right-full top-3 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
-        </div>
-      )}
     </>
   );
 }

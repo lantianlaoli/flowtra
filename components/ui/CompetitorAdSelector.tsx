@@ -178,10 +178,6 @@ export default function CompetitorAdSelector({
                 ? `Selected: ${selectedCompetitorAd.competitor_name}`
                 : `${competitorAds.length} competitor ${competitorAds.length === 1 ? 'ad' : 'ads'} available`}
             </p>
-            <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-[#666666] bg-white border border-[#E5E5E5]">
-              <AlertTriangle className="w-3.5 h-3.5 text-black" />
-              <span>If your product targets children, pick Grok (6-second segments) to avoid policy issues.</span>
-            </div>
           </div>
         </div>
         <svg
@@ -208,14 +204,6 @@ export default function CompetitorAdSelector({
           className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] overflow-hidden z-[110]"
         >
           <div className="p-6 pb-16 space-y-4 max-h-[50vh] overflow-y-auto">
-            <div className="flex items-center gap-3 rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-sm text-[#666666]">
-              <AlertTriangle className="w-4 h-4 text-black flex-shrink-0" />
-              <span>If your brand serves kids, select Grok (6-second segments) to keep generation stable.</span>
-            </div>
-            <p className="text-sm text-[#666666] leading-relaxed">
-              Select a competitor ad to use as creative reference. The AI will analyze its style and generate a similar ad for your product.
-            </p>
-
             {/* Desktop: Grid View */}
             {!isMobile ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

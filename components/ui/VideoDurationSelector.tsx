@@ -10,8 +10,7 @@ import type { VideoDuration } from '@/lib/constants';
 export interface VideoDurationOption {
   value: VideoDuration;
   label: string;
-  description: string;
-  features: string;
+  recommended?: boolean;
 }
 
 interface VideoDurationSelectorProps {
@@ -63,51 +62,36 @@ export default function VideoDurationSelector({
   const durationOptions: VideoDurationOption[] = options ?? [
     {
       value: '8',
-      label: '8 seconds',
-      description: 'Single-segment video',
-      features: '1 segment • Quick hook'
+      label: '8s',
+      recommended: true
     },
     {
       value: '16',
-      label: '16 seconds',
-      description: 'Dual-segment storyline',
-      features: '2 segments • Two-beat arc'
+      label: '16s'
     },
     {
       value: '24',
-      label: '24 seconds',
-      description: 'Mid-length narrative',
-      features: '3 segments • Balanced flow'
+      label: '24s'
     },
     {
       value: '32',
-      label: '32 seconds',
-      description: 'Full-funnel sequence',
-      features: '4 segments • Complete story'
+      label: '32s'
     },
     {
       value: '40',
-      label: '40 seconds',
-      description: 'Extended narrative',
-      features: '5 segments • Rich storytelling'
+      label: '40s'
     },
     {
       value: '48',
-      label: '48 seconds',
-      description: 'Comprehensive showcase',
-      features: '6 segments • Product journey'
+      label: '48s'
     },
     {
       value: '56',
-      label: '56 seconds',
-      description: 'Long-form content',
-      features: '7 segments • Deep engagement'
+      label: '56s'
     },
     {
       value: '64',
-      label: '64 seconds',
-      description: 'Full commercial',
-      features: '8 segments • Complete brand story'
+      label: '64s'
     }
   ];
 
@@ -203,21 +187,16 @@ export default function VideoDurationSelector({
               : "border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 cursor-pointer"
           )}
         >
-          <div className="min-w-0 flex flex-col">
+          <div className="min-w-0 flex items-center gap-2">
             <span className="font-medium truncate">
               {selectedOption?.label}
             </span>
-            {selectedOption?.features && (
-              <span className="text-xs text-gray-500 truncate mt-0.5">
-                {selectedOption.features}
-              </span>
-            )}
-            {recommendedDuration && selectedOption?.value === recommendedDuration && (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mt-1">
+            {(recommendedDuration && selectedOption?.value === recommendedDuration) || selectedOption?.recommended ? (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
                 <Sparkles className="w-3 h-3" />
                 Recommended
               </span>
-            )}
+            ) : null}
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
             <ChevronDown className="h-3 w-3 text-gray-600" />
@@ -265,26 +244,18 @@ export default function VideoDurationSelector({
                           : "text-gray-700"
                       )}
                     >
-                      <div className="flex flex-1 flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <Clock className={cn(
-                            "w-4 h-4",
-                            isDisabled ? "text-gray-400" : "text-gray-500"
-                          )} />
-                          <span className="font-medium">{option.label}</span>
-                          {isRecommended && (
-                            <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                              <Sparkles className="w-3 h-3" />
-                              Recommended
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {option.description}
-                        </span>
-                        <span className="text-xs text-gray-600">
-                          {option.features}
-                        </span>
+                      <div className="flex flex-1 items-center gap-2">
+                        <Clock className={cn(
+                          "w-4 h-4",
+                          isDisabled ? "text-gray-400" : "text-gray-500"
+                        )} />
+                        <span className="font-medium">{option.label}</span>
+                        {(isRecommended || option.recommended) && (
+                          <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                            <Sparkles className="w-3 h-3" />
+                            Recommended
+                          </span>
+                        )}
                       </div>
                       {selectedDuration === option.value && !isDisabled && (
                         <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">

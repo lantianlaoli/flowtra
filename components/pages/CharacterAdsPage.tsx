@@ -12,10 +12,13 @@ import { LanguageCode } from '@/components/ui/LanguageSelector';
 import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
-import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe, Coins } from 'lucide-react';
+import { Video, Package, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import BottomComposerBar from '@/components/ui/BottomComposerBar';
+import ConfigPopover from '@/components/ui/ConfigPopover';
+import { type VideoDurationOption } from '@/components/ui/VideoDurationSelector';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getGenerationCost } from '@/lib/constants';
+import { getGenerationCost, type VideoDuration } from '@/lib/constants';
 import { CharacterAdsDuration, CHARACTER_ADS_DURATION_OPTIONS } from '@/lib/character-ads-dialogue';
 import { CharacterAdInspector, StructuredVideoPrompt } from '@/components/character-ads/CharacterAdInspector';
 import {
@@ -23,8 +26,7 @@ import {
   countDialogueWords,
   getCharacterAdsDialogueWordLimit
 } from '@/lib/character-ads-dialogue';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { type Format } from '@/components/ui/FormatSelector';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -42,32 +44,13 @@ const IMAGE_SIZE_BY_ASPECT: Record<'16:9' | '9:16', 'landscape_16_9' | 'portrait
   '9:16': 'portrait_16_9'
 };
 const SESSION_STORAGE_KEY = 'flowtra_character_ads_generations';
-const ASPECT_OPTIONS = [
-  { value: '16:9', label: 'Landscape', subtitle: '16:9' },
-  { value: '9:16', label: 'Portrait', subtitle: '9:16' }
-] as const;
-const LANGUAGE_OPTIONS = [
-  { value: 'en', label: 'English', native: 'English' },
-  { value: 'zh', label: 'Chinese', native: '中文' },
-  { value: 'cs', label: 'Czech', native: 'Čeština' },
-  { value: 'da', label: 'Danish', native: 'Dansk' },
-  { value: 'nl', label: 'Dutch', native: 'Nederlands' },
-  { value: 'fi', label: 'Finnish', native: 'Suomi' },
-  { value: 'fr', label: 'French', native: 'Français' },
-  { value: 'de', label: 'German', native: 'Deutsch' },
-  { value: 'el', label: 'Greek', native: 'Ελληνικά' },
-  { value: 'it', label: 'Italian', native: 'Italiano' },
-  { value: 'no', label: 'Norwegian', native: 'Norsk' },
-  { value: 'pl', label: 'Polish', native: 'Polski' },
-  { value: 'pt', label: 'Portuguese', native: 'Português' },
-  { value: 'pa', label: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
-  { value: 'ro', label: 'Romanian', native: 'Română' },
-  { value: 'ru', label: 'Russian', native: 'Русский' },
-  { value: 'es', label: 'Spanish', native: 'Español' },
-  { value: 'sv', label: 'Swedish', native: 'Svenska' },
-  { value: 'tr', label: 'Turkish', native: 'Türkçe' },
-  { value: 'ur', label: 'Urdu', native: 'اردو' },
-] as const;
+
+// Format CHARACTER_ADS_DURATION_OPTIONS for ConfigPopover
+const CHARACTER_ADS_DURATION_OPTIONS_FORMATTED: VideoDurationOption[] = CHARACTER_ADS_DURATION_OPTIONS.map((seconds, index) => ({
+  value: seconds.toString() as VideoDuration,
+  label: `${seconds}s`,
+  recommended: index === 0 // First option (8s) is recommended
+}));
 
 const generateClientProjectId = () => {
   try {
@@ -85,19 +68,28 @@ const sortGenerations = (items: CharacterGeneration[]) =>
   [...items].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 const CHARACTER_EMPTY_STEPS = [
   {
-    icon: '👤',
-    title: 'Step 1',
-    description: 'Upload a clear portrait of your character',
+    number: 1,
+    description: 'Upload custom character portrait (optional)',
   },
   {
-    icon: '🛍️',
-    title: 'Step 2',
-    description: 'Optionally pick a product or skip for talking head',
+    number: 2,
+    description: 'Select product (optional)',
   },
   {
-    icon: '✨',
-    title: 'Step 3',
-    description: 'Type or generate dialogue and click Generate',
+    number: 3,
+    description: 'Enter character dialogue (optional)',
+  },
+  {
+    number: 4,
+    description: 'Click Generate',
+  },
+  {
+    number: 5,
+    description: 'Adjust frames and prompts',
+  },
+  {
+    number: 6,
+    description: 'Generate final video',
   },
 ];
 
@@ -173,17 +165,13 @@ export default function CharacterAdsPage() {
 
   // Form state
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
-  const [videoDuration, setVideoDuration] = useState<CharacterAdsDuration>(8);
-  const [videoAspectRatio, setVideoAspectRatio] = useState<'16:9' | '9:16'>('9:16');
+  const [videoDuration, setVideoDuration] = useState<VideoDuration>('8');
+  const [format, setFormat] = useState<Format>('9:16');
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
   const [isPersonPickerOpen, setIsPersonPickerOpen] = useState(false);
   const [isProductPickerOpen, setIsProductPickerOpen] = useState(false);
-  const [showConfigPanel, setShowConfigPanel] = useState(false);
-  const [showDurationMenu, setShowDurationMenu] = useState(false);
-  const [showAspectMenu, setShowAspectMenu] = useState(false);
-  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [isGeneratingDialogue, setIsGeneratingDialogue] = useState(false);
   const [dialogueError, setDialogueError] = useState<string | null>(null);
   const [hasAIGeneratedDialogue, setHasAIGeneratedDialogue] = useState(false);
@@ -219,7 +207,7 @@ const formatDurationLabel = (seconds: number) => {
   const notifiedProjectsRef = useRef<Record<string, Generation['status']>>({});
 
   const dialogueWordLimit = useMemo(
-    () => getCharacterAdsDialogueWordLimit(videoDuration),
+    () => getCharacterAdsDialogueWordLimit(Number(videoDuration)),
     [videoDuration]
   );
   const productPhotoUrls = useMemo(() => {
@@ -260,7 +248,7 @@ const formatDurationLabel = (seconds: number) => {
     const actualModel = DEFAULT_VIDEO_MODEL;
     if (!actualModel) return 0;
 
-    const scenesCount = Math.ceil(videoDuration / 8);
+    const scenesCount = Math.ceil(Number(videoDuration) / 8);
     return getGenerationCost(actualModel) * scenesCount;
   }, [videoDuration, userCredits]);
 
@@ -377,9 +365,9 @@ const formatDurationLabel = (seconds: number) => {
       formData.append('talking_head_mode', isTalkingHeadMode ? 'true' : 'false');
       formData.append('video_duration_seconds', videoDuration.toString());
       formData.append('image_model', DEFAULT_IMAGE_MODEL);
-      formData.append('image_size', IMAGE_SIZE_BY_ASPECT[videoAspectRatio]);
+      formData.append('image_size', IMAGE_SIZE_BY_ASPECT[format as '16:9' | '9:16']);
       formData.append('video_model', DEFAULT_VIDEO_MODEL);
-      formData.append('video_aspect_ratio', videoAspectRatio);
+      formData.append('video_aspect_ratio', format);
       formData.append('language', selectedLanguage);
       if (customDialogue && customDialogue.trim()) {
         formData.append('custom_dialogue', customDialogue.trim());
@@ -574,11 +562,6 @@ const formatDurationLabel = (seconds: number) => {
     setIsProductPickerOpen(false);
   };
 
-  const configPanelRef = useRef<HTMLDivElement | null>(null);
-  const durationMenuRef = useRef<HTMLDivElement | null>(null);
-  const aspectMenuRef = useRef<HTMLDivElement | null>(null);
-  const languageMenuRef = useRef<HTMLDivElement | null>(null);
-
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -618,27 +601,7 @@ const formatDurationLabel = (seconds: number) => {
       }
       window.removeEventListener('resize', checkOverflow);
     };
-  }, [customDialogue, isTextareaExpanded]); // isTextareaExpanded also affects clientHeight, so re-check then.
-
-  useEffect(() => {
-    const handleClick = (event: MouseEvent) => {
-      if (showConfigPanel && configPanelRef.current && !configPanelRef.current.contains(event.target as Node)) {
-        setShowConfigPanel(false);
-      }
-      if (showDurationMenu && durationMenuRef.current && !durationMenuRef.current.contains(event.target as Node)) {
-        setShowDurationMenu(false);
-      }
-      if (showAspectMenu && aspectMenuRef.current && !aspectMenuRef.current.contains(event.target as Node)) {
-        setShowAspectMenu(false);
-      }
-      if (showLanguageMenu && languageMenuRef.current && !languageMenuRef.current.contains(event.target as Node)) {
-        setShowLanguageMenu(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showConfigPanel, showDurationMenu, showAspectMenu, showLanguageMenu]);
+  }, [customDialogue, isTextareaExpanded]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -956,16 +919,16 @@ const formatDurationLabel = (seconds: number) => {
     }
   };
 
-  const getDurationForWordCount = (words: number): CharacterAdsDuration => {
+  const getDurationForWordCount = (words: number): VideoDuration => {
     if (words <= 0) {
-      return CHARACTER_ADS_DURATION_OPTIONS[0];
+      return CHARACTER_ADS_DURATION_OPTIONS[0].toString() as VideoDuration;
     }
     for (const option of CHARACTER_ADS_DURATION_OPTIONS) {
       if (words <= getCharacterAdsDialogueWordLimit(option)) {
-        return option;
+        return option.toString() as VideoDuration;
       }
     }
-    return CHARACTER_ADS_DURATION_OPTIONS[CHARACTER_ADS_DURATION_OPTIONS.length - 1];
+    return CHARACTER_ADS_DURATION_OPTIONS[CHARACTER_ADS_DURATION_OPTIONS.length - 1].toString() as VideoDuration;
   };
 
   const recommendedDuration = useMemo(() => {
@@ -1059,7 +1022,6 @@ const formatDurationLabel = (seconds: number) => {
                             <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
                           </>
                         }
-                        noticeVariant="character-ads"
                         onReview={(generation) => setInspectorProjectId((generation as CharacterGeneration).projectId!)}
                       />
                     </div>
@@ -1072,261 +1034,90 @@ const formatDurationLabel = (seconds: number) => {
       </div>
 
       {composerVisible && (
-        <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-6 sm:px-8 lg:px-10 pb-4">
-          <div className="max-w-7xl mx-auto space-y-3">
-            <div className="relative bg-white/95 backdrop-blur border border-gray-200 rounded-[60px] shadow-2xl px-4 sm:px-6 py-4">
-              <div className="flex items-end gap-3 flex-wrap">
-                <button
-                  onClick={() => setIsPersonPickerOpen(true)}
-                  className={`flex-shrink-0 w-12 h-12 rounded-full border transition flex items-center justify-center text-sm font-medium ${hasPersonPhoto ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
-                  title={hasPersonPhoto ? 'Change character photo' : 'Select character'}
-                >
-                  {hasPersonPhoto ? (
-                    <Image src={selectedPersonPhotoUrl} alt="Character" width={48} height={48} className="object-cover w-full h-full rounded-full" />
-                  ) : (
-                    <Video className="w-5 h-5 text-gray-500" />
-                  )}
-                </button>
+        <BottomComposerBar
+          leftControls={
+            <>
+              <button
+                onClick={() => setIsPersonPickerOpen(true)}
+                className={`flex-shrink-0 w-12 h-12 rounded-full border transition flex items-center justify-center text-sm font-medium ${hasPersonPhoto ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
+                title={hasPersonPhoto ? 'Change character photo' : 'Select character'}
+              >
+                {hasPersonPhoto ? (
+                  <Image src={selectedPersonPhotoUrl} alt="Character" width={48} height={48} className="object-cover w-full h-full rounded-full" />
+                ) : (
+                  <Video className="w-5 h-5 text-gray-500" />
+                )}
+              </button>
 
-                <button
-                  onClick={() => setIsProductPickerOpen(true)}
-                  className={`flex-shrink-0 w-12 h-12 rounded-full border transition flex items-center justify-center ${selectedProduct ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
-                  title={selectedProduct ? 'Change product' : 'Optional: select brand & product'}
-                >
-                  {primaryProductPhoto ? (
-                    <Image src={primaryProductPhoto} alt="Product" width={48} height={48} className="object-cover w-full h-full rounded-full" />
-                  ) : (
-                    <Package className="w-5 h-5 text-gray-500" />
-                  )}
-                </button>
-
-                              <div className="flex-1 min-w-[240px]">
-                                <div className="relative bg-white border border-gray-200 rounded-3xl px-5 py-3 shadow-sm transition-all flex flex-col justify-end" style={{minHeight: '52px'}}>
-                                  <textarea
-                                    ref={textareaRef}
-                                    value={customDialogue}
-                                    onChange={(e) => handleCustomDialogueChange(e.target.value)}
-                                    onInput={(e) => {
-                                      e.currentTarget.style.height = 'auto';
-                                      e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
-                                    }}
-                                    placeholder="Type your custom script here (AI will generate if left blank)"
-                                    rows={1} // Start with 1, auto-grow
-                                    className={`w-full bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus-visible:border-none text-sm text-gray-900 placeholder:text-gray-400 pr-10 !outline-none !ring-0 shadow-none resize-none transition-all duration-300 ${isTextareaExpanded ? 'max-h-[300px]' : 'max-h-[72px]'} overflow-y-auto`}
-                                    style={{ minHeight: '24px' }}
-                                  />
-                                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                                    {showExpandCollapseIcon && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setIsTextareaExpanded(!isTextareaExpanded)}
-                                        className="inline-flex items-center justify-center w-6 h-6 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
-                                        title={isTextareaExpanded ? 'Collapse' : 'Expand'}
-                                      >
-                                        {isTextareaExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                                {dialogueError && <div className="text-[11px] text-red-500 mt-1">{dialogueError}</div>}
-                              </div>
-                <button
-                  onClick={() => setShowConfigPanel((prev) => !prev)}
-                  className={`w-12 h-12 rounded-full border flex items-center justify-center transition ${showConfigPanel ? 'border-gray-800 text-gray-900' : 'border-gray-300 text-gray-500'}`}
-                  title="Video settings"
-                >
-                  <SettingsIcon />
-                </button>
-
-                <motion.button
-                  onClick={handleStartGeneration}
-                  disabled={composerDisabled}
-                  className="flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  whileHover={{ scale: !composerDisabled ? 1.02 : 1 }}
-                  whileTap={{ scale: !composerDisabled ? 0.98 : 1 }}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {hasInsufficientCredits && selectedPersonPhotoUrl ? (
-                    <>
-                      Insufficient Credits
-                      <span className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-red-500/30 rounded-full text-xs font-bold backdrop-blur-sm">
-                        Need {requiredCredits}, Have {userCredits || 0}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      Generate Ad
-                      {(() => {
-                        const actualModel = DEFAULT_VIDEO_MODEL;
-                        if (!actualModel) return null;
-                        // Version 2.0: ALL models charge at generation
-                        const scenesCount = Math.ceil(videoDuration / 8);
-                        const cost = getGenerationCost(actualModel) * scenesCount;
-                        return (
-                          <span className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-white/20 rounded-full text-xs font-bold backdrop-blur-sm">
-                            <Coins className="w-3.5 h-3.5" />
-                            {cost}
-                          </span>
-                        );
-                      })()}
-                    </>
-                  )}
-                </motion.button>
-              </div>
-              {showConfigPanel && (
-                <div
-                  ref={configPanelRef}
-                  className="absolute bottom-full right-6 mb-3 bg-white/95 border border-gray-200 rounded-[32px] shadow-2xl p-5 w-[360px] space-y-5"
-                >
-                  <div className="space-y-2 relative" ref={durationMenuRef}>
-                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                      <Clock className="w-3.5 h-3.5" />
-                      Duration
-                    </label>
+              <button
+                onClick={() => setIsProductPickerOpen(true)}
+                className={`flex-shrink-0 w-12 h-12 rounded-full border transition flex items-center justify-center ${selectedProduct ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
+                title={selectedProduct ? 'Change product' : 'Optional: select brand & product'}
+              >
+                {primaryProductPhoto ? (
+                  <Image src={primaryProductPhoto} alt="Product" width={48} height={48} className="object-cover w-full h-full rounded-full" />
+                ) : (
+                  <Package className="w-5 h-5 text-gray-500" />
+                )}
+              </button>
+            </>
+          }
+          centerInput={
+            <div className="flex-1 min-w-[240px]">
+              <div className="relative bg-white border border-gray-200 rounded-3xl px-5 py-3 shadow-sm transition-all flex flex-col justify-end" style={{minHeight: '52px'}}>
+                <textarea
+                  ref={textareaRef}
+                  value={customDialogue}
+                  onChange={(e) => handleCustomDialogueChange(e.target.value)}
+                  onInput={(e) => {
+                    e.currentTarget.style.height = 'auto';
+                    e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
+                  }}
+                  placeholder="Type your custom script here (AI will generate if left blank)"
+                  rows={1}
+                  className={`w-full bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus-visible:border-none text-sm text-gray-900 placeholder:text-gray-400 pr-10 !outline-none !ring-0 shadow-none resize-none transition-all duration-300 ${isTextareaExpanded ? 'max-h-[300px]' : 'max-h-[72px]'} overflow-y-auto`}
+                  style={{ minHeight: '24px' }}
+                />
+                <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                  {showExpandCollapseIcon && (
                     <button
-                      onClick={() => {
-                        setShowDurationMenu((prev) => !prev);
-                        setShowAspectMenu(false);
-                        setShowLanguageMenu(false);
-                      }}
-                      className="w-full flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm hover:border-gray-400"
+                      type="button"
+                      onClick={() => setIsTextareaExpanded(!isTextareaExpanded)}
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+                      title={isTextareaExpanded ? 'Collapse' : 'Expand'}
                     >
-                      <span>{formatDurationLabel(videoDuration)}</span>
-                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showDurationMenu ? 'rotate-180' : ''}`} />
+                      {isTextareaExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                     </button>
-                    {showDurationMenu && (
-                      <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-gray-200 bg-white shadow-xl divide-y divide-gray-100 max-h-64 overflow-y-auto z-10">
-                        {CHARACTER_ADS_DURATION_OPTIONS.map((seconds) => {
-                          const scenes = Math.ceil(seconds / 8);
-                          const cost = 20 * scenes; // veo3_fast cost
-                          const canAfford = (userCredits || 0) >= cost;
-
-                          return (
-                            <button
-                              key={seconds}
-                              onClick={() => {
-                                setVideoDuration(seconds);
-                                setShowDurationMenu(false);
-                              }}
-                              className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${
-                                videoDuration === seconds
-                                  ? 'bg-gray-50 text-gray-900 font-semibold'
-                                  : canAfford
-                                    ? 'text-gray-600 hover:bg-gray-50'
-                                    : 'text-gray-400 hover:bg-gray-50 opacity-60'
-                              }`}
-                              disabled={!canAfford}
-                            >
-                              <span className="flex items-center gap-2">
-                                {formatDurationLabel(seconds)}
-                                <span className={`text-xs ${canAfford ? 'text-gray-500' : 'text-red-500'}`}>
-                                  ({cost} credits)
-                                </span>
-                              </span>
-                              <span className="flex items-center gap-2">
-                                {!canAfford && (
-                                  <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600 font-semibold">
-                                    Insufficient
-                                  </span>
-                                )}
-                                {recommendedDuration === seconds && canAfford && (
-                                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-600 font-semibold">
-                                    Recommend
-                                  </span>
-                                )}
-                                {videoDuration === seconds && (
-                                  <span className="text-xs text-gray-500">Selected</span>
-                                )}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2 relative" ref={aspectMenuRef}>
-                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                      <Video className="w-3.5 h-3.5" />
-                      Video Size
-                    </label>
-                    <button
-                      onClick={() => {
-                        setShowAspectMenu((prev) => !prev);
-                        setShowDurationMenu(false);
-                        setShowLanguageMenu(false);
-                      }}
-                      className="w-full flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm hover:border-gray-400"
-                    >
-                      <span>
-                        {ASPECT_OPTIONS.find((opt) => opt.value === videoAspectRatio)?.label}
-                        <span className="text-xs text-gray-500 ml-1">{videoAspectRatio}</span>
-                      </span>
-                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showAspectMenu ? 'rotate-180' : ''}`} />
-                    </button>
-                    {showAspectMenu && (
-                      <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-gray-200 bg-white shadow-xl divide-y divide-gray-100 z-10">
-                        {ASPECT_OPTIONS.map((option) => (
-                          <button
-                            key={option.value}
-                            onClick={() => {
-                              setVideoAspectRatio(option.value);
-                              setShowAspectMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${videoAspectRatio === option.value ? 'bg-gray-50 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}
-                          >
-                            <span>{option.label}</span>
-                            <span className="text-xs text-gray-500">{option.subtitle}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2 relative" ref={languageMenuRef}>
-                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                      <Globe className="w-3.5 h-3.5" />
-                      Language
-                    </label>
-                    <button
-                      onClick={() => {
-                        setShowLanguageMenu((prev) => !prev);
-                        setShowDurationMenu(false);
-                        setShowAspectMenu(false);
-                      }}
-                      className="w-full flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm hover:border-gray-400"
-                    >
-                      <span>
-                        {LANGUAGE_OPTIONS.find((opt) => opt.value === selectedLanguage)?.label}
-                        <span className="text-xs text-gray-500 ml-1">
-                          {LANGUAGE_OPTIONS.find((opt) => opt.value === selectedLanguage)?.native}
-                        </span>
-                      </span>
-                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showLanguageMenu ? 'rotate-180' : ''}`} />
-                    </button>
-                    {showLanguageMenu && (
-                      <div className="absolute left-0 right-0 bottom-full mb-2 rounded-2xl border border-gray-200 bg-white shadow-xl divide-y divide-gray-100 max-h-64 overflow-y-auto z-10">
-                        {LANGUAGE_OPTIONS.map((option) => (
-                          <button
-                            key={option.value}
-                            onClick={() => {
-                              setSelectedLanguage(option.value);
-                              setShowLanguageMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between ${selectedLanguage === option.value ? 'bg-gray-50 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}
-                          >
-                            <span>{option.label}</span>
-                            <span className="text-xs text-gray-500">{option.native}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
+              {dialogueError && <div className="text-[11px] text-red-500 mt-1">{dialogueError}</div>}
             </div>
-          </div>
-        </div>
+          }
+          configButton={
+            <ConfigPopover
+              videoDuration={videoDuration}
+              onDurationChange={setVideoDuration}
+              durationOptions={CHARACTER_ADS_DURATION_OPTIONS_FORMATTED}
+              recommendedDuration={recommendedDuration}
+              selectedModel={DEFAULT_VIDEO_MODEL}
+              onModelChange={() => {}}
+              userCredits={userCredits || 0}
+              hideModelSelector={true}
+              selectedLanguage={selectedLanguage}
+              onLanguageChange={setSelectedLanguage}
+              format={format}
+              onFormatChange={setFormat}
+              variant="minimal"
+            />
+          }
+          onGenerate={handleStartGeneration}
+          canGenerate={canStartGeneration}
+          isGenerating={false}
+          generationCost={requiredCredits}
+          userCredits={userCredits || 0}
+          generateButtonText="Generate"
+        />
       )}
 
       {isPersonPickerOpen && (
