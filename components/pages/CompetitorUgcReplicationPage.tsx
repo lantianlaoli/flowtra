@@ -1314,10 +1314,10 @@ export default function CompetitorUgcReplicationPage() {
     <>
     <div className="min-h-screen bg-gray-50">
       <Sidebar {...sidebarProps} />
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen flex flex-col pt-14 md:pt-0 min-h-0">
+      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen flex flex-col  min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
           {/* Page Header */}
-          <header className="px-6 sm:px-8 lg:px-10 py-6 sticky top-0 z-50 bg-gray-50/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+          <header className="px-6 sm:px-8 lg:px-10 py-4 sticky top-0 z-50 bg-gray-50/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur mt-14 md:mt-8">
             <div className="max-w-7xl mx-auto flex w-full flex-wrap items-center gap-3">
               <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
                 <TrendingUp className="w-5 h-5 text-gray-700" />

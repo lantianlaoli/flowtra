@@ -105,8 +105,8 @@ export default function HomePage() {
         userImageUrl={user?.imageUrl}
       />
       
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
-        <div className="p-8 max-w-7xl mx-auto">
+      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen">
+        <div className="px-6 md:px-8 pb-6 md:pb-8 max-w-7xl mx-auto pt-14 md:pt-8">
           {/* Header Section */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2 min-w-0">

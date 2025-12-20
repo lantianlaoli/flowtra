@@ -28,9 +28,6 @@ export const SORA2_PRO_CREDIT_COSTS = {
   'hd_15s': 315,        // Sora2 Pro HD 15s: 315 credits
 } as const
 
-// Watermark removal cost
-export const WATERMARK_REMOVAL_COST = 3  // Sora2 watermark removal: 3 credits
-
 // ===== PLATFORM PRESETS =====
 // Platform-specific recommended configurations
 export const PLATFORM_PRESETS = {

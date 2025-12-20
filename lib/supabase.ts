@@ -216,21 +216,6 @@ export interface CompetitorAd {
   video_duration_seconds?: number | null // Total runtime for analyzed competitor video
 }
 
-// Database types for sora2_watermark_removal_tasks table
-export interface Sora2WatermarkRemovalTask {
-  id: string
-  user_id: string
-  input_video_url: string
-  output_video_url?: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  kie_task_id?: string
-  credits_used: number
-  error_message?: string
-  created_at: string
-  completed_at?: string
-  updated_at: string
-}
-
 export type Database = {
   public: {
     Tables: {
@@ -253,11 +238,6 @@ export type Database = {
         Row: UserAvatar
         Insert: Omit<UserAvatar, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<UserAvatar, 'id' | 'created_at' | 'updated_at'>>
-      }
-      sora2_watermark_removal_tasks: {
-        Row: Sora2WatermarkRemovalTask
-        Insert: Omit<Sora2WatermarkRemovalTask, 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Omit<Sora2WatermarkRemovalTask, 'id' | 'created_at' | 'updated_at'>>
       }
     }
     Views: {

@@ -53,11 +53,6 @@ export default function Footer() {
                     Blog
                   </Link>
                 </li>
-                <li>
-                  <Link href="/sora2-watermark-removal" className="text-sm text-gray-300 hover:text-white transition-colors">
-                    Sora2 Watermark Removal
-                  </Link>
-                </li>
               </ul>
             </nav>
 

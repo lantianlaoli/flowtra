@@ -36,6 +36,12 @@ interface CompetitorUgcReplicationItem {
   isSegmented?: boolean;
   segmentCount?: number;
   videoDuration?: string;
+  videoQuality?: string;
+  language?: string;
+  customScript?: string;
+  useCustomScript?: boolean;
+  videoPrompts?: any;
+  errorMessage?: string;
 }
 
 interface CharacterAdsItem {
@@ -56,20 +62,13 @@ interface CharacterAdsItem {
   adType: 'character';
   videoDurationSeconds?: number;
   videoAspectRatio?: string;
-}
-
-interface WatermarkRemovalItem {
-  id: string;
-  originalVideoUrl: string;
-  videoUrl?: string;
-  creditsUsed: number;
-  status: 'processing' | 'completed' | 'failed';
-  createdAt: string;
-  adType: 'watermark-removal';
+  language?: string;
+  customDialogue?: string;
+  generatedPrompts?: any;
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem | WatermarkRemovalItem;
+type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem;
 
 const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns (desktop) = 8 items per page
 
@@ -92,12 +91,6 @@ const AD_TYPE_OPTIONS = [
     icon: VideoIcon,
     description: 'Character-driven videos and image sets',
   },
-  {
-    value: 'watermark-removal',
-    label: 'Watermark Removal',
-    icon: Droplets,
-    description: 'Processed videos with Sora2 watermark removal',
-  },
 ] as const;
 
 type AdTypeFilterValue = (typeof AD_TYPE_OPTIONS)[number]['value'];
@@ -114,10 +107,6 @@ const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
 
 const isCompetitorUgcReplication = (item: HistoryItem): item is CompetitorUgcReplicationItem => {
   return 'adType' in item && item.adType === 'competitor-ugc-replication';
-};
-
-const isWatermarkRemoval = (item: HistoryItem): item is WatermarkRemovalItem => {
-  return 'adType' in item && item.adType === 'watermark-removal';
 };
 
 type DownloadCreditEligibleModel = Exclude<VideoModel, 'sora2_pro'>;
@@ -181,8 +170,7 @@ export default function HistoryPage() {
       return (
         adTypeFilter === 'all' ||
         (adTypeFilter === 'competitor-ugc-replication' && isCompetitorUgcReplication(item)) ||
-        (adTypeFilter === 'character' && isCharacterAds(item)) ||
-        (adTypeFilter === 'watermark-removal' && isWatermarkRemoval(item))
+        (adTypeFilter === 'character' && isCharacterAds(item))
       );
     });
   }, [history, adTypeFilter]);
@@ -582,33 +570,6 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     }
   };
 
-  // Watermark removal video download function (free - credits already charged at generation)
-  const downloadWatermarkRemovalVideo = async (historyId: string) => {
-    if (!user?.id) return;
-
-    const item = history.find(h => h.id === historyId);
-    if (!item || !isWatermarkRemoval(item) || !item.videoUrl) return;
-
-    try {
-      // Fetch as blob to force background download without navigation
-      const res = await fetch(item.videoUrl, { mode: 'cors' });
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `watermark-removed-${historyId}.mp4`;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Download failed:', error);
-      alert('Download failed');
-    }
-  };
-
   // Unified handler to show emotional phrase on Cover click then trigger download
   const handleCoverClick = async (item: HistoryItem) => {
     // only for ads content
@@ -636,9 +597,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     const id = item.id;
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (isWatermarkRemoval(item)) {
-        await downloadWatermarkRemovalVideo(item.id);
-      } else if (isCompetitorUgcReplication(item) || isCharacterAds(item)) {
+      if (isCompetitorUgcReplication(item) || isCharacterAds(item)) {
         await downloadVideo(item.id, item.videoModel);
       }
       setVideoStates(prev => ({ ...prev, [id]: 'done' }));
@@ -681,8 +640,8 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-white min-h-screen pt-14 md:pt-0">
-        <div className="p-6 md:p-12 max-w-[1280px] mx-auto">
+      <div className="md:ml-72 ml-0 bg-white min-h-screen ">
+        <div className="px-6 md:px-8 pb-6 md:pb-8 max-w-[1280px] mx-auto pt-14 md:pt-8">
           {/* Header Section */}
           <div className="mb-12">
             <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
@@ -823,12 +782,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                         )}
                       </span>
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white text-black border border-[#E5E5E5]">
-                        {isWatermarkRemoval(item)
-                          ? 'Watermark Removal'
-                          : isCharacterAds(item)
-                          ? 'Character'
-                          : 'UGC Clone'
-                        }
+                        {isCharacterAds(item) ? 'Character' : 'UGC Clone'}
                       </span>
                     </div>
 
@@ -840,7 +794,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                           getAspectRatioClass('videoAspectRatio' in item ? item.videoAspectRatio : '9:16')
                         )}
                         onMouseEnter={() => {
-                          if (!isWatermarkRemoval(item) && item.status === 'completed' && item.videoUrl) {
+                          if (item.status === 'completed' && item.videoUrl) {
                             setHoveredVideo(item.id);
                           }
                         }}
@@ -848,14 +802,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                           setHoveredVideo(null);
                         }}
                       >
-                        {isWatermarkRemoval(item) ? (
-                          <div className="w-full h-full bg-black text-white flex flex-col items-center justify-center gap-3 px-4 text-center">
-                            <AlertCircle className="w-8 h-8" />
-                            <div className="text-sm leading-snug">
-                              Preview unavailable. Download to view.
-                            </div>
-                          </div>
-                        ) : item.status === 'completed' && 'videoUrl' in item && item.videoUrl &&
+                        {item.status === 'completed' && 'videoUrl' in item && item.videoUrl &&
                           (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) &&
                           hoveredVideo === item.id ? (
                           <VideoPlayer
@@ -888,7 +835,6 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
 
                         {/* Video Hover Indicator */}
                         {hoveredVideo === item.id &&
-                          !isWatermarkRemoval(item) &&
                           item.status === 'completed' &&
                           'videoUrl' in item && item.videoUrl &&
                           (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) && (
@@ -902,9 +848,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                         {item.status === 'processing' && (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="absolute inset-0 bg-white/50" />
-                            {isWatermarkRemoval(item) ? (
-                              <Loader2 className="w-12 h-12 animate-spin text-black" />
-                            ) : (() => {
+                            {(() => {
                               const pct = Math.round(Math.max(0, Math.min(100, item.progress ?? 0)));
                               return (
                                 <div className="relative w-20 h-20">

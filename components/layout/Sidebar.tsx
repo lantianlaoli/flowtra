@@ -1,26 +1,38 @@
 'use client';
 
+import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { motion, LayoutGroup } from 'framer-motion';
 import {
-  Plus,
   Home,
-  User,
-  Coins,
   Sparkles,
-  Play,
   Video,
+  Play,
   Boxes,
-  Menu,
-  X,
-  Eraser
+  User,
+  HelpCircle,
+  Menu
 } from 'lucide-react';
-import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
-import { LayoutGroup, motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import {
+  Sidebar as ShadcnSidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider
+} from '@/components/ui/sidebar';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Separator } from '@/components/ui/separator';
+import CreditsDisplay from '@/components/ui/CreditsDisplay';
+import UserProfile from '@/components/ui/UserProfile';
 import FeedbackWidget from '@/components/FeedbackWidget';
+import { cn } from '@/lib/utils';
 
 interface SidebarProps {
   credits?: number;
@@ -49,12 +61,6 @@ const navigation = [
     onboardingId: 'sidebar-character-ads'
   },
   {
-    name: 'Watermark Removal',
-    href: '/dashboard/watermark-removal',
-    icon: Eraser,
-    onboardingId: 'sidebar-watermark'
-  },
-  {
     name: 'My Ads',
     href: '/dashboard/videos',
     icon: Play,
@@ -76,297 +82,279 @@ const navigation = [
 
 export default function Sidebar({ credits = 0, userEmail, userImageUrl, onTriggerOnboarding }: SidebarProps) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Desktop/Tablet sidebar
-  const DesktopSidebar = (
-    <div className="hidden md:flex w-72 bg-white border-r border-gray-300 h-screen flex-col fixed left-0 top-0">
-      <div className="p-6 flex-1">
-        {/* Logo */}
-        <Link href="/dashboard" className="flex items-center gap-3 mb-8 group">
-          <Image 
-            src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png" 
-            alt="Flowtra Logo" 
+  // Desktop sidebar content (uses shadcn Sidebar components with SidebarProvider)
+  const DesktopSidebarContent = () => (
+    <>
+      <SidebarHeader className="p-6">
+        <Link href="/dashboard" className="flex items-center gap-3 group">
+          <Image
+            src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png"
+            alt="Flowtra Logo"
             width={32}
             height={32}
-            className="w-8 h-8"
+            className="w-8 h-8 transition-transform group-hover:scale-105 duration-200"
           />
-          <span className="text-lg font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">Flowtra</span>
+          <span className="text-lg font-semibold text-black group-hover:text-[#666666] transition-colors duration-200">
+            Flowtra
+          </span>
         </Link>
+      </SidebarHeader>
 
-        {/* User Info */}
+      <SidebarContent className="px-6">
+        {/* User Profile */}
         {userEmail && (
-          <div className="bg-white border border-gray-200 rounded-lg p-3 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
-                {userImageUrl ? (
-                  <Image 
-                    src={userImageUrl} 
-                    alt="User avatar" 
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <User className="w-4 h-4 text-gray-600" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {userEmail}
-                </p>
-              </div>
-            </div>
+          <div className="mb-4">
+            <UserProfile userEmail={userEmail} userImageUrl={userImageUrl} />
           </div>
         )}
 
         {/* Credits Display */}
         {credits !== undefined && (
-          <div
-            data-onboarding-id="sidebar-credits"
-            className="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm hover:shadow-md transition-all duration-200"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 bg-gradient-to-br from-gray-900 to-gray-700 rounded-lg flex items-center justify-center shadow-sm">
-                  <Coins className="w-3 h-3 text-white" />
-                </div>
-                <span className="text-sm font-medium text-gray-900">Credits</span>
-              </div>
-              <Link
-                href="/#pricing"
-                className="w-8 h-8 bg-gray-900 hover:bg-gray-800 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-105 shadow-sm hover:shadow-md"
-                title="Buy more credits"
-              >
-                <Plus className="w-4 h-4 text-white" />
-              </Link>
-            </div>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={credits}
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-                className="text-2xl font-bold text-gray-900 tracking-tight"
-              >
-                {credits.toLocaleString()}
-              </motion.div>
-            </AnimatePresence>
+          <div className="mb-6">
+            <CreditsDisplay
+              credits={credits}
+              onAddCredits={() => window.location.href = '/#pricing'}
+            />
           </div>
         )}
 
+        <Separator className="mb-6 bg-[#E5E5E5]" />
+
         {/* Navigation */}
-        <LayoutGroup>
-          <nav className="space-y-1 relative">
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <LayoutGroup id="sidebar-nav">
+                {navigation.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        className={cn(
+                          "relative h-10 px-3 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden",
+                          isActive
+                            ? "text-white bg-black hover:bg-black/90"
+                            : "text-[#666666] hover:text-black hover:bg-[#F7F7F7]"
+                        )}
+                      >
+                        <Link
+                          href={item.href}
+                          data-onboarding-id={item.onboardingId}
+                          onClick={() => setMobileOpen(false)}
+                        >
+                          {isActive && (
+                            <motion.span
+                              layoutId="sidebar-active-indicator"
+                              className="absolute inset-0 rounded-lg bg-black -z-10"
+                              transition={{
+                                type: 'spring',
+                                stiffness: 500,
+                                damping: 35,
+                                mass: 1
+                              }}
+                            />
+                          )}
+                          <item.icon
+                            className={cn(
+                              "relative z-10 w-4 h-4 mr-3 transition-transform duration-200",
+                              isActive ? "text-white" : "text-[#666666]"
+                            )}
+                          />
+                          <span className={cn("relative z-10", isActive && "text-white")}>{item.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </LayoutGroup>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="p-6 border-t border-[#E5E5E5]">
+        <div className="space-y-2">
+          {/* Product Tour */}
+          {onTriggerOnboarding && (
+            <button
+              onClick={onTriggerOnboarding}
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-[#666666] hover:text-black hover:bg-[#F7F7F7] rounded-lg transition-colors duration-200"
+            >
+              <HelpCircle className="w-5 h-5" />
+              <span>Product Tour</span>
+            </button>
+          )}
+
+          {/* Feedback Widget */}
+          <FeedbackWidget />
+
+          {/* Back to Landing */}
+          <Link
+            href="/"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-[#666666] hover:text-black hover:bg-[#F7F7F7] rounded-lg transition-colors duration-200"
+            onClick={() => setMobileOpen(false)}
+          >
+            <Home className="w-5 h-5" />
+            <span>Back to Landing</span>
+          </Link>
+        </div>
+      </SidebarFooter>
+    </>
+  );
+
+  // Mobile sidebar content (plain HTML, no SidebarProvider dependency)
+  const MobileSidebarContent = () => (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="p-6">
+        <Link href="/dashboard" className="flex items-center gap-3 group" onClick={() => setMobileOpen(false)}>
+          <Image
+            src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png"
+            alt="Flowtra Logo"
+            width={32}
+            height={32}
+            className="w-8 h-8 transition-transform group-hover:scale-105 duration-200"
+          />
+          <span className="text-lg font-semibold text-black group-hover:text-[#666666] transition-colors duration-200">
+            Flowtra
+          </span>
+        </Link>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-6">
+        {/* User Profile */}
+        {userEmail && (
+          <div className="mb-4">
+            <UserProfile userEmail={userEmail} userImageUrl={userImageUrl} />
+          </div>
+        )}
+
+        {/* Credits Display */}
+        {credits !== undefined && (
+          <div className="mb-6">
+            <CreditsDisplay
+              credits={credits}
+              onAddCredits={() => window.location.href = '/#pricing'}
+            />
+          </div>
+        )}
+
+        <Separator className="mb-6 bg-[#E5E5E5]" />
+
+        {/* Navigation */}
+        <nav className="space-y-1">
+          <LayoutGroup id="sidebar-nav-mobile">
             {navigation.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  data-onboarding-id={'onboardingId' in item ? item.onboardingId : undefined}
+                  data-onboarding-id={item.onboardingId}
+                  onClick={() => setMobileOpen(false)}
                   className={cn(
-                    'group relative flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden',
-                    isActive ? 'text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    "relative flex items-center h-10 px-3 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden",
+                    isActive
+                      ? "text-white bg-black"
+                      : "text-[#666666] hover:text-black hover:bg-[#F7F7F7]"
                   )}
                 >
                   {isActive && (
                     <motion.span
-                      layoutId="sidebarActive"
-                      className="absolute inset-0 rounded-lg bg-gray-900 shadow shadow-gray-900/25"
-                      transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+                      layoutId="sidebar-active-indicator-mobile"
+                      className="absolute inset-0 rounded-lg bg-black -z-10"
+                      transition={{
+                        type: 'spring',
+                        stiffness: 500,
+                        damping: 35,
+                        mass: 1
+                      }}
                     />
                   )}
-                  <item.icon className={cn(
-                    'relative z-10 w-4 h-4 transition-colors duration-150',
-                    isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
-                  )} />
-                  <span className="relative z-10 flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{item.name}</span>
-                  {('badge' in item) && (
-                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
-                      {(item as { badge: string }).badge}
-                    </span>
-                  )}
+                  <item.icon
+                    className={cn(
+                      "relative z-10 w-4 h-4 mr-3 transition-transform duration-200",
+                      isActive ? "text-white" : "text-[#666666]"
+                    )}
+                  />
+                  <span className={cn("relative z-10", isActive && "text-white")}>{item.name}</span>
                 </Link>
               );
             })}
-          </nav>
-        </LayoutGroup>
+          </LayoutGroup>
+        </nav>
       </div>
-      
-      {/* Feedback and Navigation */}
-      <div className="p-6 border-t border-gray-200 space-y-2">
-        {/* Product Tour */}
-        {onTriggerOnboarding && (
-          <button
-            onClick={onTriggerOnboarding}
-            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors font-medium w-full"
+
+      {/* Footer */}
+      <div className="p-6 border-t border-[#E5E5E5]">
+        <div className="space-y-2">
+          {/* Product Tour */}
+          {onTriggerOnboarding && (
+            <button
+              onClick={() => {
+                onTriggerOnboarding();
+                setMobileOpen(false);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-[#666666] hover:text-black hover:bg-[#F7F7F7] rounded-lg transition-colors duration-200"
+            >
+              <HelpCircle className="w-5 h-5" />
+              <span>Product Tour</span>
+            </button>
+          )}
+
+          {/* Feedback Widget */}
+          <FeedbackWidget />
+
+          {/* Back to Landing */}
+          <Link
+            href="/"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-[#666666] hover:text-black hover:bg-[#F7F7F7] rounded-lg transition-colors duration-200"
+            onClick={() => setMobileOpen(false)}
           >
-            <QuestionMarkCircleIcon className="w-5 h-5" />
-            <span>Product Tour</span>
-          </button>
-        )}
-        <FeedbackWidget />
-        <Link 
-          href="/"
-          className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors font-medium"
-        >
-          <Home className="w-5 h-5" />
-          <span>Back to Landing</span>
-        </Link>
+            <Home className="w-5 h-5" />
+            <span>Back to Landing</span>
+          </Link>
+        </div>
       </div>
     </div>
   );
 
-  // Mobile off-canvas sidebar
-  const MobileSidebar = (
+  return (
     <>
-      {/* Floating trigger */}
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block fixed md:top-0 md:left-0 md:h-screen md:w-72 md:z-20">
+        <SidebarProvider>
+          <ShadcnSidebar className="w-72 h-full border-r border-[#E5E5E5] bg-white">
+            <DesktopSidebarContent />
+          </ShadcnSidebar>
+        </SidebarProvider>
+      </div>
+
+      {/* Mobile Menu Button */}
       <button
         type="button"
-        className="fixed md:hidden top-4 left-4 z-40 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
-        onClick={() => setOpen(true)}
-        aria-controls="mobile-drawer"
-        aria-expanded={open}
+        className="fixed md:hidden top-4 left-4 z-40 bg-black text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm font-medium hover:scale-105 active:scale-95 transition-transform duration-200"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Open menu"
       >
         <Menu className="w-4 h-4" />
         <span>Menu</span>
       </button>
 
-      {/* Overlay */}
-      <div
-        className={`fixed inset-0 bg-black/30 backdrop-blur-sm md:hidden z-40 transition-opacity ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={() => setOpen(false)}
-        aria-hidden={!open}
-      />
-
-      {/* Drawer */}
-      <div
-        id="mobile-drawer"
-        className={`fixed inset-y-0 left-0 w-72 bg-white border-r border-gray-300 z-50 md:hidden transform transition-transform duration-300 ${open ? 'translate-x-0' : '-translate-x-full'}`}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Image 
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png" 
-              alt="Flowtra Logo" 
-              width={24}
-              height={24}
-              className="w-6 h-6"
-            />
-            <span className="text-base font-semibold text-gray-900">Flowtra</span>
-          </div>
-          <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => setOpen(false)} aria-label="Close menu">
-            <X className="w-5 h-5 text-gray-700" />
-          </button>
-        </div>
-
-        <div className="p-4 overflow-y-auto h-[calc(100vh-56px)]">
-          {/* User Info */}
-          {userEmail && (
-            <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
-                  {userImageUrl ? (
-                    <Image 
-                      src={userImageUrl} 
-                      alt="User avatar" 
-                      width={32}
-                      height={32}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <User className="w-4 h-4 text-gray-600" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {userEmail}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Credits */}
-          {credits !== undefined && (
-            <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 bg-gradient-to-br from-gray-900 to-gray-700 rounded-lg flex items-center justify-center shadow-sm">
-                    <Coins className="w-3 h-3 text-white" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">Credits</span>
-                </div>
-                <Link
-                  href="/#pricing"
-                  className="w-8 h-8 bg-gray-900 hover:bg-gray-800 rounded-lg flex items-center justify-center transition-all duration-200"
-                  title="Buy more credits"
-                  onClick={() => setOpen(false)}
-                >
-                  <Plus className="w-4 h-4 text-white" />
-                </Link>
-              </div>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={credits}
-                  initial={{ scale: 0.95, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.95, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="text-2xl font-bold text-gray-900 tracking-tight"
-                >
-                  {credits.toLocaleString()}
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <nav className="space-y-1">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    'group relative flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden',
-                    isActive ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  )}
-                >
-                  <item.icon className={cn('w-4 h-4', isActive ? 'text-white' : 'text-gray-500')} />
-                  <span className="flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{item.name}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Feedback and Navigation */}
-          <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-            <FeedbackWidget />
-            <Link
-              href="/"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors font-medium"
-            >
-              <Home className="w-5 h-5" />
-              <span>Back to Landing</span>
-            </Link>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-
-  return (
-    <>
-      {DesktopSidebar}
-      {MobileSidebar}
+      {/* Mobile Sheet */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent
+          side="left"
+          className="w-72 p-0 bg-white border-r border-[#E5E5E5]"
+        >
+          <MobileSidebarContent />
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

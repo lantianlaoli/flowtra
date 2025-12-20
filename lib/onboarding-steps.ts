@@ -37,16 +37,9 @@ export const onboardingSteps: OnboardingStep[] = [
     placement: 'right',
   },
   {
-    id: 'watermark-removal',
-    title: 'Watermark Removal',
-    description: 'Remove watermarks from Sora2-generated videos using AI technology. Perfect for cleaning up content and making your videos more professional and polished.',
-    targetId: 'sidebar-watermark',
-    placement: 'right',
-  },
-  {
     id: 'my-ads',
     title: 'My Ads',
-    description: 'View all your ad history including Competitor UGC Replication, character ads, and watermark removal jobs. Easily manage and download all your creations in one place.',
+    description: 'View all your ad history including Competitor UGC Replication and character ads. Easily manage and download all your creations in one place.',
     targetId: 'sidebar-my-ads',
     placement: 'right',
   },

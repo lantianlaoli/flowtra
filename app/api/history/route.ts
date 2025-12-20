@@ -27,6 +27,12 @@ interface CompetitorUgcReplicationItem {
   isSegmented?: boolean;
   segmentCount?: number;
   videoDuration?: string;
+  videoQuality?: string;
+  language?: string;
+  customScript?: string;
+  useCustomScript?: boolean;
+  videoPrompts?: any;
+  errorMessage?: string;
 }
 
 interface CharacterAdsItem {
@@ -47,20 +53,13 @@ interface CharacterAdsItem {
   adType: 'character';
   videoDurationSeconds?: number;
   videoAspectRatio?: string;
-}
-
-interface WatermarkRemovalItem {
-  id: string;
-  originalVideoUrl: string;
-  videoUrl?: string;
-  creditsUsed: number;
-  status: 'processing' | 'completed' | 'failed';
-  createdAt: string;
-  adType: 'watermark-removal';
+  language?: string;
+  customDialogue?: string;
+  generatedPrompts?: any;
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem | WatermarkRemovalItem;
+type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem;
 
 type SupportedAspectRatio = '16:9' | '9:16' | '1:1';
 
@@ -159,17 +158,6 @@ export async function GET() {
       console.error('Failed to fetch Character Ads history:', characterAdsError);
     }
 
-    // Fetch Watermark Removal data
-    const { data: watermarkRemovalItems, error: watermarkRemovalError } = await supabase
-      .from('sora2_watermark_removal_tasks')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (watermarkRemovalError) {
-      console.error('Failed to fetch Watermark Removal history:', watermarkRemovalError);
-    }
-
     // Transform Competitor UGC Replication data
     const transformedCompetitorUgcReplicationHistory: CompetitorUgcReplicationItem[] = (competitorUgcReplicationItems || []).map(item => {
       const videoModel = normalizeCompetitorVideoModel(item.video_model);
@@ -195,7 +183,13 @@ export async function GET() {
         // Segment information for accurate cost calculation
         isSegmented: item.is_segmented || false,
         segmentCount: item.segment_count || undefined,
-        videoDuration: item.video_duration || undefined
+        videoDuration: item.video_duration || undefined,
+        videoQuality: item.video_quality || undefined,
+        language: item.language || undefined,
+        customScript: item.custom_script || undefined,
+        useCustomScript: item.use_custom_script || false,
+        videoPrompts: item.video_prompts || undefined,
+        errorMessage: item.error_message || undefined
       };
     });
 
@@ -240,27 +234,18 @@ export async function GET() {
           currentStep: item.current_step,
           adType: 'character',
           videoDurationSeconds: item.video_duration_seconds,
-          videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio)
+          videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio),
+          language: item.language || undefined,
+          customDialogue: item.custom_dialogue || undefined,
+          generatedPrompts: item.generated_prompts || undefined,
+          errorMessage: item.error_message || undefined
         };
       });
-
-    // Transform Watermark Removal data
-    const transformedWatermarkRemovalHistory: WatermarkRemovalItem[] = (watermarkRemovalItems || []).map(item => ({
-      id: item.id,
-      originalVideoUrl: item.input_video_url,
-      videoUrl: item.output_video_url || undefined,
-      creditsUsed: item.credits_used || 3,
-      status: mapWorkflowStatus(item.status),
-      createdAt: item.created_at,
-      adType: 'watermark-removal',
-      errorMessage: item.error_message || undefined
-    }));
 
     // Combine and sort by creation date
     const combinedHistory: HistoryItem[] = [
       ...transformedCompetitorUgcReplicationHistory,
-      ...transformedCharacterAdsHistory,
-      ...transformedWatermarkRemovalHistory
+      ...transformedCharacterAdsHistory
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return NextResponse.json({

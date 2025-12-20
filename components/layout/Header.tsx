@@ -14,7 +14,6 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compact, setCompact] = useState(false);
   const [featuresOpen, setFeaturesOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => {
@@ -74,24 +73,6 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                     >
                       <div className="font-semibold text-white">Competitor Replica</div>
                       <div className="text-xs text-gray-400">Clone competitor videos</div>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-              {/* Tools Dropdown */}
-              <div className="relative group">
-                <button className="text-gray-300 hover:text-white transition-colors px-2 py-1.5 rounded-md hover:bg-gray-800 flex items-center gap-1">
-                  Tools
-                  <ChevronDownIcon className="w-4 h-4" />
-                </button>
-                <div className="absolute left-0 top-full mt-1 w-56 bg-gray-900 border border-gray-700 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                  <div className="py-3">
-                    <Link
-                      href="/sora2-watermark-removal"
-                      className="block px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
-                    >
-                      <div className="font-semibold text-white">Sora2 Watermark Removal</div>
-                      <div className="text-xs text-gray-400">Clean up legacy Sora2 clips</div>
                     </Link>
                   </div>
                 </div>
@@ -191,37 +172,6 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                     >
                       <div className="font-semibold text-sm text-white">Competitor Replica</div>
                       <div className="text-xs text-gray-400">Clone competitor videos</div>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-              {/* Tools Expandable */}
-              <div>
-                <button
-                  onClick={() => setToolsOpen(!toolsOpen)}
-                  className="w-full text-left text-gray-300 hover:text-white transition-colors px-2 py-2 rounded-md hover:bg-gray-800 flex items-center justify-between"
-                  aria-expanded={toolsOpen}
-                  aria-controls="mobile-tools-menu"
-                >
-                  <span>Tools</span>
-                  <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${toolsOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
-                </button>
-                <div
-                  id="mobile-tools-menu"
-                  className={`overflow-hidden transition-all duration-200 ${toolsOpen ? 'max-h-40 mt-2' : 'max-h-0'}`}
-                  aria-hidden={!toolsOpen}
-                >
-                  <div className="pl-4 flex flex-col gap-2">
-                    <Link
-                      href="/sora2-watermark-removal"
-                      className="text-gray-300 hover:text-white transition-colors px-2 py-2 rounded-md hover:bg-gray-800"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        setToolsOpen(false);
-                      }}
-                    >
-                      <div className="font-semibold text-sm text-white">Sora2 Watermark Removal</div>
-                      <div className="text-xs text-gray-400">Remove old Sora2 logos</div>
                     </Link>
                   </div>
                 </div>

@@ -51,6 +51,11 @@ const nextConfig: NextConfig = {
         destination: '/dashboard/single-video-generator',
         permanent: false,
       },
+      {
+        source: '/sora2-watermark-removal',
+        destination: '/',
+        permanent: true,
+      },
     ];
   },
   async headers() {

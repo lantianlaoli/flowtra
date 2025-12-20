@@ -22,8 +22,8 @@ export default function AssetsPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen pt-14 md:pt-0">
-        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen ">
+        <div className="px-4 md:px-8 pb-4 md:pb-8 max-w-7xl mx-auto pt-14 md:pt-8">
           {/* Header */}
           <div className="mb-6 md:mb-8">
             <div className="flex items-center gap-2 md:gap-3 mb-2">

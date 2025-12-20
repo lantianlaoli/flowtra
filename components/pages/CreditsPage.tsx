@@ -290,8 +290,8 @@ export default function CreditsPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-white min-h-screen pt-14 md:pt-0">
-        <div className="p-8 max-w-[1280px] mx-auto">
+      <div className="md:ml-72 ml-0 bg-white min-h-screen ">
+        <div className="px-6 md:px-8 pb-6 md:pb-8 max-w-[1280px] mx-auto pt-14 md:pt-8">
           <div className="mb-8 pb-6 border-b border-[#E5E5E5]">
             <h1 className="text-[40px] font-semibold tracking-tight text-[#000000]">
               Account
