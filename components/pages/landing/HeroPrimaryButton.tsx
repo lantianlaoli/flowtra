@@ -28,7 +28,7 @@ export function HeroPrimaryButton() {
       >
         <Copy className="w-5 h-5" />
         <span className="sm:hidden">Clone Now</span>
-        <span className="hidden sm:inline">Clone Competitor UGC Videos Now</span>
+        <span className="hidden sm:inline">Clone Viral UGC</span>
       </button>
     );
   }
@@ -38,7 +38,7 @@ export function HeroPrimaryButton() {
       <button className="bg-black text-white h-14 px-8 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer transition-colors duration-200 hover:bg-[#333333]">
         <Copy className="w-5 h-5" />
         <span className="sm:hidden">Clone Now</span>
-        <span className="hidden sm:inline">Clone Competitor UGC Videos Now</span>
+        <span className="hidden sm:inline">Clone Viral UGC</span>
       </button>
     </SignInButton>
   );
