@@ -148,136 +148,58 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 };
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
-const ALL_VIDEO_DURATIONS: VideoDuration[] = ['5', '6', '8', '10', '12', '15', '16', '18', '20', '24', '30', '32', '36', '40', '42', '48', '50', '54', '56', '60', '64', '70', '80'];
-const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'grok', 'sora2', 'sora2_pro', 'kling_2_6'];
+const ALL_VIDEO_DURATIONS: VideoDuration[] = ['8', '16', '24', '32', '40', '48', '56', '64'];
+const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast'];
 const SESSION_STORAGE_KEY = 'flowtra_competitor_ugc_replication_generations';
 
 const COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS: VideoDurationOption[] = [
   {
-    value: '5',
-    label: '5 seconds',
-    description: 'Micro hook format',
-    features: 'Kling 2.6 base block'
-  },
-  {
-    value: '6',
-    label: '6 seconds',
-    description: 'Micro Grok hook',
-    features: 'Single rapid-fire beat'
-  },
-  {
     value: '8',
     label: '8 seconds',
-    description: 'Single-scene spotlight',
-    features: 'Perfect for quick hooks'
-  },
-  {
-    value: '10',
-    label: '10 seconds',
-    description: 'Extended presentation',
-    features: 'Great for highlights'
-  },
-  {
-    value: '12',
-    label: '12 seconds',
-    description: 'Two Grok segments',
-    features: 'Double-beat comparison'
-  },
-  {
-    value: '15',
-    label: '15 seconds',
-    description: 'Longer script support',
-    features: 'Room for storytelling'
+    description: 'Single-segment video',
+    features: '1 segment • Quick hook'
   },
   {
     value: '16',
     label: '16 seconds',
-    description: 'Dual-scene storyline',
-    features: 'Smooth two-beat arc'
-  },
-  {
-    value: '18',
-    label: '18 seconds',
-    description: 'Three Grok segments',
-    features: 'Layered demo flow'
+    description: 'Dual-segment storyline',
+    features: '2 segments • Two-beat arc'
   },
   {
     value: '24',
     label: '24 seconds',
-    description: 'Mid-length narrative arc',
-    features: 'Balanced multi-beat flow'
-  },
-  {
-    value: '30',
-    label: '30 seconds',
-    description: 'Five Grok segments',
-    features: 'Extended benefit breakdown'
+    description: 'Mid-length narrative',
+    features: '3 segments • Balanced flow'
   },
   {
     value: '32',
     label: '32 seconds',
     description: 'Full-funnel sequence',
-    features: 'Complete top-to-bottom story'
-  },
-  {
-    value: '36',
-    label: '36 seconds',
-    description: 'Six segment arc',
-    features: 'Deep dive walkthrough'
+    features: '4 segments • Complete story'
   },
   {
     value: '40',
     label: '40 seconds',
     description: 'Extended narrative',
-    features: 'Rich storytelling arc'
-  },
-  {
-    value: '42',
-    label: '42 seconds',
-    description: 'Seven segment path',
-    features: 'High-detail comparison'
+    features: '5 segments • Rich storytelling'
   },
   {
     value: '48',
     label: '48 seconds',
     description: 'Comprehensive showcase',
-    features: 'Full product journey'
-  },
-  {
-    value: '54',
-    label: '54 seconds',
-    description: 'Nine segment campaign',
-    features: 'Education-first pacing'
+    features: '6 segments • Product journey'
   },
   {
     value: '56',
     label: '56 seconds',
     description: 'Long-form content',
-    features: 'Deep engagement'
-  },
-  {
-    value: '60',
-    label: '60 seconds',
-    description: 'Ten segment Grok story',
-    features: 'Broadcast-ready spot'
+    features: '7 segments • Deep engagement'
   },
   {
     value: '64',
     label: '64 seconds',
     description: 'Full commercial',
-    features: 'Complete brand story'
-  },
-  {
-    value: '70',
-    label: '70 seconds',
-    description: 'Extended narrative',
-    features: 'Multi-scene storytelling'
-  },
-  {
-    value: '80',
-    label: '80 seconds',
-    description: 'Full commercial length',
-    features: 'Complete brand story'
+    features: '8 segments • Complete brand story'
   }
 ];
 
@@ -314,21 +236,9 @@ export default function CompetitorUgcReplicationPage() {
   const [downloadingProjects, setDownloadingProjects] = useState<Record<string, boolean>>({});
 
   // Video configuration states
-  const [videoQuality, setVideoQuality] = useState<'standard' | 'high'>('standard');
   const [videoDuration, setVideoDuration] = useState<VideoDuration>('8');
   const [selectedModel, setSelectedModel] = useState<VideoModel>('veo3_fast');
   const [format, setFormat] = useState<Format>('9:16');
-
-  // Auto-adjust quality when model changes
-  useEffect(() => {
-    const capability = MODEL_CAPABILITIES.find(cap => cap.model === selectedModel);
-    const supportedQualities = capability?.supportedQualities || ['standard'];
-
-    // If current quality is not supported by selected model, switch to 'standard'
-    if (!supportedQualities.includes(videoQuality)) {
-      setVideoQuality('standard');
-    }
-  }, [selectedModel, videoQuality]);
 
   // Image and language
   const [selectedImageModel] = useState<'nano_banana' | 'seedream'>('nano_banana');
@@ -477,7 +387,6 @@ export default function CompetitorUgcReplicationPage() {
     elementsCount,
     format,
     format as '16:9' | '9:16',
-    videoQuality,
     videoDuration,
     buildFinalPrompt(),
     selectedLanguage,
@@ -1027,30 +936,8 @@ export default function CompetitorUgcReplicationPage() {
   }, []);
 
   // Calculate available and disabled options
-  const isKlingModel = selectedModel === 'kling_2_6';
-
-  useEffect(() => {
-    if (isKlingModel && format !== '16:9') {
-      setFormat('16:9');
-    }
-  }, [isKlingModel, format]);
-
-  useEffect(() => {
-    if (isKlingModel && videoQuality !== 'standard') {
-      setVideoQuality('standard');
-    }
-  }, [isKlingModel, videoQuality]);
-
   const availableDurations = useMemo(
-    () => getModelSupportedDurations(selectedModel, videoQuality),
-    [selectedModel, videoQuality]
-  );
-
-  const availableQualities = useMemo<VideoQuality[]>(
-    () => {
-      const capability = MODEL_CAPABILITIES.find(cap => cap.model === selectedModel);
-      return capability?.supportedQualities || ['standard'];
-    },
+    () => getModelSupportedDurations(selectedModel),
     [selectedModel]
   );
 
@@ -1065,11 +952,6 @@ export default function CompetitorUgcReplicationPage() {
     [availableDurations]
   );
 
-  const disabledQualities = useMemo(
-    () => ALL_VIDEO_QUALITIES.filter(q => !availableQualities.includes(q)),
-    [availableQualities]
-  );
-
   const disabledModels = useMemo<VideoModel[]>(
     () => {
       // Models should only be disabled by:
@@ -1080,8 +962,6 @@ export default function CompetitorUgcReplicationPage() {
     },
     []
   );
-
-  const formatHelperText = isKlingModel ? 'Kling 2.6 outputs landscape (16:9) with audio enabled.' : undefined;
 
   // Calculate recommended duration based on competitor ad
   const recommendedDuration = useMemo(() => {
@@ -1096,13 +976,7 @@ export default function CompetitorUgcReplicationPage() {
     return null;
   }, [selectedCompetitorAd, selectedModel]);
 
-  // Auto-adjust quality and duration when they become invalid
-  useEffect(() => {
-    if (!availableQualities.includes(videoQuality)) {
-      setVideoQuality(availableQualities[0]);
-    }
-  }, [videoQuality, availableQualities]);
-
+  // Auto-adjust duration when it becomes invalid
   useEffect(() => {
     if (!availableDurations.includes(videoDuration)) {
       // Use snapDurationToModel to find the closest supported duration
@@ -1175,11 +1049,9 @@ export default function CompetitorUgcReplicationPage() {
       ? getSegmentCountFromDuration(videoDuration, selectedModel)
       : null;
 
-    const selectedVideoAspectRatio = isKlingModel
-      ? '16:9'
-      : (!isCompetitorPhotoMode && (format === '16:9' || format === '9:16')
-        ? (format as '16:9' | '9:16')
-        : '16:9');
+    const selectedVideoAspectRatio = (!isCompetitorPhotoMode && (format === '16:9' || format === '9:16')
+      ? (format as '16:9' | '9:16')
+      : '16:9');
 
     // Create new generation entry
     const newGeneration: SessionGeneration = {
@@ -1282,7 +1154,7 @@ export default function CompetitorUgcReplicationPage() {
   const replicaPhotoCredits = getReplicaPhotoCredits(photoResolution);
   const generationCost = isCompetitorPhotoMode
     ? replicaPhotoCredits
-    : getGenerationCost(selectedModel, videoDuration.toString(), videoQuality);
+    : getGenerationCost(selectedModel, videoDuration.toString());
   const downloadCost = 0; // Version 2.0: ALL downloads are FREE
   const canAfford = isCompetitorPhotoMode
     ? (userCredits || 0) >= generationCost
@@ -1319,8 +1191,6 @@ export default function CompetitorUgcReplicationPage() {
           {/* Page Header - Minimalist */}
           <header className="px-8 md:px-12 lg:px-16 py-6 sticky top-0 z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur mt-14 md:mt-8 border-b border-[#E5E5E5]">
             <div className="max-w-[1280px] mx-auto">
-              <h1 className="text-4xl md:text-5xl font-bold text-black tracking-tight">Competitor UGC Replication</h1>
-              <p className="text-base text-[#666666] mt-2">Clone and recreate successful competitor advertisements</p>
             </div>
           </header>
 
@@ -1429,18 +1299,13 @@ export default function CompetitorUgcReplicationPage() {
               disabledDurations={disabledDurations}
               durationOptions={filteredDurationOptions}
               recommendedDuration={recommendedDuration}
-              videoQuality={videoQuality}
-              onQualityChange={setVideoQuality}
-              disabledQualities={disabledQualities}
               selectedModel={selectedModel}
-              onModelChange={(model) => model !== 'auto' && setSelectedModel(model as VideoModel)}
+              onModelChange={setSelectedModel}
               userCredits={userCredits || 0}
               selectedLanguage={selectedLanguage}
               onLanguageChange={setSelectedLanguage}
               format={format}
               onFormatChange={setFormat}
-              formatDisabled={isKlingModel}
-              formatHelperText={formatHelperText}
               disabled={isGenerating}
               variant="minimal"
               mode={isCompetitorPhotoMode ? 'photo' : 'video'}

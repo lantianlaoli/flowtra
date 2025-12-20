@@ -7,113 +7,63 @@ export default function ModelPricingSection() {
 
   const models = [
     {
-      name: 'Veo3.1 Fast',
-      description: '',
+      name: 'Veo3.1 fast',
+      description: 'Fast generation with balanced quality and cost',
       icon: SiGoogle,
       badge: 'Popular',
-      durationRange: '1m 20s',
+      durationRange: '8-64s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { duration: '1m 20s', credits: 20, unit: 'per 8s' },
+        { duration: '8s segment', credits: 20, unit: 'per 8s' },
       ],
-      quality: ['720p', '1080p'],
-    },
-    {
-      name: 'Sora2',
-      description: '',
-      icon: SiOpenai,
-      badge: null,
-      durationRange: '1m 20s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { duration: '1m 20s', credits: 6, unit: 'per 10s' },
-      ],
-      quality: ['720p', '1080p'],
-    },
-    {
-      name: 'Grok Imagine',
-      description: '',
-      icon: SiX,
-      badge: 'New',
-      durationRange: '1m 20s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { duration: '1m 20s', credits: 20, unit: 'per 6s' },
-      ],
-      quality: ['360p', '720p'],
+      quality: ['720p'],
     },
     {
       name: 'Veo3.1',
-      description: '',
+      description: 'Premium quality generation',
       icon: SiGoogle,
-      badge: null,
-      durationRange: '1m 20s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { duration: '1m 20s', credits: 150, unit: 'per 8s' },
-      ],
-      quality: ['720p', '1080p'],
-    },
-    {
-      name: 'Sora2 Pro',
-      description: '',
-      icon: SiOpenai,
       badge: 'Premium',
-      durationRange: '1m 20s',
+      durationRange: '8-64s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { duration: '1m 20s', credits: 75, unit: 'per 10s (720p)' },
-        { duration: '1m 20s', credits: 165, unit: 'per 10s (1080p)' },
+        { duration: '8s segment', credits: 150, unit: 'per 8s' },
       ],
-      quality: ['720p', '1080p'],
-    },
-    {
-      name: 'Kling 2.6',
-      description: '',
-      icon: Zap, // Using Zap icon from lucide-react
-      badge: null,
-      durationRange: '1m 20s',
-      billingType: 'generation' as const, // User specified "生成收费"
-      pricingOptions: [
-        { duration: '5s', credits: 110, unit: 'per 5s' }, // User specified "5 s 110 credits"
-      ],
-      quality: ['1080p'], // User specified "画质是1080P"
+      quality: ['720p'],
     },
   ];
 
   return (
-    <section id="model-pricing" className="py-12 scroll-mt-24">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Price details</h2>
-        <p className="text-base text-gray-600 max-w-2xl mx-auto">
+    <section id="model-pricing" className="py-20 scroll-mt-24">
+      <div className="text-center mb-16 px-4">
+        <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">Price details</h2>
+        <p className="text-lg text-[#666666] max-w-2xl mx-auto">
           Transparent pricing for all video models. Choose the right model for your needs.
         </p>
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden md:block max-w-[90rem] mx-auto overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+      <div className="hidden md:block max-w-[1280px] mx-auto overflow-x-auto rounded-xl border border-[#E5E5E5] shadow-[0_20px_40px_rgba(0,0,0,0.05)]">
         <table className="w-full">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+            <tr className="bg-[#F7F7F7] border-b border-[#E5E5E5]">
+              <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
                 Model
               </th>
-
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+              <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
                 Quality
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                Generation Cost
+              <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
+                Generation
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                Download Cost
+              <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
+                Download
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+              <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
                 USD
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white divide-y divide-[#E5E5E5]">
             {models.map((model) => {
               const Icon = model.icon;
               const isMultiRow = model.pricingOptions.length > 1;
@@ -126,87 +76,68 @@ export default function ModelPricingSection() {
                 return (
                   <tr
                     key={`${model.name}-${optionIndex}`}
-                    className="hover:bg-gray-50 transition-colors"
+                    className="hover:bg-[#F7F7F7] transition-colors"
                   >
                     {/* Model Name & Description - only show on first row */}
                     {isFirstRow && (
-                      <td className="px-6 py-5" rowSpan={rowSpan}>
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-gray-100 mt-0.5">
-                            <Icon className="w-6 h-6 text-gray-900" />
+                      <td className="px-6 py-6" rowSpan={rowSpan}>
+                        <div className="flex items-center gap-4">
+                          <div className="p-2.5 rounded-lg bg-[#F7F7F7] border border-[#E5E5E5]">
+                            <Icon className="w-5 h-5 text-black" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <h3 className="text-base font-semibold text-gray-900">
+                              <h3 className="text-[16px] font-bold text-black">
                                 {model.name}
                               </h3>
                               {model.badge && (
-                                <span className="bg-gray-900 text-white text-xs font-medium px-2 py-0.5 rounded">
+                                <span className="bg-black text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                                   {model.badge}
                                 </span>
                               )}
                             </div>
-                            <p className="text-sm text-gray-600 mt-0.5">
-                              {model.description}
-                            </p>
                           </div>
                         </div>
                       </td>
                     )}
 
-
-
                     {/* Quality */}
                     {isFirstRow && (
-                      <td className="px-6 py-4" rowSpan={rowSpan}>
-                        <span className="text-sm font-medium text-gray-900">
+                      <td className="px-6 py-6" rowSpan={rowSpan}>
+                        <span className="text-[14px] font-medium text-black">
                           {model.quality.join(', ')}
                         </span>
                       </td>
                     )}
 
                     {/* Generation Cost */}
-                    <td className="px-6 py-4">
-                      {model.billingType === 'generation' ? (
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">
-                            {option.credits} credits
-                          </span>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {option.unit}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-900">
-                            Free
-                          </span>
-                          <Zap className="w-3.5 h-3.5 text-gray-900" />
-                        </div>
-                      )}
+                    <td className="px-6 py-6">
+                      <div className="text-[14px] font-bold text-black">
+                        {option.credits} credits
+                      </div>
+                      <p className="text-[12px] text-[#666666] mt-0.5">
+                        {option.unit}
+                      </p>
                     </td>
 
                     {/* Download Cost */}
-                    <td className="px-6 py-4">
-                      {/* Version 2.0: All downloads are FREE */}
+                    <td className="px-6 py-6">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-900">
+                        <span className="text-[14px] font-bold text-black uppercase tracking-wider">
                           Free
                         </span>
-                        <Check className="w-3.5 h-3.5 text-gray-900" />
+                        <Check className="w-4 h-4 text-black" />
                       </div>
                     </td>
 
                     {/* Est. Cost USD */}
-                    <td className="px-6 py-4">
-                      <div>
-                        <span className="text-sm font-bold text-gray-900">
-                          ${usdCost}
-                        </span>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {option.unit}
-                        </p>
+                    <td className="px-6 py-6">
+                      <div className="text-[16px] font-bold text-black">
+                        ${usdCost}
                       </div>
+                      <p className="text-[12px] text-[#666666] mt-0.5">
+                        {option.unit}
+                      </p>
                     </td>
                   </tr>
                 );

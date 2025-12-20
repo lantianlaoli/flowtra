@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { snapDurationToModel, type VideoDuration } from '@/lib/constants';
+import { snapDurationToModel, type VideoDuration, type VideoModel } from '@/lib/constants';
 
 export type WorkflowStep = 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'complete';
 export type WorkflowStatus = 'started' | 'uploaded_waiting_config' | 'workflow_initiated' | 'in_progress' | 'completed' | 'failed';
@@ -23,7 +23,7 @@ export interface WorkflowState {
     };
     errorMessage?: string;
     creditsUsed?: number;
-    videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+    videoModel?: VideoModel;
     watermark?: {
       enabled: boolean;
       text: string;
@@ -37,14 +37,13 @@ export interface WorkflowState {
 
 export const useCompetitorUgcReplicationWorkflow = (
   userId?: string | null,
-  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6' = 'veo3_fast',
+  selectedModel: VideoModel = 'veo3_fast',
   selectedImageModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' = 'nano_banana',
   updateCredits?: (newCredits: number) => void,
   refetchCredits?: () => Promise<void>,
   elementsCount: number = 1,
   imageSize: string = 'auto',
   videoAspectRatio: '16:9' | '9:16' = '16:9',
-  videoQuality: 'standard' | 'high' = 'standard',
   videoDuration: VideoDuration = '8',
   adCopy: string = '',
   selectedLanguage: string = 'en',
@@ -100,29 +99,14 @@ export const useCompetitorUgcReplicationWorkflow = (
   const resolveVideoConfig = useCallback(() => {
     let normalizedDuration: VideoDuration = videoDuration;
 
-    if (selectedModel === 'sora2') {
-      normalizedDuration = '10';
-    } else if (selectedModel === 'sora2_pro') {
-      normalizedDuration = normalizedDuration === '15' ? '15' : '10';
-    } else if (selectedModel === 'veo3' || selectedModel === 'veo3_fast') {
-      const allowed: VideoDuration[] = ['8', '16', '24', '32', '40', '48', '56', '64'];
-      if (!allowed.includes(normalizedDuration)) {
-        normalizedDuration = '8';
-      }
-    } else if (selectedModel === 'grok') {
-      const allowed: VideoDuration[] = ['6', '12', '18', '24', '30', '36', '42', '48', '54', '60'];
-      if (!allowed.includes(normalizedDuration)) {
-        normalizedDuration = '6';
-      }
-    } else if (selectedModel === 'kling_2_6') {
-      const targetSeconds = Number(normalizedDuration);
-      normalizedDuration = snapDurationToModel('kling_2_6', Number.isFinite(targetSeconds) ? targetSeconds : 10);
-    } else if (normalizedDuration !== '8' && normalizedDuration !== '10' && normalizedDuration !== '15') {
+    // All supported models use 8-64 second range
+    const allowed: VideoDuration[] = ['8', '16', '24', '32', '40', '48', '56', '64'];
+    if (!allowed.includes(normalizedDuration)) {
       normalizedDuration = '8';
     }
 
-    return { videoDuration: normalizedDuration, videoQuality } as const;
-  }, [videoDuration, videoQuality, selectedModel]);
+    return { videoDuration: normalizedDuration } as const;
+  }, [videoDuration, selectedModel]);
 
   const setLoading = useCallback((loading: boolean) => {
     setState(prev => ({ ...prev, isLoading: loading, error: null }));
@@ -262,10 +246,7 @@ export const useCompetitorUgcReplicationWorkflow = (
             : prev.workflowStatus
       }));
 
-      const { videoDuration: resolvedDuration, videoQuality: resolvedQuality } = resolveVideoConfig();
-      const sora2ProDuration = selectedModel === 'sora2_pro' && resolvedDuration
-        ? (resolvedDuration === '15' ? '15' : '10')
-        : undefined;
+      const { videoDuration: resolvedDuration } = resolveVideoConfig();
       const normalizedPhotoOnly = typeof replicaOptions?.photoOnly === 'boolean'
         ? replicaOptions.photoOnly
         : generateVideo === undefined
@@ -282,9 +263,6 @@ export const useCompetitorUgcReplicationWorkflow = (
         photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
         videoDuration: resolvedDuration,
-        videoQuality: resolvedQuality,
-        sora2ProDuration,
-        sora2ProQuality: selectedModel === 'sora2_pro' ? resolvedQuality : undefined,
         adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
         selectedBrandId: selectedBrandId,
         competitorAdId: competitorAdId || undefined, // Add competitor ad ID

@@ -81,14 +81,15 @@ const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
   return item.adType === 'character';
 };
 
-const getModelDisplayName = (model: VideoModel): string => {
-  const modelNames: Record<VideoModel, string> = {
-    'veo3': 'Veo3 High Quality',
-    'veo3_fast': 'Veo3 Fast',
-    'sora2': 'Sora2',
-    'sora2_pro': 'Sora2 Pro',
-    'grok': 'Grok',
-    'kling_2_6': 'Kling 2.6'
+const getModelDisplayName = (model: string): string => {
+  // Handle both current and legacy models for display purposes
+  const modelNames: Record<string, string> = {
+    'veo3': 'Veo3.1',
+    'veo3_fast': 'Veo3.1 fast',
+    'sora2': 'Sora2 (Legacy)',
+    'sora2_pro': 'Sora2 Pro (Legacy)',
+    'grok': 'Grok (Legacy)',
+    'kling_2_6': 'Kling 2.6 (Legacy)'
   };
   return modelNames[model] || model;
 };
@@ -151,7 +152,9 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   const handleDownloadClick = async () => {
     if (!item.videoUrl || item.status !== 'completed') return;
     if (isCompetitorUgcReplication(item) || isCharacterAds(item)) {
-      await onDownload(item.id, item.videoModel);
+      // Normalize legacy models for download
+      const normalizedModel: VideoModel = (item.videoModel === 'sora2' ? 'veo3_fast' : item.videoModel) as VideoModel;
+      await onDownload(item.id, normalizedModel);
     }
   };
 

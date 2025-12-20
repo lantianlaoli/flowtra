@@ -1,32 +1,18 @@
 // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
+// Simplified model selection: veo3 and veo3_fast only
 // ALL models: PAID generation, FREE download
 
 // Generation costs (ALL models charge at generation time)
 export const GENERATION_COSTS = {
-  'veo3': 150,        // Veo3 High Quality: 150 credits at generation
-  'veo3_fast': 20,    // Veo3 Fast: 20 credits at generation (per 8s segment)
-  'sora2': 6,         // Sora2: 6 credits at generation (per 10s video)
-  'sora2_pro': 0,     // Sora2 Pro: See getSora2ProCreditCost() (36-160 credits)
-  'grok': 20,         // Grok: 20 credits at generation (per 6s segment)
-  'kling_2_6': 110    // Kling 2.6: 110 credits at generation (per 5s block)
+  'veo3': 150,        // Veo3.1: 150 credits per 8s segment
+  'veo3_fast': 20     // Veo3.1 fast: 20 credits per 8s segment
 } as const;
 
 // DEPRECATED: Legacy CREDIT_COSTS for backwards compatibility
 export const CREDIT_COSTS = {
   'veo3_fast': 20,
-  'veo3': 150,
-  'sora2': 6,
-  'grok': 20,
-  'kling_2_6': 110
+  'veo3': 150
 } as const;
-
-// Sora2 Pro credit costs based on duration and quality
-export const SORA2_PRO_CREDIT_COSTS = {
-  'standard_10s': 75,   // Sora2 Pro Standard 10s: 75 credits
-  'standard_15s': 135,  // Sora2 Pro Standard 15s: 135 credits
-  'hd_10s': 165,        // Sora2 Pro HD 10s: 165 credits
-  'hd_15s': 315,        // Sora2 Pro HD 15s: 315 credits
-} as const
 
 // ===== PLATFORM PRESETS =====
 // Platform-specific recommended configurations
@@ -38,17 +24,17 @@ export const PLATFORM_PRESETS = {
   },
   facebook: {
     format: '16:9' as const,
-    duration: '10' as const,
+    duration: '16' as const,
     description: 'Optimized for Facebook horizontal videos'
   },
   instagram: {
     format: '9:16' as const,
-    duration: '10' as const,
+    duration: '8' as const,
     description: 'Optimized for Instagram Reels and Stories'
   },
   youtube: {
     format: '16:9' as const,
-    duration: '15' as const,
+    duration: '16' as const,
     description: 'Optimized for YouTube Shorts'
   }
 } as const;
@@ -107,11 +93,7 @@ export const IMAGE_SIZE_OPTIONS = {
 // Video aspect ratio options for different models
 export const VIDEO_ASPECT_RATIO_OPTIONS = {
   'veo3': ['16:9', '9:16'],
-  'veo3_fast': ['16:9', '9:16'],
-  'sora2': ['16:9', '9:16'],  // Sora2 supports both portrait and landscape
-  'sora2_pro': ['16:9', '9:16'],  // Sora2 Pro supports both portrait and landscape
-  'grok': ['16:9', '9:16'],
-  'kling_2_6': ['16:9']
+  'veo3_fast': ['16:9', '9:16']
 } as const
 
 // Credit costs for different image models (all free)
@@ -123,12 +105,8 @@ export const IMAGE_CREDIT_COSTS = {
 
 // Processing times for different video models
 export const MODEL_PROCESSING_TIMES = {
-  'veo3_fast': '2-3 min',    // Veo3 Fast: 2-3 minutes processing time
-  'veo3': '5-8 min',         // Veo3 High Quality: 5-8 minutes processing time
-  'sora2': '8-12 min',       // Sora2: 8-12 minutes processing time (premium quality)
-  'sora2_pro': '8-15 min',   // Sora2 Pro: 8-15 minutes processing time (varies by duration)
-  'grok': '3-5 min',
-  'kling_2_6': '4-6 min'
+  'veo3_fast': '2-3 min',    // Veo3.1 fast: 2-3 minutes processing time
+  'veo3': '5-8 min'          // Veo3.1: 5-8 minutes processing time
 } as const
 
 // Processing times for different image models
@@ -156,15 +134,13 @@ export const PACKAGES = {
     description: 'Entry Creator Pack',
     features: [
       '1,930 credits',
-      '≈ 96 Veo3 Fast videos',
-      'or ≈ 321 Sora2 videos',
-      'or ≈ 12 Veo3 high-quality videos',
+      '≈ 96 Veo3.1 fast videos (8s)',
+      'or ≈ 12 Veo3.1 videos (8s)',
       'AI-powered video generation'
     ],
     videoEstimates: {
       veo3_fast: 96,   // 1930 / 20 ≈ 96
-      veo3: 12,        // 1930 / 150 ≈ 12
-      sora2: 321       // 1930 / 6 ≈ 321
+      veo3: 12         // 1930 / 150 ≈ 12
     }
   },
   basic: {
@@ -175,15 +151,13 @@ export const PACKAGES = {
     description: 'Content Creator\'s Choice',
     features: [
       '3,930 credits',
-      '≈ 196 Veo3 Fast videos',
-      'or ≈ 655 Sora2 videos',
-      'or ≈ 26 Veo3 high-quality videos',
+      '≈ 196 Veo3.1 fast videos (8s)',
+      'or ≈ 26 Veo3.1 videos (8s)',
       'AI-powered video generation'
     ],
     videoEstimates: {
       veo3_fast: 196,  // 3930 / 20 ≈ 196
-      veo3: 26,        // 3930 / 150 ≈ 26
-      sora2: 655       // 3930 / 6 ≈ 655
+      veo3: 26         // 3930 / 150 ≈ 26
     }
   },
   pro: {
@@ -194,16 +168,14 @@ export const PACKAGES = {
     description: 'Pro Video Production',
     features: [
       '6,600 credits',
-      '≈ 330 Veo3 Fast videos',
-      'or ≈ 1100 Sora2 videos',
-      'or ≈ 44 Veo3 high-quality videos',
+      '≈ 330 Veo3.1 fast videos (8s)',
+      'or ≈ 44 Veo3.1 videos (8s)',
       'AI-powered video generation',
       'Priority processing queue'
     ],
     videoEstimates: {
       veo3_fast: 330,  // 6600 / 20 = 330
-      veo3: 44,        // 6600 / 150 = 44
-      sora2: 1100      // 6600 / 6 = 1100
+      veo3: 44         // 6600 / 150 = 44
     }
   }
 } as const
@@ -218,60 +190,26 @@ export function getCreditCost(model: keyof typeof CREDIT_COSTS): number {
   return CREDIT_COSTS[model]
 }
 
-// Get credit cost for Sora2 Pro based on duration and quality
-export function getSora2ProCreditCost(duration: '10' | '15', quality: 'standard' | 'high'): number {
-  // Map 'high' to 'hd' to match SORA2_PRO_CREDIT_COSTS keys
-  const qualityKey = quality === 'high' ? 'hd' : 'standard';
-  const key = `${qualityKey}_${duration}s` as keyof typeof SORA2_PRO_CREDIT_COSTS;
-  return SORA2_PRO_CREDIT_COSTS[key];
-}
-
 // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING HELPERS =====
 
 // Get generation cost (ALL models charge at generation)
-// IMPORTANT: videoDuration and videoQuality are generic parameters applicable to all models
 export function getGenerationCost(
-  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6',
-  videoDuration?: string, // Generic: e.g., '8', '10', '15' (seconds)
-  videoQuality?: 'standard' | 'high' // Generic: applicable to all models
+  model: 'veo3' | 'veo3_fast',
+  videoDuration?: string,
+  _videoQuality?: 'standard' | 'high' // Ignored, kept for backwards compatibility
 ): number {
-  if (model === 'sora2_pro') {
-    // For Sora2 Pro, use duration and quality to calculate cost
-    const duration = (videoDuration === '15' ? '15' : '10') as '10' | '15';
-    return getSora2ProCreditCost(duration, videoQuality || 'standard');
+  const duration = Number(videoDuration);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return GENERATION_COSTS[model]; // One segment (8s)
   }
 
-  if (model === 'veo3') {
-    const segmentMultiplier = getSegmentCountFromDuration(videoDuration, 'veo3');
-    return GENERATION_COSTS.veo3 * segmentMultiplier;
-  }
-
-  if (model === 'veo3_fast') {
-    const segmentMultiplier = getSegmentCountFromDuration(videoDuration, 'veo3_fast');
-    return GENERATION_COSTS.veo3_fast * segmentMultiplier;
-  }
-
-  if (model === 'sora2') {
-    return GENERATION_COSTS.sora2;
-  }
-
-  if (model === 'grok') {
-    const segmentMultiplier = getSegmentCountFromDuration(videoDuration, 'grok');
-    return GENERATION_COSTS.grok * segmentMultiplier;
-  }
-
-  if (model === 'kling_2_6') {
-    const durationSeconds = Math.max(5, Number(videoDuration) || 5);
-    const blocks = Math.ceil(durationSeconds / 5);
-    return GENERATION_COSTS.kling_2_6 * blocks;
-  }
-
-  return 0;
+  const segments = Math.ceil(duration / 8); // All veo3 models use 8-second segments
+  return GENERATION_COSTS[model] * segments;
 }
 
 // Get download cost (ALL downloads are FREE in Version 2.0)
 export function getDownloadCost(
-  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6',
+  model: 'veo3' | 'veo3_fast',
   videoDuration?: string | null,
   segmentCount?: number | null
 ): number {
@@ -300,57 +238,10 @@ export function getImageCreditCost(model: keyof typeof IMAGE_CREDIT_COSTS): numb
   return IMAGE_CREDIT_COSTS[model]
 }
 
-// Auto mode intelligent model selection based on user credits (prioritize cheapest first)
-export function getAutoModeSelection(userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6' | null {
-  // Prioritize cheapest model first: Sora2 (6) < Veo3 Fast (20) < Veo3 (150)
-  if (userCredits >= GENERATION_COSTS.sora2) {
-    return 'sora2'  // Cheapest option (6 credits)
-  } else if (userCredits >= GENERATION_COSTS.veo3_fast) {
-    return 'veo3_fast'  // Second cheapest (20 credits)
-  } else if (userCredits >= GENERATION_COSTS.veo3) {
-    return 'veo3'  // Most expensive basic model (150 credits)
-  } else {
-    return null  // Insufficient credits for any model
-  }
-}
-
 // Check if user has sufficient credits for a model
 // Version 2.0: ALL models require credits at generation time
-export function canAffordModel(userCredits: number, model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6'): boolean {
-  if (model === 'auto') {
-    // Auto mode: user needs credits for at least the cheapest model
-    return userCredits >= GENERATION_COSTS.sora2; // Cheapest is 6 credits
-  }
-
-  // ALL models now require credits at generation
-  if (model === 'sora2_pro') {
-    return userCredits >= SORA2_PRO_CREDIT_COSTS.standard_10s  // Minimum Sora2 Pro cost (75 credits)
-  }
-  if (model === 'veo3') {
-    return userCredits >= GENERATION_COSTS.veo3
-  }
-  if (model === 'veo3_fast') {
-    return userCredits >= GENERATION_COSTS.veo3_fast
-  }
-  if (model === 'sora2') {
-    return userCredits >= GENERATION_COSTS.sora2
-  }
-  if (model === 'grok') {
-    return userCredits >= GENERATION_COSTS.grok
-  }
-  if (model === 'kling_2_6') {
-    return userCredits >= GENERATION_COSTS.kling_2_6
-  }
-
-  return false
-}
-
-// Get the actual model that will be used (resolves auto to specific model)
-export function getActualModel(selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6', userCredits: number): 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6' | null {
-  if (selectedModel === 'auto') {
-    return getAutoModeSelection(userCredits)
-  }
-  return canAffordModel(userCredits, selectedModel) ? selectedModel : null
+export function canAffordModel(userCredits: number, model: 'veo3' | 'veo3_fast'): boolean {
+  return userCredits >= GENERATION_COSTS[model];
 }
 
 // Auto mode intelligent image model selection (prioritize seedream for better aspect ratio support)
@@ -424,11 +315,10 @@ export const KIE_CREDIT_THRESHOLD = (() => {
 // - Image description: ~1-2 credits (OpenRouter API) - FREE for users
 // - Prompt generation: ~1-2 credits (OpenRouter API) - FREE for users
 // - Cover generation: 0 credits (Seedream/Nano Banana) - FREE
-// - Video generation: 6 credits (Sora2) or 20 credits (Veo3 Fast) or 150 credits (Veo3)
-//                     or 75-315 credits (Sora2 Pro) or 20 credits (Grok) or 110 credits (Kling 2.6)
+// - Video generation: 20 credits (Veo3.1 fast, per 8s segment) or 150 credits (Veo3.1, per 8s segment)
 // - Video download: FREE (no credits charged)
-// Total for complete workflow: 6-315 credits depending on model
-// With 100 free credits, users can generate 16 Sora2 videos or 5 Veo3 Fast videos
+// Total for complete workflow: 20-1200 credits depending on model and duration
+// With 100 free credits, users can generate 5 Veo3.1 fast videos (8s each) or 30+ shorter clips
 
 // Get image size options for a specific model
 export function getImageSizeOptions(model: 'nano_banana' | 'seedream'): readonly string[] {
@@ -436,7 +326,7 @@ export function getImageSizeOptions(model: 'nano_banana' | 'seedream'): readonly
 }
 
 // Get video aspect ratio options for a specific model
-export function getVideoAspectRatioOptions(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6'): readonly string[] {
+export function getVideoAspectRatioOptions(model: 'veo3' | 'veo3_fast'): readonly string[] {
   return VIDEO_ASPECT_RATIO_OPTIONS[model]
 }
 
@@ -459,31 +349,18 @@ export function getAutoImageSize(videoAspectRatio: '16:9' | '9:16', imageModel: 
 
 // Video model capabilities based on quality and duration
 export type VideoQuality = 'standard' | 'high';
-export type VideoDuration =
-  | '5'
-  | '6'
-  | '8'
-  | '10'
-  | '12'
-  | '15'
-  | '16'
-  | '18'
-  | '20'
-  | '24'
-  | '30'
-  | '32'
-  | '36'
-  | '40'
-  | '42'
-  | '48'
-  | '50'
-  | '54'
-  | '56'
-  | '60'
-  | '64'
-  | '70'
-  | '80';
-export type VideoModel = 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+export type VideoDuration = '8' | '16' | '24' | '32' | '40' | '48' | '56' | '64';
+export type VideoModel = 'veo3' | 'veo3_fast';
+
+// Video model display names for UI
+export const VIDEO_MODEL_DISPLAY_NAMES: Record<VideoModel, string> = {
+  'veo3': 'Veo3.1',
+  'veo3_fast': 'Veo3.1 fast'
+} as const;
+
+export function getVideoModelDisplayName(model: VideoModel): string {
+  return VIDEO_MODEL_DISPLAY_NAMES[model];
+}
 
 interface ModelCapabilities {
   model: VideoModel;
@@ -502,26 +379,6 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
     model: 'veo3_fast',
     supportedQualities: ['standard'],
     supportedDurations: ['8', '16', '24', '32', '40', '48', '56', '64']
-  },
-  {
-    model: 'sora2',
-    supportedQualities: ['standard'],
-    supportedDurations: ['10', '15', '20', '30', '40', '50', '60', '70', '80']
-  },
-  {
-    model: 'sora2_pro',
-    supportedQualities: ['standard', 'high'],
-    supportedDurations: ['10', '15']
-  },
-  {
-    model: 'grok',
-    supportedQualities: ['standard'],
-    supportedDurations: ['6', '12', '18', '24', '30', '36', '42', '48', '54', '60']
-  },
-  {
-    model: 'kling_2_6',
-    supportedQualities: ['standard', 'high'],
-    supportedDurations: ['5', '10', '15', '20', '30', '40', '50', '60', '70', '80']
   }
 ];
 
@@ -603,59 +460,35 @@ export function getAvailableQualities(duration: VideoDuration): VideoQuality[] {
 export const DEFAULT_SEGMENT_DURATION_SECONDS = 8;
 
 export function getSegmentDurationForModel(model?: VideoModel | null): number {
-  if (model === 'grok') return 6;
-  if (model === 'kling_2_6') return 5;
+  // All veo3 models use 8-second segments
   return DEFAULT_SEGMENT_DURATION_SECONDS;
 }
 
 export function getSegmentCountFromDuration(videoDuration?: string | null, model?: VideoModel): number {
   const duration = Number(videoDuration);
-
-  // Sora2 uses 10-second segments
-  if (model === 'sora2') {
-    if (!Number.isFinite(duration) || duration <= 10) {
-      return 1;
-    }
-    return Math.ceil(duration / 10);
-  }
-
-  const segmentLength = getSegmentDurationForModel(model);
-  const maxSegments = (() => {
-    if (model === 'grok') return 10;
-    if (model === 'kling_2_6') return 16; // 80 seconds max / 5-second blocks
-    return 8;
-  })();
+  const segmentLength = 8; // All veo3 models use 8-second segments
+  const maxSegments = 8; // Maximum 8 segments (64 seconds)
 
   if (!Number.isFinite(duration) || duration <= segmentLength) {
     return 1;
   }
 
-  const segments = Math.min(maxSegments, Math.round(duration / segmentLength));
+  const segments = Math.min(maxSegments, Math.ceil(duration / segmentLength));
   return Math.max(1, segments);
 }
 
 export function snapDurationToModel(model: VideoModel, targetSeconds: number): VideoDuration {
-  const capability = MODEL_CAPABILITIES.find(cap => cap.model === model);
-  const supportedDurations = capability?.supportedDurations || (['8'] as VideoDuration[]);
-  const sortedDurations = [...supportedDurations].sort((a, b) => Number(a) - Number(b));
+  const supportedDurations = [8, 16, 24, 32, 40, 48, 56, 64]; // All veo3 models support these durations
 
-  if (sortedDurations.length === 0) {
-    return '8';
-  }
+  if (targetSeconds <= 8) return '8';
+  if (targetSeconds >= 64) return '64';
 
-  const sanitizedTarget = Number.isFinite(targetSeconds) && targetSeconds > 0 ? targetSeconds : Number(sortedDurations[0]);
-  let bestMatch = sortedDurations[0];
-  let bestDiff = Math.abs(Number(bestMatch) - sanitizedTarget);
+  // Find closest supported duration
+  const closest = supportedDurations.reduce((prev, curr) =>
+    Math.abs(curr - targetSeconds) < Math.abs(prev - targetSeconds) ? curr : prev
+  );
 
-  for (const duration of sortedDurations) {
-    const diff = Math.abs(Number(duration) - sanitizedTarget);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      bestMatch = duration;
-    }
-  }
-
-  return bestMatch;
+  return String(closest) as VideoDuration;
 }
 
 // Calculate cost for a model based on quality and duration
@@ -664,19 +497,9 @@ export function getModelCostByConfig(
   quality: VideoQuality,
   duration: VideoDuration
 ): number {
-  if (model === 'sora2_pro') {
-    // Sora2 Pro uses lookup table
-    return getSora2ProCreditCost(duration === '15' ? '15' : '10', quality === 'high' ? 'high' : 'standard');
-  }
-
-  // For other models, use generation costs
-  if (model === 'veo3') return GENERATION_COSTS.veo3 * getSegmentCountFromDuration(duration, 'veo3');
-  if (model === 'veo3_fast') return GENERATION_COSTS.veo3_fast * getSegmentCountFromDuration(duration, 'veo3_fast');
-  if (model === 'sora2') return GENERATION_COSTS.sora2;
-  if (model === 'grok') return GENERATION_COSTS.grok * getSegmentCountFromDuration(duration, 'grok');
-  if (model === 'kling_2_6') return getGenerationCost('kling_2_6', duration);
-
-  return 0;
+  // Both veo3 and veo3_fast use same calculation: cost per segment * number of segments
+  const segments = getSegmentCountFromDuration(duration, model);
+  return GENERATION_COSTS[model] * segments;
 }
 
 // Get best model recommendation based on credits, quality, and duration

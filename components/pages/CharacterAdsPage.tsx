@@ -15,7 +15,7 @@ import GenerationProgressDisplay, { type Generation } from '@/components/ui/Gene
 import { Video, Package, Sparkles, Settings as SettingsIcon, Clock, ChevronDown, ChevronUp, Globe, Coins } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getActualModel, getGenerationCost } from '@/lib/constants';
+import { getGenerationCost } from '@/lib/constants';
 import { CharacterAdsDuration, CHARACTER_ADS_DURATION_OPTIONS } from '@/lib/character-ads-dialogue';
 import { CharacterAdInspector, StructuredVideoPrompt } from '@/components/character-ads/CharacterAdInspector';
 import {
@@ -257,7 +257,7 @@ const formatDurationLabel = (seconds: number) => {
 
   // Calculate required credits for the current duration selection
   const requiredCredits = useMemo(() => {
-    const actualModel = getActualModel(DEFAULT_VIDEO_MODEL, userCredits || 0);
+    const actualModel = DEFAULT_VIDEO_MODEL;
     if (!actualModel) return 0;
 
     const scenesCount = Math.ceil(videoDuration / 8);
@@ -1006,8 +1006,6 @@ const formatDurationLabel = (seconds: number) => {
         <div className="flex-1 flex flex-col min-h-0">
           <header className="px-8 md:px-12 lg:px-16 py-6 sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur mt-14 md:mt-8 border-b border-[#E5E5E5]">
             <div className="max-w-[1280px] mx-auto">
-              <h1 className="text-4xl md:text-5xl font-bold text-black tracking-tight">Character Ads</h1>
-              <p className="text-base text-[#666666] mt-2">Create engaging character-driven advertisements</p>
             </div>
           </header>
 
@@ -1159,7 +1157,7 @@ const formatDurationLabel = (seconds: number) => {
                     <>
                       Generate Ad
                       {(() => {
-                        const actualModel = getActualModel(DEFAULT_VIDEO_MODEL, userCredits || 0);
+                        const actualModel = DEFAULT_VIDEO_MODEL;
                         if (!actualModel) return null;
                         // Version 2.0: ALL models charge at generation
                         const scenesCount = Math.ceil(videoDuration / 8);

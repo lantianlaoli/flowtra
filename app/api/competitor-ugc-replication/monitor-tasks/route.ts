@@ -9,7 +9,6 @@ import {
   deriveSegmentDetails,
   buildSegmentPlanFromCompetitorShots,
   normalizeSegmentPrompts,
-  normalizeKlingDuration,
   serializeSegmentPlan,
   serializeSegmentPrompt,
   hydrateSegmentPlan,
@@ -1561,70 +1560,28 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     console.log('Generated custom script video prompt (first 300 chars):', fullPrompt.substring(0, 300));
 
     // Skip to API call section below (continue with existing API logic)
-    const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+    const videoModel = (record.video_model || 'veo3_fast') as VideoModel;
     const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-    const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok' || videoModel === 'kling_2_6';
-    const apiEndpoint = usesJobsEndpoint
-      ? 'https://api.kie.ai/api/v1/jobs/createTask'
-      : 'https://api.kie.ai/api/v1/veo/generate';
+    // All models use Veo3 endpoint
+    const apiEndpoint = 'https://api.kie.ai/api/v1/veo/generate';
 
     // Custom script mode always uses a single image input
     const imageUrls = [coverImageUrl];
 
     console.log('📽️  Custom script video generation - single image mode');
 
-    let requestBody: Record<string, unknown>;
-    if (videoModel === 'grok') {
-      requestBody = {
-        model: 'grok-imagine/image-to-video',
-        input: {
-          image_urls: imageUrls,
-          prompt: fullPrompt,
-          mode: 'normal'
-        }
-      };
-    } else if (videoModel === 'kling_2_6') {
-      const klingDuration = normalizeKlingDuration(record.video_duration);
-      requestBody = {
-        model: 'kling-2.6/image-to-video',
-        input: {
-          prompt: fullPrompt,
-          image_urls: imageUrls,
-          sound: true,
-          duration: klingDuration
-        }
-      };
-    } else if (videoModel === 'sora2' || videoModel === 'sora2_pro') {
-      const soraInput = {
-        prompt: fullPrompt,
-        image_urls: imageUrls,
-        aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
-      } as Record<string, unknown>;
-
-      if (videoModel === 'sora2_pro') {
-        soraInput.n_frames = record.video_duration === '15' ? '15' : '10';
-        soraInput.size = record.video_quality === 'high' ? 'high' : 'standard';
-        soraInput.remove_watermark = true;
-      }
-
-      requestBody = {
-        model: videoModel === 'sora2_pro' ? 'sora-2-pro-image-to-video' : 'sora-2-image-to-video',
-        input: soraInput
-      };
-    } else {
-      requestBody = {
-        prompt: fullPrompt,
-        model: videoModel,
-        aspectRatio,
-        imageUrls: imageUrls,
-        enableAudio: true,
-        audioEnabled: true,
-        generateVoiceover: true,
-        includeDialogue: true,
-        enableTranslation: false
-      };
-    }
+    const requestBody = {
+      prompt: fullPrompt,
+      model: videoModel,
+      aspectRatio,
+      imageUrls: imageUrls,
+      enableAudio: true,
+      audioEnabled: true,
+      generateVoiceover: true,
+      includeDialogue: true,
+      enableTranslation: false
+    };
 
     console.log('Video API endpoint:', apiEndpoint);
     console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
@@ -1689,69 +1646,27 @@ Voice: Use a ${voiceDescriptor} with a ${voiceToneDescriptor} tone to maintain c
 
   console.log('Generated video prompt:', fullPrompt);
 
-  const videoModel = (record.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+  const videoModel = (record.video_model || 'veo3_fast') as VideoModel;
   const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
 
-  const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok' || videoModel === 'kling_2_6';
-  const apiEndpoint = usesJobsEndpoint
-    ? 'https://api.kie.ai/api/v1/jobs/createTask'
-    : 'https://api.kie.ai/api/v1/veo/generate';
+  // All models use Veo3 endpoint
+  const apiEndpoint = 'https://api.kie.ai/api/v1/veo/generate';
 
   const imageUrls = [coverImageUrl];
 
   console.log('Video generation mode: single-image');
 
-  let requestBody: Record<string, unknown>;
-  if (videoModel === 'grok') {
-    requestBody = {
-      model: 'grok-imagine/image-to-video',
-      input: {
-        image_urls: imageUrls,
-        prompt: fullPrompt,
-        mode: 'normal'
-      }
-    };
-  } else if (videoModel === 'kling_2_6') {
-    const klingDuration = normalizeKlingDuration(record.video_duration);
-    requestBody = {
-      model: 'kling-2.6/image-to-video',
-      input: {
-        prompt: fullPrompt,
-        image_urls: imageUrls,
-        sound: true,
-        duration: klingDuration
-      }
-    };
-  } else if (videoModel === 'sora2' || videoModel === 'sora2_pro') {
-    const soraInput = {
-      prompt: fullPrompt,
-      image_urls: [coverImageUrl],
-      aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape'
-    } as Record<string, unknown>;
-
-    if (videoModel === 'sora2_pro') {
-      soraInput.n_frames = record.video_duration === '15' ? '15' : '10';
-      soraInput.size = record.video_quality === 'high' ? 'high' : 'standard';
-      soraInput.remove_watermark = true;
-    }
-
-    requestBody = {
-      model: videoModel === 'sora2_pro' ? 'sora-2-pro-image-to-video' : 'sora-2-image-to-video',
-      input: soraInput
-    };
-  } else {
-    requestBody = {
-      prompt: fullPrompt,
-      model: videoModel,
-      aspectRatio,
-      imageUrls: imageUrls,
-      enableAudio: true,
-      audioEnabled: true,
-      generateVoiceover: true,
-      includeDialogue: true,
-      enableTranslation: false
-    };
-  }
+  const requestBody = {
+    prompt: fullPrompt,
+    model: videoModel,
+    aspectRatio,
+    imageUrls: imageUrls,
+    enableAudio: true,
+    audioEnabled: true,
+    generateVoiceover: true,
+    includeDialogue: true,
+    enableTranslation: false
+  };
 
   console.log('Video API endpoint:', apiEndpoint);
   console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
@@ -1860,10 +1775,8 @@ async function checkCoverStatus(taskId: string): Promise<
 }
 
 async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{status: string, videoUrl?: string, errorMessage?: string, isRetryable?: boolean}> {
-  const usesJobsEndpoint = videoModel === 'sora2' || videoModel === 'sora2_pro' || videoModel === 'grok' || videoModel === 'kling_2_6';
-  const endpoint = usesJobsEndpoint
-    ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
-    : `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`;
+  // All models use Veo3 endpoint
+  const endpoint = `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`;
 
   const response = await fetchWithRetry(endpoint, {
     method: 'GET',
@@ -1887,71 +1800,7 @@ async function checkVideoStatus(taskId: string, videoModel?: string): Promise<{s
     return { status: 'GENERATING' };
   }
 
-  if (usesJobsEndpoint) {
-    let resultJson: Record<string, unknown> = {};
-    try {
-      resultJson = JSON.parse(taskData.resultJson || '{}');
-    } catch {
-      resultJson = {};
-    }
-
-    const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
-      ? (resultJson as { resultUrls?: string[] }).resultUrls
-      : undefined;
-    const responseUrls = Array.isArray(taskData.response?.resultUrls)
-      ? (taskData.response.resultUrls as string[])
-      : undefined;
-    const flatUrls = Array.isArray(taskData.resultUrls)
-      ? (taskData.resultUrls as string[])
-      : undefined;
-    const videoUrl = (directUrls || responseUrls || flatUrls)?.[0];
-
-    const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
-    const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
-    const failCode: string | undefined = typeof taskData.failCode === 'string' ? taskData.failCode : undefined;
-
-    const isSuccess = (state && (state.toLowerCase() === 'success' || state.toLowerCase() === 'succeeded')) || successFlag === 1 || (!!videoUrl && state === undefined);
-    const isFailed = (state && (state.toLowerCase() === 'failed' || state.toLowerCase() === 'fail')) || successFlag === 2 || successFlag === 3;
-
-    // CRITICAL: Check for failCode 500 (KIE server error) - this is retryable
-    const isServerError = failCode === '500';
-
-    if (isSuccess) {
-      return { status: 'SUCCESS', videoUrl };
-    }
-    if (isFailed) {
-      const errorMessage = taskData.failMsg || taskData.errorMessage || 'Video generation failed';
-
-      // Check for content policy violations (retryable)
-      const isContentPolicyError = errorMessage && (
-        errorMessage.toLowerCase().includes('content polic') ||
-        errorMessage.toLowerCase().includes('violating content policies') ||
-        errorMessage.toLowerCase().includes('flagged by') ||
-        errorMessage.toLowerCase().includes('safety check failed')
-      );
-
-      // If it's a content policy or server error, mark as retryable
-      if (isContentPolicyError || isServerError) {
-        const errorType = isContentPolicyError ? 'Content policy violation' : 'KIE server error';
-        console.warn(`⚠️ ${errorType} (retryable) for task ${taskId}: ${errorMessage}`);
-        return {
-          status: 'FAILED',
-          errorMessage: `${errorType} (retryable): ${errorMessage}`,
-          isRetryable: true
-        };
-      }
-
-      // Non-retryable error
-      return {
-        status: 'FAILED',
-        errorMessage,
-        isRetryable: false
-      };
-    }
-    return { status: 'GENERATING' };
-  }
-
-  // VEO3 endpoint (non-jobs)
+  // VEO3 endpoint response parsing
   if (taskData.successFlag === 1) {
     return {
       status: 'SUCCESS',

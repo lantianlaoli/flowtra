@@ -6,14 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import VideoDurationSelector, { type VideoDurationOption } from './VideoDurationSelector';
-import VideoQualitySelector from './VideoQualitySelector';
 import VideoModelSelector from './VideoModelSelector';
 import LanguageSelector, { LanguageCode } from './LanguageSelector';
 import FormatSelector, { type Format } from './FormatSelector';
-import type { VideoDuration } from '@/lib/constants';
-
-// VideoModel type from constants (including 'auto')
-type VideoModel = 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+import type { VideoDuration, VideoModel } from '@/lib/constants';
 
 interface ConfigPopoverProps {
   // Duration props
@@ -21,12 +17,7 @@ interface ConfigPopoverProps {
   onDurationChange: (duration: VideoDuration) => void;
   disabledDurations?: VideoDuration[];
   durationOptions?: VideoDurationOption[];
-  recommendedDuration?: VideoDuration | null; // NEW: Recommended duration from competitor ad
-
-  // Quality props
-  videoQuality: 'standard' | 'high';
-  onQualityChange: (quality: 'standard' | 'high') => void;
-  disabledQualities?: Array<'standard' | 'high'>;
+  recommendedDuration?: VideoDuration | null;
 
   // Model props
   selectedModel: VideoModel;
@@ -62,10 +53,7 @@ export default function ConfigPopover({
   onDurationChange,
   disabledDurations = [],
   durationOptions,
-  recommendedDuration, // NEW
-  videoQuality,
-  onQualityChange,
-  disabledQualities = [],
+  recommendedDuration,
   selectedModel,
   onModelChange,
   userCredits,
@@ -256,10 +244,8 @@ export default function ConfigPopover({
         selectedModel={selectedModel}
         onModelChange={onModelChange}
         videoDuration={videoDuration}
-        videoQuality={videoQuality}
         label="AI Model"
         showIcon
-        hiddenModels={['auto']}
       />
 
       <VideoDurationSelector
@@ -271,14 +257,6 @@ export default function ConfigPopover({
         showIcon
         disabled={disabled}
         options={durationOptions}
-      />
-
-      <VideoQualitySelector
-        selectedQuality={videoQuality}
-        onQualityChange={onQualityChange}
-        disabledQualities={disabledQualities}
-        label="Quality"
-        showIcon
       />
     </div>
   );

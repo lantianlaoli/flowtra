@@ -359,8 +359,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       segmentUpdates.retry_count = 0;
       segmentUpdates.error_message = null;
 
+      // Normalize legacy models to current VideoModel type
+      const rawModel = project.video_model || 'veo3_fast';
+      const normalizedModel: 'veo3' | 'veo3_fast' =
+        (rawModel === 'veo3' || rawModel === 'veo3_fast') ? rawModel : 'veo3_fast';
+
       const totalVideoCost = getGenerationCost(
-        (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6',
+        normalizedModel,
         project.video_duration,
         project.video_quality || 'standard'
       );

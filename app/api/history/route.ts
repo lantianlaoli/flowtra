@@ -90,12 +90,18 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
   return normalizeAspectRatio(ratio);
 };
 
-const ALLOWED_COMPETITOR_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'sora2', 'sora2_pro', 'grok', 'kling_2_6'];
+const ALLOWED_COMPETITOR_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast'];
+const LEGACY_MODELS = ['sora2', 'sora2_pro', 'grok', 'kling_2_6'];
 
 const normalizeCompetitorVideoModel = (model?: string | null): VideoModel => {
-  return ALLOWED_COMPETITOR_VIDEO_MODELS.includes(model as VideoModel)
-    ? (model as VideoModel)
-    : 'veo3_fast';
+  if (ALLOWED_COMPETITOR_VIDEO_MODELS.includes(model as VideoModel)) {
+    return model as VideoModel;
+  }
+  return 'veo3_fast'; // Default for invalid/null models
+};
+
+const isLegacyModel = (model?: string | null): boolean => {
+  return LEGACY_MODELS.includes(model as string);
 };
 
 export async function GET() {
@@ -161,6 +167,7 @@ export async function GET() {
     // Transform Competitor UGC Replication data
     const transformedCompetitorUgcReplicationHistory: CompetitorUgcReplicationItem[] = (competitorUgcReplicationItems || []).map(item => {
       const videoModel = normalizeCompetitorVideoModel(item.video_model);
+      const isLegacy = isLegacyModel(item.video_model);
 
       return {
         id: item.id,
@@ -172,7 +179,7 @@ export async function GET() {
         generationCreditsUsed: 0,
         imagePrompt: item.image_prompt,
         coverAspectRatio: resolveCoverAspectRatio(item.cover_image_aspect_ratio),
-        videoModel,
+        videoModel: isLegacy ? `${item.video_model} (Legacy)` as VideoModel : videoModel,
         creditsUsed: item.credits_cost || 0,
         status: mapWorkflowStatus(item.status),
         createdAt: item.created_at,

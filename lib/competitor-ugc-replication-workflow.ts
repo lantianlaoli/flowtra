@@ -3,7 +3,6 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import {
   getActualImageModel,
   IMAGE_MODELS,
-  getAutoModeSelection,
   getGenerationCost,
   getLanguagePromptName,
   getSegmentCountFromDuration,
@@ -60,7 +59,7 @@ export interface StartWorkflowRequest {
   selectedBrandId?: string; // NEW: Brand selection for ending frame
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
   userId: string;
-  videoModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+  videoModel: 'veo3' | 'veo3_fast';
   imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
   imageSize?: string;
   elementsCount?: number;
@@ -73,9 +72,6 @@ export interface StartWorkflowRequest {
   photoResolution?: '1K' | '2K' | '4K';
   photoOutputFormat?: 'png' | 'jpg';
   replicaMode?: boolean;
-  // NEW: Sora2 Pro params
-  sora2ProDuration?: '10' | '15';
-  sora2ProQuality?: 'standard' | 'high';
   // Generic video params (applies to all models)
   videoDuration?: VideoDuration;
   videoQuality?: 'standard' | 'high';
@@ -83,7 +79,7 @@ export interface StartWorkflowRequest {
   // NEW: Custom Script mode
   customScript?: string; // User-provided video script for direct video generation
   useCustomScript?: boolean; // Flag to enable custom script mode
-  resolvedVideoModel?: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+  resolvedVideoModel?: 'veo3' | 'veo3_fast';
 }
 
 interface WorkflowResult {
@@ -378,33 +374,12 @@ export interface SegmentStatusPayload {
 
 export const SEGMENTED_DURATIONS = new Set(['16', '24', '32', '40', '48', '56', '64']);
 
-export function normalizeKlingDuration(duration?: string | null): VideoDuration {
-  const numericDuration = Number(duration);
-  const targetSeconds = Number.isFinite(numericDuration) && numericDuration > 0 ? numericDuration : 10;
-  return snapDurationToModel('kling_2_6', targetSeconds);
-}
-
-function shouldForceSingleSegmentGrok(model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6', videoDuration?: string | null): boolean {
-  if (model !== 'grok' || !videoDuration) return false;
-  const duration = Number(videoDuration);
-  if (!Number.isFinite(duration)) return false;
-  return duration <= 6;
-}
-
 export function isSegmentedVideoRequest(
-  model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6',
+  model: 'veo3' | 'veo3_fast',
   videoDuration?: string | null
 ): boolean {
   if (!videoDuration) return false;
-  if (model === 'grok') {
-    const duration = Number(videoDuration);
-    return Number.isFinite(duration) && duration > 6;
-  }
-  if (model === 'kling_2_6') {
-    const duration = Number(videoDuration);
-    return Number.isFinite(duration) && duration > getSegmentDurationForModel('kling_2_6');
-  }
-  if (model !== 'veo3' && model !== 'veo3_fast') return false;
+  // All veo3 models use segmented approach for durations > 8s
   return SEGMENTED_DURATIONS.has(videoDuration);
 }
 
@@ -522,22 +497,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
     }
 
-    // Convert 'auto' to specific model
-    let actualVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+    // Use the selected video model directly
+    const actualVideoModel: 'veo3' | 'veo3_fast' = request.videoModel;
     let competitorShotTimeline: { shots: CompetitorShot[]; totalDurationSeconds: number } | null = null;
-
-    if (request.videoModel === 'auto') {
-      const autoSelection = getAutoModeSelection(0); // Get cheapest model
-        actualVideoModel = autoSelection || 'sora2'; // Fallback to cheapest
-    } else {
-      actualVideoModel = request.videoModel;
-    }
-
-    if (actualVideoModel === 'kling_2_6') {
-      request.videoAspectRatio = '16:9';
-      request.videoQuality = 'standard';
-      request.videoDuration = normalizeKlingDuration(request.videoDuration);
-    }
 
     if (competitorAdContext?.existing_analysis) {
       const timeline = parseCompetitorTimeline(
@@ -552,7 +514,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
         // NEW: Recommend duration based on competitor shot count, but let user decide
         // If user hasn't chosen duration yet, recommend shot_count × segment_duration
-        if (!request.videoDuration && (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' || actualVideoModel === 'grok' || actualVideoModel === 'kling_2_6')) {
+        if (!request.videoDuration) {
           const segmentDuration = getSegmentDurationForModel(actualVideoModel);
           const recommendedDuration = competitorShotTimeline.shots.length * segmentDuration;
 
@@ -575,9 +537,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
     }
 
-    const forceSingleSegmentGrok = shouldForceSingleSegmentGrok(actualVideoModel, request.videoDuration);
     const segmentedByDuration = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
-    const isSegmented = forceSingleSegmentGrok || segmentedByDuration;
+    const isSegmented = segmentedByDuration;
     const resolvedSegmentDuration = getSegmentDurationForModel(actualVideoModel);
 
     // NEW: Smart segment count calculation
@@ -590,11 +551,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     let segmentCount: number;
     const competitorShotCount = competitorShotTimeline?.shots.length || 0;
-    const userSegmentCount = forceSingleSegmentGrok
-      ? 1
-      : segmentedByDuration
-        ? getSegmentCountFromDuration(request.videoDuration, actualVideoModel)
-        : 1;
+    const userSegmentCount = segmentedByDuration
+      ? getSegmentCountFromDuration(request.videoDuration, actualVideoModel)
+      : 1;
 
     console.log(`   - Competitor shot count: ${competitorShotCount}`);
     console.log(`   - User segment count (from duration): ${userSegmentCount}`);
@@ -641,8 +600,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
     // ALL models: PAID generation, FREE download
     let generationCost = 0;
-    const duration = request.videoDuration || request.sora2ProDuration;
-    const quality = request.videoQuality || request.sora2ProQuality;
+    const duration = request.videoDuration;
+    const quality = request.videoQuality || 'standard';
     if (isReplicaMode) {
       const replicaResolution = request.photoResolution || '2K';
       generationCost = getReplicaPhotoCredits(replicaResolution);
@@ -1048,13 +1007,10 @@ async function startAIWorkflow(
       }
     }
 
-    const totalDurationSeconds = parseInt(request.videoDuration || request.sora2ProDuration || '10', 10);
-    const forceSingleSegment = shouldForceSingleSegmentGrok(request.resolvedVideoModel, request.videoDuration);
-    const segmentedFlow = forceSingleSegment || isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
+    const totalDurationSeconds = parseInt(request.videoDuration || '8', 10);
+    const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
     const segmentCount = segmentedFlow
-      ? forceSingleSegment
-        ? 1
-        : getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
+      ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
       : 1;
 
     // BUG FIX: Do NOT update is_segmented here, as it was already set correctly during project creation
@@ -1063,7 +1019,7 @@ async function startAIWorkflow(
     const { error: projectConfigUpdateError } = await supabase
       .from('competitor_ugc_replication_projects')
       .update({
-        video_duration: request.videoDuration || request.sora2ProDuration || null,
+        video_duration: request.videoDuration || null,
         // is_segmented: segmentedFlow, // REMOVED: Do not overwrite is_segmented
         segment_count: segmentedFlow ? segmentCount : 1,
         segment_duration_seconds: segmentedFlow ? getSegmentDurationForModel(request.resolvedVideoModel) : null
@@ -2119,7 +2075,7 @@ async function startSegmentedWorkflow(
   const supabase = getSupabaseAdmin();
 
   const defaultFrameSize = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
-  const segmentModelForDuration = request.resolvedVideoModel || (request.videoModel === 'auto' ? undefined : request.videoModel);
+  const segmentModelForDuration = request.resolvedVideoModel || request.videoModel;
   const perSegmentDurationSeconds = getSegmentDurationForModel(segmentModelForDuration);
   const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, competitorShots, perSegmentDurationSeconds).map(segment => ({
     ...segment,
@@ -3003,86 +2959,7 @@ export async function startSegmentVideoTask(
 
   console.log(`🎬 Segment ${segmentIndex + 1}: Images count = ${imageUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
 
-  if (videoModel === 'grok') {
-    const grokRequest = {
-      model: 'grok-imagine/image-to-video',
-      input: {
-        image_urls: [firstFrameUrl],
-        prompt: fullPrompt,
-        mode: 'normal'
-      }
-    };
-
-    const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(grokRequest)
-    }, 5, 30000);
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`Failed to generate Grok segment video: ${response.status} ${errorData}`);
-    }
-
-    const data = await response.json();
-    if (data.code !== 200) {
-      throw new Error(data.msg || 'Failed to generate Grok segment video');
-    }
-
-    return data.data.taskId;
-  }
-
-  if (videoModel === 'kling_2_6') {
-    const klingDurationSeconds = Math.min(80, Math.max(5, Math.round(perSegmentDuration / 5) * 5));
-    const klingPromptText = [
-      segmentPrompt.first_frame_description ? `First frame: ${segmentPrompt.first_frame_description}` : null,
-      action ? `Action: ${action}` : null,
-      segmentPrompt.subject ? `Subject: ${segmentPrompt.subject}` : null,
-      segmentPrompt.style ? `Style: ${segmentPrompt.style}` : null,
-      segmentPrompt.context_environment ? `Environment: ${segmentPrompt.context_environment}` : null,
-      segmentPrompt.ambiance_colour_lighting ? `Lighting: ${segmentPrompt.ambiance_colour_lighting}` : null,
-      dialogueContent ? `Dialogue/Narration: ${dialogueContent}` : null
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    console.log(`🎥 Kling 2.6 segment request (docs/kie/kling_2.6.md) – duration ${klingDurationSeconds}s block`);
-
-    const klingRequest = {
-      model: 'kling-2.6/image-to-video',
-      input: {
-        prompt: klingPromptText || `Segment ${segmentIndex + 1} commercial beat`,
-        image_urls: [firstFrameUrl],
-        sound: true,
-        duration: String(klingDurationSeconds)
-      }
-    };
-
-    const klingResponse = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(klingRequest)
-    }, 5, 30000);
-
-    if (!klingResponse.ok) {
-      const errorData = await klingResponse.text();
-      throw new Error(`Failed to generate Kling segment video: ${klingResponse.status} ${errorData}`);
-    }
-
-    const klingData = await klingResponse.json();
-    if (klingData.code !== 200) {
-      throw new Error(klingData.msg || 'Failed to generate Kling segment video');
-    }
-
-    return klingData.data.taskId;
-  }
-
+  // All models use Veo3 endpoint
   const requestBody = {
     prompt: JSON.stringify(structuredPromptPayload),
     model: videoModel,

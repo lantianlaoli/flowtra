@@ -7,27 +7,26 @@ import { cn } from '@/lib/utils';
 import {
   CREDIT_COSTS,
   canAffordModel,
-  getAutoModeSelection,
   getProcessingTime,
   getModelCostByConfig,
-  MODEL_CAPABILITIES,
+  getVideoModelDisplayName,
   type VideoQuality,
-  type VideoDuration
+  type VideoDuration,
+  type VideoModel
 } from '@/lib/constants';
 
 interface VideoModelSelectorProps {
   credits: number;
-  selectedModel: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
-  onModelChange: (model: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6') => void;
-  // NEW: Top-level quality and duration filters (optional for backwards compatibility)
+  selectedModel: VideoModel;
+  onModelChange: (model: VideoModel) => void;
   videoQuality?: VideoQuality;
   videoDuration?: VideoDuration;
   label?: string;
   className?: string;
   showIcon?: boolean;
   hideCredits?: boolean;
-  disabledModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6'>;
-  hiddenModels?: Array<'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6'>;
+  disabledModels?: VideoModel[];
+  hiddenModels?: VideoModel[];
   adsCount?: number;
   videoDurationSeconds?: number;
 }
@@ -52,128 +51,64 @@ export default function VideoModelSelector({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
 
-  // Model options with NEW PRICING (generation-time billing, downloads are FREE)
+  // Model options with Generation-Time Billing (downloads are FREE)
   const modelOptions = useMemo(() => {
-    const autoSelection = getAutoModeSelection(credits);
-
-    // Helper function to calculate duration-based cost for character ads
-    const calculateDurationCost = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6'): number => {
+    // Helper function to calculate duration-based cost
+    const calculateDurationCost = (model: VideoModel): number => {
       if (!videoDurationSeconds) {
-        // Use new config-based cost calculation (if quality/duration provided)
+        // Use config-based cost calculation (if quality/duration provided)
         if (videoQuality && videoDuration) {
           return getModelCostByConfig(model, videoQuality, videoDuration);
         }
         // Fallback to base cost if no config provided
-        return CREDIT_COSTS[model as keyof typeof CREDIT_COSTS] || 0;
+        return CREDIT_COSTS[model] || 0;
       }
-      // Legacy character ads duration-based cost
-      const unitSeconds =
-        model === 'sora2' || model === 'sora2_pro'
-          ? 10
-          : model === 'grok'
-            ? 6
-            : 8;
-      const baseCost = CREDIT_COSTS[model as keyof typeof CREDIT_COSTS] || 0;
+      // Character ads duration-based cost (all veo3 models use 8s segments)
+      const unitSeconds = 8;
+      const baseCost = CREDIT_COSTS[model] || 0;
       return Math.round((videoDurationSeconds / unitSeconds) * baseCost);
     };
 
     // Check if model is supported by current quality config or disabledModels list
-    const isModelSupported = (model: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6') => {
+    const isModelSupported = (model: VideoModel) => {
       // First check disabledModels prop (takes precedence)
       if (disabledModels.includes(model)) {
         return false;
       }
-      // Model selection should not be affected by duration
-      // Only check quality support
-      if (videoQuality) {
-        const capability = MODEL_CAPABILITIES.find(cap => cap.model === model);
-        if (!capability) return false;
-        return capability.supportedQualities.includes(videoQuality);
-      }
-      // If no constraints, all models are supported
+      // All veo3 models support 'standard' quality only
       return true;
     };
 
     return [
       {
-        value: 'auto',
-        label: 'Auto',
-        description: 'Smart model selection',
-        cost: autoSelection ? calculateDurationCost(autoSelection) : CREDIT_COSTS.sora2,
-        processingTime: autoSelection ? getProcessingTime(autoSelection) : '2-3 min',
-        affordable: canAffordModel(credits, 'auto'),
-        features: 'Cheapest available model',
-        supported: true // Auto always available
-      },
-      {
-        value: 'sora2',
-        label: 'Sora2',
-        description: '',
-        cost: calculateDurationCost('sora2'),
-        processingTime: getProcessingTime('sora2'),
-        affordable: canAffordModel(credits, 'sora2'),
-        features: 'Budget-friendly, 8-12 min',
-        supported: isModelSupported('sora2')
-      },
-      {
-        value: 'veo3_fast',
-        label: 'VEO3 Fast',
-        description: '',
+        value: 'veo3_fast' as const,
+        label: getVideoModelDisplayName('veo3_fast'),
+        description: 'Fast generation, balanced quality',
         cost: calculateDurationCost('veo3_fast'),
         processingTime: getProcessingTime('veo3_fast'),
         affordable: canAffordModel(credits, 'veo3_fast'),
         features: 'Fast processing, 2-3 min',
-        supported: isModelSupported('veo3_fast')
+        supported: isModelSupported('veo3_fast'),
+        badge: 'Popular'
       },
       {
-        value: 'grok',
-        label: 'Grok',
-        description: '',
-        cost: calculateDurationCost('grok'),
-        processingTime: getProcessingTime('grok'),
-        affordable: canAffordModel(credits, 'grok'),
-        features: '6s segments, up to 60s',
-        supported: isModelSupported('grok')
-      },
-      {
-        value: 'kling_2_6',
-        label: 'Kling 2.6',
-        description: '',
-        cost: calculateDurationCost('kling_2_6'),
-        processingTime: getProcessingTime('kling_2_6'),
-        affordable: canAffordModel(credits, 'kling_2_6'),
-        features: 'Audio-enabled, 16:9 only',
-        supported: isModelSupported('kling_2_6')
-      },
-      {
-        value: 'sora2_pro',
-        label: 'Sora2 Pro',
-        description: '',
-        cost: calculateDurationCost('sora2_pro'),
-        processingTime: getProcessingTime('sora2_pro'),
-        affordable: credits >= calculateDurationCost('sora2_pro'),
-        features: videoQuality && videoDuration
-          ? `${videoQuality === 'high' ? '1080p' : '720p'} ${videoDuration}s, 8-15 min`
-          : 'Premium quality, 8-15 min',
-        supported: isModelSupported('sora2_pro')
-      },
-      {
-        value: 'veo3',
-        label: 'VEO3 High',
-        description: '',
+        value: 'veo3' as const,
+        label: getVideoModelDisplayName('veo3'),
+        description: 'Premium quality generation',
         cost: calculateDurationCost('veo3'),
         processingTime: getProcessingTime('veo3'),
         affordable: canAffordModel(credits, 'veo3'),
         features: 'Premium quality, 5-8 min',
-        supported: isModelSupported('veo3')
-      },
+        supported: isModelSupported('veo3'),
+        badge: 'Premium'
+      }
     ];
   }, [credits, videoDurationSeconds, videoQuality, videoDuration, disabledModels]);
 
   const visibleOptions = useMemo(
     () =>
       modelOptions.filter(
-        (option) => !hiddenModels?.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6')
+        (option) => !hiddenModels?.includes(option.value)
       ),
     [modelOptions, hiddenModels]
   );
@@ -182,7 +117,7 @@ export default function VideoModelSelector({
     if (hiddenModels?.includes(selectedModel)) {
       const fallback = visibleOptions[0];
       if (fallback && fallback.value !== selectedModel) {
-        onModelChange(fallback.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6');
+        onModelChange(fallback.value);
       }
     }
   }, [hiddenModels, selectedModel, visibleOptions, onModelChange]);
@@ -222,7 +157,7 @@ export default function VideoModelSelector({
 
   const selectedOption = visibleOptions.find(opt => opt.value === selectedModel) || visibleOptions[0];
 
-  const handleOptionSelect = (value: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6', affordable: boolean) => {
+  const handleOptionSelect = (value: VideoModel, affordable: boolean) => {
     if (!affordable) return;
     onModelChange(value);
     try {
@@ -251,11 +186,6 @@ export default function VideoModelSelector({
               <span className="font-medium truncate">
                 {selectedOption?.label}
               </span>
-              {selectedOption?.value === 'grok' && (
-                <span className="inline-flex items-center text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                  Kids Friendly
-                </span>
-              )}
             </div>
             {selectedOption?.features && (
               <span className="text-xs text-gray-500 truncate">{selectedOption?.features}</span>
@@ -278,13 +208,13 @@ export default function VideoModelSelector({
             className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-[280px] overflow-y-auto"
           >
             {visibleOptions.map((option) => {
-              const disabledByConstraint = disabledModels.includes(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6');
+              const disabledByConstraint = disabledModels.includes(option.value);
               const disabledByConfig = !option.supported; // NEW: Disable if not supported by quality/duration
               const isDisabled = !option.affordable || disabledByConstraint || disabledByConfig;
               return (
               <button
                 key={option.value}
-                onClick={() => handleOptionSelect(option.value as 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6', !isDisabled)}
+                onClick={() => handleOptionSelect(option.value, !isDisabled)}
                 disabled={isDisabled}
                 className={cn(
                   "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between",
@@ -302,11 +232,6 @@ export default function VideoModelSelector({
                       <span className="font-medium">
                         {option.label}
                       </span>
-                      {option.value === 'grok' && (
-                        <span className="inline-flex items-center text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                          Kids Friendly
-                        </span>
-                      )}
                       {option.description && (
                         <div className="relative">
                           <HelpCircle

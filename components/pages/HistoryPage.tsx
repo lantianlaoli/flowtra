@@ -109,13 +109,9 @@ const isCompetitorUgcReplication = (item: HistoryItem): item is CompetitorUgcRep
   return 'adType' in item && item.adType === 'competitor-ugc-replication';
 };
 
-type DownloadCreditEligibleModel = Exclude<VideoModel, 'sora2_pro'>;
-
 const getBaseDownloadCost = (model: VideoModel) => {
-  if (model === 'sora2_pro') {
-    return 0;
-  }
-  return getCreditCost(model as DownloadCreditEligibleModel);
+  // Version 2.0: ALL downloads are FREE
+  return 0;
 };
 
 export default function HistoryPage() {
@@ -598,7 +594,9 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
       if (isCompetitorUgcReplication(item) || isCharacterAds(item)) {
-        await downloadVideo(item.id, item.videoModel);
+        // Version 2.0: All downloads are free, handle legacy sora2 model
+        const normalizedModel: VideoModel = (item.videoModel === 'sora2' ? 'veo3_fast' : item.videoModel) as VideoModel;
+        await downloadVideo(item.id, normalizedModel);
       }
       setVideoStates(prev => ({ ...prev, [id]: 'done' }));
     } finally {

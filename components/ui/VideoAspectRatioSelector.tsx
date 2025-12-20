@@ -4,12 +4,12 @@ import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Monitor, Smartphone, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getVideoAspectRatioOptions } from '@/lib/constants';
+import { getVideoAspectRatioOptions, type VideoModel } from '@/lib/constants';
 
 interface VideoAspectRatioSelectorProps {
   selectedAspectRatio: '16:9' | '9:16';
   onAspectRatioChange: (aspectRatio: '16:9' | '9:16') => void;
-  videoModel?: 'auto' | 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+  videoModel?: VideoModel;
   label?: string;
   className?: string;
   showIcon?: boolean;
@@ -18,7 +18,7 @@ interface VideoAspectRatioSelectorProps {
 export default function VideoAspectRatioSelector({
   selectedAspectRatio,
   onAspectRatioChange,
-  videoModel = 'auto',
+  videoModel = 'veo3_fast',
   label = 'Video Format',
   className,
   showIcon = false
@@ -29,11 +29,6 @@ export default function VideoAspectRatioSelector({
 
   // Get available aspect ratios based on video model
   const getAvailableAspectRatios = () => {
-    // For auto mode, show all options (will be resolved later)
-    if (videoModel === 'auto') {
-      return ['16:9', '9:16'];
-    }
-    
     // Get options from constants based on actual model
     return getVideoAspectRatioOptions(videoModel);
   };

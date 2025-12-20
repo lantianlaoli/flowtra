@@ -3,6 +3,14 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { startWorkflowProcess, StartWorkflowRequest } from '@/lib/competitor-ugc-replication-workflow';
 import { validateKieCredits } from '@/lib/kie-credits-check';
+import type { VideoModel } from '@/lib/constants';
+
+/**
+ * Validates that the video model is one of the supported models
+ */
+function validateVideoModel(model: string): model is VideoModel {
+  return model === 'veo3' || model === 'veo3_fast';
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,6 +80,18 @@ export async function POST(request: NextRequest) {
       useCustomScript: requestData.useCustomScript,
       customScriptProvided: !!requestData.customScript
     });
+
+    // Validate video model (only veo3 and veo3_fast are supported)
+    if (requestData.videoModel && !validateVideoModel(requestData.videoModel)) {
+      return NextResponse.json(
+        {
+          error: 'Invalid video model',
+          supportedModels: ['veo3', 'veo3_fast'],
+          message: 'Please select Veo3.1 or Veo3.1 fast'
+        },
+        { status: 400 }
+      );
+    }
 
     if (!requestData.selectedBrandId) {
       return NextResponse.json(

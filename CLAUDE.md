@@ -397,6 +397,131 @@ The mode is automatically determined based on whether the user selects a competi
 
 ---
 
+### Video Model Selection Simplified (Version 1.0)
+
+**Implementation Date**: 2025-12-20
+
+**Overview:**
+Simplified video model selection from 6 models to 2 models (Veo3.1 and Veo3.1 fast) for the Competitor UGC Replication workflow. This change streamlines the user experience, reduces complexity, and focuses on the most reliable and cost-effective models.
+
+**Supported Models:**
+- **veo3_fast** (Display: "Veo3.1 fast"): 20 credits per 8s segment - Fast generation with balanced quality
+- **veo3** (Display: "Veo3.1"): 150 credits per 8s segment - Premium quality generation
+
+**Duration Support:** 8, 16, 24, 32, 40, 48, 56, 64 seconds (all using 8-second segments)
+
+**Quality:** Always 'standard' (720p) - Quality selector UI completely removed
+
+**Removed Models:** sora2, sora2_pro, grok, kling_2_6, auto mode
+
+**Default Model:** veo3_fast
+
+**Backward Compatibility:**
+- Legacy database records with removed models display with "(Legacy)" suffix in UI
+- History API normalizes legacy models to veo3_fast for new operations
+- Download functionality works for all legacy videos
+
+**Key Changes:**
+
+1. **Type System Simplification** (`lib/constants.ts`):
+   - Reduced VideoModel from 6 union members to 2: `'veo3' | 'veo3_fast'`
+   - Reduced VideoDuration to only veo3-supported durations: `'8' | '16' | '24' | '32' | '40' | '48' | '56' | '64'`
+   - Added VIDEO_MODEL_DISPLAY_NAMES mapping for UI display
+   - Removed auto-selection logic functions (getAutoModeSelection, getActualModel)
+   - Simplified MODEL_CAPABILITIES to only include veo3 models
+
+2. **Display Name Abstraction**:
+   ```typescript
+   export const VIDEO_MODEL_DISPLAY_NAMES: Record<VideoModel, string> = {
+     'veo3': 'Veo3.1',
+     'veo3_fast': 'Veo3.1 fast'
+   } as const;
+
+   export function getVideoModelDisplayName(model: VideoModel): string {
+     return VIDEO_MODEL_DISPLAY_NAMES[model];
+   }
+   ```
+
+3. **Workflow Simplification** (`lib/competitor-ugc-replication-workflow.ts`):
+   - Removed auto mode resolution logic
+   - Removed Kling special handling (duration normalization)
+   - Removed Grok and Kling video generation endpoints
+   - All video generation now uses Veo3 API endpoint only
+
+4. **UI Component Updates**:
+   - **VideoModelSelector**: Reduced from 7 options to 2 options
+   - **CompetitorUgcReplicationPage**: Removed videoQuality state, removed auto-adjust logic
+   - **ConfigPopover**: Removed VideoQualitySelector component entirely
+   - **VideoDurationSelector**: Default options now show 8-64s (veo3 durations)
+
+5. **API Route Updates**:
+   - **monitor-tasks**: Simplified to only check Veo3 endpoint
+   - **history**: Added legacy model detection and normalization
+   - **create**: Added validation to reject legacy model creation
+   - **segments/[segmentIndex]**: Normalized legacy models for credit calculation
+
+6. **Landing Page Updates**:
+   - **ModelPricingSection**: Simplified from 6 models to 2 models
+   - Updated all model references to use new display names
+
+**Modified Files:**
+- `lib/constants.ts` - Core type definitions and display names
+- `lib/competitor-ugc-replication-workflow.ts` - Workflow logic simplification
+- `components/ui/VideoModelSelector.tsx` - Model selection UI
+- `components/ui/VideoDurationSelector.tsx` - Duration options
+- `components/ui/VideoAspectRatioSelector.tsx` - Remove auto mode
+- `components/ui/ConfigPopover.tsx` - Remove quality selector
+- `components/pages/CompetitorUgcReplicationPage.tsx` - Main UI page
+- `components/pages/CharacterAdsPage.tsx` - Remove auto-selection
+- `components/pages/HistoryPage.tsx` - Legacy model support
+- `components/VideoDetailsModal.tsx` - Legacy model display
+- `components/pages/landing/sections/ModelPricingSection.tsx` - Landing page
+- `hooks/useCompetitorUgcReplicationWorkflow.ts` - Hook simplification
+- `app/api/competitor-ugc-replication/monitor-tasks/route.ts` - Task monitoring
+- `app/api/history/route.ts` - History with legacy support
+- `app/api/competitor-ugc-replication/create/route.ts` - Creation validation
+- `app/api/competitor-ugc-replication/[id]/segments/[segmentIndex]/route.ts` - Segment regeneration
+
+**Technical Decisions:**
+- **Why only 2 models?** Focus on most reliable models with best cost/quality ratio. Veo3 models have consistent 8s segments and predictable behavior.
+- **Why remove quality selector?** All veo3 models use standard quality (720p), eliminating confusion and simplifying UX.
+- **Why remove auto mode?** Auto-selection logic added complexity without clear user benefit. Users prefer explicit control.
+- **Why 8-second segments?** Standardizes billing and workflow. All durations are multiples of 8s for consistent user experience.
+- **Why keep legacy support?** Existing database records must remain accessible. Users can view/download historical videos.
+
+**Benefits:**
+- **Simplified UX**: Users choose between 2 clear options instead of 6 confusing ones
+- **Consistent behavior**: All models use same 8-second segment structure
+- **Reduced complexity**: Removed 4 different API endpoints and their special handling
+- **Better maintainability**: Single code path for video generation
+- **Clear pricing**: Linear per-segment pricing, no special cases
+- **Backward compatible**: Legacy videos remain accessible
+
+**Known Limitations:**
+- Users with legacy videos in sora2/grok/kling cannot create new videos with those models
+- Legacy model selection is not available for new projects
+- Some users may prefer removed models for specific use cases (not supported)
+
+**Testing Considerations:**
+- Test new project creation with veo3 and veo3_fast
+- Verify duration options only show 8-64s
+- Confirm quality selector is not visible
+- Test legacy video viewing in history (shows "(Legacy)" suffix)
+- Verify legacy video download works
+- Test credit calculation for different durations
+- Verify API validation rejects legacy model creation requests
+
+**Credit Calculation Examples:**
+- 8s veo3_fast: 20 credits (1 segment)
+- 64s veo3_fast: 160 credits (8 segments × 20)
+- 8s veo3: 150 credits (1 segment)
+- 64s veo3: 1200 credits (8 segments × 150)
+
+**Related Documentation:**
+- `documents/local/pricing-and-billing-rules.md` - Should reflect Version 1.0 simplified pricing
+
+---
+
 ### Environment Variable: Force Show Onboarding
 
 **实现日期**: 2025-12-19

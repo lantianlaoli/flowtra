@@ -64,20 +64,50 @@ export default function VideoDurationSelector({
     {
       value: '8',
       label: '8 seconds',
-      description: 'Standard short-form video',
-      features: 'Perfect for quick product showcase'
+      description: 'Single-segment video',
+      features: '1 segment • Quick hook'
     },
     {
-      value: '10',
-      label: '10 seconds',
-      description: 'Extended presentation time',
-      features: 'Ideal for detailed feature highlights'
+      value: '16',
+      label: '16 seconds',
+      description: 'Dual-segment storyline',
+      features: '2 segments • Two-beat arc'
     },
     {
-      value: '15',
-      label: '15 seconds',
-      description: 'Full storytelling format',
-      features: 'Comprehensive product narrative'
+      value: '24',
+      label: '24 seconds',
+      description: 'Mid-length narrative',
+      features: '3 segments • Balanced flow'
+    },
+    {
+      value: '32',
+      label: '32 seconds',
+      description: 'Full-funnel sequence',
+      features: '4 segments • Complete story'
+    },
+    {
+      value: '40',
+      label: '40 seconds',
+      description: 'Extended narrative',
+      features: '5 segments • Rich storytelling'
+    },
+    {
+      value: '48',
+      label: '48 seconds',
+      description: 'Comprehensive showcase',
+      features: '6 segments • Product journey'
+    },
+    {
+      value: '56',
+      label: '56 seconds',
+      description: 'Long-form content',
+      features: '7 segments • Deep engagement'
+    },
+    {
+      value: '64',
+      label: '64 seconds',
+      description: 'Full commercial',
+      features: '8 segments • Complete brand story'
     }
   ];
 
