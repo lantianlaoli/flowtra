@@ -45,51 +45,51 @@ export default function FAQ() {
   };
 
   return (
-    <section id="faq" className="py-16 scroll-mt-24">
+    <section id="faq" className="py-24 scroll-mt-24 bg-white">
       <FAQSchema faqData={faqData} />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            FAQ
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-16">
+          <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">
+            Frequently Asked Questions
           </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-lg text-[#666666] max-w-2xl mx-auto">
             Answers for Etsy, Shopify, Gumroad, and Stan sellers using Flowtra to launch scroll-stopping marketing assets
           </p>
         </div>
 
-        <div className="space-y-4">
+        <div className="max-w-3xl mx-auto border-t border-[#E5E5E5]">
           {faqData.map((item, index) => (
             <div
               key={index}
-              className={`border-b border-gray-200 last:border-b-0 py-3 transition-all duration-200 ${
-                openIndex === index ? 'bg-gray-50' : 'bg-white hover:bg-gray-50'
-              }`}
+              className="border-b border-[#E5E5E5] py-4"
             >
               <button
                 type="button"
                 onClick={() => toggleItem(index)}
                 aria-expanded={openIndex === index}
-                className="flex w-full items-center justify-between text-left px-4 py-2"
+                className="flex w-full items-center justify-between text-left py-4 group"
               >
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-[18px] font-bold text-black group-hover:text-[#666666] transition-colors">
                   {item.question}
                 </h3>
                 <span
-                  className={`flex h-8 w-8 items-center justify-center transition-transform ${
-                    openIndex === index ? 'rotate-180 text-gray-900' : 'text-gray-500'
+                  className={`flex h-6 w-6 items-center justify-center transition-transform duration-300 ${
+                    openIndex === index ? 'rotate-180 text-black' : 'text-[#666666]'
                   }`}
                   aria-hidden={true}
                 >
                   <ChevronDownIcon className="h-5 w-5" />
                 </span>
               </button>
-              <p
-                className={`text-gray-700 leading-relaxed px-4 transition-all duration-200 ${
-                  openIndex === index ? 'mt-2 pb-2 opacity-100' : 'mt-0 h-0 overflow-hidden opacity-0'
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                  openIndex === index ? 'max-h-96 opacity-100 mb-4' : 'max-h-0 opacity-0'
                 }`}
               >
+                <p className="text-[16px] text-[#666666] leading-relaxed">
                   {item.answer}
                 </p>
+              </div>
             </div>
           ))}
         </div>

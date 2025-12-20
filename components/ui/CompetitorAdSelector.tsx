@@ -132,10 +132,10 @@ export default function CompetitorAdSelector({
 
   if (isLoading) {
     return (
-      <div className={`bg-purple-50 border border-purple-200 rounded-xl p-6 ${className}`}>
+      <div className={`bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl p-6 ${className}`}>
         <div className="flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
-          <span className="ml-2 text-sm text-purple-600">Loading competitor ads...</span>
+          <Loader2 className="w-6 h-6 animate-spin text-black" />
+          <span className="ml-2 text-sm text-[#666666]">Loading competitor ads...</span>
         </div>
       </div>
     );
@@ -143,12 +143,12 @@ export default function CompetitorAdSelector({
 
   if (competitorAds.length === 0) {
     return (
-      <div className={`bg-purple-50 border border-purple-200 rounded-xl p-4 ${className}`}>
-        <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+      <div className={`bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl p-6 ${className}`}>
+        <div className="flex items-start gap-4">
+          <Info className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm text-purple-900 font-medium">No competitor ads yet</p>
-            <p className="text-xs text-purple-700 mt-1">
+            <p className="text-sm text-black font-semibold">No competitor ads yet</p>
+            <p className="text-sm text-[#666666] mt-2 leading-relaxed">
               Add competitor ads in the Assets page to use them as reference for your video generation.
             </p>
           </div>
@@ -158,32 +158,34 @@ export default function CompetitorAdSelector({
   }
 
   return (
-    <div className={`bg-purple-50 border border-purple-200 rounded-xl overflow-hidden relative ${className}`}>
+    <div className={`bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl overflow-hidden relative ${className}`}>
       {/* Header - Always visible */}
       <button
         ref={buttonRef}
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-purple-100 transition-colors"
+        className="w-full px-6 py-4 flex items-center justify-between hover:bg-white transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <Target className="w-5 h-5 text-purple-600" />
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
+            <Target className="w-5 h-5 text-white" />
+          </div>
           <div className="text-left">
-            <h3 className="text-sm font-semibold text-purple-900">
+            <h3 className="text-sm font-semibold text-black">
               Reference Competitor Ad
             </h3>
-            <p className="text-xs text-purple-700">
+            <p className="text-sm text-[#666666] mt-0.5">
               {selectedCompetitorAd
                 ? `Selected: ${selectedCompetitorAd.competitor_name}`
                 : `${competitorAds.length} competitor ${competitorAds.length === 1 ? 'ad' : 'ads'} available`}
             </p>
-            <div className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-orange-700 bg-orange-100 border border-orange-200">
-              <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-[#666666] bg-white border border-[#E5E5E5]">
+              <AlertTriangle className="w-3.5 h-3.5 text-black" />
               <span>If your product targets children, pick Grok (6-second segments) to avoid policy issues.</span>
             </div>
           </div>
         </div>
         <svg
-          className={`w-5 h-5 text-purple-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-black transition-transform ${isExpanded ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -203,20 +205,20 @@ export default function CompetitorAdSelector({
             bottom: `${window.innerHeight - buttonRect.top + 8}px`,
             maxHeight: '50vh',
           }}
-          className="bg-white border border-purple-200 rounded-xl shadow-lg overflow-hidden z-[110]"
+          className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] overflow-hidden z-[110]"
         >
-          <div className="p-4 pb-16 space-y-3 max-h-[50vh] overflow-y-auto">
-            <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 shadow-sm text-xs text-orange-900">
-              <AlertTriangle className="w-4 h-4 text-orange-500" />
+          <div className="p-6 pb-16 space-y-4 max-h-[50vh] overflow-y-auto">
+            <div className="flex items-center gap-3 rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-sm text-[#666666]">
+              <AlertTriangle className="w-4 h-4 text-black flex-shrink-0" />
               <span>If your brand serves kids, select Grok (6-second segments) to keep generation stable.</span>
             </div>
-            <p className="text-xs text-gray-600">
+            <p className="text-sm text-[#666666] leading-relaxed">
               Select a competitor ad to use as creative reference. The AI will analyze its style and generate a similar ad for your product.
             </p>
 
             {/* Desktop: Grid View */}
             {!isMobile ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {competitorAds.map((ad) => (
                   <CompetitorAdCard
                     key={ad.id}
@@ -231,17 +233,17 @@ export default function CompetitorAdSelector({
               </div>
             ) : (
               /* Mobile: Compact List with Click-to-Expand */
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {competitorAds.map((ad) => (
-                  <div key={ad.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div key={ad.id} className="border border-[#E5E5E5] rounded-xl overflow-hidden bg-white">
                     {/* Compact Header - Always Visible */}
                     <button
                       onClick={() => toggleAdExpansion(ad.id)}
-                      className="w-full px-3 py-2.5 flex items-center justify-between bg-white hover:bg-gray-50 transition-colors"
+                      className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#F7F7F7] transition-colors"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         {/* Small Thumbnail */}
-                        <div className="w-12 h-12 flex-shrink-0 bg-gray-900 rounded overflow-hidden relative">
+                        <div className="w-12 h-12 flex-shrink-0 bg-black rounded-lg overflow-hidden relative">
                           {ad.file_type === 'image' ? (
                             <Image
                               src={ad.ad_file_url}
@@ -261,15 +263,15 @@ export default function CompetitorAdSelector({
 
                         {/* Ad Info */}
                         <div className="flex-1 text-left min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-sm font-semibold text-black truncate">
                             {ad.competitor_name}
                           </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-gray-500">{ad.platform}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-[#666666]">{ad.platform}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-lg font-medium ${
                               ad.file_type === 'video'
-                                ? 'bg-purple-100 text-purple-700'
-                                : 'bg-blue-100 text-blue-700'
+                                ? 'bg-black text-white'
+                                : 'bg-[#F7F7F7] text-black border border-[#E5E5E5]'
                             }`}>
                               {ad.file_type === 'video' ? 'Video' : 'Image'}
                             </span>
@@ -278,7 +280,7 @@ export default function CompetitorAdSelector({
 
                         {/* Selected Indicator */}
                         {selectedCompetitorAd?.id === ad.id && (
-                          <div className="flex-shrink-0 bg-blue-500 text-white rounded-full p-1">
+                          <div className="flex-shrink-0 bg-black text-white rounded-lg p-1.5">
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
@@ -288,7 +290,7 @@ export default function CompetitorAdSelector({
 
                       {/* Expand/Collapse Icon */}
                       <ChevronRight
-                        className={`w-5 h-5 text-gray-400 flex-shrink-0 ml-2 transition-transform ${
+                        className={`w-5 h-5 text-[#666666] flex-shrink-0 ml-2 transition-transform ${
                           expandedAdId === ad.id ? 'rotate-90' : ''
                         }`}
                       />
@@ -296,8 +298,8 @@ export default function CompetitorAdSelector({
 
                     {/* Expanded Preview - Only show when expanded */}
                     {expandedAdId === ad.id && (
-                      <div className="border-t border-gray-200 bg-gray-50 p-3">
-                        <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden mb-3">
+                      <div className="border-t border-[#E5E5E5] bg-[#F7F7F7] p-4">
+                        <div className="relative aspect-video bg-black rounded-xl overflow-hidden mb-4">
                           {ad.file_type === 'image' ? (
                             <Image
                               src={ad.ad_file_url}
@@ -317,10 +319,10 @@ export default function CompetitorAdSelector({
                         </div>
                         <button
                           onClick={() => handleSelect(ad)}
-                          className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                          className={`w-full py-3 px-4 rounded-lg text-sm font-semibold transition-all ${
                             selectedCompetitorAd?.id === ad.id
-                              ? 'bg-blue-500 text-white hover:bg-blue-600'
-                              : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                              ? 'bg-black text-white shadow-[0_20px_40px_rgba(0,0,0,0.1)]'
+                              : 'bg-white text-black border border-[#E5E5E5] hover:shadow-[0_20px_40px_rgba(0,0,0,0.05)]'
                           }`}
                         >
                           {selectedCompetitorAd?.id === ad.id ? 'Selected' : 'Select This Ad'}
@@ -334,10 +336,10 @@ export default function CompetitorAdSelector({
 
             {/* Clear Selection Button */}
             {selectedCompetitorAd && (
-              <div className="mt-3 flex justify-end">
+              <div className="mt-4 flex justify-end">
                 <button
                   onClick={() => onSelect(null)}
-                  className="text-xs text-purple-600 hover:text-purple-800 underline"
+                  className="text-sm text-black hover:text-[#666666] underline font-medium"
                 >
                   Clear selection
                 </button>

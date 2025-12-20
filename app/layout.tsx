@@ -5,7 +5,14 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { PHProvider, PostHogPageView } from '@/providers/posthog';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { Inter } from 'next/font/google';
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
   title: "UGC Videos Made for Small Businesses - Flowtra AI",
@@ -200,7 +207,7 @@ export default function RootLayout({
             }}
           />
         </head>
-        <body className="antialiased">
+        <body className={`${inter.variable} font-sans antialiased`}>
           <Script
             src="https://www.googletagmanager.com/gtag/js?id=G-CP7HSQFTCP"
             strategy="lazyOnload"

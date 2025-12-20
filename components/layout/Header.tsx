@@ -26,202 +26,127 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 bg-transparent pt-[env(safe-area-inset-top)]">
-      <div className="mx-auto max-w-[90rem] px-4 sm:px-6 lg:px-8 py-2 sm:py-3">
-        <div
-          className={`flex items-center justify-between min-h-[4rem] w-full ${
-            compact
-              ? 'rounded-2xl border border-gray-700/50 bg-black/70 backdrop-blur-md backdrop-saturate-150 ring-1 ring-white/5 px-4 shadow-lg shadow-white/10'
-              : 'rounded-2xl border border-gray-700/80 bg-black/95 px-4 shadow-lg shadow-white/10'
-          }`}
-        >
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 cursor-pointer transition-opacity hover:opacity-80">
+    <header className="sticky top-0 z-50 bg-white border-b border-[#E5E5E5] h-[72px] sm:h-[80px] flex items-center">
+      <div className="mx-auto max-w-[1280px] w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+        {/* Logo - Left */}
+        <div className="flex-1 flex justify-start">
+          <Link href="/" className="flex items-center gap-2 cursor-pointer transition-opacity hover:opacity-80">
             <Image
               src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/flowtra-logo.png"
               alt="Flowtra AI Logo"
-              width={40}
-              height={40}
-              className=""
+              width={32}
+              height={32}
+              className="invert"
             />
-            <span className="text-xl font-semibold text-white">
-              Flowtra <span className="italic">AI</span>
+            <span className="text-xl font-bold text-black tracking-tight">
+              Flowtra
             </span>
           </Link>
+        </div>
 
-          {/* Auth Buttons */}
-          {showAuthButtons && (
-            <nav className="hidden md:flex items-center gap-6" aria-label="Main navigation">
-              {/* Features Dropdown */}
-              <div className="relative group">
-                <button className="text-gray-300 hover:text-white transition-colors px-2 py-1.5 rounded-md hover:bg-gray-800 flex items-center gap-1">
-                  Features
-                  <ChevronDownIcon className="w-4 h-4" />
-                </button>
-                <div className="absolute left-0 top-full mt-1 w-60 bg-gray-900 border border-gray-700 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                  <div className="py-3">
-                    <Link
-                      href="/features/character-ads"
-                      className="block px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
-                    >
-                      <div className="font-semibold text-white">Character Ads</div>
-                      <div className="text-xs text-gray-400">AI character-driven videos</div>
-                    </Link>
-                    <Link
-                      href="/features/competitor-replica"
-                      className="block px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
-                    >
-                      <div className="font-semibold text-white">Competitor Replica</div>
-                      <div className="text-xs text-gray-400">Clone competitor videos</div>
-                    </Link>
-                  </div>
-                </div>
+        {/* Links - Center */}
+        <nav className="hidden md:flex flex-1 justify-center items-center gap-8" aria-label="Main navigation">
+          {/* Features Dropdown */}
+          <div className="relative group">
+            <button className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors flex items-center gap-1">
+              Features
+              <ChevronDownIcon className="w-3.5 h-3.5" />
+            </button>
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-56 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <div className="py-2">
+                <Link
+                  href="/features/character-ads"
+                  className="block px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                >
+                  <div className="font-semibold text-black">Character Ads</div>
+                  <div className="text-[12px] opacity-70">AI character-driven videos</div>
+                </Link>
+                <Link
+                  href="/features/competitor-replica"
+                  className="block px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                >
+                  <div className="font-semibold text-black">Competitor Replica</div>
+                  <div className="text-[12px] opacity-70">Clone competitor videos</div>
+                </Link>
               </div>
-              <Link
-                href="/#pricing"
-                className="text-gray-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-gray-800"
-              >
-                Pricing
-              </Link>
-              <Link
-                href="/#blog"
-                className="text-gray-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-gray-800"
-              >
-                Blog
-              </Link>
-              <Link
-                href="/#faq"
-                className="text-gray-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-gray-800"
-              >
-                FAQ
-              </Link>
+            </div>
+          </div>
+          <Link
+            href="/#pricing"
+            className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
+          >
+            Pricing
+          </Link>
+          <Link
+            href="/#blog"
+            className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
+          >
+            Blog
+          </Link>
+          <Link
+            href="/#faq"
+            className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
+          >
+            FAQ
+          </Link>
+        </nav>
+
+        {/* Auth Buttons - Right */}
+        <div className="flex-1 flex justify-end items-center gap-4">
+          {showAuthButtons && (
+            <>
               <SignedOut>
+                <div className="hidden sm:block">
+                  <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+                    <button className="text-[14px] font-medium text-black hover:opacity-70 transition-all cursor-pointer">
+                      Login
+                    </button>
+                  </SignInButton>
+                </div>
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button className="border border-gray-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 hover:border-gray-600 transition-all cursor-pointer">
-                    Login
+                  <button className="bg-black text-white text-[14px] font-medium px-6 py-2.5 rounded-lg hover:bg-[#333333] transition-all cursor-pointer">
+                    Get Started
                   </button>
                 </SignInButton>
               </SignedOut>
               <SignedIn>
                 <Link
                   href="/dashboard"
-                  className="bg-white text-black px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors"
+                  className="bg-black text-white text-[14px] font-medium px-6 py-2.5 rounded-lg hover:bg-[#333333] transition-all"
                 >
                   Dashboard
                 </Link>
                 <UserButton afterSignOutUrl="/" />
               </SignedIn>
-            </nav>
+            </>
           )}
 
           {/* Mobile menu button */}
           <button
             type="button"
-            className="md:hidden p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-800"
+            className="md:hidden p-2 text-black"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-expanded={mobileMenuOpen}
-            aria-controls="mobile-nav"
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
           >
             {mobileMenuOpen ? (
-              <XMarkIcon className="w-6 h-6" aria-hidden="true" />
+              <XMarkIcon className="w-6 h-6" />
             ) : (
-              <Bars3Icon className="w-6 h-6" aria-hidden="true" />
+              <Bars3Icon className="w-6 h-6" />
             )}
           </button>
         </div>
+      </div>
 
-        {/* Mobile menu with animation */}
-        <div
-          id="mobile-nav"
-          className={`md:hidden overflow-hidden border-t border-gray-700 bg-gray-900/95 backdrop-blur-md transition-all duration-300 ease-out ${
-            mobileMenuOpen ? 'opacity-100 max-h-[600px] py-4' : 'opacity-0 max-h-0 py-0'
-          }`}
-          aria-hidden={!mobileMenuOpen}
-        >
-            <nav className="flex flex-col gap-5">
-              {/* Features Expandable */}
-              <div>
-                <button
-                  onClick={() => setFeaturesOpen(!featuresOpen)}
-                  className="w-full text-left text-gray-300 hover:text-white transition-colors px-2 py-2 rounded-md hover:bg-gray-800 flex items-center justify-between"
-                  aria-expanded={featuresOpen}
-                  aria-controls="mobile-features-menu"
-                >
-                  <span>Features</span>
-                  <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${featuresOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
-                </button>
-                <div
-                  id="mobile-features-menu"
-                  className={`overflow-hidden transition-all duration-200 ${featuresOpen ? 'max-h-60 mt-2' : 'max-h-0'}`}
-                  aria-hidden={!featuresOpen}
-                >
-                  <div className="pl-4 flex flex-col gap-2">
-                    <Link
-                      href="/features/character-ads"
-                      className="text-gray-300 hover:text-white transition-colors px-2 py-2 rounded-md hover:bg-gray-800"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      <div className="font-semibold text-sm text-white">Character Ads</div>
-                      <div className="text-xs text-gray-400">AI character-driven videos</div>
-                    </Link>
-                    <Link
-                      href="/features/competitor-replica"
-                      className="text-gray-300 hover:text-white transition-colors px-2 py-2 rounded-md hover:bg-gray-800"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      <div className="font-semibold text-sm text-white">Competitor Replica</div>
-                      <div className="text-xs text-gray-400">Clone competitor videos</div>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-              <Link
-                href="/#pricing"
-                className="text-gray-300 hover:text-white transition-colors px-2 py-2 rounded-md hover:bg-gray-800"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Pricing
-              </Link>
-              <Link 
-                href="/#blog" 
-                className="text-gray-300 hover:text-white transition-colors px-2 py-2 rounded-md hover:bg-gray-800"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Blog
-              </Link>
-              <Link
-                href="/#faq"
-                className="text-gray-300 hover:text-white transition-colors px-2 py-2 rounded-md hover:bg-gray-800"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                FAQ
-              </Link>
-
-              {showAuthButtons && (
-                <div className="pt-4 border-t border-gray-700">
-                  <SignedOut>
-                    <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                      <button
-                        className="block border border-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800 hover:border-gray-600 transition-all text-center font-semibold w-full cursor-pointer"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        Login
-                      </button>
-                    </SignInButton>
-                  </SignedOut>
-                  <SignedIn>
-                    <Link
-                      href="/dashboard"
-                      className="block bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-center font-semibold"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Dashboard
-                    </Link>
-                  </SignedIn>
-                </div>
-              )}
-            </nav>
+      {/* Mobile menu - Simplified */}
+      <div
+        className={`md:hidden absolute top-full left-0 w-full bg-white border-b border-[#E5E5E5] transition-all duration-300 ${
+          mobileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
+        }`}
+      >
+        <div className="px-4 py-6 flex flex-col gap-4">
+          <Link href="/features/character-ads" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Character Ads</Link>
+          <Link href="/features/competitor-replica" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Competitor Replica</Link>
+          <Link href="/#pricing" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
+          <Link href="/#blog" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
         </div>
       </div>
     </header>

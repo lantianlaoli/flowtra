@@ -34,22 +34,22 @@ export default function CompetitorAdCard({
     const configMap = {
       completed: {
         label: 'Analyzed',
-        className: 'bg-green-50 text-green-700 border-green-200',
+        className: 'bg-white text-black border-[#E5E5E5]',
         icon: BadgeCheck
       },
       analyzing: {
         label: 'Analyzing',
-        className: 'bg-amber-50 text-amber-700 border-amber-200',
+        className: 'bg-[#F7F7F7] text-[#666666] border-[#E5E5E5]',
         icon: Clock3
       },
       pending: {
         label: 'Pending',
-        className: 'bg-gray-100 text-gray-700 border-gray-200',
+        className: 'bg-[#F7F7F7] text-[#666666] border-[#E5E5E5]',
         icon: Clock3
       },
       failed: {
         label: 'Failed',
-        className: 'bg-red-50 text-red-700 border-red-200',
+        className: 'bg-white text-black border-[#E5E5E5]',
         icon: AlertTriangle
       }
     } as const;
@@ -59,7 +59,7 @@ export default function CompetitorAdCard({
     const Icon = config.icon;
 
     return (
-      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${config.className}`}>
+      <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${config.className}`}>
         <Icon className="w-3 h-3" />
         {config.label}
       </span>
@@ -75,16 +75,16 @@ export default function CompetitorAdCard({
   return (
     <div
       className={`
-        group relative bg-white rounded-lg border-2 overflow-hidden transition-all
-        ${mode === 'select' ? 'cursor-pointer hover:shadow-lg' : ''}
-        ${isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-300'}
+        group relative bg-white rounded-xl border overflow-hidden transition-all
+        ${mode === 'select' ? 'cursor-pointer hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)]' : ''}
+        ${isSelected ? 'border-black ring-2 ring-black/20' : 'border-[#E5E5E5] hover:border-black/20'}
       `}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
       onClick={handleClick}
     >
       {/* Media Preview */}
-      <div className="relative aspect-video bg-gray-900">
+      <div className="relative aspect-video bg-black">
         {competitorAd.file_type === 'image' ? (
           <Image
             src={competitorAd.ad_file_url}
@@ -122,7 +122,7 @@ export default function CompetitorAdCard({
 
         {/* Selected Indicator */}
         {isSelected && (
-          <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full p-1">
+          <div className="absolute top-3 right-3 bg-black text-white rounded-lg p-1.5 shadow-lg">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
             </svg>
@@ -131,30 +131,30 @@ export default function CompetitorAdCard({
       </div>
 
       {/* Info */}
-      <div className="p-3 space-y-3">
-        <h4 className="font-medium text-gray-900 text-sm truncate">
+      <div className="p-4 space-y-3">
+        <h4 className="font-semibold text-black text-sm truncate">
           {competitorAd.competitor_name}
         </h4>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="px-2 py-1 rounded-lg bg-[#F7F7F7] text-[#666666] font-medium border border-[#E5E5E5]">
             {competitorAd.platform}
           </span>
           <span className={`
-            px-2 py-0.5 rounded-full
+            px-2 py-1 rounded-lg font-medium
             ${competitorAd.file_type === 'video'
-              ? 'bg-purple-100 text-purple-700'
-              : 'bg-blue-100 text-blue-700'}
+              ? 'bg-black text-white'
+              : 'bg-white text-black border border-[#E5E5E5]'}
           `}>
             {competitorAd.file_type === 'video' ? 'Video' : 'Image'}
           </span>
           {competitorAd.file_type === 'video' && competitorAd.video_duration_seconds && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white text-black border border-[#E5E5E5] font-medium">
               <Clock3 className="w-3 h-3" />
               {competitorAd.video_duration_seconds}s
             </span>
           )}
           {languageDisplay && analysisStatus === 'completed' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#F7F7F7] text-[#666666] border border-[#E5E5E5] font-medium">
               <Languages className="w-3 h-3" />
               {languageDisplay.label}
             </span>
@@ -165,34 +165,34 @@ export default function CompetitorAdCard({
 
       {/* Actions (Only in manage mode) */}
       {mode === 'manage' && showActions && !isDeleting && (
-        <div className="absolute top-2 right-2 flex gap-1">
+        <div className="absolute top-3 right-3 flex gap-2">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onEdit(competitorAd);
             }}
-            className="bg-white/90 backdrop-blur-sm p-1.5 rounded-lg hover:bg-white transition-colors shadow-sm"
+            className="bg-white/95 backdrop-blur-sm p-2 rounded-lg hover:bg-white transition-all shadow-lg border border-[#E5E5E5]"
             title="Edit"
           >
-            <Edit2 className="w-3.5 h-3.5 text-gray-700" />
+            <Edit2 className="w-4 h-4 text-black" />
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onDelete(competitorAd.id);
             }}
-            className="bg-white/90 backdrop-blur-sm p-1.5 rounded-lg hover:bg-white transition-colors shadow-sm"
+            className="bg-black/95 backdrop-blur-sm p-2 rounded-lg hover:bg-black transition-all shadow-lg"
             title="Delete"
           >
-            <Trash2 className="w-3.5 h-3.5 text-red-600" />
+            <Trash2 className="w-4 h-4 text-white" />
           </button>
         </div>
       )}
 
       {/* Deleting Overlay */}
       {isDeleting && (
-        <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-600" />
+        <div className="absolute inset-0 bg-white/90 flex items-center justify-center backdrop-blur-sm">
+          <Loader2 className="w-6 h-6 animate-spin text-black" />
         </div>
       )}
     </div>

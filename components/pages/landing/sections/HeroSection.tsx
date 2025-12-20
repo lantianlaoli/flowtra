@@ -21,37 +21,37 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
           <FounderCard variant="hero" showGreeting={false} className="hidden lg:inline-flex" />
         </div>
 
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
-          UGC Videos Made for <u>Small Businesses</u>
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-black leading-tight tracking-[-0.02em]">
+          UGC Videos Made for <span className="underline decoration-[#E5E5E5] underline-offset-8">Small Businesses</span>
         </h1>
 
-        <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
+        <p className="text-xl text-[#666666] leading-relaxed max-w-lg">
           UGC videos for local stores, Shopify sellers, and dropshippers.
         </p>
 
         {/* New users label + key benefits under subtitle */}
         <div className="mt-1 flex flex-wrap items-center gap-2">
           {/* Mobile: single concise pill */}
-          <span className="inline-flex sm:hidden items-center gap-2 text-sm font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
-            <GiftIcon className="w-4 h-4" />
+          <span className="inline-flex sm:hidden items-center gap-2 text-[12px] font-medium text-black bg-white border border-[#E5E5E5] rounded-full px-3 py-1.5">
+            <GiftIcon className="w-3.5 h-3.5" />
             <span>100 free credits ($1.80 value)</span>
           </span>
           {/* Desktop/Tablet: original two pills */}
-          <span className="hidden sm:inline-flex items-center gap-2 text-sm sm:text-base font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
-            <GiftIcon className="w-4 h-4" />
+          <span className="hidden sm:inline-flex items-center gap-2 text-[12px] font-medium text-black bg-white border border-[#E5E5E5] rounded-full px-3 py-1.5 uppercase tracking-wider">
+            <GiftIcon className="w-3.5 h-3.5" />
             <span>For new users: 100 free credits ($1.80 value)</span>
           </span>
         </div>
 
         {/* Selling points */}
-        <div className="mt-4 space-y-2 text-gray-600 text-base">
+        <div className="mt-4 space-y-3 text-[#666666] text-[16px]">
           <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-green-500" />
+            <Check className="w-4 h-4 text-black" />
             <span>Videos from $0.3 per 8 seconds</span>
           </div>
        
           <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-green-500" />
+            <Check className="w-4 h-4 text-black" />
             <span>Supports English, Chinese, and over ten other languages</span>
           </div>
         </div>
@@ -80,14 +80,13 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         {activatedUserCount > 0 && (
           <div className="pt-3" aria-label="Social proof">
             <div
-              className="inline-flex min-w-[240px] items-center gap-3 rounded-2xl px-4 py-2
-                         bg-black/5 dark:bg-white/5 ring-1 ring-inset ring-black/10 dark:ring-white/10
-                         transition-colors hover:ring-black/20 dark:hover:ring-white/20"
+              className="inline-flex min-w-[240px] items-center gap-3 rounded-xl px-4 py-2
+                         bg-[#F7F7F7] border border-[#E5E5E5] transition-colors"
             >
               {/* Avatars group */}
               <div className="flex -space-x-2">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="inline-block w-7 h-7 rounded-full ring-2 ring-white/80 dark:ring-zinc-900/80 overflow-hidden">
+                  <div key={i} className="inline-block w-7 h-7 rounded-full ring-2 ring-white overflow-hidden">
                     <Image
                       src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_${i}.${i === 1 ? 'jpg' : 'png'}`}
                       alt={`User avatar ${i}`}
@@ -118,7 +117,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
 
       {/* Right Demo - Single Video Layout */}
       <div className="lg:col-span-2 flex justify-center items-center">
-        <div className="relative w-full max-w-[320px] aspect-[9/16] bg-gray-100 rounded-2xl overflow-hidden shadow-lg">
+        <div className="relative w-full max-w-[320px] aspect-[9/16] bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
           <LazyVideoPlayer
             wrapperClassName="w-full h-full"
             className="w-full h-full object-cover"
