@@ -9,6 +9,9 @@ import { useRef, useMemo, useCallback } from 'react';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function HomePage() {
   const { user, isLoaded } = useUser();
@@ -98,84 +101,79 @@ export default function HomePage() {
         />
       )}
 
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-white">
       <Sidebar
         credits={credits}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
-      
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen">
-        <div className="px-6 md:px-8 pb-6 md:pb-8 max-w-7xl mx-auto pt-14 md:pt-8">
-          {/* Header Section */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2 min-w-0">
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Hand className="w-4 h-4 text-gray-700" />
-              </div>
-              <h1 className="text-2xl font-semibold text-gray-900 mobile-ellipsis">
-                Hello, {getUserName()}
-              </h1>
-            </div>
+
+      <div className="md:ml-72 ml-0 bg-white min-h-screen">
+        <div className="px-8 md:px-12 lg:px-16 pb-12 max-w-[1280px] mx-auto pt-16 md:pt-12">
+          {/* Header Section - Minimalist with generous spacing */}
+          <div className="mb-16">
+            <h1 className="text-5xl md:text-6xl font-bold text-black tracking-tight mb-3">
+              Hello, {getUserName()}
+            </h1>
+            <p className="text-base text-[#666666]">Your creative dashboard at a glance</p>
           </div>
 
-          {/* Stats Cards - Compact Layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <BarChart3 className="w-4 h-4 text-gray-600" />
+          {/* Stats Cards - Geometric precision with minimal shadows */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+            <Card className="bg-[#F7F7F7] border-[#E5E5E5] border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-300">
+              <div className="flex flex-col gap-4">
+                <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-white" />
                 </div>
-                <div className="flex items-baseline gap-2 min-w-0 w-full">
-                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.totalVideos}</span>
-                  <span className="text-xs sm:text-sm font-medium text-gray-600 truncate flex-1">Total Videos Created</span>
+                <div>
+                  <div className="text-4xl font-bold text-black mb-1">{stats.totalVideos}</div>
+                  <div className="text-sm font-medium text-[#666666] uppercase tracking-wide">Total Videos</div>
                 </div>
               </div>
-            </div>
+            </Card>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <TrendingUp className="w-4 h-4 text-gray-600" />
+            <Card className="bg-[#F7F7F7] border-[#E5E5E5] border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-300">
+              <div className="flex flex-col gap-4">
+                <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-white" />
                 </div>
-                <div className="flex items-baseline gap-2 min-w-0 w-full">
-                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.thisMonth}</span>
-                  <span className="text-xs sm:text-sm font-medium text-gray-600 truncate flex-1">Ads This Month</span>
+                <div>
+                  <div className="text-4xl font-bold text-black mb-1">{stats.thisMonth}</div>
+                  <div className="text-sm font-medium text-[#666666] uppercase tracking-wide">This Month</div>
                 </div>
               </div>
-            </div>
+            </Card>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Zap className="w-4 h-4 text-gray-600" />
+            <Card className="bg-[#F7F7F7] border-[#E5E5E5] border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-300">
+              <div className="flex flex-col gap-4">
+                <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-white" />
                 </div>
-                <div className="flex items-baseline gap-2 min-w-0 w-full">
-                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.creditsUsed}</span>
-                  <span className="text-xs sm:text-sm font-medium text-gray-600 truncate flex-1">Credits Used</span>
+                <div>
+                  <div className="text-4xl font-bold text-black mb-1">{stats.creditsUsed}</div>
+                  <div className="text-sm font-medium text-[#666666] uppercase tracking-wide">Credits Used</div>
                 </div>
               </div>
-            </div>
+            </Card>
 
-            {/* Hours Saved */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-4 h-4 text-gray-600" />
+            <Card className="bg-[#F7F7F7] border-[#E5E5E5] border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-300">
+              <div className="flex flex-col gap-4">
+                <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-white" />
                 </div>
-                <div className="flex items-baseline gap-2 min-w-0 w-full">
-                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.hoursSaved}</span>
-                  <span className="text-xs sm:text-sm font-medium text-gray-600 truncate flex-1">Hours Saved</span>
+                <div>
+                  <div className="text-4xl font-bold text-black mb-1">{stats.hoursSaved}</div>
+                  <div className="text-sm font-medium text-[#666666] uppercase tracking-wide">Hours Saved</div>
                 </div>
               </div>
-            </div>
+            </Card>
           </div>
 
           {/* Onboarding Progress Component */}
           {onboardingProgress && (
             <OnboardingProgress
               progress={onboardingProgress}
-              className="mb-8"
+              className="mb-16"
             />
           )}
 
@@ -329,50 +327,42 @@ function DiscoverSection() {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-      {/* Icon-only type filter */}
-      <div className="p-3 border-b border-gray-200">
-        <div className="flex items-center gap-2 flex-wrap">
-          {(
-            [
-              { k: 'all', icon: ImageIcon, label: 'All' },
-              { k: 'competitor-ugc-replication', icon: ImageIcon, label: 'Competitor UGC Replication' },
-              { k: 'character', icon: VideoIcon, label: 'Character' },
-            ] as const
-          ).map(({ k, icon: Icon, label }) => (
-            <button
-              key={k}
-              aria-label={label}
-              onClick={() => setFilter(k as DiscoverType)}
-              className={`h-8 px-2.5 flex items-center gap-2 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                filter === k ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span className="text-xs font-medium">{label}</span>
-            </button>
-          ))}
-        </div>
+    <Card className="bg-white border-[#E5E5E5] border rounded-xl overflow-hidden">
+      {/* Minimalist type filter with Tabs */}
+      <div className="px-8 py-6 border-b border-[#E5E5E5]">
+        <h2 className="text-3xl font-semibold text-black mb-6">Discover</h2>
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as DiscoverType)} className="w-full">
+          <TabsList className="bg-[#F7F7F7] border border-[#E5E5E5] rounded-lg p-1">
+            <TabsTrigger value="all" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
+              All
+            </TabsTrigger>
+            <TabsTrigger value="competitor-ugc-replication" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
+              Competitor UGC
+            </TabsTrigger>
+            <TabsTrigger value="character" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
+              Character
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Masonry grid */}
-      <div className="p-4">
+      <div className="px-8 py-8">
         {loading && (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-48 bg-gray-100 rounded-xl animate-pulse" />
+              <div key={i} className="h-64 bg-[#F7F7F7] rounded-xl animate-pulse border border-[#E5E5E5]" />
             ))}
           </div>
         )}
         {!loading && error && (
-          <div className="text-center text-sm text-gray-500 py-8">Failed to load</div>
+          <div className="text-center text-sm text-[#666666] py-12">Failed to load content</div>
         )}
-        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 [column-fill:_balance]"></div>
-        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
+        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6">
           {filtered.map((item) => (
-            <div key={item.id} className="mb-4 break-inside-avoid">
+            <div key={item.id} className="mb-6 break-inside-avoid">
               <div
-                className="group relative w-full rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-sm hover:shadow-md transition-all duration-200"
+                className="group relative w-full rounded-xl overflow-hidden border border-[#E5E5E5] bg-[#F7F7F7] hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-all duration-300"
                 onMouseEnter={() => item.videoUrl && handleMouseEnter(item.id)}
                 onMouseLeave={() => item.videoUrl && handleMouseLeave(item.id)}
               >
@@ -395,17 +385,16 @@ function DiscoverSection() {
                     muted
                     loop
                     preload="metadata"
-                    // Allow click-through except on volume btn
                     style={{ pointerEvents: 'none' }}
                   />
                 )}
 
-                {/* Volume button: show on hover (desktop) and always on mobile */}
+                {/* Volume button */}
                 {item.videoUrl && (
                   <button
                     aria-label="toggle-sound"
                     onClick={(e) => { e.stopPropagation(); toggleVolumeClick(item.id); }}
-                    className="absolute top-2 right-2 p-2 rounded-full bg-black/50 text-white opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                    className="absolute top-3 right-3 p-2.5 rounded-lg bg-black/70 text-white opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 hover:bg-black"
                   >
                     {(() => {
                       const el = videoRefs.current[item.id];
@@ -423,6 +412,6 @@ function DiscoverSection() {
           ))}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

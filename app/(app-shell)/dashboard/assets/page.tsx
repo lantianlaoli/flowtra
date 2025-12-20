@@ -15,26 +15,21 @@ export default function AssetsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <Sidebar
         credits={userCredits}
         userEmail={user?.emailAddresses?.[0]?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen ">
-        <div className="px-4 md:px-8 pb-4 md:pb-8 max-w-7xl mx-auto pt-14 md:pt-8">
-          {/* Header */}
-          <div className="mb-6 md:mb-8">
-            <div className="flex items-center gap-2 md:gap-3 mb-2">
-              <div className="w-7 h-7 md:w-8 md:h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Boxes className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-700" />
-              </div>
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                Assets
-              </h1>
-            </div>
-            <p className="text-sm md:text-base text-gray-600">
+      <div className="md:ml-72 ml-0 bg-white min-h-screen">
+        <div className="px-8 md:px-12 lg:px-16 pb-12 max-w-[1280px] mx-auto pt-16 md:pt-12">
+          {/* Header - Minimalist with generous spacing */}
+          <div className="mb-16">
+            <h1 className="text-5xl md:text-6xl font-bold text-black tracking-tight mb-3">
+              Assets
+            </h1>
+            <p className="text-base text-[#666666]">
               Manage your brands and products in one unified place
             </p>
           </div>

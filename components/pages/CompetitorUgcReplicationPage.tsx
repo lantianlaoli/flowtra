@@ -1312,24 +1312,22 @@ export default function CompetitorUgcReplicationPage() {
 
   return (
     <>
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <Sidebar {...sidebarProps} />
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen flex flex-col  min-h-0">
+      <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Page Header */}
-          <header className="px-6 sm:px-8 lg:px-10 py-4 sticky top-0 z-50 bg-gray-50/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur mt-14 md:mt-8">
-            <div className="max-w-7xl mx-auto flex w-full flex-wrap items-center gap-3">
-              <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
-                <TrendingUp className="w-5 h-5 text-gray-700" />
-              </div>
-              <h1 className="text-2xl font-semibold text-gray-900">Competitor UGC Replication</h1>
+          {/* Page Header - Minimalist */}
+          <header className="px-8 md:px-12 lg:px-16 py-6 sticky top-0 z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur mt-14 md:mt-8 border-b border-[#E5E5E5]">
+            <div className="max-w-[1280px] mx-auto">
+              <h1 className="text-4xl md:text-5xl font-bold text-black tracking-tight">Competitor UGC Replication</h1>
+              <p className="text-base text-[#666666] mt-2">Clone and recreate successful competitor advertisements</p>
             </div>
           </header>
 
           {/* Main Content Area - Progress Display */}
-          <section className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-32 min-h-0">
-            <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
-              <div className="bg-white border border-gray-200 rounded-3xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
+          <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0 pt-8">
+            <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
+              <div className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                 <div className="flex-1 overflow-hidden min-h-0">
                   <GenerationProgressDisplay
                     generations={displayedGenerations}
@@ -1386,10 +1384,10 @@ export default function CompetitorUgcReplicationPage() {
       </div>
     </div>
 
-    {/* Bottom Composer */}
-    <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-4 sm:px-8 lg:px-10 pb-4">
-      <div className="max-w-7xl mx-auto space-y-3">
-        <div className="bg-white/95 backdrop-blur border border-gray-200 rounded-[34px] shadow-xl px-4 sm:px-5 py-3 flex flex-wrap items-center gap-3">
+    {/* Bottom Composer - Minimalist */}
+    <div className="fixed bottom-0 left-0 right-0 md:left-72 z-40 px-8 md:px-12 lg:px-16 pb-6">
+      <div className="max-w-[1280px] mx-auto space-y-3">
+        <div className="bg-white/98 backdrop-blur border border-[#E5E5E5] rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.1)] px-6 py-4 flex flex-wrap items-center gap-3">
           {/* Left controls */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <PlatformSelector
@@ -1462,12 +1460,12 @@ export default function CompetitorUgcReplicationPage() {
                 onClick={handleStartWorkflow}
                 disabled={!canGenerate}
                 className={`
-                  flex items-center gap-2.5 px-5 py-2.5 rounded-full cursor-pointer
+                  flex items-center gap-2.5 px-6 py-3 rounded-lg cursor-pointer
                   font-semibold text-sm whitespace-nowrap min-w-[260px]
                   transition-all duration-200
                   ${canGenerate
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    ? 'bg-black hover:bg-black/90 text-white shadow-[0_20px_40px_rgba(0,0,0,0.1)]'
+                    : 'bg-[#E5E5E5] text-[#666666] cursor-not-allowed'
                   }
                 `}
               >

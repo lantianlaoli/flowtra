@@ -23,6 +23,8 @@ import {
   countDialogueWords,
   getCharacterAdsDialogueWordLimit
 } from '@/lib/character-ads-dialogue';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -993,24 +995,19 @@ const formatDurationLabel = (seconds: number) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <Sidebar
         credits={userCredits}
         userEmail={user?.emailAddresses?.[0]?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-gray-50 min-h-screen flex flex-col  min-h-0">
+      <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
-          <header className="px-6 sm:px-8 lg:px-10 py-4 sticky top-0 z-30 bg-gray-50/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur mt-14 md:mt-8">
-            <div className="max-w-7xl mx-auto flex items-center gap-3">
-              <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm">
-                <Video className="w-5 h-5 text-gray-700" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-semibold text-gray-900">Character Ads</h1>
-
-              </div>
+          <header className="px-8 md:px-12 lg:px-16 py-6 sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur mt-14 md:mt-8 border-b border-[#E5E5E5]">
+            <div className="max-w-[1280px] mx-auto">
+              <h1 className="text-4xl md:text-5xl font-bold text-black tracking-tight">Character Ads</h1>
+              <p className="text-base text-[#666666] mt-2">Create engaging character-driven advertisements</p>
             </div>
           </header>
 
@@ -1022,7 +1019,7 @@ const formatDurationLabel = (seconds: number) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="flex-1 flex items-center justify-center px-6 sm:px-8 lg:px-10"
+                className="flex-1 flex items-center justify-center px-8 md:px-12 lg:px-16"
               >
                 <MaintenanceMessage />
               </motion.div>
