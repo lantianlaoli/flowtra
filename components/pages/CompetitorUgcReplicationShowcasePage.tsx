@@ -119,19 +119,14 @@ export default function CompetitorUgcReplicationShowcasePage() {
           <div className="flex justify-center lg:justify-end">
             <blockquote
               className="tiktok-embed"
-              cite="https://www.tiktok.com/@laolilantian/video/7575430395320192263"
-              data-video-id="7575430395320192263"
+              cite="https://www.tiktok.com/@laolilantian/video/7586255739849559297"
+              data-video-id="7586255739849559297"
               style={{ maxWidth: '605px', minWidth: '325px' }}
             >
               <section>
-                <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>{' '}
-                Competitor UGC Replication Demo Latest November 2025{' '}
-                <a title="gemini" target="_blank" href="https://www.tiktok.com/tag/gemini?refer=embed">#gemini</a>{' '}
-                <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a>{' '}
-                <a title="ai" target="_blank" href="https://www.tiktok.com/tag/ai?refer=embed">#ai</a>{' '}
-                <a title="nanobanana2" target="_blank" href="https://www.tiktok.com/tag/nanobanana2?refer=embed">#nanobanana2</a>{' '}
-                <a title="aimarket" target="_blank" href="https://www.tiktok.com/tag/aimarket?refer=embed">#aimarket</a>{' '}
-                <a target="_blank" title="♬ original sound - Lantian laoli" href="https://www.tiktok.com/music/original-sound-7575430470718524167?refer=embed">♬ original sound - Lantian laoli</a>
+                <a href="https://www.tiktok.com/@laolilantian/video/7586255739849559297" target="_blank">
+                  View Tutorial
+                </a>
               </section>
             </blockquote>
             <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />

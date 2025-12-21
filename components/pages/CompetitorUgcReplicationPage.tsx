@@ -1193,13 +1193,14 @@ export default function CompetitorUgcReplicationPage() {
                     emptyStateRightContent={
                       <blockquote
                         className="tiktok-embed"
-                        cite="https://www.tiktok.com/@laolilantian/video/7575386238564240658"
-                        data-video-id="7575386238564240658"
+                        cite="https://www.tiktok.com/@laolilantian/video/7586255739849559297"
+                        data-video-id="7586255739849559297"
                         style={{ maxWidth: '605px', minWidth: '280px' }}
                       >
                         <section>
-                          <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a>
-                          {' '}Competitor UGC Replication Demo Latest November 2025
+                          <a href="https://www.tiktok.com/@laolilantian/video/7586255739849559297" target="_blank">
+                            View Tutorial
+                          </a>
                         </section>
                       </blockquote>
                     }
