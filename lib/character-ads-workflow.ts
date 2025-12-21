@@ -3,6 +3,7 @@ import { IMAGE_MODELS, GENERATION_COSTS, getLanguagePromptName, getLanguageVoice
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
 // Events table removed: no tracking imports
 
 // Character Ads fixed configuration - only supports veo3_fast
@@ -121,6 +122,9 @@ async function generatePrompts(
   const languageName = getLanguagePromptName(languageCode);
   const isTalkingHeadMode = options?.talkingHeadMode ?? false;
 
+  // Generate dialogue length guidance based on segment duration and language
+  const dialogueLengthGuidance = generateDialogueLengthGuidance(videoScenes, UNIT_SECONDS, languageCode);
+
   if (!personImageUrl) {
     throw new Error('Person image URL is required for prompt generation');
   }
@@ -178,11 +182,17 @@ VIDEO SCENE REQUIREMENTS:
 - Each scene is ${UNIT_SECONDS} seconds long
 - Write ALL dialogue in ENGLISH (regardless of target language)
 - The 'language' field is metadata - actual dialogue text is always English
-- Keep dialogue concise (under 20 words per scene) and conversational
-- The 'dialog' field should contain the natural product pitch directly.
 - Camera movement: always "fixed"
 - Emotion: "excited, genuine" or similar positive emotions
 ${userDialogue ? `- The user has provided a custom script. You MUST distribute this script appropriately across the ${videoScenes} scenes. Do not change the words, but split them to fit the timing. Script: "${userDialogue.replace(/"/g, '\\"')}"` : ''}
+
+${dialogueLengthGuidance}
+
+DIALOGUE PACING RULES:
+- Each ${UNIT_SECONDS}-second scene needs natural speaking rhythm
+- Include brief pauses between phrases
+- Avoid cramming too many words - clarity over quantity
+- The 'dialog' field should contain the natural product pitch directly
 
 IMAGE PROMPT REQUIREMENTS:
 - Analyze the PRODUCT image to determine how it should be presented:
@@ -250,10 +260,17 @@ VIDEO SCENE REQUIREMENTS:
 - Each scene is ${UNIT_SECONDS} seconds long
 - Write ALL dialogue in ENGLISH (regardless of target language)
 - The 'language' field is metadata - actual dialogue text is always English
-- Keep dialogue concise (under 20 words per scene) and conversational
 - Camera movement: always "fixed"
 - Emotion: "confident, genuine, and helpful"
 - The dialog content should follow the provided script/context exactly when supplied.
+
+${dialogueLengthGuidance}
+
+DIALOGUE PACING RULES:
+- Each ${UNIT_SECONDS}-second scene needs natural speaking rhythm
+- Include brief pauses between phrases for emphasis
+- Avoid cramming too many words - clarity and authenticity over quantity
+- Natural conversational flow is essential for talking head content
 
 IMAGE PROMPT REQUIREMENTS:
 - Describe the character centered in frame, speaking to camera
@@ -363,6 +380,38 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
 
     console.log(`✅ Generated prompts with direct Gemini image analysis: ${parsed.scenes.length} scenes`);
     console.log(`✅ Language: ${parsed.language || languageName}`);
+
+    // ===== NEW: VALIDATE DIALOGUE DURATION FOR ALL SCENES =====
+    console.log('\n🎯 Validating dialogue duration for all scenes...');
+    const sceneValidation = validateSceneDurations(
+      parsed.scenes as Array<{ scene: number; prompt: { dialog?: string } }>,
+      UNIT_SECONDS,
+      languageCode
+    );
+
+    if (!sceneValidation.allValid) {
+      console.warn('⚠️ DIALOGUE DURATION WARNING:', sceneValidation.overallRecommendation);
+      console.warn('Scene-by-scene breakdown:');
+      sceneValidation.sceneValidations.forEach(sv => {
+        if (!sv.validation.isValid) {
+          console.warn(`  Scene ${sv.sceneNumber}:`, {
+            dialogue: sv.dialogue.substring(0, 50) + '...',
+            estimated: `${sv.validation.estimatedDuration}s`,
+            target: `${sv.validation.targetDuration}s`,
+            difference: `${sv.validation.difference > 0 ? '+' : ''}${sv.validation.difference}s`,
+            recommendation: sv.validation.recommendation
+          });
+        }
+      });
+
+      // NOTE: We log warnings but don't fail the workflow.
+      // In future iterations, you could implement automatic retry or dialogue adjustment here.
+    } else {
+      console.log('✅ All scenes have optimal dialogue duration');
+      sceneValidation.sceneValidations.forEach(sv => {
+        console.log(`  Scene ${sv.sceneNumber}: ${sv.validation.estimatedDuration}s (target: ${sv.validation.targetDuration}s)`);
+      });
+    }
 
     return parsed;
   } catch (error) {
