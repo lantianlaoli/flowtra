@@ -84,9 +84,6 @@ export async function POST(request: NextRequest) {
         .select('*')
         .in('status', ['processing', 'generating_cover', 'generating_video', 'segment_frames_ready', 'failed'])
         .or(
-          'cover_task_id.not.is.null,' +
-          'use_custom_script.eq.true,' +
-          'current_step.eq.ready_for_video,' +
           'is_segmented.eq.true,' +
           'current_step.eq.generating_cover'
         )
@@ -209,9 +206,7 @@ interface HistoryRecord {
   created_at: string;
   current_step: string;
   status: string;
-  cover_task_id: string;
   video_task_id: string;
-  cover_image_url: string;
   video_url: string;
   video_prompts: Record<string, unknown> | LegacyVideoPrompt | string | null;
   video_model: string;
@@ -222,7 +217,6 @@ interface HistoryRecord {
   last_processed_at: string;
   watermark_text?: string | null;
   watermark_location?: string | null;
-  cover_image_aspect_ratio?: string | null;
   image_prompt?: string | null;
   photo_only?: boolean | null;
   selected_brand_id?: string;
@@ -230,9 +224,6 @@ interface HistoryRecord {
   video_generation_requested?: boolean | null;
   image_model?: 'nano_banana' | 'seedream';
   language?: string;
-  // NEW: Custom script fields
-  custom_script?: string | null;
-  use_custom_script?: boolean | null;
   video_duration?: string | null;
   video_quality?: 'standard' | 'high' | null;
   is_segmented?: boolean | null;
@@ -288,150 +279,18 @@ async function processRecord(record: HistoryRecord) {
     return;
   }
 
-  // Handle custom script mode - ready to generate video directly
-  if (record.current_step === 'ready_for_video' && record.use_custom_script && record.cover_image_url && !record.video_task_id) {
-    console.log(`📜 Custom script mode - starting video generation for record ${record.id}`);
+  // All projects should be segmented - log warning if we reach here
+  console.warn(`⚠️ Non-segmented project ${record.id} encountered - this should not happen for new projects`);
+  console.warn(`   Project will be marked as failed - please recreate as segmented project`);
 
-    // Start video generation using cover_image_url (which is the original image in custom script mode)
-    const videoTaskId = await startVideoGeneration(record, record.cover_image_url);
-
-    const { error: vidStartErr } = await supabase
-      .from('competitor_ugc_replication_projects')
-      .update({
-        video_task_id: videoTaskId,
-        current_step: 'generating_video',
-        progress_percentage: 85,
-        last_processed_at: new Date().toISOString()
-      })
-      .eq('id', record.id);
-
-    if (vidStartErr) {
-      console.error(`Failed to update record ${record.id} after starting custom script video:`, vidStartErr);
-      throw new Error(`DB update failed for record ${record.id}`);
-    }
-
-    console.log(`✅ Started custom script video generation for record ${record.id}, taskId: ${videoTaskId}`);
-    return;
-  }
-
-  // Handle replica mode (photo-only) monitoring
-  // Replica mode generates a single photo using reference images (not project-level cover for video)
-  if (record.current_step === 'generating_cover' && record.cover_task_id && !record.cover_image_url && record.photo_only === true) {
-    const coverResult = await checkCoverStatus(record.cover_task_id);
-
-    if (coverResult.status === 'SUCCESS' && coverResult.imageUrl) {
-      console.log(`Replica photo completed for record ${record.id}`);
-
-      const { error: updErr } = await supabase
-        .from('competitor_ugc_replication_projects')
-        .update({
-          cover_image_url: coverResult.imageUrl,
-          status: 'completed',
-          current_step: 'completed',
-          progress_percentage: 100,
-          last_processed_at: new Date().toISOString()
-        })
-        .eq('id', record.id);
-
-      if (updErr) {
-        console.error(`Failed to mark record ${record.id} as completed (replica photo):`, updErr);
-        throw new Error(`DB update failed for record ${record.id}`);
-      }
-
-      console.log(`Completed replica photo workflow for record ${record.id}`);
-      return;
-    } else if (coverResult.status === 'FAILED') {
-      throw new Error('Replica photo generation failed');
-    }
-  }
-
-
-  // Handle video generation monitoring
-  if (record.current_step === 'generating_video' && record.video_task_id && !record.video_url) {
-    const videoResult = await checkVideoStatus(record.video_task_id, record.video_model);
-
-    if (videoResult.status === 'SUCCESS' && videoResult.videoUrl) {
-      console.log(`Video completed for record ${record.id}`);
-
-      // Note: Credits are charged on download only; nothing to deduct now
-      console.log(`✅ Workflow completed for user ${record.user_id}`);
-
-      const { error: vidUpdErr } = await supabase
-        .from('competitor_ugc_replication_projects')
-        .update({
-          video_url: videoResult.videoUrl,
-          status: 'completed',
-          progress_percentage: 100,
-          last_processed_at: new Date().toISOString()
-        })
-        .eq('id', record.id);
-
-      if (vidUpdErr) {
-        console.error(`Failed to mark record ${record.id} as completed after video:`, vidUpdErr);
-        throw new Error(`DB update failed for record ${record.id}`);
-      }
-
-    } else if (videoResult.status === 'FAILED') {
-      // CRITICAL: Check if error is retryable (failCode: 500)
-      const MAX_RETRIES = 3;
-      const currentRetryCount = record.retry_count || 0;
-
-      if (videoResult.isRetryable && currentRetryCount < MAX_RETRIES) {
-        console.warn(`⚠️ Retryable error for project ${record.id} (retry ${currentRetryCount + 1}/${MAX_RETRIES})`);
-        console.warn(`   Error: ${videoResult.errorMessage}`);
-        console.warn(`   Restarting video generation...`);
-
-        // Restart video generation
-        const newVideoTaskId = await startVideoGeneration(record, record.cover_image_url!);
-
-        // Update project with new task ID and increment retry count
-        const { error: retryErr } = await supabase
-          .from('competitor_ugc_replication_projects')
-          .update({
-            video_task_id: newVideoTaskId,
-            retry_count: currentRetryCount + 1,
-            error_message: `Retrying after server error (attempt ${currentRetryCount + 1}/${MAX_RETRIES})`,
-            last_processed_at: new Date().toISOString()
-          })
-          .eq('id', record.id);
-
-        if (retryErr) {
-          console.error(`Failed to update record ${record.id} for retry:`, retryErr);
-          throw new Error(`DB update failed for record ${record.id}`);
-        }
-
-        console.log(`✅ Restarted video generation for project ${record.id}, new task ID: ${newVideoTaskId}`);
-        return; // Exit processRecord - will retry on next monitor run
-      } else {
-        // Non-retryable error OR max retries exceeded
-        if (videoResult.isRetryable) {
-          console.error(`❌ Max retries (${MAX_RETRIES}) exceeded for project ${record.id}`);
-        }
-
-        // SIMPLIFY ERROR MESSAGE for user
-        let simplifiedError = videoResult.errorMessage || 'Unknown error';
-
-        // Simplify content policy errors
-        if (videoResult.errorMessage?.toLowerCase().includes('content polic') ||
-            videoResult.errorMessage?.toLowerCase().includes('violating content') ||
-            videoResult.errorMessage?.toLowerCase().includes('flagged by')) {
-          simplifiedError = 'Content policy violation. Please try regenerating with a different prompt or adjust your requirements.';
-        }
-
-        throw new Error(`Video generation failed: ${simplifiedError}`);
-      }
-    }
-    // If still generating, do nothing and wait for next check
-  }
-
-  // Handle timeout checks (records not updated for too long)
-  const lastProcessed = new Date(record.last_processed_at).getTime();
-  const now = Date.now();
-  const timeoutMinutes = 40; // 40min timeout for all steps
-
-  if (now - lastProcessed > timeoutMinutes * 60 * 1000) {
-    throw new Error(`Task timeout: no progress for ${timeoutMinutes} minutes`);
-  }
+  await supabase
+    .from('competitor_ugc_replication_projects')
+    .update({
+      status: 'failed',
+      error_message: 'Non-segmented projects are no longer supported. Please create a new project.',
+      last_processed_at: new Date().toISOString()
+    })
+    .eq('id', record.id);
 }
 
 async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnType<typeof getSupabaseAdmin>) {
@@ -1218,10 +1077,6 @@ async function syncSegmentFrameTasks(
         segment.status = 'first_frame_ready';
         updated = true;
 
-        if (segment.segment_index === 0 && !record.cover_image_url) {
-          record.cover_image_url = frameStatus.imageUrl;
-        }
-
         // NEW: Update project status to indicate manual review needed
         const { data: allSegments } = await supabase
           .from('competitor_ugc_replication_segments')
@@ -1330,7 +1185,6 @@ async function syncSegmentFrameTasks(
     await supabase
       .from('competitor_ugc_replication_projects')
       .update({
-        cover_image_url: record.cover_image_url,
         segment_status: buildSegmentStatusPayload(segments),
         progress_percentage: frameProgress,
         last_processed_at: now
@@ -1529,87 +1383,7 @@ async function startVideoGeneration(record: HistoryRecord, coverImageUrl: string
     throw new Error('No creative prompts available for video generation');
   }
 
-  // ===== CUSTOM SCRIPT MODE =====
-  if (record.use_custom_script) {
-    console.log('📜 Custom script mode - using user-provided script');
-
-    // Extract custom script from video_prompts
-    const customScriptData = record.video_prompts as { customScript?: string; language?: string };
-    const customScript = customScriptData.customScript || record.custom_script;
-
-    if (!customScript) {
-      throw new Error('Custom script not found in video_prompts or custom_script field');
-    }
-
-    console.log('📝 Custom script:', customScript.substring(0, 200) + '...');
-
-    // Get language
-    const language = (record.language || customScriptData.language || 'en') as LanguageCode;
-    const languageName = getLanguagePromptName(language);
-
-    // Add language prefix if not English
-    const languagePrefix = languageName !== 'English'
-      ? `"language": "${languageName}"\n\n`
-      : '';
-
-    console.log('🌍 Custom script language:', languageName);
-
-    // Use custom script directly as prompt
-    const fullPrompt = `${languagePrefix}${customScript}`;
-
-    console.log('Generated custom script video prompt (first 300 chars):', fullPrompt.substring(0, 300));
-
-    // Skip to API call section below (continue with existing API logic)
-    const videoModel = (record.video_model || 'veo3_fast') as VideoModel;
-    const aspectRatio = record.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
-
-    // All models use Veo3 endpoint
-    const apiEndpoint = 'https://api.kie.ai/api/v1/veo/generate';
-
-    // Custom script mode always uses a single image input
-    const imageUrls = [coverImageUrl];
-
-    console.log('📽️  Custom script video generation - single image mode');
-
-    const requestBody = {
-      prompt: fullPrompt,
-      model: videoModel,
-      aspectRatio,
-      imageUrls: imageUrls,
-      enableAudio: true,
-      audioEnabled: true,
-      generateVoiceover: true,
-      includeDialogue: true,
-      enableTranslation: false
-    };
-
-    console.log('Video API endpoint:', apiEndpoint);
-    console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
-
-    const response = await fetchWithRetry(apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
-    }, 8, 30000);
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`Failed to generate video: ${response.status} ${errorData}`);
-    }
-
-    const data = await response.json();
-
-    if (data.code !== 200) {
-      throw new Error(data.msg || 'Failed to generate video');
-    }
-
-    return data.data.taskId;
-  }
-
-  // ===== NORMAL MODE (AI-generated prompts) =====
+  // Generate AI video prompts based on segment data
   const baseSegment = getSegmentPrompt(record, 0);
   const derived = deriveSegmentDetails(baseSegment);
   const language = (record.language || 'en') as LanguageCode;

@@ -71,7 +71,6 @@ export interface Article {
 export interface SingleVideoProject {
   id: string
   user_id: string
-  cover_image_url?: string
   video_url?: string
   video_prompts?: Record<string, unknown>
   image_prompt?: Record<string, unknown> // JSONB field containing the prompt used for cover generation
@@ -80,11 +79,9 @@ export interface SingleVideoProject {
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string
   language?: string | null // Preferred language code for prompts and narration
-  cover_image_aspect_ratio?: string | null // Aspect ratio of the cover image (e.g., "16:9", "9:16", "1:1")
   photo_only?: boolean // If true, workflow skips video generation and only produces a cover image
   downloaded?: boolean // Whether user has downloaded the video
   download_credits_used?: number // DEPRECATED: Credits used for downloading (no longer applicable, downloads are free)
-  cover_task_id?: string | null
   video_task_id?: string | null
   current_step?: 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'completed'
   progress_percentage?: number

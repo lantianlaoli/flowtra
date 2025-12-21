@@ -102,7 +102,7 @@ export function validateDialogueDuration(
   dialogue: string,
   targetDurationSeconds: number,
   languageCode: string = 'en',
-  tolerance: number = 0.5
+  tolerance: number = 0.2 // Stricter tolerance (was 0.5): enforces 16-18 words minimum for 8s
 ): {
   isValid: boolean;
   estimatedDuration: number;
@@ -150,25 +150,36 @@ export function generateDialogueLengthGuidance(
   const config = LANGUAGE_SPEECH_RATES[languageCode] || LANGUAGE_SPEECH_RATES['default'];
 
   if (maxLength.maxWords) {
+    const minWords = maxLength.maxWords; // Enforce minimum at current "max" (17 words for 8s)
+    const maxWords = Math.ceil(maxLength.maxWords * 1.18); // ~20 words for 8s
+
     return `CRITICAL DIALOGUE LENGTH CONSTRAINT:
 - Each scene is EXACTLY ${segmentDuration} seconds long
 - Natural speaking rate: ~${config.wordsPerMinute} words per minute
-- Maximum dialogue per scene: ${maxLength.maxWords} words
-- Recommended range: ${Math.floor(maxLength.maxWords! * 0.75)}-${maxLength.maxWords} words
+- MANDATORY minimum dialogue per scene: ${minWords} words
+- RECOMMENDED range: ${minWords}-${maxWords} words
 - Total scenes: ${segmentCount}
 
-IMPORTANT: Dialogue MUST fit naturally within ${segmentDuration} seconds. Do NOT exceed ${maxLength.maxWords} words per scene.
-If user provides a script longer than ${maxLength.maxWords! * segmentCount} words total, you MUST condense or split intelligently.`;
+IMPORTANT: Dialogue MUST fit naturally within ${segmentDuration} seconds AND meet word count minimum.
+- Aim for ${minWords}-${maxWords} words per scene for optimal pacing
+- If a sentence is <${minWords} words, COMBINE it with the next sentence before splitting
+- Only split at punctuation boundaries (. ! ?) that result in ≥${minWords} words
+- Preserve complete thoughts - do NOT split solutions from problems
+
+If user provides a script longer than ${maxWords * segmentCount} words total, you MUST condense or split intelligently while maintaining semantic completeness.`;
   } else if (maxLength.maxCharacters) {
+    const minChars = maxLength.maxCharacters; // Enforce minimum at current "max"
+    const maxChars = Math.ceil(maxLength.maxCharacters * 1.18); // ~18% more for upper range
+
     return `CRITICAL DIALOGUE LENGTH CONSTRAINT:
 - Each scene is EXACTLY ${segmentDuration} seconds long
 - Natural speaking rate: ~${config.charactersPerMinute} characters per minute
-- Maximum dialogue per scene: ${maxLength.maxCharacters} characters (excluding spaces)
-- Recommended range: ${Math.floor(maxLength.maxCharacters! * 0.75)}-${maxLength.maxCharacters} characters
+- MINIMUM dialogue per scene: ${minChars} characters (excluding spaces)
+- RECOMMENDED range: ${minChars}-${maxChars} characters
 - Total scenes: ${segmentCount}
 
-IMPORTANT: Dialogue MUST fit naturally within ${segmentDuration} seconds. Do NOT exceed ${maxLength.maxCharacters} characters per scene.
-If user provides a script longer than ${maxLength.maxCharacters! * segmentCount} characters total, you MUST condense or split intelligently.`;
+IMPORTANT: Dialogue MUST fit naturally within ${segmentDuration} seconds. Aim for ${minChars}-${maxChars} characters per scene for optimal pacing.
+If user provides a script longer than ${maxChars * segmentCount} characters total, you MUST condense or split intelligently.`;
   }
 
   return '';

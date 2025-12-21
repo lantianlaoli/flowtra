@@ -100,8 +100,109 @@ Provide a concise 2-3 sentence description.`;
   return data.choices?.[0]?.message?.content || 'Product description unavailable';
 }
 
-// Generate prompts based on product context and character description
+// Wrapper function with retry logic to ensure dialogue meets 17-20 words/8s standard
 async function generatePrompts(
+  productContext: {
+    product_details: string;
+    brand_name?: string;
+    brand_slogan?: string;
+    brand_details?: string;
+  } | null,
+  personImageUrl: string,
+  productImageUrl: string | null,
+  videoDurationSeconds: number,
+  language?: string,
+  userDialogue?: string,
+  options?: { talkingHeadMode?: boolean }
+): Promise<Record<string, unknown>> {
+  const MAX_RETRY_ATTEMPTS = 3;
+  const languageCode = (language || 'en') as LanguageCode;
+  let retryCount = 0;
+
+  while (retryCount <= MAX_RETRY_ATTEMPTS) {
+    console.log(retryCount > 0 ? `🔄 Retry ${retryCount}/${MAX_RETRY_ATTEMPTS}: Regenerating prompts with dialogue constraints` : '🎬 Generating prompts with AI...');
+
+    const result = await _generatePromptsInternal(
+      productContext,
+      personImageUrl,
+      productImageUrl,
+      videoDurationSeconds,
+      language,
+      userDialogue,
+      options
+    );
+
+    // Validate dialogue duration for all scenes
+    const scenes = result.scenes as Array<{ scene: number; prompt: { dialog?: string } }>;
+    const sceneValidation = validateSceneDurations(scenes, UNIT_SECONDS, languageCode);
+
+    // Enhanced validation: word count and semantic completeness
+    const validationIssues: string[] = [];
+
+    scenes.forEach((scene) => {
+      const dialogue = scene.prompt.dialog || '';
+      const wordCount = dialogue.trim().split(/\s+/).length;
+
+      // Word count validation
+      if (wordCount < 17 || wordCount > 20) {
+        validationIssues.push(
+          `Scene ${scene.scene}: ${wordCount} words (expected 17-20). Dialogue: "${dialogue}"`
+        );
+      }
+
+      // Semantic completeness check
+      const trimmedDialogue = dialogue.trim();
+      const endsWithPunctuation = trimmedDialogue.endsWith('.') ||
+                                   trimmedDialogue.endsWith('!') ||
+                                   trimmedDialogue.endsWith('?');
+
+      // If dialogue contains punctuation but doesn't end with it, may be incomplete
+      if (!endsWithPunctuation && (trimmedDialogue.includes('?') || trimmedDialogue.includes('.'))) {
+        validationIssues.push(
+          `Scene ${scene.scene}: May be semantically incomplete (doesn't end with punctuation but contains it). Dialogue: "${dialogue}"`
+        );
+      }
+    });
+
+    if (sceneValidation.allValid && validationIssues.length === 0) {
+      console.log('✅ All scenes have optimal dialogue (17-20 words/8s)');
+      return result; // Success!
+    }
+
+    // Log duration warnings
+    if (!sceneValidation.allValid) {
+      console.warn(`⚠️ ${sceneValidation.sceneValidations.filter(sv => !sv.validation.isValid).length} scenes have duration issues`);
+      sceneValidation.sceneValidations.forEach(sv => {
+        if (!sv.validation.isValid) {
+          console.warn(`  Scene ${sv.sceneNumber}:`, {
+            dialogue: sv.dialogue.substring(0, 50) + '...',
+            estimated: `${sv.validation.estimatedDuration}s`,
+            target: `${sv.validation.targetDuration}s`,
+            difference: `${sv.validation.difference > 0 ? '+' : ''}${sv.validation.difference}s`,
+            recommendation: sv.validation.recommendation
+          });
+        }
+      });
+    }
+
+    // Log word count and semantic completeness issues
+    if (validationIssues.length > 0) {
+      console.warn('[Character Ads Workflow] Dialogue validation issues detected:');
+      validationIssues.forEach(issue => console.warn(`  - ${issue}`));
+    }
+
+    retryCount++;
+    if (retryCount > MAX_RETRY_ATTEMPTS) {
+      console.error('❌ Max retries reached. Proceeding despite dialogue issues.');
+      return result; // Proceed anyway to avoid blocking
+    }
+  }
+
+  throw new Error('Unexpected end of retry loop');
+}
+
+// Generate prompts based on product context and character description (internal implementation)
+async function _generatePromptsInternal(
   productContext: {
     product_details: string;
     brand_name?: string;
@@ -139,7 +240,29 @@ async function generatePrompts(
   }
 
   const talkHeadContext = userDialogue
-    ? `The user provided this script. Split it across ${videoScenes} scene(s) and keep every word verbatim: "${userDialogue.replace(/"/g, '\\"')}"`
+    ? `The user provided this custom script: "${userDialogue.replace(/"/g, '\\"')}"
+
+CRITICAL SCRIPT SPLITTING RULES:
+1. Split the script across ${videoScenes} scene(s)
+2. MANDATORY WORD COUNT: Each scene MUST contain 17-20 words of dialogue
+   - This is NON-NEGOTIABLE and must be strictly enforced
+   - If a natural sentence boundary occurs at <17 words, you MUST combine it with the next sentence
+   - Only split at boundaries that result in ≥17 words for the current scene
+3. Split at natural phrase/sentence boundaries ONLY when word count minimum is met
+4. Preserve complete thoughts - do NOT split mid-concept or mid-solution
+   - Example: Keep "problem + solution" together in one scene
+   - Do NOT separate "I'm invisible to AI?" from "AI Bot Manager fixes this in ONE CLICK"
+5. If total word count is insufficient for ${videoScenes} scenes × 17 words minimum, expand by:
+   - Adding natural transitions between sentences
+   - Expanding key points with more detail
+   - Adding emphasis or clarifying phrases
+   - Maintaining the core message and tone
+6. Do NOT simply divide words evenly - ensure EACH scene has 17-20 words AND complete thoughts
+7. Preserve all key phrases and main ideas from the user's script
+
+EXAMPLES OF CORRECT SPLITTING:
+- ✅ Scene 1 (18 words): "ChatGPT can't see my website? I'm invisible to AI? AI Bot Manager fixes this in ONE CLICK."
+- ❌ Scene 1 (12 words): "ChatGPT can't see my website? I'm invisible to AI?" [WRONG - incomplete thought]`
     : productContext?.product_details
       ? `Use this talking head context to guide the monologue: ${productContext.product_details}`
       : 'No script provided. Create an authentic, upbeat personal message where the talent shares a helpful insight or story directly to camera.';
@@ -184,7 +307,15 @@ VIDEO SCENE REQUIREMENTS:
 - The 'language' field is metadata - actual dialogue text is always English
 - Camera movement: always "fixed"
 - Emotion: "excited, genuine" or similar positive emotions
-${userDialogue ? `- The user has provided a custom script. You MUST distribute this script appropriately across the ${videoScenes} scenes. Do not change the words, but split them to fit the timing. Script: "${userDialogue.replace(/"/g, '\\"')}"` : ''}
+${userDialogue ? `- The user has provided a custom script: "${userDialogue.replace(/"/g, '\\"')}"
+- CRITICAL: You MUST split this script across ${videoScenes} scenes following these rules:
+  1. MANDATORY WORD COUNT: Each scene MUST have 17-20 words (NON-NEGOTIABLE)
+  2. If a sentence boundary occurs at <17 words, COMBINE it with the next sentence
+  3. Only split at boundaries that result in ≥17 words for the current scene
+  4. Preserve complete thoughts - do NOT split problems from solutions
+  5. If total word count is insufficient, expand by adding natural transitions and detail
+  6. Ensure EACH scene has 17-20 words AND semantic completeness
+  7. Preserve the core message and key phrases from the user's script` : ''}
 
 ${dialogueLengthGuidance}
 
@@ -380,38 +511,6 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
 
     console.log(`✅ Generated prompts with direct Gemini image analysis: ${parsed.scenes.length} scenes`);
     console.log(`✅ Language: ${parsed.language || languageName}`);
-
-    // ===== NEW: VALIDATE DIALOGUE DURATION FOR ALL SCENES =====
-    console.log('\n🎯 Validating dialogue duration for all scenes...');
-    const sceneValidation = validateSceneDurations(
-      parsed.scenes as Array<{ scene: number; prompt: { dialog?: string } }>,
-      UNIT_SECONDS,
-      languageCode
-    );
-
-    if (!sceneValidation.allValid) {
-      console.warn('⚠️ DIALOGUE DURATION WARNING:', sceneValidation.overallRecommendation);
-      console.warn('Scene-by-scene breakdown:');
-      sceneValidation.sceneValidations.forEach(sv => {
-        if (!sv.validation.isValid) {
-          console.warn(`  Scene ${sv.sceneNumber}:`, {
-            dialogue: sv.dialogue.substring(0, 50) + '...',
-            estimated: `${sv.validation.estimatedDuration}s`,
-            target: `${sv.validation.targetDuration}s`,
-            difference: `${sv.validation.difference > 0 ? '+' : ''}${sv.validation.difference}s`,
-            recommendation: sv.validation.recommendation
-          });
-        }
-      });
-
-      // NOTE: We log warnings but don't fail the workflow.
-      // In future iterations, you could implement automatic retry or dialogue adjustment here.
-    } else {
-      console.log('✅ All scenes have optimal dialogue duration');
-      sceneValidation.sceneValidations.forEach(sv => {
-        console.log(`  Scene ${sv.sceneNumber}: ${sv.validation.estimatedDuration}s (target: ${sv.validation.targetDuration}s)`);
-      });
-    }
 
     return parsed;
   } catch (error) {

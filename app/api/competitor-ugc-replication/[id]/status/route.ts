@@ -112,7 +112,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       video_prompts: record.video_prompts || null,
       data: {
         creativePrompts: record.video_prompts || null,
-        coverImageUrl: record.cover_image_url || null,
+        coverImageUrl: segmentStatus?.segments?.[0]?.firstFrameUrl || null,
         videoUrl: record.video_url || null,
         coverTaskId: record.cover_task_id || null,
         videoTaskId: record.video_task_id || null,

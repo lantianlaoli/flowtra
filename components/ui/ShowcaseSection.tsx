@@ -7,7 +7,7 @@ import VideoPlayer from './VideoPlayer';
 interface ShowcaseItem {
   id: string;
   original_image_url?: string;
-  cover_image_url: string;
+  coverImageUrl: string;
   user_id: string;
   user: {
     name: string;
@@ -28,7 +28,7 @@ interface ShowcaseSectionProps {
 interface ProjectItem {
   id: string;
   status: string;
-  cover_image_url: string;
+  coverImageUrl: string;
   original_image_url?: string;
   user_id: string;
   // Character ads specific fields
@@ -70,9 +70,9 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
           // For character-ads showcase API data is already filtered
           // For Competitor UGC Replication, filter for completed items with cover images
           const completedItems = workflowType === 'character-ads'
-            ? projects 
-            : projects.filter((item: ProjectItem) => 
-                item.status === 'completed' && item.cover_image_url
+            ? projects
+            : projects.filter((item: ProjectItem) =>
+                item.status === 'completed' && item.coverImageUrl
               );
           
           // Get unique user IDs to fetch user information
@@ -122,11 +122,11 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
           // Character-ads showcase already limits to 2 items; slice competitor-ugc-replication list to keep UI consistent
           const itemsToShow = workflowType === 'character-ads' ? completedItems : completedItems.slice(0, 2);
           const showcaseData = itemsToShow.map((item: ProjectItem) => {
-            const fallbackImage = item.original_image_url || item.cover_image_url || '';
+            const fallbackImage = item.original_image_url || item.coverImageUrl || '';
             const baseItem = {
               id: item.id,
               original_image_url: fallbackImage,
-              cover_image_url: item.cover_image_url,
+              coverImageUrl: item.coverImageUrl,
               user_id: item.user_id,
               user: userMap.get(item.user_id) || {
                 name: 'Anonymous User',
@@ -269,9 +269,9 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
                     showControls={false}
                     ariaLabel="Generated video advertisement"
                   />
-                ) : item.cover_image_url ? (
+                ) : item.coverImageUrl ? (
                   <Image
-                    src={item.cover_image_url}
+                    src={item.coverImageUrl}
                     alt="Generated Result"
                     fill
                     className="object-cover"
@@ -309,7 +309,7 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
           <div className="grid grid-cols-2 gap-3 p-3 h-80">
             <div className="relative rounded-md overflow-hidden bg-gray-50">
               <Image
-                src={item.original_image_url || item.cover_image_url || '/placeholder-image.png'}
+                src={item.original_image_url || item.coverImageUrl || '/placeholder-image.png'}
                 alt="Original"
                 fill
                 className="object-cover"
@@ -320,7 +320,7 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
             </div>
             <div className="relative rounded-md overflow-hidden bg-gray-50">
               <Image
-                src={item.cover_image_url}
+                src={item.coverImageUrl}
                 alt="Generated"
                 fill
                 className="object-cover"

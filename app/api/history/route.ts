@@ -169,9 +169,17 @@ export async function GET() {
       const videoModel = normalizeCompetitorVideoModel(item.video_model);
       const isLegacy = isLegacyModel(item.video_model);
 
+      // Parse segment_status to extract cover image from segment[0]
+      let parsedSegmentStatus: any = null;
+      if (item.segment_status) {
+        parsedSegmentStatus = typeof item.segment_status === 'string'
+          ? JSON.parse(item.segment_status)
+          : item.segment_status;
+      }
+
       return {
         id: item.id,
-        coverImageUrl: item.cover_image_url,
+        coverImageUrl: parsedSegmentStatus?.segments?.[0]?.firstFrameUrl || null,
         videoUrl: item.video_url,
         photoOnly: !!item.photo_only,
         downloaded: item.downloaded,

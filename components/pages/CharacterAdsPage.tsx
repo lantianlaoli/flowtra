@@ -46,10 +46,10 @@ const IMAGE_SIZE_BY_ASPECT: Record<'16:9' | '9:16', 'landscape_16_9' | 'portrait
 const SESSION_STORAGE_KEY = 'flowtra_character_ads_generations';
 
 // Format CHARACTER_ADS_DURATION_OPTIONS for ConfigPopover
-const CHARACTER_ADS_DURATION_OPTIONS_FORMATTED: VideoDurationOption[] = CHARACTER_ADS_DURATION_OPTIONS.map((seconds, index) => ({
+const CHARACTER_ADS_DURATION_OPTIONS_FORMATTED: VideoDurationOption[] = CHARACTER_ADS_DURATION_OPTIONS.map((seconds) => ({
   value: seconds.toString() as VideoDuration,
-  label: `${seconds}s`,
-  recommended: index === 0 // First option (8s) is recommended
+  label: `${seconds}s`
+  // No hardcoded 'recommended' - let recommendedDuration prop control it dynamically
 }));
 
 const generateClientProjectId = () => {

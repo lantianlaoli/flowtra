@@ -3,14 +3,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Sparkles, X, Loader2, 
-  Image as ImageIcon, Film, User, MapPin, Zap, Palette, 
+import {
+  Sparkles, X, Loader2,
+  Image as ImageIcon, Film, User, MapPin, Zap, Palette,
   Camera, Layout, Sun, Music, MessageSquare, Mic, RefreshCw, Award
 } from 'lucide-react';
 import { GiBanana } from 'react-icons/gi';
 import { useToast } from '@/contexts/ToastContext';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { countDialogueWords } from '@/lib/character-ads-dialogue';
 
 // Define the shape of the structured video prompt
 export interface StructuredVideoPrompt {
@@ -441,10 +442,19 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
                                  {FIELD_ORDER.map((field) => {
                                     const Icon = FIELD_ICONS[field];
                                     const isFocused = focusedField === field;
+                                    const fieldValue = activeScenePrompt?.[field] || '';
+
+                                    // Dialogue validation
+                                    const isDialogField = field === 'dialog';
+                                    const dialogueWordCount = isDialogField ? countDialogueWords(fieldValue) : 0;
+                                    const dialogueWarning = isDialogField && dialogueWordCount > 0 && dialogueWordCount < 17
+                                      ? `⚠️ Only ${dialogueWordCount} words. Recommended: 17-20 words per 8-second segment to avoid pauses.`
+                                      : null;
+
                                     return (
                                       <div key={field} className="group space-y-1.5">
-                                        <label 
-                                          htmlFor={`field_${field}`} 
+                                        <label
+                                          htmlFor={`field_${field}`}
                                           className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider group-focus-within:text-black transition-colors"
                                         >
                                           <Icon className="w-3.5 h-3.5" />
@@ -455,11 +465,16 @@ export const CharacterAdInspector: React.FC<CharacterAdInspectorProps> = ({
                                           className={`block w-full rounded-md border-gray-200 shadow-sm focus:border-black focus:ring-black text-sm resize-none p-3 transition-all duration-200 ${
                                             isFocused ? 'h-32 bg-gray-50' : 'h-10 bg-white overflow-hidden'
                                           }`}
-                                          value={activeScenePrompt?.[field] || ''}
+                                          value={fieldValue}
                                           onChange={(e) => handleFieldChange(field, e.target.value)}
                                           onFocus={() => setFocusedField(field)}
                                           onBlur={() => setFocusedField(null)}
                                         />
+                                        {dialogueWarning && (
+                                          <p className="text-[11px] text-amber-600 mt-1">
+                                            {dialogueWarning}
+                                          </p>
+                                        )}
                                       </div>
                                     );
                                  })}

@@ -891,48 +891,7 @@ async function startAIWorkflow(
   let shotPlanForSegments = initialShotPlan;
 
   try {
-    // CUSTOM SCRIPT MODE: Skip AI steps and use original image
-    if (request.useCustomScript && request.customScript) {
-      console.log('📜 Custom script mode enabled - skipping AI description and cover generation');
-      console.log('📝 Custom script:', request.customScript.substring(0, 100) + '...');
-
-      // Store custom script directly in video_prompts field
-      // Convert language code to language name for video generation
-      const languageCode = (request.language || 'en') as LanguageCode;
-      const languageName = getLanguagePromptName(languageCode);
-
-      const customScriptPrompt = {
-        customScript: request.customScript,
-        language: languageName
-      };
-
-      // Update project: use original image as cover, store custom script, mark ready for video
-      const updateData = {
-        cover_image_url: request.imageUrl, // Use original image directly
-        video_prompts: customScriptPrompt,
-        current_step: 'ready_for_video' as const,
-        progress_percentage: 50,
-        last_processed_at: new Date().toISOString()
-      };
-
-      console.log('💾 Updating project with custom script data');
-
-      const { data: updateResult, error: updateError } = await supabase
-        .from('competitor_ugc_replication_projects')
-        .update(updateData)
-        .eq('id', projectId)
-        .select();
-
-      if (updateError) {
-        console.error('❌ Database update error:', updateError);
-        throw updateError;
-      }
-
-      console.log('✅ Custom script workflow prepared successfully:', updateResult);
-      return;
-    }
-
-    // AUTO MODE: Image-driven workflow with AI creative generation
+    // Image-driven workflow with AI creative generation
     // Generate prompts based purely on visual analysis of the product image
     console.log('🤖 Generating creative video prompts from product image...');
 
