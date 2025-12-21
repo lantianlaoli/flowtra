@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Character Ads
+    // Avatar Ads
     if (type === 'all' || type === 'character') {
       const { data, error } = await supabase
         .from('character_ads_projects')

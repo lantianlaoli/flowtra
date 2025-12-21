@@ -108,7 +108,7 @@ IMPORTANT: Dialogue MUST fit naturally within 8 seconds. Do NOT exceed 17 words 
 
 ---
 
-### 2. Workflow Integration (`lib/character-ads-workflow.ts`)
+### 2. Workflow Integration (`lib/avatar-ads-workflow.ts`)
 
 **Changes Made:**
 
@@ -394,7 +394,7 @@ Scene-by-scene breakdown:
 ## Related Files
 
 - `lib/dialogue-duration-estimator.ts` - Core estimation logic
-- `lib/character-ads-workflow.ts` - Workflow integration (lines 6, 126, 189-195, 267-273, 384-415)
+- `lib/avatar-ads-workflow.ts` - Workflow integration (lines 6, 126, 189-195, 267-273, 384-415)
 - `scripts/test-dialogue-duration.ts` - Testing utilities
 - `documents/local/dialogue-duration-matching-solution.md` - This documentation
 

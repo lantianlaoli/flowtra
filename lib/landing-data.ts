@@ -38,12 +38,12 @@ export const successCases: SuccessCase[] = [
     }
   },
   {
-    id: 'character-ads',
-    user: '@cheerslinkou',
+    id: 'avatar-ads',
+    user: '@laolilantian',
     avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_1.jpg',
-    quote: 'Amazing! Flowtra combined character with the product to create a personalized video ad that feels authentic and engaging.',
-    tiktokUrl: 'https://www.tiktok.com/@cheerslinkou/video/7554347579723517195?lang=en',
-    tiktokText: 'See the Magic',
+    quote: 'Open Flowtra AI, register, and enter the console. Prepare photos of your character and product. Create your brand and upload character/product photos.',
+    tiktokUrl: 'https://www.tiktok.com/@laolilantian/video/7586245504011439377',
+    tiktokText: 'See the Tutorial',
     layout: 'multi-input-to-output',
     content: {
       characterImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_character_human_case_1.png',

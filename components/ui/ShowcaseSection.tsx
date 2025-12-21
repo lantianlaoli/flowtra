@@ -59,7 +59,7 @@ export default function ShowcaseSection({ workflowType, className = '' }: Showca
         // Use different API endpoints based on workflow type
         // Character ads use the global showcase API; Competitor UGC Replication pulls from the history endpoint
         const apiEndpoint = workflowType === 'character-ads'
-          ? '/api/character-ads/showcase?limit=2'
+          ? '/api/avatar-ads/showcase?limit=2'
           : '/api/competitor-ugc-replication/history?limit=6';
         
         const response = await fetch(apiEndpoint);

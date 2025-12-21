@@ -55,10 +55,10 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
             <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-56 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
               <div className="py-2">
                 <Link
-                  href="/features/character-ads"
+                  href="/features/avatar-ads"
                   className="block px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
                 >
-                  <div className="font-semibold text-black">Character Ads</div>
+                  <div className="font-semibold text-black">Avatar Ads</div>
                   <div className="text-[12px] opacity-70">AI character-driven videos</div>
                 </Link>
                 <Link
@@ -143,7 +143,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
         }`}
       >
         <div className="px-4 py-6 flex flex-col gap-4">
-          <Link href="/features/character-ads" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Character Ads</Link>
+          <Link href="/features/avatar-ads" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Avatar Ads</Link>
           <Link href="/features/competitor-replica" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Competitor Replica</Link>
           <Link href="/#pricing" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
           <Link href="/#blog" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Blog</Link>

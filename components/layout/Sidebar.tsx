@@ -55,10 +55,10 @@ const navigation = [
     onboardingId: 'sidebar-competitor-ugc-replication'
   },
   {
-    name: 'Character Ads',
-    href: '/dashboard/character-ads',
+    name: 'Avatar Ads',
+    href: '/dashboard/avatar-ads',
     icon: Video,
-    onboardingId: 'sidebar-character-ads'
+    onboardingId: 'sidebar-avatar-ads'
   },
   {
     name: 'My Ads',

@@ -38,7 +38,7 @@ interface CompetitorUgcReplicationItem {
   errorMessage?: string;
 }
 
-interface CharacterAdsItem {
+interface AvatarAdsItem {
   id: string;
   originalImageUrl?: string;
   coverImageUrl?: string;
@@ -62,7 +62,7 @@ interface CharacterAdsItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem;
+type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem;
 
 interface VideoDetailsModalProps {
   isOpen: boolean;
@@ -77,7 +77,7 @@ const isCompetitorUgcReplication = (item: HistoryItem): item is CompetitorUgcRep
   return item.adType === 'competitor-ugc-replication';
 };
 
-const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
+const isCharacterAds = (item: HistoryItem): item is AvatarAdsItem => {
   return item.adType === 'character';
 };
 

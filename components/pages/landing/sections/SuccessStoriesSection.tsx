@@ -164,7 +164,7 @@ export default function SuccessStoriesSection() {
                         wrapperClassName="aspect-[3/4] w-full bg-gray-900 rounded-2xl border border-gray-200 overflow-hidden shadow-xl"
                         className="h-full w-full rounded-2xl object-cover"
                         src={successCase.content.videoUrl}
-                        ariaLabel="Character Ads success story: personalized video created with character and product"
+                        ariaLabel="Avatar Ads success story: personalized video created with character and product"
                       />
                     </div>
                   </div>

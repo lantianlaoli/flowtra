@@ -42,7 +42,7 @@ export async function GET() {
       console.log('📈 Competitor UGC Replication records:', competitorUgcReplicationHistory?.length || 0);
     }
 
-    // Query Character Ads projects
+    // Query Avatar Ads projects
     type CharacterAdsRow = { status: string; created_at: string; download_credits_used?: number | null };
     const { data: characterAdsHistory, error: errorCharacter } = await supabase
       .from('character_ads_projects')
@@ -52,7 +52,7 @@ export async function GET() {
     if (errorCharacter) {
       console.error('❌ Error querying character_ads_projects:', errorCharacter);
     } else {
-      console.log('📈 Character Ads records:', characterAdsHistory?.length || 0);
+      console.log('📈 Avatar Ads records:', characterAdsHistory?.length || 0);
     }
 
     // Calculate stats from Competitor UGC Replication data
@@ -72,7 +72,7 @@ export async function GET() {
       }
     }
 
-    // Calculate stats from Character Ads data
+    // Calculate stats from Avatar Ads data
     if (characterAdsHistory && characterAdsHistory.length > 0) {
       for (const record of characterAdsHistory as CharacterAdsRow[]) {
         stats.totalVideos++;

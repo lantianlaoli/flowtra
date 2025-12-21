@@ -44,7 +44,7 @@ interface CompetitorUgcReplicationItem {
   errorMessage?: string;
 }
 
-interface CharacterAdsItem {
+interface AvatarAdsItem {
   id: string;
   originalImageUrl?: string;
   coverImageUrl?: string;
@@ -68,7 +68,7 @@ interface CharacterAdsItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem;
+type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem;
 
 const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns (desktop) = 8 items per page
 
@@ -101,7 +101,7 @@ const interactiveCardActionClasses =
 const paginationButtonClasses =
   'cursor-pointer transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0 disabled:pointer-events-none';
 
-const isCharacterAds = (item: HistoryItem): item is CharacterAdsItem => {
+const isCharacterAds = (item: HistoryItem): item is AvatarAdsItem => {
   return 'adType' in item && item.adType === 'character';
 };
 
@@ -408,7 +408,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
 
     try {
       // Use different API endpoint for Character Ads
-      const apiEndpoint = isCharacterAds(item) ? '/api/character-ads/download' : '/api/download-video';
+      const apiEndpoint = isCharacterAds(item) ? '/api/avatar-ads/download' : '/api/download-video';
 
       // ✅ STEP 1: Fast validation (check auth + credits) without downloading
       const validationResponse = await fetch(apiEndpoint, {
@@ -996,7 +996,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
         historyId={selectedItemForTikTok?.id || ''}
         coverImageUrl={
           (selectedItemForTikTok && 'coverImageUrl' in (selectedItemForTikTok || {}))
-            ? (selectedItemForTikTok as CompetitorUgcReplicationItem | CharacterAdsItem).coverImageUrl
+            ? (selectedItemForTikTok as CompetitorUgcReplicationItem | AvatarAdsItem).coverImageUrl
             : undefined
         }
       />

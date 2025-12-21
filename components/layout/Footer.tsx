@@ -32,8 +32,8 @@ export default function Footer() {
             <h3 id="footer-features" className="text-[14px] font-bold text-black mb-6 uppercase tracking-wider">Features</h3>
             <ul className="space-y-4">
               <li>
-                <Link href="/features/character-ads" className="text-[14px] text-[#666666] hover:text-black transition-colors">
-                  Character Ads
+                <Link href="/features/avatar-ads" className="text-[14px] text-[#666666] hover:text-black transition-colors">
+                  Avatar Ads
                 </Link>
               </li>
               <li>

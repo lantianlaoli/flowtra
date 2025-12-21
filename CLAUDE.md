@@ -31,13 +31,13 @@ The application implements two main AI workflows:
    - Table: `competitor_ugc_replication_projects`
    - Workflow: `lib/competitor-ugc-replication-workflow.ts`
 
-2. **Character Ads**
+2. **Avatar Ads**
    - Character-based advertisement generation
-   - Table: `character_ads_projects`
-   - Workflow: `lib/character-ads-workflow.ts`
+   - Table: `avatar_ads_projects`
+   - Workflow: `lib/avatar-ads-workflow.ts`
 
 ### Database Schema
-- **Main Tables**: `competitor_ugc_replication_projects`, `character_ads_projects`
+- **Main Tables**: `competitor_ugc_replication_projects`, `avatar_ads_projects`
 - **Legacy Tables**: Old table names (`single_video_projects`) have been migrated
 - **Authentication**: Managed by Clerk
 - **Credits System**: User credits stored in Supabase, costs defined in `lib/constants.ts`
@@ -117,7 +117,7 @@ When modifying any AI prompts in the codebase:
 ### Prompt Documentation Structure
 - `prompts/README.md` - Overview of all workflows
 - `prompts/competitor-ugc-replication-workflow.md` - Competitor UGC Replication complete workflow
-- `prompts/character-ads-workflow.md` - Character Ads complete workflow
+- `prompts/avatar-ads-workflow.md` - Avatar Ads complete workflow
 
 ---
 
@@ -139,9 +139,9 @@ Version 2.0 provides a unified, simple billing model where **ALL video models ch
 **Modified Files (Restoration):**
 - `lib/constants.ts` - Removed FREE_GENERATION_MODELS/PAID_GENERATION_MODELS, consolidated costs
 - `lib/competitor-ugc-replication-workflow.ts` - Updated comments to reflect unified billing
-- `lib/character-ads-workflow.ts` - Added generation-time billing logic
+- `lib/avatar-ads-workflow.ts` - Added generation-time billing logic
 - `app/api/download-video/route.ts` - Simplified to free downloads
-- `app/api/character-ads/download/route.ts` - Simplified to free downloads
+- `app/api/avatar-ads/download/route.ts` - Simplified to free downloads
 - `components/ui/VideoModelSelector.tsx` - Unified UI: "Generation: X credits, Download: FREE"
 - `components/pages/landing/sections/ModelPricingSection.tsx` - All models show generation costs
 - `components/pages/CompetitorUgcReplicationPage.tsx` - Removed download cost logic
@@ -238,7 +238,7 @@ export const DOWNLOAD_COSTS = { 'veo3_fast': 20, 'sora2': 6 };
 - `lib/constants.ts` - Added model classification, helper functions
 - `lib/competitor-ugc-replication-workflow.ts` - Generation billing logic
 - `app/api/download-video/route.ts` - Download billing logic
-- `app/api/character-ads/download/route.ts` - Download billing logic
+- `app/api/avatar-ads/download/route.ts` - Download billing logic
 - `components/ui/VideoModelSelector.tsx` - UI shows "Generation: X credits" vs "Download: X credits"
 - `components/pages/PricingPage.tsx` - Updated messaging
 - `components/pages/LandingPage.tsx` - Updated messaging

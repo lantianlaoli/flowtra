@@ -1,0 +1,513 @@
+import { NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { processAvatarAdsProject, checkKIEVideoTaskStatus, generateVideoWithKIE } from '@/lib/avatar-ads-workflow';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
+
+export async function POST() {
+  try {
+    console.log('Starting avatar ads task monitoring...');
+
+    // Find projects that need monitoring
+    // ✅ Added 'pending' status to support fire-and-forget removal
+    const supabase = getSupabaseAdmin();
+    const { data: projects, error } = await supabase
+      .from('avatar_ads_projects')
+      .select('*')
+      .in('status', [
+        'pending',
+        'generating_prompts',
+        'generating_image',
+        'generating_videos',
+        'merging_videos'
+      ])
+      .order('last_processed_at', { ascending: true, nullsFirst: true })
+      .limit(20); // Process max 20 projects per run
+
+    if (error) {
+      console.error('Error fetching avatar ads projects:', error);
+      return NextResponse.json({ error: 'Database query failed' }, { status: 500 });
+    }
+
+    console.log(`Found ${projects?.length || 0} avatar ads projects to monitor`);
+    console.log('Projects details:', projects?.map(p => ({
+      id: p.id,
+      status: p.status,
+      current_step: p.current_step,
+      fal_merge_task_id: p.fal_merge_task_id,
+      merged_video_url: p.merged_video_url,
+      last_processed_at: p.last_processed_at
+    })));
+
+    let processed = 0;
+    let completed = 0;
+    let failed = 0;
+
+    if (Array.isArray(projects) && projects.length > 0) {
+      for (const project of projects) {
+        console.log(`Processing project ${project.id} (status: ${project.status}, step: ${project.current_step})`);
+
+        try {
+          console.log(`About to call processAvatarAdsProjectStep for project ${project.id}`);
+          await processAvatarAdsProjectStep(project);
+          console.log(`Successfully processed project ${project.id}`);
+          processed++;
+        } catch (error) {
+          console.error(`Error processing project ${project.id}:`, error);
+
+          // Mark project as failed
+          await supabase
+            .from('avatar_ads_projects')
+            .update({
+              status: 'failed',
+              error_message: error instanceof Error ? error.message : 'Processing error',
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', project.id);
+          failed++;
+        }
+
+        // Small delay to avoid overwhelming APIs
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      // Count completed projects from this run
+      const { count: completedCount } = await supabase
+        .from('avatar_ads_projects')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'completed')
+        .gte('updated_at', new Date(Date.now() - 60000).toISOString()); // Updated in last minute
+
+      completed = completedCount || 0;
+    }
+
+    console.log(`Character ads task monitoring completed: ${processed} processed, ${completed} completed, ${failed} failed`);
+
+    return NextResponse.json({
+      success: true,
+      processed,
+      completed,
+      failed,
+      totalProjects: projects?.length || 0,
+      message: 'Character ads task monitoring completed'
+    });
+
+  } catch (error) {
+    console.error('Character ads task monitoring error:', error);
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  }
+}
+
+interface AvatarAdsProject {
+  id: string;
+  user_id: string;
+  person_image_urls: string[];
+  product_image_urls: string[];
+  video_duration_seconds: number;
+  image_model: string;
+  video_model: string;
+  accent: string;
+  status: string;
+  current_step: string;
+  progress_percentage: number;
+  image_analysis_result?: Record<string, unknown>;
+  generated_prompts?: Record<string, unknown>;
+  generated_image_url?: string;
+  generated_video_urls?: string[];
+  merged_video_url?: string;
+  kie_image_task_id?: string;
+  kie_video_task_ids?: string[];
+  fal_merge_task_id?: string;
+  error_message?: string;
+  last_processed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+async function processAvatarAdsProjectStep(project: AvatarAdsProject) {
+  const supabase = getSupabaseAdmin();
+  console.log(`Processing project ${project.id}, step: ${project.current_step}, status: ${project.status}`);
+
+  // Handle timeout checks first
+  if (project.last_processed_at) {
+    const lastProcessed = new Date(project.last_processed_at).getTime();
+    const now = Date.now();
+    const timeoutMinutes = 40; // 40min timeout for all steps
+
+    if (now - lastProcessed > timeoutMinutes * 60 * 1000) {
+      throw new Error(`Task timeout: no progress for ${timeoutMinutes} minutes`);
+    }
+  }
+
+  // Handle image generation monitoring specifically
+  if (project.status === 'generating_image' && project.kie_image_task_id && !project.generated_image_url) {
+    const imageResult = await checkKieImageStatus(project.kie_image_task_id);
+
+    if (imageResult.status === 'SUCCESS' && imageResult.imageUrl) {
+      console.log(`Image completed for project ${project.id}`);
+
+      // Update project with image completion
+      const { error: updateError } = await supabase
+        .from('avatar_ads_projects')
+        .update({
+          generated_image_url: imageResult.imageUrl,
+          status: 'awaiting_review', // Wait for user review
+          current_step: 'reviewing',
+          progress_percentage: 60,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', project.id);
+
+      if (updateError) {
+        console.error(`❌ Failed to update project ${project.id} status to awaiting_review:`, updateError);
+        throw updateError;
+      }
+
+      // No scene 0 to update anymore - cover image is project-level
+
+      console.log(`✅ Image generated for project ${project.id}. Waiting for user review.`);
+      return; // Stop here, do not trigger video generation automatically
+
+    } else if (imageResult.status === 'FAILED') {
+      // Surface detailed KIE failure reason when available
+      throw new Error(imageResult.reason || 'Image generation failed');
+    }
+    // If still generating, update progress
+    else if (imageResult.status === 'GENERATING') {
+      await supabase
+        .from('avatar_ads_projects')
+        .update({
+          progress_percentage: 40,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', project.id);
+    }
+    return;
+  }
+
+  // NEW: Handle scene-level retries for video generation
+  if (project.status === 'generating_videos') {
+    await handleSceneVideoRetries(project, supabase);
+  }
+
+  // Determine the next step to trigger based on current state
+  let nextStep: string | null = null;
+
+  switch (project.status) {
+    case 'pending':
+      // ✅ New project just created, start workflow
+      nextStep = 'generate_prompts';
+      break;
+
+    case 'generating_prompts':
+      if (!project.generated_prompts) {
+        nextStep = 'generate_prompts';
+      } else if (project.generated_prompts && !project.kie_image_task_id) {
+        nextStep = 'generate_image';
+      }
+      break;
+
+    case 'generating_image':
+      if (!project.kie_image_task_id) {
+        nextStep = 'generate_image';
+      } else if (project.kie_image_task_id && !project.generated_image_url) {
+        // This case is handled above with active polling
+        nextStep = null;
+      } else if (project.generated_image_url && !project.kie_video_task_ids?.length) {
+        // This shouldn't happen automatically anymore due to 'awaiting_review' state
+        // But keeping it for robustness if manually moved
+        nextStep = 'generate_videos';
+      }
+      break;
+
+    case 'generating_videos':
+      if (project.generated_image_url && !project.kie_video_task_ids?.length) {
+        nextStep = 'generate_videos';
+      } else if (project.kie_video_task_ids?.length) {
+        // Keep checking video status until workflow transitions to merging or completion
+        nextStep = 'check_videos_status';
+      }
+      break;
+
+    case 'merging_videos':
+      if (!project.fal_merge_task_id) {
+        nextStep = 'merge_videos';
+      } else if (project.fal_merge_task_id && !project.merged_video_url) {
+        nextStep = 'check_merge_status';
+      }
+      break;
+  }
+
+  // If we determined a next step, process it
+  if (nextStep) {
+    console.log(`Triggering step '${nextStep}' for project ${project.id}`);
+    console.log(`Project details before processing:`, {
+      status: project.status,
+      current_step: project.current_step,
+      fal_merge_task_id: project.fal_merge_task_id,
+      merged_video_url: project.merged_video_url
+    });
+
+    const result = await processAvatarAdsProject(project, nextStep);
+
+    console.log(`Step '${nextStep}' completed for project ${project.id}:`, result.message);
+    console.log(`Result details:`, {
+      project_status: result.project?.status,
+      project_current_step: result.project?.current_step,
+      project_merged_video_url: result.project?.merged_video_url,
+      nextStep: result.nextStep
+    });
+
+    // Recursive processing if nextStep is returned (speeds up workflow)
+    if (result.nextStep) {
+      console.log(`🚀 Automatically proceeding to next step: ${result.nextStep}`);
+      // Update project object with latest state from result
+      const updatedProject = { ...project, ...result.project };
+      
+      // Specifically handle generate_image transition
+      // If we just finished generate_prompts, we want to immediately run generate_image
+      // UNLESS we are waiting for something async (like image generation itself)
+      if (result.nextStep === 'generate_image') {
+         await processAvatarAdsProjectStep(updatedProject);
+      } 
+      // Add other immediate transitions if needed, but generally safe to recurse
+      // Be careful of infinite loops if state doesn't update
+    }
+  } else {
+    // No step needed, just update last_processed_at to show we checked
+    await supabase
+      .from('avatar_ads_projects')
+      .update({
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', project.id);
+
+    console.log(`No action needed for project ${project.id} (status: ${project.status}, step: ${project.current_step})`);
+  }
+}
+
+/**
+ * Calculate exponential backoff delay in milliseconds
+ * Formula: baseDelay * 2^(retryCount - 1)
+ * Example: 5s, 10s, 20s for retries 1, 2, 3
+ */
+function calculateBackoffDelay(retryCount: number, baseDelayMs: number = 5000): number {
+  return baseDelayMs * Math.pow(2, retryCount - 1);
+}
+
+/**
+ * Check if scene is ready for retry based on exponential backoff
+ */
+function isReadyForRetry(lastRetryAt: string | null, retryCount: number): boolean {
+  if (!lastRetryAt) return true; // No previous retry, ready immediately
+
+  const lastRetryTime = new Date(lastRetryAt).getTime();
+  const now = Date.now();
+  const requiredDelay = calculateBackoffDelay(retryCount);
+
+  return (now - lastRetryTime) >= requiredDelay;
+}
+
+/**
+ * Process video generation failures with retry logic for avatar ads scenes
+ * Called from processAvatarAdsProjectStep when status is 'generating_videos'
+ */
+async function handleSceneVideoRetries(
+  project: any,
+  supabase: ReturnType<typeof getSupabaseAdmin>
+) {
+  const MAX_RETRIES = 3;
+
+  // Fetch all scenes for this project
+  const { data: scenes, error: scenesError } = await supabase
+    .from('avatar_ads_scenes')
+    .select('*')
+    .eq('project_id', project.id)
+    .eq('status', 'generating');
+
+  if (scenesError) {
+    console.error(`Failed to fetch scenes for project ${project.id}:`, scenesError);
+    return;
+  }
+
+  if (!scenes || scenes.length === 0) {
+    return; // No generating scenes to check
+  }
+
+  console.log(`🔍 Checking ${scenes.length} generating scenes for project ${project.id}`);
+
+  let hasRetries = false;
+
+  for (const scene of scenes) {
+    if (!scene.kie_video_task_id) continue;
+
+    // Check video task status
+    const status = await checkKIEVideoTaskStatus(scene.kie_video_task_id);
+
+    if (status.status === 'completed' && status.result_url) {
+      // Scene completed successfully
+      await supabase
+        .from('avatar_ads_scenes')
+        .update({
+          video_url: status.result_url,
+          status: 'completed',
+          error_code: null,
+          error_message: null
+        })
+        .eq('id', scene.id);
+
+      console.log(`✅ Scene ${scene.scene_number} completed for project ${project.id}`);
+
+    } else if (status.status === 'failed') {
+      const currentRetryCount = scene.retry_count || 0;
+
+      // Check if this is a retryable server error
+      if (status.isRetryable && currentRetryCount < MAX_RETRIES) {
+        // Check exponential backoff timing
+        if (!isReadyForRetry(scene.last_retry_at, currentRetryCount + 1)) {
+          const nextRetryIn = calculateBackoffDelay(currentRetryCount + 1) -
+            (Date.now() - new Date(scene.last_retry_at!).getTime());
+          console.log(`⏳ Scene ${scene.scene_number} not ready for retry yet. Next retry in ${Math.ceil(nextRetryIn / 1000)}s`);
+          continue;
+        }
+
+        console.warn(`⚠️ Retryable server error for scene ${scene.scene_number} (retry ${currentRetryCount + 1}/${MAX_RETRIES})`);
+        console.warn(`   Error: ${status.error}`);
+        console.warn(`   Error Code: ${status.errorCode}`);
+        console.warn(`   Restarting video generation...`);
+
+        // Retrieve prompt for this scene
+        const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
+        const videoPrompt = scenes?.[scene.scene_number - 1]?.prompt;
+
+        if (!videoPrompt) {
+          console.error(`❌ Cannot retry scene ${scene.scene_number}: prompt not found`);
+          continue;
+        }
+
+        try {
+          // Regenerate video task
+          const { taskId: newTaskId } = await generateVideoWithKIE(
+            videoPrompt as Record<string, unknown>,
+            [project.generated_image_url!, project.generated_image_url!],
+            project.video_aspect_ratio as '16:9' | '9:16' | undefined,
+            project.language
+          );
+
+          console.log(`✅ Retried scene ${scene.scene_number} with new task: ${newTaskId}`);
+
+          // Update scene with new task ID and increment retry count
+          await supabase
+            .from('avatar_ads_scenes')
+            .update({
+              kie_video_task_id: newTaskId,
+              retry_count: currentRetryCount + 1,
+              last_retry_at: new Date().toISOString(),
+              error_code: status.errorCode,
+              error_message: `Retrying after server error (attempt ${currentRetryCount + 1}/${MAX_RETRIES}): ${status.error}`,
+              status: 'generating'
+            })
+            .eq('id', scene.id);
+
+          hasRetries = true;
+
+        } catch (retryError) {
+          console.error(`❌ Failed to retry scene ${scene.scene_number}:`, retryError);
+          // Don't throw - continue checking other scenes
+        }
+
+      } else {
+        // Non-retryable error OR max retries exceeded
+        if (status.isRetryable) {
+          console.error(`❌ Max retries (${MAX_RETRIES}) exceeded for scene ${scene.scene_number}`);
+        }
+
+        // Mark scene as permanently failed
+        await supabase
+          .from('avatar_ads_scenes')
+          .update({
+            status: 'failed',
+            error_code: status.errorCode,
+            error_message: status.error
+          })
+          .eq('id', scene.id);
+
+        // Project-level failure will be handled by check_videos_status step
+        console.error(`❌ Scene ${scene.scene_number} permanently failed: ${status.error}`);
+      }
+    }
+    // If status === 'processing', do nothing - wait for next monitor run
+  }
+
+  if (hasRetries) {
+    // Update project last_processed_at to prevent timeout
+    await supabase
+      .from('avatar_ads_projects')
+      .update({
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', project.id);
+  }
+}
+
+async function checkKieImageStatus(taskId: string): Promise<{status: string, imageUrl?: string, reason?: string}> {
+  const response = await fetchWithRetry(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+    },
+  }, 5, 15000);
+
+  if (!response.ok) {
+    throw new Error(`Failed to check KIE image status: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  if (!data || data.code !== 200) {
+    throw new Error(data?.message || 'Failed to get KIE image status');
+  }
+
+  const taskData = data.data;
+  if (!taskData) {
+    return { status: 'GENERATING' };
+  }
+
+  // Normalize state flags and extract URL robustly
+  const state: string | undefined = typeof taskData.state === 'string' ? taskData.state : undefined;
+  const successFlag: number | undefined = typeof taskData.successFlag === 'number' ? taskData.successFlag : undefined;
+
+  let resultJson: Record<string, unknown> = {};
+  try {
+    resultJson = JSON.parse(taskData.resultJson || '{}');
+  } catch {
+    resultJson = {};
+  }
+
+  const directUrls = Array.isArray((resultJson as { resultUrls?: string[] }).resultUrls)
+    ? (resultJson as { resultUrls?: string[] }).resultUrls
+    : undefined;
+  const responseUrls = Array.isArray(taskData.response?.resultUrls)
+    ? (taskData.response.resultUrls as string[])
+    : undefined;
+  const flatUrls = Array.isArray(taskData.resultUrls)
+    ? (taskData.resultUrls as string[])
+    : undefined;
+  const imageUrl = (directUrls || responseUrls || flatUrls)?.[0];
+
+  const stateLower = state?.toLowerCase();
+  const isSuccess = (stateLower === 'success') || successFlag === 1 || (!!imageUrl && (stateLower === undefined));
+  const isFailed = (stateLower === 'failed' || stateLower === 'fail' || stateLower === 'error') || successFlag === 2 || successFlag === 3;
+
+  if (isSuccess) {
+    return { status: 'SUCCESS', imageUrl };
+  }
+  if (isFailed) {
+    return { status: 'FAILED', reason: taskData.failMsg || taskData.errorMessage || taskData.failureReason };
+  }
+  return { status: 'GENERATING' };
+}

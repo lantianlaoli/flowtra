@@ -153,7 +153,7 @@ export async function GET() {
       console.error('Failed to fetch Competitor UGC Replication history:', competitorUgcReplicationError);
     }
 
-    // Fetch Character Ads data
+    // Fetch Avatar Ads data
     const { data: characterAdsItems, error: characterAdsError } = await supabase
       .from('character_ads_projects')
       .select('*')
@@ -161,7 +161,7 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (characterAdsError) {
-      console.error('Failed to fetch Character Ads history:', characterAdsError);
+      console.error('Failed to fetch Avatar Ads history:', characterAdsError);
     }
 
     // Transform Competitor UGC Replication data
@@ -208,7 +208,7 @@ export async function GET() {
       };
     });
 
-    // Transform Character Ads data - show all items (processing, completed, and failed)
+    // Transform Avatar Ads data - show all items (processing, completed, and failed)
     const transformedCharacterAdsHistory: CharacterAdsItem[] = (characterAdsItems || [])
       .map(item => {
         let mappedStatus = mapWorkflowStatus(item.status);

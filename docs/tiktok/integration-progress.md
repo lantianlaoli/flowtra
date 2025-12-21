@@ -81,7 +81,7 @@
 │  │  - user_tiktok_connections                   │           │
 │  │  - tiktok_publish_history        [Phase 2]  │           │
 │  │  - competitor_ugc_replication_projects                     │           │
-│  │  - character_ads_projects                    │           │
+│  │  - avatar_ads_projects                    │           │
 │  └──────────────────────────────────────────────┘           │
 │                                                               │
 └───────────────────────────┬───────────────────────────────────┘

@@ -28,7 +28,7 @@ export default function FeaturesSection() {
 
         <div className="flex flex-col gap-24">
 
-          {/* Feature 1: Character Ads */}
+          {/* Feature 1: Avatar Ads */}
 
           <article className="flex flex-col lg:flex-row items-center gap-16">
 
@@ -48,13 +48,13 @@ export default function FeaturesSection() {
 
                   <h3 className="text-[24px] font-bold text-black mb-3">
 
-                    Character Ads
+                    Avatar Ads
 
                   </h3>
 
                   <p className="text-lg text-[#666666] leading-relaxed">
 
-                    Create character-driven video advertisements with realistic AI characters powered by Google Veo3.
+                    Create avatar-driven video advertisements with realistic AI characters powered by Google Veo3.
 
                   </p>
 
@@ -98,7 +98,7 @@ export default function FeaturesSection() {
 
                 <Link
 
-                  href="/features/character-ads"
+                  href="/features/avatar-ads"
 
                   className="inline-flex items-center gap-2 text-black font-semibold hover:gap-3 transition-all pt-2 border-b-2 border-transparent hover:border-black"
 

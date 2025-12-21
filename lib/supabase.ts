@@ -125,8 +125,8 @@ export interface CompetitorUgcReplicationSegment {
   updated_at: string
 }
 
-// Database types for character_ads_scenes table
-export interface CharacterAdsScene {
+// Database types for avatar_ads_scenes table
+export interface AvatarAdsScene {
   id: string
   project_id: string
   scene_number: number
