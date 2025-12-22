@@ -68,7 +68,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
             href="https://discord.gg/dd5Qh54S"
             target="_blank"
             rel="noopener noreferrer"
-            className="discord-button relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer text-white"
+            className="bg-[#5865F2] hover:bg-[#4752C4] relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer text-white transition-all duration-200 hover:-translate-y-[1px] active:translate-y-0"
             title="Join our Discord community"
           >
             <SiDiscord className="w-5 h-5" />
