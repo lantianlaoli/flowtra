@@ -338,7 +338,6 @@ const formatDurationLabel = (seconds: number) => {
         status: 'pending',
         progress: 5,
         stage: 'Queued',
-        platform: 'Character Ads',
         brand: selectedBrandName || undefined,
         product: selectedProductName || undefined,
         videoModel: DEFAULT_VIDEO_MODEL,
@@ -966,13 +965,8 @@ const formatDurationLabel = (seconds: number) => {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0">
+      <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
-          <header className="px-8 md:px-12 lg:px-16 py-6 sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur mt-14 md:mt-8 border-b border-[#E5E5E5]">
-            <div className="max-w-[1280px] mx-auto">
-            </div>
-          </header>
-
           <AnimatePresence mode="wait">
             {showMaintenance ? (
               <motion.div

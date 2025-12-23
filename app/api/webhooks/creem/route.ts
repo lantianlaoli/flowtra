@@ -197,14 +197,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, message: 'Monthly credits reset' })
       }
 
-      // subscription.canceled - Subscription canceled, REVOKE access
+      // subscription.canceled - Subscription canceled, preserve credits until expiration
       if (eventType === 'subscription.canceled') {
         console.log(`🚫 Subscription canceled for user ${userId}`)
 
         const creemSubscriptionId = object.id
 
-        // Revoke subscription credits immediately
-        await revokeSubscriptionAccess(userId)
+        // Don't revoke credits - user keeps credits until period ends
+        // Credits will be revoked when subscription.expired event is received
 
         // Update subscription status
         await updateSubscriptionStatus(creemSubscriptionId, 'canceled')
@@ -212,8 +212,11 @@ export async function POST(request: NextRequest) {
         // Record event
         await recordSubscriptionEvent(userId, creemSubscriptionId, eventType, eventId, object)
 
-        console.log(`✅ Subscription access revoked for user ${userId}`)
-        return NextResponse.json({ success: true, message: 'Subscription access revoked' })
+        console.log(`✅ Subscription marked as canceled for user ${userId} (credits preserved until expiration)`)
+        return NextResponse.json({
+          success: true,
+          message: 'Subscription canceled, credits preserved until period ends'
+        })
       }
 
       // subscription.paused - Subscription paused, REVOKE access

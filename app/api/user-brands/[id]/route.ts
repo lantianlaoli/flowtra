@@ -3,7 +3,6 @@ import {
   getSupabaseAdmin,
   deleteBrandLogoFromStorage,
   deleteProductPhotoFromStorage,
-  deleteCompetitorAdFromStorage,
   uploadBrandLogoToStorage
 } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
@@ -321,13 +320,7 @@ export async function DELETE(
       }
     }));
 
-    await Promise.allSettled(competitorUrls.map(async (adUrl) => {
-      try {
-        await deleteCompetitorAdFromStorage(adUrl);
-      } catch (storageError) {
-        console.warn('Failed to delete competitor asset from storage:', storageError);
-      }
-    }));
+    // Competitor ads no longer store files (only analysis_result), so no storage cleanup needed
 
     console.log(`[DELETE /api/user-brands/${brandId}] Deleted brand "${brand.brand_name}" with`, {
       deletedProducts: productIds.length,

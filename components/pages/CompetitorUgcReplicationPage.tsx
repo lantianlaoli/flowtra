@@ -11,7 +11,6 @@ import { Sparkles, Coins, TrendingUp, AlertCircle, Boxes } from 'lucide-react';
 import BottomComposerBar from '@/components/ui/BottomComposerBar';
 
 // New components for redesigned UX
-import PlatformSelector, { type Platform } from '@/components/ui/PlatformSelector';
 import BrandDropdownSelector from '@/components/ui/BrandDropdownSelector';
 import CompetitorAdSelector from '@/components/ui/CompetitorAdSelector';
 import ConfigPopover from '@/components/ui/ConfigPopover';
@@ -20,7 +19,6 @@ import SegmentInspector, { type SegmentPromptPayload } from '@/components/compet
 import type { VideoDurationOption } from '@/components/ui/VideoDurationSelector';
 
 import {
-  PLATFORM_PRESETS,
   canAffordModel,
   getAvailableQualities,
   getModelSupportedDurations,
@@ -199,8 +197,7 @@ export default function CompetitorUgcReplicationPage() {
     userImageUrl: user?.imageUrl
   };
 
-  // NEW: Platform state
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform>('tiktok');
+  // Platform selection feature has been removed
 
   // NEW: Generation history
   const [generations, setGenerations] = useState<SessionGeneration[]>([]);
@@ -236,8 +233,9 @@ export default function CompetitorUgcReplicationPage() {
   const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
   const [selectedCompetitorAd, setSelectedCompetitorAd] = useState<CompetitorAd | null>(null);
   const hasCompetitorReference = Boolean(selectedCompetitorAd);
-  const isCompetitorPhotoMode = selectedCompetitorAd?.file_type === 'image';
-  const competitorImageUrl = isCompetitorPhotoMode ? selectedCompetitorAd?.ad_file_url ?? null : null;
+  // Competitor ads are now video-only, so photo mode is never active from competitor selection
+  const isCompetitorPhotoMode = false;
+  const competitorImageUrl = null;
   const [photoAspectRatio, setPhotoAspectRatio] = useState<ReplicaAspectRatio>('9:16');
   const [photoResolution, setPhotoResolution] = useState<ReplicaResolution>('2K');
   const [photoOutputFormat, setPhotoOutputFormat] = useState<ReplicaOutputFormat>('png');
@@ -280,7 +278,8 @@ export default function CompetitorUgcReplicationPage() {
   }, [selectedCompetitorAd, selectedLanguage]);
 
   useEffect(() => {
-    if (!selectedCompetitorAd || selectedCompetitorAd.file_type !== 'video') {
+    // Competitor ads are now video-only
+    if (!selectedCompetitorAd) {
       lastAutoDurationRef.current = { competitorId: null, model: null, duration: null };
       return;
     }
@@ -900,13 +899,7 @@ export default function CompetitorUgcReplicationPage() {
     }
   }, [fetchStatusForProject, showError, showSuccess]);
 
-  // Handle platform change - auto-set recommended config
-  const handlePlatformChange = useCallback((platform: Platform) => {
-    setSelectedPlatform(platform);
-    const preset = PLATFORM_PRESETS[platform];
-    setFormat(preset.format);
-    setVideoDuration(preset.duration);
-  }, []);
+  // Platform change handler has been removed (platform feature deprecated)
 
   // Calculate available and disabled options
   const availableDurations = useMemo(
@@ -938,7 +931,8 @@ export default function CompetitorUgcReplicationPage() {
 
   // Calculate recommended duration based on competitor ad
   const recommendedDuration = useMemo(() => {
-    if (selectedCompetitorAd?.file_type === 'video') {
+    // Competitor ads are now video-only
+    if (selectedCompetitorAd) {
       // Use actual video duration for direct time matching
       const targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
 
@@ -1003,13 +997,13 @@ export default function CompetitorUgcReplicationPage() {
     }
 
     if (!selectedCompetitorAd) {
-      setValidationMessage('Select a competitor video or photo to clone before generating.');
+      setValidationMessage('Select a viral video or photo to clone before generating.');
       setShowValidationModal(true);
       return;
     }
 
     if (isCompetitorPhotoMode && !competitorImageUrl) {
-      setValidationMessage('Select a competitor photo in the Assets panel before generating.');
+      setValidationMessage('Select a source photo in the Assets panel before generating.');
       setShowValidationModal(true);
       return;
     }
@@ -1033,7 +1027,6 @@ export default function CompetitorUgcReplicationPage() {
       status: 'pending',
       progress: 5,
       stage: isCompetitorPhotoMode ? 'Preparing replica photo…' : 'Initializing…',
-      platform: selectedPlatform,
       brand: selectedBrand.brand_name,
       brandId: selectedBrand.id,
       videoModel: shouldGenerateVideo ? selectedModel : undefined,
@@ -1159,16 +1152,10 @@ export default function CompetitorUgcReplicationPage() {
     <>
     <div className="min-h-screen bg-white">
       <Sidebar {...sidebarProps} />
-      <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0">
+      <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Page Header - Minimalist */}
-          <header className="px-8 md:px-12 lg:px-16 py-6 sticky top-0 z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur mt-14 md:mt-8 border-b border-[#E5E5E5]">
-            <div className="max-w-[1280px] mx-auto">
-            </div>
-          </header>
-
           {/* Main Content Area - Progress Display */}
-          <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0 pt-8">
+          <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
             <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
               <div className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                 <div className="flex-1 overflow-hidden min-h-0">
@@ -1229,15 +1216,9 @@ export default function CompetitorUgcReplicationPage() {
 
     {/* Bottom Composer - Unified */}
     <BottomComposerBar
+      compact={true}
       leftControls={
         <>
-          <PlatformSelector
-            selectedPlatform={selectedPlatform}
-            onPlatformChange={handlePlatformChange}
-            disabled={isGenerating}
-            label=""
-            variant="compact"
-          />
           <BrandDropdownSelector
             selectedBrand={selectedBrand}
             onSelect={(brand) => {
@@ -1325,7 +1306,7 @@ export default function CompetitorUgcReplicationPage() {
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
               <Boxes className="w-6 h-6 text-blue-600" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900">Welcome to Competitor UGC Replication!</h3>
+            <h3 className="text-xl font-bold text-gray-900">Welcome to Viral Video Replication!</h3>
           </div>
           <p className="text-gray-600 mb-6">
             To create amazing videos, you need to set up your brands and products first.

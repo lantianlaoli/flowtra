@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, deleteCompetitorAdFromStorage } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
 import { parseCompetitorTimeline } from '@/lib/competitor-shots';
 
@@ -74,15 +74,15 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { competitor_name, platform, language, analysis_result, video_duration_seconds } = body;
+    const { competitor_name, language, analysis_result, video_duration_seconds } = body;
 
-    const hasUpdatableField = ['competitor_name', 'platform', 'language', 'analysis_result', 'video_duration_seconds'].some(
+    const hasUpdatableField = ['competitor_name', 'language', 'analysis_result', 'video_duration_seconds'].some(
       (key) => Object.prototype.hasOwnProperty.call(body, key)
     );
 
     if (!hasUpdatableField) {
       return NextResponse.json(
-        { error: 'At least one field (competitor_name, platform, language, analysis_result, or video_duration_seconds) is required' },
+        { error: 'At least one field (competitor_name, language, analysis_result, or video_duration_seconds) is required' },
         { status: 400 }
       );
     }
@@ -92,7 +92,6 @@ export async function PUT(
     // Build update object
     const updateData: {
       competitor_name?: string;
-      platform?: string;
       language?: string | null;
       analysis_result?: Record<string, unknown> | null;
       video_duration_seconds?: number | null;
@@ -103,10 +102,6 @@ export async function PUT(
 
     if (competitor_name) {
       updateData.competitor_name = competitor_name.trim();
-    }
-
-    if (platform) {
-      updateData.platform = platform.trim();
     }
 
     if (typeof language === 'string') {
@@ -193,22 +188,7 @@ export async function DELETE(
     const { id } = await params;
     const supabase = getSupabaseAdmin();
 
-    // Get competitor ad to retrieve file URL
-    const { data: competitorAd, error: fetchError } = await supabase
-      .from('competitor_ads')
-      .select('ad_file_url')
-      .eq('id', id)
-      .eq('user_id', userId)
-      .single();
-
-    if (fetchError || !competitorAd) {
-      return NextResponse.json(
-        { error: 'Competitor ad not found' },
-        { status: 404 }
-      );
-    }
-
-    // Delete from database
+    // Delete from database (no file storage to clean up)
     const { error: deleteError } = await supabase
       .from('competitor_ads')
       .delete()
@@ -221,14 +201,6 @@ export async function DELETE(
         { error: 'Failed to delete competitor ad', details: deleteError.message },
         { status: 500 }
       );
-    }
-
-    // Delete file from storage
-    try {
-      await deleteCompetitorAdFromStorage(competitorAd.ad_file_url);
-    } catch (storageError) {
-      console.error('Storage delete error (non-fatal):', storageError);
-      // Don't fail the request if storage deletion fails
     }
 
     return NextResponse.json({ success: true, message: 'Competitor ad deleted successfully' });

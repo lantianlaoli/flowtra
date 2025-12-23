@@ -127,197 +127,187 @@ export default function BrandSection({
                 {brand.brand_slogan || brand.brand_details}
               </p>
             )}
-            <div className="flex items-center gap-3 md:gap-4 mt-1">
-              <div className="flex items-center gap-1.5">
-                <Package className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-400" />
-                <span className="text-xs text-gray-500">
-                  {products.length} {products.length === 1 ? 'product' : 'products'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Target className="w-3 h-3 md:w-3.5 md:h-3.5 text-purple-400" />
-                <span className="text-xs text-gray-500">
-                  {competitorCount} {competitorCount === 1 ? 'competitor' : 'competitors'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-1 md:gap-2">
-            <button
-              onClick={handleEditBrand}
-              className="p-1.5 md:p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Edit brand"
-            >
-              <Edit2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
-            </button>
-
-            {/* Delete button - always visible on mobile, hover-based on desktop */}
-            <button
-              onClick={handleDeleteBrand}
-              className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors sm:hidden"
-              title="Delete brand"
-            >
-              <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
-            </button>
-
-            <AnimatePresence>
-              {isHovered && (
-                <motion.button
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 10 }}
-                  transition={{ duration: 0.15 }}
-                  onClick={handleDeleteBrand}
-                  className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors hidden sm:block"
-                  title="Delete brand"
-                >
-                  <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Content Tabs (Collapsible) */}
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-gray-100">
-              {/* Tab Navigation */}
-              <div className="flex border-b border-gray-200 px-3 md:px-4">
-                <button
-                  onClick={() => setActiveTab('products')}
-                  className={`
-                    flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
-                    ${activeTab === 'products'
-                      ? 'border-gray-900 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                  `}
-                >
-                  <Package className="w-4 h-4" />
-                  Products ({products.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab('competitors')}
-                  className={`
-                    flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
-                    ${activeTab === 'competitors'
-                      ? 'border-purple-600 text-purple-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                  `}
-                >
-                  <Target className="w-4 h-4" />
-                  Competitors
-                </button>
-              </div>
-
-              {/* Tab Content */}
-              <div className="px-3 md:px-4 py-3 md:py-4">
-                {activeTab === 'products' ? (
-                  /* Products Content */
-                  products.length === 0 ? (
-                    <div className="text-center py-6 md:py-8 text-gray-400">
-                      <Package className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-2 text-gray-300" />
-                      <p className="text-xs md:text-sm">No products in this brand yet</p>
-                      <button
-                        onClick={handleAddProduct}
-                        className="mt-2 md:mt-3 text-xs md:text-sm text-gray-600 hover:text-gray-900 underline"
-                      >
-                        Add your first product
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      {/* Products Header */}
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <Package className="w-5 h-5 text-gray-600" />
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            Products ({products.length})
-                          </h3>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {/* View Mode Toggle */}
-                          <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-                            <button
-                              onClick={() => setViewMode('grid')}
-                              className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                              title="Grid view"
-                            >
-                              <Grid3x3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setViewMode('list')}
-                              className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                              title="List view"
-                            >
-                              <List className="w-4 h-4" />
-                            </button>
+                          <div className="flex items-center gap-3 md:gap-4 mt-1">
+                          <div className="flex items-center gap-1.5">
+                            <Package className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-400" />
+                            <span className="text-xs text-gray-500">
+                              {products.length} {products.length === 1 ? 'product' : 'products'}
+                            </span>
                           </div>
-                          {/* Add Product Button */}
-                          <button
-                            onClick={handleAddProduct}
-                            className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Add Product
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <Target className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-400" />
+                            <span className="text-xs text-gray-500">
+                              {competitorCount} {competitorCount === 1 ? 'viral video' : 'viral videos'}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      {/* Products Grid/List */}
-                      {viewMode === 'grid' ? (
-                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
-                          {products.map((product) => (
-                            <ProductCard
-                              key={product.id}
-                              product={product}
-                              onView={onViewProduct}
-                              onEditClick={onEditProduct}
-                              onDelete={onDeleteProduct}
-                              isDeleting={deletingProductId === product.id}
-                              mode="compact"
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {products.map((product) => (
-                            <ProductCard
-                              key={product.id}
-                              product={product}
-                              onView={onViewProduct}
-                              onEditClick={onEditProduct}
-                              onDelete={onDeleteProduct}
-                              isDeleting={deletingProductId === product.id}
-                              mode="list"
-                            />
-                          ))}
-                        </div>
-                      )}
+            
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 md:gap-2">
+                        <button
+                          onClick={handleEditBrand}
+                          className="p-1.5 md:p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Edit brand"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                        </button>
+            
+                        {/* Delete button - always visible on mobile, hover-based on desktop */}
+                        <button
+                          onClick={handleDeleteBrand}
+                          className="p-1.5 md:p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors sm:hidden"
+                          title="Delete brand"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                        </button>
+            
+                        <AnimatePresence>
+                          {isHovered && (
+                            <motion.button
+                              initial={{ opacity: 0, x: 10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: 10 }}
+                              transition={{ duration: 0.15 }}
+                              onClick={handleDeleteBrand}
+                              className="p-1.5 md:p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors hidden sm:block"
+                              title="Delete brand"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                            </motion.button>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
-                  )
-                ) : (
-                  /* Competitors Content */
-                  <CompetitorAdsList
-                    brandId={brand.id}
-                    brandName={brand.brand_name}
-                  />
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+                  </motion.div>
+            
+                  {/* Content Tabs (Collapsible) */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="border-t border-gray-100">
+                          {/* Tab Navigation */}
+                          <div className="flex border-b border-gray-200 px-3 md:px-4">
+                                            <button
+                                              onClick={() => setActiveTab('products')}
+                                              className={`
+                                                flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+                                                ${activeTab === 'products'
+                                                  ? 'border-black text-black'
+                                                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'}
+                                              `}
+                                            >
+                                              <Package className="w-4 h-4" />
+                                              Products
+                                            </button>                            <button
+                              onClick={() => setActiveTab('competitors')}
+                              className={`
+                                flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+                                ${activeTab === 'competitors'
+                                  ? 'border-black text-black'
+                                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'}
+                              `}
+                            >
+                              <Target className="w-4 h-4" />
+                              Viral Videos
+                            </button>
+                          </div>
+            
+                          {/* Tab Content */}
+                          <div className="px-3 md:px-4 py-3 md:py-4">
+                            {activeTab === 'products' ? (
+                              /* Products Content */
+                              products.length === 0 ? (
+                                <div className="text-center py-6 md:py-8 text-gray-400">
+                                  <Package className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-2 text-gray-200" />
+                                  <p className="text-xs md:text-sm">No products in this brand yet</p>
+                                  <button
+                                    onClick={handleAddProduct}
+                                    className="mt-2 md:mt-3 text-xs md:text-sm text-gray-600 hover:text-black underline"
+                                  >
+                                    Add your first product
+                                  </button>
+                                </div>
+                              ) : (
+                                <div>
+                                  {/* Products Header - Actions Only */}
+                                  <div className="flex items-center justify-end mb-4 gap-2">
+                                    {/* View Mode Toggle */}
+                                    <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                                      <button
+                                        onClick={() => setViewMode('grid')}
+                                        className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-black text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                                        title="Grid view"
+                                      >
+                                        <Grid3x3 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => setViewMode('list')}
+                                        className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-black text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                                        title="List view"
+                                      >
+                                        <List className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                    {/* Add Product Button */}
+                                    <button
+                                      onClick={handleAddProduct}
+                                      className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                      Add Product
+                                    </button>
+                                  </div>
+                                  {/* Products Grid/List */}
+                                  {viewMode === 'grid' ? (
+                                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                      {products.map((product) => (
+                                        <ProductCard
+                                          key={product.id}
+                                          product={product}
+                                          onView={onViewProduct}
+                                          onEditClick={onEditProduct}
+                                          onDelete={onDeleteProduct}
+                                          isDeleting={deletingProductId === product.id}
+                                          mode="compact"
+                                        />
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {products.map((product) => (
+                                        <ProductCard
+                                          key={product.id}
+                                          product={product}
+                                          onView={onViewProduct}
+                                          onEditClick={onEditProduct}
+                                          onDelete={onDeleteProduct}
+                                          isDeleting={deletingProductId === product.id}
+                                          mode="list"
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            ) : (
+                              /* Competitors Content */
+                              <CompetitorAdsList
+                                brandId={brand.id}
+                                brandName={brand.brand_name}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
       {/* Delete Brand Confirmation Dialog */}
       <ConfirmDialog
         isOpen={showDeleteDialog}

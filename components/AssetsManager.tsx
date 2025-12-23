@@ -346,92 +346,16 @@ export default function AssetsManager() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Stats */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-1">Assets</h2>
-            <p className="text-sm md:text-base text-gray-600">Manage your brands, products, and avatars</p>
-          </div>
-          <div className="flex gap-2 md:gap-3">
-            <a
-              href="https://www.flowtra.store/blog/free-ugc-download-methods-2025"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 md:gap-2 border border-gray-200 text-gray-700 px-3 md:px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm md:text-base"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span className="hidden sm:inline">Download Competitor UGC</span>
-              <span className="sm:hidden">UGC Guide</span>
-            </a>
-            <button
-              onClick={() => setShowCreateBrandModal(true)}
-              className="flex items-center gap-1.5 md:gap-2 bg-gray-900 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base"
-            >
-              <Tag className="w-4 h-4" />
-              <span className="hidden sm:inline">New Brand</span>
-              <span className="sm:hidden">Brand</span>
-            </button>
-            <button
-              onClick={() => setShowCreateAvatarModal(true)}
-              className="flex items-center gap-1.5 md:gap-2 bg-gray-900 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base"
-            >
-              <UserCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">Add Avatar</span>
-              <span className="sm:hidden">Avatar</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-          <div className="bg-gray-50 rounded-lg p-3 md:p-4">
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="w-9 h-9 md:w-10 md:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Tag className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xl md:text-2xl font-semibold text-gray-900">{assetsData.stats.totalBrands}</p>
-                <p className="text-xs md:text-sm text-gray-600">Brands</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3 md:p-4">
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="w-9 h-9 md:w-10 md:h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Package className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xl md:text-2xl font-semibold text-gray-900">{assetsData.stats.totalProducts}</p>
-                <p className="text-xs md:text-sm text-gray-600">Total Products</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="relative mt-4 md:mt-6">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder={activeTab === 'brands' ? 'Search brands and products...' : 'Search avatars...'}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-          />
-        </div>
-      </div>
-
       {/* Tab Switcher */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="flex border-b border-gray-200">
+      <div className="border-b border-gray-200">
+        <div className="flex gap-8">
           <button
             onClick={() => setActiveTab('brands')}
             className={`
-              flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+              flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
               ${activeTab === 'brands'
-                ? 'border-gray-900 text-gray-900 bg-gray-50'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-700'}
             `}
           >
             <Package className="w-4 h-4" />
@@ -440,10 +364,10 @@ export default function AssetsManager() {
           <button
             onClick={() => setActiveTab('avatars')}
             className={`
-              flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+              flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
               ${activeTab === 'avatars'
-                ? 'border-gray-900 text-gray-900 bg-gray-50'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-700'}
             `}
           >
             <UserCircle className="w-4 h-4" />
@@ -453,15 +377,48 @@ export default function AssetsManager() {
       </div>
 
       {/* Content */}
-      <div className="space-y-4">
+      <div className="space-y-6">
         {activeTab === 'brands' ? (
           <>
+            {/* Actions & Search */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+              <div className="relative w-full md:max-w-md">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search brands and products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                />
+              </div>
+              <div className="flex gap-3 w-full md:w-auto">
+                <a
+                  href="https://www.flowtra.store/blog/free-ugc-download-methods-2025"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span className="hidden sm:inline">Download Viral Videos</span>
+                  <span className="sm:hidden">Videos</span>
+                </a>
+                <button
+                  onClick={() => setShowCreateBrandModal(true)}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  <Tag className="w-4 h-4" />
+                  New Brand
+                </button>
+              </div>
+            </div>
+
             {/* Brands & Products Tab */}
             {filteredBrands.length === 0 && filteredUnbrandedProducts.length === 0 && searchTerm ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                <Search className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <div className="py-12 text-center">
+                <Search className="w-12 h-12 mx-auto mb-4 text-gray-200" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                <p className="text-gray-600">Try adjusting your search terms</p>
+                <p className="text-gray-500">Try adjusting your search terms</p>
               </div>
             ) : (
               <>
@@ -483,14 +440,14 @@ export default function AssetsManager() {
 
                 {/* Unbranded Products Section */}
                 {filteredUnbrandedProducts.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-                    <div className="flex items-center gap-2 md:gap-3 mb-4">
-                      <Package className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-                      <h3 className="text-base md:text-lg font-semibold text-gray-900">
-                        Unbranded Products ({filteredUnbrandedProducts.length})
+                  <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Package className="w-4 h-4 text-gray-400" />
+                      <h3 className="text-base font-semibold text-gray-900">
+                        Unbranded Products
                       </h3>
                     </div>
-                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                       {filteredUnbrandedProducts.map((product) => (
                         <ProductCard
                           key={product.id}
@@ -507,13 +464,13 @@ export default function AssetsManager() {
 
                 {/* Empty State */}
                 {assetsData.brands.length === 0 && assetsData.unbrandedProducts.length === 0 && !searchTerm && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-8 md:p-12 text-center">
-                    <Tag className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 text-gray-300" />
-                    <h3 className="text-lg md:text-xl font-medium text-gray-900 mb-2">No brands yet</h3>
-                    <p className="text-sm md:text-base text-gray-600 mb-4 md:mb-6">Start by creating your first brand. All products must belong to a brand.</p>
+                  <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
+                    <Tag className="w-12 h-12 mx-auto mb-4 text-gray-200" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No brands yet</h3>
+                    <p className="text-gray-500 mb-6">Start by creating your first brand.</p>
                     <button
                       onClick={() => setShowCreateBrandModal(true)}
-                      className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base mx-auto"
+                      className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
                     >
                       <Tag className="w-4 h-4" />
                       Create Brand
@@ -525,23 +482,46 @@ export default function AssetsManager() {
           </>
         ) : (
           <>
+            {/* Actions & Search */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+              <div className="relative w-full md:max-w-md">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search avatars..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                />
+              </div>
+              <div className="w-full md:w-auto">
+                <button
+                  onClick={() => setShowCreateAvatarModal(true)}
+                  className="w-full md:w-auto flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  <UserCircle className="w-4 h-4" />
+                  Add Avatar
+                </button>
+              </div>
+            </div>
+
             {/* Avatars Tab */}
             {filteredAvatars.length === 0 && searchTerm ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                <Search className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <div className="py-12 text-center">
+                <Search className="w-12 h-12 mx-auto mb-4 text-gray-200" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                <p className="text-gray-600">Try adjusting your search terms</p>
+                <p className="text-gray-500">Try adjusting your search terms</p>
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-                <div className="flex items-center gap-2 md:gap-3 mb-4">
-                  <UserCircle className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-                  <h3 className="text-base md:text-lg font-semibold text-gray-900">
-                    Avatars ({filteredAvatars.length})
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <UserCircle className="w-4 h-4 text-gray-400" />
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Avatars
                   </h3>
                 </div>
                 {filteredAvatars.length > 0 ? (
-                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {filteredAvatars.map((avatar) => (
                       <AvatarCard
                         key={avatar.id}
@@ -554,9 +534,9 @@ export default function AssetsManager() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <UserCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p className="text-sm text-gray-600">
+                  <div className="text-center py-12">
+                    <UserCircle className="w-12 h-12 mx-auto mb-4 text-gray-200" />
+                    <p className="text-gray-500">
                       {searchTerm ? 'No avatars match your search' : 'No avatars yet. Add your first avatar to use in video generation.'}
                     </p>
                   </div>

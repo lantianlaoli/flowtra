@@ -273,20 +273,17 @@ export default function ConfigPopover({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          isMinimal
-            ? 'w-11 h-11 rounded-full border border-gray-300 bg-white flex items-center justify-center shadow-sm hover:border-gray-400'
-            : 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50',
-          'transition-colors duration-200',
-          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
-          isOpen ? 'ring-2 ring-blue-500 border-blue-500' : ''
+          'h-12 px-4 rounded-xl border flex items-center gap-2 transition-all duration-200 bg-white outline-none',
+          disabled
+            ? 'bg-[#F1F1F1] border-[#E5E5E5] text-[#999999] cursor-not-allowed'
+            : 'border-[#E5E5E5] hover:border-[#CCCCCC] text-black shadow-sm',
+          isOpen ? 'border-black ring-1 ring-black' : ''
         )}
         aria-label="Open configuration"
         title="Advanced configuration"
       >
-        <Settings className={`w-5 h-5 text-gray-600 ${isOpen ? 'rotate-90' : ''} transition-transform duration-300`} />
-        {!isMinimal && (
-          <span className="text-sm font-medium text-gray-700">Config</span>
-        )}
+        <Settings className={`w-5 h-5 ${isOpen ? 'rotate-90' : ''} transition-transform duration-300`} />
+        <span className="text-sm font-medium">Config</span>
       </button>
 
       {/* Popover */}

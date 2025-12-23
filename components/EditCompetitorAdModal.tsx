@@ -5,20 +5,7 @@ import { X, Loader2, Target, RefreshCcw, Languages, BadgeCheck, AlertTriangle, C
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
 import { getLanguageDisplayInfo, isLanguageCode } from '@/lib/language';
-import Image from 'next/image';
 import { type LanguageCode } from '@/components/ui/LanguageSelector';
-import {
-  FaFacebookF,
-  FaInstagram,
-  FaTiktok,
-  FaYoutube,
-  FaXTwitter,
-  FaLinkedin,
-  FaSnapchat,
-  FaPinterestP
-} from 'react-icons/fa6';
-import { LuGlobe } from 'react-icons/lu';
-import { cn } from '@/lib/utils';
 import CompetitorShotsEditor from './CompetitorShotsEditor';
 import { CompetitorShotForm, parseShotsFromAnalysis, sanitizeShotsForSave } from '@/lib/competitor-shot-form';
 
@@ -28,18 +15,6 @@ interface EditCompetitorAdModalProps {
   competitorAd: CompetitorAd | null;
   onCompetitorAdUpdated: (competitorAd: CompetitorAd) => void;
 }
-
-const PLATFORM_OPTIONS = [
-  { value: 'Facebook', label: 'Facebook', icon: FaFacebookF, accent: 'text-[#0866ff]', bg: 'bg-[#e8f0ff]', helper: 'Landscape · 16:9' },
-  { value: 'Instagram', label: 'Instagram', icon: FaInstagram, accent: 'text-[#E1306C]', bg: 'bg-[#fce5ef]', helper: 'Reels & Stories · 9:16' },
-  { value: 'TikTok', label: 'TikTok', icon: FaTiktok, accent: 'text-black', bg: 'bg-gray-200', helper: 'Short-form · 9:16' },
-  { value: 'YouTube', label: 'YouTube', icon: FaYoutube, accent: 'text-[#ff0000]', bg: 'bg-[#ffe6e6]', helper: 'Shorts · 16:9' },
-  { value: 'Twitter/X', label: 'Twitter / X', icon: FaXTwitter, accent: 'text-black', bg: 'bg-gray-200', helper: 'Feeds · 16:9' },
-  { value: 'LinkedIn', label: 'LinkedIn', icon: FaLinkedin, accent: 'text-[#0A66C2]', bg: 'bg-[#e6f0fb]', helper: 'Thought leadership' },
-  { value: 'Snapchat', label: 'Snapchat', icon: FaSnapchat, accent: 'text-[#FFFC00]', bg: 'bg-[#fffad1]', helper: 'Stories · 9:16' },
-  { value: 'Pinterest', label: 'Pinterest', icon: FaPinterestP, accent: 'text-[#E60023]', bg: 'bg-[#ffe5ea]', helper: 'Shopper inspiration' },
-  { value: 'Other', label: 'Other', icon: LuGlobe, accent: 'text-gray-600', bg: 'bg-gray-200', helper: 'Custom placement' }
-] as const;
 
 const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: string }> = [
   { value: 'en', label: 'English', native: 'English' },
@@ -71,25 +46,20 @@ export default function EditCompetitorAdModal({
   onCompetitorAdUpdated
 }: EditCompetitorAdModalProps) {
   const [competitorName, setCompetitorName] = useState('');
-  const [platform, setPlatform] = useState('Facebook');
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentAd, setCurrentAd] = useState<CompetitorAd | null>(competitorAd);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
-  const [isPlatformMenuOpen, setIsPlatformMenuOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [shotsDraft, setShotsDraft] = useState<CompetitorShotForm[]>([]);
-  const [isSavingShots, setIsSavingShots] = useState(false);
-  const platformMenuRef = useRef<HTMLDivElement | null>(null);
   const languageMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Load competitor ad data when modal opens
   useEffect(() => {
     if (isOpen && competitorAd) {
       setCompetitorName(competitorAd.competitor_name);
-      setPlatform(competitorAd.platform);
       setCurrentAd(competitorAd);
       setError(null);
       setAnalysisMessage(null);
@@ -124,9 +94,6 @@ export default function EditCompetitorAdModal({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (platformMenuRef.current && !platformMenuRef.current.contains(event.target as Node)) {
-        setIsPlatformMenuOpen(false);
-      }
       if (languageMenuRef.current && !languageMenuRef.current.contains(event.target as Node)) {
         setIsLanguageMenuOpen(false);
       }
@@ -135,9 +102,7 @@ export default function EditCompetitorAdModal({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleUpdate = async () => {
     if (!currentAd) return;
 
     if (!competitorName.trim()) {
@@ -149,6 +114,12 @@ export default function EditCompetitorAdModal({
     setError(null);
 
     try {
+      const sanitizedShots = sanitizeShotsForSave(shotsDraft);
+      const baseAnalysis =
+        currentAd.analysis_result && typeof currentAd.analysis_result === 'object'
+          ? currentAd.analysis_result
+          : {};
+
       const response = await fetch(`/api/competitor-ads/${currentAd.id}`, {
         method: 'PUT',
         headers: {
@@ -156,8 +127,11 @@ export default function EditCompetitorAdModal({
         },
         body: JSON.stringify({
           competitor_name: competitorName.trim(),
-          platform: platform,
-          language: selectedLanguage
+          language: selectedLanguage,
+          analysis_result: {
+            ...baseAnalysis,
+            shots: sanitizedShots
+          }
         })
       });
 
@@ -212,60 +186,9 @@ export default function EditCompetitorAdModal({
     }
   };
 
-  const handleSaveShots = async (shots: CompetitorShotForm[]) => {
-    if (!currentAd) {
-      throw new Error('Competitor ad not loaded yet');
-    }
 
-    try {
-      setIsSavingShots(true);
-      const sanitizedShots = sanitizeShotsForSave(shots);
-      const baseAnalysis =
-        currentAd.analysis_result && typeof currentAd.analysis_result === 'object'
-          ? currentAd.analysis_result
-          : {};
-
-      const response = await fetch(`/api/competitor-ads/${currentAd.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          analysis_result: {
-            ...baseAnalysis,
-            shots: sanitizedShots
-          }
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || data.details || 'Failed to save shots');
-      }
-
-      setCurrentAd(data.competitorAd);
-      onCompetitorAdUpdated(data.competitorAd);
-    } catch (error) {
-      console.error('Error saving shots:', error);
-      throw error instanceof Error ? error : new Error('Failed to save shots');
-    } finally {
-      setIsSavingShots(false);
-    }
-  };
 
   const languageDisplay = getLanguageDisplayInfo(selectedLanguage);
-  const selectedPlatformOption = useMemo(() => {
-    const option = PLATFORM_OPTIONS.find(opt => opt.value === platform);
-    if (option) return option;
-    return {
-      value: platform,
-      label: platform || 'Custom',
-      icon: LuGlobe,
-      accent: 'text-gray-600',
-      bg: 'bg-gray-200',
-      helper: 'Custom placement'
-    };
-  }, [platform]);
   const selectedLanguageOption = useMemo(
     () => LANGUAGE_OPTIONS.find(opt => opt.value === selectedLanguage) ?? LANGUAGE_OPTIONS[0],
     [selectedLanguage]
@@ -317,8 +240,6 @@ export default function EditCompetitorAdModal({
     );
   };
 
-  const SelectedPlatformIcon = selectedPlatformOption.icon;
-
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -336,15 +257,18 @@ export default function EditCompetitorAdModal({
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+          className="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col"
         >
           {/* Header */}
-          <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Target className="w-5 h-5 text-purple-600" />
+              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                <Target className="w-5 h-5 text-black" />
               </div>
-              <h2 className="text-lg font-semibold text-gray-900">Edit Competitor Ad</h2>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Edit Viral Video</h2>
+                <p className="text-sm text-gray-600">Modify details or re-analyze</p>
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -358,80 +282,24 @@ export default function EditCompetitorAdModal({
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             {/* Left column */}
             <div className="w-full md:w-3/5 border-b md:border-b-0 md:border-r border-gray-200 overflow-y-auto bg-gray-50 p-6 space-y-4">
-              <div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Ad Preview</p>
-                    <p className="text-xs text-gray-500">Current creative reference file</p>
-                  </div>
-                  <span className={`
-                    text-xs px-2 py-0.5 rounded-full
-                    ${currentAd.file_type === 'video'
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'bg-blue-100 text-blue-700'}
-                  `}>
-                    {currentAd.file_type === 'video' ? 'Video' : 'Image'}
-                  </span>
-                </div>
-                <div className="mt-3 bg-white rounded-2xl shadow-sm overflow-hidden">
-                  <div className="relative aspect-video bg-black/80">
-                    {currentAd.file_type === 'image' ? (
-                      <Image
-                        src={currentAd.ad_file_url}
-                        alt={`${currentAd.competitor_name} ad`}
-                        fill
-                        className="object-contain"
-                      />
-                    ) : (
-                      <video
-                        src={currentAd.ad_file_url}
-                        controls
-                        className="w-full h-full object-contain"
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-
               <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Analysis Status</p>
-                    <p className="text-xs text-gray-500">View and refresh the AI-generated summary.</p>
-                  </div>
-                  {renderStatusBadge()}
-                </div>
-
-                {languageDisplay && (
-                  <div className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                    <Languages className="w-3.5 h-3.5" />
-                    <span className="font-medium">{languageDisplay.label}</span>
-                    {languageDisplay.native && languageDisplay.native !== languageDisplay.label && (
-                      <span className="text-gray-500">({languageDisplay.native})</span>
-                    )}
-                    <span className="text-[10px] uppercase tracking-wide text-gray-500">
-                      {languageDisplay.code.toUpperCase()}
-                    </span>
-                  </div>
-                )}
-
                 {showAnalysisSummary ? (
                   <div className="space-y-4">
                     {/* Summary info in one line */}
                     <div className="flex flex-wrap items-center gap-3">
                       {/* Duration */}
                       {videoDuration !== null && (
-                        <div className="flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm">
-                          <span className="text-purple-600 font-semibold">Duration:</span>
-                          <span className="font-bold text-purple-900">{videoDuration}s</span>
+                        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                          <span className="text-gray-900 font-semibold">Duration:</span>
+                          <span className="font-bold text-black">{videoDuration}s</span>
                         </div>
                       )}
 
                       {/* Shots count */}
                       {shots.length > 0 && (
-                        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
-                          <span className="text-blue-600 font-semibold">Shots:</span>
-                          <span className="font-bold text-blue-900">{shots.length}</span>
+                        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                          <span className="text-gray-900 font-semibold">Shots:</span>
+                          <span className="font-bold text-black">{shots.length}</span>
                         </div>
                       )}
                     </div>
@@ -439,8 +307,6 @@ export default function EditCompetitorAdModal({
                     <CompetitorShotsEditor
                       shots={shotsDraft}
                       onShotsChange={setShotsDraft}
-                      onSave={handleSaveShots}
-                      isSaving={isSavingShots}
                       showSummary={false}
                     />
                   </div>
@@ -459,7 +325,7 @@ export default function EditCompetitorAdModal({
                 )}
 
                 {analysisMessage && (
-                  <div className={`text-sm rounded-md p-2 ${analysisMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  <div className={`text-sm rounded-md p-2 ${analysisMessage.type === 'success' ? 'bg-gray-50 text-gray-700 border border-gray-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
                     {analysisMessage.text}
                   </div>
                 )}
@@ -474,7 +340,7 @@ export default function EditCompetitorAdModal({
                   >
                     {isReanalyzing || analysisStatus === 'analyzing' ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-4 h-4 text-black animate-spin" />
                         {analysisStatus === 'analyzing' ? 'Analysis in progress...' : 'Running analysis...'}
                       </>
                     ) : (
@@ -489,12 +355,12 @@ export default function EditCompetitorAdModal({
             </div>
 
             {/* Right column */}
-            <div className="w-full md:w-2/5 overflow-y-auto p-6">
-              <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="w-full md:w-2/5 overflow-y-auto p-6 border-l border-gray-100">
+              <div className="space-y-6">
                 {/* Creative Name */}
                 <div>
                   <label htmlFor="edit-competitor-name" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Creative Name <span className="text-red-500">*</span>
+                    Video Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="edit-competitor-name"
@@ -502,89 +368,37 @@ export default function EditCompetitorAdModal({
                     value={competitorName}
                     onChange={(e) => setCompetitorName(e.target.value)}
                     placeholder="e.g., Lovevery Montessori Toy Spot"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-black placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all"
                     disabled={isUpdating}
                     required
                   />
                 </div>
 
-                {/* Platform */}
-                <div ref={platformMenuRef} className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Platform <span className="text-red-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsPlatformMenuOpen(prev => !prev)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 bg-white flex items-center justify-between hover:border-gray-300 transition-colors shadow-sm"
-                    disabled={isUpdating}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', selectedPlatformOption.bg)}>
-                        <SelectedPlatformIcon className={cn('w-4 h-4', selectedPlatformOption.accent)} />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm font-semibold text-gray-900">{selectedPlatformOption.label}</p>
-                        <p className="text-xs text-gray-500">{selectedPlatformOption.helper}</p>
-                      </div>
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isPlatformMenuOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  <div className="relative">
-                    {isPlatformMenuOpen && (
-                      <div className="absolute left-0 right-0 border border-gray-200 rounded-xl bg-white shadow-xl divide-y divide-gray-100 max-h-72 overflow-y-auto z-10">
-                        {PLATFORM_OPTIONS.map(option => {
-                          const OptionIcon = option.icon;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => {
-                                setPlatform(option.value);
-                                setIsPlatformMenuOpen(false);
-                              }}
-                              className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-50 text-left"
-                            >
-                              <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', option.bg)}>
-                                <OptionIcon className={cn('w-4 h-4', option.accent)} />
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">{option.label}</p>
-                                <p className="text-xs text-gray-500">{option.helper}</p>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {/* Language */}
                 <div ref={languageMenuRef} className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Language (override detection)
                   </label>
                   <button
                     type="button"
                     onClick={() => setIsLanguageMenuOpen(prev => !prev)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 bg-white flex items-center justify-between hover:border-gray-300 transition-colors shadow-sm"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white flex items-center justify-between hover:border-gray-400 transition-all shadow-sm outline-none focus:ring-1 focus:ring-black focus:border-black"
                     disabled={isUpdating}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
-                        <span className="text-sm font-semibold text-gray-700 uppercase">{selectedLanguageOption.value}</span>
+                      <div className="w-8 h-8 rounded-md bg-gray-100 flex items-center justify-center border border-gray-200">
+                        <span className="text-xs font-semibold text-black uppercase">{selectedLanguageOption.value}</span>
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-semibold text-gray-900">{selectedLanguageOption.label}</p>
-                        <p className="text-xs text-gray-500">{selectedLanguageOption.native}</p>
+                        <p className="text-sm font-semibold text-black">{selectedLanguageOption.label}</p>
+                        <p className="text-[10px] text-gray-500">{selectedLanguageOption.native}</p>
                       </div>
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isLanguageMenuOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isLanguageMenuOpen ? 'rotate-180' : ''}`} />
                   </button>
                   <div className="relative">
                     {isLanguageMenuOpen && (
-                      <div className="absolute left-0 right-0 border border-gray-200 rounded-xl bg-white shadow-xl divide-y divide-gray-100 max-h-72 overflow-y-auto z-10">
+                      <div className="absolute left-0 right-0 top-full mt-2 border border-gray-200 rounded-lg bg-white shadow-xl divide-y divide-gray-100 max-h-72 overflow-y-auto z-10 overflow-hidden">
                         {LANGUAGE_OPTIONS.map(option => (
                           <button
                             key={option.value}
@@ -593,30 +407,20 @@ export default function EditCompetitorAdModal({
                               setSelectedLanguage(option.value);
                               setIsLanguageMenuOpen(false);
                             }}
-                            className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-50 text-left"
+                            className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left transition-colors"
                           >
-                            <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
-                              <span className="text-xs font-semibold text-gray-700 uppercase">{option.value}</span>
+                            <div className="w-7 h-7 rounded bg-gray-100 flex items-center justify-center border border-gray-200">
+                              <span className="text-[10px] font-semibold text-black uppercase">{option.value}</span>
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-gray-900">{option.label}</p>
-                              <p className="text-xs text-gray-500">{option.native}</p>
+                              <p className="text-sm font-medium text-black">{option.label}</p>
+                              <p className="text-[10px] text-gray-500">{option.native}</p>
                             </div>
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500">
-                    Click “Run analysis” to refresh the detected language or adjust it manually here.
-                  </p>
-                </div>
-
-                {/* Info Note */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-700">
-                    Note: You cannot change the advertisement file. To use a different file, please delete this ad and create a new one.
-                  </p>
                 </div>
 
                 {/* Error Message */}
@@ -625,34 +429,34 @@ export default function EditCompetitorAdModal({
                     {error}
                   </div>
                 )}
-
-                {/* Actions */}
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={isUpdating}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isUpdating || !competitorName.trim()}
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {isUpdating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Updating...
-                      </>
-                    ) : (
-                      'Update'
-                    )}
-                  </button>
-                </div>
-              </form>
+              </div>
             </div>
+          </div>
+
+          {/* Fixed Footer */}
+          <div className="bg-white border-t border-gray-200 px-6 py-4 flex justify-end gap-3 shrink-0">
+             <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2 border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleUpdate}
+              disabled={isUpdating || !competitorName.trim()}
+              className="px-8 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold text-sm shadow-sm"
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update'
+              )}
+            </button>
           </div>
         </motion.div>
       </div>

@@ -295,18 +295,19 @@ async function processRecord(record: HistoryRecord) {
 
 async function processSegmentedRecord(record: HistoryRecord, supabase: ReturnType<typeof getSupabaseAdmin>) {
   // Load competitor metadata up-front so recovery can mirror reference shots
-  let competitorFileType: 'video' | 'image' | null = null;
+  let competitorFileType: 'video' | null = null;
   let competitorShots: CompetitorShot[] | undefined;
   if (record.competitor_ad_id) {
     const { data: competitorAd } = await supabase
       .from('competitor_ads')
-      .select('file_type, analysis_result, video_duration_seconds')
+      .select('analysis_result, video_duration_seconds')
       .eq('id', record.competitor_ad_id)
       .single();
 
-    if (competitorAd?.file_type) {
-      competitorFileType = competitorAd.file_type as 'video' | 'image';
-      console.log(`📊 Project ${record.id} uses ${competitorFileType} competitor reference → Image model will be optimized`);
+    if (competitorAd) {
+      // Competitor ads are now video-only
+      competitorFileType = 'video';
+      console.log(`📊 Project ${record.id} uses video competitor reference → Image model will be optimized`);
     }
 
     if (competitorAd?.analysis_result) {
@@ -758,7 +759,7 @@ async function syncSegmentFrameTasks(
   record: HistoryRecord,
   segments: CompetitorUgcReplicationSegment[],
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  competitorFileType: 'video' | 'image' | null
+  competitorFileType: 'video' | null // Competitor ads are video-only
 ): Promise<CompetitorUgcReplicationSegment[]> {
   let updated = false;
   const now = new Date().toISOString();

@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 import VideoDetailsModal from '@/components/VideoDetailsModal';
+import FlowtraLoading from '@/components/ui/FlowtraLoading';
 
 interface CompetitorUgcReplicationItem {
   id: string;
@@ -298,11 +299,7 @@ export default function HistoryPage() {
 
   // Loading state
   if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
-      </div>
-    );
+    return <FlowtraLoading />;
   }
 
 

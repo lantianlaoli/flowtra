@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, uploadCompetitorAdToStorage } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
-import { parseCompetitorTimeline } from '@/lib/competitor-shots';
-import { analyzeCompetitorAdWithRetry } from '@/lib/competitor-analysis';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -66,7 +64,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new competitor ad with file upload
+// POST - DEPRECATED: Use /api/competitor-ads/create-with-analysis instead
+// This endpoint is kept for backward compatibility but should not be used for new implementations
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -75,204 +74,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const brandId = formData.get('brand_id') as string;
-    const competitorName = formData.get('competitor_name') as string;
-    const platform = formData.get('platform') as string;
-    const adFile = formData.get('ad_file') as File | null;
-    const adFileUrl = formData.get('ad_file_url') as string | null;
-    const fileTypeInput = formData.get('file_type') as 'image' | 'video' | null;
-
-    // Validation
-    if (!brandId || brandId.trim().length === 0) {
-      return NextResponse.json({ error: 'Brand ID is required' }, { status: 400 });
-    }
-
-    if (!competitorName || competitorName.trim().length === 0) {
-      return NextResponse.json({ error: 'Competitor name is required' }, { status: 400 });
-    }
-
-    if (!platform || platform.trim().length === 0) {
-      return NextResponse.json({ error: 'Platform is required' }, { status: 400 });
-    }
-
-    if (!adFile && !adFileUrl) {
-      return NextResponse.json({ error: 'Advertisement file or URL is required' }, { status: 400 });
-    }
-
-    // Verify brand ownership
-    const supabase = getSupabaseAdmin();
-    const { data: brand, error: brandError } = await supabase
-      .from('user_brands')
-      .select('id')
-      .eq('id', brandId)
-      .eq('user_id', userId)
-      .single();
-
-    if (brandError || !brand) {
-      return NextResponse.json({ error: 'Brand not found or access denied' }, { status: 404 });
-    }
-
-    // Upload file to storage (if not already uploaded)
-    let uploadResult;
-    if (adFile) {
-      try {
-        uploadResult = await uploadCompetitorAdToStorage(adFile, brandId, competitorName);
-      } catch (uploadError) {
-        console.error('File upload error:', uploadError);
-        return NextResponse.json(
-          { error: 'Failed to upload file', details: uploadError instanceof Error ? uploadError.message : 'Unknown error' },
-          { status: 500 }
-        );
-      }
-    } else {
-      // Pre-uploaded file
-      if (!fileTypeInput) {
-        return NextResponse.json({ error: 'File type is required when using pre-uploaded URL' }, { status: 400 });
-      }
-      uploadResult = {
-        publicUrl: adFileUrl!,
-        fileType: fileTypeInput,
-        // path is not strictly needed for the DB record insert below which uses publicUrl
-      };
-    }
-
-    // Create competitor ad record in database with pending analysis status
-    const { data: competitorAd, error: dbError } = await supabase
-      .from('competitor_ads')
-      .insert({
-        user_id: userId,
-        brand_id: brandId,
-        competitor_name: competitorName.trim(),
-        platform: platform.trim(),
-        ad_file_url: uploadResult.publicUrl,
-        file_type: uploadResult.fileType as 'image' | 'video',
-        analysis_status: 'analyzing' // Start analyzing immediately
-      })
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('Database insert error:', dbError);
-      // TODO: Cleanup uploaded file on database failure
-      return NextResponse.json(
-        { error: 'Failed to create competitor ad', details: dbError.message },
-        { status: 500 }
-      );
-    }
-
-    // If the upload is an image, skip expensive analysis (per product requirements)
-    if (uploadResult.fileType === 'image') {
-      const { data: updatedAd, error: skipAnalysisError } = await supabase
-        .from('competitor_ads')
-        .update({
-          analysis_status: 'completed',
-          analysis_error: null,
-          analysis_result: null,
-          analyzed_at: new Date().toISOString()
-        })
-        .eq('id', competitorAd.id)
-        .select()
-        .single();
-
-      if (skipAnalysisError) {
-        console.error('Failed to finalize competitor image upload:', skipAnalysisError);
-        return NextResponse.json(
-          { error: 'Failed to finalize competitor image upload', details: skipAnalysisError.message },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        competitorAd: updatedAd,
-        message: 'Competitor image saved without analysis per configuration'
-      });
-    }
-
-    console.log(`[POST /api/competitor-ads] Created competitor ad ${competitorAd.id}, starting analysis...`);
-
-    // Perform synchronous AI analysis with language detection
-    try {
-      const { analysis, language } = await analyzeCompetitorAdWithRetry({
-        file_url: uploadResult.publicUrl,
-        file_type: uploadResult.fileType as 'video' | 'image',
-        competitor_name: competitorName.trim()
-      }, { loggerPrefix: 'POST /api/competitor-ads' });
-      const timeline = parseCompetitorTimeline(analysis);
-
-      console.log(`[POST /api/competitor-ads] Analysis complete for ${competitorAd.id}, language: ${language}`);
-
-      // Update record with analysis results
-      const { data: updatedAd, error: updateError } = await supabase
-        .from('competitor_ads')
-        .update({
-          competitor_name: analysis.name as string, // Save AI suggested name
-          analysis_result: analysis,
-          language: language,
-          analysis_status: 'completed',
-          analyzed_at: new Date().toISOString(),
-          video_duration_seconds: timeline.videoDurationSeconds
-        })
-        .eq('id', competitorAd.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.error(`[POST /api/competitor-ads] Failed to update analysis for ${competitorAd.id}:`, updateError);
-        // Analysis succeeded but update failed - mark as failed to allow retry
-        await supabase
-          .from('competitor_ads')
-          .update({
-            analysis_status: 'failed',
-            analysis_error: `Update failed: ${updateError.message}`
-          })
-          .eq('id', competitorAd.id);
-
-        return NextResponse.json({ success: true, competitorAd }, { status: 201 });
-      }
-
-      console.log(`[POST /api/competitor-ads] ✅ Competitor ad ${competitorAd.id} created with complete analysis`);
-      return NextResponse.json({ success: true, competitorAd: updatedAd }, { status: 201 });
-
-    } catch (analysisError) {
-      console.error(`[POST /api/competitor-ads] ❌ Analysis failed for ${competitorAd.id}:`, analysisError);
-
-      // PRESERVE FAILED RECORDS: Mark as failed but keep record and file
-      // User can retry analysis later via /api/competitor-ads/[id]/reanalyze
-      const errorMessage = analysisError instanceof Error ? analysisError.message : 'Unknown analysis error';
-
-      const { data: failedAd, error: markFailedError } = await supabase
-        .from('competitor_ads')
-        .update({
-          analysis_status: 'failed',
-          analysis_error: errorMessage
-        })
-        .eq('id', competitorAd.id)
-        .select()
-        .single();
-
-      if (markFailedError) {
-        console.error(`[POST /api/competitor-ads] Failed to mark record as failed:`, markFailedError);
-        // Even if update fails, return the original record
-        return NextResponse.json({
-          success: true,
-          competitorAd: {
-            ...competitorAd,
-            analysis_status: 'failed',
-            analysis_error: errorMessage
-          },
-          warning: 'Analysis failed but record was preserved. You can retry later.'
-        }, { status: 201 });
-      }
-
-      console.log(`[POST /api/competitor-ads] ⚠️ Competitor ad ${competitorAd.id} saved with failed analysis status`);
-      return NextResponse.json({
-        success: true,
-        competitorAd: failedAd,
-        warning: 'Analysis failed but record was preserved. You can retry later.'
-      }, { status: 201 });
-    }
+    return NextResponse.json(
+      {
+        error: 'This endpoint is deprecated',
+        details: 'Please use /api/competitor-ads/create-with-analysis endpoint instead. This endpoint no longer supports file storage.',
+        migration: 'The new architecture requires video-only uploads and immediate analysis without permanent file storage.'
+      },
+      { status: 410 } // 410 Gone - resource no longer available
+    );
   } catch (error) {
     console.error('POST /api/competitor-ads error:', error);
     return NextResponse.json(

@@ -7,6 +7,7 @@ import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import { Coins, Link2, XCircle, Sparkles, CreditCard, Calendar, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { HiPlus, HiMinus, HiLightningBolt, HiClipboardList } from 'react-icons/hi';
+import FlowtraLoading from '@/components/ui/FlowtraLoading';
 
 interface CreditTransaction {
   id: string;
@@ -142,11 +143,7 @@ export default function CreditsPage() {
 
   // Loading state
   if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
+    return <FlowtraLoading />;
   }
 
   // Not authenticated

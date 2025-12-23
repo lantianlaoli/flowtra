@@ -448,11 +448,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // It will be used if available, otherwise Text-to-Image will be used
 
     // Load competitor ad if provided (optional reference for creative direction)
+    // Note: Competitor ads now store only analysis data (no video files)
     // Extended type to include existing analysis and language for performance optimization
   let competitorAdContext: {
     id?: string;
-    file_url: string;
-    file_type: 'image' | 'video';
     competitor_name: string;
     existing_analysis?: Record<string, unknown> | null;
     analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
@@ -463,9 +462,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     if (request.competitorAdId) {
       console.log(`🎯 Loading competitor ad: ${request.competitorAdId}`);
       const fetchCompetitor = async () => {
-        const { data: competitorAd, error: competitorError } = await supabase
+        const { data: competitorAd, error: competitorError} = await supabase
           .from('competitor_ads')
-          .select('ad_file_url, file_type, competitor_name, analysis_result, analysis_status, language, video_duration_seconds')
+          .select('competitor_name, analysis_result, analysis_status, language, video_duration_seconds')
           .eq('id', request.competitorAdId)
           .eq('user_id', request.userId)
           .single();
@@ -478,15 +477,13 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
         competitorAdContext = {
           id: request.competitorAdId,
-          file_url: competitorAd.ad_file_url,
-          file_type: competitorAd.file_type as 'image' | 'video',
           competitor_name: competitorAd.competitor_name,
           existing_analysis: competitorAd.analysis_result,
           analysis_status: competitorAd.analysis_status as 'pending' | 'analyzing' | 'completed' | 'failed' | undefined,
           language: competitorAd.language,
           video_duration_seconds: competitorAd.video_duration_seconds
         };
-        console.log(`✅ Competitor ad loaded: ${competitorAdContext.competitor_name} (${competitorAdContext.file_type})`);
+        console.log(`✅ Competitor ad loaded: ${competitorAdContext.competitor_name}`);
         console.log(`📊 Analysis status: ${competitorAdContext.analysis_status || 'unknown'}`);
         console.log(`🔍 Has existing analysis: ${!!competitorAdContext.existing_analysis}`);
         console.log(`🌍 Detected language: ${competitorAdContext.language || 'none'}`);
@@ -875,8 +872,6 @@ async function startAIWorkflow(
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
   competitorAdContext?: {
     id?: string;
-    file_url: string;
-    file_type: 'image' | 'video';
     competitor_name: string;
     existing_analysis?: Record<string, unknown> | null;
     analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
@@ -907,38 +902,17 @@ async function startAIWorkflow(
 
         competitorDescription = competitorAdContext.existing_analysis as Record<string, unknown>;
       } else {
-        // No existing analysis or analysis failed/pending - perform fresh analysis
+        // No existing analysis - competitor ads no longer store files
         const statusReason = !competitorAdContext.analysis_status
           ? 'no existing analysis found'
           : `status is ${competitorAdContext.analysis_status}`;
 
-        console.log(`🔄 Performing fresh competitor analysis (${statusReason})...`);
-        console.log('📺 Step 1: Analyzing competitor ad...');
-
-        const { analysis, language } = await analyzeCompetitorAdWithLanguage({
-          file_url: competitorAdContext.file_url,
-          file_type: competitorAdContext.file_type,
-          competitor_name: competitorAdContext.competitor_name
-        });
-        competitorDescription = analysis;
-
-        console.log('✅ Step 1 complete: Fresh competitor analysis ready');
-
-        if (competitorAdContext.id && competitorDescription) {
-          const timeline = parseCompetitorTimeline(
-            competitorDescription as Record<string, unknown>,
-            competitorAdContext.video_duration_seconds
-          );
-          await supabase
-            .from('competitor_ads')
-            .update({
-              analysis_result: competitorDescription,
-              analysis_status: 'completed',
-              language: language,
-              video_duration_seconds: timeline.videoDurationSeconds
-            })
-            .eq('id', competitorAdContext.id);
-        }
+        console.error(`❌ Cannot perform fresh analysis (${statusReason}): Files are no longer stored`);
+        throw new Error(
+          'Competitor ad analysis not found. ' +
+          'Competitor ads no longer store original files, so analysis must be completed before use. ' +
+          'Please ensure the competitor ad has been analyzed via create-with-analysis endpoint.'
+        );
       }
     }
 
@@ -1024,7 +998,7 @@ async function startAIWorkflow(
       brandLogoUrl, // NEW: Pass brand logo URL
       request.imageUrl ? [request.imageUrl] : null, // Provide initial product reference if available
       productContext, // NEW: Pass product context for fallback text generation
-      competitorAdContext?.file_type || null
+      competitorAdContext ? 'video' : null // Competitor ads are now video-only
     );
     return;
 
@@ -1043,8 +1017,6 @@ async function startReplicaWorkflow(
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
   competitorAdContext?: {
     id?: string;
-    file_url: string;
-    file_type: 'image' | 'video';
     competitor_name: string;
     existing_analysis?: Record<string, unknown> | null;
     analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
@@ -1066,26 +1038,13 @@ async function startReplicaWorkflow(
       competitorDescription = competitorAdContext.existing_analysis as Record<string, unknown>;
       detectedLanguage = (competitorAdContext.language as LanguageCode | undefined) || detectedLanguage;
     } else {
-      const { analysis, language } = await analyzeCompetitorAdWithLanguage({
-        file_url: competitorAdContext.file_url,
-        file_type: competitorAdContext.file_type,
-        competitor_name: competitorAdContext.competitor_name
-      });
-      competitorDescription = analysis;
-      detectedLanguage = language;
-      const timeline = parseCompetitorTimeline(analysis);
-
-      if (competitorAdContext.id) {
-        await supabase
-          .from('competitor_ads')
-          .update({
-            analysis_result: analysis,
-            analysis_status: 'completed',
-            language,
-            video_duration_seconds: timeline.videoDurationSeconds
-          })
-          .eq('id', competitorAdContext.id);
-      }
+      // Competitor ads no longer store files, so analysis must exist
+      // If analysis doesn't exist, the user must upload and analyze first
+      throw new Error(
+        'Competitor ad analysis not found. ' +
+        'Competitor ads no longer store original files, so analysis must be completed before use. ' +
+        'Please upload and analyze the competitor ad first via create-with-analysis endpoint.'
+      );
     }
   }
 
@@ -1266,26 +1225,24 @@ async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
 /**
  * Analyze a competitor ad with automatic language detection.
  *
- * @param competitorAdContext - Competitor ad metadata including file URL and type
+ * @param competitorAdContext - Competitor ad metadata including file URL (video only)
  * @returns Object with { analysis: {...}, language: 'en' }
  */
 export async function analyzeCompetitorAdWithLanguage(
-  competitorAdContext: { file_url: string; file_type: 'image' | 'video'; competitor_name?: string }
+  competitorAdContext: { file_url: string; competitor_name?: string }
 ): Promise<{ analysis: Record<string, unknown>; language: LanguageCode }> {
   console.log('[analyzeCompetitorAdWithLanguage] 🔍 Starting competitor analysis with language detection...');
-  console.log('[analyzeCompetitorAdWithLanguage] File type:', competitorAdContext.file_type);
+  console.log('[analyzeCompetitorAdWithLanguage] File type: video (video-only mode)');
   console.log('[analyzeCompetitorAdWithLanguage] File URL:', competitorAdContext.file_url);
 
-  // Process video to base64 if needed (Gemini requirement)
-  let processedFileUrl = competitorAdContext.file_url;
-  if (competitorAdContext.file_type === 'video') {
-    try {
-      processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
-      console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
-    } catch (error) {
-      console.error('[analyzeCompetitorAdWithLanguage] Video processing failed:', error);
-      throw new Error('Failed to process competitor video');
-    }
+  // Process video to base64 (Gemini requirement for all competitor videos)
+  let processedFileUrl: string;
+  try {
+    processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
+    console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
+  } catch (error) {
+    console.error('[analyzeCompetitorAdWithLanguage] Video processing failed:', error);
+    throw new Error('Failed to process competitor video');
   }
 
   // Extended JSON schema with language detection + shot breakdown
@@ -1422,20 +1379,15 @@ export async function analyzeCompetitorAdWithLanguage(
         {
           role: 'user',
           content: [
-            competitorAdContext.file_type === 'video'
-              ? {
-                  type: 'video_url' as const,
-                  video_url: { url: processedFileUrl }
-                }
-              : {
-                  type: 'image_url' as const,
-                  image_url: { url: processedFileUrl }
-                },
+            {
+              type: 'video_url' as const,
+              video_url: { url: processedFileUrl }
+            },
             {
               type: 'text',
               text: `📺 COMPETITOR AD MULTI-SHOT ANALYSIS
 
-You are analyzing a competitor advertisement ${competitorAdContext.file_type === 'video' ? 'video' : 'image'}${competitorAdContext.competitor_name ? ` from "${competitorAdContext.competitor_name}"` : ''}.
+You are analyzing a competitor advertisement video${competitorAdContext.competitor_name ? ` from "${competitorAdContext.competitor_name}"` : ''}.
 
 TASK: Break down this ad into a structured shot-by-shot timeline with language detection. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
 
@@ -2021,7 +1973,7 @@ async function startSegmentedWorkflow(
   brandLogoUrl?: string | null, // NEW: Brand logo URL for brand shots
   productImageUrls?: string[] | null, // UPDATED: Multiple product image URLs for product shots
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string }, // NEW: For text fallback
-  competitorFileType?: 'video' | 'image' | null
+  competitorFileType?: 'video' | null // Competitor ads are now video-only (null means no competitor)
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
@@ -2539,7 +2491,7 @@ async function createFrameFromImage(
   frameType: 'first' | 'closing',
   aspectRatio: '16:9' | '9:16',
   isBrandShot: boolean,
-  competitorFileType?: 'video' | 'image' | null,
+  competitorFileType?: 'video' | null, // Competitor ads are video-only (indicates competitor clone mode)
   overrides?: FrameGenerationOverrides
 ): Promise<string> {
   const sanitizedReferences = (referenceImageUrls || []).filter(Boolean);
@@ -2653,12 +2605,12 @@ export async function createSmartSegmentFrame(
   brandLogoUrl: string | null,
   productImageUrls: string[] | null,
   brandContext?: { brand_name: string; brand_slogan: string; brand_details: string },
-  competitorFileType?: 'video' | 'image' | null,
+  competitorFileType?: 'video' | null, // Competitor ads are video-only (indicates competitor clone mode)
   overrides?: FrameGenerationOverrides,
   continuationReferenceUrl?: string | null
 ): Promise<string> {
   // 🎯 COMPETITOR CLONE MODE: Direct text-to-image shortcut
-  const isCompetitorCloneMode = competitorFileType === 'video' || competitorFileType === 'image';
+  const isCompetitorCloneMode = competitorFileType === 'video';
 
   if (isCompetitorCloneMode) {
     console.log(`🎨 Competitor clone mode detected: Using direct text-to-image`);

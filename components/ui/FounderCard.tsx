@@ -53,7 +53,7 @@ export default function FounderCard({
           <div className="text-[#d9d9d7]">·</div>
 
           {/* Content - compact */}
-          <span className="text-[#37352f] font-medium">Need help?</span>
+          <span className="text-[#37352f] font-medium">Book a demo</span>
 
           {/* Separator */}
           <div className="text-[#d9d9d7]">·</div>

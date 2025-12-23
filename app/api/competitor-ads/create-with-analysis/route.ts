@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, uploadCompetitorAdToStorage } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
 import { parseCompetitorTimeline } from '@/lib/competitor-shots';
 
@@ -24,11 +24,19 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const brandId = formData.get('brand_id') as string;
     const competitorName = formData.get('competitor_name') as string;
-    const platform = formData.get('platform') as string;
     const adFile = formData.get('ad_file') as File | null;
     const analysisResultStr = formData.get('analysis_result') as string;
     const language = formData.get('language') as string;
     const analysisStatus = formData.get('analysis_status') as string;
+
+    console.log('[POST /api/competitor-ads/create-with-analysis] Received params:', {
+      brandId,
+      competitorName,
+      hasAdFile: !!adFile,
+      language,
+      analysisStatus,
+      userId
+    });
 
     // Validation
     if (!brandId || brandId.trim().length === 0) {
@@ -39,12 +47,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Competitor name is required' }, { status: 400 });
     }
 
-    if (!platform || platform.trim().length === 0) {
-      return NextResponse.json({ error: 'Platform is required' }, { status: 400 });
-    }
-
     if (!adFile) {
       return NextResponse.json({ error: 'Advertisement file is required' }, { status: 400 });
+    }
+
+    // NEW: Video-only validation
+    if (!adFile.type.startsWith('video/')) {
+      return NextResponse.json(
+        { error: 'Only video files are supported for competitor ads' },
+        { status: 400 }
+      );
     }
 
     if (!analysisResultStr) {
@@ -73,31 +85,20 @@ export async function POST(request: NextRequest) {
 
     console.log(`[POST /api/competitor-ads/create-with-analysis] Creating competitor ad with pre-analyzed results: ${competitorName}`);
 
-    // Upload file to storage (permanent location)
-    let uploadResult;
-    try {
-      uploadResult = await uploadCompetitorAdToStorage(adFile, brandId, competitorName.trim());
-    } catch (uploadError) {
-      console.error('[POST /api/competitor-ads/create-with-analysis] File upload error:', uploadError);
-      return NextResponse.json(
-        { error: 'Failed to upload file', details: uploadError instanceof Error ? uploadError.message : 'Unknown error' },
-        { status: 500 }
-      );
-    }
+    // NOTE: File is NOT uploaded to storage
+    // File is only used temporarily for analysis, then discarded
+    // Only analysis_result is stored in the database
 
     // Parse timeline for video duration
     const timeline = parseCompetitorTimeline(analysisResult);
 
-    // Create competitor ad record with analysis results
+    // Create competitor ad record with analysis results (NO file storage)
     const { data: competitorAd, error: dbError } = await supabase
       .from('competitor_ads')
       .insert({
         user_id: userId,
         brand_id: brandId,
         competitor_name: competitorName.trim(),
-        platform: platform.trim(),
-        ad_file_url: uploadResult.publicUrl,
-        file_type: uploadResult.fileType as 'image' | 'video',
         analysis_status: analysisStatus || 'completed',
         analysis_result: analysisResult,
         language: language || 'en',

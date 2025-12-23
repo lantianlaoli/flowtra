@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { analyzeCompetitorAdWithLanguage } from '@/lib/competitor-ugc-replication-workflow';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -27,36 +28,73 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const fileUrl = formData.get('file_url') as string;
-    const fileType = formData.get('file_type') as 'image' | 'video';
+    const adFile = formData.get('ad_file') as File | null;
     const competitorName = (formData.get('competitor_name') as string) || '';
 
     // Validation
-    if (!fileUrl || !fileType) {
+    if (!adFile) {
       return NextResponse.json(
-        { error: 'file_url and file_type are required' },
+        { error: 'ad_file is required' },
         { status: 400 }
       );
     }
 
-    if (!['image', 'video'].includes(fileType)) {
+    // Video-only validation
+    if (!adFile.type.startsWith('video/')) {
       return NextResponse.json(
-        { error: 'file_type must be either "image" or "video"' },
+        { error: 'Only video files are supported for competitor ads' },
         { status: 400 }
       );
     }
 
-    console.log(`[POST /api/competitor-ads/analyze-preview] Starting analysis for ${fileType}...`);
+    // Upload file temporarily to Supabase storage for analysis
+    console.log(`[POST /api/competitor-ads/analyze-preview] Uploading video temporarily for analysis...`);
 
-    // Perform AI analysis
+    const fileName = `temp_${userId}_${Date.now()}_${adFile.name}`;
+    const fileBuffer = Buffer.from(await adFile.arrayBuffer());
+
+    const supabase = getSupabaseAdmin();
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('competitor_videos')
+      .upload(fileName, fileBuffer, {
+        contentType: adFile.type,
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('[POST /api/competitor-ads/analyze-preview] Upload error:', uploadError);
+      return NextResponse.json(
+        { error: 'Failed to upload file for analysis', details: uploadError.message },
+        { status: 500 }
+      );
+    }
+
+    // Get public URL for analysis
+    const { data: { publicUrl } } = supabase.storage
+      .from('competitor_videos')
+      .getPublicUrl(fileName);
+
+    console.log(`[POST /api/competitor-ads/analyze-preview] Starting analysis for video...`);
+
+    // Perform AI analysis (competitor ads are video-only now)
     try {
       const { analysis, language } = await analyzeCompetitorAdWithLanguage({
-        file_url: fileUrl,
-        file_type: fileType,
+        file_url: publicUrl,
         competitor_name: competitorName
       });
 
       console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Analysis complete, language: ${language}`);
+
+      // Delete temporary file after successful analysis
+      try {
+        await supabase.storage
+          .from('competitor_videos')
+          .remove([fileName]);
+        console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Temporary file deleted: ${fileName}`);
+      } catch (deleteError) {
+        console.warn(`[POST /api/competitor-ads/analyze-preview] ⚠️ Failed to delete temporary file:`, deleteError);
+        // Continue anyway - file will be cleaned up later
+      }
 
       return NextResponse.json({
         success: true,
@@ -66,6 +104,16 @@ export async function POST(request: NextRequest) {
 
     } catch (analysisError) {
       console.error(`[POST /api/competitor-ads/analyze-preview] ❌ Analysis failed:`, analysisError);
+
+      // Delete temporary file on analysis failure
+      try {
+        await supabase.storage
+          .from('competitor_videos')
+          .remove([fileName]);
+        console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Temporary file deleted after error: ${fileName}`);
+      } catch (deleteError) {
+        console.warn(`[POST /api/competitor-ads/analyze-preview] ⚠️ Failed to delete temporary file after error:`, deleteError);
+      }
 
       const errorMessage = analysisError instanceof Error
         ? analysisError.message

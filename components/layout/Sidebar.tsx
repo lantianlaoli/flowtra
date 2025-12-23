@@ -55,7 +55,7 @@ const navigation = [
     icon: Home
   },
   {
-    name: 'UGC Clone',
+    name: 'Video Clone',
     href: '/dashboard/competitor-ugc-replication',
     icon: Sparkles
   },

@@ -1,7 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, PlusCircle, Trash2, Save, CheckCircle, AlertTriangle } from 'lucide-react';
+import { 
+  ChevronDown, 
+  ChevronUp, 
+  Plus, 
+  Trash2, 
+  Eye, 
+  User, 
+  MapPin, 
+  Play, 
+  Sparkles, 
+  Video, 
+  Layout, 
+  Sun, 
+  Music,
+  Clock
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   CompetitorShotForm,
@@ -12,8 +27,6 @@ import {
 interface CompetitorShotsEditorProps {
   shots: CompetitorShotForm[];
   onShotsChange: (shots: CompetitorShotForm[]) => void;
-  onSave: (shots: CompetitorShotForm[]) => Promise<void> | void;
-  isSaving?: boolean;
   title?: string;
   description?: string;
   showSummary?: boolean;
@@ -22,14 +35,11 @@ interface CompetitorShotsEditorProps {
 export default function CompetitorShotsEditor({
   shots,
   onShotsChange,
-  onSave,
-  isSaving = false,
   title,
   description,
   showSummary = true
 }: CompetitorShotsEditorProps) {
   const [expandedShots, setExpandedShots] = useState<Set<number>>(new Set());
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const totalDuration = shots.reduce((sum, shot) => sum + (Number(shot.duration_seconds) || 0), 0);
 
@@ -67,50 +77,43 @@ export default function CompetitorShotsEditor({
     onShotsChange(nextShots);
   };
 
-  const handleSave = async () => {
-    try {
-      await onSave(shots);
-      setSaveStatus('success');
-      setTimeout(() => setSaveStatus('idle'), 4000);
-    } catch (error) {
-      console.error('Failed to save shots', error);
-      setSaveStatus('error');
-    }
-  };
-
-  const showHeader = Boolean(title || description);
-
   return (
     <div className="space-y-4">
-      {showHeader && (
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            {title && <h4 className="text-sm font-semibold text-gray-900">{title}</h4>}
-            {description && <p className="text-xs text-gray-600">{description}</p>}
-          </div>
+      {/* Header with Add Button */}
+      <div className="flex items-center justify-between border-b border-[#E5E5E5] pb-3">
+        <div className="flex items-center gap-3">
+          <h4 className="text-sm font-semibold text-black">Shot List</h4>
           {showSummary && (
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <div className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">
-                Shots: {shots.length}
-              </div>
-              <div className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 font-semibold text-purple-700">
-                Total duration: {totalDuration}s
-              </div>
+            <div className="flex gap-2">
+              <span className="inline-flex items-center rounded-full bg-[#F7F7F7] border border-[#E5E5E5] px-2 py-0.5 text-xs font-medium text-[#666666]">
+                {shots.length} shots
+              </span>
+              <span className="inline-flex items-center rounded-full bg-[#F7F7F7] border border-[#E5E5E5] px-2 py-0.5 text-xs font-medium text-[#666666]">
+                {totalDuration}s
+              </span>
             </div>
           )}
         </div>
-      )}
+        <button
+          type="button"
+          onClick={handleAddShot}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-black hover:bg-gray-50 transition-all shadow-sm"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add Shot
+        </button>
+      </div>
 
       {shots.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center">
-          <p className="text-sm text-gray-600 mb-3">No shots available yet. You can create your own storyboard.</p>
+        <div className="rounded-xl border border-dashed border-[#E5E5E5] bg-[#F7F7F7] p-8 text-center">
+          <p className="text-sm text-[#666666] mb-4">No shots yet. Create a storyboard.</p>
           <button
             type="button"
             onClick={handleAddShot}
-            className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-black/80 transition-colors"
           >
-            <PlusCircle className="w-4 h-4" />
-            Add Shot
+            <Plus className="w-4 h-4" />
+            Add First Shot
           </button>
         </div>
       ) : (
@@ -118,54 +121,57 @@ export default function CompetitorShotsEditor({
           {shots.map((shot) => {
             const isExpanded = expandedShots.has(shot.shot_id);
             return (
-              <div key={shot.shot_id} className="rounded-lg border border-gray-200 bg-white">
+              <div key={shot.shot_id} className="rounded-xl border border-[#E5E5E5] bg-white overflow-hidden transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
                 <button
                   type="button"
                   onClick={() => toggleShot(shot.shot_id)}
-                  className="flex w-full items-center justify-between px-3 py-2 hover:bg-gray-50 transition-colors"
+                  className="flex w-full items-center justify-between px-4 py-3 hover:bg-[#F7F7F7] transition-colors"
                 >
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
-                      Shot {shot.shot_id}
+                    <div className="rounded-md bg-black text-white px-2 py-1 text-xs font-bold">
+                      #{shot.shot_id}
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {shot.start_time || '00:00'} – {shot.end_time || '00:00'}
+                    <div className="text-xs font-medium text-[#666666] font-mono">
+                      {shot.start_time || '00:00'} - {shot.end_time || '00:00'}
                     </div>
-                    <div className="text-xs font-medium text-gray-700">{shot.duration_seconds}s</div>
-                    {shot.contains_brand && (
-                      <span className="inline-flex items-center rounded bg-purple-100 px-1.5 py-0.5 text-[11px] font-semibold text-purple-700">
-                        Brand
-                      </span>
-                    )}
-                    {shot.contains_product && (
-                      <span className="inline-flex items-center rounded bg-green-100 px-1.5 py-0.5 text-[11px] font-semibold text-green-700">
-                        Product
-                      </span>
-                    )}
+                    <div className="text-xs font-semibold text-black">{shot.duration_seconds}s</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{isExpanded ? 'Hide' : 'Edit'}</span>
-                    {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-600" /> : <ChevronDown className="w-4 h-4 text-gray-600" />}
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveShot(shot.shot_id);
+                      }}
+                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="Delete shot"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    {isExpanded ? <ChevronUp className="w-4 h-4 text-[#666666]" /> : <ChevronDown className="w-4 h-4 text-[#666666]" />}
                   </div>
                 </button>
 
                 {isExpanded && (
-                  <div className="space-y-4 border-t border-gray-100 p-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="border-t border-[#E5E5E5] p-4 space-y-4 bg-[#FAFAFA]">
+                    <div className="grid grid-cols-3 gap-3">
                       <ShotInput
-                        label="Start Time"
+                        label="Start"
+                        icon={<Clock className="w-3 h-3" />}
                         value={shot.start_time}
                         onChange={(value) => updateShot(shot.shot_id, 'start_time', value)}
                         placeholder="00:00"
                       />
                       <ShotInput
-                        label="End Time"
+                        label="End"
+                        icon={<Clock className="w-3 h-3" />}
                         value={shot.end_time}
                         onChange={(value) => updateShot(shot.shot_id, 'end_time', value)}
                         placeholder="00:08"
                       />
                       <ShotInput
-                        label="Duration (s)"
+                        label="Duration"
+                        icon={<Clock className="w-3 h-3" />}
                         type="number"
                         value={String(shot.duration_seconds)}
                         onChange={(value) => updateShot(shot.shot_id, 'duration_seconds', Number(value))}
@@ -173,92 +179,93 @@ export default function CompetitorShotsEditor({
                     </div>
 
                     <ShotTextarea
-                      label="First Frame"
+                      label="Visual Description"
+                      icon={<Eye className="w-3 h-3" />}
                       value={shot.first_frame_description}
                       onChange={(value) => updateShot(shot.shot_id, 'first_frame_description', value)}
                     />
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <ShotTextarea
                         label="Subject"
+                        icon={<User className="w-3 h-3" />}
                         value={shot.subject}
                         onChange={(value) => updateShot(shot.shot_id, 'subject', value)}
                       />
                       <ShotTextarea
-                        label="Context / Environment"
+                        label="Environment"
+                        icon={<MapPin className="w-3 h-3" />}
                         value={shot.context_environment}
                         onChange={(value) => updateShot(shot.shot_id, 'context_environment', value)}
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <ShotTextarea
                         label="Action"
+                        icon={<Play className="w-3 h-3" />}
                         value={shot.action}
                         onChange={(value) => updateShot(shot.shot_id, 'action', value)}
                       />
                       <ShotTextarea
                         label="Style"
+                        icon={<Sparkles className="w-3 h-3" />}
                         value={shot.style}
                         onChange={(value) => updateShot(shot.shot_id, 'style', value)}
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <ShotTextarea
-                        label="Camera Motion"
+                        label="Camera"
+                        icon={<Video className="w-3 h-3" />}
                         value={shot.camera_motion_positioning}
                         onChange={(value) => updateShot(shot.shot_id, 'camera_motion_positioning', value)}
                       />
                       <ShotTextarea
                         label="Composition"
+                        icon={<Layout className="w-3 h-3" />}
                         value={shot.composition}
                         onChange={(value) => updateShot(shot.shot_id, 'composition', value)}
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <ShotTextarea
-                        label="Lighting / Ambiance"
+                        label="Lighting"
+                        icon={<Sun className="w-3 h-3" />}
                         value={shot.ambiance_colour_lighting}
                         onChange={(value) => updateShot(shot.shot_id, 'ambiance_colour_lighting', value)}
                       />
                       <ShotTextarea
                         label="Audio"
+                        icon={<Music className="w-3 h-3" />}
                         value={shot.audio}
                         onChange={(value) => updateShot(shot.shot_id, 'audio', value)}
                       />
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(shot.contains_brand)}
-                            onChange={(e) => updateShot(shot.shot_id, 'contains_brand', e.target.checked)}
-                            className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-                          />
-                          Contains brand elements
-                        </label>
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(shot.contains_product)}
-                            onChange={(e) => updateShot(shot.shot_id, 'contains_product', e.target.checked)}
-                            className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-                          />
-                          Contains product
-                        </label>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveShot(shot.shot_id)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Remove
-                      </button>
+                    <div className="flex items-center justify-between pt-2 border-t border-[#E5E5E5] mt-2">
+                       <div className="flex gap-4">
+                          <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(shot.contains_brand)}
+                              onChange={(e) => updateShot(shot.shot_id, 'contains_brand', e.target.checked)}
+                              className="rounded border-gray-300 text-black focus:ring-black"
+                            />
+                            Brand
+                          </label>
+                          <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(shot.contains_product)}
+                              onChange={(e) => updateShot(shot.shot_id, 'contains_product', e.target.checked)}
+                              className="rounded border-gray-300 text-black focus:ring-black"
+                            />
+                            Product
+                          </label>
+                       </div>
                     </div>
                   </div>
                 )}
@@ -267,97 +274,56 @@ export default function CompetitorShotsEditor({
           })}
         </div>
       )}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {shots.length > 0 && (
-          <button
-            type="button"
-            onClick={handleAddShot}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <PlusCircle className="w-4 h-4" />
-            Add Shot
-          </button>
-        )}
-
-        <div className="flex items-center gap-3">
-          {saveStatus === 'success' && (
-            <span className="inline-flex items-center gap-1 text-sm text-green-600">
-              <CheckCircle className="w-4 h-4" />
-              Shots saved
-            </span>
-          )}
-          {saveStatus === 'error' && (
-            <span className="inline-flex items-center gap-1 text-sm text-red-600">
-              <AlertTriangle className="w-4 h-4" />
-              Failed to save shots
-            </span>
-          )}
-          <button
-            type="button"
-            disabled={isSaving || shots.length === 0}
-            onClick={handleSave}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors',
-              isSaving || shots.length === 0
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-gray-900 hover:bg-gray-800'
-            )}
-          >
-            <Save className="w-4 h-4" />
-            {isSaving ? 'Saving...' : 'Save Shots'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
 
 interface ShotInputProps {
   label: string;
+  icon?: React.ReactNode;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   type?: 'text' | 'number';
 }
 
-function ShotInput({ label, value, onChange, placeholder, type = 'text' }: ShotInputProps) {
+function ShotInput({ label, icon, value, onChange, placeholder, type = 'text' }: ShotInputProps) {
   return (
-    <label className="block text-xs font-medium text-gray-700">
-      {label}
+    <div className="space-y-1.5">
+      <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#666666]">
+        {icon}
+        {label}
+      </label>
       <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
+        className="w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-sm text-black placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all"
       />
-    </label>
+    </div>
   );
 }
 
 interface ShotTextareaProps {
   label: string;
+  icon?: React.ReactNode;
   value: string;
   onChange: (value: string) => void;
-  highlight?: boolean;
 }
 
-function ShotTextarea({ label, value, onChange, highlight = false }: ShotTextareaProps) {
+function ShotTextarea({ label, icon, value, onChange }: ShotTextareaProps) {
   return (
-    <label className="block text-xs font-medium text-gray-700">
-      {label}
+    <div className="space-y-1.5">
+      <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#666666]">
+        {icon}
+        {label}
+      </label>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          'mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2',
-          highlight
-            ? 'border-orange-200 bg-orange-50 focus:border-orange-400 focus:ring-orange-200'
-            : 'border-gray-300 bg-white focus:border-gray-900 focus:ring-gray-900/20'
-        )}
-        rows={3}
+        className="w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-sm text-black placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all min-h-[80px] resize-y"
       />
-    </label>
+    </div>
   );
 }

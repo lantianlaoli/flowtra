@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Target, Loader2, Info, ChevronRight, AlertTriangle } from 'lucide-react';
-import Image from 'next/image';
 import { CompetitorAd } from '@/lib/supabase';
 import CompetitorAdCard from '../CompetitorAdCard';
 
@@ -135,7 +134,7 @@ export default function CompetitorAdSelector({
       <div className={`bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl p-6 ${className}`}>
         <div className="flex items-center justify-center">
           <Loader2 className="w-6 h-6 animate-spin text-black" />
-          <span className="ml-2 text-sm text-[#666666]">Loading competitor ads...</span>
+          <span className="ml-2 text-sm text-[#666666]">Loading viral videos...</span>
         </div>
       </div>
     );
@@ -147,9 +146,9 @@ export default function CompetitorAdSelector({
         <div className="flex items-start gap-4">
           <Info className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm text-black font-semibold">No competitor ads yet</p>
+            <p className="text-sm text-black font-semibold">No viral videos yet</p>
             <p className="text-sm text-[#666666] mt-2 leading-relaxed">
-              Add competitor ads in the Assets page to use them as reference for your video generation.
+              Add viral videos in the Assets page to use them as reference for your video generation.
             </p>
           </div>
         </div>
@@ -171,12 +170,12 @@ export default function CompetitorAdSelector({
           </div>
           <div className="text-left">
             <h3 className="text-sm font-semibold text-black">
-              Reference Competitor Ad
+              Reference Viral Video
             </h3>
             <p className="text-sm text-[#666666] mt-0.5">
               {selectedCompetitorAd
                 ? `Selected: ${selectedCompetitorAd.competitor_name}`
-                : `${competitorAds.length} competitor ${competitorAds.length === 1 ? 'ad' : 'ads'} available`}
+                : `${competitorAds.length} viral ${competitorAds.length === 1 ? 'video' : 'videos'} available`}
             </p>
           </div>
         </div>
@@ -230,22 +229,20 @@ export default function CompetitorAdSelector({
                       className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#F7F7F7] transition-colors"
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        {/* Small Thumbnail */}
-                        <div className="w-12 h-12 flex-shrink-0 bg-black rounded-lg overflow-hidden relative">
-                          {ad.file_type === 'image' ? (
-                            <Image
-                              src={ad.ad_file_url}
-                              alt={ad.competitor_name}
-                              fill
-                              className="object-cover"
-                              sizes="48px"
-                            />
+                        {/* Analysis Status Icon */}
+                        <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg flex items-center justify-center">
+                          {ad.analysis_status === 'completed' ? (
+                            <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          ) : ad.analysis_status === 'analyzing' ? (
+                            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                          ) : ad.analysis_status === 'failed' ? (
+                            <AlertTriangle className="w-6 h-6 text-red-600" />
                           ) : (
-                            <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                              <svg className="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M6 4a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2H6zm1 9a1 1 0 100-2 1 1 0 000 2zm5-1a1 1 0 11-2 0 1 1 0 012 0zm-5-5a1 1 0 100-2 1 1 0 000 2zm5-1a1 1 0 11-2 0 1 1 0 012 0z" />
-                              </svg>
-                            </div>
+                            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                           )}
                         </div>
 
@@ -255,14 +252,14 @@ export default function CompetitorAdSelector({
                             {ad.competitor_name}
                           </p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-[#666666]">{ad.platform}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-lg font-medium ${
-                              ad.file_type === 'video'
-                                ? 'bg-black text-white'
-                                : 'bg-[#F7F7F7] text-black border border-[#E5E5E5]'
-                            }`}>
-                              {ad.file_type === 'video' ? 'Video' : 'Image'}
+                            <span className="text-xs px-2 py-0.5 rounded-lg font-medium bg-black text-white">
+                              Video Analysis
                             </span>
+                            {ad.video_duration_seconds && (
+                              <span className="text-xs text-[#666666]">
+                                {ad.video_duration_seconds}s
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -287,23 +284,28 @@ export default function CompetitorAdSelector({
                     {/* Expanded Preview - Only show when expanded */}
                     {expandedAdId === ad.id && (
                       <div className="border-t border-[#E5E5E5] bg-[#F7F7F7] p-4">
-                        <div className="relative aspect-video bg-black rounded-xl overflow-hidden mb-4">
-                          {ad.file_type === 'image' ? (
-                            <Image
-                              src={ad.ad_file_url}
-                              alt={ad.competitor_name}
-                              fill
-                              className="object-contain"
-                              sizes="(max-width: 768px) 100vw, 50vw"
-                            />
-                          ) : (
-                            <video
-                              src={ad.ad_file_url}
-                              className="w-full h-full object-contain"
-                              controls
-                              playsInline
-                            />
-                          )}
+                        <div className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 mb-4">
+                          <div className="text-center">
+                            <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-black/5 flex items-center justify-center">
+                              <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                            <p className="text-sm text-gray-600 font-medium">Analysis Data</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {ad.analysis_status === 'completed' ? 'Ready' : ad.analysis_status || 'Pending'}
+                            </p>
+                            {ad.video_duration_seconds && (
+                              <p className="text-xs text-gray-500 mt-2">
+                                Duration: {ad.video_duration_seconds}s
+                              </p>
+                            )}
+                            {ad.language && (
+                              <p className="text-xs text-gray-500">
+                                Language: {ad.language.toUpperCase()}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <button
                           onClick={() => handleSelect(ad)}
@@ -319,18 +321,6 @@ export default function CompetitorAdSelector({
                     )}
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* Clear Selection Button */}
-            {selectedCompetitorAd && (
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => onSelect(null)}
-                  className="text-sm text-black hover:text-[#666666] underline font-medium"
-                >
-                  Clear selection
-                </button>
               </div>
             )}
           </div>

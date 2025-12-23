@@ -14,32 +14,8 @@ export const CREDIT_COSTS = {
   'veo3': 150
 } as const;
 
-// ===== PLATFORM PRESETS =====
-// Platform-specific recommended configurations
-export const PLATFORM_PRESETS = {
-  tiktok: {
-    format: '9:16' as const,
-    duration: '8' as const,
-    description: 'Optimized for TikTok short-form vertical videos'
-  },
-  facebook: {
-    format: '16:9' as const,
-    duration: '16' as const,
-    description: 'Optimized for Facebook horizontal videos'
-  },
-  instagram: {
-    format: '9:16' as const,
-    duration: '8' as const,
-    description: 'Optimized for Instagram Reels and Stories'
-  },
-  youtube: {
-    format: '16:9' as const,
-    duration: '16' as const,
-    description: 'Optimized for YouTube Shorts'
-  }
-} as const;
-
-export type Platform = keyof typeof PLATFORM_PRESETS;
+// NOTE: Platform presets have been removed
+// Platform selection is no longer a feature of the system
 
 // Image models for cover generation
 export const IMAGE_MODELS = {

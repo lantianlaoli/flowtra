@@ -207,7 +207,7 @@ export default function ProductCard({
             <div className="flex items-center justify-end gap-1">
               <button
                 onClick={handleEditClick}
-                className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
                 title="Edit product"
               >
                 <Edit2 className="w-4 h-4" />
@@ -223,7 +223,7 @@ export default function ProductCard({
                     transition={{ duration: 0.15 }}
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors hidden sm:flex disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors hidden sm:flex disabled:opacity-50 disabled:cursor-not-allowed"
                     title={isDeleting ? "Deleting..." : "Delete product"}
                   >
                     {isDeleting ? (
@@ -239,7 +239,7 @@ export default function ProductCard({
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors sm:hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors sm:hidden disabled:opacity-50 disabled:cursor-not-allowed"
                 title={isDeleting ? "Deleting..." : "Delete product"}
               >
                 {isDeleting ? (
@@ -323,7 +323,7 @@ export default function ProductCard({
             <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-end">
               <button
                 onClick={handleEditClick}
-                className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
                 title="Edit product"
               >
                 <Edit2 className="w-4 h-4" />
@@ -337,7 +337,7 @@ export default function ProductCard({
                     exit={{ opacity: 0, scale: 0.8 }}
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                    className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
                     title={isDeleting ? "Deleting..." : "Delete product"}
                   >
                     {isDeleting ? (

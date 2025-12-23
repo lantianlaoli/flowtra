@@ -75,124 +75,77 @@ export default function CompetitorAdCard({
   return (
     <div
       className={`
-        group relative bg-white rounded-xl border overflow-hidden transition-all
-        ${mode === 'select' ? 'cursor-pointer hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)]' : ''}
+        group relative bg-white rounded-xl border transition-all
+        ${mode === 'select' ? 'cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]' : ''}
         ${isSelected ? 'border-black ring-2 ring-black/20' : 'border-[#E5E5E5] hover:border-black/20'}
       `}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
       onClick={handleClick}
     >
-      {/* Media Preview */}
-      <div className="relative aspect-video bg-black">
-        {competitorAd.file_type === 'image' ? (
-          <Image
-            src={competitorAd.ad_file_url}
-            alt={`${competitorAd.competitor_name} ad`}
-            fill
-            className="object-contain"
-            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-          />
-        ) : (
-          <>
-            {!videoError ? (
-              <video
-                src={competitorAd.ad_file_url}
-                className="w-full h-full object-contain"
-                loop
-                playsInline
-                onMouseEnter={(e) => {
-                  e.currentTarget.muted = false;
-                  e.currentTarget.play();
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.pause();
-                  e.currentTarget.currentTime = 0;
-                  e.currentTarget.muted = true;
-                }}
-                onError={() => setVideoError(true)}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                <PlayCircle className="w-12 h-12 text-gray-400" />
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Selected Indicator */}
-        {isSelected && (
-          <div className="absolute top-3 right-3 bg-black text-white rounded-lg p-1.5 shadow-lg">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
-          </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="p-4 space-y-3">
-        <h4 className="font-semibold text-black text-sm truncate">
-          {competitorAd.competitor_name}
-        </h4>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="px-2 py-1 rounded-lg bg-[#F7F7F7] text-[#666666] font-medium border border-[#E5E5E5]">
-            {competitorAd.platform}
-          </span>
-          <span className={`
-            px-2 py-1 rounded-lg font-medium
-            ${competitorAd.file_type === 'video'
-              ? 'bg-black text-white'
-              : 'bg-white text-black border border-[#E5E5E5]'}
-          `}>
-            {competitorAd.file_type === 'video' ? 'Video' : 'Image'}
-          </span>
-          {competitorAd.file_type === 'video' && competitorAd.video_duration_seconds && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white text-black border border-[#E5E5E5] font-medium">
-              <Clock3 className="w-3 h-3" />
-              {competitorAd.video_duration_seconds}s
-            </span>
-          )}
-          {languageDisplay && analysisStatus === 'completed' && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#F7F7F7] text-[#666666] border border-[#E5E5E5] font-medium">
-              <Languages className="w-3 h-3" />
-              {languageDisplay.label}
-            </span>
-          )}
-          {renderAnalysisBadge()}
-        </div>
-      </div>
-
-      {/* Actions (Only in manage mode) */}
-      {mode === 'manage' && showActions && !isDeleting && (
-        <div className="absolute top-3 right-3 flex gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(competitorAd);
-            }}
-            className="bg-white/95 backdrop-blur-sm p-2 rounded-lg hover:bg-white transition-all shadow-lg border border-[#E5E5E5]"
-            title="Edit"
-          >
-            <Edit2 className="w-4 h-4 text-black" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(competitorAd.id);
-            }}
-            className="bg-black/95 backdrop-blur-sm p-2 rounded-lg hover:bg-black transition-all shadow-lg"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4 text-white" />
-          </button>
+      {/* Selected Indicator */}
+      {isSelected && (
+        <div className="absolute top-2 right-2 bg-black text-white rounded-lg p-1 shadow-sm z-10">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
         </div>
       )}
 
+      {/* Info */}
+      <div className="p-4 space-y-2">
+        <div className="flex justify-between items-start gap-2">
+          <h4 className="font-semibold text-black text-sm truncate flex-1">
+            {competitorAd.competitor_name}
+          </h4>
+          
+          {/* Actions (Only in manage mode) */}
+          {mode === 'manage' && !isDeleting && (
+            <div className={`flex gap-1 transition-opacity duration-200 ${showActions ? 'opacity-100' : 'opacity-0'}`}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(competitorAd);
+                }}
+                className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded transition-colors"
+                title="Edit"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(competitorAd.id);
+                }}
+                className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded transition-colors"
+                title="Delete"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs pt-1">
+          {competitorAd.video_duration_seconds && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[#E5E5E5] bg-white text-black font-medium text-[10px] uppercase tracking-wide">
+              <Clock3 className="w-3 h-3 text-gray-400" />
+              {competitorAd.video_duration_seconds}s
+            </span>
+          )}
+          {languageDisplay && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[#E5E5E5] bg-white text-black font-medium text-[10px] uppercase tracking-wide">
+              <Languages className="w-3 h-3 text-gray-400" />
+              {languageDisplay.label}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Deleting Overlay */}
       {isDeleting && (
-        <div className="absolute inset-0 bg-white/90 flex items-center justify-center backdrop-blur-sm">
-          <Loader2 className="w-6 h-6 animate-spin text-black" />
+        <div className="absolute inset-0 bg-white/90 flex items-center justify-center backdrop-blur-sm rounded-xl">
+          <Loader2 className="w-5 h-5 animate-spin text-black" />
         </div>
       )}
     </div>

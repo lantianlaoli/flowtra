@@ -10,6 +10,7 @@ import OnboardingProgress from '@/components/onboarding/OnboardingProgress';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import FlowtraLoading from '@/components/ui/FlowtraLoading';
 
 export default function HomePage() {
   const { user, isLoaded } = useUser();
@@ -50,11 +51,7 @@ export default function HomePage() {
 
   // Loading state
   if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
+    return <FlowtraLoading />;
   }
 
   const getUserName = () => {
