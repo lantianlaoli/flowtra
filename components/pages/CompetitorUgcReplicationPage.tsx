@@ -190,10 +190,11 @@ const COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS: VideoDurationOption[] = [
 
 export default function CompetitorUgcReplicationPage() {
   const { user } = useUser();
-  const { credits: userCredits, updateCredits, refetchCredits } = useCredits();
+  const { credits: userCredits, creditsData, updateCredits, refetchCredits } = useCredits();
   const { showSuccess, showError } = useToast();
   const sidebarProps = {
     credits: userCredits,
+    creditsData: creditsData,
     userEmail: user?.primaryEmailAddress?.emailAddress,
     userImageUrl: user?.imageUrl
   };

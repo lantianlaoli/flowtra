@@ -14,9 +14,9 @@ export default function ModelPricingSection() {
       durationRange: '8-64s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { duration: '8s segment', credits: 20, unit: 'per 8s' },
+        { duration: '1 min', credits: 150, unit: 'per min' },
       ],
-      quality: ['720p'],
+      quality: ['1080P'],
     },
     {
       name: 'Veo3.1',
@@ -26,9 +26,9 @@ export default function ModelPricingSection() {
       durationRange: '8-64s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { duration: '8s segment', credits: 150, unit: 'per 8s' },
+        { duration: '1 min', credits: 1125, unit: 'per min' },
       ],
-      quality: ['720p'],
+      quality: ['1080P'],
     },
   ];
 
@@ -53,13 +53,7 @@ export default function ModelPricingSection() {
                 Quality
               </th>
               <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
-                Generation
-              </th>
-              <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
-                Download
-              </th>
-              <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
-                USD
+                Generation Cost
               </th>
             </tr>
           </thead>
@@ -111,26 +105,6 @@ export default function ModelPricingSection() {
                     )}
 
                     {/* Generation Cost */}
-                    <td className="px-6 py-6">
-                      <div className="text-[14px] font-bold text-black">
-                        {option.credits} credits
-                      </div>
-                      <p className="text-[12px] text-[#666666] mt-0.5">
-                        {option.unit}
-                      </p>
-                    </td>
-
-                    {/* Download Cost */}
-                    <td className="px-6 py-6">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[14px] font-bold text-black uppercase tracking-wider">
-                          Free
-                        </span>
-                        <Check className="w-4 h-4 text-black" />
-                      </div>
-                    </td>
-
-                    {/* Est. Cost USD */}
                     <td className="px-6 py-6">
                       <div className="text-[16px] font-bold text-black">
                         ${usdCost}
@@ -188,47 +162,24 @@ export default function ModelPricingSection() {
                   <div key={idx} className="bg-gray-50 rounded-lg p-3">
                     <div className="flex justify-between items-start mb-2">
                       <span className="text-sm font-medium text-gray-900">
-                        {option.duration}
+                        Generation Cost
                       </span>
-                      <span className="text-sm font-bold text-gray-900">
-                        ${(option.credits * CREDIT_TO_USD).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="space-y-1 text-xs text-gray-600">
-                      <div className="flex justify-between items-center">
-                        <span>Generation:</span>
-                        {model.billingType === 'generation' ? (
-                          <span className="font-medium text-gray-900">
-                            {option.credits} credits
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-gray-900 font-semibold">
-                            Free <Zap className="w-3 h-3 text-gray-900" />
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Download:</span>
-                        {/* Version 2.0: All downloads are FREE */}
-                        <span className="flex items-center gap-1 text-gray-900 font-semibold">
-                          Free <Check className="w-3 h-3 text-gray-900" />
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-gray-900 block">
+                          ${(option.credits * CREDIT_TO_USD).toFixed(2)}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {option.unit}
                         </span>
                       </div>
-                      <p className="text-gray-500 mt-1 italic">
-                        {option.unit}
-                      </p>
                     </div>
                   </div>
                 ))}
-
-
               </div>
             </article>
           );
         })}
       </div>
-
-
     </section>
   );
 }

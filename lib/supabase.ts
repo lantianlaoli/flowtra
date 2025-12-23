@@ -44,6 +44,9 @@ export interface UserCredits {
   id: string
   user_id: string
   credits_remaining: number
+  subscription_credits: number
+  purchased_credits: number
+  has_purchased: boolean
   created_at: string
   updated_at: string
 }

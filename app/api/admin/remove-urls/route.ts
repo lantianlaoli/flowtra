@@ -6,14 +6,6 @@ export const maxDuration = 300; // 5 minutes timeout
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify CRON_SECRET security token
-    const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { urls } = await request.json();
 
     if (!Array.isArray(urls) || urls.length === 0) {

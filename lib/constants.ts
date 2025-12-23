@@ -299,8 +299,8 @@ export function getCreditsFromProductId(productId: string): { credits: number; p
   return null
 }
 
-// Default initial credits for new users (enough for 1 complete workflow)
-export const INITIAL_FREE_CREDITS = 100
+// Default initial credits for new users (changed to 0 - users must purchase a plan)
+export const INITIAL_FREE_CREDITS = 0
 
 // KIE API credit threshold for service availability (configurable via env)
 export const KIE_CREDIT_THRESHOLD = (() => {
@@ -318,7 +318,7 @@ export const KIE_CREDIT_THRESHOLD = (() => {
 // - Video generation: 20 credits (Veo3.1 fast, per 8s segment) or 150 credits (Veo3.1, per 8s segment)
 // - Video download: FREE (no credits charged)
 // Total for complete workflow: 20-1200 credits depending on model and duration
-// With 100 free credits, users can generate 5 Veo3.1 fast videos (8s each) or 30+ shorter clips
+// New users must purchase a plan to access the dashboard (no free credits)
 
 // Get image size options for a specific model
 export function getImageSizeOptions(model: 'nano_banana' | 'seedream'): readonly string[] {

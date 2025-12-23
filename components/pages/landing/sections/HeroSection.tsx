@@ -29,20 +29,6 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
           UGC videos for local stores, Shopify sellers, and dropshippers.
         </p>
 
-        {/* New users label + key benefits under subtitle */}
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          {/* Mobile: single concise pill */}
-          <span className="inline-flex sm:hidden items-center gap-2 text-[12px] font-medium text-black bg-white border border-[#E5E5E5] rounded-full px-3 py-1.5">
-            <GiftIcon className="w-3.5 h-3.5" />
-            <span>100 free credits ($1.80 value)</span>
-          </span>
-          {/* Desktop/Tablet: original two pills */}
-          <span className="hidden sm:inline-flex items-center gap-2 text-[12px] font-medium text-black bg-white border border-[#E5E5E5] rounded-full px-3 py-1.5 uppercase tracking-wider">
-            <GiftIcon className="w-3.5 h-3.5" />
-            <span>For new users: 100 free credits ($1.80 value)</span>
-          </span>
-        </div>
-
         {/* Selling points */}
         <div className="mt-4 space-y-3 text-[#666666] text-[16px]">
           <div className="flex items-center gap-2">

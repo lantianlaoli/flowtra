@@ -121,7 +121,7 @@ export default function HistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   const [adTypeFilter, setAdTypeFilter] = useState<AdTypeFilterValue>('all');
-  const { credits: userCredits, refetchCredits } = useCredits();
+  const { credits: userCredits, creditsData, refetchCredits } = useCredits();
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [, setDownloadStates] = useState<Record<string, 'idle' | 'processing' | 'success'>>({});
@@ -634,6 +634,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     <div className="min-h-screen bg-white">
       <Sidebar
         credits={userCredits}
+        creditsData={creditsData}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />

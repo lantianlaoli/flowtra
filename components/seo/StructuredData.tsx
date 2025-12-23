@@ -133,8 +133,8 @@ export default function StructuredData() {
       'Cover image generation: nano_banana, seedream models',
       'Mixed billing model: Free generation or paid generation options',
       'Always free image generation',
-      'Credit-based flexible pricing',
-      'No subscriptions, one-time purchase'
+      'Monthly subscription model with automatic credit reset',
+      'Flexible credit-based billing system'
     ],
     screenshot: 'https://www.flowtra.store/screenshots/dashboard.png',
     url: 'https://www.flowtra.store',

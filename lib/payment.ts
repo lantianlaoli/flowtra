@@ -1,6 +1,7 @@
 export interface PaymentOptions {
   packageName: 'lite' | 'basic' | 'pro';
   userEmail: string;
+  isSubscription?: boolean; // Whether to create a subscription checkout (default: false)
   onLoading?: (isLoading: boolean) => void;
   onError?: (error: string) => void;
 }
@@ -8,6 +9,7 @@ export interface PaymentOptions {
 export async function handleCreemCheckout({
   packageName,
   userEmail,
+  isSubscription = false, // Default to one-time purchase
   onLoading,
   onError
 }: PaymentOptions): Promise<void> {
@@ -31,7 +33,8 @@ export async function handleCreemCheckout({
       },
       body: JSON.stringify({
         packageName,
-        userEmail
+        userEmail,
+        isSubscription
       })
     });
 

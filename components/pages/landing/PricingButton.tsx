@@ -55,6 +55,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
       await handleCreemCheckout({
         packageName,
         userEmail: email,
+        isSubscription: true,
         onLoading: (loading) => setIsProcessing(loading),
         onError: (error) => alert(`Purchase failed: ${error}`),
       });

@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { packageName, userEmail } = await request.json()
-    console.log(`📦 Package: ${packageName}, Email: ${userEmail}, User: ${userId}`)
+    const { packageName, userEmail, isSubscription } = await request.json()
+    console.log(`📦 Package: ${packageName}, Email: ${userEmail}, User: ${userId}, Subscription: ${isSubscription}`)
 
     if (!packageName) {
       console.log('❌ Package name is missing')
@@ -47,23 +47,23 @@ export async function POST(request: NextRequest) {
     console.log(`🌍 Environment: ${isDevMode ? 'DEVELOPMENT' : 'PRODUCTION'}`)
     console.log(`📋 CREEM_ENVIRONMENT value: ${process.env.CREEM_ENVIRONMENT}`)
 
-    // Get product ID based on environment and package
+    // Get subscription product ID based on environment and package
+    // Note: Using PACK env vars as they contain subscription product IDs
     let productId: string | undefined
+
+    console.log('💳 Creating SUBSCRIPTION checkout')
     if (packageName === 'lite') {
       productId = isDevMode ? process.env.LITE_PACK_CREEM_DEV_ID : process.env.LITE_PACK_CREEM_PROD_ID
     } else if (packageName === 'basic') {
-      // Basic plan product IDs
-      productId = isDevMode
-        ? process.env.BASIC_PACK_CREEM_DEV_ID
-        : process.env.BASIC_PACK_CREEM_PROD_ID
+      productId = isDevMode ? process.env.BASIC_PACK_CREEM_DEV_ID : process.env.BASIC_PACK_CREEM_PROD_ID
     } else if (packageName === 'pro') {
       productId = isDevMode ? process.env.PRO_PACK_CREEM_DEV_ID : process.env.PRO_PACK_CREEM_PROD_ID
     }
 
-    console.log(`🎯 Product ID for ${packageName}: ${productId}`)
+    console.log(`🎯 Product ID for ${packageName} subscription: ${productId}`)
 
     if (!productId) {
-      const error = `Package does not have a ${isDevMode ? 'development' : 'production'} product ID configured`
+      const error = `Package does not have a ${isDevMode ? 'development' : 'production'} subscription product ID configured`
       console.log(`❌ ${error}`)
       return NextResponse.json(
         { success: false, error },
@@ -87,11 +87,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Determine success URL based on environment
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const successUrl = `${siteUrl}/dashboard`
+
+    console.log(`🎯 Success URL: ${successUrl}`)
+
     const requestBody = {
       customer: {
         email: userEmail
       },
       product_id: productId,
+      success_url: successUrl,
       metadata: {
         userId: userId,
         packageName: packageName,

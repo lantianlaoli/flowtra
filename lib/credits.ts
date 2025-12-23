@@ -70,7 +70,8 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
       .from('user_credits')
       .upsert({
         user_id: userId,
-        credits_remaining: initialCredits
+        credits_remaining: initialCredits,
+        has_purchased: false // New users have not purchased yet
       }, {
         onConflict: 'user_id',
         ignoreDuplicates: true  // Don't update if record already exists
@@ -99,40 +100,44 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
       }
     }
 
-    // Only log and record transaction if this is a new initialization
+    // Only log and record transaction if this is a new initialization with credits
     if (credits) {
       console.log(`✅ Initialized ${initialCredits} credits for new user:`, userId)
-      
-      // Record the initial credit transaction
-      await recordCreditTransaction(
-        userId,
-        'purchase',
-        initialCredits,
-        'Initial free credits for new user',
-        undefined,
-        true // Use admin client
-      )
 
-      // Fire-and-forget: notify admin and send welcome email to new user
-      try {
-        // clerkClient can be a function returning a ClerkClient in this runtime
-        const client = typeof clerkClient === 'function' ? await clerkClient() : clerkClient
-        const user = await client.users.getUser(userId)
-        const primaryEmail = user.emailAddresses?.[0]?.emailAddress
-        const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || null
+      // Only record transaction and send emails if user is getting credits (old migration path)
+      // New users get 0 credits and must purchase, so skip this
+      if (initialCredits > 0) {
+        // Record the initial credit transaction
+        await recordCreditTransaction(
+          userId,
+          'purchase',
+          initialCredits,
+          'Initial free credits for new user',
+          undefined,
+          true // Use admin client
+        )
 
-        // Send admin notification
-        await sendNewUserNotification({ userId, email: primaryEmail ?? null, name: fullName })
+        // Fire-and-forget: notify admin and send welcome email to new user
+        try {
+          // clerkClient can be a function returning a ClerkClient in this runtime
+          const client = typeof clerkClient === 'function' ? await clerkClient() : clerkClient
+          const user = await client.users.getUser(userId)
+          const primaryEmail = user.emailAddresses?.[0]?.emailAddress
+          const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || null
 
-        // Send welcome email to new user
-        if (primaryEmail) {
-          await sendWelcomeEmail({ to: primaryEmail, name: fullName })
-          console.log(`✉️ Welcome email sent to new user: ${primaryEmail}`)
-        } else {
-          console.warn('⚠️ No primary email found for user, skipping welcome email:', userId)
+          // Send admin notification
+          await sendNewUserNotification({ userId, email: primaryEmail ?? null, name: fullName })
+
+          // Send welcome email to new user
+          if (primaryEmail) {
+            await sendWelcomeEmail({ to: primaryEmail, name: fullName })
+            console.log(`✉️ Welcome email sent to new user: ${primaryEmail}`)
+          } else {
+            console.warn('⚠️ No primary email found for user, skipping welcome email:', userId)
+          }
+        } catch (notifyError) {
+          console.warn('sendNewUserNotification or sendWelcomeEmail failed or skipped:', notifyError)
         }
-      } catch (notifyError) {
-        console.warn('sendNewUserNotification or sendWelcomeEmail failed or skipped:', notifyError)
       }
     } else {
       console.log(`👤 User ${userId} already has credits, no initialization needed`)
@@ -148,6 +153,40 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
       success: false,
       error: 'Something went wrong'
     }
+  }
+}
+
+/**
+ * Check if user has made their first purchase
+ * Used to determine if user can access dashboard
+ */
+export async function hasUserPurchased(userId: string): Promise<{
+  success: boolean
+  hasPurchased?: boolean
+  error?: string
+}> {
+  try {
+    const supabase = getSupabaseAdmin()
+    const { data: credits, error } = await supabase
+      .from('user_credits')
+      .select('has_purchased')
+      .eq('user_id', userId)
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Failed to check purchase status:', error)
+      return { success: false, error: 'Failed to check purchase status' }
+    }
+
+    if (!credits) {
+      // User has no credit record, treat as not purchased
+      return { success: true, hasPurchased: false }
+    }
+
+    return { success: true, hasPurchased: credits.has_purchased ?? false }
+  } catch (error) {
+    console.error('Check purchase status error:', error)
+    return { success: false, error: 'Something went wrong' }
   }
 }
 
@@ -205,65 +244,110 @@ export async function checkCredits(userId: string, requiredCredits: number): Pro
 }
 
 // Deduct credits from user account (supports negative values for refunds)
+// PRIORITY: Deduct from subscription_credits first, then purchased_credits
 export async function deductCredits(userId: string, creditsToDeduct: number): Promise<{
   success: boolean
   remainingCredits?: number
   error?: string
 }> {
   try {
-    // For positive values (actual deduction), check if user has enough credits
-    if (creditsToDeduct > 0) {
-      const checkResult = await checkCredits(userId, creditsToDeduct)
-      
-      if (!checkResult.success) {
-        return {
-          success: false,
-          error: checkResult.error
-        }
-      }
+    const supabase = getSupabaseAdmin()
 
-      if (!checkResult.hasEnoughCredits) {
-        return {
-          success: false,
-          error: 'Insufficient credits'
-        }
-      }
-    }
-
-    // Get current credits for calculation
-    const currentResult = await getUserCredits(userId)
-    if (!currentResult.success || !currentResult.credits) {
-      return {
-        success: false,
-        error: 'Failed to get current credits'
-      }
-    }
-
-    const currentCredits = currentResult.credits.credits_remaining
-    const newBalance = currentCredits - creditsToDeduct // Negative creditsToDeduct will add credits
-
-    // Update credits
-    const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
-    const { data: updatedCredits, error } = await supabase
+    // Get current credit balances
+    const { data: credits, error: fetchError } = await supabase
       .from('user_credits')
-      .update({
-        credits_remaining: newBalance
-      })
+      .select('subscription_credits, purchased_credits, credits_remaining')
       .eq('user_id', userId)
-      .select()
       .single()
 
-    if (error) {
-      console.error('Failed to update credits:', error)
+    if (fetchError || !credits) {
+      console.error('Failed to fetch user credits:', fetchError)
+      return {
+        success: false,
+        error: 'Failed to fetch credits'
+      }
+    }
+
+    const totalAvailable = credits.subscription_credits + credits.purchased_credits
+
+    // Check if user has enough total credits (for positive deductions)
+    if (creditsToDeduct > 0 && totalAvailable < creditsToDeduct) {
+      console.warn(`Insufficient credits for user ${userId}: needs ${creditsToDeduct}, has ${totalAvailable}`)
+      return {
+        success: false,
+        error: 'Insufficient credits'
+      }
+    }
+
+    let newSubscriptionCredits = credits.subscription_credits
+    let newPurchasedCredits = credits.purchased_credits
+
+    // Handle refunds (negative deductions)
+    if (creditsToDeduct < 0) {
+      // Add to purchased_credits for refunds
+      newPurchasedCredits += Math.abs(creditsToDeduct)
+    } else {
+      // PRIORITY: Deduct from subscription credits first
+      if (credits.subscription_credits >= creditsToDeduct) {
+        // Enough subscription credits to cover the full amount
+        newSubscriptionCredits -= creditsToDeduct
+      } else {
+        // Use all subscription credits, then deduct remainder from purchased credits
+        const remainder = creditsToDeduct - credits.subscription_credits
+        newSubscriptionCredits = 0
+        newPurchasedCredits -= remainder
+      }
+    }
+
+    // Update both credit columns (trigger will auto-update credits_remaining)
+    const { error: updateError } = await supabase
+      .from('user_credits')
+      .update({
+        subscription_credits: newSubscriptionCredits,
+        purchased_credits: newPurchasedCredits
+      })
+      .eq('user_id', userId)
+
+    if (updateError) {
+      console.error('Failed to update credits:', updateError)
       return {
         success: false,
         error: 'Failed to update credits'
       }
     }
 
+    // Track subscription usage for analytics (only if deducting positive amount from subscription)
+    if (creditsToDeduct > 0 && credits.subscription_credits > 0) {
+      const creditsUsedFromSubscription = Math.min(creditsToDeduct, credits.subscription_credits)
+
+      // Get current subscription data to increment credits_used_this_cycle
+      const { data: subscription } = await supabase
+        .from('user_subscriptions')
+        .select('credits_used_this_cycle')
+        .eq('user_id', userId)
+        .single()
+
+      if (subscription) {
+        // Update credits_used_this_cycle by adding the new usage
+        await supabase
+          .from('user_subscriptions')
+          .update({
+            credits_used_this_cycle: subscription.credits_used_this_cycle + creditsUsedFromSubscription
+          })
+          .eq('user_id', userId)
+      }
+    }
+
+    const totalRemaining = newSubscriptionCredits + newPurchasedCredits
+
+    console.log(`💳 Deducted ${creditsToDeduct} credits from user ${userId}`)
+    console.log(`   Subscription: ${credits.subscription_credits} → ${newSubscriptionCredits}`)
+    console.log(`   Purchased: ${credits.purchased_credits} → ${newPurchasedCredits}`)
+    console.log(`   Total remaining: ${totalRemaining}`)
+
     return {
       success: true,
-      remainingCredits: updatedCredits.credits_remaining
+      remainingCredits: totalRemaining
     }
   } catch (error) {
     console.error('Deduct credits error:', error)

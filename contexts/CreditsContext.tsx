@@ -3,8 +3,16 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '@clerk/nextjs';
 
+interface CreditsData {
+  credits_remaining: number;
+  subscription_credits: number;
+  purchased_credits: number;
+  has_purchased: boolean;
+}
+
 interface CreditsContextType {
   credits: number | undefined;
+  creditsData: CreditsData | undefined;
   refetchCredits: () => Promise<void>;
   updateCredits: (newCredits: number) => void;
   isLoading: boolean;
@@ -27,6 +35,7 @@ interface CreditsProviderProps {
 export function CreditsProvider({ children }: CreditsProviderProps) {
   const { user } = useUser();
   const [credits, setCredits] = useState<number | undefined>(undefined);
+  const [creditsData, setCreditsData] = useState<CreditsData | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const isMountedRef = useRef(true);
 
@@ -51,8 +60,12 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
           const response = await fetch('/api/credits/check', { cache: 'no-store' });
           const data = await response.json();
 
-          if (data?.success) {
-            if (isMountedRef.current) setCredits(data.credits);
+          if (data?.success && data?.credits) {
+            if (isMountedRef.current) {
+              // data.credits is now an object with subscription_credits, purchased_credits, etc.
+              setCreditsData(data.credits);
+              setCredits(data.credits.credits_remaining);
+            }
             lastError = undefined;
             break;
           }
@@ -102,7 +115,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
   };
 
   return (
-    <CreditsContext.Provider value={{ credits, refetchCredits, updateCredits, isLoading }}>
+    <CreditsContext.Provider value={{ credits, creditsData, refetchCredits, updateCredits, isLoading }}>
       {children}
     </CreditsContext.Provider>
   );

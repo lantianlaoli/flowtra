@@ -160,7 +160,7 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 
 export default function AvatarAdsPage() {
   const { user, isLoaded } = useUser();
-  const { credits: userCredits, refetchCredits } = useCredits();
+  const { credits: userCredits, creditsData, refetchCredits } = useCredits();
   const { showSuccess, showError } = useToast();
 
   // Form state
@@ -961,6 +961,7 @@ const formatDurationLabel = (seconds: number) => {
     <div className="min-h-screen bg-white">
       <Sidebar
         credits={userCredits}
+        creditsData={creditsData}
         userEmail={user?.emailAddresses?.[0]?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
@@ -1058,7 +1059,7 @@ const formatDurationLabel = (seconds: number) => {
             </>
           }
           centerInput={
-            <div className="flex-1 min-w-[240px]">
+            <div className="flex-1 min-w-[200px]">
               <div className="relative bg-white border border-gray-200 rounded-3xl px-5 py-3 shadow-sm transition-all flex flex-col justify-end" style={{minHeight: '52px'}}>
                 <textarea
                   ref={textareaRef}

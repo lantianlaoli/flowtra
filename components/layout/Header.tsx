@@ -96,13 +96,6 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           {showAuthButtons && (
             <>
               <SignedOut>
-                <div className="hidden sm:block">
-                  <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                    <button className="text-[14px] font-medium text-black hover:opacity-70 transition-all cursor-pointer">
-                      Login
-                    </button>
-                  </SignInButton>
-                </div>
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                   <button className="bg-black text-white text-[14px] font-medium px-6 py-2.5 rounded-lg hover:bg-[#333333] transition-all cursor-pointer">
                     Get Started

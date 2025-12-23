@@ -6,8 +6,6 @@ import { useCredits } from '@/contexts/CreditsContext';
 import { Zap, TrendingUp, Hand, Volume2, VolumeX, Image as ImageIcon, Video as VideoIcon, BarChart3, Clock } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import { useRef, useMemo, useCallback } from 'react';
-import { useOnboarding } from '@/hooks/useOnboarding';
-import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,9 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function HomePage() {
   const { user, isLoaded } = useUser();
-  const { credits } = useCredits();
-  const { status, completeOnboarding } = useOnboarding();
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { credits, creditsData } = useCredits();
   const [stats, setStats] = useState({
     totalVideos: 0,
     thisMonth: 0,
@@ -31,13 +27,6 @@ export default function HomePage() {
     tasksCompleted: number;
     totalTasks: number;
   } | null>(null);
-
-  // Show onboarding if not completed
-  useEffect(() => {
-    if (!status.loading && !status.completed) {
-      setShowOnboarding(true);
-    }
-  }, [status.loading, status.completed]);
 
   // Fetch recent videos and stats
   useEffect(() => {
@@ -78,32 +67,11 @@ export default function HomePage() {
     return 'Guest';
   };
 
-  const handleCompleteOnboarding = async () => {
-    const success = await completeOnboarding();
-    if (success) {
-      setShowOnboarding(false);
-    }
-  };
-
-  const handleSkipOnboarding = async () => {
-    await completeOnboarding();
-    setShowOnboarding(false);
-  };
-
-
   return (
-    <>
-      {/* Onboarding Tour */}
-      {showOnboarding && (
-        <OnboardingTour
-          onComplete={handleCompleteOnboarding}
-          onSkip={handleSkipOnboarding}
-        />
-      )}
-
-      <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white">
       <Sidebar
         credits={credits}
+        creditsData={creditsData}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
@@ -183,7 +151,6 @@ export default function HomePage() {
         </div>
       </div>
     </div>
-    </>
   );
 }
 

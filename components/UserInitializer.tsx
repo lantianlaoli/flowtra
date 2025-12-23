@@ -30,12 +30,12 @@ export function UserInitializer() {
         const creditsResult = await getUserCredits(userId)
         
         if (creditsResult.success && !creditsResult.credits) {
-          // User exists but has no credits record, create one with initial free credits
-          console.log('🔄 Initializing credits for new user:', userId)
+          // User exists but has no credits record, create one
+          console.log('🔄 Initializing credits record for new user:', userId)
           const createResult = await initializeUserCredits(userId, INITIAL_FREE_CREDITS)
-          
+
           if (createResult.success) {
-            console.log(`✅ Credits initialized successfully for user: ${userId} with ${INITIAL_FREE_CREDITS} free credits`)
+            console.log(`✅ Credits record initialized successfully for user: ${userId}`)
             // Mark as initialized in localStorage to prevent future attempts
             localStorage.setItem(storageKey, 'true')
             // Refresh credits in the context to update UI immediately
@@ -45,7 +45,7 @@ export function UserInitializer() {
             // Don't mark as initialized if it failed
           }
         } else if (creditsResult.success && creditsResult.credits) {
-          console.log('👤 User already has credits:', userId, creditsResult.credits.credits_remaining)
+          console.log('👤 User already has credits record:', userId, creditsResult.credits.credits_remaining)
           // Mark as initialized since user already has credits
           localStorage.setItem(storageKey, 'true')
         } else {

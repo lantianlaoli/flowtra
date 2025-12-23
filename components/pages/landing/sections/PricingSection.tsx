@@ -1,20 +1,13 @@
 import { PricingButton } from '@/components/pages/landing/PricingButton';
 import { Check } from 'lucide-react';
 
-export default function PricingSection() {
-
+export default function PricingSection({ showTitle = true }: { showTitle?: boolean }) {
   const LITE_PRICE = 29;
-
   const BASIC_PRICE = 59;
-
   const PRO_PRICE = 99;
 
-
-
   const litePricing = LITE_PRICE;
-
   const basicPricing = BASIC_PRICE;
-
   const proPricing = PRO_PRICE;
 
 
@@ -23,13 +16,12 @@ export default function PricingSection() {
 
     <section id="pricing" className="py-20 scroll-mt-24">
 
-      <div className="text-center mb-16 px-4">
-
-        <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">Pay Once, Use Forever</h2>
-
-        <p className="text-lg text-[#666666]">One-time purchase. No subscriptions.</p>
-
-      </div>
+      {showTitle && (
+        <div className="text-center mb-16 px-4">
+          <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">Choose Your Plan</h2>
+          <p className="text-lg text-[#666666] mb-6">Monthly subscription with automatic credit reset</p>
+        </div>
+      )}
 
 
 
@@ -51,13 +43,11 @@ export default function PricingSection() {
 
               <data itemProp="price" value={litePricing}>${litePricing}</data>
 
-              <span className="text-[16px] font-medium text-[#666666] ml-1">/package</span>
+              <span className="text-[16px] font-medium text-[#666666] ml-1">/month</span>
 
             </div>
 
           </div>
-
-          
 
           <ul className="space-y-4 mb-10 flex-grow">
 
@@ -123,13 +113,11 @@ export default function PricingSection() {
 
               <data itemProp="price" value={basicPricing}>${basicPricing}</data>
 
-              <span className="text-[16px] font-medium text-[#666666] ml-1">/package</span>
+              <span className="text-[16px] font-medium text-[#666666] ml-1">/month</span>
 
             </div>
 
           </div>
-
-
 
           <ul className="space-y-4 mb-10 flex-grow">
 
@@ -185,13 +173,11 @@ export default function PricingSection() {
 
               <data itemProp="price" value={proPricing}>${proPricing}</data>
 
-              <span className="text-[16px] font-medium text-[#666666] ml-1">/package</span>
+              <span className="text-[16px] font-medium text-[#666666] ml-1">/month</span>
 
             </div>
 
           </div>
-
-
 
           <ul className="space-y-4 mb-10 flex-grow">
 

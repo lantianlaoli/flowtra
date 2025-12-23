@@ -34,8 +34,15 @@ import UserProfile from '@/components/ui/UserProfile';
 import FeedbackWidget from '@/components/FeedbackWidget';
 import { cn } from '@/lib/utils';
 
+interface CreditsData {
+  credits_remaining: number;
+  subscription_credits?: number;
+  purchased_credits?: number;
+}
+
 interface SidebarProps {
-  credits?: number;
+  credits?: number; // Backward compatibility: total credits
+  creditsData?: CreditsData; // New: full credits breakdown
   userEmail?: string;
   userImageUrl?: string;
   onTriggerOnboarding?: () => void;
@@ -45,44 +52,43 @@ const navigation = [
   {
     name: 'Home',
     href: '/dashboard',
-    icon: Home,
-    onboardingId: 'sidebar-home'
+    icon: Home
   },
   {
     name: 'UGC Clone',
     href: '/dashboard/competitor-ugc-replication',
-    icon: Sparkles,
-    onboardingId: 'sidebar-competitor-ugc-replication'
+    icon: Sparkles
   },
   {
     name: 'Avatar Ads',
     href: '/dashboard/avatar-ads',
-    icon: Video,
-    onboardingId: 'sidebar-avatar-ads'
+    icon: Video
   },
   {
     name: 'My Ads',
     href: '/dashboard/videos',
-    icon: Play,
-    onboardingId: 'sidebar-my-ads'
+    icon: Play
   },
   {
     name: 'Assets',
     href: '/dashboard/assets',
-    icon: Boxes,
-    onboardingId: 'sidebar-assets'
+    icon: Boxes
   },
   {
     name: 'Account',
     href: '/dashboard/account',
-    icon: User,
-    onboardingId: 'sidebar-account'
+    icon: User
   }
 ];
 
-export default function Sidebar({ credits = 0, userEmail, userImageUrl, onTriggerOnboarding }: SidebarProps) {
+export default function Sidebar({ credits = 0, creditsData, userEmail, userImageUrl, onTriggerOnboarding }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Use creditsData if available, otherwise fall back to legacy credits prop
+  const displayCredits = creditsData?.credits_remaining ?? credits;
+  const subscriptionCredits = creditsData?.subscription_credits ?? 0;
+  const purchasedCredits = creditsData?.purchased_credits ?? 0;
 
   // Desktop sidebar content (uses shadcn Sidebar components with SidebarProvider)
   const DesktopSidebarContent = () => (
@@ -111,10 +117,12 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl, onTrigge
         )}
 
         {/* Credits Display */}
-        {credits !== undefined && (
+        {(credits !== undefined || creditsData) && (
           <div className="mb-6">
             <CreditsDisplay
-              credits={credits}
+              credits={displayCredits}
+              subscriptionCredits={subscriptionCredits}
+              purchasedCredits={purchasedCredits}
               onAddCredits={() => window.location.href = '/#pricing'}
             />
           </div>
@@ -143,7 +151,6 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl, onTrigge
                       >
                         <Link
                           href={item.href}
-                          data-onboarding-id={item.onboardingId}
                           onClick={() => setMobileOpen(false)}
                         >
                           {isActive && (
@@ -235,10 +242,12 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl, onTrigge
         )}
 
         {/* Credits Display */}
-        {credits !== undefined && (
+        {(credits !== undefined || creditsData) && (
           <div className="mb-6">
             <CreditsDisplay
-              credits={credits}
+              credits={displayCredits}
+              subscriptionCredits={subscriptionCredits}
+              purchasedCredits={purchasedCredits}
               onAddCredits={() => window.location.href = '/#pricing'}
             />
           </div>
@@ -255,7 +264,6 @@ export default function Sidebar({ credits = 0, userEmail, userImageUrl, onTrigge
                 <Link
                   key={item.name}
                   href={item.href}
-                  data-onboarding-id={item.onboardingId}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
                     "relative flex items-center h-10 px-3 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden",

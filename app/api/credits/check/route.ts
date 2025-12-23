@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 import { auth } from '@clerk/nextjs/server'
 import { getUserCredits, initializeUserCredits } from '@/lib/credits'
+import { INITIAL_FREE_CREDITS } from '@/lib/constants'
 
 export async function GET() {
   // Ensure this route is dynamic and not statically evaluated at build time
@@ -36,13 +37,13 @@ export async function GET() {
     // Auto-initialize credits if user doesn't have a record
     if (!result.credits) {
       console.log(`🔄 User ${userId} has no credits record, auto-initializing...`)
-      const initResult = await initializeUserCredits(userId, 100)
+      const initResult = await initializeUserCredits(userId, INITIAL_FREE_CREDITS)
 
       if (initResult.success && initResult.credits) {
         console.log(`✅ Successfully initialized ${initResult.credits.credits_remaining} credits for user ${userId}`)
         return NextResponse.json({
           success: true,
-          credits: initResult.credits.credits_remaining,
+          credits: initResult.credits, // Return full credits object
           hasCredits: initResult.credits.credits_remaining > 0,
           userId: userId,
           initialized: true
@@ -60,7 +61,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      credits: result.credits.credits_remaining,
+      credits: result.credits, // Return full credits object
       hasCredits: result.credits.credits_remaining > 0,
       userId: userId
     })

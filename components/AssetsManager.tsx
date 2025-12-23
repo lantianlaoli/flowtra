@@ -366,7 +366,6 @@ export default function AssetsManager() {
             </a>
             <button
               onClick={() => setShowCreateBrandModal(true)}
-              data-onboarding-id="assets-new-brand"
               className="flex items-center gap-1.5 md:gap-2 bg-gray-900 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm md:text-base"
             >
               <Tag className="w-4 h-4" />

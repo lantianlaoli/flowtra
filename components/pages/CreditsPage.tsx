@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
-import { Coins, Link2, XCircle, Sparkles } from 'lucide-react';
+import { Coins, Link2, XCircle, Sparkles, CreditCard, Calendar, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { HiPlus, HiMinus, HiLightningBolt, HiClipboardList } from 'react-icons/hi';
 
 interface CreditTransaction {
@@ -24,15 +24,30 @@ interface TikTokConnection {
   tiktok_open_id: string;
 }
 
+interface Subscription {
+  id: string;
+  tier: 'lite' | 'basic' | 'pro';
+  status: string;
+  monthly_credits: number;
+  credits_used_this_cycle: number;
+  current_period_start: string;
+  current_period_end: string;
+  subscribed_at: string;
+  canceled_at?: string;
+}
+
 export default function CreditsPage() {
   const { user, isLoaded } = useUser();
-  const { credits: userCredits } = useCredits();
+  const { credits: userCredits, creditsData } = useCredits();
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [tiktokConnection, setTiktokConnection] = useState<TikTokConnection | null>(null);
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [tiktokLoading, setTiktokLoading] = useState(true);
   const [unbindingTiktok, setUnbindingTiktok] = useState(false);
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | '7days' | '30days' | '90days'>('all');
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [openingPortal, setOpeningPortal] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -86,8 +101,27 @@ export default function CreditsPage() {
       }
     };
 
+    // Fetch subscription info
+    const fetchSubscription = async () => {
+      if (!user?.id) return;
+
+      try {
+        const response = await fetch('/api/subscription/status');
+        const data = await response.json();
+
+        if (data.success && data.subscription) {
+          setSubscription(data.subscription);
+        }
+      } catch (error) {
+        console.error('Error fetching subscription:', error);
+      } finally {
+        setSubscriptionLoading(false);
+      }
+    };
+
     fetchTransactions();
     fetchTikTokConnection();
+    fetchSubscription();
 
     // Handle OAuth callback status messages
     const params = new URLSearchParams(window.location.search);
@@ -282,10 +316,33 @@ export default function CreditsPage() {
     }
   };
 
+  // Handle manage billing (open Creem customer portal)
+  const handleManageBilling = async () => {
+    setOpeningPortal(true);
+    try {
+      const response = await fetch('/api/subscription/portal', {
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (data.success && data.portal_url) {
+        window.open(data.portal_url, '_blank');
+      } else {
+        alert('Failed to open billing portal. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error opening billing portal:', error);
+      alert('Failed to open billing portal. Please try again.');
+    } finally {
+      setOpeningPortal(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <Sidebar
         credits={userCredits}
+        creditsData={creditsData}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
@@ -339,6 +396,136 @@ export default function CreditsPage() {
               </div>
             </div>
           </div>
+
+          {/* Subscription Management Section */}
+          {!subscriptionLoading && subscription && (
+            <div className="mb-8">
+              <h2 className="text-2xl font-semibold text-[#000000] mb-6">Subscription</h2>
+
+              <div className="bg-white border border-[#E5E5E5] rounded-xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+                <div className="flex flex-col gap-6">
+                  {/* Header: Tier and Status */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-14 bg-black rounded-xl flex items-center justify-center">
+                        <CreditCard className="w-7 h-7 text-white" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-semibold text-[#000000] capitalize">{subscription.tier} Plan</h3>
+                          {subscription.status === 'active' && (
+                            <span className="px-2 py-1 bg-[#000000] text-white text-xs font-medium rounded">
+                              Active
+                            </span>
+                          )}
+                          {subscription.status === 'canceled' && (
+                            <span className="px-2 py-1 bg-[#E5E5E5] text-[#666666] text-xs font-medium rounded">
+                              Canceled
+                            </span>
+                          )}
+                          {subscription.status === 'paused' && (
+                            <span className="px-2 py-1 bg-[#FFA500] text-white text-xs font-medium rounded">
+                              Paused
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-[#666666]">
+                          {subscription.monthly_credits.toLocaleString()} credits per month
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleManageBilling}
+                      disabled={openingPortal}
+                      className="flex items-center gap-2 px-6 py-3 bg-[#000000] text-white text-sm font-medium rounded-lg hover:bg-[#1a1a1a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      {openingPortal ? 'Opening...' : 'Manage Billing'}
+                    </button>
+                  </div>
+
+                  {/* Credits Usage Progress */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-[#666666]">Credits Used This Cycle</span>
+                      <span className="text-sm font-semibold text-[#000000]">
+                        {subscription.credits_used_this_cycle.toLocaleString()} / {subscription.monthly_credits.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="w-full bg-[#E5E5E5] rounded-full h-2">
+                      <div
+                        className="bg-[#000000] h-2 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, (subscription.credits_used_this_cycle / subscription.monthly_credits) * 100)}%`
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Billing Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-[#E5E5E5]">
+                    <div className="flex items-start gap-3">
+                      <Calendar className="w-5 h-5 text-[#666666] mt-0.5" />
+                      <div>
+                        <p className="text-xs text-[#666666] font-medium mb-1">Current Billing Period</p>
+                        <p className="text-sm text-[#000000]">
+                          {new Date(subscription.current_period_start).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                          {' - '}
+                          {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-[#666666] mt-0.5" />
+                      <div>
+                        <p className="text-xs text-[#666666] font-medium mb-1">
+                          {subscription.status === 'canceled' ? 'Subscription Ends' : 'Next Billing Date'}
+                        </p>
+                        <p className="text-sm text-[#000000]">
+                          {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Canceled Notice */}
+                  {subscription.status === 'canceled' && subscription.canceled_at && (
+                    <div className="flex items-start gap-3 p-4 bg-[#F7F7F7] rounded-lg border border-[#E5E5E5]">
+                      <AlertCircle className="w-5 h-5 text-[#666666] mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-[#000000] mb-1">Subscription Canceled</p>
+                        <p className="text-xs text-[#666666]">
+                          Your subscription was canceled on {new Date(subscription.canceled_at).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}. You'll continue to have access until {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Connected Accounts Section */}
           <div className="mb-8">

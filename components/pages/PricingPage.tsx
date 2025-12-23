@@ -44,6 +44,7 @@ export default function PricingPage() {
       await handleCreemCheckout({
         packageName,
         userEmail,
+        isSubscription: true,
         onLoading: (isLoading) => setLoadingPackage(isLoading ? packageName : null),
         onError: (error) => alert(`Purchase failed: ${error}`)
       });
@@ -103,8 +104,8 @@ export default function PricingPage() {
         {/* Pricing Section (mirrors LandingPage) */}
         <div className="py-12">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Pay Once, Use Forever</h2>
-            <p className="text-base text-gray-600">One-time purchase. No subscriptions. Flexible billing: Basic models (free generation, paid download) or Premium models (paid generation, free download)</p>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Choose Your Plan</h2>
+            <p className="text-base text-gray-600 mb-6">Monthly subscription with automatic credit reset</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
@@ -113,12 +114,14 @@ export default function PricingPage() {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Lite</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
                 $29
-                <span className="text-lg font-normal text-gray-600">/package</span>
+                <span className="text-lg font-normal text-gray-600">
+                  /month
+                </span>
               </div>
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600"><span className="font-bold text-gray-900">1,930</span> credits</span>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">1,930</span> credits/month</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
@@ -126,19 +129,15 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Mixed billing model</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
                   <span className="text-gray-600">Always free image generation</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Competitor UGC Replication, Character Ads</span>
+                  <span className="text-gray-600">Competitor UGC Replication</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Character Ads</span>
+                  <span className="text-gray-600">Avatar Ads</span>
                 </li>
               </ul>
               <PricingButton packageName="lite" />
@@ -154,12 +153,14 @@ export default function PricingPage() {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Basic</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
                 $59
-                <span className="text-lg font-normal text-gray-600">/package</span>
+                <span className="text-lg font-normal text-gray-600">
+                  /month
+                </span>
               </div>
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600"><span className="font-bold text-gray-900">3,930</span> credits</span>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">3,930</span> credits/month</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
@@ -175,11 +176,11 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Competitor UGC Replication, Character Ads</span>
+                  <span className="text-gray-600">Competitor UGC Replication</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Character Ads</span>
+                  <span className="text-gray-600">Avatar Ads</span>
                 </li>
               </ul>
               <PricingButton packageName="basic" />
@@ -190,12 +191,14 @@ export default function PricingPage() {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Pro</h3>
               <div className="text-3xl font-bold text-gray-900 mb-4">
                 $99
-                <span className="text-lg font-normal text-gray-600">/package</span>
+                <span className="text-lg font-normal text-gray-600">
+                  /month
+                </span>
               </div>
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600"><span className="font-bold text-gray-900">6,600</span> credits</span>
+                  <span className="text-gray-600"><span className="font-bold text-gray-900">6,600</span> credits/month</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
@@ -203,19 +206,15 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Mixed billing model</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
                   <span className="text-gray-600">Always free image generation</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Competitor UGC Replication, Character Ads</span>
+                  <span className="text-gray-600">Competitor UGC Replication</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Character Ads</span>
+                  <span className="text-gray-600">Avatar Ads</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
