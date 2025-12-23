@@ -45,7 +45,6 @@ export const useCompetitorUgcReplicationWorkflow = (
   imageSize: string = 'auto',
   videoAspectRatio: '16:9' | '9:16' = '16:9',
   videoDuration: VideoDuration = '8',
-  adCopy: string = '',
   selectedLanguage: string = 'en',
   useCustomScript: boolean = false,
   customScript: string = ''
@@ -263,7 +262,6 @@ export const useCompetitorUgcReplicationWorkflow = (
         photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
         videoDuration: resolvedDuration,
-        adCopy: adCopy?.trim() ? adCopy.trim() : undefined,
         selectedBrandId: selectedBrandId,
         competitorAdId: competitorAdId || undefined, // Add competitor ad ID
         language: selectedLanguage,
@@ -335,7 +333,6 @@ export const useCompetitorUgcReplicationWorkflow = (
     imageSize,
     videoAspectRatio,
     resolveVideoConfig,
-    adCopy,
     selectedLanguage,
     useCustomScript,
     customScript,

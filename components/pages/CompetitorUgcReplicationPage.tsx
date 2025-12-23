@@ -14,7 +14,6 @@ import BottomComposerBar from '@/components/ui/BottomComposerBar';
 import PlatformSelector, { type Platform } from '@/components/ui/PlatformSelector';
 import BrandDropdownSelector from '@/components/ui/BrandDropdownSelector';
 import CompetitorAdSelector from '@/components/ui/CompetitorAdSelector';
-import RequirementsInput from '@/components/ui/RequirementsInput';
 import ConfigPopover from '@/components/ui/ConfigPopover';
 import GenerationProgressDisplay, { type Generation, type SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import SegmentInspector, { type SegmentPromptPayload } from '@/components/competitor-ugc-replication/SegmentInspector';
@@ -202,9 +201,6 @@ export default function CompetitorUgcReplicationPage() {
   // NEW: Platform state
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>('tiktok');
 
-  // NEW: Additional requirements input
-  const [additionalRequirements, setAdditionalRequirements] = useState('');
-
   // NEW: Generation history
   const [generations, setGenerations] = useState<SessionGeneration[]>([]);
   const [expandedGenerationId, setExpandedGenerationId] = useState<string | null>(null);
@@ -355,15 +351,6 @@ export default function CompetitorUgcReplicationPage() {
   const derivedAdCopy = selectedBrand?.brand_slogan || '';
   const shouldGenerateVideo = !isCompetitorPhotoMode;
 
-  // Build final prompt with additional requirements
-  const buildFinalPrompt = useCallback(() => {
-    const basePrompt = derivedAdCopy;
-    if (!additionalRequirements.trim()) {
-      return basePrompt;
-    }
-    return `${basePrompt}\n\nAdditional requirements: ${additionalRequirements}`;
-  }, [derivedAdCopy, additionalRequirements]);
-
   const { startWorkflowWithSelectedProduct } = useCompetitorUgcReplicationWorkflow(
     user?.id,
     selectedModel,
@@ -374,7 +361,6 @@ export default function CompetitorUgcReplicationPage() {
     format,
     format as '16:9' | '9:16',
     videoDuration,
-    buildFinalPrompt(),
     selectedLanguage,
     false, // Always use auto mode now
     ''
@@ -1261,17 +1247,6 @@ export default function CompetitorUgcReplicationPage() {
             className="flex-shrink-0"
           />
         </>
-      }
-      centerInput={
-        <RequirementsInput
-          value={additionalRequirements}
-          onChange={setAdditionalRequirements}
-          disabled={isGenerating}
-          className="flex-1"
-          textareaClassName="px-0"
-          variant="ghost"
-          hideCounter
-        />
       }
       configButton={
         <ConfigPopover

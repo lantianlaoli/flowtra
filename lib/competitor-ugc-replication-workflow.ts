@@ -66,7 +66,6 @@ export interface StartWorkflowRequest {
   photoOnly?: boolean;
   shouldGenerateVideo?: boolean;
   videoAspectRatio?: '16:9' | '9:16';
-  adCopy?: string;
   referenceImageUrls?: string[];
   photoAspectRatio?: string;
   photoResolution?: '1K' | '2K' | '4K';
@@ -994,7 +993,6 @@ async function startAIWorkflow(
       request.imageUrl,
       request.language,
       totalDurationSeconds,
-      request.adCopy,
       segmentCount,
       productContext,
       competitorDescription // Pass competitor analysis result (not raw context)
@@ -1094,8 +1092,7 @@ async function startReplicaWorkflow(
   const prompt = buildReplicaPrompt({
     competitorDescription,
     productContext,
-    language: detectedLanguage,
-    additionalRequirements: request.adCopy
+    language: detectedLanguage
   });
 
   const taskId = await generateReplicaPhoto({
@@ -1127,13 +1124,11 @@ async function startReplicaWorkflow(
 function buildReplicaPrompt({
   competitorDescription,
   productContext,
-  language,
-  additionalRequirements
+  language
 }: {
   competitorDescription?: Record<string, unknown>;
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string };
   language?: LanguageCode;
-  additionalRequirements?: string;
 }): string {
   const brandName = productContext?.brand_name || 'the featured brand';
   const productDetails = truncateText(productContext?.product_details, 800);
@@ -1155,7 +1150,6 @@ function buildReplicaPrompt({
   const sceneGuide = visibleSceneElements.length
     ? `${visibleSceneElements.map(el => `- ${el.element} (${el.position}): ${truncateText(el.details, 280)}`).join('\n')}${hasTrimmedScene ? '\n- ... (trimmed additional scene elements)' : ''}`
     : 'Match every visible background object, flooring, wall color, prop, and piece of furniture based on the competitor photo. Keep their placement and proportions identical.';
-  const sanitizedAdditionalRequirements = truncateText(additionalRequirements, 800);
 
   const promptSections = [
     `Replica UGC mode: recreate the competitor scene exactly as analyzed, but swap every branded object with ${brandName}'s products using the provided reference images. Maintain identical framing, pose, lens, lighting, mood, and prop placement.`,
@@ -1168,7 +1162,6 @@ function buildReplicaPrompt({
     productDetails && `Brand/Product cues: ${productDetails}`,
     brandSlogan && `Brand tone: ${brandSlogan}`,
     `Use only the supplied ${brandName} assets for replacement props. Preserve the same number of toys, type of flooring, wall textures, and negative space. If people or children are present, keep their poses, clothing vibes, and camera depth identical.`,
-    sanitizedAdditionalRequirements && `Additional requirements: ${sanitizedAdditionalRequirements}`,
     `Language for any visible text: ${(language || 'en').toUpperCase()}.`
   ].filter(Boolean);
 
@@ -1646,7 +1639,6 @@ async function generateImageBasedPrompts(
   imageUrl: string | undefined,
   language?: string,
   videoDurationSeconds?: number,
-  userRequirements?: string,
   segmentCount = 1,
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
   competitorDescription?: Record<string, unknown> // Changed: Now receives analysis result, not raw context
@@ -1830,7 +1822,7 @@ Use the competitor analysis provided in the system message to recreate the same 
 - DO NOT simplify or shorten scene descriptions - maintain the same level of detail
 - Example transformation: "Woman applying Competitor Brand lotion..." → "Woman applying ${productContext?.brand_name || 'our product'} lotion..." (keep all other details unchanged)
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this to ensure accurate product replacement)\n` : ''}${userRequirements ? `\nUser Requirements:\n${userRequirements}\n(Apply without changing the competitor's creative structure)\n` : ''}
+${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this to ensure accurate product replacement)\n` : ''}
 
 ${strictSegmentFormat}`
                   }
@@ -1846,7 +1838,7 @@ ${strictSegmentFormat}`
 - DO NOT simplify or shorten scene descriptions - maintain the same level of detail
 - Keep all environmental details, lighting descriptions, composition specifics unchanged
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this context when replacing subjects or props)\n` : ''}${userRequirements ? `\nUser Requirements:\n${userRequirements}\n(Apply without inventing new structure)\n` : ''}
+${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this context when replacing subjects or props)\n` : ''}
 
 ${strictSegmentFormat}`
                   }
@@ -1869,7 +1861,7 @@ ${strictSegmentFormat}`
 
 Analyze the product image and build a storyboard that feels like a premium advertisement. Keep all details consistent with the supplied product photo (colors, proportions, packaging, materials) while enhancing the production value.
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this context sparingly and only when it matches what you see in the photo)\n` : ''}${userRequirements ? `\nUser Requirements:\n${userRequirements}\n(Blend these ideas into the storyboard without inventing off-image assets)\n` : ''}
+${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this context sparingly and only when it matches what you see in the photo)\n` : ''}
 
 Focus on real visual cues from the image: product texture, use cases, target audience, and natural environments. Dialogue must describe the product or experience without adding slogans or pricing.
 
@@ -1883,7 +1875,7 @@ ${strictSegmentFormat}`
 
 Use ONLY the brand/product context to imagine what the product looks like in the real world, then output a storyboard following the exact competitor-style schema.
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `Brand & Product Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this to inform the visuals you invent)\n` : ''}${userRequirements ? `\nUser Requirements:\n${userRequirements}\n(Blend these ideas directly into the storyboard)\n` : ''}
+${productContext && (productContext.product_details || productContext.brand_name) ? `Brand & Product Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this to inform the visuals you invent)\n` : ''}
 
 Every segment must feel grounded, cinematic, and ready for production. Mention props, environments, and characters explicitly.
 
