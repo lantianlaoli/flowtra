@@ -18,7 +18,7 @@ export default function StructuredData() {
       width: 250,
       height: 60
     },
-    description: 'Professional AI-powered advertising platform that transforms product images into high-converting video ads for small businesses.',
+    description: 'AI-powered video cloning platform that replicates competitors\' best-performing UGC videos for small businesses. Transform any TikTok ad, Instagram Reel, or YouTube Short into your own branded content.',
     sameAs: [
       'https://twitter.com/flowtra',
       'https://www.linkedin.com/company/flowtra'
@@ -57,10 +57,10 @@ export default function StructuredData() {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
     '@id': 'https://www.flowtra.store/#product',
-    name: 'Flowtra AI Video Ad Generator',
+    name: 'Flowtra - Turn Viral Videos Into Your Own | AI Video Cloning',
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web Browser',
-    description: 'Professional AI-powered video ad generator that creates high-converting advertisements from product images. Features Competitor UGC Replication and Avatar Ads workflows.',
+    description: 'Turn your competitors\' viral UGC videos into your own with AI. Clone TikTok ads, Instagram Reels, and YouTube Shorts with your products. Features dual-mode workflow: competitor video cloning and avatar-based video generation. Built for Shopify sellers, dropshippers, and small businesses.',
     offers: {
       '@type': 'AggregateOffer',
       '@id': 'https://www.flowtra.store/#offers',
@@ -125,16 +125,16 @@ export default function StructuredData() {
       worstRating: '1'
     },
     featureList: [
-      'Competitor UGC Replication: Single product image to video conversion',
+      'Competitor Video Cloning: Replicate TikTok, Instagram, and YouTube UGC ads',
+      'AI-Powered Creative Structure Analysis: Extract and clone proven video formats',
+      'Automatic Product Replacement: Replace competitor products with yours',
       'Avatar Ads: Character-based advertisement generation',
-      'Kling 2.6: Audio-enabled landscape videos up to 80 seconds',
-      'AI-powered image description and prompt generation',
-      'Multiple AI models: Veo3, Veo3 Fast, Sora2, Sora2 Pro, Kling 2.6',
-      'Cover image generation: nano_banana, seedream models',
-      'Mixed billing model: Free generation or paid generation options',
-      'Always free image generation',
-      'Monthly subscription model with automatic credit reset',
-      'Flexible credit-based billing system'
+      'Dual-Mode Workflow: Competitor cloning + original video generation',
+      'Multi-Platform Support: TikTok, Instagram Reels, YouTube Shorts',
+      'Multiple AI Models: Veo3, Veo3 Fast, Sora2, Sora2 Pro',
+      'Multi-Language Support: English, Chinese, Spanish, and 10+ languages',
+      'Generation-Time Billing: Pay only for generated videos, downloads are free',
+      'No Editing Skills Required: AI handles creative structure replication'
     ],
     screenshot: 'https://www.flowtra.store/screenshots/dashboard.png',
     url: 'https://www.flowtra.store',

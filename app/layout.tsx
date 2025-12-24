@@ -15,9 +15,41 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "UGC Videos Made for Small Businesses - Flowtra AI",
-  description: "UGC videos for local stores, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes with unlimited free generations.",
+  title: "Turn Viral Videos Into Your Own with AI - Flowtra | Clone TikTok & Instagram Ads",
+  description: "Turn your competitors' viral TikTok ads and Instagram Reels into your own with AI. Clone proven UGC videos for your products. From $0.30/8s. No editing skills needed.",
   keywords: [
+    // Primary viral + cloning keywords
+    "turn viral videos into your own",
+    "clone viral TikTok ads",
+    "clone viral UGC videos",
+    "replicate viral Instagram Reels",
+    "copy viral competitor videos",
+    // Core cloning keywords
+    "clone competitor videos",
+    "clone TikTok ads",
+    "replicate Instagram Reels",
+    "competitor video replication",
+    "clone YouTube Shorts",
+    // Viral-focused long-tail
+    "how to turn competitor videos into your own",
+    "clone viral marketing videos",
+    "replicate viral TikTok ads",
+    "copy viral UGC content",
+    // Long-tail keywords
+    "how to clone competitor ads",
+    "AI video cloning tool",
+    "replicate viral marketing videos",
+    "TikTok ad replication software",
+    "Instagram Reels cloning AI",
+    // Audience-specific with viral angle
+    "clone viral ads for Shopify",
+    "replicate viral TikTok videos for dropshipping",
+    "copy viral UGC for small business",
+    // Platform-specific
+    "TikTok ad cloning AI",
+    "Instagram Reels replication tool",
+    "viral video cloning software",
+    // Keep existing relevant keywords
     "UGC video maker",
     "small business video ads",
     "Shopify product videos",
@@ -27,10 +59,6 @@ export const metadata: Metadata = {
     "Stan creators AI",
     "free AI video generator",
     "unlimited AI image maker",
-    "AI tool no subscription",
-    "one-time AI video tool",
-    "AI video generator $9 plan",
-    "customizable AI video templates",
     "AI marketing tool for small business",
     "product photo to video AI",
     "TikTok ad maker AI",
@@ -53,8 +81,8 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: "UGC Videos Made for Small Businesses - Flowtra AI",
-    description: "UGC videos for local stores, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes with unlimited free generations.",
+    title: "Turn Viral Videos Into Your Own with AI - Flowtra",
+    description: "Clone your competitors' viral TikTok ads, Instagram Reels, and YouTube Shorts with AI. Built for Shopify sellers and small businesses. From $0.30 per 8 seconds.",
     url: 'https://www.flowtra.store',
     siteName: 'Flowtra',
     images: [
@@ -62,7 +90,7 @@ export const metadata: Metadata = {
         url: '/opengraph-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Flowtra AI - UGC Videos Made for Small Businesses',
+        alt: 'Turn Viral Videos Into Your Own - Flowtra AI Clone Competitor UGC',
       }
     ],
     locale: 'en_US',
@@ -70,8 +98,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'UGC Videos Made for Small Businesses - Flowtra AI',
-    description: 'UGC videos for local stores, Shopify sellers, and dropshippers. Generate scroll-stopping marketing videos and product images in minutes.',
+    title: 'Turn Viral Videos Into Your Own - Flowtra AI',
+    description: 'Clone competitors\' viral TikTok & Instagram ads with AI. Proven creative for your products. From $0.30/8s.',
     images: ['/twitter-image.png'],
     creator: '@flowtra',
   },
@@ -127,8 +155,8 @@ export default function RootLayout({
               __html: JSON.stringify({
                 '@context': 'https://schema.org',
                 '@type': 'SoftwareApplication',
-                name: 'Flowtra AI - AI Video Generator for Etsy, Shopify & Gumroad Sellers',
-                description: 'AI-powered marketing toolkit that turns product photos into scroll-stopping videos and images for Etsy, Shopify, Gumroad, and Stan sellers. Create campaigns in minutes with unlimited free generations.',
+                name: 'Flowtra AI - Turn Viral Videos Into Your Own | Clone Competitor UGC',
+                description: 'AI-powered video cloning platform that transforms competitors\' viral UGC videos into your own. Clone TikTok ads, Instagram Reels, and YouTube Shorts with your products. Built for Shopify, dropshipping, and small businesses.',
                 url: 'https://www.flowtra.store',
                 applicationCategory: 'BusinessApplication',
                 operatingSystem: 'Web',

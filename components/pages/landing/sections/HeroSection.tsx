@@ -22,23 +22,33 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-black leading-tight tracking-[-0.02em]">
-          UGC Videos Made for <span className="underline decoration-[#E5E5E5] underline-offset-8">Small Businesses</span>
+          Turn Your Competitors' <span className="underline decoration-[#E5E5E5] underline-offset-8">Viral Videos</span> Into Your Own
         </h1>
 
         <p className="text-xl text-[#666666] leading-relaxed max-w-lg">
-          UGC videos for local stores, Shopify sellers, and dropshippers.
+          Clone top-performing TikTok ads and Instagram Reels with AI. Built for small businesses who want proven creative that converts.
         </p>
 
         {/* Selling points */}
         <div className="mt-4 space-y-3 text-[#666666] text-[16px]">
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-black" />
-            <span>Videos from $0.3 per 8 seconds</span>
+            <span>Clone viral TikTok, Instagram, and YouTube UGC in minutes</span>
           </div>
-       
+
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-black" />
-            <span>Supports English, Chinese, and over ten other languages</span>
+            <span>Replace competitor products with yours automatically</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-black" />
+            <span>Videos from $0.30 per 8 seconds (150x cheaper than hiring UGC creators)</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-black" />
+            <span>Supports English, Chinese, and over 10 other languages</span>
           </div>
         </div>
 
