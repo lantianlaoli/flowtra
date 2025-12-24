@@ -18,7 +18,7 @@ interface EditCompetitorAdModalProps {
 
 const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: string }> = [
   { value: 'en', label: 'English', native: 'English' },
-  { value: 'zh', label: 'Chinese', native: 'Chinese' },
+  { value: 'zh', label: 'Chinese', native: '中文' },
   { value: 'cs', label: 'Czech', native: 'Čeština' },
   { value: 'da', label: 'Danish', native: 'Dansk' },
   { value: 'nl', label: 'Dutch', native: 'Nederlands' },
@@ -377,7 +377,7 @@ export default function EditCompetitorAdModal({
                 {/* Language */}
                 <div ref={languageMenuRef} className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Language (override detection)
+                    Language
                   </label>
                   <button
                     type="button"
@@ -390,8 +390,7 @@ export default function EditCompetitorAdModal({
                         <span className="text-xs font-semibold text-black uppercase">{selectedLanguageOption.value}</span>
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-semibold text-black">{selectedLanguageOption.label}</p>
-                        <p className="text-[10px] text-gray-500">{selectedLanguageOption.native}</p>
+                        <p className="text-sm font-semibold text-black">{selectedLanguageOption.native}</p>
                       </div>
                     </div>
                     <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isLanguageMenuOpen ? 'rotate-180' : ''}`} />
@@ -413,8 +412,7 @@ export default function EditCompetitorAdModal({
                               <span className="text-[10px] font-semibold text-black uppercase">{option.value}</span>
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-black">{option.label}</p>
-                              <p className="text-[10px] text-gray-500">{option.native}</p>
+                              <p className="text-sm font-medium text-black">{option.native}</p>
                             </div>
                           </button>
                         ))}

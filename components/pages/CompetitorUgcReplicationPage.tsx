@@ -52,16 +52,16 @@ const REPLICA_RESOLUTIONS: ReplicaResolution[] = ['1K', '2K', '4K'];
 const REPLICA_OUTPUT_FORMATS: ReplicaOutputFormat[] = ['png', 'jpg'];
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
-  generating_cover: 'Generating cover image…',
-  generating_segment_frames: 'Generating scene keyframes…',
-  generating_segment_videos: 'Rendering segmented clips…',
-  merging_segments: 'Stitching clips…',
-  awaiting_merge: 'Segments ready – awaiting merge',
-  ready_for_video: 'Awaiting approval to generate video…',
-  generating_video: 'Generating video…',
-  processing: 'Processing…',
-  completed: 'Completed',
-  failed: 'Failed'
+  generating_cover: '✨ Crafting your viral hook – the moment they stop scrolling…',
+  generating_segment_frames: '🎬 Designing each frame with the competitor\'s magic formula…',
+  generating_segment_videos: '🎥 Transforming scenes into engagement powerhouses…',
+  merging_segments: '🧩 Stitching viral moments into one compelling story…',
+  awaiting_merge: '🎞️ All scenes are ready – assembling your video clone…',
+  ready_for_video: '🚀 Your competitor strategy is dialed in! Ready to generate the final video',
+  generating_video: '🎬 Creating your winning video… it\'s almost time to viral!',
+  processing: '⚙️ Analyzing competitor tactics and adapting them for your product…',
+  completed: '✅ Your viral competitor clone is ready to roll!',
+  failed: '⚠️ Generation paused – let\'s troubleshoot and try again'
 };
 
 const STATUS_MAP: Record<string, Generation['status']> = {
@@ -312,11 +312,31 @@ export default function CompetitorUgcReplicationPage() {
     try {
       const parsed: SessionGeneration[] = JSON.parse(saved);
       setGenerations(
-        parsed.map(gen => ({
-          ...gen,
-          timestamp: new Date(gen.timestamp),
-          downloaded: gen.downloaded ?? false
-        }))
+        parsed.map(gen => {
+          // Fix: Ensure segmented projects have proper segmentStatus to trigger polling
+          // If it's a segmented project but segmentStatus is null, reinitialize it
+          const segmentStatus = gen.segmentStatus || (gen.isSegmented && gen.segmentCount ? {
+            total: gen.segmentCount,
+            framesReady: 0,
+            videosReady: 0,
+            segments: Array.from({ length: gen.segmentCount }, (_, i) => ({
+              index: i,
+              status: 'pending_first_frame',
+              firstFrameUrl: gen.segmentStatus?.segments?.[i]?.firstFrameUrl || null,
+              closingFrameUrl: gen.segmentStatus?.segments?.[i]?.closingFrameUrl || null,
+              videoUrl: null,
+              errorMessage: null
+            })),
+            mergedVideoUrl: null
+          } : null);
+
+          return {
+            ...gen,
+            timestamp: new Date(gen.timestamp),
+            downloaded: gen.downloaded ?? false,
+            segmentStatus // Updated with fix
+          };
+        })
       );
     } catch (error) {
       console.error('Failed to restore Competitor UGC Replication session state:', error);
@@ -342,6 +362,7 @@ export default function CompetitorUgcReplicationPage() {
   }, [generations]);
 
   useEffect(() => {
+    isMountedRef.current = true; // Reset to true on mount (handles React Strict Mode remounts)
     return () => {
       isMountedRef.current = false;
     };
@@ -367,19 +388,24 @@ export default function CompetitorUgcReplicationPage() {
   );
 
   const updateGenerationFromStatus = useCallback((projectId: string, payload: CompetitorUgcReplicationStatusPayload) => {
-    if (!payload?.success) return;
+    if (!payload?.success) {
+      console.log('❌ [updateGenerationFromStatus] Payload not successful:', projectId, payload?.error);
+      return;
+    }
 
     const normalized = (payload.status || payload.workflowStatus || '').toLowerCase();
     const status = STATUS_MAP[normalized] ||
       (payload.isCompleted ? 'completed' : payload.isFailed ? 'failed' : 'processing');
 
-    console.log(`[CompetitorUgcReplicationPage] Updating project ${projectId}:`, {
+    console.log(`✨ [updateGenerationFromStatus] Updating project ${projectId}:`, {
       normalized,
       status,
       isCompleted: payload.isCompleted,
       isFailed: payload.isFailed,
       current_step: payload.current_step,
-      error_message: payload.data?.errorMessage
+      progress_percentage: payload.progress_percentage,
+      error_message: payload.data?.errorMessage,
+      segmentStatus: !!payload.data?.segmentStatus
     });
 
     const payloadData = payload.data;
@@ -399,6 +425,18 @@ export default function CompetitorUgcReplicationPage() {
       const hasSegmentStatus = Boolean(payloadData && Object.prototype.hasOwnProperty.call(payloadData, 'segmentStatus'));
       const hasSegmentPlan = Boolean(payloadData && Object.prototype.hasOwnProperty.call(payloadData, 'segmentPlan'));
       const hasSegmentsArray = Boolean(payloadData && Object.prototype.hasOwnProperty.call(payloadData, 'segments'));
+
+      console.log(`📋 [updateGenerationFromStatus] Segment data detection for ${projectId}:`, {
+        hasSegmentStatus,
+        hasSegmentPlan,
+        hasSegmentsArray,
+        segmentStatusExists: !!payloadData?.segmentStatus,
+        segmentPlanExists: !!payloadData?.segmentPlan,
+        segmentsArrayExists: !!payloadData?.segments,
+        segmentsLength: (payloadData?.segments as unknown[])?.length ?? null,
+        segmentPlanSegmentsLength: ((payloadData?.segmentPlan as { segments?: unknown[] })?.segments)?.length ?? null
+      });
+
       const nextIsSegmented = typeof payloadData?.isSegmented === 'boolean'
         ? payloadData.isSegmented
         : gen.isSegmented;
@@ -477,6 +515,16 @@ export default function CompetitorUgcReplicationPage() {
         }
       }
 
+      const nextSegmentPlan = hasSegmentPlan ? (payloadData?.segmentPlan ?? null) : gen.segmentPlan;
+      const nextSegments = hasSegmentsArray ? (payloadData?.segments ?? null) : gen.segments;
+
+      const segmentsAsArray = nextSegments as unknown as { [key: string]: unknown }[];
+      console.log(`💾 [updateGenerationFromStatus] Saving segment data for ${projectId}:`, {
+        nextSegmentPlanLength: ((nextSegmentPlan as { segments?: unknown[] })?.segments)?.length ?? null,
+        nextSegmentsLength: (nextSegments as unknown as unknown[])?.length ?? null,
+        nextSegmentsFirstItemKeys: segmentsAsArray?.[0] ? Object.keys(segmentsAsArray[0]) : null
+      });
+
       return {
         ...gen,
         status: resolvedStatus,
@@ -494,8 +542,8 @@ export default function CompetitorUgcReplicationPage() {
         segmentCount: typeof nextSegmentCount === 'number' && nextSegmentCount > 0 ? nextSegmentCount : gen.segmentCount,
         isSegmented: nextIsSegmented,
         segmentStatus: nextSegmentStatus,
-        segmentPlan: hasSegmentPlan ? (payloadData?.segmentPlan ?? null) : gen.segmentPlan,
-        segments: hasSegmentsArray ? (payloadData?.segments ?? null) : gen.segments,
+        segmentPlan: nextSegmentPlan,
+        segments: nextSegments,
         awaitingMerge,
         mergeTaskId,
         videoGenerationRequested: typeof payloadData?.videoGenerationRequested === 'boolean'
@@ -519,27 +567,47 @@ export default function CompetitorUgcReplicationPage() {
 
     // Prevent duplicate concurrent requests for the same project
     if (statusFetchesRef.current.has(projectId)) {
-      console.log(`[DEBUG] Skipping duplicate status fetch for project ${projectId}`);
+      console.log(`⏭️ [fetchStatusForProject] Skipping duplicate status fetch for project ${projectId}`);
       return;
     }
 
     statusFetchesRef.current.add(projectId);
+    console.log(`📡 [fetchStatusForProject] Fetching status for project: ${projectId}`);
 
     try {
       const response = await fetch(`/api/competitor-ugc-replication/${projectId}/status`, {
         cache: 'no-store'
       });
 
+      console.log(`📡 [fetchStatusForProject] Response status for ${projectId}:`, response.status);
+
       if (!response.ok) {
         throw new Error(`Failed to fetch status for ${projectId}`);
       }
 
       const payload: CompetitorUgcReplicationStatusPayload = await response.json();
-      if (!isMountedRef.current) return;
+      const segmentsAsArray = payload.data?.segments as unknown as Record<string, unknown>[];
+      console.log(`📡 [fetchStatusForProject] Received payload for ${projectId}:`, {
+        success: payload.success,
+        status: payload.status || payload.workflowStatus,
+        progress_percentage: payload.progress_percentage,
+        hasDataSegments: !!payload.data?.segments,
+        dataSegmentsLength: segmentsAsArray?.length ?? null,
+        dataSegmentsFirstItemKeys: segmentsAsArray?.[0] ? Object.keys(segmentsAsArray[0]) : null
+      });
+
+      console.log(`🔍 [fetchStatusForProject] isMountedRef.current check for ${projectId}:`, {
+        isMounted: isMountedRef.current,
+        willCallUpdate: !!isMountedRef.current
+      });
+      if (!isMountedRef.current) {
+        console.log(`⚠️ [fetchStatusForProject] Component unmounted, skipping updateGenerationFromStatus for ${projectId}`);
+        return;
+      }
       updateGenerationFromStatus(projectId, payload);
     } catch (error) {
       if (isMountedRef.current) {
-        console.error('Failed to fetch project status:', error);
+        console.error(`❌ [fetchStatusForProject] Failed to fetch project status ${projectId}:`, error);
       }
     } finally {
       statusFetchesRef.current.delete(projectId);
@@ -569,14 +637,30 @@ export default function CompetitorUgcReplicationPage() {
   const activeProjectIds = useMemo(() => {
     const ids = generations
       .filter(gen => {
-        if (!gen.projectId) return false;
+        if (!gen.projectId) {
+          console.log('🚫 [activeProjectIds Filter] Filtering out generation - no projectId:', {
+            generationId: gen.id,
+            status: gen.status,
+            projectId: gen.projectId,
+            hasActiveSegments: generationHasActiveSegments(gen)
+          });
+          return false;
+        }
         if (gen.status === 'pending' || gen.status === 'processing') {
+          console.log('✅ [activeProjectIds Include] Including pending/processing generation:', gen.projectId);
           return true;
         }
-        return generationHasActiveSegments(gen);
+        const hasActive = generationHasActiveSegments(gen);
+        if (hasActive) {
+          console.log('✅ [activeProjectIds Include] Including generation with active segments:', gen.projectId);
+        }
+        return hasActive;
       })
       .map(gen => gen.projectId as string);
-    return Array.from(new Set(ids));
+
+    const deduped = Array.from(new Set(ids));
+    console.log('📊 [activeProjectIds] Total generations:', generations.length, 'Active:', deduped.length, 'IDs:', deduped);
+    return deduped;
   }, [generations, generationHasActiveSegments]);
 
   const displayedGenerations = useMemo(() =>
@@ -592,11 +676,34 @@ export default function CompetitorUgcReplicationPage() {
     if (!segmentInspector) return null;
     const generation = generations.find(gen => gen.id === segmentInspector.generationId);
     if (!generation) return null;
-    const segment =
+
+    // Try to find segment from two possible sources:
+    // 1. generation.segments (from API response payload.data.segments)
+    // 2. generation.segmentStatus?.segments (fallback from segment status)
+    let segment =
       generation.segments?.find(seg => seg.index === segmentInspector.segmentIndex) || null;
+
+    // Fallback to segmentStatus.segments if generation.segments is empty/null
+    if (!segment && generation.segmentStatus?.segments) {
+      segment = (generation.segmentStatus.segments as SegmentCardSummary[]).find(
+        seg => seg.index === segmentInspector.segmentIndex
+      ) || null;
+    }
+
     const planEntry = ((generation.segmentPlan as { segments?: SegmentPrompt[] | undefined })?.segments?.[
       segmentInspector.segmentIndex
     ] ?? null) as SegmentPrompt | null;
+
+    console.log(`🔍 [inspectorContext] Segment data for index ${segmentInspector.segmentIndex}:`, {
+      hasSegment: !!segment,
+      segmentKeys: segment ? Object.keys(segment) : null,
+      hasPrompt: !!segment?.prompt,
+      promptKeys: segment?.prompt ? Object.keys(segment.prompt as object) : null,
+      hasPlanEntry: !!planEntry,
+      planEntryKeys: planEntry ? Object.keys(planEntry) : null,
+      segmentSource: !segment ? 'none' : generation.segments?.find(s => s.index === segmentInspector.segmentIndex) ? 'generation.segments' : 'segmentStatus.segments'
+    });
+
     return {
       generation,
       segment,
@@ -747,10 +854,15 @@ export default function CompetitorUgcReplicationPage() {
   }, [fetchStatusForProject, showError, showSuccess]);
 
   useEffect(() => {
-    if (!activeProjectIds.length) return;
+    if (!activeProjectIds.length) {
+      console.log('⏸️ [Polling] No active projects, polling inactive');
+      return;
+    }
+
+    console.log('🔄 [Polling Start] Starting polling for', activeProjectIds.length, 'projects:', activeProjectIds);
 
     const poll = () => {
-      console.log(`[DEBUG] Polling status for ${activeProjectIds.length} project(s)`);
+      console.log(`⏱️ [Polling Tick] Polling status for ${activeProjectIds.length} project(s)`, activeProjectIds);
       activeProjectIds.forEach(projectId => {
         fetchStatusForProject(projectId);
       });
@@ -765,6 +877,7 @@ export default function CompetitorUgcReplicationPage() {
     return () => {
       clearTimeout(initialTimer);
       clearInterval(interval);
+      console.log('⏹️ [Polling End] Polling stopped');
     };
   }, [activeProjectIds, fetchStatusForProject]);
 
@@ -1021,6 +1134,24 @@ export default function CompetitorUgcReplicationPage() {
       : '16:9');
 
     // Create new generation entry
+    // Initialize with proper segment status structure to ensure polling is triggered
+    const initialSegmentStatus = initialSegmentCount && initialSegmentCount > 0
+      ? {
+          total: initialSegmentCount,
+          framesReady: 0,
+          videosReady: 0,
+          segments: Array.from({ length: initialSegmentCount }, (_, i) => ({
+            index: i,
+            status: 'pending_first_frame',
+            firstFrameUrl: null,
+            closingFrameUrl: null,
+            videoUrl: null,
+            errorMessage: null
+          })),
+          mergedVideoUrl: null
+        }
+      : null;
+
     const newGeneration: SessionGeneration = {
       id: Date.now().toString(),
       timestamp: new Date(),
@@ -1035,7 +1166,7 @@ export default function CompetitorUgcReplicationPage() {
       segmentCount: initialSegmentCount ?? undefined,
       videoDuration: shouldGenerateVideo ? videoDuration : null,
       isSegmented: Boolean(initialSegmentCount && initialSegmentCount > 1),
-      segmentStatus: null,
+      segmentStatus: initialSegmentStatus,  // Properly initialized segment status
       segmentPlan: null,
       segments: null,
       awaitingMerge: false,
@@ -1066,7 +1197,14 @@ export default function CompetitorUgcReplicationPage() {
         replicaOptions: replicaPayload
       });
 
+      console.log('🔍 [Workflow Result] workflowResult:', {
+        ...workflowResult,
+        // Don't log sensitive data, just the structure
+        resultKeys: workflowResult ? Object.keys(workflowResult) : null
+      });
+
       const projectId = workflowResult?.historyId || workflowResult?.projectId;
+      console.log('🆔 [ProjectID Extract] historyId:', workflowResult?.historyId, 'projectId:', workflowResult?.projectId, 'resolved:', projectId);
 
       const startedSegmented = Boolean(initialSegmentCount && initialSegmentCount > 1);
       const nextStage = isCompetitorPhotoMode
@@ -1080,6 +1218,8 @@ export default function CompetitorUgcReplicationPage() {
           ? STEP_PROGRESS_HINTS.generating_segment_frames
           : STEP_PROGRESS_HINTS.generating_cover;
 
+      console.log('📝 [Before setGenerations] projectId:', projectId, 'newGeneration.id:', newGeneration.id);
+
       setGenerations(prev => prev.map(gen =>
         gen.id === newGeneration.id
           ? {
@@ -1091,6 +1231,8 @@ export default function CompetitorUgcReplicationPage() {
             }
           : gen
       ));
+
+      console.log('✅ [After setGenerations] Updated generation with projectId:', projectId);
 
       if (projectId) {
         fetchStatusForProject(projectId);
@@ -1185,6 +1327,16 @@ export default function CompetitorUgcReplicationPage() {
                     onSegmentSelect={(generation, segment) => {
                       const projectId = (generation as SessionGeneration).projectId;
                       if (!projectId) return;
+
+                      console.log(`👆 [onSegmentSelect] User clicked segment ${segment.index}, opening inspector`, {
+                        projectId,
+                        generationId: generation.id,
+                        segmentIndex: segment.index,
+                        generationSegmentsCount: (generation as SessionGeneration).segments?.length ?? null,
+                        generationHasSegments: !!(generation as SessionGeneration).segments,
+                        generationSegmentsPlan: ((generation as SessionGeneration).segmentPlan as { segments?: unknown[] })?.segments?.length ?? null
+                      });
+
                       setSegmentInspector({
                         projectId,
                         generationId: generation.id,

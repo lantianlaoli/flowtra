@@ -14,12 +14,12 @@
 
 ## 每日执行命令
 
-### 第 2 天
+### 第 2 天 已成功
 ```bash
 bash -c 'set -a; source .env; set +a; node remove-urls-script.js google-removal-day2.json'
 ```
 
-### 第 3 天
+### 第 3 天 
 ```bash
 bash -c 'set -a; source .env; set +a; node remove-urls-script.js google-removal-day3.json'
 ```

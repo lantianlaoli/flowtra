@@ -186,7 +186,28 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    console.log(`[DELETE /api/competitor-ads/[id]] Starting delete for id: ${id}, userId: ${userId}`);
+
     const supabase = getSupabaseAdmin();
+
+    // First verify the record exists and belongs to the user
+    console.log(`[DELETE /api/competitor-ads/[id]] Verifying record ownership...`);
+    const { data: existingAd, error: fetchError } = await supabase
+      .from('competitor_ads')
+      .select('id, user_id')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !existingAd) {
+      console.error(`[DELETE /api/competitor-ads/[id]] Record not found or unauthorized:`, fetchError);
+      return NextResponse.json(
+        { error: 'Competitor ad not found or unauthorized' },
+        { status: 404 }
+      );
+    }
+
+    console.log(`[DELETE /api/competitor-ads/[id]] Record verified, proceeding with deletion...`);
 
     // Delete from database (no file storage to clean up)
     const { error: deleteError } = await supabase
@@ -196,16 +217,26 @@ export async function DELETE(
       .eq('user_id', userId);
 
     if (deleteError) {
-      console.error('Database delete error:', deleteError);
+      console.error(`[DELETE /api/competitor-ads/[id]] Database delete error:`, {
+        message: deleteError.message,
+        code: deleteError.code,
+        details: deleteError.details,
+        hint: deleteError.hint
+      });
       return NextResponse.json(
         { error: 'Failed to delete competitor ad', details: deleteError.message },
         { status: 500 }
       );
     }
 
+    console.log(`[DELETE /api/competitor-ads/[id]] Successfully deleted competitor ad: ${id}`);
     return NextResponse.json({ success: true, message: 'Competitor ad deleted successfully' });
   } catch (error) {
-    console.error('DELETE /api/competitor-ads/[id] error:', error);
+    console.error('[DELETE /api/competitor-ads/[id]] Unexpected error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      type: typeof error
+    });
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

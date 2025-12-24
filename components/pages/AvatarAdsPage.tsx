@@ -131,13 +131,13 @@ interface CharacterAdsStatusPayload {
   isFailed?: boolean;
 }
 const CHARACTER_STAGE_HINTS: Record<string, string> = {
-  analyzing_images: 'Analyzing uploaded images…',
-  generating_prompts: 'Creating dialogue prompts…',
-  generating_image: 'Generating character preview…',
-  awaiting_review: 'Awaiting your review...', // New hint
-  reviewing: 'Reviewing prompts...', // New hint for current_step
-  generating_videos: 'Producing video scenes…',
-  merging_videos: 'Merging scenes…'
+  analyzing_images: '🔍 Understanding your character – finding the perfect persona…',
+  generating_prompts: '💬 Writing the script that sells – crafting compelling dialogue…',
+  generating_image: '✨ Perfecting the first impression – your character\'s best shot…',
+  awaiting_review: '🎬 Your character is ready! Review and approve to generate videos',
+  reviewing: '👀 Fine-tuning the narrative – making sure every word matters…',
+  generating_videos: '🎥 Bringing personality to life – making your character irresistible…',
+  merging_videos: '🎞️ Assembling the full character story – the final touch…'
 };
 
 
@@ -145,16 +145,16 @@ const isActiveGeneration = (generation: AvatarGeneration) =>
   generation.status === 'pending' || generation.status === 'processing';
 
 const getStageLabel = (status: Generation['status'], step?: string | null) => {
-  if (status === 'completed') return 'Completed';
-  if (status === 'failed') return 'Failed';
+  if (status === 'completed') return '✅ Your character video is ready to shine!';
+  if (status === 'failed') return '⚠️ Let\'s try generating this again…';
   if (step) {
     const normalized = step.toLowerCase();
     if (CHARACTER_STAGE_HINTS[normalized]) {
       return CHARACTER_STAGE_HINTS[normalized];
     }
   }
-  if (status === 'processing') return 'Processing…';
-  if (status === 'pending') return 'Queued';
+  if (status === 'processing') return '⚙️ Working magic behind the scenes…';
+  if (status === 'pending') return '⏳ Queued – your turn is coming!';
   return 'Unknown';
 };
 

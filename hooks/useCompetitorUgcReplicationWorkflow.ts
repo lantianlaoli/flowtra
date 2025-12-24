@@ -324,6 +324,13 @@ export const useCompetitorUgcReplicationWorkflow = (
         workflowStatus: previousStatus,
         error: message
       }));
+
+      // CRITICAL: Always return something so workflowResult is never undefined
+      // This prevents projectId from being undefined on the page
+      return {
+        success: false,
+        error: message
+      };
     }
   }, [
     userId,

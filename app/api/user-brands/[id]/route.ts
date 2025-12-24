@@ -34,9 +34,23 @@ export async function GET(
       .eq('user_id', userId)
       .single();
 
-    if (error || !brand) {
+    if (error) {
+      console.error(`[GET /api/user-brands/${brandId}] Fetch error:`, {
+        code: error.code,
+        message: error.message,
+        userId,
+        brandId
+      });
       return NextResponse.json(
-        { error: 'Brand not found' },
+        { error: 'Brand not found or unauthorized' },
+        { status: 404 }
+      );
+    }
+
+    if (!brand) {
+      console.error(`[GET /api/user-brands/${brandId}] Brand not found for userId: ${userId}`);
+      return NextResponse.json(
+        { error: 'Brand not found or unauthorized' },
         { status: 404 }
       );
     }
@@ -75,7 +89,18 @@ export async function PUT(
       .eq('user_id', userId)
       .single();
 
-    if (fetchError || !existingBrand) {
+    if (fetchError) {
+      console.error(`[PUT /api/user-brands/${brandId}] Fetch error:`, {
+        code: fetchError.code,
+        message: fetchError.message,
+        userId,
+        brandId
+      });
+      return NextResponse.json({ error: 'Brand not found or unauthorized' }, { status: 404 });
+    }
+
+    if (!existingBrand) {
+      console.error(`[PUT /api/user-brands/${brandId}] Brand not found for userId: ${userId}`);
       return NextResponse.json({ error: 'Brand not found or unauthorized' }, { status: 404 });
     }
 
@@ -203,7 +228,18 @@ export async function DELETE(
       .eq('user_id', userId)
       .single();
 
-    if (fetchError || !brand) {
+    if (fetchError) {
+      console.error(`[DELETE /api/user-brands/${brandId}] Fetch error:`, {
+        code: fetchError.code,
+        message: fetchError.message,
+        userId,
+        brandId
+      });
+      return NextResponse.json({ error: 'Brand not found or unauthorized' }, { status: 404 });
+    }
+
+    if (!brand) {
+      console.error(`[DELETE /api/user-brands/${brandId}] Brand not found for userId: ${userId}`);
       return NextResponse.json({ error: 'Brand not found or unauthorized' }, { status: 404 });
     }
 

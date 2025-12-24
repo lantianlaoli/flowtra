@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronDown, 
   ChevronUp, 
@@ -152,123 +153,133 @@ export default function CompetitorShotsEditor({
                   </div>
                 </button>
 
-                {isExpanded && (
-                  <div className="border-t border-[#E5E5E5] p-4 space-y-4 bg-[#FAFAFA]">
-                    <div className="grid grid-cols-3 gap-3">
-                      <ShotInput
-                        label="Start"
-                        icon={<Clock className="w-3 h-3" />}
-                        value={shot.start_time}
-                        onChange={(value) => updateShot(shot.shot_id, 'start_time', value)}
-                        placeholder="00:00"
-                      />
-                      <ShotInput
-                        label="End"
-                        icon={<Clock className="w-3 h-3" />}
-                        value={shot.end_time}
-                        onChange={(value) => updateShot(shot.shot_id, 'end_time', value)}
-                        placeholder="00:08"
-                      />
-                      <ShotInput
-                        label="Duration"
-                        icon={<Clock className="w-3 h-3" />}
-                        type="number"
-                        value={String(shot.duration_seconds)}
-                        onChange={(value) => updateShot(shot.shot_id, 'duration_seconds', Number(value))}
-                      />
-                    </div>
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t border-[#E5E5E5] p-4 space-y-4 bg-[#FAFAFA]">
+                        <div className="grid grid-cols-3 gap-3">
+                          <ShotInput
+                            label="Start"
+                            icon={<Clock className="w-3 h-3" />}
+                            value={shot.start_time}
+                            onChange={(value) => updateShot(shot.shot_id, 'start_time', value)}
+                            placeholder="00:00"
+                          />
+                          <ShotInput
+                            label="End"
+                            icon={<Clock className="w-3 h-3" />}
+                            value={shot.end_time}
+                            onChange={(value) => updateShot(shot.shot_id, 'end_time', value)}
+                            placeholder="00:08"
+                          />
+                          <ShotInput
+                            label="Duration"
+                            icon={<Clock className="w-3 h-3" />}
+                            type="number"
+                            value={String(shot.duration_seconds)}
+                            onChange={(value) => updateShot(shot.shot_id, 'duration_seconds', Number(value))}
+                          />
+                        </div>
 
-                    <ShotTextarea
-                      label="Visual Description"
-                      icon={<Eye className="w-3 h-3" />}
-                      value={shot.first_frame_description}
-                      onChange={(value) => updateShot(shot.shot_id, 'first_frame_description', value)}
-                    />
+                        <ShotTextarea
+                          label="Visual Description"
+                          icon={<Eye className="w-3 h-3" />}
+                          value={shot.first_frame_description}
+                          onChange={(value) => updateShot(shot.shot_id, 'first_frame_description', value)}
+                        />
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <ShotTextarea
-                        label="Subject"
-                        icon={<User className="w-3 h-3" />}
-                        value={shot.subject}
-                        onChange={(value) => updateShot(shot.shot_id, 'subject', value)}
-                      />
-                      <ShotTextarea
-                        label="Environment"
-                        icon={<MapPin className="w-3 h-3" />}
-                        value={shot.context_environment}
-                        onChange={(value) => updateShot(shot.shot_id, 'context_environment', value)}
-                      />
-                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <ShotTextarea
+                            label="Subject"
+                            icon={<User className="w-3 h-3" />}
+                            value={shot.subject}
+                            onChange={(value) => updateShot(shot.shot_id, 'subject', value)}
+                          />
+                          <ShotTextarea
+                            label="Environment"
+                            icon={<MapPin className="w-3 h-3" />}
+                            value={shot.context_environment}
+                            onChange={(value) => updateShot(shot.shot_id, 'context_environment', value)}
+                          />
+                        </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <ShotTextarea
-                        label="Action"
-                        icon={<Play className="w-3 h-3" />}
-                        value={shot.action}
-                        onChange={(value) => updateShot(shot.shot_id, 'action', value)}
-                      />
-                      <ShotTextarea
-                        label="Style"
-                        icon={<Sparkles className="w-3 h-3" />}
-                        value={shot.style}
-                        onChange={(value) => updateShot(shot.shot_id, 'style', value)}
-                      />
-                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <ShotTextarea
+                            label="Action"
+                            icon={<Play className="w-3 h-3" />}
+                            value={shot.action}
+                            onChange={(value) => updateShot(shot.shot_id, 'action', value)}
+                          />
+                          <ShotTextarea
+                            label="Style"
+                            icon={<Sparkles className="w-3 h-3" />}
+                            value={shot.style}
+                            onChange={(value) => updateShot(shot.shot_id, 'style', value)}
+                          />
+                        </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <ShotTextarea
-                        label="Camera"
-                        icon={<Video className="w-3 h-3" />}
-                        value={shot.camera_motion_positioning}
-                        onChange={(value) => updateShot(shot.shot_id, 'camera_motion_positioning', value)}
-                      />
-                      <ShotTextarea
-                        label="Composition"
-                        icon={<Layout className="w-3 h-3" />}
-                        value={shot.composition}
-                        onChange={(value) => updateShot(shot.shot_id, 'composition', value)}
-                      />
-                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <ShotTextarea
+                            label="Camera"
+                            icon={<Video className="w-3 h-3" />}
+                            value={shot.camera_motion_positioning}
+                            onChange={(value) => updateShot(shot.shot_id, 'camera_motion_positioning', value)}
+                          />
+                          <ShotTextarea
+                            label="Composition"
+                            icon={<Layout className="w-3 h-3" />}
+                            value={shot.composition}
+                            onChange={(value) => updateShot(shot.shot_id, 'composition', value)}
+                          />
+                        </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <ShotTextarea
-                        label="Lighting"
-                        icon={<Sun className="w-3 h-3" />}
-                        value={shot.ambiance_colour_lighting}
-                        onChange={(value) => updateShot(shot.shot_id, 'ambiance_colour_lighting', value)}
-                      />
-                      <ShotTextarea
-                        label="Audio"
-                        icon={<Music className="w-3 h-3" />}
-                        value={shot.audio}
-                        onChange={(value) => updateShot(shot.shot_id, 'audio', value)}
-                      />
-                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <ShotTextarea
+                            label="Lighting"
+                            icon={<Sun className="w-3 h-3" />}
+                            value={shot.ambiance_colour_lighting}
+                            onChange={(value) => updateShot(shot.shot_id, 'ambiance_colour_lighting', value)}
+                          />
+                          <ShotTextarea
+                            label="Audio"
+                            icon={<Music className="w-3 h-3" />}
+                            value={shot.audio}
+                            onChange={(value) => updateShot(shot.shot_id, 'audio', value)}
+                          />
+                        </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-[#E5E5E5] mt-2">
-                       <div className="flex gap-4">
-                          <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(shot.contains_brand)}
-                              onChange={(e) => updateShot(shot.shot_id, 'contains_brand', e.target.checked)}
-                              className="rounded border-gray-300 text-black focus:ring-black"
-                            />
-                            Brand
-                          </label>
-                          <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(shot.contains_product)}
-                              onChange={(e) => updateShot(shot.shot_id, 'contains_product', e.target.checked)}
-                              className="rounded border-gray-300 text-black focus:ring-black"
-                            />
-                            Product
-                          </label>
-                       </div>
-                    </div>
-                  </div>
-                )}
+                        <div className="flex items-center justify-between pt-2 border-t border-[#E5E5E5] mt-2">
+                           <div className="flex gap-4">
+                              <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(shot.contains_brand)}
+                                  onChange={(e) => updateShot(shot.shot_id, 'contains_brand', e.target.checked)}
+                                  className="rounded border-gray-300 text-black focus:ring-black"
+                                />
+                                Brand
+                              </label>
+                              <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(shot.contains_product)}
+                                  onChange={(e) => updateShot(shot.shot_id, 'contains_product', e.target.checked)}
+                                  className="rounded border-gray-300 text-black focus:ring-black"
+                                />
+                                Product
+                              </label>
+                           </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             );
           })}

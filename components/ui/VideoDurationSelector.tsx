@@ -59,7 +59,8 @@ export default function VideoDurationSelector({
     event.stopPropagation();
   }, []);
 
-  const durationOptions: VideoDurationOption[] = options ?? [
+  // Ensure 8s always has recommended flag, regardless of how options are passed
+  const durationOptions: VideoDurationOption[] = (options ?? [
     {
       value: '8',
       label: '8s',
@@ -93,7 +94,11 @@ export default function VideoDurationSelector({
       value: '64',
       label: '64s'
     }
-  ];
+  ]).map(option =>
+    option.value === '8'
+      ? { ...option, recommended: true }
+      : option
+  );
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -191,7 +196,7 @@ export default function VideoDurationSelector({
             <span className="font-medium truncate">
               {selectedOption?.label}
             </span>
-            {(recommendedDuration && selectedOption?.value === recommendedDuration) || selectedOption?.recommended ? (
+            {selectedOption?.recommended || (recommendedDuration && selectedOption?.value === recommendedDuration) ? (
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
                 <Sparkles className="w-3 h-3" />
                 Recommended

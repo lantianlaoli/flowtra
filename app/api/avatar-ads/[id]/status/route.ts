@@ -84,10 +84,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         fal_merge_task_id: project.fal_merge_task_id
       },
       stepMessages: {
-        generating_prompts: 'Creating character presentation prompts...',
-        generating_image: 'Generating character advertisement image...',
-        generating_videos: 'Producing character presentation videos...',
-        merging_videos: 'Combining videos into final presentation...'
+        generating_prompts: '🎭 Scripting the perfect character narrative for your product…',
+        generating_image: '✨ Bringing your avatar to life – creating the perfect shot…',
+        generating_videos: '🎬 Making your character magnetic on screen… engagement guaranteed!',
+        merging_videos: '🎞️ Assembling the character presentation masterpiece…'
       },
       isCompleted: project.status === 'completed',
       isFailed: project.status === 'failed',

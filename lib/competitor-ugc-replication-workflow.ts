@@ -690,17 +690,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       generationCost = 0; // Photo-only mode is free
     }
 
-    // Determine actual cover_image_aspect_ratio (resolve 'auto' to actual value)
-    let actualCoverAspectRatio: string;
-    if (isReplicaMode && request.photoAspectRatio) {
-      actualCoverAspectRatio = request.photoAspectRatio;
-    } else if (request.imageSize === 'auto' || !request.imageSize) {
-      // When image size is 'auto', use the video aspect ratio
-      actualCoverAspectRatio = request.videoAspectRatio || '16:9';
-    } else {
-      actualCoverAspectRatio = request.imageSize;
-    }
-
     // Create project record in competitor_ugc_replication_projects table
     const { data: project, error: insertError} = await supabase
       .from('competitor_ugc_replication_projects')
@@ -718,15 +707,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             : 'generating_cover',
         progress_percentage: request.useCustomScript ? 50 : isSegmented ? 25 : 20,
         credits_cost: generationCost, // Only generation cost (download cost charged separately)
-        cover_image_aspect_ratio: actualCoverAspectRatio, // Store actual ratio, never 'auto'
-        photo_only: request.photoOnly || false,
         language: request.language || 'en', // Language for AI-generated content
         // Generic video fields (renamed from sora2_pro_*)
         video_duration: duration || (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' ? '8' : '10'),
         video_quality: quality || 'standard',
-        // NEW: Custom script fields
-        custom_script: request.customScript || null,
-        use_custom_script: request.useCustomScript || false,
         // DEPRECATED: download_credits_used (downloads are now free)
         download_credits_used: 0,
         is_segmented: segmentCount >= 1, // FIX: Use segmentCount instead of isSegmented to avoid data inconsistency

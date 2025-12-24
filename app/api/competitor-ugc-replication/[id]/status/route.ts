@@ -49,6 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       firstFrameUrl: string | null;
       closingFrameUrl: string | null;
       videoUrl: string | null;
+      errorMessage?: string | null;
       prompt: Record<string, unknown> | null;
       updatedAt: string | null;
     }> | null = null;
@@ -141,11 +142,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         updatedAt: record.updated_at
       },
       stepMessages: {
-        describing: 'Analyzing your product image with AI...',
-        generating_prompts: 'Creating creative advertisement concepts...',
-        generating_cover: 'Designing your advertisement cover...',
-        ready_for_video: 'Awaiting your approval to generate the full video...',
-        generating_video: 'Producing your professional video advertisement...'
+        describing: '🔍 Reverse-engineering your competitor\'s viral formula…',
+        generating_prompts: '💡 Adapting winning strategies to your product – stealing their thunder!',
+        generating_cover: '✨ Creating the hook that stops the scroll – your competitor\'s edge with your product',
+        ready_for_video: '🎯 Competitor strategy decoded! Ready to generate your viral rival video',
+        generating_video: '🚀 Building your video clone… the winning formula is almost live!'
       },
       isCompleted: record.status === 'completed',
       isFailed: record.status === 'failed',
@@ -169,6 +170,7 @@ function buildSegmentStatusFallback(
     firstFrameUrl: string | null;
     closingFrameUrl: string | null;
     videoUrl: string | null;
+    prompt?: Record<string, unknown> | null;
   }> | null,
   mergedVideoUrl: string | null = null
 ) {
@@ -187,6 +189,7 @@ function buildSegmentStatusFallback(
       firstFrameUrl: seg.firstFrameUrl,
       closingFrameUrl: seg.closingFrameUrl,
       videoUrl: seg.videoUrl,
+      prompt: seg.prompt || null,
       errorMessage: (seg as { errorMessage?: string | null }).errorMessage || null
     })),
     mergedVideoUrl

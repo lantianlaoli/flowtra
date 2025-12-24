@@ -334,7 +334,7 @@ function GenerationCard({
         return <Eye className="w-5 h-5 text-blue-500" />;
       case 'processing':
       case 'pending':
-        return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
+        return <Loader2 className="w-5 h-5 text-white animate-spin" />;
       default:
         return null;
     }
@@ -364,86 +364,121 @@ function GenerationCard({
       animate={{ opacity: 1, y: 0 }}
       className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden"
     >
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between mb-3 gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              {getStatusIcon()}
-              <span className="text-sm font-medium text-gray-900">
-                {getStatusText()}
-              </span>
-            </div>
-            <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
-              {platform && (
-                <span className="px-2 py-0.5 bg-gray-100 rounded capitalize">
-                  {platform}
-                </span>
-              )}
-              {brand && <span>• {brand}</span>}
-              {product && <span>• {product}</span>}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Review Button for Character Ads - Hide during processing/video generation */}
-            {onReview &&
-              !isPhotoOnly &&
-              !videoGenerationRequested &&
-              (status === 'pending' || status === 'awaiting_review') &&
-              coverUrl &&
-              !videoUrl && (
-              <button
-                onClick={() => onReview(generation)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold shadow-md hover:bg-blue-700 hover:shadow-lg transition-all cursor-pointer animate-pulse"
-              >
-                <PenSquare className="w-4 h-4" />
-                <span>{reviewCtaLabel}</span>
-              </button>
-            )}
-
-            {status === 'completed' && videoUrl && (
-              onDownload ? (
-                <button
-                  onClick={() => !isDownloading && !downloaded && onDownload(generation)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm transition-colors whitespace-nowrap ${downloaded ? 'opacity-70 cursor-default' : isDownloading ? 'opacity-60 cursor-wait' : 'hover:border-gray-300 cursor-pointer'}`}
-                  title={downloaded ? 'Already downloaded' : `Download (${downloadMetaLabel})`}
-                  disabled={isDownloading || downloaded}
-                >
-                  <Download className={`w-3.5 h-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
-                  <span>{downloadActionLabel}</span>
-                </button>
-              ) : (
-                <a
-                  href={videoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm hover:border-gray-300 transition-colors cursor-pointer whitespace-nowrap"
-                  title={`Download (${downloadMetaLabel})`}
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>{downloadActionLabel}</span>
-                </a>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Progress bar for processing */}
-        {(displayStatus === 'processing' || displayStatus === 'pending' || displayStatus === 'attention') && (
-          <div className="mb-3">
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-              <motion.div
-                className="h-full bg-blue-500"
-                initial={{ width: '0%' }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.3 }}
+      {/* --- PROGRESS HEADER SECTION --- */}
+      <div className="relative overflow-hidden border-b border-gray-100">
+        {/* High-Contrast Progress Fill with Wavy Edge */}
+        {(displayStatus === 'processing' || displayStatus === 'pending') && (
+          <div className="absolute inset-0 z-0 overflow-visible">
+            <motion.div
+              className="absolute inset-y-0 left-0 bg-black"
+              initial={{ width: '0%' }}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            >
+               {/* Wave Sweep Animation inside */}
+              <motion.div 
+                className="absolute inset-0 w-full h-full"
+                initial={{ x: '-100%' }}
+                animate={{ x: '100%' }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                style={{
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%)',
+                }}
               />
-            </div>
-            {progress > 0 && (
-              <p className="text-xs text-gray-500 mt-1">{progress}% complete</p>
-            )}
+              
+              {/* Wavy Edge - SVG Pattern */}
+              <div 
+                className="absolute top-0 bottom-0 right-[-12px] w-[12px] overflow-hidden"
+              >
+                 <div className="w-full h-full animate-wave-slide" 
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 24'%3E%3Cpath fill='black' d='M0,0 c8,0 12,6 12,12 c0,6 -4,12 -12,12 V0 z'/%3E%3C/svg%3E")`,
+                        backgroundRepeat: 'repeat-y',
+                        backgroundSize: '100% 24px',
+                        height: '200%'
+                      }} 
+                 />
+              </div>
+            </motion.div>
+            <style jsx>{`
+              @keyframes wave-slide {
+                0% { transform: translateY(0); }
+                100% { transform: translateY(-24px); }
+              }
+              .animate-wave-slide {
+                animation: wave-slide 1s linear infinite;
+              }
+            `}</style>
           </div>
         )}
+
+        <div className="relative z-10 p-5" style={{ mixBlendMode: 'difference' }}>
+          {/* Header Content */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center text-white">
+                  {getStatusIcon()}
+                </div>
+                <span className="text-[17px] font-semibold text-white leading-none">
+                  {getStatusText()}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              {(displayStatus === 'processing' || displayStatus === 'pending') && (
+                <span className="text-[17px] font-bold text-white leading-none tabular-nums">
+                  {progress}%
+                </span>
+              )}
+              {/* Review Button for Character Ads - Hide during processing/video generation */}
+              {onReview &&
+                !isPhotoOnly &&
+                !videoGenerationRequested &&
+                (status === 'pending' || status === 'awaiting_review') &&
+                coverUrl &&
+                !videoUrl && (
+                <button
+                  onClick={() => onReview(generation)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold shadow-md hover:bg-blue-700 hover:shadow-lg transition-all cursor-pointer animate-pulse"
+                >
+                  <PenSquare className="w-4 h-4" />
+                  <span>{reviewCtaLabel}</span>
+                </button>
+              )}
+
+              {status === 'completed' && videoUrl && (
+                onDownload ? (
+                  <button
+                    onClick={() => !isDownloading && !downloaded && onDownload(generation)}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm transition-colors whitespace-nowrap ${downloaded ? 'opacity-70 cursor-default' : isDownloading ? 'opacity-60 cursor-wait' : 'hover:border-gray-300 cursor-pointer'}`}
+                    title={downloaded ? 'Already downloaded' : `Download (${downloadMetaLabel})`}
+                    disabled={isDownloading || downloaded}
+                  >
+                    <Download className={`w-3.5 h-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
+                    <span>{downloadActionLabel}</span>
+                  </button>
+                ) : (
+                  <a
+                    href={videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm hover:border-gray-300 transition-colors cursor-pointer whitespace-nowrap"
+                    title={`Download (${downloadMetaLabel})`}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{downloadActionLabel}</span>
+                  </a>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* --- CONTENT BODY SECTION --- */}
+      <div className="p-5 bg-white">
+        {/* Progress bar removed for minimalist design */}
 
         {displayStatus === 'attention' && hasSegmentFailure && (
           <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
@@ -464,8 +499,11 @@ function GenerationCard({
               onClick={() => onToggleSegments?.(generation)}
               className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-100 transition"
             >
-              <div className="flex flex-col gap-0.5">
-                <span>Segment breakdown</span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <span className="font-semibold">Segment breakdown</span>
+                <span className="text-[11px] text-[#666666] font-normal leading-tight">
+                  Expand and edit prompts until satisfied, then manually confirm to generate video
+                </span>
               </div>
               <div className="flex items-center gap-2 text-gray-500">
                 <span className="text-xs">{isExpanded ? 'Hide' : 'Show'}</span>
@@ -517,14 +555,7 @@ function GenerationCard({
               >
                 {canMerge ? 'Merge Final Video' : 'Waiting for segments to finish'}
               </button>
-            ) : (
-              <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                <div className="font-semibold">Segments still rendering</div>
-                <p className="text-xs text-amber-700 mt-0.5">
-                  Fine-tune each segment until you&apos;re ready to merge.
-                </p>
-              </div>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -603,10 +634,6 @@ function SegmentBoard({
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-        <div className="font-semibold text-gray-900">
-         Segments ready: {segmentStatus?.framesReady ?? 0}/{segmentStatus?.total ?? derivedSegments.length}
-        </div>
-        <div>Videos ready: {segmentStatus?.videosReady ?? 0}/{segmentStatus?.total ?? derivedSegments.length}</div>
         {segmentStatus?.mergedVideoUrl && (
           <div className="flex items-center gap-1 text-emerald-600">
             <CheckCircle className="w-4 h-4" />
@@ -653,61 +680,69 @@ function SegmentSummaryCard({
   const statusBadge = getSegmentStatusBadge(segment.status);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-[0_2px_20px_rgba(15,23,42,0.04)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-gray-900">{title}</p>
-        </div>
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusBadge.className}`}>
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
-          {statusBadge.label}
-        </span>
+    <div 
+      onClick={onSelect}
+      className="group relative flex gap-4 p-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50/50 hover:border-gray-300 transition-all cursor-pointer"
+    >
+      {/* Thumbnail */}
+      <div className="relative w-32 aspect-video bg-gray-100 rounded-md overflow-hidden flex-shrink-0 border border-gray-100/50">
+        {segment.firstFrameUrl ? (
+          <Image
+            src={segment.firstFrameUrl}
+            alt={title}
+            fill
+            sizes="128px"
+            className="object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-[10px] text-gray-400 gap-1.5 bg-gray-50">
+            <ImageIcon className="w-4 h-4 opacity-50" />
+            <span>No Image</span>
+          </div>
+        )}
+        {segment.videoUrl && (
+          <div className="absolute bottom-1 right-1 flex items-center justify-center w-5 h-5 rounded-full bg-black/60 backdrop-blur-[2px] text-white">
+            <Film className="w-3 h-3" />
+          </div>
+        )}
       </div>
-      <div className="mt-3 flex gap-3">
-        <div className="relative w-28 h-16 flex-shrink-0 rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
-          {segment.firstFrameUrl ? (
-            <Image
-              src={segment.firstFrameUrl}
-              alt={title}
-              fill
-              sizes="112px"
-              className="object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-[11px] text-gray-500 gap-1">
-              <ImageIcon className="w-4 h-4" />
-              Frame pending
-            </div>
-          )}
-          {segment.videoUrl && (
-            <div className="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white">
-              <Film className="w-3 h-3" />
-              Video
-            </div>
-          )}
+
+      {/* Content */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center py-0.5">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <h4 className="text-[13px] font-semibold text-gray-900 truncate leading-none">{title}</h4>
+          <span className={`flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-none ${statusBadge.className}`}>
+            {statusBadge.label}
+          </span>
         </div>
-        <p className="text-xs text-gray-600 leading-relaxed">{summary}</p>
+        
+        <p className="text-[12px] text-gray-500 line-clamp-2 leading-relaxed">
+          {summary}
+        </p>
+
+        {(segment.status === 'failed' || (segment.status === 'retrying_first_frame' && segment.retryCount)) && (
+          <div className="mt-2 flex items-center gap-1.5 text-[11px]">
+            {segment.status === 'failed' ? (
+              <span className="text-red-600 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {segment.errorMessage || 'Generation failed'}
+              </span>
+            ) : (
+              <span className="text-amber-600 flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Retrying ({segment.retryCount}/5)
+              </span>
+            )}
+          </div>
+        )}
       </div>
-      {segment.status === 'retrying_first_frame' && segment.retryCount && (
-        <div className="mt-2 text-[11px] text-yellow-600">
-          Retrying first frame generation (Attempt {segment.retryCount}/5)
-        </div>
-      )}
-      {segment.status === 'failed' && (
-        <div className="mt-2 text-[11px] text-red-600">
-          {segment.errorMessage || 'Segment failed. Adjust the prompt and regenerate.'}
-        </div>
-      )}
-      <div className="mt-4 flex gap-2">
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-          disabled={!onSelect}
-          onClick={onSelect}
-        >
-          <PenSquare className="w-3.5 h-3.5" />
+
+      {/* Hover Action */}
+      <div className="absolute right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm">
+          <PenSquare className="w-3 h-3" />
           Edit
-        </button>
+        </span>
       </div>
     </div>
   );
@@ -717,18 +752,18 @@ function getSegmentStatusBadge(status: string) {
   const normalized = status?.toLowerCase() || '';
   switch (normalized) {
     case 'first_frame_ready':
-      return { label: 'Photo ready', className: 'text-amber-600 bg-amber-50' };
+      return { label: 'Photo Ready', className: 'bg-orange-50 text-orange-700 border border-orange-100' };
     case 'generating_first_frame':
-      return { label: 'Photo generating', className: 'text-amber-600 bg-amber-50' };
+      return { label: 'Generating...', className: 'bg-gray-50 text-gray-600 border border-gray-100' };
     case 'retrying_first_frame':
-      return { label: 'Retrying...', className: 'text-yellow-700 bg-yellow-50' };
+      return { label: 'Retrying', className: 'bg-yellow-50 text-yellow-700 border border-yellow-100' };
     case 'generating_video':
-      return { label: 'Video rendering', className: 'text-sky-700 bg-sky-50' };
+      return { label: 'Rendering Video', className: 'bg-blue-50 text-blue-700 border border-blue-100' };
     case 'video_ready':
-      return { label: 'Video ready', className: 'text-emerald-700 bg-emerald-50' };
+      return { label: 'Complete', className: 'bg-green-50 text-green-700 border border-green-100' };
     case 'failed':
-      return { label: 'Needs attention', className: 'text-red-700 bg-red-50' };
+      return { label: 'Failed', className: 'bg-red-50 text-red-700 border border-red-100' };
     default:
-      return { label: 'Queued', className: 'text-gray-600 bg-gray-100' };
+      return { label: 'Queued', className: 'bg-gray-50 text-gray-500 border border-gray-100' };
   }
 }
