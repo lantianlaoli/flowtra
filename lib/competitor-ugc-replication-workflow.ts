@@ -1132,8 +1132,7 @@ async function generateReplicaPhoto({
     model: IMAGE_MODELS.nano_banana_pro,
     input: {
       prompt,
-      image_urls: referenceImages.slice(0, 10),
-      image_input: referenceImages.slice(0, 10),
+      image_input: referenceImages.slice(0, 8),
       aspect_ratio: aspectRatio || '9:16',
       resolution: resolution || '1K',
       output_format: outputFormat || 'png'
@@ -2482,7 +2481,7 @@ async function createFrameFromImage(
   if (sanitizedReferences.length === 0) {
     throw new Error('No reference images provided for frame generation');
   }
-  const limitedReferences = sanitizedReferences.slice(0, 10);
+  const limitedReferences = sanitizedReferences.slice(0, 8);
 
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
@@ -2518,7 +2517,6 @@ Render Instructions:
 
   const inputPayload: Record<string, unknown> = {
     prompt,
-    image_urls: limitedReferences,
     image_input: limitedReferences,
     output_format: 'png'
   };
@@ -2530,16 +2528,27 @@ Render Instructions:
     inputPayload.image_size = resolvedAspectRatio;
   }
 
+  console.log(`📤 [createFrameFromImage] Sending to KIE API:`, {
+    imageModel,
+    referenceImageCount: limitedReferences.length,
+    referenceImageUrls: limitedReferences,
+    isBrandShot
+  });
+
+  const requestPayload = {
+    model: imageModel,
+    input: inputPayload
+  };
+
+  console.log(`📤 [createFrameFromImage] Full request payload:`, JSON.stringify(requestPayload, null, 2));
+
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: imageModel,
-      input: inputPayload
-    })
+    body: JSON.stringify(requestPayload)
   }, 5, 30000);
 
   if (!response.ok) {
@@ -2634,6 +2643,21 @@ export async function createSmartSegmentFrame(
     }
 
     console.log(`   - Prompt: ${frameDescription.substring(0, 100)}...`);
+    console.log(`   - 📤 Sending to KIE API - image_input count: ${imageInput.length}`);
+    console.log(`   - 📤 image_input URLs:`, imageInput);
+
+    const requestPayload = {
+      model: imageModel,
+      input: {
+        prompt: frameDescription,
+        ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
+        aspect_ratio: aspectRatio,
+        resolution: overrides?.resolutionOverride || '1K',
+        output_format: 'png'
+      }
+    };
+
+    console.log(`   - 📤 Full KIE API request payload:`, JSON.stringify(requestPayload, null, 2));
 
     const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
       method: 'POST',
@@ -2641,16 +2665,7 @@ export async function createSmartSegmentFrame(
         'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: imageModel,
-        input: {
-          prompt: frameDescription,
-          ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
-          aspect_ratio: aspectRatio,
-          resolution: overrides?.resolutionOverride || '1K',
-          output_format: 'png'
-        }
-      })
+      body: JSON.stringify(requestPayload)
     }, 5, 30000);
 
     if (!response.ok) {
@@ -2746,10 +2761,26 @@ export async function createSmartSegmentFrame(
     );
   }
 
-  // Priority 4: Fallback to Text-to-Image for pure scene shots
+  // Priority 4: Use Image-to-Image if we have character photos or continuation references
+  // Even for pure scene shots, character photos should be used as visual references
+  if (hasCharacterPhotos || shouldUseContinuationReference) {
+    console.log(`   ✅ Using Image-to-Image with character/continuation references (pure scene shot)`);
+    return createFrameFromImage(
+      combinedReferenceImages,
+      segmentPrompt,
+      segmentIndex,
+      frameType,
+      aspectRatio,
+      false,
+      competitorFileType,
+      overrides
+    );
+  }
+
+  // Priority 5: Final fallback to Text-to-Image for pure scene shots without any references
   // OR when brand/product is flagged but no image available
   if (!containsBrand && !containsProduct) {
-    console.log(`   ✅ Using Text-to-Image (pure scene shot)`);
+    console.log(`   ✅ Using Text-to-Image (pure scene shot without references)`);
   } else if (containsBrand && !brandLogoUrl) {
     console.warn(`   ⚠️  Brand shot detected but no logo available, falling back to Text-to-Image`);
   } else if (containsProduct && normalizedProductImages.length === 0) {

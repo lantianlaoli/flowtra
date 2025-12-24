@@ -5,13 +5,21 @@ import { parseCompetitorTimeline } from '@/lib/competitor-shots';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-export const maxDuration = 60; // Increase execution timeout to 60s for large uploads
+export const maxDuration = 300; // 5 minutes for large video uploads
+export const experimental_bodySizeLimit = 100 * 1024 * 1024; // 100MB limit for video uploads
 
 /**
  * POST /api/competitor-ads/create-with-analysis
  *
  * Creates a competitor ad record with pre-analyzed results.
  * Used when analysis is done before submission (preview mode).
+ *
+ * Expects JSON with:
+ * - brand_id: string
+ * - competitor_name: string
+ * - analysis_result: object
+ * - language: string
+ * - analysis_status: string
  */
 export async function POST(request: NextRequest) {
   try {
@@ -21,53 +29,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const brandId = formData.get('brand_id') as string;
-    const competitorName = formData.get('competitor_name') as string;
-    const adFile = formData.get('ad_file') as File | null;
-    const analysisResultStr = formData.get('analysis_result') as string;
-    const language = formData.get('language') as string;
-    const analysisStatus = formData.get('analysis_status') as string;
+    const body = await request.json();
+    const {
+      brand_id: brandId,
+      competitor_name: competitorName,
+      analysis_result: analysisResult,
+      language,
+      analysis_status: analysisStatus
+    } = body;
 
     console.log('[POST /api/competitor-ads/create-with-analysis] Received params:', {
       brandId,
       competitorName,
-      hasAdFile: !!adFile,
       language,
       analysisStatus,
       userId
     });
 
     // Validation
-    if (!brandId || brandId.trim().length === 0) {
+    if (!brandId || (typeof brandId === 'string' && brandId.trim().length === 0)) {
       return NextResponse.json({ error: 'Brand ID is required' }, { status: 400 });
     }
 
-    if (!competitorName || competitorName.trim().length === 0) {
+    if (!competitorName || (typeof competitorName === 'string' && competitorName.trim().length === 0)) {
       return NextResponse.json({ error: 'Competitor name is required' }, { status: 400 });
     }
 
-    if (!adFile) {
-      return NextResponse.json({ error: 'Advertisement file is required' }, { status: 400 });
-    }
-
-    // NEW: Video-only validation
-    if (!adFile.type.startsWith('video/')) {
-      return NextResponse.json(
-        { error: 'Only video files are supported for competitor ads' },
-        { status: 400 }
-      );
-    }
-
-    if (!analysisResultStr) {
+    if (!analysisResult || typeof analysisResult !== 'object') {
       return NextResponse.json({ error: 'Analysis result is required' }, { status: 400 });
-    }
-
-    let analysisResult: Record<string, unknown>;
-    try {
-      analysisResult = JSON.parse(analysisResultStr);
-    } catch {
-      return NextResponse.json({ error: 'Invalid analysis result format' }, { status: 400 });
     }
 
     // Verify brand ownership

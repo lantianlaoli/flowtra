@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      requestData.referenceImageUrls = requestData.referenceImageUrls.slice(0, 10);
+      requestData.referenceImageUrls = requestData.referenceImageUrls.slice(0, 8);
       requestData.photoOnly = true;
     }
 

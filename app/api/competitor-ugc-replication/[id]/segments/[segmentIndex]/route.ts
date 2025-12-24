@@ -250,13 +250,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
 
       if (requestedCharacterIds.length > 0) {
-        const { data: characters } = await supabase
+        console.log('[SEGMENT API] Fetching character photos:', { requestedCharacterIds });
+        const { data: characters, error: characterError } = await supabase
           .from('user_avatars')
           .select('id, photo_url')
           .in('id', requestedCharacterIds)
           .eq('user_id', project.user_id);
 
+        if (characterError) {
+          console.error('[SEGMENT API] Failed to fetch characters:', characterError);
+        }
+
         if (characters && characters.length > 0) {
+          console.log('[SEGMENT API] Characters fetched:', characters);
           const charMap = new Map(characters.map(c => [c.id, c.photo_url]));
           requestedCharacterIds.forEach(charId => {
             const photoUrl = charMap.get(charId);
@@ -264,6 +270,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
               characterPhotoUrls.push(photoUrl);
             }
           });
+          console.log('[SEGMENT API] Character photo URLs extracted:', characterPhotoUrls);
+        } else {
+          console.warn('[SEGMENT API] No characters found in database');
         }
       }
 
@@ -299,13 +308,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (shouldRegeneratePhoto) {
-      const photoCredits = getReplicaPhotoCredits();
-      if (photoCredits > 0) {
-        await ensureCredits(photoCredits, 'Competitor UGC Replication - Segment first frame regeneration');
-      }
+      // Version 2.0: Image generation is always free (nano_banana_pro, nano_banana, seedream)
+      // No credits deducted for first frame regeneration
 
       const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
       const frameImageSize = mergedPrompt.first_frame_image_size || aspectRatio;
+
+      console.log('[SEGMENT API] Calling createSmartSegmentFrame with:', {
+        segmentIndex: index,
+        frameType: 'first',
+        brandLogoUrl: brandLogoUrl ? 'present' : 'null',
+        productImageUrlsCount: productImageUrls.length,
+        characterPhotoUrlsCount: characterPhotoUrls.length,
+        characterPhotoUrls
+      });
+
       const firstFrameTaskId = await createSmartSegmentFrame(
         mergedPrompt,
         index,
@@ -329,28 +346,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       segmentUpdates.status = 'generating_first_frame';
       segmentUpdates.error_message = null;
 
-      const lastIndex = (project.segment_count || 0) - 1;
-      if (index === lastIndex) {
-        const closingTaskId = await createSmartSegmentFrame(
-          mergedPrompt,
-          index,
-          'closing',
-          aspectRatio,
-          brandLogoUrl,
-          productImageUrls.length ? productImageUrls : null,
-          brandContext,
-          competitorFileType,
-          {
-            imageModelOverride: 'nano_banana_pro',
-            imageSizeOverride: frameImageSize,
-            resolutionOverride: '1K',
-            characterPhotoUrls: characterPhotoUrls.length > 0 ? characterPhotoUrls : null
-          },
-          null
-        );
-        segmentUpdates.closing_frame_task_id = closingTaskId;
-        segmentUpdates.closing_frame_url = null;
-      }
+      // NOTE: Closing frame generation has been REMOVED during regeneration
+      // Reason: Closing frames are unnecessary and waste generation resources
+      // Video generation uses only the first frame, closing frame is redundant
     }
 
     if (shouldRegenerateVideo) {
@@ -371,9 +369,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
       const segmentsCount = project.segment_count && project.segment_count > 0 ? project.segment_count : 1;
       const videoCredits = totalVideoCost > 0 ? Math.max(1, Math.ceil(totalVideoCost / segmentsCount)) : 0;
+
+      console.log('[SEGMENT API] Video regeneration credit calculation:', {
+        model: normalizedModel,
+        videoDuration: project.video_duration,
+        totalVideoCost,
+        segmentsCount,
+        videoCredits
+      });
+
       if (videoCredits > 0) {
         const descriptor = project.video_model ? project.video_model.toUpperCase() : 'VIDEO';
+        console.log('[SEGMENT API] Deducting video credits:', { videoCredits, descriptor });
         await ensureCredits(videoCredits, `Competitor UGC Replication - Segment video regeneration (${descriptor})`);
+      } else {
+        console.warn('[SEGMENT API] Video credits is 0, no deduction');
       }
 
       const hasFreshFirstFrame = shouldRegeneratePhoto ? false : Boolean(segmentRow.first_frame_url);
@@ -435,7 +445,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .eq('id', projectId);
 
     const updatedSegment = (allSegments as CompetitorUgcReplicationSegment[]).find(seg => seg.segment_index === index);
-    creditCharges.length = 0;
+
+    // NOTE: Do NOT clear creditCharges here! If KIE API fails asynchronously (in monitor-tasks),
+    // we need to be able to refund. However, this means we cannot track success/failure at this point.
+    // The proper solution would be to deduct credits AFTER KIE confirms success, not before.
+    // For now, we rely on monitor-tasks to handle failures and manual refunds if needed.
+    console.log('[SEGMENT API] Request completed successfully, credits deducted:', creditCharges);
+
     return NextResponse.json({
       success: true,
       segment: updatedSegment,

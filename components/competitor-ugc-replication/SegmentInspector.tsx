@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import NextImage from 'next/image';
 import clsx from 'clsx';
-import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2, UserCircle, Clock, User, Clapperboard, Palette, Music, MessageSquare, Globe, Camera, Move, MapPin, Sun } from 'lucide-react';
+import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2, UserCircle, Clock, User, Clapperboard, Palette, Music, MessageSquare, Globe, Camera, Move, MapPin, Sun, Sparkles, ShoppingBag } from 'lucide-react';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
@@ -423,10 +423,7 @@ export default function SegmentInspector({
         return prev.filter(id => id !== product.id);
       }
       // Check combined limit with characters
-      const totalReferences = prev.length + selectedCharacterIds.length;
-      if (totalReferences >= MAX_TOTAL_REFERENCES) {
-        return prev;
-      }
+      // Soft limit: allow selection but show warning in UI
       return [...prev, product.id];
     });
   };
@@ -436,10 +433,7 @@ export default function SegmentInspector({
       if (prev.includes(character.id)) {
         return prev.filter(id => id !== character.id);
       }
-      const totalReferences = selectedProductIds.length + prev.length;
-      if (totalReferences >= MAX_TOTAL_REFERENCES) {
-        return prev;
-      }
+      // Soft limit: allow selection but show warning in UI
       return [...prev, character.id];
     });
   };
@@ -614,9 +608,9 @@ export default function SegmentInspector({
 
           <section className="space-y-5">
             <div className="rounded-3xl border border-gray-200 p-4 space-y-3">
-              <div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-gray-900" />
                 <p className="text-sm font-semibold text-gray-900">Photo prompt</p>
-                <p className="text-xs text-gray-500">Used for first-frame regeneration.</p>
               </div>
               <textarea
                 value={photoPrompt}
@@ -625,11 +619,6 @@ export default function SegmentInspector({
                 className={`w-full rounded-2xl border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 ${photoPromptTooLong ? 'border-red-500 focus:ring-red-500' : 'border-gray-200 focus:ring-gray-900 focus:border-gray-900'}`}
                 placeholder="Describe the exact frame you want..."
               />
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span className={photoPromptTooLong ? 'text-red-600' : undefined}>
-                  {photoPrompt.length}/{PHOTO_CHAR_LIMIT} characters
-                </span>
-              </div>
               {photoPromptTooLong && (
                 <p className="text-xs text-red-600">Photo prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
               )}
@@ -669,15 +658,15 @@ export default function SegmentInspector({
               )}
               <div className="pt-3 border-t border-dashed border-gray-100 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-gray-900" />
                     <p className="text-sm font-semibold text-gray-900">Product references</p>
-                    <p className="text-xs text-gray-500">
-                      Optional · Select up to {MAX_REFERENCE_PRODUCTS} product photos from {brandName || 'this brand'} to guide the next keyframe.
-                    </p>
                   </div>
-                  <span className="text-xs text-gray-500">
-                    {selectedProductIds.length + selectedCharacterIds.length}/{MAX_TOTAL_REFERENCES} total references
-                  </span>
+                  {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
+                    <span className="text-xs text-amber-600 font-medium">
+                      {selectedProductIds.length + selectedCharacterIds.length}/{MAX_TOTAL_REFERENCES} total references
+                    </span>
+                  )}
                 </div>
                 {!brandId ? (
                   <p className="text-xs text-gray-500">
@@ -699,7 +688,7 @@ export default function SegmentInspector({
                     {productOptions.map(product => {
                       const photoUrl = getProductPhotoUrl(product);
                       const isSelected = selectedProductIds.includes(product.id);
-                      const disabled = (!photoUrl && !isSelected) || (!isSelected && productSelectionLimitReached);
+                      const disabled = (!photoUrl && !isSelected);
 
                       return (
                         <button
@@ -722,9 +711,6 @@ export default function SegmentInspector({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{product.product_name}</p>
-                            <p className="text-xs text-gray-500">
-                              {photoUrl ? 'Primary photo' : 'Add photos in Assets to use this product'}
-                            </p>
                           </div>
                           {isSelected && (
                             <Check className="w-4 h-4 text-gray-900 flex-shrink-0" />
@@ -739,26 +725,19 @@ export default function SegmentInspector({
                     First-frame regeneration will reuse the selected product photos.
                   </p>
                 )}
-                {productSelectionLimitReached && (
-                  <p className="text-[11px] text-gray-500">
-                    You’ve reached the {MAX_REFERENCE_PRODUCTS}-product limit. Deselect one to add another.
+                {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
+                  <p className="text-[11px] text-amber-600">
+                    You’ve exceeded the {MAX_TOTAL_REFERENCES}-product recommended limit.
                   </p>
                 )}
               </div>
 
               <div className="pt-3 border-t border-dashed border-gray-100 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-gray-900" />
                     <p className="text-sm font-semibold text-gray-900">Character reference</p>
-                    <p className="text-xs text-gray-500">
-                      Optional · Select characters to guide the generation.
-                    </p>
                   </div>
-                  {selectedCharacterIds.length > 0 && (
-                    <span className="text-xs text-gray-500">
-                      {selectedCharacterIds.length} selected
-                    </span>
-                  )}
                 </div>
 
                 {characterLoading ? (
@@ -776,8 +755,8 @@ export default function SegmentInspector({
                   <div className="grid gap-2 sm:grid-cols-2">
                     {characterOptions.map(character => {
                       const isSelected = selectedCharacterIds.includes(character.id);
-                      const totalReferences = selectedProductIds.length + selectedCharacterIds.length;
-                      const disabled = !isSelected && totalReferences >= MAX_TOTAL_REFERENCES;
+                      // Soft limit
+                      const disabled = false;
 
                       return (
                         <button
@@ -814,15 +793,15 @@ export default function SegmentInspector({
                   </div>
                 )}
 
-                {selectedCharacterIds.length > 0 && (
-                  <p className="text-[11px] text-gray-500">
+                {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && selectedCharacterIds.length > 0 && (
+                  <p className="text-[11px] text-amber-600">
                     First-frame regeneration will use {selectedCharacterIds.length} character{selectedCharacterIds.length > 1 ? 's' : ''} as visual reference.
                   </p>
                 )}
 
-                {(selectedProductIds.length + selectedCharacterIds.length >= MAX_TOTAL_REFERENCES) && (
+                {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
                   <p className="text-[11px] text-amber-600">
-                    You've reached the {MAX_TOTAL_REFERENCES}-image limit for references (products + characters). Deselect one to add another.
+                    You've exceeded the {MAX_TOTAL_REFERENCES}-image limit for references (products + characters).
                   </p>
                 )}
               </div>
@@ -830,7 +809,8 @@ export default function SegmentInspector({
 
             <div className="rounded-3xl border border-gray-200 p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex items-center gap-2">
+                  <Clapperboard className="w-4 h-4 text-gray-900" />
                   <p className="text-sm font-semibold text-gray-900">Shots</p>
                 </div>
                 <div className="flex items-center gap-2">

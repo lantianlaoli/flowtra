@@ -72,14 +72,14 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
 - **Type**: `string`
 - **Required**: Yes
 - **Description**: A text description of the image you want to generate
-- **Max Length**: 5000 characters
+- **Max Length**: 10000 characters
 - **Default Value**: `"Comic poster: cool banana hero in shades leaps from sci-fi pad. Six panels: 1) 4K mountain landscape, 2) banana holds page of long multilingual text with auto translation, 3) Gemini 3 hologram for search/knowledge/reasoning, 4) camera UI sliders for angle focus color, 5) frame trio 1:1-9:16, 6) consistent banana poses. Footer shows Google icons. Tagline: Nano Banana Pro now on Kie AI."`
 
 #### image_input
 - **Type**: `array`
 - **Required**: No
-- **Description**: Input images to transform or use as reference (supports up to 10 images)
-- **Max File Size**: 10MB
+- **Description**: Input images to transform or use as reference (supports up to 8 images)
+- **Max File Size**: 30MB
 - **Accepted File Types**: image/jpeg, image/png, image/webp
 - **Multiple Files**: Yes
 - **Default Value**: `[]`
@@ -99,6 +99,7 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
   - `9:16`: 9:16
   - `16:9`: 16:9
   - `21:9`: 21:9
+  - `auto`: Auto
 - **Default Value**: `"1:1"`
 
 #### resolution

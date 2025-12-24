@@ -862,32 +862,8 @@ async function syncSegmentFrameTasks(
 
         console.log(`✅ Started first frame generation for stuck segment ${segment.segment_index}, taskId: ${firstFrameTaskId}`);
 
-        // Also generate closing frame for the last segment
-        if (segment.segment_index === segments.length - 1) {
-          const closingFrameTaskId = await createSmartSegmentFrame(
-            promptData,
-            segment.segment_index,
-            'closing',
-            aspectRatio,
-            null,
-            null,
-            undefined,
-            competitorFileType,
-            undefined,
-            null // Continuation not required for closing frames
-          );
-
-          await supabase
-            .from('competitor_ugc_replication_segments')
-            .update({
-              closing_frame_task_id: closingFrameTaskId,
-              updated_at: now
-            })
-            .eq('id', segment.id);
-
-          segment.closing_frame_task_id = closingFrameTaskId;
-          console.log(`✅ Started closing frame generation for last segment ${segment.segment_index}, taskId: ${closingFrameTaskId}`);
-        }
+        // NOTE: Closing frame generation has been REMOVED
+        // Reason: Closing frames are unnecessary and waste generation resources
       } catch (error) {
         console.error(`❌ Failed to create first frame for stuck segment ${segment.segment_index}:`, error);
         throw error; // Re-throw to be handled by processRecord's error handler
@@ -943,32 +919,8 @@ async function syncSegmentFrameTasks(
 
         console.log(`✅ Successfully recovered segment ${segment.segment_index}, taskId: ${firstFrameTaskId}`);
 
-        // Also generate closing frame for the last segment
-        if (segment.segment_index === segments.length - 1) {
-          const closingFrameTaskId = await createSmartSegmentFrame(
-            promptData,
-            segment.segment_index,
-            'closing',
-            aspectRatio,
-            null,
-            null,
-            undefined,
-            competitorFileType,
-            undefined,
-            null
-          );
-
-          await supabase
-            .from('competitor_ugc_replication_segments')
-            .update({
-              closing_frame_task_id: closingFrameTaskId,
-              updated_at: now
-            })
-            .eq('id', segment.id);
-
-          segment.closing_frame_task_id = closingFrameTaskId;
-          console.log(`✅ Started closing frame for last segment ${segment.segment_index}, taskId: ${closingFrameTaskId}`);
-        }
+        // NOTE: Closing frame generation has been REMOVED
+        // Reason: Closing frames are unnecessary and waste generation resources
       } catch (error) {
         console.error(`❌ Failed to recover segment ${segment.segment_index}:`, error);
 

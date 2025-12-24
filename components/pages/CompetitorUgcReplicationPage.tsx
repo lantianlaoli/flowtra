@@ -246,6 +246,10 @@ export default function CompetitorUgcReplicationPage() {
     model: null,
     duration: null
   });
+  const lastAutoLanguageRef = useRef<{ competitorId: string | null; appliedLanguage: string | null }>({
+    competitorId: null,
+    appliedLanguage: null
+  });
   const effectiveImageModel = hasCompetitorReference ? 'nano_banana_pro' : selectedImageModel;
 
   // Modal states for user guidance
@@ -269,13 +273,30 @@ export default function CompetitorUgcReplicationPage() {
     }
   }, [selectedBrand, selectedCompetitorAd, generations.length]);
 
-  // Auto-switch language when competitor ad with language is selected
+  // Auto-switch language when competitor ad with language is selected (only on first selection)
   useEffect(() => {
-    if (selectedCompetitorAd?.language && selectedCompetitorAd.language !== selectedLanguage) {
-      console.log(`🌍 Auto-switching language from ${selectedLanguage} to ${selectedCompetitorAd.language}`);
-      setSelectedLanguage(selectedCompetitorAd.language as LanguageCode);
+    // Reset tracking when competitor ad is cleared
+    if (!selectedCompetitorAd) {
+      lastAutoLanguageRef.current = { competitorId: null, appliedLanguage: null };
+      return;
     }
-  }, [selectedCompetitorAd, selectedLanguage]);
+
+    // Only auto-switch if:
+    // 1. Competitor ad has a language
+    // 2. This is the first time we're seeing this competitor ad (not already auto-switched)
+    if (
+      selectedCompetitorAd.language &&
+      lastAutoLanguageRef.current.competitorId !== selectedCompetitorAd.id
+    ) {
+      console.log(`🌍 Auto-switching language to ${selectedCompetitorAd.language} (from competitor ad)`);
+      setSelectedLanguage(selectedCompetitorAd.language as LanguageCode);
+      // Mark that we've auto-switched for this competitor ad
+      lastAutoLanguageRef.current = {
+        competitorId: selectedCompetitorAd.id,
+        appliedLanguage: selectedCompetitorAd.language
+      };
+    }
+  }, [selectedCompetitorAd]);
 
   useEffect(() => {
     // Competitor ads are now video-only
@@ -770,10 +791,10 @@ export default function CompetitorUgcReplicationPage() {
 
       if (type === 'photo') {
         if (productIds?.length) {
-          requestBody.productIds = productIds.slice(0, 10);
+          requestBody.productIds = productIds.slice(0, 8);
         }
         if (characterIds?.length) {
-          requestBody.characterIds = characterIds.slice(0, 10);
+          requestBody.characterIds = characterIds.slice(0, 8);
         }
       }
 

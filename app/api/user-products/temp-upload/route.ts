@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server';
 import { uploadProductPhotoToStorage } from '@/lib/supabase';
 import { validateImageFormat } from '@/lib/image-validation';
 
+export const experimental_bodySizeLimit = 20 * 1024 * 1024; // 20MB limit for image uploads
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Authenticate user

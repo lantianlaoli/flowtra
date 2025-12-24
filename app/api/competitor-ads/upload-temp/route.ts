@@ -5,6 +5,8 @@ import { Buffer } from 'buffer';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const maxDuration = 300; // 5 minutes for large video uploads
+export const experimental_bodySizeLimit = 100 * 1024 * 1024; // 100MB limit for video uploads
 
 /**
  * POST /api/competitor-ads/upload-temp

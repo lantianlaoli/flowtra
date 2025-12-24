@@ -5,7 +5,8 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-export const maxDuration = 60; // Increase execution timeout to 60s for large uploads
+export const maxDuration = 300; // 5 minutes for large video analysis
+export const experimental_bodySizeLimit = 50 * 1024 * 1024; // 50MB limit for video uploads
 
 /**
  * POST /api/competitor-ads/analyze-preview
@@ -13,10 +14,9 @@ export const maxDuration = 60; // Increase execution timeout to 60s for large up
  * Analyzes a competitor ad file WITHOUT creating a database record.
  * Used for preview/auto-fill functionality before user submits.
  *
- * Expects multipart/form-data with:
- * - ad_file: File (image or video)
- * - file_url: string (public URL of the uploaded file)
- * - file_type: 'image' | 'video'
+ * Expects JSON with:
+ * - file_url: string (public URL of the uploaded file in Supabase)
+ * - uploaded_path: string (path in Supabase storage for cleanup)
  * - competitor_name: string (optional)
  */
 export async function POST(request: NextRequest) {
@@ -27,60 +27,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const adFile = formData.get('ad_file') as File | null;
-    const competitorName = (formData.get('competitor_name') as string) || '';
+    const body = await request.json();
+    const { file_url, uploaded_path, competitor_name = '' } = body;
 
     // Validation
-    if (!adFile) {
+    if (!file_url) {
       return NextResponse.json(
-        { error: 'ad_file is required' },
+        { error: 'file_url is required' },
         { status: 400 }
       );
     }
 
-    // Video-only validation
-    if (!adFile.type.startsWith('video/')) {
+    if (!uploaded_path) {
       return NextResponse.json(
-        { error: 'Only video files are supported for competitor ads' },
+        { error: 'uploaded_path is required' },
         { status: 400 }
       );
     }
-
-    // Upload file temporarily to Supabase storage for analysis
-    console.log(`[POST /api/competitor-ads/analyze-preview] Uploading video temporarily for analysis...`);
-
-    const fileName = `temp_${userId}_${Date.now()}_${adFile.name}`;
-    const fileBuffer = Buffer.from(await adFile.arrayBuffer());
-
-    const supabase = getSupabaseAdmin();
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('competitor_videos')
-      .upload(fileName, fileBuffer, {
-        contentType: adFile.type,
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error('[POST /api/competitor-ads/analyze-preview] Upload error:', uploadError);
-      return NextResponse.json(
-        { error: 'Failed to upload file for analysis', details: uploadError.message },
-        { status: 500 }
-      );
-    }
-
-    // Get public URL for analysis
-    const { data: { publicUrl } } = supabase.storage
-      .from('competitor_videos')
-      .getPublicUrl(fileName);
 
     console.log(`[POST /api/competitor-ads/analyze-preview] Starting analysis for video...`);
+    console.log(`[POST /api/competitor-ads/analyze-preview] File URL: ${file_url}`);
 
     // Perform AI analysis (competitor ads are video-only now)
+    const supabase = getSupabaseAdmin();
     try {
       const { analysis, language } = await analyzeCompetitorAdWithLanguage({
-        file_url: publicUrl,
-        competitor_name: competitorName
+        file_url: file_url,
+        competitor_name: competitor_name
       });
 
       console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Analysis complete, language: ${language}`);
@@ -89,8 +62,8 @@ export async function POST(request: NextRequest) {
       try {
         await supabase.storage
           .from('competitor_videos')
-          .remove([fileName]);
-        console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Temporary file deleted: ${fileName}`);
+          .remove([uploaded_path]);
+        console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Temporary file deleted: ${uploaded_path}`);
       } catch (deleteError) {
         console.warn(`[POST /api/competitor-ads/analyze-preview] ⚠️ Failed to delete temporary file:`, deleteError);
         // Continue anyway - file will be cleaned up later
@@ -109,8 +82,8 @@ export async function POST(request: NextRequest) {
       try {
         await supabase.storage
           .from('competitor_videos')
-          .remove([fileName]);
-        console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Temporary file deleted after error: ${fileName}`);
+          .remove([uploaded_path]);
+        console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Temporary file deleted after error: ${uploaded_path}`);
       } catch (deleteError) {
         console.warn(`[POST /api/competitor-ads/analyze-preview] ⚠️ Failed to delete temporary file after error:`, deleteError);
       }

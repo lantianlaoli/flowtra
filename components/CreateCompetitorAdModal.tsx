@@ -8,6 +8,7 @@ import { CompetitorAd } from '@/lib/supabase';
 import { getLanguageDisplayInfo } from '@/lib/language';
 import CompetitorShotsEditor from './CompetitorShotsEditor';
 import { CompetitorShotForm, parseShotsFromAnalysis } from '@/lib/competitor-shot-form';
+import { uploadFileToSupabase } from '@/lib/upload-to-supabase';
 
 interface CreateCompetitorAdModalProps {
   isOpen: boolean;
@@ -108,8 +109,8 @@ export default function CreateCompetitorAdModal({
       }
 
       // Validate file size
-      if (file.size > 12 * 1024 * 1024) {
-        setError('File size must be less than 12MB.');
+      if (file.size > 50 * 1024 * 1024) {
+        setError('File size must be less than 50MB.');
         setCompressionLink('https://www.onlineconverter.com/compress-video');
         return;
       }
@@ -139,15 +140,30 @@ export default function CreateCompetitorAdModal({
         // 2. Create record with analysis results via /api/competitor-ads/create-with-analysis
         // 3. No permanent file storage
 
-        // Step 1: Analyze the video (analyze-preview handles temporary upload internally)
-        console.log('[CreateCompetitorAdModal] Step 1: Analyzing video with AI...');
-        const analyzeFormData = new FormData();
-        analyzeFormData.append('ad_file', file);
-        analyzeFormData.append('competitor_name', tempName);
+        // Step 1: Upload video directly to Supabase (client-side upload, no API route)
+        console.log('[CreateCompetitorAdModal] Step 1: Uploading video to storage...');
+        const uploadPath = `temp_${Date.now()}_${file.name}`;
 
+        const { publicUrl, path: uploadedPath } = await uploadFileToSupabase(
+          file,
+          'competitor_videos',
+          uploadPath
+        );
+
+        console.log('[CreateCompetitorAdModal] ✅ Video uploaded:', publicUrl);
+
+        // Step 2: Analyze the video (send URL instead of file)
+        console.log('[CreateCompetitorAdModal] Step 2: Analyzing video with AI...');
         const analyzeResponse = await fetch('/api/competitor-ads/analyze-preview', {
           method: 'POST',
-          body: analyzeFormData
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            file_url: publicUrl,
+            uploaded_path: uploadedPath,
+            competitor_name: tempName
+          })
         });
 
         if (!analyzeResponse.ok) {
@@ -172,17 +188,19 @@ export default function CreateCompetitorAdModal({
         console.log('[CreateCompetitorAdModal] Step 3: Saving competitor ad...');
         console.log('[CreateCompetitorAdModal] brandId:', brandId);
         console.log('[CreateCompetitorAdModal] competitorName:', tempName);
-        const createFormData = new FormData();
-        createFormData.append('brand_id', brandId);
-        createFormData.append('competitor_name', tempName);
-        createFormData.append('ad_file', file); // File needed for record creation (will not be stored)
-        createFormData.append('analysis_result', JSON.stringify(analysis));
-        createFormData.append('language', language);
-        createFormData.append('analysis_status', 'completed');
 
         const createResponse = await fetch('/api/competitor-ads/create-with-analysis', {
           method: 'POST',
-          body: createFormData
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            brand_id: brandId,
+            competitor_name: tempName,
+            analysis_result: analysis,
+            language: language,
+            analysis_status: 'completed'
+          })
         });
 
         if (!createResponse.ok) {
@@ -319,7 +337,7 @@ export default function CreateCompetitorAdModal({
                   <p className="text-lg font-medium text-gray-800 mb-2">Upload a video</p>
                   <p className="text-sm text-gray-500">Choose a viral video to preview and analyze.</p>
                   <p className="text-xs text-gray-400 mt-3">
-                    Max file size: 12MB • Video only
+                    Max file size: 50MB • Video only
                   </p>
                   {!canSelectFile && (
                     <p className="text-xs text-gray-500 mt-2">Finish the current upload before adding another file.</p>

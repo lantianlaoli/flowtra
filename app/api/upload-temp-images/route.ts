@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadImageToStorage } from '@/lib/supabase';
 
+export const experimental_bodySizeLimit = 20 * 1024 * 1024; // 20MB limit for image uploads
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
