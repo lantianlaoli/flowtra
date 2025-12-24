@@ -26,7 +26,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         </h1>
 
         <p className="text-xl text-[#666666] leading-relaxed max-w-lg">
-          Clone top-performing TikTok ads and Instagram Reels with AI. Built for small businesses who want proven creative that converts.
+          For TikTok dropshipping, small businesses, and local stores.
         </p>
 
         {/* Selling points */}
