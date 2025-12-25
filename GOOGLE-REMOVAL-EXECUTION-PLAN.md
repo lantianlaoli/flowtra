@@ -19,12 +19,12 @@
 bash -c 'set -a; source .env; set +a; node remove-urls-script.js google-removal-day2.json'
 ```
 
-### 第 3 天 
+### 第 3 天 已成功
 ```bash
 bash -c 'set -a; source .env; set +a; node remove-urls-script.js google-removal-day3.json'
 ```
 
-### 第 4 天
+### 第 4 天 96之后的失败
 ```bash
 bash -c 'set -a; source .env; set +a; node remove-urls-script.js google-removal-day4.json'
 ```

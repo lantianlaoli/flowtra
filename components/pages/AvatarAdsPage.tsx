@@ -27,6 +27,8 @@ import {
   getAvatarAdsDialogueWordLimit
 } from '@/lib/avatar-ads-dialogue';
 import { type Format } from '@/components/ui/FormatSelector';
+import { createClient } from '@/lib/supabase/client';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -683,38 +685,7 @@ const formatDurationLabel = (seconds: number) => {
     });
   }, [notifyProjectStatus]);
 
-  const fetchStatusForProject = useCallback(async (projectId: string) => {
-    if (!projectId) return;
-    
-    const fetchWithBackoff = async (retries = 3, delay = 1000) => {
-      try {
-        const response = await fetch(`/api/avatar-ads/${projectId}/status`, { cache: 'no-store' });
-        
-        if (response.status === 404 && retries > 0) {
-          // 404 might be a race condition (creation vs read), retry quickly
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return fetchWithBackoff(retries - 1, delay * 1.5);
-        }
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch project status: ${response.status}`);
-        }
-
-        const payload: CharacterAdsStatusPayload = await response.json();
-        if (!isMountedRef.current) return;
-        updateGenerationFromStatus(projectId, payload);
-      } catch (error) {
-        if (retries > 0) {
-           // Retry on network errors too
-           await new Promise(resolve => setTimeout(resolve, delay));
-           return fetchWithBackoff(retries - 1, delay * 1.5);
-        }
-        console.error('Failed to fetch character ads status:', error);
-      }
-    };
-
-    await fetchWithBackoff();
-  }, [updateGenerationFromStatus]);
+  // ✅ fetchStatusForProject REMOVED - replaced by Realtime subscriptions (line 730-787)
 
   const activeProjectIds = useMemo(() => {
     const ids = generations
@@ -726,17 +697,82 @@ const formatDurationLabel = (seconds: number) => {
     return Array.from(new Set(ids));
   }, [generations]);
 
+  // ✅ Realtime subscription for active projects (NO MORE POLLING!)
   useEffect(() => {
-    if (!activeProjectIds.length) return;
+    if (!activeProjectIds.length) {
+      console.log('[Avatar Ads Realtime] No active projects to monitor');
+      return;
+    }
 
-    const poll = () => {
-      activeProjectIds.forEach((id) => fetchStatusForProject(id));
+    console.log('[Avatar Ads Realtime] Setting up subscriptions for', activeProjectIds.length, 'projects:', activeProjectIds);
+
+    const supabase = createClient();
+    const channels: RealtimeChannel[] = [];
+    const abortController = new AbortController();
+
+    // Initial fetch + subscribe pattern for each project
+    activeProjectIds.forEach((projectId) => {
+      // 1) Fetch initial state (in case project was updated while page was closed)
+      fetch(`/api/avatar-ads/${projectId}/status`, { cache: 'no-store', signal: abortController.signal })
+        .then(async (response) => {
+          if (!response.ok) return;
+          const payload: CharacterAdsStatusPayload = await response.json();
+          if (isMountedRef.current) {
+            updateGenerationFromStatus(projectId, payload);
+            console.log(`✅ [Avatar Ads Realtime] Initial fetch for project ${projectId}:`, payload.project.status);
+          }
+        })
+        .catch((error) => {
+          if (error?.name === 'AbortError') return;
+          console.error(`[Avatar Ads Realtime] Initial fetch failed for ${projectId}:`, error);
+        });
+
+      // 2) Subscribe to realtime updates
+      const channel: RealtimeChannel = supabase
+        .channel(`avatar-ads-project-${projectId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'avatar_ads_projects',
+            filter: `id=eq.${projectId}`,
+          },
+          (payload) => {
+            console.log('[Avatar Ads Realtime] Project updated:', projectId, payload.new);
+            const updatedProject = payload.new as any;
+
+            // Update local state with realtime data
+            if (isMountedRef.current) {
+              updateGenerationFromStatus(projectId, {
+                success: true,
+                project: updatedProject,
+                isCompleted: updatedProject.status === 'completed',
+                isFailed: updatedProject.status === 'failed'
+              });
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`✅ [Avatar Ads Realtime] Subscribed to project ${projectId}`);
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error(`❌ [Avatar Ads Realtime] Failed to subscribe to project ${projectId}`);
+          }
+        });
+
+      channels.push(channel);
+    });
+
+    // Cleanup all subscriptions when dependencies change
+    return () => {
+      abortController.abort();
+      console.log('[Avatar Ads Realtime] Cleaning up', channels.length, 'subscriptions');
+      channels.forEach((channel) => {
+        supabase.removeChannel(channel);
+      });
     };
-
-    poll();
-    const interval = setInterval(poll, 8000);
-    return () => clearInterval(interval);
-  }, [activeProjectIds, fetchStatusForProject]);
+  }, [activeProjectIds, updateGenerationFromStatus]);
 
   const handleDownloadGeneration = useCallback(async (generation: AvatarGeneration) => {
     if (!user?.id) {
@@ -822,14 +858,14 @@ const formatDurationLabel = (seconds: number) => {
 
       showSuccess('Video generation successfully resumed!');
       setInspectorProjectId(null); // Close inspector
-      fetchStatusForProject(projectId); // Refresh status
+      // ✅ No manual refresh needed - Realtime will auto-update
       refetchCredits(); // Credits might have changed
     } catch (error) {
       console.error('Error confirming generation:', error);
       showError(error instanceof Error ? error.message : 'Failed to confirm generation.');
       throw error; // Re-throw to allow component to handle submitting state
     }
-  }, [showSuccess, showError, fetchStatusForProject, refetchCredits]);
+  }, [showSuccess, showError, refetchCredits]);
 
   const handleRegenerateImage = useCallback(async (projectId: string, imagePrompt: string) => {
     try {
@@ -847,13 +883,13 @@ const formatDurationLabel = (seconds: number) => {
       }
 
       showSuccess('Image regeneration started!');
-      fetchStatusForProject(projectId); // Refresh status to show new state
+      // ✅ No manual refresh needed - Realtime will auto-update
       refetchCredits(); // In case image regeneration costs credits
     } catch (error) {
       console.error('Error regenerating image:', error);
       showError(error instanceof Error ? error.message : 'Failed to regenerate image.');
     }
-  }, [showSuccess, showError, fetchStatusForProject, refetchCredits]);
+  }, [showSuccess, showError, refetchCredits]);
 
   const displayedGenerations = useMemo(() =>
     sortGenerations(generations).map((gen) => ({
@@ -1303,7 +1339,6 @@ const formatDurationLabel = (seconds: number) => {
           open={isInspectorOpen}
           onClose={handleCloseInspector}
           onConfirmGeneration={handleConfirmGeneration}
-          onRefetchProjectStatus={fetchStatusForProject}
           onRegenerateImage={handleRegenerateImage}
         />
       )}

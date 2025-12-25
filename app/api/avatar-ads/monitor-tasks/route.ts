@@ -124,6 +124,8 @@ interface AvatarAdsProject {
   fal_merge_task_id?: string;
   error_message?: string;
   last_processed_at?: string;
+  webhook_received_at?: string; // NEW: Timestamp when webhook was received from KIE API
+  last_webhook_check?: string; // NEW: Timestamp of last fallback polling check
   created_at: string;
   updated_at: string;
 }
@@ -143,7 +145,58 @@ async function processAvatarAdsProjectStep(project: AvatarAdsProject) {
     }
   }
 
-  // Handle image generation monitoring specifically
+  // ====== WEBHOOK FALLBACK POLLING: Image Generation ======
+  // If webhook not received within 5 minutes, fall back to polling
+  if (project.status === 'generating_image' &&
+      project.kie_image_task_id &&
+      !project.generated_image_url) {
+
+    const shouldPoll = await shouldFallbackPollImage(project);
+
+    if (shouldPoll) {
+      console.log(`[Fallback Polling] Checking image status (webhook timeout) - project ${project.id}`);
+
+      const imageResult = await checkKieImageStatus(project.kie_image_task_id);
+
+      // Update last_webhook_check timestamp to prevent duplicate polls
+      await supabase
+        .from('avatar_ads_projects')
+        .update({ last_webhook_check: new Date().toISOString() })
+        .eq('id', project.id);
+
+      if (imageResult.status === 'SUCCESS' && imageResult.imageUrl) {
+        console.log(`[Fallback Polling] Image completed (webhook missed) - project ${project.id}`);
+
+        await supabase
+          .from('avatar_ads_projects')
+          .update({
+            generated_image_url: imageResult.imageUrl,
+            status: 'awaiting_review',
+            current_step: 'reviewing',
+            progress_percentage: 60,
+            last_processed_at: new Date().toISOString(),
+            webhook_received_at: new Date().toISOString() // Mark as received
+          })
+          .eq('id', project.id);
+
+        return;
+      } else if (imageResult.status === 'FAILED') {
+        throw new Error(imageResult.reason || 'Image generation failed');
+      }
+      // If still generating, continue waiting (will check again next cycle)
+    }
+
+    // Not ready for fallback polling yet, just update timestamp
+    await supabase
+      .from('avatar_ads_projects')
+      .update({ last_processed_at: new Date().toISOString() })
+      .eq('id', project.id);
+
+    return;
+  }
+
+  // ====== LEGACY POLLING: For projects without webhook support ======
+  // Handle image generation monitoring specifically (for legacy projects without callBackUrl)
   if (project.status === 'generating_image' && project.kie_image_task_id && !project.generated_image_url) {
     const imageResult = await checkKieImageStatus(project.kie_image_task_id);
 
@@ -189,9 +242,62 @@ async function processAvatarAdsProjectStep(project: AvatarAdsProject) {
     return;
   }
 
-  // NEW: Handle scene-level retries for video generation
+  // ====== WEBHOOK FALLBACK POLLING: Video Generation ======
+  // If webhook not received within 5 minutes, fall back to polling
   if (project.status === 'generating_videos') {
-    await handleSceneVideoRetries(project, supabase);
+    await handleSceneVideoRetries(project, supabase); // Existing retry logic
+
+    const shouldPoll = await shouldFallbackPollVideo(project);
+
+    if (shouldPoll) {
+      console.log(`[Fallback Polling] Checking video status (webhook timeout) - project ${project.id}`);
+
+      // Query scenes that are generating but haven't received webhook
+      const { data: generatingScenes } = await supabase
+        .from('avatar_ads_scenes')
+        .select('*')
+        .eq('project_id', project.id)
+        .eq('status', 'generating')
+        .is('webhook_received_at', null); // Only scenes missing webhooks
+
+      if (generatingScenes && generatingScenes.length > 0) {
+        for (const scene of generatingScenes) {
+          if (!scene.kie_video_task_id) continue;
+
+          const status = await checkKIEVideoTaskStatus(scene.kie_video_task_id);
+
+          if (status.status === 'completed' && status.result_url) {
+            console.log(`[Fallback Polling] Scene ${scene.scene_number} completed (webhook missed)`);
+
+            await supabase
+              .from('avatar_ads_scenes')
+              .update({
+                video_url: status.result_url,
+                status: 'completed',
+                error_code: null,
+                error_message: null,
+                webhook_received_at: new Date().toISOString() // Mark as received
+              })
+              .eq('id', scene.id);
+          } else if (status.status === 'failed') {
+            await supabase
+              .from('avatar_ads_scenes')
+              .update({
+                error_code: status.errorCode,
+                error_message: status.error,
+                webhook_received_at: new Date().toISOString()
+              })
+              .eq('id', scene.id);
+          }
+        }
+      }
+
+      // Update last_webhook_check timestamp
+      await supabase
+        .from('avatar_ads_projects')
+        .update({ last_webhook_check: new Date().toISOString() })
+        .eq('id', project.id);
+    }
   }
 
   // Determine the next step to trigger based on current state
@@ -510,4 +616,68 @@ async function checkKieImageStatus(taskId: string): Promise<{status: string, ima
     return { status: 'FAILED', reason: taskData.failMsg || taskData.errorMessage || taskData.failureReason };
   }
   return { status: 'GENERATING' };
+}
+
+/**
+ * Helper function to determine if fallback polling should occur for image generation
+ *
+ * @param project - The avatar ads project
+ * @returns true if fallback polling should be triggered, false otherwise
+ *
+ * Fallback polling strategy:
+ * 1. Wait 5 minutes after task creation (give webhook time to arrive)
+ * 2. If no webhook received, trigger polling
+ * 3. Poll every 30 seconds until completion
+ * 4. Use last_webhook_check to prevent duplicate polls within 30s window
+ */
+async function shouldFallbackPollImage(project: AvatarAdsProject): Promise<boolean> {
+  const WEBHOOK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  const POLL_INTERVAL_MS = 30 * 1000; // 30 seconds
+
+  // Already received webhook - no need to poll
+  if (project.webhook_received_at) return false;
+
+  // Calculate time since task was created
+  const taskAge = Date.now() - new Date(project.last_processed_at || project.created_at).getTime();
+
+  // If task is less than 5 minutes old, don't poll yet (wait for webhook)
+  if (taskAge < WEBHOOK_TIMEOUT_MS) return false;
+
+  // If we've already polled recently, don't poll again (prevent spam)
+  if (project.last_webhook_check) {
+    const timeSinceLastCheck = Date.now() - new Date(project.last_webhook_check).getTime();
+    if (timeSinceLastCheck < POLL_INTERVAL_MS) return false;
+  }
+
+  // Ready to poll
+  return true;
+}
+
+/**
+ * Helper function to determine if fallback polling should occur for video generation
+ *
+ * @param project - The avatar ads project
+ * @returns true if fallback polling should be triggered, false otherwise
+ *
+ * Same strategy as image polling:
+ * - 5 minute timeout before first poll
+ * - 30 second interval between subsequent polls
+ */
+async function shouldFallbackPollVideo(project: AvatarAdsProject): Promise<boolean> {
+  const WEBHOOK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  const POLL_INTERVAL_MS = 30 * 1000; // 30 seconds
+
+  // Calculate time since videos started generating
+  const taskAge = Date.now() - new Date(project.last_processed_at || project.created_at).getTime();
+
+  // If videos are less than 5 minutes old, don't poll yet
+  if (taskAge < WEBHOOK_TIMEOUT_MS) return false;
+
+  // If we've already polled recently, don't poll again
+  if (project.last_webhook_check) {
+    const timeSinceLastCheck = Date.now() - new Date(project.last_webhook_check).getTime();
+    if (timeSinceLastCheck < POLL_INTERVAL_MS) return false;
+  }
+
+  return true;
 }

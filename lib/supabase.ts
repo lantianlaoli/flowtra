@@ -141,6 +141,7 @@ export interface AvatarAdsScene {
   last_retry_at?: string | null // Timestamp of last retry attempt for exponential backoff calculation
   error_code?: string | null // KIE API error code (e.g., '500') for debugging
   error_message?: string | null // Last error message from KIE API
+  webhook_received_at?: string | null // NEW: Timestamp when video webhook was received from KIE API
   created_at: string
   updated_at: string
 }

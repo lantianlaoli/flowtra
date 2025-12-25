@@ -10,26 +10,15 @@ const isProtectedRoute = createRouteMatcher([
   '/api/upload(.*)'
 ])
 
-// Define routes that should NOT be protected (no authentication required)
-const isPublicRoute = createRouteMatcher([
-  '/api/webhooks(.*)',
-  '/api/tiktok/auth/callback(.*)'  // TikTok OAuth callback must be public
-])
-
 // Routes that require purchase (all dashboard routes except select-plan)
 const isPurchaseRequiredRoute = createRouteMatcher([
   '/dashboard(.*)'
 ])
 
 export default clerkMiddleware(async (auth, req) => {
-  // Skip authentication for webhook routes
-  if (isPublicRoute(req)) {
-    return
-  }
-
   if (isProtectedRoute(req)) {
     await auth.protect()
-
+    
     // Additional check for purchase requirement
     const { userId } = await auth()
     if (userId && isPurchaseRequiredRoute(req) && !req.nextUrl.pathname.startsWith('/select-plan')) {
@@ -46,9 +35,13 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
+     * - webhooks (webhook endpoints)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)|.*webhooks.*).*)',
   ],
 }

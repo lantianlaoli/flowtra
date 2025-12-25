@@ -37,6 +37,8 @@ interface AvatarAdsProject {
   fal_merge_task_id?: string;
   error_message?: string;
   last_processed_at?: string;
+  webhook_received_at?: string; // NEW: Timestamp when webhook was received from KIE API
+  last_webhook_check?: string; // NEW: Timestamp of last fallback polling check
   product_context?: {
     product_details?: string;
     brand_name?: string;
@@ -648,6 +650,10 @@ async function generateImageWithKIE(
     promptValue = JSON.stringify(prompt);
   }
 
+  // Construct webhook callback URL (webhook-first architecture with polling fallback)
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
+  const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/image` : undefined;
+
   const payload = {
     model: imageModel,
     input: {
@@ -655,10 +661,14 @@ async function generateImageWithKIE(
       // Use image_input for Pro, image_urls for others
       ...(isNanoBananaPro ? { image_input: referenceImages } : { image_urls: referenceImages }),
       ...modelParams  // Spread the model-specific parameters
-    }
+    },
+    ...(callBackUrl && { callBackUrl }) // Add callBackUrl only if NEXT_PUBLIC_SITE_URL is set
   };
 
-  console.log('KIE API request payload:', JSON.stringify(payload, null, 2));
+  console.log('KIE API request payload (with webhook):', JSON.stringify(payload, null, 2));
+  if (!callBackUrl) {
+    console.warn('⚠️ NEXT_PUBLIC_SITE_URL not set - webhook disabled, using polling only');
+  }
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
@@ -848,6 +858,10 @@ export async function generateVideoWithKIE(
     generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO';
   }
 
+  // Construct webhook callback URL (webhook-first architecture with polling fallback)
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
+  const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/video` : undefined;
+
   // Avatar Ads only uses VEO3 Fast API
   const requestBody = {
     prompt: finalPrompt,
@@ -859,12 +873,16 @@ export async function generateVideoWithKIE(
     audioEnabled: true,
     generateVoiceover: false,
     includeDialogue: true,
-    enableTranslation: false
+    enableTranslation: false,
+    ...(callBackUrl && { callBackUrl }) // Add callBackUrl only if NEXT_PUBLIC_SITE_URL is set
   };
   const apiEndpoint = VIDEO_API_ENDPOINT; // Fixed: VEO3 endpoint
 
-  console.log('Video API request body:', JSON.stringify(requestBody, null, 2));
+  console.log('Video API request body (with webhook):', JSON.stringify(requestBody, null, 2));
   console.log('Video API endpoint:', apiEndpoint);
+  if (!callBackUrl) {
+    console.warn('⚠️ NEXT_PUBLIC_SITE_URL not set - webhook disabled, using polling only');
+  }
 
   // ✅ FINAL STRICT VALIDATION before calling KIE API
   const promptInBody = requestBody.prompt;

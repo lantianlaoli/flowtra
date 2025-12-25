@@ -1,9 +1,18 @@
 import type { NextConfig } from "next";
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+const shouldDisableImageOptimization =
+  isDevelopment || process.env.NEXT_DISABLE_IMAGE_OPTIMIZATION === '1';
+
 const nextConfig: NextConfig = {
   compress: true,
+  skipTrailingSlashRedirect: true, // Disable automatic trailing slash redirects.
   images: {
-    unoptimized: false,
+    // In some environments (e.g. local dev behind a browser proxy), the Next.js
+    // image optimizer may not be able to reach upstream hosts even if the
+    // browser can. Disabling optimization makes images load directly in the
+    // client and avoids upstream timeout errors.
+    unoptimized: shouldDisableImageOptimization,
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: 'aywxqxpmmtgqzempixec.supabase.co' },
@@ -38,10 +47,10 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // ❌ 把原来的 webpack 配置整块删掉 / 注释掉
+  // The old webpack config block has been removed/disabled.
   // webpack: (config, { isServer }) => { ... },
 
-  // ✅ 按错误提示，给 Turbopack 一个空配置（可选，但推荐）
+  // Provide an empty Turbopack config to satisfy Next.js expectations.
   turbopack: {},
 
   async redirects() {
@@ -59,8 +68,6 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
-    const isDevelopment = process.env.NODE_ENV === 'development';
-
     return [
       {
         source: '/(.*)',

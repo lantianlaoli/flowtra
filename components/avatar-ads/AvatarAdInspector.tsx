@@ -12,6 +12,8 @@ import { GiBanana } from 'react-icons/gi';
 import { useToast } from '@/contexts/ToastContext';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { countDialogueWords } from '@/lib/avatar-ads-dialogue';
+import { createClient } from '@/lib/supabase/client';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // Define the shape of the structured video prompt
 export interface StructuredVideoPrompt {
@@ -45,7 +47,7 @@ interface AvatarAdInspectorProps {
   open: boolean;
   onClose: () => void;
   onConfirmGeneration: (projectId: string, updatedPrompts: any) => Promise<void>;
-  onRefetchProjectStatus: (projectId: string) => void;
+  onRefetchProjectStatus?: (projectId: string) => void; // ✅ Optional - no longer needed with Realtime
   onRegenerateImage: (projectId: string, imagePrompt: string) => Promise<void>;
 }
 
@@ -93,7 +95,6 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   open,
   onClose,
   onConfirmGeneration,
-  onRefetchProjectStatus,
   onRegenerateImage,
 }) => {
   const { showSuccess, showError } = useToast();
@@ -157,6 +158,40 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   }, [projectId, onClose, showError]);
 
   useEffect(() => {
+    if (!open || !projectId) return;
+
+    const supabase = createClient();
+    let channel: RealtimeChannel | null = null;
+
+    channel = supabase
+      .channel(`avatar-ads-inspector:${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'avatar_ads_projects',
+          filter: `id=eq.${projectId}`,
+        },
+        (payload) => {
+          const updatedProject = payload.new as InspectorProject;
+          setProject(updatedProject);
+
+          const shouldShowImageSpinner =
+            updatedProject.status === 'generating_image' && !updatedProject.generated_image_url;
+          setIsRegeneratingImage(shouldShowImageSpinner);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [open, projectId]);
+
+  useEffect(() => {
     if (project && !isInitialized.current) {
       if (project.image_prompt) {
         setEditedImagePrompt(project.image_prompt);
@@ -180,8 +215,6 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   }, [totalScenes]);
 
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-
     const loadInitialData = async () => {
       await fetchProjectDetails({ isInitialLoad: true });
       setLoading(false);
@@ -191,9 +224,6 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
       setLoading(true);
       isInitialized.current = false;
       loadInitialData();
-      intervalId = setInterval(() => {
-        fetchProjectDetails();
-      }, 3000);
     } else {
       setProject(null);
       setEditedImagePrompt('');
@@ -203,11 +233,6 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
       isInitialized.current = false;
       setFocusedField(null);
     }
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
   }, [open, fetchProjectDetails]);
 
   useEffect(() => {

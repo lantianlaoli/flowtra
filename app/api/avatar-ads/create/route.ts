@@ -296,13 +296,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ✅ Fire-and-forget mechanism removed (architecture simplification)
-    // Workflow is now completely driven by monitor-tasks
-    // After project creation with status='pending', monitor-tasks will
-    // automatically detect and start processing in the next polling cycle
-
+    // ✅ Event-Driven Architecture: Immediately trigger workflow (no monitor-tasks needed)
+    // Frontend uses Supabase Realtime to get instant status updates
     console.log(`✅ Character ads project ${project.id} created with status='pending'`);
-    console.log(`Monitor-tasks will start processing in the next cycle`);
+    console.log(`Immediately triggering generate_prompts step...`);
+
+    // Trigger workflow in background (non-blocking)
+    (async () => {
+      try {
+        const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
+
+        // Start with generate_prompts and continue with subsequent steps
+        let currentStep = 'generate_prompts';
+        let result = await processAvatarAdsProject(project, currentStep);
+        console.log(`✅ ${currentStep} completed for project ${project.id}`);
+
+        // Continue with next steps automatically
+        while (result.nextStep) {
+          currentStep = result.nextStep;
+          console.log(`⏭️ Triggering next step: ${currentStep} for project ${project.id}`);
+
+          // Get fresh project data before next step
+          const { data: freshProject } = await supabase
+            .from('avatar_ads_projects')
+            .select('*')
+            .eq('id', project.id)
+            .single();
+
+          if (!freshProject) {
+            throw new Error('Project not found');
+          }
+
+          result = await processAvatarAdsProject(freshProject, currentStep);
+          console.log(`✅ ${currentStep} completed for project ${project.id}`);
+        }
+
+        console.log(`✅ All workflow steps completed for project ${project.id}`);
+      } catch (error) {
+        console.error(`❌ Workflow failed for project ${project.id}:`, error);
+        // Update project status so frontend gets error via Realtime
+        await supabase
+          .from('avatar_ads_projects')
+          .update({
+            status: 'failed',
+            error_message: error instanceof Error ? error.message : 'Workflow execution failed'
+          })
+          .eq('id', project.id);
+      }
+    })();
 
     return NextResponse.json({
       id: project.id,

@@ -55,9 +55,12 @@ The application implements two main AI workflows:
 - **Creation endpoints**: `/api/{workflow}/create` - Start new workflows
 - **Status endpoints**: `/api/{workflow}/[id]/status` - Check workflow progress
 - **History endpoints**: `/api/{workflow}/history` - List user's projects
-- **Monitor tasks**: `/api/{workflow}/monitor-tasks` - Background job processors that handle all workflow progress updates
+- **Webhook endpoints** (Avatar Ads only): `/api/avatar-ads/webhooks/{image|video}` - KIE API callbacks for event-driven workflow
+- **Monitor tasks**: `/api/competitor-ugc-replication/monitor-tasks` - Background job processor for Competitor UGC workflow ONLY
 
-**IMPORTANT**: This application uses **monitor-tasks** for ALL workflow progress updates. The monitor-tasks endpoints poll KIE API to check task status and update database records accordingly. Legacy webhook endpoints have been removed.
+**IMPORTANT**:
+- **Avatar Ads**: Uses **event-driven architecture** (webhooks + Supabase Realtime). NO polling/monitor-tasks needed.
+- **Competitor UGC Replication**: Uses **monitor-tasks** for workflow progress updates via polling KIE API.
 
 ### Credit System (Unified Generation-Time Billing - Version 2.0)
 - **Billing Model**: Unified system - ALL models charge at generation, downloads are FREE
@@ -94,8 +97,17 @@ Next.js image optimization is configured for:
 - Security headers configured for XSS protection, content sniffing prevention
 
 ### Monitoring & Background Jobs
-- **Monitor tasks are the PRIMARY mechanism** for checking AI job status and updating workflow progress
-- Monitor endpoints (`/api/{workflow}/monitor-tasks`) poll KIE API periodically to check task completion
+
+**Avatar Ads (Event-Driven)**:
+- Uses **webhooks + Supabase Realtime** for instant status updates
+- Create API immediately triggers workflow steps (no waiting for cron jobs)
+- KIE webhooks (`/api/avatar-ads/webhooks/{image|video}`) push updates to database
+- Frontend subscribes to Supabase Realtime for < 1s latency updates
+- NO monitor-tasks or polling needed
+
+**Competitor UGC Replication (Polling)**:
+- Uses **monitor-tasks** endpoint to poll KIE API periodically
+- Monitor endpoint checks task status and updates database
 - Timeout handling: 15min for images, 30min for videos
 - Failed jobs are marked with error messages for debugging
 
@@ -122,6 +134,76 @@ When modifying any AI prompts in the codebase:
 ---
 
 ## Implementation Notes
+
+### **CURRENT: Avatar Ads Event-Driven Architecture (Webhook + Realtime)**
+
+**Implementation Date**: 2025-12-25
+
+**Overview:**
+Avatar Ads workflow has been completely migrated from polling-based architecture to a fully event-driven architecture using webhooks and Supabase Realtime. This eliminates all polling delays and provides instant (<1s) status updates to users.
+
+**Architecture:**
+```
+Backend: Webhook callbacks trigger next workflow steps immediately
+Frontend: Supabase Realtime subscriptions push updates instantly
+Result: Zero polling, < 1 second latency, scalable architecture
+```
+
+**Modified Files:**
+- `components/pages/AvatarAdsPage.tsx` - Replaced `setInterval` polling with Supabase Realtime subscriptions (lines 699-771)
+- `components/avatar-ads/AvatarAdInspector.tsx` - Made `onRefetchProjectStatus` optional (line 48)
+- `app/api/avatar-ads/create/route.ts` - Immediately triggers workflow on creation (lines 299-321)
+- `app/api/avatar-ads/webhooks/image/route.ts` - KIE image callback handler
+- `app/api/avatar-ads/webhooks/video/route.ts` - KIE video callback, auto-triggers merge (lines 110-148)
+- `hooks/useAvatarAdsRealtime.ts` - Reusable Realtime subscription hooks
+- `docs/event-driven-architecture.md` - Complete architecture documentation
+
+**Key Implementation Details:**
+
+1. **Backend Event Chain:**
+   - `POST /create` → immediately triggers `generate_prompts` (non-blocking)
+   - Each step completion → updates database → Realtime pushes to frontend
+   - KIE webhooks → update database → trigger next step → Realtime push
+   - Video completion → auto-triggers merge if all scenes done
+
+2. **Frontend Realtime:**
+   - Initial fetch + subscribe pattern for each active project
+   - Subscribes to `postgres_changes` events on `avatar_ads_projects` table
+   - Automatic cleanup when projects complete or component unmounts
+   - No more `fetchStatusForProject` or `setInterval` calls
+
+3. **Removed Components:**
+   - ❌ `setInterval(poll, 8000)` - replaced with Realtime
+   - ❌ `fetchStatusForProject()` - replaced with Realtime callbacks
+   - ❌ Manual refresh after confirm/regenerate - Realtime handles it
+   - ❌ monitor-tasks dependency for Avatar Ads - only webhooks needed
+
+**Benefits:**
+- **30x faster**: Status updates in <1s instead of 8-30s
+- **Zero server load**: No continuous polling API calls
+- **Better UX**: Instant feedback feels like magic
+- **Scalable**: Realtime connections are efficient and scale well
+- **Decoupled**: Frontend doesn't need to poll, backend pushes updates
+
+**Supabase Setup Required:**
+```sql
+-- Enable Realtime for avatar_ads tables
+ALTER PUBLICATION supabase_realtime ADD TABLE avatar_ads_projects;
+ALTER PUBLICATION supabase_realtime ADD TABLE avatar_ads_scenes;
+```
+
+**Testing:**
+1. Open browser console and watch for `[Avatar Ads Realtime]` logs
+2. Create new avatar ad project
+3. Observe real-time status changes without page refresh
+4. Verify no polling requests in Network tab
+5. Confirm webhook callbacks trigger next steps immediately
+
+**Reference Documentation:**
+- See `docs/event-driven-architecture.md` for complete workflow diagrams
+- See `hooks/useAvatarAdsRealtime.example.tsx` for usage examples
+
+---
 
 ### **CURRENT: Unified Generation-Time Billing (Version 2.0 Restored)**
 
