@@ -118,6 +118,7 @@ interface CharacterAdsStatusPayload {
     video_duration_seconds?: number | null;
     image_model?: string | null;
     video_model?: string | null;
+    video_aspect_ratio?: string | null;
     credits_cost?: number | null;
     person_image_urls?: string[] | null;
     product_image_urls?: string[] | null;
@@ -133,13 +134,13 @@ interface CharacterAdsStatusPayload {
   isFailed?: boolean;
 }
 const CHARACTER_STAGE_HINTS: Record<string, string> = {
-  analyzing_images: '🔍 Understanding your character – finding the perfect persona…',
-  generating_prompts: '💬 Writing the script that sells – crafting compelling dialogue…',
-  generating_image: '✨ Perfecting the first impression – your character\'s best shot…',
-  awaiting_review: '🎬 Your character is ready! Review and approve to generate videos',
-  reviewing: '👀 Fine-tuning the narrative – making sure every word matters…',
-  generating_videos: '🎥 Bringing personality to life – making your character irresistible…',
-  merging_videos: '🎞️ Assembling the full character story – the final touch…'
+  analyzing_images: 'Understanding your character – finding the perfect persona…',
+  generating_prompts: 'Writing the script that sells – crafting compelling dialogue…',
+  generating_image: 'Perfecting the first impression – your character\'s best shot…',
+  awaiting_review: 'Your character is ready! Review and approve to generate videos',
+  reviewing: 'Fine-tuning the narrative – making sure every word matters…',
+  generating_videos: 'Bringing personality to life – making your character irresistible…',
+  merging_videos: 'Assembling the full character story – the final touch…'
 };
 
 
@@ -344,9 +345,11 @@ const formatDurationLabel = (seconds: number) => {
         product: selectedProductName || undefined,
         videoModel: DEFAULT_VIDEO_MODEL,
         videoDuration: `${videoDuration}`,
+        videoAspectRatio: format,
         coverUrl: undefined,
         videoUrl: undefined,
-        downloaded: false
+        downloaded: false,
+        creditsCost: requiredCredits
       };
 
       // Add to generations list immediately
@@ -564,6 +567,7 @@ const formatDurationLabel = (seconds: number) => {
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
@@ -645,9 +649,14 @@ const formatDurationLabel = (seconds: number) => {
   }, [generations]);
 
   const updateGenerationFromStatus = useCallback((projectId: string, payload: CharacterAdsStatusPayload) => {
-    if (!payload?.project) return;
+    console.log(`📝 [Avatar Ads Realtime] updateGenerationFromStatus called for ${projectId}`, payload?.project?.status);
+    if (!payload?.project) {
+      console.warn(`⚠️ [Avatar Ads Realtime] No project data in payload for ${projectId}`);
+      return;
+    }
     const project = payload.project;
     setGenerations((prev) => {
+      console.log(`📊 [Avatar Ads Realtime] Current generations count: ${prev.length}, looking for projectId: ${projectId}`);
       let found = false;
       const next = prev.map((gen) => {
         if (gen.projectId !== projectId) return gen;
@@ -667,6 +676,7 @@ const formatDurationLabel = (seconds: number) => {
             : gen.progress;
         const stageLabel = payload.stepMessages?.[project.current_step ?? '']
           || getStageLabel(computedStatus, project.current_step);
+        console.log(`✏️ [Avatar Ads Realtime] Updating generation: status ${gen.status} → ${computedStatus}, progress ${gen.progress} → ${progressValue}`);
         return {
           ...gen,
           status: computedStatus,
@@ -675,12 +685,17 @@ const formatDurationLabel = (seconds: number) => {
           videoUrl: project.merged_video_url || project.generated_video_urls?.[0] || gen.videoUrl,
           coverUrl: project.generated_image_url || gen.coverUrl,
           videoModel: (project.video_model as Generation['videoModel']) || gen.videoModel,
-          downloaded: project.downloaded ?? gen.downloaded
+          videoDuration: project.video_duration_seconds?.toString() || gen.videoDuration,
+          videoAspectRatio: project.video_aspect_ratio || gen.videoAspectRatio,
+          downloaded: project.downloaded ?? gen.downloaded,
+          creditsCost: project.credits_cost ?? gen.creditsCost
         };
       });
       if (!found) {
+        console.error(`❌ [Avatar Ads Realtime] Project ${projectId} not found in generations array! Available IDs:`, prev.map(g => g.projectId || g.id));
         return prev;
       }
+      console.log(`✅ [Avatar Ads Realtime] Successfully updated generation for ${projectId}`);
       return sortGenerations(next);
     });
   }, [notifyProjectStatus]);
@@ -710,22 +725,58 @@ const formatDurationLabel = (seconds: number) => {
     const channels: RealtimeChannel[] = [];
     const abortController = new AbortController();
 
+    // Shared fetch function with retry logic (used by both initial fetch and Realtime callback)
+    const fetchProjectStatus = async (projectId: string, attempt = 1, maxAttempts = 3): Promise<CharacterAdsStatusPayload | null> => {
+      try {
+        console.log(`🔍 [Avatar Ads Realtime] Fetching project ${projectId} status (attempt ${attempt}/${maxAttempts})...`);
+        const response = await fetch(`/api/avatar-ads/${projectId}/status`, {
+          cache: 'no-store',
+          signal: abortController.signal
+        });
+
+        console.log(`📡 [Avatar Ads Realtime] Response for ${projectId}: HTTP ${response.status} ${response.ok ? 'OK' : 'FAILED'}`);
+
+        if (!response.ok) {
+          // If 404 and not the last attempt, retry after delay
+          if (response.status === 404 && attempt < maxAttempts) {
+            console.log(`⏳ [Avatar Ads Realtime] Project ${projectId} not found (attempt ${attempt}/${maxAttempts}), retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+            return fetchProjectStatus(projectId, attempt + 1, maxAttempts);
+          }
+          console.warn(`⚠️ [Avatar Ads Realtime] Failed to fetch project ${projectId} after ${attempt} attempts (HTTP ${response.status})`);
+          return null;
+        }
+
+        const payload = await response.json();
+        console.log(`✅ [Avatar Ads Realtime] Successfully fetched ${projectId}: ${payload?.project?.status}`);
+        return payload;
+      } catch (error) {
+        if ((error as any)?.name === 'AbortError') {
+          console.log(`🛑 [Avatar Ads Realtime] Fetch aborted for ${projectId}`);
+          return null;
+        }
+        console.error(`❌ [Avatar Ads Realtime] Fetch error for ${projectId}:`, error);
+        return null;
+      }
+    };
+
     // Initial fetch + subscribe pattern for each project
     activeProjectIds.forEach((projectId) => {
       // 1) Fetch initial state (in case project was updated while page was closed)
-      fetch(`/api/avatar-ads/${projectId}/status`, { cache: 'no-store', signal: abortController.signal })
-        .then(async (response) => {
-          if (!response.ok) return;
-          const payload: CharacterAdsStatusPayload = await response.json();
-          if (isMountedRef.current) {
-            updateGenerationFromStatus(projectId, payload);
-            console.log(`✅ [Avatar Ads Realtime] Initial fetch for project ${projectId}:`, payload.project.status);
-          }
-        })
-        .catch((error) => {
-          if (error?.name === 'AbortError') return;
-          console.error(`[Avatar Ads Realtime] Initial fetch failed for ${projectId}:`, error);
-        });
+      const initialFetch = async () => {
+        console.log(`🚀 [Avatar Ads Realtime] Starting initial fetch for ${projectId}...`);
+        const payload = await fetchProjectStatus(projectId);
+        console.log(`📦 [Avatar Ads Realtime] Payload received for ${projectId}:`, payload ? 'valid' : 'null', 'mounted:', isMountedRef.current);
+        if (payload && isMountedRef.current) {
+          console.log(`🔄 [Avatar Ads Realtime] About to call updateGenerationFromStatus for ${projectId}`);
+          updateGenerationFromStatus(projectId, payload);
+          console.log(`✅ [Avatar Ads Realtime] Initial fetch for project ${projectId}:`, payload.project.status);
+        } else {
+          console.warn(`⚠️ [Avatar Ads Realtime] Skipping update - payload: ${!!payload}, mounted: ${isMountedRef.current}`);
+        }
+      };
+
+      initialFetch();
 
       // 2) Subscribe to realtime updates
       const channel: RealtimeChannel = supabase
@@ -738,18 +789,22 @@ const formatDurationLabel = (seconds: number) => {
             table: 'avatar_ads_projects',
             filter: `id=eq.${projectId}`,
           },
-          (payload) => {
+          async (payload) => {
             console.log('[Avatar Ads Realtime] Project updated:', projectId, payload.new);
-            const updatedProject = payload.new as any;
 
-            // Update local state with realtime data
+            // Supabase Realtime only returns partial data by default
+            // Fetch the full project status from the API (with retry!)
+            const fullPayload = await fetchProjectStatus(projectId);
+            if (!fullPayload) {
+              console.warn(`⚠️ [Avatar Ads Realtime] Failed to fetch full payload for ${projectId} after realtime update`);
+              return;
+            }
+
             if (isMountedRef.current) {
-              updateGenerationFromStatus(projectId, {
-                success: true,
-                project: updatedProject,
-                isCompleted: updatedProject.status === 'completed',
-                isFailed: updatedProject.status === 'failed'
-              });
+              updateGenerationFromStatus(projectId, fullPayload);
+              console.log(`🔄 [Avatar Ads Realtime] Updated project ${projectId} to status: ${fullPayload.project.status} (${fullPayload.project.progress_percentage}%)`);
+            } else {
+              console.warn(`⚠️ [Avatar Ads Realtime] Component unmounted, skipping update for ${projectId}`);
             }
           }
         )

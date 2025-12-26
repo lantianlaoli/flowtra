@@ -155,7 +155,7 @@ export async function GET() {
 
     // Fetch Avatar Ads data
     const { data: characterAdsItems, error: characterAdsError } = await supabase
-      .from('character_ads_projects')
+      .from('avatar_ads_projects')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });

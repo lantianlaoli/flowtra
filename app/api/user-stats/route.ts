@@ -10,8 +10,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('📊 Fetching user stats for:', userId);
-
     // Use admin client to bypass RLS (we're already checking Clerk auth)
     const supabase = getSupabaseAdmin();
 
@@ -38,21 +36,17 @@ export async function GET() {
 
     if (errorStandard) {
       console.error('❌ Error querying competitor_ugc_replication_projects:', errorStandard);
-    } else {
-      console.log('📈 Competitor UGC Replication records:', competitorUgcReplicationHistory?.length || 0);
     }
 
     // Query Avatar Ads projects
     type CharacterAdsRow = { status: string; created_at: string; download_credits_used?: number | null };
     const { data: characterAdsHistory, error: errorCharacter } = await supabase
-      .from('character_ads_projects')
+      .from('avatar_ads_projects')
       .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
     if (errorCharacter) {
-      console.error('❌ Error querying character_ads_projects:', errorCharacter);
-    } else {
-      console.log('📈 Avatar Ads records:', characterAdsHistory?.length || 0);
+      console.error('❌ Error querying avatar_ads_projects:', errorCharacter);
     }
 
     // Calculate stats from Competitor UGC Replication data
@@ -119,8 +113,6 @@ export async function GET() {
     const HOURS_PER_VIDEO = 2;
     stats.hoursSaved = completedCount * HOURS_PER_VIDEO;
 
-    console.log('✅ Calculated stats:', stats);
-
     // Query onboarding progress data
     const { data: brands, error: brandsError } = await supabase
       .from('user_brands')
@@ -129,8 +121,6 @@ export async function GET() {
 
     if (brandsError) {
       console.error('❌ Error querying user_brands:', brandsError);
-    } else {
-      console.log('✅ Brands query result:', { count: brands?.length, brands });
     }
 
     const { data: products, error: productsError } = await supabase
@@ -140,8 +130,6 @@ export async function GET() {
 
     if (productsError) {
       console.error('❌ Error querying user_products:', productsError);
-    } else {
-      console.log('✅ Products query result:', { count: products?.length, products });
     }
 
     // Calculate onboarding progress
@@ -157,8 +145,6 @@ export async function GET() {
       tasksCompleted,
       totalTasks: 3
     };
-
-    console.log('✅ Onboarding progress:', onboardingProgress);
 
     return NextResponse.json({
       success: true,

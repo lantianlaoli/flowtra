@@ -102,7 +102,7 @@ Provide a concise 2-3 sentence description.`;
   return data.choices?.[0]?.message?.content || 'Product description unavailable';
 }
 
-// Wrapper function with retry logic to ensure dialogue meets 17-20 words/8s standard
+// Generate prompts without retry logic
 async function generatePrompts(
   productContext: {
     product_details: string;
@@ -117,90 +117,16 @@ async function generatePrompts(
   userDialogue?: string,
   options?: { talkingHeadMode?: boolean }
 ): Promise<Record<string, unknown>> {
-  const MAX_RETRY_ATTEMPTS = 3;
-  const languageCode = (language || 'en') as LanguageCode;
-  let retryCount = 0;
-
-  while (retryCount <= MAX_RETRY_ATTEMPTS) {
-    console.log(retryCount > 0 ? `🔄 Retry ${retryCount}/${MAX_RETRY_ATTEMPTS}: Regenerating prompts with dialogue constraints` : '🎬 Generating prompts with AI...');
-
-    const result = await _generatePromptsInternal(
-      productContext,
-      personImageUrl,
-      productImageUrl,
-      videoDurationSeconds,
-      language,
-      userDialogue,
-      options
-    );
-
-    // Validate dialogue duration for all scenes
-    const scenes = result.scenes as Array<{ scene: number; prompt: { dialog?: string } }>;
-    const sceneValidation = validateSceneDurations(scenes, UNIT_SECONDS, languageCode);
-
-    // Enhanced validation: word count and semantic completeness
-    const validationIssues: string[] = [];
-
-    scenes.forEach((scene) => {
-      const dialogue = scene.prompt.dialog || '';
-      const wordCount = dialogue.trim().split(/\s+/).length;
-
-      // Word count validation
-      if (wordCount < 17 || wordCount > 20) {
-        validationIssues.push(
-          `Scene ${scene.scene}: ${wordCount} words (expected 17-20). Dialogue: "${dialogue}"`
-        );
-      }
-
-      // Semantic completeness check
-      const trimmedDialogue = dialogue.trim();
-      const endsWithPunctuation = trimmedDialogue.endsWith('.') ||
-                                   trimmedDialogue.endsWith('!') ||
-                                   trimmedDialogue.endsWith('?');
-
-      // If dialogue contains punctuation but doesn't end with it, may be incomplete
-      if (!endsWithPunctuation && (trimmedDialogue.includes('?') || trimmedDialogue.includes('.'))) {
-        validationIssues.push(
-          `Scene ${scene.scene}: May be semantically incomplete (doesn't end with punctuation but contains it). Dialogue: "${dialogue}"`
-        );
-      }
-    });
-
-    if (sceneValidation.allValid && validationIssues.length === 0) {
-      console.log('✅ All scenes have optimal dialogue (17-20 words/8s)');
-      return result; // Success!
-    }
-
-    // Log duration warnings
-    if (!sceneValidation.allValid) {
-      console.warn(`⚠️ ${sceneValidation.sceneValidations.filter(sv => !sv.validation.isValid).length} scenes have duration issues`);
-      sceneValidation.sceneValidations.forEach(sv => {
-        if (!sv.validation.isValid) {
-          console.warn(`  Scene ${sv.sceneNumber}:`, {
-            dialogue: sv.dialogue.substring(0, 50) + '...',
-            estimated: `${sv.validation.estimatedDuration}s`,
-            target: `${sv.validation.targetDuration}s`,
-            difference: `${sv.validation.difference > 0 ? '+' : ''}${sv.validation.difference}s`,
-            recommendation: sv.validation.recommendation
-          });
-        }
-      });
-    }
-
-    // Log word count and semantic completeness issues
-    if (validationIssues.length > 0) {
-      console.warn('[Avatar Ads Workflow] Dialogue validation issues detected:');
-      validationIssues.forEach(issue => console.warn(`  - ${issue}`));
-    }
-
-    retryCount++;
-    if (retryCount > MAX_RETRY_ATTEMPTS) {
-      console.error('❌ Max retries reached. Proceeding despite dialogue issues.');
-      return result; // Proceed anyway to avoid blocking
-    }
-  }
-
-  throw new Error('Unexpected end of retry loop');
+  const result = await _generatePromptsInternal(
+    productContext,
+    personImageUrl,
+    productImageUrl,
+    videoDurationSeconds,
+    language,
+    userDialogue,
+    options
+  );
+  return result;
 }
 
 // Generate prompts based on product context and character description (internal implementation)
@@ -500,7 +426,6 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
     // Ensure no scene 0 (scenes start from 1)
     const hasScene0 = parsed.scenes.some((s) => s && Number(s.scene) === 0);
     if (hasScene0) {
-      console.warn('⚠️ AI returned scene 0 - filtering it out');
       parsed.scenes = parsed.scenes.filter((s) => s && Number(s.scene) !== 0);
     }
 
@@ -510,9 +435,6 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
     if (!parsed.language) {
       (parsed as Record<string, unknown>)['language'] = languageName;
     }
-
-    console.log(`✅ Generated prompts with direct Gemini image analysis: ${parsed.scenes.length} scenes`);
-    console.log(`✅ Language: ${parsed.language || languageName}`);
 
     return parsed;
   } catch (error) {
@@ -626,10 +548,6 @@ async function generateImageWithKIE(
   // Get the correct parameters for this model
   const modelParams = getImageModelParameters(imageModel, customImageSize, videoAspectRatio);
 
-  // Debug logging for image model parameters
-  console.log('Avatar Ads - Image model:', imageModel);
-  console.log('Avatar Ads - Model params:', JSON.stringify(modelParams, null, 2));
-
   // Determine if using Nano Banana Pro (for image_input field vs image_urls)
   const isNanoBananaPro = imageModel === 'nano-banana-pro' || imageModel === 'nano_banana_pro';
 
@@ -665,11 +583,6 @@ async function generateImageWithKIE(
     ...(callBackUrl && { callBackUrl }) // Add callBackUrl only if NEXT_PUBLIC_SITE_URL is set
   };
 
-  console.log('KIE API request payload (with webhook):', JSON.stringify(payload, null, 2));
-  if (!callBackUrl) {
-    console.warn('⚠️ NEXT_PUBLIC_SITE_URL not set - webhook disabled, using polling only');
-  }
-
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
@@ -679,8 +592,6 @@ async function generateImageWithKIE(
     body: JSON.stringify(payload)
   }, 5, 30000);
 
-  console.log('KIE API response status:', response.status, response.statusText);
-
   if (!response.ok) {
     const errorText = await response.text();
     console.error('KIE API error response:', errorText);
@@ -688,7 +599,6 @@ async function generateImageWithKIE(
   }
 
   const data = await response.json();
-  console.log('KIE API response data:', JSON.stringify(data, null, 2));
 
   if (data.code !== 200) {
     console.error('KIE API returned error code:', data.code, 'message:', data.msg);
@@ -704,15 +614,6 @@ export async function generateVideoWithKIE(
   videoAspectRatio?: '16:9' | '9:16',
   language?: string
 ): Promise<{ taskId: string }> {
-  console.log('===================generateVideoWithKIE called:=====================');
-  console.log('Input parameters:', {
-    promptType: typeof prompt,
-    promptKeys: prompt ? Object.keys(prompt) : 'null',
-    referenceImageUrls: referenceImageUrls?.map(url => url.substring(0, 50) + '...'),
-    videoAspectRatio,
-    language
-  });
-
   // ✅ Validate prompt parameter
   if (!prompt || typeof prompt !== 'object') {
     console.error('❌ Invalid prompt:', prompt);
@@ -776,7 +677,6 @@ export async function generateVideoWithKIE(
       // Fallback to old logic (if the prompt doesn't have the new structured fields)
       // This path is for backwards compatibility and should eventually be phased out.
       // If promptObj is missing expected keys, it implies old format or malformed.
-      console.warn('⚠️ generateVideoWithKIE: Using old prompt structure fallback. Please ensure new structured prompts are being generated.');
       const oldPromptObj = prompt as {
         video_prompt?: string;
         voice_type?: string;
@@ -835,19 +735,6 @@ export async function generateVideoWithKIE(
 
   const finalPrompt = `${languagePrefix}${basePrompt}`;
 
-  console.log('===================Final prompt:=====================');
-  console.log(finalPrompt);
-  console.log('Prompt metadata:', {
-    length: finalPrompt.length,
-    containsDialogue: finalPrompt.includes('dialogue'),
-    containsVoice: finalPrompt.includes('Voice:'),
-    containsEmotion: finalPrompt.includes('Emotion:'),
-    containsSetting: finalPrompt.includes('Setting:'),
-    containsCamera: finalPrompt.includes('Camera:'),
-    language: language || 'en',
-    languagePrefix: languagePrefix || 'none'
-  });
-
   // Determine generation mode based on images provided
   let generationType = 'TEXT_2_VIDEO';
   if (referenceImageUrls.length === 1) {
@@ -878,19 +765,8 @@ export async function generateVideoWithKIE(
   };
   const apiEndpoint = VIDEO_API_ENDPOINT; // Fixed: VEO3 endpoint
 
-  console.log('Video API request body (with webhook):', JSON.stringify(requestBody, null, 2));
-  console.log('Video API endpoint:', apiEndpoint);
-  if (!callBackUrl) {
-    console.warn('⚠️ NEXT_PUBLIC_SITE_URL not set - webhook disabled, using polling only');
-  }
-
   // ✅ FINAL STRICT VALIDATION before calling KIE API
   const promptInBody = requestBody.prompt;
-
-  console.log('🚨 FINAL PROMPT VALIDATION BEFORE KIE API CALL:');
-  console.log('Prompt value:', promptInBody);
-  console.log('Prompt type:', typeof promptInBody);
-  console.log('Prompt length:', typeof promptInBody === 'string' ? promptInBody.length : 'N/A');
 
   if (!promptInBody || typeof promptInBody !== 'string' || promptInBody.trim() === '' || promptInBody === '{}') {
     console.error('❌❌❌ CRITICAL: Attempting to call KIE API with empty/invalid prompt!');
@@ -898,13 +774,6 @@ export async function generateVideoWithKIE(
     throw new Error(`STOPPING WORKFLOW: Cannot call KIE API with empty prompt "${promptInBody}"`);
   }
 
-  if (!promptInBody.includes('dialogue')) {
-    console.warn('⚠️ WARNING: Prompt does not contain "dialogue" keyword!');
-  }
-
-  console.log('✅ Final prompt validation passed, calling KIE API...');
-
-  console.log('Calling KIE API...');
   const response = await fetchWithRetry(apiEndpoint, {
     method: 'POST',
     headers: {
@@ -914,8 +783,6 @@ export async function generateVideoWithKIE(
     body: JSON.stringify(requestBody)
   }, 5, 30000);
 
-  console.log('KIE API response status:', response.status);
-
   if (!response.ok) {
     const errorData = await response.text();
     console.error('❌ KIE API error response:', errorData);
@@ -923,14 +790,12 @@ export async function generateVideoWithKIE(
   }
 
   const data = await response.json();
-  console.log('KIE API response data:', JSON.stringify(data, null, 2));
 
   if (data.code !== 200) {
     console.error('❌ KIE API returned error code:', data.code, data.message);
     throw new Error(`KIE video generation failed: ${data.message || 'Unknown error'}`);
   }
 
-  console.log('✅ Video task created successfully:', data.data.taskId);
   return { taskId: data.data.taskId };
 }
 
@@ -1114,21 +979,14 @@ export async function processAvatarAdsProject(
     switch (step) {
       case 'generate_prompts': {
         // Step 2: Generate prompts for all scenes
-        console.log('Generating prompts for project:', project.id);
-        console.log('Project person_image_urls:', project.person_image_urls);
-        console.log('Project product_image_urls:', project.product_image_urls);
-
         // Extract product context from project (typed safely)
         let productContext = project.product_context;
-        console.log('Product context from project:', JSON.stringify(productContext, null, 2));
 
         const hasProductImages = Array.isArray(project.product_image_urls) && project.product_image_urls.length > 0;
         const talkingHeadMode = !hasProductImages;
 
         // Fallback: analyze temp product if no context
         if (!productContext && hasProductImages) {
-          console.log('Temporary product - running fallback analysis');
-
           const productAnalysis = await analyzeProductImageOnly(project.product_image_urls[0]);
           productContext = {
             product_details: productAnalysis,
@@ -1176,11 +1034,6 @@ export async function processAvatarAdsProject(
             throw new Error(`Invalid product image URL: ${JSON.stringify(productImageUrl)}`);
           }
         }
-
-        console.log('Generating prompts with direct Gemini analysis...');
-        console.log('Person image:', personImageUrl);
-        console.log('Product image:', productImageUrl);
-        console.log('Talking head mode:', talkingHeadMode);
 
         // ✅ Fix Bug 2: Direct Gemini analysis - no separate person analysis or gender detection
         const prompts = await generatePrompts(
@@ -1244,15 +1097,12 @@ export async function processAvatarAdsProject(
 
       case 'generate_image': {
         // Step 3: Generate project-level cover image using KIE (not scene-specific anymore)
-        console.log('Generating cover image for project:', project.id);
-
         if (!project.image_prompt) {
           throw new Error('Image prompt not found in project');
         }
 
         if (project.generated_image_url) {
           // Already generated, skip to next step
-          console.log('Cover image already exists, skipping to video generation');
           return {
             project,
             message: 'Cover image already generated',
@@ -1344,19 +1194,10 @@ export async function processAvatarAdsProject(
       }
 
       case 'generate_videos': {
-        console.log('📹 === GENERATE_VIDEOS STEP STARTED ===', {
-          projectId: project.id,
-          hasGeneratedImage: !!project.generated_image_url,
-          videoModel: project.video_model,
-          videoDuration: project.video_duration_seconds
-        });
-
         // ===== VERSION 2.0: GENERATION-TIME BILLING =====
         // Calculate video generation cost (veo3_fast: 20 credits per 8s segment)
         const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
         const generationCost = GENERATION_COSTS.veo3_fast * videoScenes; // 20 * number of segments
-
-        console.log(`💰 Billing check: ${generationCost} credits for ${videoScenes} scenes (veo3_fast)`);
 
         // Check if user has enough credits
         const creditCheck = await checkCredits(project.user_id, generationCost);
@@ -1375,8 +1216,6 @@ export async function processAvatarAdsProject(
         if (!deductResult.success) {
           throw new Error(`Failed to deduct credits: ${deductResult.error || 'Credit deduction failed'}`);
         }
-
-        console.log(`✅ Credits deducted: ${generationCost} credits, remaining: ${deductResult.remainingCredits}`);
 
         // Record the transaction
         await recordCreditTransaction(
@@ -1402,15 +1241,7 @@ export async function processAvatarAdsProject(
           ? project.kie_video_task_ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
           : [];
 
-        console.log('🔍 Checking existing video tasks:', {
-          projectId: project.id,
-          existingTaskIds: existingTaskIds.length,
-          requiredScenes: videoScenes,
-          willSkipGeneration: existingTaskIds.length === videoScenes
-        });
-
         if (existingTaskIds.length === videoScenes) {
-          console.log('⏭️ Skipping video generation - tasks already exist, moving to status checks');
           const progress = Math.max(project.progress_percentage ?? 0, 70);
           const { data: updatedProject, error: skipUpdateError } = await supabase
             .from('avatar_ads_projects')
@@ -1434,34 +1265,13 @@ export async function processAvatarAdsProject(
           };
         }
 
-        console.log('🎬 Starting video generation loop for', videoScenes, 'scenes');
         const videoTaskIds = [];
 
         // Start video generation for each scene
         for (let i = 1; i <= videoScenes; i++) {
           // ✅ Fix: Array index is 0-based, loop counter is 1-based
-          console.log(`\n🔍 DEBUG Scene ${i}: Extracting prompt from generated_prompts`);
-          console.log('generated_prompts type:', typeof project.generated_prompts);
-          console.log('generated_prompts.scenes type:', typeof project.generated_prompts?.scenes);
-          console.log('generated_prompts.scenes is Array:', Array.isArray(project.generated_prompts?.scenes));
-
           const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
-          console.log('scenes.length:', scenes?.length);
-          console.log(`scenes[${i-1}]:`, JSON.stringify(scenes?.[i-1], null, 2));
-
           const videoPrompt = scenes?.[i - 1]?.prompt;
-          console.log(`videoPrompt extracted:`, JSON.stringify(videoPrompt, null, 2));
-          console.log('videoPrompt type:', typeof videoPrompt);
-          console.log('videoPrompt is empty object:', JSON.stringify(videoPrompt) === '{}');
-          console.log('Extracted fields:', {
-            hasVideoPrompt: !!(videoPrompt as any)?.video_prompt,
-            hasVoiceType: !!(videoPrompt as any)?.voice_type,
-            hasCamera: !!(videoPrompt as any)?.camera,
-            hasEmotion: !!(videoPrompt as any)?.emotion,
-            hasSetting: !!(videoPrompt as any)?.setting,
-            hasCameraMovement: !!(videoPrompt as any)?.camera_movement,
-            language: project.language
-          });
 
           // ✅ STRICT VALIDATION: Ensure videoPrompt exists and is not empty object
           if (!videoPrompt || typeof videoPrompt !== 'object') {
@@ -1481,23 +1291,12 @@ export async function processAvatarAdsProject(
              throw new Error(`Scene ${i} prompt is empty/invalid - STOPPING WORKFLOW`);
           }
 
-          console.log(`✅ Scene ${i} prompt validation passed. Structured: ${hasStructuredFields}, Legacy: ${hasLegacyPrompt}`);
-
-          console.log(`🎬 Generating video for scene ${i}/${videoScenes}:`, {
-            sceneNumber: i,
-            promptKeys: Object.keys(videoPrompt),
-            hasVideoPrompt: 'video_prompt' in videoPrompt,
-            videoPromptValue: (videoPrompt as any).video_prompt?.substring(0, 100) + '...'
-          });
-
           const { taskId } = await generateVideoWithKIE(
             videoPrompt as Record<string, unknown>,
             [project.generated_image_url, project.generated_image_url], // Use generated image as start AND end frame for consistency
             project.video_aspect_ratio as '16:9' | '9:16' | undefined,
             project.language // Pass language for video prompt
           );
-
-          console.log(`✅ Scene ${i} video task created: ${taskId}`);
 
           videoTaskIds.push(taskId);
 
@@ -1568,7 +1367,6 @@ export async function processAvatarAdsProject(
           } else if (status.status === 'failed') {
             // NEW: Server errors are handled by monitor-tasks, not here
             if (status.isRetryable) {
-              console.log(`⚠️ Server error for scene ${i + 1}: will be retried by monitor-tasks`);
               allCompleted = false;
               continue; // Don't throw - let monitor-tasks handle retry
             }
@@ -1581,8 +1379,6 @@ export async function processAvatarAdsProject(
             );
 
             if (isContentPolicy) {
-              console.log(`⚠️ Content policy error detected for scene ${i + 1}: ${status.error}. Retrying...`);
-
               // Retrieve prompt for this scene
               const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
               const videoPrompt = scenes?.[i]?.prompt;
@@ -1596,8 +1392,6 @@ export async function processAvatarAdsProject(
                   project.language
                 );
 
-                console.log(`✅ Retried scene ${i + 1} with new task: ${newTaskId}`);
-                
                 // Update task ID in local array
                 currentTaskIds[i] = newTaskId;
                 hasRetries = true;
@@ -1642,8 +1436,6 @@ export async function processAvatarAdsProject(
 
         if (allCompleted) {
           // All videos completed
-          console.log(`✅ All ${videoUrls.length} videos completed for project ${project.id}`);
-
           if (videoUrls.length === 0) {
             throw new Error('No video URLs collected despite all tasks completed');
           }
@@ -1707,9 +1499,7 @@ export async function processAvatarAdsProject(
       }
 
       case 'merge_videos': {
-        // Step 5: Merge videos using fal.ai
-        console.log('Merging videos for project:', project.id);
-
+        // Step 5: Merge videos using fal.ai (Event-Driven with Webhook)
         // Query video URLs from scenes table
         const { data: scenes } = await supabase
           .from('avatar_ads_scenes')
@@ -1724,12 +1514,14 @@ export async function processAvatarAdsProject(
           throw new Error('No video URLs available for merging');
         }
 
+        // ✅ Submit merge task with webhook (non-blocking)
+        // Webhook will update project to 'completed' when merge finishes
         const { taskId } = await mergeVideosWithFal(
           videoUrls,
           project.video_aspect_ratio as '16:9' | '9:16'
         );
 
-        // Update project
+        // Update project with task ID
         const { data: updatedProject, error } = await supabase
           .from('avatar_ads_projects')
           .update({
@@ -1744,65 +1536,20 @@ export async function processAvatarAdsProject(
 
         if (error) throw error;
 
+        console.log(`🔔 [Avatar Ads] Merge task submitted, webhook will handle completion: ${taskId}`);
+
         // No event recording
 
         return {
           project: updatedProject,
-          message: 'Video merging started',
-          nextStep: 'check_merge_status'
+          message: 'Video merging started (webhook mode)',
+          // ✅ No nextStep - webhook will handle completion
         };
       }
 
-      case 'check_merge_status': {
-        // Check fal.ai video merge status
-        if (!project.fal_merge_task_id) {
-          throw new Error('fal.ai merge task ID not found');
-        }
-
-        console.log('Checking fal.ai merge status for project:', project.id);
-
-        const status = await checkFalTaskStatus(project.fal_merge_task_id);
-
-        if (status.status === 'COMPLETED' && status.resultUrl) {
-          // Merge completed successfully
-          const { data: updatedProject, error } = await supabase
-            .from('avatar_ads_projects')
-            .update({
-              merged_video_url: status.resultUrl,
-              status: 'completed',
-              current_step: 'completed',
-              progress_percentage: 100,
-              last_processed_at: new Date().toISOString()
-            })
-            .eq('id', project.id)
-            .select()
-            .single();
-
-          if (error) throw error;
-
-          // No event recording
-
-          return {
-            project: updatedProject,
-            message: 'Video merging completed successfully'
-          };
-        } else if (status.status === 'NETWORK_ERROR') {
-          // Network error - continue monitoring without failing the project
-          console.warn(`Network error checking merge status for project ${project.id}, will retry later`);
-          return {
-            project,
-            message: 'Network connectivity issue, retrying merge status check...'
-          };
-        } else if (status.status === 'FAILED' || status.error) {
-          throw new Error(status.error || 'Video merging failed');
-        }
-
-        // Still processing
-        return {
-          project,
-          message: 'Video merging in progress'
-        };
-      }
+      // ❌ REMOVED: check_merge_status step
+      // No longer needed - fal.ai webhook handles completion automatically
+      // See: /api/avatar-ads/webhooks/merge
 
       default: {
         throw new Error(`Unknown step: ${step}`);
@@ -1833,8 +1580,6 @@ export async function processAvatarAdsProject(
           const costPerScene = GENERATION_COSTS.veo3_fast; // 20 credits per scene
           const refundAmount = permanentlyFailedScenes.length * costPerScene;
 
-          console.log(`💸 Refunding ${refundAmount} credits for ${permanentlyFailedScenes.length} permanently failed scenes`);
-
           const { refundCredits } = await import('@/lib/credits');
           const refundResult = await refundCredits(
             project.user_id,
@@ -1843,24 +1588,19 @@ export async function processAvatarAdsProject(
             project.id
           );
 
-          if (refundResult.success) {
-            console.log(`✅ Successfully refunded ${refundAmount} credits to user ${project.user_id}`);
-          } else {
+          if (!refundResult.success) {
             console.error(`❌ Failed to refund credits:`, refundResult.error);
             // TODO: This should trigger alerting - user paid but didn't get service
           }
         } else {
           // No permanently failed scenes yet - might be a different error before scenes were created
           // Or scenes are still retrying
-          console.log(`ℹ️ No permanently failed scenes found, checking if we should refund entire project cost`);
-
           // If error occurred before scenes were created or during generation, refund full cost
           if (!scenes || scenes.length === 0 || step === 'generate_videos') {
             const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
             const generationCost = GENERATION_COSTS.veo3_fast * videoScenes;
 
             if (generationCost > 0) {
-              console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure in step: ${step}`);
               const { refundCredits } = await import('@/lib/credits');
               const refundResult = await refundCredits(
                 project.user_id,
@@ -1869,9 +1609,7 @@ export async function processAvatarAdsProject(
                 project.id
               );
 
-              if (refundResult.success) {
-                console.log(`✅ Successfully refunded ${generationCost} credits to user ${project.user_id}`);
-              } else {
+              if (!refundResult.success) {
                 console.error(`❌ Failed to refund credits:`, refundResult.error);
               }
             }

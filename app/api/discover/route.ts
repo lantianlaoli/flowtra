@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     // Avatar Ads
     if (type === 'all' || type === 'character') {
       const { data, error } = await supabase
-        .from('character_ads_projects')
+        .from('avatar_ads_projects')
         .select('id, generated_image_url, merged_video_url, generated_video_urls, status, created_at')
         .eq('status', 'completed')
         .order('created_at', { ascending: false })

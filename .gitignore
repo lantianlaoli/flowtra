@@ -49,3 +49,5 @@ Thumbs.db
 .playwright-mcp
 
 .gemini
+# clerk configuration (can include secrets)
+/.clerk/

@@ -27,28 +27,35 @@ export async function mergeVideosWithFal(
   console.log(`🎬 Starting fal.ai video merge for ${videoUrls.length} videos with resolution ${resolution}`);
 
   try {
-    const result = await fal.subscribe('fal-ai/ffmpeg-api/merge-videos', {
+    // ✅ Event-Driven: Use queue.submit with webhook instead of subscribe
+    // Webhook will be called when merge completes (success or failure)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+    if (!siteUrl) {
+      console.warn('⚠️ NEXT_PUBLIC_SITE_URL not set, fal.ai merge will not send webhook callback');
+    }
+
+    const webhookUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/merge` : undefined;
+
+    console.log(`📡 Submitting merge task with webhook URL: ${webhookUrl || 'none (local dev mode)'}`);
+
+    const { request_id } = await fal.queue.submit('fal-ai/ffmpeg-api/merge-videos', {
       input: {
         video_urls: videoUrls,
         target_fps: 30,
         resolution
       },
-      logs: true,
-      timeout: 300000, // 5 minutes timeout for video merging
-      onQueueUpdate: (update: { status?: string; logs?: { message?: string }[] | null }) => {
-        console.log(`Merge queue update: ${update.status}`);
-        if (update.status === 'IN_PROGRESS') {
-          update.logs?.forEach((log) => {
-            if (log?.message) {
-              console.log(log.message);
-            }
-          });
-        }
-      }
+      webhookUrl
     });
 
-    console.log(`✅ Video merge task created successfully: ${result.requestId}`);
-    return { taskId: result.requestId };
+    console.log(`✅ Video merge task submitted successfully: ${request_id}`);
+    if (webhookUrl) {
+      console.log(`🔔 Webhook will be called at: ${webhookUrl} when merge completes`);
+    } else {
+      console.log(`⚠️ No webhook configured - merge completion will need manual polling`);
+    }
+
+    return { taskId: request_id };
   } catch (error) {
     console.error('❌ fal.ai merge videos error:', error);
 

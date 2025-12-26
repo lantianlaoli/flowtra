@@ -135,10 +135,10 @@ export async function POST(request: NextRequest) {
       videoFound = true;
     }
 
-    // Try character_ads_projects if still not found
+    // Try avatar_ads_projects if still not found
     if (!videoFound) {
       const { data: characterAd } = await supabase
-        .from('character_ads_projects')
+        .from('avatar_ads_projects')
         .select('merged_video_url, user_id, status')
         .eq('id', historyId)
         .maybeSingle();

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -21,7 +21,11 @@ import {
   Package,
   User,
   AlertCircle,
-  Eye
+  Eye,
+  Sparkles,
+  Coins,
+  Clock,
+  Maximize
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
@@ -54,6 +58,7 @@ export interface Generation {
   mergeLoading?: boolean;
   videoGenerationRequested?: boolean;
   isPhotoOnly?: boolean;
+  creditsCost?: number;
 }
 
 export interface SegmentCardSummary {
@@ -254,8 +259,10 @@ function GenerationCard({
     downloaded,
     segmentCount,
     videoDuration,
+    videoAspectRatio,
     videoGenerationRequested,
-    isPhotoOnly
+    isPhotoOnly,
+    creditsCost
   } = generation;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -293,8 +300,8 @@ function GenerationCard({
   const downloadActionLabel = useMemo(() => {
     if (isDownloading) return 'Downloading…';
     if (downloaded) return 'Downloaded';
-    return `Download · ${downloadMetaLabel}`;
-  }, [isDownloading, downloaded, downloadMetaLabel]);
+    return 'Download';
+  }, [isDownloading, downloaded]);
 
   const hasSegmentFailure = Boolean(
     generation.segmentStatus?.segments?.some(seg => seg.status === 'failed')
@@ -325,16 +332,16 @@ function GenerationCard({
   const getStatusIcon = () => {
     switch (displayStatus) {
       case 'completed':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+        return <CheckCircle className="w-5 h-5 text-gray-900" />;
       case 'failed':
-        return <XCircle className="w-5 h-5 text-red-500" />;
+        return <XCircle className="w-5 h-5 text-gray-900" />;
       case 'attention':
-        return <XCircle className="w-5 h-5 text-amber-500" />;
+        return <AlertCircle className="w-5 h-5 text-gray-900" />;
       case 'awaiting_review':
-        return <Eye className="w-5 h-5 text-blue-500" />;
+        return <Eye className="w-5 h-5 text-gray-900" />;
       case 'processing':
       case 'pending':
-        return <Loader2 className="w-5 h-5 text-white animate-spin" />;
+        return <Sparkles className="w-5 h-5 text-gray-900" />;
       default:
         return null;
     }
@@ -343,274 +350,254 @@ function GenerationCard({
   const getStatusText = () => {
     switch (displayStatus) {
       case 'completed':
-        return 'Completed';
+        return 'Ready to Download';
       case 'failed':
-        return 'Failed';
+        return 'Generation Failed';
       case 'attention':
-        return 'Needs attention';
+        return 'Action Required';
       case 'processing':
-        return displayStage || 'Processing...';
+        return displayStage || 'Generating...';
       case 'pending':
       case 'awaiting_review':
-        return displayStage || 'Queued';
+        return displayStage || 'In Queue';
       default:
         return 'Unknown';
     }
   };
 
+  const showBody = (displayStatus === 'attention' && hasSegmentFailure) ||
+    (displayStatus === 'failed' && Boolean(errorMessage)) ||
+    (hasSegments && segmentCount !== 1) ||
+    (status === 'completed' && (Boolean(videoUrl) || Boolean(coverUrl)));
+
+  const MetaTag = ({ icon: Icon, text }: { icon?: React.ElementType; text: string }) => (
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 border border-gray-100 rounded-lg text-[11px] font-medium text-gray-600">
+      {Icon && <Icon className="w-3 h-3 opacity-70" />}
+      <span>{text}</span>
+    </div>
+  );
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden"
+      className="bg-white rounded-2xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden"
     >
-      {/* --- PROGRESS HEADER SECTION --- */}
-      <div className="relative overflow-hidden border-b border-gray-100">
-        {/* High-Contrast Progress Fill with Wavy Edge */}
-        {(displayStatus === 'processing' || displayStatus === 'pending') && (
-          <div className="absolute inset-0 z-0 overflow-visible">
-            <motion.div
-              className="absolute inset-y-0 left-0 bg-black"
-              initial={{ width: '0%' }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5, ease: "easeInOut" }}
-            >
-               {/* Wave Sweep Animation inside */}
-              <motion.div 
-                className="absolute inset-0 w-full h-full"
-                initial={{ x: '-100%' }}
-                animate={{ x: '100%' }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                style={{
-                  background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%)',
-                }}
-              />
-              
-              {/* Wavy Edge - SVG Pattern */}
-              <div 
-                className="absolute top-0 bottom-0 right-[-12px] w-[12px] overflow-hidden"
-              >
-                 <div className="w-full h-full animate-wave-slide" 
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 24'%3E%3Cpath fill='black' d='M0,0 c8,0 12,6 12,12 c0,6 -4,12 -12,12 V0 z'/%3E%3C/svg%3E")`,
-                        backgroundRepeat: 'repeat-y',
-                        backgroundSize: '100% 24px',
-                        height: '200%'
-                      }} 
-                 />
-              </div>
-            </motion.div>
-            <style jsx>{`
-              @keyframes wave-slide {
-                0% { transform: translateY(0); }
-                100% { transform: translateY(-24px); }
-              }
-              .animate-wave-slide {
-                animation: wave-slide 1s linear infinite;
-              }
-            `}</style>
+      <div className="p-5 space-y-4">
+        {/* Header: Status and Actions */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-gray-50">
+              {getStatusIcon()}
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-[15px] font-semibold text-gray-900 leading-tight truncate">
+                {getStatusText()}
+              </h4>
+              <p className="text-[12px] text-gray-500 mt-0.5 font-medium">
+                {new Date(generation.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
           </div>
-        )}
 
-        <div className="relative z-10 p-5" style={{ mixBlendMode: 'difference' }}>
-          {/* Header Content */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center text-white">
-                  {getStatusIcon()}
-                </div>
-                <span className="text-[17px] font-semibold text-white leading-none">
-                  {getStatusText()}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              {(displayStatus === 'processing' || displayStatus === 'pending') && (
-                <span className="text-[17px] font-bold text-white leading-none tabular-nums">
-                  {progress}%
-                </span>
-              )}
-              {/* Review Button for Character Ads - Hide during processing/video generation */}
-              {onReview &&
-                !isPhotoOnly &&
-                !videoGenerationRequested &&
-                (status === 'pending' || status === 'awaiting_review') &&
-                coverUrl &&
-                !videoUrl && (
-                <button
-                  onClick={() => onReview(generation)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold shadow-md hover:bg-blue-700 hover:shadow-lg transition-all cursor-pointer animate-pulse"
-                >
-                  <PenSquare className="w-4 h-4" />
-                  <span>{reviewCtaLabel}</span>
-                </button>
-              )}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {onReview &&
+              !isPhotoOnly &&
+              !videoGenerationRequested &&
+              (status === 'pending' || status === 'awaiting_review') &&
+              coverUrl &&
+              !videoUrl && (
+              <button
+                onClick={() => onReview(generation)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-[13px] font-semibold hover:bg-gray-800 transition-all shadow-sm"
+              >
+                <PenSquare className="w-3.5 h-3.5" />
+                <span>{reviewCtaLabel}</span>
+              </button>
+            )}
 
-              {status === 'completed' && videoUrl && (
-                onDownload ? (
-                  <button
-                    onClick={() => !isDownloading && !downloaded && onDownload(generation)}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm transition-colors whitespace-nowrap ${downloaded ? 'opacity-70 cursor-default' : isDownloading ? 'opacity-60 cursor-wait' : 'hover:border-gray-300 cursor-pointer'}`}
-                    title={downloaded ? 'Already downloaded' : `Download (${downloadMetaLabel})`}
-                    disabled={isDownloading || downloaded}
-                  >
-                    <Download className={`w-3.5 h-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
-                    <span>{downloadActionLabel}</span>
-                  </button>
-                ) : (
-                  <a
-                    href={videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-full text-xs font-semibold shadow-sm hover:border-gray-300 transition-colors cursor-pointer whitespace-nowrap"
-                    title={`Download (${downloadMetaLabel})`}
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{downloadActionLabel}</span>
-                  </a>
-                )
-              )}
-            </div>
+            {status === 'completed' && videoUrl && (
+              <button
+                onClick={() => !isDownloading && !downloaded && onDownload?.(generation)}
+                disabled={isDownloading || downloaded}
+                className={`inline-flex items-center gap-2 px-4 py-2 border rounded-xl text-[13px] font-semibold transition-all ${
+                  downloaded
+                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-default'
+                    : isDownloading
+                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-wait'
+                    : 'border-gray-200 bg-white text-gray-900 hover:border-gray-900 hover:bg-gray-50 cursor-pointer'
+                }`}
+              >
+                <Download className={`w-3.5 h-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
+                <span>{downloadActionLabel}</span>
+              </button>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* --- CONTENT BODY SECTION --- */}
-      <div className="p-5 bg-white">
-        {/* Progress bar removed for minimalist design */}
+        {/* Metadata Row */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {brand && <MetaTag icon={User} text={brand} />}
+          {product && <MetaTag icon={Package} text={product} />}
+          {videoAspectRatio && <MetaTag icon={Maximize} text={videoAspectRatio} />}
+          {videoDuration && <MetaTag icon={Clock} text={`${videoDuration}s`} />}
+          {videoModel && <MetaTag icon={Rocket} text={videoModel.replace(/_/g, ' ').toUpperCase()} />}
+          {typeof creditsCost === 'number' && (
+            <MetaTag icon={Coins} text={creditsCost === 0 ? 'Free' : `${creditsCost} Credits`} />
+          )}
+        </div>
 
-        {displayStatus === 'attention' && hasSegmentFailure && (
-          <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
-            One or more segments failed. Open the segment cards below to adjust and regenerate.
-          </div>
-        )}
-        {displayStatus === 'failed' && errorMessage && (
-          <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
-            {errorMessage}
-          </div>
-        )}
-
-        {/* Segment breakdown toggle - hide for single segments */}
-        {hasSegments && segmentCount !== 1 && (
-          <div className="mb-3">
-            <button
-              type="button"
-              onClick={() => onToggleSegments?.(generation)}
-              className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-100 transition"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="font-semibold">Segment breakdown</span>
-                <span className="text-[11px] text-[#666666] font-normal leading-tight">
-                  Expand and edit prompts until satisfied, then manually confirm to generate video
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-500">
-                <span className="text-xs">{isExpanded ? 'Hide' : 'Show'}</span>
-                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </div>
-            </button>
-            <div
-              className="transition-all duration-300 ease-in-out overflow-hidden"
-              style={{
-                maxHeight: isExpanded ? 2000 : 0,
-                opacity: isExpanded ? 1 : 0,
-                marginTop: isExpanded ? '1rem' : 0
-              }}
-            >
-              {isExpanded && (
-                <SegmentBoard
-                  generation={generation}
-                  segmentStatus={generation.segmentStatus}
-                  segments={generation.segments}
-                  onSelectSegment={onSegmentSelect}
-                />
-              )}
-            </div>
-          </div>
-        )}
-        {/* Merge button section - hide for single segments */}
-        {hasSegments && segmentCount !== 1 && (
-          <div className="mb-3">
-            {mergeComplete ? (
-              <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800">
-                Final video merged. Download from the card above when ready.
-              </div>
-            ) : mergeInProgress ? (
-              <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Merging clips… hang tight.</span>
-              </div>
-            ) : awaitingUserMerge ? (
-              <button
-                type="button"
-                onClick={() => onMerge?.(generation)}
-                className={`w-full rounded-xl px-3 py-2 text-sm font-semibold transition border ${canMerge ? 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800' : 'bg-gray-50 text-gray-500 border-gray-200'}`}
-                disabled={!canMerge}
-                title={
-                  canMerge
-                    ? 'Merge segments into final video'
-                    : `Segments still rendering (${generation.segmentStatus?.videosReady || 0}/${generation.segmentStatus?.total || 0} ready)`
-                }
-              >
-                {canMerge ? 'Merge Final Video' : 'Waiting for segments to finish'}
-              </button>
-            ) : null}
-          </div>
-        )}
-
-        {/* Video preview */}
-        {status === 'completed' && (videoUrl || coverUrl) && (
-          <div className="mb-3">
-            <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-              {videoUrl && isPlaying ? (
-                <video
-                  ref={videoRef}
-                  src={videoUrl}
-                  poster={coverUrl}
-                  autoPlay
-                  playsInline
-                  controls={false}
-                  disablePictureInPicture
-                  controlsList="nodownload nofullscreen noplaybackrate"
-                  className="w-full h-full object-contain"
-                  onEnded={handleStop}
-                />
-              ) : coverUrl ? (
-                <Image
-                  src={coverUrl}
-                  alt="Video cover"
-                  fill
-                  unoptimized
-                  className="object-contain"
-                />
-              ) : (
-                <div className="w-full h-full bg-gray-900" />
-              )}
-
-              {videoUrl && !isPlaying && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <button
-                    onClick={handlePlay}
-                    className="w-12 h-12 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all cursor-pointer"
-                  >
-                    <Play className="w-6 h-6 text-gray-900 ml-0.5" />
-                  </button>
+        {/* Progress Section */}
+        {(displayStatus === 'processing' || displayStatus === 'pending') && (
+          <div className="pt-2 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
+                  <Loader2 className="w-2.5 h-2.5 text-white animate-spin" />
                 </div>
-              )}
-
-              {videoUrl && isPlaying && (
-                <button
-                  onClick={handleStop}
-                  className="absolute top-3 right-3 w-8 h-8 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg cursor-pointer"
-                >
-                  <X className="w-4 h-4 text-gray-900" />
-                </button>
-              )}
+                <span className="text-[13px] font-bold text-gray-900">{progress}%</span>
+              </div>
+            </div>
+            <div className="relative h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+              <motion.div
+                className="absolute inset-y-0 left-0 bg-gray-900"
+                initial={{ width: '0%' }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+              />
             </div>
           </div>
         )}
 
+        {/* Error/Body */}
+        {showBody && (
+          <div className="pt-2">
+            {displayStatus === 'attention' && hasSegmentFailure && (
+              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
+                <p className="text-[12px] text-amber-700 leading-relaxed font-medium">
+                  Some segments require your attention. Please review and adjust the prompts.
+                </p>
+              </div>
+            )}
+            {displayStatus === 'failed' && errorMessage && (
+              <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-2.5">
+                <XCircle className="w-4 h-4 text-rose-600 mt-0.5" />
+                <p className="text-[12px] text-rose-700 leading-relaxed font-medium">
+                  {errorMessage}
+                </p>
+              </div>
+            )}
+
+            {/* Video Preview Area */}
+            {status === 'completed' && (videoUrl || coverUrl) && (
+              <div className="mt-2 relative aspect-video bg-gray-50 rounded-xl overflow-hidden group border border-gray-100">
+                {videoUrl && isPlaying ? (
+                  <video
+                    ref={videoRef}
+                    src={videoUrl}
+                    poster={coverUrl}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-contain"
+                    onEnded={handleStop}
+                  />
+                ) : coverUrl ? (
+                  <Image src={coverUrl} alt="Preview" fill className="object-contain" unoptimized />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Film className="w-8 h-8 text-gray-200" />
+                  </div>
+                )}
+
+                {videoUrl && !isPlaying && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={handlePlay}
+                      className="w-14 h-14 bg-white text-gray-900 rounded-full flex items-center justify-center shadow-xl hover:scale-105 transition-transform cursor-pointer"
+                    >
+                      <Play className="w-6 h-6 ml-1 fill-current" />
+                    </button>
+                  </div>
+                )}
+
+                {videoUrl && isPlaying && (
+                  <button
+                    onClick={handleStop}
+                    className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Segments Toggle */}
+            {hasSegments && segmentCount !== 1 && (
+              <div className="mt-4">
+                <button
+                  onClick={() => onToggleSegments?.(generation)}
+                  className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-100"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-gray-100 shadow-sm">
+                      <Boxes className="w-4 h-4 text-gray-600" />
+                    </div>
+                    <div className="text-left">
+                      <span className="block text-[13px] font-semibold text-gray-900">Segment Breakdown</span>
+                      <span className="block text-[11px] text-gray-500">Fine-tune individual clips and prompts</span>
+                    </div>
+                  </div>
+                  {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                </button>
+                
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pt-4">
+                        <SegmentBoard
+                          generation={generation}
+                          segmentStatus={generation.segmentStatus}
+                          segments={generation.segments}
+                          onSelectSegment={onSegmentSelect}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* Merge Action */}
+            {hasSegments && segmentCount !== 1 && !mergeComplete && (
+              <div className="mt-3">
+                {mergeInProgress ? (
+                  <div className="flex items-center justify-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 font-semibold text-[13px]">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Merging your masterpiece...
+                  </div>
+                ) : awaitingUserMerge ? (
+                  <button
+                    onClick={() => onMerge?.(generation)}
+                    disabled={!canMerge}
+                    className={`w-full py-3 rounded-xl font-bold text-[13px] transition-all border ${
+                      canMerge 
+                        ? 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800 shadow-sm' 
+                        : 'bg-gray-50 text-gray-400 border-gray-100'
+                    }`}
+                  >
+                    {canMerge ? 'Finalize & Merge Video' : `Rendering clips (${videosReady}/${totalSegments})`}
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );

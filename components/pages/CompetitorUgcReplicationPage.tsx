@@ -52,16 +52,16 @@ const REPLICA_RESOLUTIONS: ReplicaResolution[] = ['1K', '2K', '4K'];
 const REPLICA_OUTPUT_FORMATS: ReplicaOutputFormat[] = ['png', 'jpg'];
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
-  generating_cover: '✨ Crafting your viral hook – the moment they stop scrolling…',
-  generating_segment_frames: '🎬 Designing each frame with the competitor\'s magic formula…',
-  generating_segment_videos: '🎥 Transforming scenes into engagement powerhouses…',
-  merging_segments: '🧩 Stitching viral moments into one compelling story…',
-  awaiting_merge: '🎞️ All scenes are ready – assembling your video clone…',
-  ready_for_video: '🚀 Your competitor strategy is dialed in! Ready to generate the final video',
-  generating_video: '🎬 Creating your winning video… it\'s almost time to viral!',
-  processing: '⚙️ Analyzing competitor tactics and adapting them for your product…',
-  completed: '✅ Your viral competitor clone is ready to roll!',
-  failed: '⚠️ Generation paused – let\'s troubleshoot and try again'
+  generating_cover: 'Crafting your viral hook – the moment they stop scrolling…',
+  generating_segment_frames: 'Designing each frame with the competitor\'s magic formula…',
+  generating_segment_videos: 'Transforming scenes into engagement powerhouses…',
+  merging_segments: 'Stitching viral moments into one compelling story…',
+  awaiting_merge: 'All scenes are ready – assembling your video clone…',
+  ready_for_video: 'Your competitor strategy is dialed in! Ready to generate the final video',
+  generating_video: 'Creating your winning video… it\'s almost time to viral!',
+  processing: 'Analyzing competitor tactics and adapting them for your product…',
+  completed: 'Your viral competitor clone is ready to roll!',
+  failed: 'Generation paused – let\'s troubleshoot and try again'
 };
 
 const STATUS_MAP: Record<string, Generation['status']> = {
@@ -117,6 +117,7 @@ interface CompetitorUgcReplicationStatusPayload {
     selectedBrandId?: string | null;
     photoOnly?: boolean | null;
     videoGenerationRequested?: boolean | null;
+    credits_cost?: number | null;
   };
   error?: string;
 }
@@ -573,6 +574,7 @@ export default function CompetitorUgcReplicationPage() {
         isPhotoOnly: typeof payloadData?.photoOnly === 'boolean'
           ? payloadData.photoOnly
           : gen.isPhotoOnly,
+        creditsCost: payloadData?.credits_cost ?? gen.creditsCost,
         error: payload.data?.errorMessage || (resolvedStatus === 'failed'
           ? (payload.error || 'Video generation failed')
           : undefined)
@@ -1194,7 +1196,8 @@ export default function CompetitorUgcReplicationPage() {
       mergeTaskId: null,
       mergeLoading: false,
       videoGenerationRequested: false,
-      isPhotoOnly: isCompetitorPhotoMode
+      isPhotoOnly: isCompetitorPhotoMode,
+      creditsCost: generationCost
     };
 
     setGenerations(prev => [newGeneration, ...prev]);

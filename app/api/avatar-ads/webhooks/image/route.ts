@@ -31,18 +31,9 @@ interface KIEImageWebhookPayload {
  */
 export async function POST(request: NextRequest) {
   try {
-    console.log('[Avatar Ads Image Webhook] Received callback');
-
     const payload: KIEImageWebhookPayload = await request.json();
     const { code, msg, data } = payload;
     const { taskId, state, resultJson, failCode, failMsg } = data;
-
-    console.log('[Avatar Ads Image Webhook] Payload:', {
-      taskId,
-      state,
-      code,
-      hasResult: !!resultJson
-    });
 
     // Security validation: Check if taskId exists in database
     const supabase = getSupabaseAdmin();
@@ -53,7 +44,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fetchError || !project) {
-      console.warn('[Avatar Ads Image Webhook] Task ID not found in database:', taskId);
       // Return 200 to prevent KIE retries for invalid taskId
       return NextResponse.json(
         { success: false, error: 'Task not found' },
@@ -63,7 +53,6 @@ export async function POST(request: NextRequest) {
 
     // Idempotency check: Skip if webhook already processed
     if (project.webhook_received_at) {
-      console.log('[Avatar Ads Image Webhook] Already processed, ignoring duplicate');
       return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 });
     }
 
@@ -80,8 +69,6 @@ export async function POST(request: NextRequest) {
 
     // Update project based on webhook status
     if (code === 200 && state === 'success' && imageUrl) {
-      console.log('[Avatar Ads Image Webhook] Image generation succeeded:', imageUrl);
-
       const { error: updateError } = await supabase
         .from('avatar_ads_projects')
         .update({
@@ -102,8 +89,6 @@ export async function POST(request: NextRequest) {
           { status: 200 }
         );
       }
-
-      console.log('[Avatar Ads Image Webhook] Project updated successfully');
 
     } else if (state === 'fail' || code !== 200) {
       console.error('[Avatar Ads Image Webhook] Image generation failed:', {
@@ -126,7 +111,6 @@ export async function POST(request: NextRequest) {
         console.error('[Avatar Ads Image Webhook] Failed to update project:', updateError);
       }
     } else {
-      console.warn('[Avatar Ads Image Webhook] Unexpected webhook state:', { code, state });
       // Mark as received even if unexpected state to prevent retries
       await supabase
         .from('avatar_ads_projects')

@@ -34,19 +34,9 @@ interface KIEVideoWebhookPayload {
  */
 export async function POST(request: NextRequest) {
   try {
-    console.log('[Avatar Ads Video Webhook] Received callback');
-
     const payload: KIEVideoWebhookPayload = await request.json();
     const { code, msg, data } = payload;
     const { taskId, info, fallbackFlag } = data;
-
-    console.log('[Avatar Ads Video Webhook] Payload:', {
-      taskId,
-      code,
-      msg,
-      hasResultUrls: !!info?.resultUrls,
-      fallbackFlag
-    });
 
     // Security validation: Check if taskId exists in database (scene-level)
     const supabase = getSupabaseAdmin();
@@ -57,7 +47,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (sceneError || !scene) {
-      console.warn('[Avatar Ads Video Webhook] Task ID not found in scenes table:', taskId);
       // Return 200 to prevent KIE retries for invalid taskId
       return NextResponse.json(
         { success: false, error: 'Task not found' },
@@ -67,7 +56,6 @@ export async function POST(request: NextRequest) {
 
     // Idempotency check: Skip if webhook already processed
     if (scene.webhook_received_at) {
-      console.log('[Avatar Ads Video Webhook] Already processed, ignoring duplicate');
       return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 });
     }
 
@@ -75,8 +63,6 @@ export async function POST(request: NextRequest) {
 
     // Update scene based on webhook status
     if (code === 200 && videoUrl) {
-      console.log('[Avatar Ads Video Webhook] Video generation succeeded for scene', scene.scene_number);
-
       const { error: updateError } = await supabase
         .from('avatar_ads_scenes')
         .update({
@@ -105,19 +91,16 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', scene.project_id);
 
-      console.log('[Avatar Ads Video Webhook] Scene updated successfully');
-
-      // ✅ Event-Driven: Check if all scenes completed, trigger merge immediately
+      // ✅ Event-Driven: Check if all scenes completed, finalize project immediately
       const { data: allScenes } = await supabase
         .from('avatar_ads_scenes')
-        .select('status')
-        .eq('project_id', scene.project_id);
+        .select('status, video_url')
+        .eq('project_id', scene.project_id)
+        .order('scene_number', { ascending: true });
 
       const allCompleted = allScenes?.every(s => s.status === 'completed');
 
-      if (allCompleted) {
-        console.log('[Avatar Ads Video Webhook] All scenes completed, triggering merge immediately');
-
+      if (allCompleted && allScenes && allScenes.length > 0) {
         // Get full project data
         const { data: project } = await supabase
           .from('avatar_ads_projects')
@@ -126,24 +109,41 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (project && project.status === 'generating_videos') {
-          // Trigger merge step immediately (non-blocking)
-          (async () => {
-            try {
-              const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
-              await processAvatarAdsProject(project, 'merge_videos');
-              console.log(`✅ merge_videos completed for project ${scene.project_id}`);
-            } catch (error) {
-              console.error(`❌ merge_videos failed for project ${scene.project_id}:`, error);
-              // Mark as failed so frontend gets update via Realtime
-              await supabase
-                .from('avatar_ads_projects')
-                .update({
-                  status: 'failed',
-                  error_message: error instanceof Error ? error.message : 'Merge failed'
-                })
-                .eq('id', scene.project_id);
-            }
-          })();
+          // Single scene: No merge needed, directly use the video URL
+          if (allScenes.length === 1) {
+            const singleVideoUrl = allScenes[0].video_url;
+
+            await supabase
+              .from('avatar_ads_projects')
+              .update({
+                merged_video_url: singleVideoUrl,
+                status: 'completed',
+                progress_percentage: 100,
+                current_step: 'completed',
+                last_processed_at: new Date().toISOString()
+              })
+              .eq('id', scene.project_id);
+
+            console.log(`✅ [Avatar Ads Video Webhook] Single scene project ${scene.project_id} completed without merge`);
+          } else {
+            // Multiple scenes: Trigger merge step (non-blocking)
+            (async () => {
+              try {
+                const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
+                await processAvatarAdsProject(project, 'merge_videos');
+              } catch (error) {
+                console.error(`❌ merge_videos failed for project ${scene.project_id}:`, error);
+                // Mark as failed so frontend gets update via Realtime
+                await supabase
+                  .from('avatar_ads_projects')
+                  .update({
+                    status: 'failed',
+                    error_message: error instanceof Error ? error.message : 'Merge failed'
+                  })
+                  .eq('id', scene.project_id);
+              }
+            })();
+          }
         }
       }
 
@@ -179,7 +179,6 @@ export async function POST(request: NextRequest) {
         .eq('id', scene.project_id);
 
     } else {
-      console.warn('[Avatar Ads Video Webhook] Unexpected webhook code:', { code, msg });
       // Mark as received even if unexpected code to prevent retries
       await supabase
         .from('avatar_ads_scenes')

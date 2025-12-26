@@ -135,55 +135,66 @@ When modifying any AI prompts in the codebase:
 
 ## Implementation Notes
 
-### **CURRENT: Avatar Ads Event-Driven Architecture (Webhook + Realtime)**
+### **CURRENT: Avatar Ads Complete Event-Driven Architecture (100% Webhook + Realtime)**
 
-**Implementation Date**: 2025-12-25
+**Implementation Date**: 2025-12-26 (Updated from 2025-12-25)
 
 **Overview:**
-Avatar Ads workflow has been completely migrated from polling-based architecture to a fully event-driven architecture using webhooks and Supabase Realtime. This eliminates all polling delays and provides instant (<1s) status updates to users.
+Avatar Ads workflow is now **100% event-driven** - ALL external services (KIE API + fal.ai) use webhooks. This eliminates ALL polling delays and provides instant (<1s) status updates to users.
 
 **Architecture:**
 ```
-Backend: Webhook callbacks trigger next workflow steps immediately
-Frontend: Supabase Realtime subscriptions push updates instantly
-Result: Zero polling, < 1 second latency, scalable architecture
+User → Create Project → Backend Workflow (non-blocking)
+  ↓
+KIE Image Webhook → Database Update → Realtime Push → Frontend
+  ↓
+KIE Video Webhook → Database Update → Realtime Push → Frontend
+  ↓
+fal.ai Merge Webhook → Database Update → Realtime Push → Frontend (100% Complete!)
 ```
 
-**Modified Files:**
-- `components/pages/AvatarAdsPage.tsx` - Replaced `setInterval` polling with Supabase Realtime subscriptions (lines 699-771)
-- `components/avatar-ads/AvatarAdInspector.tsx` - Made `onRefetchProjectStatus` optional (line 48)
-- `app/api/avatar-ads/create/route.ts` - Immediately triggers workflow on creation (lines 299-321)
+**Webhook Endpoints:**
+- `POST /api/avatar-ads/webhooks/image` - KIE image generation callback
+- `POST /api/avatar-ads/webhooks/video` - KIE video generation callback
+- `POST /api/avatar-ads/webhooks/merge` - **NEW: fal.ai merge callback**
+
+**Modified Files (2025-12-26 Update):**
+- `app/api/avatar-ads/webhooks/merge/route.ts` - **NEW**: fal.ai merge webhook handler
+- `lib/video-merge.ts` - Changed from `fal.subscribe()` to `fal.queue.submit()` with webhook
+- `lib/avatar-ads-workflow.ts` - Removed `check_merge_status` step (no longer needed)
+
+**Previous Files (2025-12-25):**
+- `components/pages/AvatarAdsPage.tsx` - Replaced `setInterval` polling with Supabase Realtime
 - `app/api/avatar-ads/webhooks/image/route.ts` - KIE image callback handler
-- `app/api/avatar-ads/webhooks/video/route.ts` - KIE video callback, auto-triggers merge (lines 110-148)
+- `app/api/avatar-ads/webhooks/video/route.ts` - KIE video callback, auto-triggers merge
 - `hooks/useAvatarAdsRealtime.ts` - Reusable Realtime subscription hooks
-- `docs/event-driven-architecture.md` - Complete architecture documentation
 
 **Key Implementation Details:**
 
-1. **Backend Event Chain:**
-   - `POST /create` → immediately triggers `generate_prompts` (non-blocking)
-   - Each step completion → updates database → Realtime pushes to frontend
-   - KIE webhooks → update database → trigger next step → Realtime push
-   - Video completion → auto-triggers merge if all scenes done
+1. **Backend Event Chain (100% Non-Blocking):**
+   - `POST /create` → triggers `generate_prompts` (non-blocking)
+   - Image generation → KIE webhook → triggers `generate_videos` (non-blocking)
+   - Video generation → KIE webhook → checks all scenes → triggers `merge_videos` (non-blocking)
+   - Video merge → **fal.ai webhook** → sets project to `completed`
 
 2. **Frontend Realtime:**
    - Initial fetch + subscribe pattern for each active project
    - Subscribes to `postgres_changes` events on `avatar_ads_projects` table
-   - Automatic cleanup when projects complete or component unmounts
-   - No more `fetchStatusForProject` or `setInterval` calls
+   - Receives updates from all webhooks (KIE + fal.ai) via Realtime
+   - Automatic cleanup when projects complete
 
 3. **Removed Components:**
    - ❌ `setInterval(poll, 8000)` - replaced with Realtime
    - ❌ `fetchStatusForProject()` - replaced with Realtime callbacks
-   - ❌ Manual refresh after confirm/regenerate - Realtime handles it
-   - ❌ monitor-tasks dependency for Avatar Ads - only webhooks needed
+   - ❌ `check_merge_status` step - replaced with fal.ai webhook
+   - ❌ monitor-tasks/check-merge endpoints - no polling needed
 
 **Benefits:**
-- **30x faster**: Status updates in <1s instead of 8-30s
-- **Zero server load**: No continuous polling API calls
-- **Better UX**: Instant feedback feels like magic
-- **Scalable**: Realtime connections are efficient and scale well
-- **Decoupled**: Frontend doesn't need to poll, backend pushes updates
+- **100% event-driven**: Zero polling, zero cron jobs, zero background tasks
+- **< 1 second latency**: All status updates appear instantly
+- **Zero server load**: No continuous API calls or database queries
+- **Scalable**: Handles unlimited concurrent projects efficiently
+- **Reliable**: Webhooks retry on failure, idempotency prevents duplicates
 
 **Supabase Setup Required:**
 ```sql
@@ -191,6 +202,15 @@ Result: Zero polling, < 1 second latency, scalable architecture
 ALTER PUBLICATION supabase_realtime ADD TABLE avatar_ads_projects;
 ALTER PUBLICATION supabase_realtime ADD TABLE avatar_ads_scenes;
 ```
+
+**Environment Variables Required:**
+```env
+NEXT_PUBLIC_SITE_URL=https://flowtra.ai  # For webhook URL construction (use ngrok URL for local dev)
+FAL_KEY=your_fal_api_key                 # For fal.ai API
+```
+
+**Complete Documentation:**
+- See `docs/avatar-ads-complete-event-driven-architecture.md` for full technical details
 
 **Testing:**
 1. Open browser console and watch for `[Avatar Ads Realtime]` logs

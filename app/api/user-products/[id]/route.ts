@@ -142,16 +142,16 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       .eq('user_id', userId);
 
     // Count how many projects reference this product (for logging purposes)
-    const [competitorUgcReplicationCount, characterAdsCount] = await Promise.all([
+    const [competitorUgcReplicationCount, avatarAdsCount] = await Promise.all([
       supabase.from('competitor_ugc_replication_projects').select('id', { count: 'exact', head: true })
         .eq('selected_product_id', id),
-      supabase.from('character_ads_projects').select('id', { count: 'exact', head: true })
+      supabase.from('avatar_ads_projects').select('id', { count: 'exact', head: true })
         .eq('selected_product_id', id),
     ]);
 
     const totalReferencedProjects =
       (competitorUgcReplicationCount.count || 0) +
-      (characterAdsCount.count || 0);
+      (avatarAdsCount.count || 0);
 
     // Delete the product
     // Database foreign key constraints will automatically set selected_product_id to NULL

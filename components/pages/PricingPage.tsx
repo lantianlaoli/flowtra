@@ -168,10 +168,6 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Free unlimited downloads</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
                   <span className="text-gray-600">Free image generation</span>
                 </li>
                 <li className="flex items-center gap-3">
