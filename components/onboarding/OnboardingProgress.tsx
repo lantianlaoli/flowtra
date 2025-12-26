@@ -60,7 +60,7 @@ export default function OnboardingProgress({ progress, className = '' }: Onboard
       title: 'Generate your first ad',
       description: 'Create AI-powered video content',
       completed: progress.hasCreatedAd,
-      targetUrl: '/dashboard/single-video-generator',
+      targetUrl: '/dashboard/competitor-ugc-replication',
       icon: SparklesIcon,
     },
   ];

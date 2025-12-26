@@ -15,7 +15,7 @@ export async function GET() {
 
     const supabase = getSupabase();
 
-    // Fetch latest completed video from V1 workflow (single_video_projects)
+    // Fetch latest completed video from Competitor UGC Replication workflow
     const { data: historyV1, error: errorV1 } = await supabase
       .from('competitor_ugc_replication_projects')
       .select('*')

@@ -57,7 +57,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/dashboard/generate',
-        destination: '/dashboard/single-video-generator',
+        destination: '/dashboard/competitor-ugc-replication',
         permanent: false,
       },
       {
