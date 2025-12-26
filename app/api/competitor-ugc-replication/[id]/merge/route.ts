@@ -64,7 +64,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
-    const { taskId } = await mergeVideosWithFal((segments as CompetitorUgcReplicationSegment[]).map(seg => seg.video_url as string), aspectRatio);
+    const { taskId } = await mergeVideosWithFal(
+      (segments as CompetitorUgcReplicationSegment[]).map(seg => seg.video_url as string),
+      aspectRatio,
+      '/api/competitor-ugc-replication/webhooks/merge' // Event-driven: Register webhook for instant merge completion
+    );
 
     await supabase
       .from('competitor_ugc_replication_projects')

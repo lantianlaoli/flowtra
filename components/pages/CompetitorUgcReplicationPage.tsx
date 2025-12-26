@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useCompetitorUgcReplicationWorkflow } from '@/hooks/useCompetitorUgcReplicationWorkflow';
+import { useMultipleProjectsRealtime } from '@/hooks/useCompetitorUgcReplicationRealtime';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -876,33 +877,44 @@ export default function CompetitorUgcReplicationPage() {
     }
   }, [fetchStatusForProject, showError, showSuccess]);
 
+  // ✅ Event-Driven: Realtime subscriptions instead of polling
+  useMultipleProjectsRealtime(
+    activeProjectIds,
+    // Project update callback
+    useCallback((projectId: string, project: Record<string, unknown>) => {
+      console.log('[UGC Realtime] Project update received:', projectId, project);
+      // Fetch full status to update UI (includes segments data)
+      fetchStatusForProject(projectId);
+    }, [fetchStatusForProject]),
+    // Segment update callback
+    useCallback((projectId: string, segment: Record<string, unknown>) => {
+      console.log('[UGC Realtime] Segment update received:', projectId, segment);
+      // Fetch full status to update UI (includes all segments)
+      fetchStatusForProject(projectId);
+    }, [fetchStatusForProject])
+  );
+
+  // Initial fetch for active projects (once)
   useEffect(() => {
     if (!activeProjectIds.length) {
-      console.log('⏸️ [Polling] No active projects, polling inactive');
+      console.log('⏸️ [Realtime] No active projects');
       return;
     }
 
-    console.log('🔄 [Polling Start] Starting polling for', activeProjectIds.length, 'projects:', activeProjectIds);
+    console.log('🔄 [Realtime] Initial fetch for', activeProjectIds.length, 'projects:', activeProjectIds);
 
-    const poll = () => {
-      console.log(`⏱️ [Polling Tick] Polling status for ${activeProjectIds.length} project(s)`, activeProjectIds);
+    // Initial fetch after a short delay to avoid race conditions
+    const initialTimer = setTimeout(() => {
       activeProjectIds.forEach(projectId => {
         fetchStatusForProject(projectId);
       });
-    };
-
-    // Initial poll after a short delay to avoid race conditions
-    const initialTimer = setTimeout(poll, 1000);
-
-    // Poll every 15 seconds (increased from 8s for better readability)
-    const interval = setInterval(poll, 15000);
+    }, 1000);
 
     return () => {
       clearTimeout(initialTimer);
-      clearInterval(interval);
-      console.log('⏹️ [Polling End] Polling stopped');
+      console.log('⏹️ [Realtime] Cleanup complete');
     };
-  }, [activeProjectIds, fetchStatusForProject]);
+  }, [activeProjectIds.join(','), fetchStatusForProject]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDownloadGeneration = useCallback(async (generation: SessionGeneration) => {
     if (!user?.id) {

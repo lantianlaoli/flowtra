@@ -24,7 +24,7 @@ This is a Next.js 15 app using the App Router with TypeScript and Supabase integ
 ### Key Workflows
 The application implements two main AI workflows:
 
-1. **Competitor UGC Replication** (`/dashboard/single-video-generator`)
+1. **Competitor UGC Replication** (`/dashboard/competitor-ugc-replication`)
    - Single video generation from product images
    - Uses OpenRouter AI for image description and prompt generation
    - Integrates with KIE API for cover image and video generation
@@ -55,12 +55,11 @@ The application implements two main AI workflows:
 - **Creation endpoints**: `/api/{workflow}/create` - Start new workflows
 - **Status endpoints**: `/api/{workflow}/[id]/status` - Check workflow progress
 - **History endpoints**: `/api/{workflow}/history` - List user's projects
-- **Webhook endpoints** (Avatar Ads only): `/api/avatar-ads/webhooks/{image|video}` - KIE API callbacks for event-driven workflow
-- **Monitor tasks**: `/api/competitor-ugc-replication/monitor-tasks` - Background job processor for Competitor UGC workflow ONLY
+- **Webhook endpoints** (Both workflows): `/api/{workflow}/webhooks/{frame|video|merge}` - KIE API & fal.ai callbacks for event-driven workflow
 
 **IMPORTANT**:
-- **Avatar Ads**: Uses **event-driven architecture** (webhooks + Supabase Realtime). NO polling/monitor-tasks needed.
-- **Competitor UGC Replication**: Uses **monitor-tasks** for workflow progress updates via polling KIE API.
+- **Both Avatar Ads and Competitor UGC Replication**: Use **100% event-driven architecture** (webhooks + Supabase Realtime)
+- **NO polling or monitor-tasks** - All status updates via webhooks with <1s latency
 
 ### Credit System (Unified Generation-Time Billing - Version 2.0)
 - **Billing Model**: Unified system - ALL models charge at generation, downloads are FREE
@@ -98,18 +97,20 @@ Next.js image optimization is configured for:
 
 ### Monitoring & Background Jobs
 
-**Avatar Ads (Event-Driven)**:
-- Uses **webhooks + Supabase Realtime** for instant status updates
-- Create API immediately triggers workflow steps (no waiting for cron jobs)
-- KIE webhooks (`/api/avatar-ads/webhooks/{image|video}`) push updates to database
-- Frontend subscribes to Supabase Realtime for < 1s latency updates
-- NO monitor-tasks or polling needed
+### Event-Driven Architecture (Both Workflows)
 
-**Competitor UGC Replication (Polling)**:
-- Uses **monitor-tasks** endpoint to poll KIE API periodically
-- Monitor endpoint checks task status and updates database
-- Timeout handling: 15min for images, 30min for videos
-- Failed jobs are marked with error messages for debugging
+**Avatar Ads**:
+- Uses **webhooks + Supabase Realtime** for instant status updates
+- Webhook endpoints: `/api/avatar-ads/webhooks/{image|video|merge}`
+- KIE webhooks push updates to database → Supabase Realtime → Frontend (<1s latency)
+- 100% event-driven: Zero polling, zero cron jobs
+
+**Competitor UGC Replication**:
+- Uses **webhooks + Supabase Realtime** for instant status updates
+- Webhook endpoints: `/api/competitor-ugc-replication/webhooks/{frame|video|merge}`
+- Webhooks directly trigger next workflow steps (e.g., continuation frames, merge)
+- Frame webhook auto-triggers next segment when continuation dependency resolved
+- 100% event-driven: Zero polling, zero cron jobs
 
 ### Key Libraries
 - **UI**: TailwindCSS v4, Heroicons, Lucide React, Framer Motion
@@ -187,7 +188,7 @@ fal.ai Merge Webhook → Database Update → Realtime Push → Frontend (100% Co
    - ❌ `setInterval(poll, 8000)` - replaced with Realtime
    - ❌ `fetchStatusForProject()` - replaced with Realtime callbacks
    - ❌ `check_merge_status` step - replaced with fal.ai webhook
-   - ❌ monitor-tasks/check-merge endpoints - no polling needed
+   - ❌ All polling/cron mechanisms - 100% event-driven
 
 **Benefits:**
 - **100% event-driven**: Zero polling, zero cron jobs, zero background tasks
@@ -557,10 +558,10 @@ Simplified video model selection from 6 models to 2 models (Veo3.1 and Veo3.1 fa
    - **VideoDurationSelector**: Default options now show 8-64s (veo3 durations)
 
 5. **API Route Updates**:
-   - **monitor-tasks**: Simplified to only check Veo3 endpoint
    - **history**: Added legacy model detection and normalization
    - **create**: Added validation to reject legacy model creation
    - **segments/[segmentIndex]**: Normalized legacy models for credit calculation
+   - **webhooks**: Added frame/video/merge webhook endpoints for event-driven architecture
 
 6. **Landing Page Updates**:
    - **ModelPricingSection**: Simplified from 6 models to 2 models

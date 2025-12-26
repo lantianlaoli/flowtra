@@ -18,7 +18,8 @@ async function getFalClient(): Promise<FalClient> {
 
 export async function mergeVideosWithFal(
   videoUrls: string[],
-  videoAspectRatio: FalAspectRatio = '16:9'
+  videoAspectRatio: FalAspectRatio = '16:9',
+  webhookEndpoint?: string // Optional: Custom webhook endpoint (e.g., '/api/competitor-ugc-replication/webhooks/merge')
 ): Promise<{ taskId: string }> {
   const fal = await getFalClient();
 
@@ -35,7 +36,9 @@ export async function mergeVideosWithFal(
       console.warn('⚠️ NEXT_PUBLIC_SITE_URL not set, fal.ai merge will not send webhook callback');
     }
 
-    const webhookUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/merge` : undefined;
+    // Use provided webhook endpoint or default to Avatar Ads
+    const defaultEndpoint = '/api/avatar-ads/webhooks/merge';
+    const webhookUrl = siteUrl ? `${siteUrl}${webhookEndpoint || defaultEndpoint}` : undefined;
 
     console.log(`📡 Submitting merge task with webhook URL: ${webhookUrl || 'none (local dev mode)'}`);
 

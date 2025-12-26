@@ -60,17 +60,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Failed to enqueue video generation' }, { status: 500 });
     }
 
-    // Trigger monitor to process this project immediately (best-effort)
-    try {
-      const monitorUrl = new URL('/api/competitor-ugc-replication/monitor-tasks', request.nextUrl.origin);
-      await fetch(monitorUrl.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: id })
-      });
-    } catch (monitorError) {
-      console.warn('Failed to trigger monitor after start-video:', monitorError);
-    }
+    // ✅ Pure Event-Driven: Webhooks will handle video generation completion
+    // No need to trigger monitor-tasks - video generation is queued and will be processed by workflow
+    console.log(`✅ [Start Video] Video generation queued for project ${id}`);
 
     return NextResponse.json({ success: true });
   } catch (error) {
