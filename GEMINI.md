@@ -5,7 +5,7 @@ This document provides essential context for AI agents working on the Flowtra co
 ## Quick Reference
 
 **Project**: Flowtra - AI-powered video generation SaaS for small businesses
-**Framework**: Next.js 15 (App Router) + TypeScript + Supabase
+**Framework**: Next.js 16 (App Router) + TypeScript + Supabase
 **Package Manager**: `pnpm` (REQUIRED - updates pnpm-lock.yaml)
 **Design**: Minimalist black-on-white (design_guide.md)
 **UI Language**: English ONLY (except language selector native names)
@@ -108,7 +108,7 @@ This document provides essential context for AI agents working on the Flowtra co
 
 ## Technology Stack
 
-- **Frontend**: Next.js 15, React 19, TypeScript 5, TailwindCSS v4
+- **Frontend**: Next.js 16, React 19, TypeScript 5, TailwindCSS v4
 - **UI**: Radix UI (headless), Lucide Icons, Framer Motion
 - **Backend**: Supabase (PostgreSQL + Storage + Realtime)
 - **Authentication**: Clerk
@@ -440,7 +440,7 @@ Both features use **100% event-driven architecture** (webhooks + Supabase Realti
 
 **Design**: Minimalist black-on-white SaaS style (design_guide.md) with 114 components.
 
-**Tech stack**: Next.js 15, React 19, TypeScript 5, Supabase, Clerk, KIE API, OpenRouter, fal.ai.
+**Tech stack**: Next.js 16, React 19, TypeScript 5, Supabase, Clerk, KIE API, OpenRouter, fal.ai.
 
 **Package management**: pnpm ONLY - always update pnpm-lock.yaml.
 

@@ -102,7 +102,7 @@
 
 ## Architecture Overview
 
-- **Framework**: Next.js 15 (App Router) + TypeScript + Supabase
+- **Framework**: Next.js 16 (App Router) + TypeScript + Supabase
 - **Authentication**: Clerk (user_id drives all data access)
 - **Database**: Supabase PostgreSQL (18 tables)
 - **Storage**: Supabase Storage (organized by workflow/user)
@@ -705,7 +705,7 @@ pnpm install --frozen-lockfile
 - `.env.example` - Environment variable template
 
 ### External Docs
-- Next.js 15: https://nextjs.org/docs
+- Next.js 16: https://nextjs.org/docs
 - Supabase: https://supabase.com/docs
 - TailwindCSS v4: https://tailwindcss.com/docs
 - Clerk: https://clerk.com/docs

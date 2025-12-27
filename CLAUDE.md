@@ -18,13 +18,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Core Architecture
 
-This is a Next.js 15 app using the App Router with TypeScript and Supabase integration. The application provides AI-powered video generation for small businesses with two main features:
+This is a Next.js 16 app using the App Router with TypeScript and Supabase integration. The application provides AI-powered video generation for small businesses with two main features:
 
 1. **Avatar Ads** - Character-based talking head videos
 2. **Competitor UGC Replication** - Product video generation with competitor reference (clone) mode
 
 ### Technology Stack
-- **Framework**: Next.js 15 (App Router), React 19, TypeScript 5
+- **Framework**: Next.js 16 (App Router), React 19, TypeScript 5
 - **Database**: Supabase PostgreSQL (18 tables)
 - **Storage**: Supabase Storage
 - **Authentication**: Clerk
