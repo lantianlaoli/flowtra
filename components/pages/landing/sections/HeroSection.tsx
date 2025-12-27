@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { GiftIcon, Check } from 'lucide-react';
+import { GiftIcon, Check, Heart, MessageCircle, Share2, Eye, Sparkles } from 'lucide-react';
 import { SiDiscord } from 'react-icons/si';
 import { HeroPrimaryButton } from '@/components/pages/landing/HeroPrimaryButton';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
@@ -38,12 +38,12 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
 
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-black" />
-            <span>Replace competitor products with yours automatically</span>
+            <span>Swap people, products, or pets with your own</span>
           </div>
 
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-black" />
-            <span>Videos from $0.30 per 8 seconds (150x cheaper than hiring UGC creators)</span>
+            <span>Videos from $2.25 per minute (150x cheaper than hiring UGC creators)</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -111,18 +111,77 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         )}
       </div>
 
-      {/* Right Demo - Single Video Layout */}
-      <div className="lg:col-span-2 flex justify-center items-center">
-        <div className="relative w-full max-w-[320px] aspect-[9/16] bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
-          <LazyVideoPlayer
-            wrapperClassName="w-full h-full"
-            className="w-full h-full object-cover"
-            src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/hero_example.mp4"
-            ariaLabel="UGC video example for small businesses"
-            autoPlay
-            loop
-            playsInline
-          />
+      {/* Right Demo - Comparison Layout */}
+      <div className="lg:col-span-2 flex flex-col items-center justify-center">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full max-w-[480px]">
+          {/* Reference Video */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                Viral Video
+              </div>
+            </div>
+            <div className="relative aspect-[9/16] bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.05)] border border-[#E5E5E5]">
+              <LazyVideoPlayer
+                wrapperClassName="w-full h-full"
+                className="w-full h-full object-cover"
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/clone_reference.mp4"
+                ariaLabel="Competitor viral video reference"
+                autoPlay
+                loop
+                playsInline
+              />
+
+              {/* TikTok-style Social Overlays */}
+              <div className="absolute right-2 bottom-12 flex flex-col items-center gap-3 text-white">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="bg-white/20 backdrop-blur-md p-1.5 rounded-full">
+                    <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                  </div>
+                  <span className="text-[10px] font-bold drop-shadow-md">59.8K</span>
+                </div>
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="bg-white/20 backdrop-blur-md p-1.5 rounded-full">
+                    <MessageCircle className="w-4 h-4 fill-white text-white" />
+                  </div>
+                  <span className="text-[10px] font-bold drop-shadow-md">1077</span>
+                </div>
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="bg-white/20 backdrop-blur-md p-1.5 rounded-full">
+                    <Share2 className="w-4 h-4 fill-white text-white" />
+                  </div>
+                  <span className="text-[10px] font-bold drop-shadow-md">12.5K</span>
+                </div>
+              </div>
+              
+              <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white">
+                <Eye className="w-3 h-3 drop-shadow-md" />
+                <span className="text-[10px] font-bold drop-shadow-md">8.5M Views</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Result Video */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-black text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-white fill-white" />
+                Clone Result
+              </div>
+            </div>
+            <div className="relative aspect-[9/16] bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border-2 border-black">
+              <LazyVideoPlayer
+                wrapperClassName="w-full h-full"
+                className="w-full h-full object-cover"
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/clone_result.mp4"
+                ariaLabel="AI Generated result video"
+                autoPlay
+                loop
+                playsInline
+              />
+            </div>
+          </div>
         </div>
       </div>
     </section>
