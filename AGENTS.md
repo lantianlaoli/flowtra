@@ -6,6 +6,9 @@
 - **Language**: Application code, docs, comments: English. UI copy: English ONLY.
 - **Design**: Follow minimalist SaaS style from design_guide.md
 - **Secrets**: Never commit .env - copy from .env.example locally
+- **Project Structure**:
+  - `docs/` - Official API documentation (KIE, fal.ai, Creem, TikTok)
+  - `scripts/` - Test scripts and utility tools
 
 ## Core Product: Two AI Video Generation Features
 
@@ -701,7 +704,12 @@ pnpm install --frozen-lockfile
 
 ### Documentation
 - `design_guide.md` - UI design specification
-- `prompts/` - AI prompt documentation
+- `docs/` - Official API documentation
+  - `docs/kie/` - KIE API documentation (veo3.1.md, nano_banana_pro.md, callback.md)
+  - `docs/fal/` - fal.ai video merge documentation
+  - `docs/creem/` - Creem payment integration documentation
+  - `docs/tiktok/` - TikTok API integration documentation
+- `scripts/` - Test scripts and utility tools
 - `.env.example` - Environment variable template
 
 ### External Docs

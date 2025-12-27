@@ -16,6 +16,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `@playwright/test` is installed for E2E testing
 - No test scripts are currently configured in package.json
 
+## Project Structure
+
+### Directory Organization
+- **`docs/`** - Official API documentation (KIE, fal.ai, Creem, TikTok)
+  - `docs/kie/` - KIE API docs (veo3.1.md, nano_banana_pro.md, callback.md)
+  - `docs/fal/` - fal.ai video merge documentation
+  - `docs/creem/` - Creem payment integration docs
+  - `docs/tiktok/` - TikTok API integration docs
+- **`scripts/`** - Test scripts and utility tools
+  - `scripts/test-dialogue-duration.ts` - Test dialogue timing
+  - `scripts/cleanup-competitor-videos.ts` - Database cleanup utilities
+  - `scripts/send-welcome-email.ts` - Email testing
+
+**Rule**: ALL external API documentation goes in `docs/`, ALL test/utility scripts go in `scripts/`.
+
 ## Core Architecture
 
 This is a Next.js 16 app using the App Router with TypeScript and Supabase integration. The application provides AI-powered video generation for small businesses with two main features:
@@ -297,7 +312,7 @@ Unified generation-time billing - ALL models charge credits at generation start,
 ### KIE API (Primary AI Service)
 - **Image Generation**: nano_banana_pro, seedream models
 - **Video Generation**: Veo3, Veo3 Fast
-- **API Docs**: `documents/banana.md`, `documents/seedream.md`
+- **API Docs**: `docs/kie/nano_banana_pro.md`, `docs/kie/veo3.1.md`, `docs/kie/callback.md`
 - **Webhooks**: Registered for frame/video completion callbacks
 
 ### OpenRouter (AI Text Generation)

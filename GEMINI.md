@@ -10,6 +10,14 @@ This document provides essential context for AI agents working on the Flowtra co
 **Design**: Minimalist black-on-white (design_guide.md)
 **UI Language**: English ONLY (except language selector native names)
 
+## Project Structure
+
+**Directory Rules**:
+- **`docs/`** - Official API documentation (KIE, fal.ai, Creem, TikTok)
+- **`scripts/`** - Test scripts and utility tools
+
+**Rule**: ALL external API docs go in `docs/`, ALL test/utility scripts go in `scripts/`.
+
 ## Core Product: Two AI Video Features
 
 ### 1. Avatar Ads (Character-Based Advertisements)
