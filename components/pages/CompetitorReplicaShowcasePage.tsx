@@ -328,7 +328,7 @@ export default function CompetitorReplicaShowcasePage() {
                            </div>
                            <div>
                              <span className="text-gray-400 text-[10px] uppercase tracking-wide font-sans block mb-1">Audio</span>
-                             <p className="text-gray-600 italic leading-snug">"{shot.audio}"</p>
+                             <p className="text-gray-600 italic leading-snug">&quot;{shot.audio}&quot;</p>
                            </div>
                            <div>
                              <span className="text-gray-400 text-[10px] uppercase tracking-wide font-sans block mb-1">Visual</span>
@@ -389,7 +389,7 @@ export default function CompetitorReplicaShowcasePage() {
                        Fine-Tune Every Shot
                     </h2>
                     <p className="text-gray-600 text-lg leading-relaxed">
-                       Don't just clone—perfect it. Our advanced Segment Editor gives you complete control over each shot in the sequence.
+                       Don&apos;t just clone—perfect it. Our advanced Segment Editor gives you complete control over each shot in the sequence.
                     </p>
                  </div>
                  
@@ -400,7 +400,7 @@ export default function CompetitorReplicaShowcasePage() {
                        </div>
                        <div>
                           <h3 className="text-lg font-semibold text-gray-900">Custom First Frames</h3>
-                          <p className="text-gray-600 mt-1">Upload or generate specific starting images for each segment to guide the AI's visual consistency.</p>
+                          <p className="text-gray-600 mt-1">Upload or generate specific starting images for each segment to guide the AI&apos;s visual consistency.</p>
                        </div>
                     </div>
                     

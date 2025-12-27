@@ -801,7 +801,7 @@ export default function SegmentInspector({
 
                 {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
                   <p className="text-[11px] text-amber-600">
-                    You've exceeded the {MAX_TOTAL_REFERENCES}-image limit for references (products + characters).
+                    You&apos;ve exceeded the {MAX_TOTAL_REFERENCES}-image limit for references (products + characters).
                   </p>
                 )}
               </div>

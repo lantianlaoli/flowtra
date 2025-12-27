@@ -22,7 +22,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-black leading-tight tracking-[-0.02em]">
-          Turn Your Competitors' <span className="underline decoration-[#E5E5E5] underline-offset-8">Viral Videos</span> Into Your Own
+          Turn Your Competitors&apos; <span className="underline decoration-[#E5E5E5] underline-offset-8">Viral Videos</span> Into Your Own
         </h1>
 
         <p className="text-xl text-[#666666] leading-relaxed max-w-lg">

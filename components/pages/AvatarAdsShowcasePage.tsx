@@ -206,7 +206,7 @@ export default function AvatarAdsShowcasePage() {
                        </div>
                        <div>
                           <h3 className="font-semibold text-xl text-black">Default to Strongest Model</h3>
-                          <p className="text-gray-600">Automatically selects the most powerful Veo3.1 video model by default, so you don't have to worry about complex choices.</p>
+                          <p className="text-gray-600">Automatically selects the most powerful Veo3.1 video model by default, so you don&apos;t have to worry about complex choices.</p>
                        </div>
                     </li>
                  </ul>

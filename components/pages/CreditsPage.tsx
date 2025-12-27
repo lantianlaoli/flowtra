@@ -510,7 +510,7 @@ export default function CreditsPage() {
                             month: 'long',
                             day: 'numeric',
                             year: 'numeric'
-                          })}. You'll continue to have access until {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
+                          })}. You&apos;ll continue to have access until {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
                             month: 'long',
                             day: 'numeric',
                             year: 'numeric'
