@@ -255,25 +255,8 @@ export default function CompetitorUgcReplicationPage() {
   const effectiveImageModel = hasCompetitorReference ? 'nano_banana_pro' : selectedImageModel;
 
   // Modal states for user guidance
-  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
-
-  // Show welcome modal for first-time visitors with no selections
-  useEffect(() => {
-    const hasSeenWelcome = localStorage.getItem('flowtra_competitor_ugc_replication_welcome_seen');
-    const hasNoSelections = !selectedBrand && !selectedCompetitorAd;
-
-    if (!hasSeenWelcome && hasNoSelections && generations.length === 0) {
-      // Wait a bit before showing to let the page load
-      const timer = setTimeout(() => {
-        setShowWelcomeModal(true);
-        localStorage.setItem('flowtra_competitor_ugc_replication_welcome_seen', 'true');
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [selectedBrand, selectedCompetitorAd, generations.length]);
 
   // Auto-switch language when competitor ad with language is selected (only on first selection)
   useEffect(() => {
@@ -1482,38 +1465,6 @@ export default function CompetitorUgcReplicationPage() {
             selectedCompetitorAd={selectedCompetitorAd}
             onSelect={setSelectedCompetitorAd}
           />
-        </div>
-      </div>
-    )}
-
-    {/* Welcome Modal - First time visitors with no assets */}
-    {showWelcomeModal && (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-              <Boxes className="w-6 h-6 text-blue-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900">Welcome to Viral Video Replication!</h3>
-          </div>
-          <p className="text-gray-600 mb-6">
-            To create amazing videos, you need to set up your brands and products first.
-            Would you like to go to the Assets page now?
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowWelcomeModal(false)}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Maybe Later
-            </button>
-            <Link
-              href="/dashboard/assets"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center font-medium"
-            >
-              Go to Assets
-            </Link>
-          </div>
         </div>
       </div>
     )}
