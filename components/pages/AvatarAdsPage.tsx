@@ -682,6 +682,7 @@ const formatDurationLabel = (seconds: number) => {
           status: computedStatus,
           progress: progressValue ?? gen.progress,
           stage: stageLabel,
+          currentStep: project.current_step || undefined,
           videoUrl: project.merged_video_url || project.generated_video_urls?.[0] || gen.videoUrl,
           coverUrl: project.generated_image_url || gen.coverUrl,
           videoModel: (project.video_model as Generation['videoModel']) || gen.videoModel,

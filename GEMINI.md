@@ -1,94 +1,447 @@
 # Flowtra Developer Context (GEMINI.md)
 
-This document provides the necessary context, conventions, and architectural overview for an AI agent to effectively work on the Flowtra codebase.
+This document provides essential context for AI agents working on the Flowtra codebase.
 
-## 1. Project Overview
+## Quick Reference
 
-Flowtra is a modern **Next.js 15** application designed to help small businesses (Shopify, Etsy, etc.) generate UGC-style marketing videos and images using AI. It integrates deeply with generative AI models (KIE, OpenRouter) and uses a credit-based system for billing.
+**Project**: Flowtra - AI-powered video generation SaaS for small businesses
+**Framework**: Next.js 15 (App Router) + TypeScript + Supabase
+**Package Manager**: `pnpm` (REQUIRED - updates pnpm-lock.yaml)
+**Design**: Minimalist black-on-white (design_guide.md)
+**UI Language**: English ONLY (except language selector native names)
 
-### Key Technologies
-- **Framework:** Next.js 15 (App Router)
-- **Language:** TypeScript (Strict Mode)
-- **Styling:** Tailwind CSS v4 (Dark Mode supported)
-- **Database:** Supabase
-- **Authentication:** Clerk
-- **AI Integration:**
-    - **KIE API:** Video/Image generation (Veo3, Sora2, Sora2 Pro).
-    - **OpenRouter:** Prompt engineering and text generation.
-- **Analytics:** PostHog, Vercel Analytics
-- **Payments:** Creem (via custom integration)
-- **Package Manager:** `pnpm` (Strict enforcement)
+## Core Product: Two AI Video Features
 
-## 2. Architecture & Directory Structure
+### 1. Avatar Ads (Character-Based Advertisements)
 
-### Core Directories
-- **`app/`**: Application routes (App Router).
-    - `api/`: Backend logic (Route Handlers). This is where most server-side logic connects to `lib/`.
-    - `dashboard/`: Authenticated user interface.
-    - `(app-shell)/`: Layouts for the main application experience.
-- **`components/`**: Reusable UI components (PascalCase).
-- **`lib/`**: The "Brain" of the backend. Contains business logic, workflow orchestration, and API clients.
-    - `*-workflow.ts`: Orchestrates complex AI generation tasks (Competitor UGC Replication, Avatar Ads).
-    - `kie-*.ts`: KIE API wrappers and credit checks.
-    - `supabase.ts`: Database client initialization.
-    - `constants.ts`: **CRITICAL**. Contains pricing models, credit costs, and configuration.
-- **`hooks/`**: Custom React hooks (`useCompetitorUgcReplicationWorkflow`, etc.).
-- **`contexts/`**: Global state (Credits, Toasts).
+**Purpose**: Generate talking head videos where a character discusses a product or topic.
 
-### Key Workflows (The "Product")
-1.  **Competitor UGC Replication**: Single video generation from product images.
-2.  **Avatar Ads**: Character-driven advertisements.
-3.  **Watermark Removal**: Specialized tool for cleaning video outputs.
+**User Flow**:
+1. Upload character photo
+2. Select product (optional) or enter custom dialogue
+3. Configure: Duration (8-80s), language, format (16:9/9:16)
+4. AI generates: Cover image → Video scenes → Merged video
 
-## 3. Billing & Credit Model (Version 3.0)
+**Implementation**:
+- Workflow: `lib/avatar-ads-workflow.ts`
+- UI: `components/pages/AvatarAdsPage.tsx`
+- API: `app/api/avatar-ads/` (create, status, download, webhooks)
+- Database: `avatar_ads_projects` (main), `avatar_ads_scenes` (child)
+- Models: veo3_fast (video), nano_banana_pro/seedream (image)
+- Architecture: 100% event-driven (webhooks + Supabase Realtime)
 
-**Crucial Concept:** The application uses a "Mixed Billing" model. You MUST understand this before modifying generation or download logic.
+**Workflow Steps**:
+1. Prompt Generation → 2. Image Generation → 3. User Review → 4. Video Generation → 5. Merge → 6. Completion
 
--   **Basic Models (e.g., Veo3 Fast, Sora2):**
-    -   **Generation:** FREE (0 credits deducted).
-    -   **Download:** PAID (credits deducted on first download).
--   **Premium Models (e.g., Veo3, Sora2 Pro):**
-    -   **Generation:** PAID (credits deducted upfront).
-    -   **Download:** FREE (no additional cost).
+**Two Modes**:
+- Product-Based: Character showcases product
+- Talking Head: Character speaks on topic (no product)
 
-*Reference `lib/constants.ts` for exact costs and model classifications.*
+### 2. Competitor UGC Replication (Clone Feature)
 
-## 4. Development Conventions
+**Purpose**: Analyze competitor ads and generate similar videos for your products.
 
-### General
--   **Package Manager:** ALWAYS use `pnpm`.
-    -   `pnpm dev`: Start dev server.
-    -   `pnpm build`: Production build.
-    -   `pnpm lint`: Run ESLint.
--   **Language:** Write code in English. Comments in English.
--   **Formatting:** Prettier is likely used (inferred). Match existing style.
+**Two Modes**:
+1. **Traditional**: Product photo → Original video
+2. **Competitor Reference (Clone)**: Competitor ad + product → Cloned structure with your product
 
-### Coding Style
--   **Imports:** Group imports logically (External -> Internal -> Styles).
--   **Components:** Use Functional Components with TypeScript interfaces for props.
--   **Server Actions/APIs:** Prefer Route Handlers in `app/api/` for complex logic over Server Actions if heavy processing/timeouts are a concern (due to Vercel limits on Server Actions in some contexts, though Next.js 15 supports them well; follow existing patterns).
--   **Error Handling:** Use `fetchWithRetry` for external APIs. Log errors to PostHog/Console but NEVER log secrets.
+**Clone Process**:
+1. Upload competitor video
+2. AI analyzes: Shot breakdown (10 elements/shot), timing, style, camera work
+3. AI generates prompts that clone structure but feature your product
+4. Generate video in 8-second segments with continuation frames
 
-### AI Prompt Engineering
--   Prompts live in code (e.g., `lib/*-ads-workflow.ts`).
--   When modifying prompts, ensure you understand the JSON schema expected by the AI models.
--   **Dual-Mode:** "Competitor UGC Replication" supports both "Traditional" (pure generation) and "Competitor Reference" (cloning structure) modes.
+**Implementation**:
+- Workflow: `lib/competitor-ugc-replication-workflow.ts`
+- UI: `components/pages/CompetitorUgcReplicationPage.tsx`
+- API: `app/api/competitor-ugc-replication/` (create, status, merge, webhooks)
+- Database: `competitor_ugc_replication_projects`, `competitor_ugc_replication_segments`
+- Models: veo3 or veo3_fast (user choice)
+- Architecture: 3-phase (Frame → Video → Merge), event-driven
 
-## 5. Environment Variables
-(See `.env.example` for the full list)
--   `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
--   `SUPABASE_SECRET_KEY` (Server-side only)
--   `CLERK_SECRET_KEY` / `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
--   `KIE_API_KEY`
--   `OPENROUTER_API_KEY`
+**3-Phase Workflow**:
+1. Frame Generation (Sequential with continuation)
+2. Video Generation (Parallel)
+3. Video Merge (Conditional - only for multi-segment)
 
-## 6. Important "Do Nots"
--   **DO NOT** commit `.env` files.
--   **DO NOT** change the billing logic in `lib/constants.ts` without explicit instruction.
--   **DO NOT** revert the "Mixed Billing" model to a purely upfront or purely download-based model.
--   **DO NOT** remove English UI copy.
+## Credit System (Version 2.0)
 
-## 7. Testing
--   **End-to-End:** Playwright is installed. Look for tests in `tests/` or similar (if they exist).
--   **Linting:** Run `pnpm lint` before declaring a task complete.
--   **Type Check:** Run `pnpm type-check` to ensure TypeScript safety.
+**Billing Model**: Unified generation-time billing
+- **ALL models**: Credits deducted at generation start (upfront)
+- **ALL downloads**: FREE (no credit deduction)
+- **Refunds**: Automatic if generation fails
+
+**Costs**:
+- Veo3.1: 150 credits per 8s segment
+- Veo3.1 Fast: 20 credits per 8s segment
+- Image generation: FREE
+- Video merge: FREE
+
+**Important**: Do NOT implement Version 3.0 mixed billing (deprecated).
+
+## Database Schema (18 Tables)
+
+### Projects (4)
+- `competitor_ugc_replication_projects` - UGC clone projects
+- `competitor_ugc_replication_segments` - 8-second video segments
+- `avatar_ads_projects` - Character ad projects
+- `avatar_ads_scenes` - Individual video scenes
+
+### User & Credits (3)
+- `user_credits` - Credit balance
+- `credit_transactions` - Audit ledger
+- `user_subscriptions` - Subscription management
+
+### Assets (5)
+- `user_brands` - Brand profiles
+- `user_products` - Product catalog
+- `user_product_photos` - Product images
+- `user_avatars` - Character photos
+- `competitor_ads` - Competitor analysis data
+
+### Support (6)
+- `articles` - Blog content
+- `user_tiktok_connections` - TikTok integration
+- `images` - Supabase Storage
+- `subscription_events` - Billing events
+- `competitor_videos` - Temporary storage
+
+## Technology Stack
+
+- **Frontend**: Next.js 15, React 19, TypeScript 5, TailwindCSS v4
+- **UI**: Radix UI (headless), Lucide Icons, Framer Motion
+- **Backend**: Supabase (PostgreSQL + Storage + Realtime)
+- **Authentication**: Clerk
+- **AI APIs**: KIE (image/video), OpenRouter (Gemini 2.5 Flash), fal.ai (merge)
+- **Package Manager**: pnpm (strict enforcement)
+
+## Design System (design_guide.md)
+
+### Philosophy
+- Minimalism: High white space, clean geometry
+- High Contrast: Black-on-white (#000000 on #FFFFFF)
+- Geometric Precision: 8px border-radius, grid-aligned
+- Typography: Geometric Sans-Serif (Inter/Plus Jakarta Sans)
+
+### Color Palette
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| color-bg-primary | #FFFFFF | Main background |
+| color-bg-secondary | #F7F7F7 | Cards, sections |
+| color-text-primary | #000000 | Headings, buttons |
+| color-text-secondary | #666666 | Body text |
+| color-border | #E5E5E5 | Borders |
+| color-accent | #000000 | CTAs, active states |
+
+### Typography
+- H1: 48-64px Bold, Letter-spacing: -0.02em
+- H2: 32-40px Semi-Bold
+- H3: 20-24px Semi-Bold
+- Body: 16px Regular, Line-height: 1.6
+
+### Components (114 total)
+- Base UI: 49 components in `/components/ui/`
+- Feature pages: AvatarAdsPage, CompetitorUgcReplicationPage
+- Managers: Brand, Product, Assets (CRUD interfaces)
+
+## CRITICAL Requirements
+
+### 1. UI Language: English ONLY
+
+**ALL user-facing text must be in English**:
+- ✓ Button labels: "Generate Video" (NOT "生成视频")
+- ✓ Form inputs: placeholders, labels, validation messages
+- ✓ Toasts: success/error notifications
+- ✓ Modals: titles, descriptions
+- ✓ Help text: tooltips, instructions
+
+**Exception**: Language selector native names (e.g., '中文' for Chinese option)
+
+**Why**: Product maintains English-first UX. Chinese language support is for AI prompt generation, not UI copy.
+
+**Locations to Check**:
+- `/components/ui/LanguageSelector.tsx`
+- `/components/competitor-ugc-replication/SegmentInspector.tsx`
+- `/components/EditCompetitorAdModal.tsx`
+
+### 2. Package Manager: pnpm ONLY
+
+**ALWAYS use pnpm** (never npm or yarn):
+
+```bash
+pnpm install                    # Install dependencies
+pnpm add <package>              # Add package (updates pnpm-lock.yaml)
+pnpm add -D <package>           # Add dev dependency
+pnpm remove <package>           # Remove package (updates lock file)
+```
+
+**Lock File Rules**:
+1. EVERY `pnpm add` or `pnpm remove` updates `pnpm-lock.yaml`
+2. ALWAYS commit the updated lock file
+3. NEVER manually edit pnpm-lock.yaml
+4. Before commit: `git diff pnpm-lock.yaml` (verify changes)
+
+**Why**: Lock file ensures deterministic builds. Mismatched dependencies cause Vercel build failures.
+
+### 3. Pre-Deployment Checks
+
+Run before every commit:
+
+```bash
+pnpm lint                       # Fix ESLint errors
+pnpm type-check                 # Fix TypeScript errors
+pnpm build                      # Ensure production build succeeds
+```
+
+## Development Commands
+
+```bash
+pnpm dev              # Start dev server (http://localhost:3000)
+pnpm build            # Production build
+pnpm start            # Start production server
+pnpm lint             # Run ESLint
+pnpm type-check       # TypeScript validation
+npx playwright test   # E2E tests
+```
+
+## Environment Variables
+
+**Required** (see .env.example):
+
+### Supabase
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
+
+### AI Services
+- `KIE_API_KEY`
+- `OPENROUTER_API_KEY`
+- `FAL_KEY`
+
+### Authentication
+- `CLERK_SECRET_KEY`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+
+### Webhooks
+- `NEXT_PUBLIC_SITE_URL` (webhook URLs - use ngrok for local dev)
+
+**Never commit .env** - copy from .env.example locally.
+
+## Key Architectural Patterns
+
+### Event-Driven Architecture (100%)
+- NO polling, NO cron jobs, NO monitor-tasks
+- ALL workflow progression via webhooks
+- Webhooks → Database → Supabase Realtime → Frontend (<1s latency)
+
+**Example Flow** (Avatar Ads):
+```
+User Action → Create API → Non-blocking Workflow
+                              ↓
+                         KIE Image Webhook → DB Update → Realtime → UI
+                              ↓
+                         User Reviews
+                              ↓
+                         KIE Video Webhooks → DB Updates → Realtime → UI
+                              ↓
+                         fal.ai Merge Webhook → Final Status → UI
+```
+
+### Idempotency
+- Webhook handlers check `webhook_received_at` timestamp
+- Multiple webhook deliveries safe (no duplicate processing)
+- Stateless webhook handlers
+
+**Example**:
+```typescript
+if (segment.first_frame_webhook_received_at) {
+  return new Response(JSON.stringify({ success: true }), { status: 200 });
+}
+```
+
+### Non-Blocking Workflows
+- API endpoints return immediately
+- Background tasks run async (IIFE or fire-and-forget)
+- User sees instant confirmation
+
+**Example**:
+```typescript
+// Return immediately
+const { data: project } = await supabase.from('avatar_ads_projects').insert({...}).single();
+
+// Background workflow (fire-and-forget)
+(async () => {
+  await runAvatarAdsWorkflow(project.id);
+})();
+
+return new Response(JSON.stringify({ project_id: project.id }), { status: 200 });
+```
+
+### Continuation Frames (UGC Replication)
+- Segment 2+ use previous segment's first frame as visual reference
+- Ensures coherent narrative flow
+- Frame webhook auto-triggers next segment generation
+
+## Important "Do Nots"
+
+1. **DO NOT** use npm or yarn (pnpm only)
+2. **DO NOT** commit .env files
+3. **DO NOT** add Chinese UI text (English only)
+4. **DO NOT** implement Version 3.0 billing (use Version 2.0)
+5. **DO NOT** skip pnpm-lock.yaml commits
+6. **DO NOT** add polling/cron jobs (use webhooks)
+7. **DO NOT** manually edit pnpm-lock.yaml
+8. **DO NOT** use `setInterval` for status updates (use Supabase Realtime)
+9. **DO NOT** skip type-check before building
+10. **DO NOT** expose API keys in client code
+
+## Testing Guidelines
+
+- **E2E**: Playwright tests (when present)
+- **Linting**: `pnpm lint` before declaring task complete
+- **Type Check**: `pnpm type-check` for TypeScript safety
+- **Build**: `pnpm build` to verify production build
+
+**Testing Realtime Updates**:
+1. Open browser console and watch for Realtime logs
+2. Create new project
+3. Observe real-time status changes without page refresh
+4. Verify no polling requests in Network tab
+
+## Common Tasks
+
+### Adding New Feature
+1. Check `design_guide.md` for UI patterns
+2. Add database table/migration if needed
+3. Implement workflow in `lib/{feature}-workflow.ts`
+4. Create UI in `components/pages/{Feature}Page.tsx`
+5. Add API routes in `app/api/{feature}/`
+6. Add webhook handlers if event-driven
+7. Test: Create → Monitor → Verify
+
+### Modifying Prompts
+1. Update in `lib/{workflow}-workflow.ts`
+2. Document change reason (comment)
+3. Test with real projects
+4. Verify JSON output format
+
+### Debugging Webhooks
+1. Check Supabase logs (database updates)
+2. Check Vercel logs (webhook execution)
+3. Verify `webhook_received_at` set
+4. Test locally: ngrok + NEXT_PUBLIC_SITE_URL
+
+### Managing Dependencies
+```bash
+# Add package
+pnpm add @radix-ui/react-dialog
+
+# Verify lock file updated
+git diff pnpm-lock.yaml
+
+# Commit both
+git add package.json pnpm-lock.yaml
+git commit -m "feat: add radix dialog component"
+```
+
+## Common Errors & Solutions
+
+### Vercel Build Failure: Type Error
+**Error**: `Type 'string' is not assignable to type 'VideoDuration'`
+
+**Solution**: Check if type union changed in `lib/constants.ts`, update all components using the type
+
+### Webhook Not Triggering
+**Error**: Status stuck on `generating_image`
+
+**Solution**: Check KIE API task_id, verify webhook URL, test endpoint with curl, check Vercel logs
+
+### Realtime Not Updating
+**Error**: UI not updating after webhook completes
+
+**Solution**: Verify Supabase Realtime enabled:
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE avatar_ads_projects;
+```
+
+### pnpm Lock File Conflict
+**Error**: Merge conflict in `pnpm-lock.yaml`
+
+**Solution**:
+```bash
+git checkout --theirs pnpm-lock.yaml
+pnpm install
+pnpm install --frozen-lockfile
+```
+
+## Performance Best Practices
+
+### Database
+- Use `.select()` to specify columns
+- Use `.limit()` for pagination
+- Create indexes on frequently queried columns
+
+### Images
+- Use Next.js Image component
+- Compress images client-side before upload
+- Configure domains in `next.config.js`
+
+### Videos
+- Generate segments in parallel
+- Use webhooks instead of polling
+- Cache merged videos in Supabase Storage
+
+## Security Best Practices
+
+### API Routes
+- Use Clerk middleware for `/dashboard` routes
+- Validate user ownership before operations
+- Never expose API keys in client code
+
+### Input Validation
+- Use Zod schemas for request validation
+- Sanitize user inputs before AI prompts
+- Validate file types and sizes on upload
+
+### Webhooks
+- Verify webhook signatures (if available)
+- Use idempotency checks
+- Return 200 status even on errors (prevents retries)
+
+## Key Libraries
+
+### UI
+- TailwindCSS v4, Radix UI, Lucide React, Framer Motion
+- CVA (class-variance-authority) for component variants
+
+### Data & Validation
+- Supabase client, Zod (schema validation)
+- React hooks for API calls
+
+### AI & Media
+- @fal-ai/client (video merge)
+- Custom fetch utilities with retry logic
+- Browser Image Compression
+
+### Analytics
+- Vercel Analytics, PostHog
+
+## Project Context Summary
+
+**Flowtra** helps small businesses generate UGC-style marketing videos using AI. The app has two primary features:
+
+1. **Avatar Ads**: Character-based talking head videos (8-80s, multi-language support)
+2. **Competitor UGC Replication**: Clone competitor ad structure for your products (8-64s, dual-mode)
+
+Both features use **100% event-driven architecture** (webhooks + Supabase Realtime) for real-time status updates with <1s latency.
+
+**Credit billing**: Generation-time (upfront), with free downloads and automatic refunds on failure.
+
+**Design**: Minimalist black-on-white SaaS style (design_guide.md) with 114 components.
+
+**Tech stack**: Next.js 15, React 19, TypeScript 5, Supabase, Clerk, KIE API, OpenRouter, fal.ai.
+
+**Package management**: pnpm ONLY - always update pnpm-lock.yaml.
+
+**UI language**: English ONLY (except language selector native names).

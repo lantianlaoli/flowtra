@@ -108,12 +108,7 @@ export default function CreateCompetitorAdModal({
         return;
       }
 
-      // Validate file size
-      if (file.size > 50 * 1024 * 1024) {
-        setError('File size must be less than 50MB.');
-        setCompressionLink('https://www.onlineconverter.com/compress-video');
-        return;
-      }
+      // No file size limit - all video sizes accepted
 
       setAdFile(file);
       setFileType('video'); // Always video now
@@ -337,7 +332,7 @@ export default function CreateCompetitorAdModal({
                   <p className="text-lg font-medium text-gray-800 mb-2">Upload a video</p>
                   <p className="text-sm text-gray-500">Choose a viral video to preview and analyze.</p>
                   <p className="text-xs text-gray-400 mt-3">
-                    Max file size: 50MB • Video only
+                    Video files only • No file size limit
                   </p>
                   {!canSelectFile && (
                     <p className="text-xs text-gray-500 mt-2">Finish the current upload before adding another file.</p>

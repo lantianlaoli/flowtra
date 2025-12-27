@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Commands
+## Quick Start Commands
 
 ### Development
 - `pnpm dev` - Start development server with Turbo (recommended)
@@ -16,610 +16,549 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `@playwright/test` is installed for E2E testing
 - No test scripts are currently configured in package.json
 
-## Architecture Overview
+## Core Architecture
 
-### Core Application Structure
-This is a Next.js 15 app using the App Router with TypeScript and Supabase integration. The application focuses on AI-powered video and image generation workflows.
+This is a Next.js 15 app using the App Router with TypeScript and Supabase integration. The application provides AI-powered video generation for small businesses with two main features:
 
-### Key Workflows
-The application implements two main AI workflows:
+1. **Avatar Ads** - Character-based talking head videos
+2. **Competitor UGC Replication** - Product video generation with competitor reference (clone) mode
 
-1. **Competitor UGC Replication** (`/dashboard/competitor-ugc-replication`)
-   - Single video generation from product images
-   - Uses OpenRouter AI for image description and prompt generation
-   - Integrates with KIE API for cover image and video generation
-   - Table: `competitor_ugc_replication_projects`
-   - Workflow: `lib/competitor-ugc-replication-workflow.ts`
+### Technology Stack
+- **Framework**: Next.js 15 (App Router), React 19, TypeScript 5
+- **Database**: Supabase PostgreSQL (18 tables)
+- **Storage**: Supabase Storage
+- **Authentication**: Clerk
+- **Styling**: TailwindCSS v4, Radix UI, Lucide Icons, Framer Motion
+- **AI Services**: KIE API (image/video), OpenRouter (Gemini 2.5 Flash), fal.ai (video merge)
+- **Realtime**: Supabase Realtime (PostgreSQL pub/sub)
+- **Analytics**: Vercel Analytics, PostHog
 
-2. **Avatar Ads**
-   - Character-based advertisement generation
-   - Table: `avatar_ads_projects`
-   - Workflow: `lib/avatar-ads-workflow.ts`
+## Feature 1: Avatar Ads (Character-Based Advertisements)
 
-### Database Schema
-- **Main Tables**: `competitor_ugc_replication_projects`, `avatar_ads_projects`
-- **Legacy Tables**: Old table names (`single_video_projects`) have been migrated
-- **Authentication**: Managed by Clerk
-- **Credits System**: User credits stored in Supabase, costs defined in `lib/constants.ts`
+### Overview
+AI-powered talking head videos where a character (avatar) discusses a product or topic. 100% event-driven architecture with webhooks and Supabase Realtime for instant status updates.
 
-### External APIs
-- **KIE API**: Primary AI service for image and video generation
-  - Image models: `google/nano-banana-edit`, `bytedance/seedream-v4-edit`
-  - Video models: Veo3 (fast/high-quality), Sora2, Sora2 Pro
-  - API docs: `documents/banana.md`, `documents/seedream.md`
-- **OpenRouter**: For AI text generation (image descriptions, prompts)
-- **Supabase**: Database and file storage
-- **Clerk**: Authentication
+### User Flow
+1. Upload character photo
+2. Select product (optional) or enter custom dialogue
+3. Configure: Duration (8-80s), language, format (16:9 or 9:16)
+4. AI generates: Cover image → Video scenes → Merged video
 
-### API Structure
-- **Creation endpoints**: `/api/{workflow}/create` - Start new workflows
-- **Status endpoints**: `/api/{workflow}/[id]/status` - Check workflow progress
-- **History endpoints**: `/api/{workflow}/history` - List user's projects
-- **Webhook endpoints** (Both workflows): `/api/{workflow}/webhooks/{frame|video|merge}` - KIE API & fal.ai callbacks for event-driven workflow
+### Key Implementation Details
 
-**IMPORTANT**:
-- **Both Avatar Ads and Competitor UGC Replication**: Use **100% event-driven architecture** (webhooks + Supabase Realtime)
-- **NO polling or monitor-tasks** - All status updates via webhooks with <1s latency
+**Files**:
+- Workflow: `lib/avatar-ads-workflow.ts` (1,639 lines)
+- UI: `components/pages/AvatarAdsPage.tsx` (1,402 lines)
+- API: `app/api/avatar-ads/` (create, status, download, webhooks)
 
-### Credit System (Unified Generation-Time Billing - Version 2.0)
-- **Billing Model**: Unified system - ALL models charge at generation, downloads are FREE
-  - **ALL Video Models**: PAID generation → FREE download
-  - **Generation Costs** (all models charge upfront):
-    - Veo3: 150 credits per 8s segment
-    - Veo3 Fast: 20 credits per 8s segment
-    - Sora2: 6 credits per 10s video
-    - Sora2 Pro: 75-315 credits (dynamic based on duration/quality)
-    - Grok: 20 credits per 6s segment
-    - Kling 2.6: 110 credits per 5s block
-  - **Download Costs**: 0 credits (ALL downloads are FREE)
-- **Image generation**: Always free (nano_banana, seedream)
-- **Initial credits**: 100 for new users
-- **Automatic refunds**: Credits refunded if generation fails
+**Database Tables**:
+- `avatar_ads_projects` - Main project records
+- `avatar_ads_scenes` - Individual video scenes (8-second segments)
 
-### Environment Variables
-Required environment variables (check existing code for complete list):
-- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SECRET_KEY` (server-side only, for admin operations)
-- `KIE_API_KEY`, `OPENROUTER_API_KEY`
-- `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-- Credit thresholds: `KIE_CREDIT_THRESHOLD`
+**Models**:
+- Video: veo3_fast (fixed, 20 credits per 8s segment)
+- Image: nano_banana_pro or seedream (user choice)
 
-### Image Optimization
-Next.js image optimization is configured for:
-- Unsplash, Supabase storage, Clerk, aiquickdraw.com, aiproxy.vip domains
-- WebP/AVIF formats with multiple device sizes
-- Production console removal enabled
+### Technical Architecture
 
-### Security & Routing
-- Clerk middleware protects `/dashboard` and sensitive API routes
-- Redirects: Legacy routes redirect to new standardized naming
-- Security headers configured for XSS protection, content sniffing prevention
+**Workflow Steps**:
+1. `generate_prompts` - Gemini 2.5 Flash analyzes character/product and generates scene prompts
+2. `generate_image` - KIE API creates cover image
+3. `check_image_status` - Polls until image complete, awaits user review
+4. `generate_videos` - KIE API creates 8-second video segments in parallel
+5. `check_videos_status` - Monitors video completion with retry logic
+6. `merge_videos` - fal.ai combines segments (webhook-based)
 
-### Monitoring & Background Jobs
-
-### Event-Driven Architecture (Both Workflows)
-
-**Avatar Ads**:
-- Uses **webhooks + Supabase Realtime** for instant status updates
+**Event-Driven Architecture**:
 - Webhook endpoints: `/api/avatar-ads/webhooks/{image|video|merge}`
 - KIE webhooks push updates to database → Supabase Realtime → Frontend (<1s latency)
-- 100% event-driven: Zero polling, zero cron jobs
+- NO polling loops, NO cron jobs, 100% event-driven
+- Idempotency: `webhook_received_at` timestamps prevent duplicate processing
 
-**Competitor UGC Replication**:
-- Uses **webhooks + Supabase Realtime** for instant status updates
+**Credit Billing**:
+- Generation-time deduction: Credits charged before video generation starts
+- Free downloads: No credit deduction for downloads
+- Automatic refunds: Credits returned if generation fails after max retries
+
+**Two Modes**:
+1. **Product-Based**: Character showcases product with AI-generated dialogue
+2. **Talking Head**: Character speaks about topic/script (no product selected)
+
+## Feature 2: Competitor UGC Replication (Clone Feature)
+
+### Overview
+Product video generation with dual-mode system: Traditional (original creative) vs Competitor Reference Mode (clone competitor ad structure). Uses 8-second segments with continuation frames for visual coherence.
+
+### User Flow
+1. Upload product image(s)
+2. Select brand and competitor ad (optional - triggers clone mode)
+3. Choose video model (veo3 or veo3_fast), duration (8-64s), language
+4. AI generates: Frame generation → Video generation → Merge
+
+### Competitor Reference Mode (Clone)
+
+**Purpose**: Analyze competitor advertisements and generate similar videos featuring the user's product.
+
+**Process**:
+1. User uploads competitor video
+2. AI analyzes complete ad structure:
+   - Shot-by-shot breakdown (10 elements per shot)
+   - Complete video script and narrative flow
+   - First frame composition for cover generation
+   - Camera movements and transitions
+   - Color palette and visual aesthetics
+   - Brand/product containment flags
+3. AI generates prompts that clone competitor's structure but replace with user's product
+4. Video generated in 8-second segments with continuation frames
+
+**Implementation**: `analyzeCompetitorAdWithLanguage()` in `lib/competitor-ugc-replication-workflow.ts` (lines 1219-1518)
+
+### Key Implementation Details
+
+**Files**:
+- Workflow: `lib/competitor-ugc-replication-workflow.ts` (2,922 lines)
+- UI: `components/pages/CompetitorUgcReplicationPage.tsx`
+- API: `app/api/competitor-ugc-replication/` (create, status, merge, webhooks)
+- Competitor shots: `lib/competitor-shots.ts` (shot data structure)
+
+**Database Tables**:
+- `competitor_ugc_replication_projects` - Main project records
+- `competitor_ugc_replication_segments` - 8-second video segments with continuation support
+- `competitor_ads` - Competitor analysis data (shot breakdown, timing, style)
+
+**Models**:
+- Video: veo3 (150 credits/8s) or veo3_fast (20 credits/8s) - user choice
+- Image: nano_banana_pro or seedream for frame generation
+
+### Technical Architecture
+
+**3-Phase Workflow**:
+1. **Frame Generation** (Sequential with continuation):
+   - Generate first frame for each segment via KIE API
+   - Segments with `is_continuation_from_prev=true` wait for previous segment's frame
+   - Frame webhook auto-triggers next segment's frame generation
+   - Smart routing: Brand/product shots use reference images
+   - Duration: 30-60 seconds per frame
+
+2. **Video Generation** (Parallel):
+   - Once ALL frames ready, user triggers video generation
+   - Each segment generates in parallel using KIE Veo3 API
+   - Uses first frame + closing frame (if available) for smooth transitions
+   - Duration: 60-180 seconds per segment
+
+3. **Video Merge** (Conditional):
+   - Single segment (8s) → No merge, directly marked completed
+   - Multiple segments → User triggers fal.ai merge
+   - Duration: 5-30 seconds
+
+**Event-Driven Architecture**:
 - Webhook endpoints: `/api/competitor-ugc-replication/webhooks/{frame|video|merge}`
-- Webhooks directly trigger next workflow steps (e.g., continuation frames, merge)
 - Frame webhook auto-triggers next segment when continuation dependency resolved
-- 100% event-driven: Zero polling, zero cron jobs
+- Video webhook checks if all segments complete → auto-triggers merge or marks completed
+- Merge webhook finalizes project to 100% completed status
+- Supabase Realtime pushes updates to frontend (<1s latency)
 
-### Key Libraries
-- **UI**: TailwindCSS v4, Heroicons, Lucide React, Framer Motion
-- **Data**: Supabase client, React hooks for API calls
-- **AI**: FAL AI client, custom fetch utilities with retry logic
-- **Analytics**: Vercel Analytics, PostHog for user tracking
+**Smart Segment Calculation**:
+- Priority 1: If competitor shots match user's segment count → 1:1 mapping
+- Priority 2: Compress competitor shots to fit user's chosen duration
+- Priority 3: Use pure AI generation with segment duration
 
-## Prompt Management Requirements
+**Continuation Frames**:
+- Segment 2+ use previous segment's first frame as visual reference
+- Ensures coherent narrative flow across segments
+- Automatic triggering via frame webhook (event-driven)
 
-When modifying any AI prompts in the codebase:
-1. **Synchronize Documentation**: Must update corresponding documentation in `prompts/` folder
-2. **Document Changes**: Record version and reason for prompt modifications
-3. **Maintain Consistency**: Ensure documentation stays consistent with actual prompts used in code
-4. **Test Thoroughly**: Validate updated prompts before deployment
-5. **Review Impact**: Consider effects on existing workflows and user experience
+## Database Schema (18 Tables)
 
-### Prompt Documentation Structure
-- `prompts/README.md` - Overview of all workflows
-- `prompts/competitor-ugc-replication-workflow.md` - Competitor UGC Replication complete workflow
-- `prompts/avatar-ads-workflow.md` - Avatar Ads complete workflow
+### Core Project Tables (4)
+- `competitor_ugc_replication_projects` - UGC clone projects with segment support
+- `competitor_ugc_replication_segments` - Individual 8-second video segments
+- `avatar_ads_projects` - Character-based advertisement projects
+- `avatar_ads_scenes` - Individual video scenes for avatar ads
 
----
+### User & Credits (3)
+- `user_credits` - User credit balance and subscription credits
+- `credit_transactions` - Complete audit ledger of all credit operations
+- `user_subscriptions` - Subscription management and billing
 
-## Implementation Notes
+### Assets (5)
+- `user_brands` - Brand profiles with logos and slogans
+- `user_products` - Product catalog with descriptions
+- `user_product_photos` - Product image gallery (multiple photos per product)
+- `user_avatars` - Character photos for avatar ads
+- `competitor_ads` - Competitor video analysis data (shot breakdown, style, timing)
 
-### **CURRENT: Avatar Ads Complete Event-Driven Architecture (100% Webhook + Realtime)**
+### Support Tables (6)
+- `articles` - Blog and help documentation
+- `user_tiktok_connections` - TikTok integration for direct posting
+- `images` - Supabase Storage bucket for all media
+- `subscription_events` - Subscription lifecycle events
+- `competitor_videos` - Temporary storage for competitor video uploads
 
-**Implementation Date**: 2025-12-26 (Updated from 2025-12-25)
+## Design System & UI Guidelines
 
-**Overview:**
-Avatar Ads workflow is now **100% event-driven** - ALL external services (KIE API + fal.ai) use webhooks. This eliminates ALL polling delays and provides instant (<1s) status updates to users.
+### Design Philosophy (design_guide.md)
 
-**Architecture:**
+Follow minimalist SaaS design specification:
+- **Minimalism**: High use of white space to reduce cognitive load
+- **High Contrast**: Strict black-on-white palette for maximum readability
+- **Geometric Precision**: Clean lines, consistent 8px border-radius, grid-aligned
+- **Clarity**: Clear hierarchy using typography and subtle shadows
+
+### Color Palette
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| color-bg-primary | #FFFFFF | Main page background |
+| color-bg-secondary | #F7F7F7 | Card backgrounds, section alternates |
+| color-text-primary | #000000 | Headings, primary buttons, main text |
+| color-text-secondary | #666666 | Subheadings, body descriptions |
+| color-border | #E5E5E5 | Card borders, secondary button strokes |
+| color-accent | #000000 | Primary CTAs, active states |
+
+### Typography
+- **Font Family**: Geometric Sans-Serif (Inter, Plus Jakarta Sans, or Satoshi)
+- **H1**: 48-64px Bold, Letter-spacing: -0.02em
+- **H2**: 32-40px Semi-Bold, Centered
+- **H3**: 20-24px Semi-Bold
+- **Body**: 16px Regular, Line-height: 1.6
+- **Small/Label**: 12-14px Medium, All-caps or Title Case
+
+### UI Component Structure (114 Components)
+
+**Base UI**: 49 components in `/components/ui/`
+- Buttons, cards, inputs, badges, dialogs, sheets, tabs, tooltips
+- VideoModelSelector, VideoDurationSelector, VideoAspectRatioSelector
+- ImageModelSelector, LanguageSelector, FormatSelector
+- CreditsDisplay, DownloadButton, GenerationProgressDisplay
+
+**Feature Pages**:
+- `components/pages/CompetitorUgcReplicationPage.tsx` - UGC clone UI
+- `components/pages/AvatarAdsPage.tsx` - Avatar ads UI
+- `components/pages/HistoryPage.tsx` - Project history with legacy support
+
+**Managers** (CRUD interfaces):
+- BrandManager, ProductManager, AssetsManager
+- CompetitorAdsList, CompetitorUgcReplicationRecentList
+
+### CRITICAL: UI Language Requirement
+
+**ALL user-facing UI text MUST be in English**. This includes:
+- ✓ Button labels: "Generate Video" (NOT "生成视频")
+- ✓ Form inputs: placeholders, labels, validation messages
+- ✓ Toast notifications: success/error messages
+- ✓ Modal titles and descriptions
+- ✓ Error messages and help text
+- ✓ Tooltips and instructions
+
+**Exception**: Language selector native names for multi-language dropdown options (e.g., '中文' for Chinese option)
+
+**Why**: Product maintains English-first UX for global audience. Chinese and other language support is for AI prompt generation (dialogue, narration), not UI copy.
+
+**Locations to Check**:
+- `/components/ui/LanguageSelector.tsx` - Language dropdown
+- `/components/competitor-ugc-replication/SegmentInspector.tsx` - Segment inspector
+- `/components/EditCompetitorAdModal.tsx` - Competitor ad modal
+
+## Credit System (Version 2.0)
+
+### Billing Model
+Unified generation-time billing - ALL models charge credits at generation start, ALL downloads are FREE.
+
+**Core Principles**:
+- Upfront billing: Credits deducted before video generation starts
+- Free downloads: Download endpoints do not deduct credits, only mark download status
+- Automatic refunds: Credits refunded if generation fails after max retries
+- Simple UX: All models work the same way (no confusion about "free generation" vs "paid generation")
+
+### Credit Costs
+
+**Video Generation** (charged at generation start):
+- Veo3.1: 150 credits per 8s segment
+- Veo3.1 Fast: 20 credits per 8s segment
+- Sora2: 6 credits per 10s video (legacy - not available for new projects)
+- Sora2 Pro: 75-315 credits (dynamic, legacy - not available for new projects)
+- Grok: 20 credits per 6s segment (legacy - not available for new projects)
+- Kling 2.6: 110 credits per 5s block (legacy - not available for new projects)
+
+**Free Operations**:
+- Image generation: FREE (nano_banana_pro, seedream)
+- Video merge: FREE (fal.ai operation)
+- ALL downloads: FREE (unlimited downloads)
+
+**Initial Credits**: 100 credits for new users
+
+### Examples
+- 32-second veo3_fast video: 4 segments × 20 = 80 credits
+- 64-second veo3 video: 8 segments × 150 = 1,200 credits
+
+## External APIs
+
+### KIE API (Primary AI Service)
+- **Image Generation**: nano_banana_pro, seedream models
+- **Video Generation**: Veo3, Veo3 Fast
+- **API Docs**: `documents/banana.md`, `documents/seedream.md`
+- **Webhooks**: Registered for frame/video completion callbacks
+
+### OpenRouter (AI Text Generation)
+- **Model**: Gemini 2.5 Flash
+- **Usage**: Image descriptions, prompt generation, competitor ad analysis
+
+### fal.ai (Video Processing)
+- **Service**: Video merging/concatenation
+- **API**: ffmpeg-api/video-concat
+- **Webhooks**: Completion callback for merged videos
+
+### Supabase
+- **Database**: PostgreSQL with 18 tables
+- **Storage**: File storage organized by workflow/user
+- **Realtime**: PostgreSQL pub/sub for instant frontend updates
+
+### Clerk
+- **Service**: Authentication and user management
+- **Integration**: `user_id` drives all data access
+
+## Development Workflow
+
+### CRITICAL: Dependency Management
+
+**ALWAYS use pnpm for ALL dependency operations** (never npm or yarn):
+
+```bash
+pnpm install                    # Install dependencies
+pnpm add <package>              # Add new package (UPDATES pnpm-lock.yaml)
+pnpm add -D <package>           # Add dev dependency (UPDATES pnpm-lock.yaml)
+pnpm remove <package>           # Remove package (UPDATES pnpm-lock.yaml)
+pnpm install --frozen-lockfile  # CI/production installs (no updates)
 ```
-User → Create Project → Backend Workflow (non-blocking)
-  ↓
-KIE Image Webhook → Database Update → Realtime Push → Frontend
-  ↓
-KIE Video Webhook → Database Update → Realtime Push → Frontend
-  ↓
-fal.ai Merge Webhook → Database Update → Realtime Push → Frontend (100% Complete!)
+
+**Lock File Rules**:
+1. **EVERY** `pnpm add` or `pnpm remove` updates `pnpm-lock.yaml`
+2. **ALWAYS** commit the updated lock file with your changes
+3. **NEVER** manually edit pnpm-lock.yaml
+4. **Before pushing**: Verify `git diff pnpm-lock.yaml` shows changes
+
+**Why**: Lock file ensures deterministic builds. Mismatched dependencies cause Vercel build failures and hard-to-debug issues.
+
+### Pre-Deployment Checklist
+
+Run these commands before EVERY commit/push:
+
+```bash
+pnpm install --frozen-lockfile  # Verify lock file integrity
+pnpm lint                       # Fix all ESLint errors
+pnpm type-check                 # Fix all TypeScript errors
+pnpm build                      # Ensure production build succeeds
 ```
 
-**Webhook Endpoints:**
-- `POST /api/avatar-ads/webhooks/image` - KIE image generation callback
-- `POST /api/avatar-ads/webhooks/video` - KIE video generation callback
-- `POST /api/avatar-ads/webhooks/merge` - **NEW: fal.ai merge callback**
+**Additional Checks**:
+- Verify no secrets in .env committed
+- If dependencies changed: `git diff pnpm-lock.yaml` (must show updates)
+- Test locally: `pnpm start` (production server)
 
-**Modified Files (2025-12-26 Update):**
-- `app/api/avatar-ads/webhooks/merge/route.ts` - **NEW**: fal.ai merge webhook handler
-- `lib/video-merge.ts` - Changed from `fal.subscribe()` to `fal.queue.submit()` with webhook
-- `lib/avatar-ads-workflow.ts` - Removed `check_merge_status` step (no longer needed)
+### Local Development Setup
 
-**Previous Files (2025-12-25):**
-- `components/pages/AvatarAdsPage.tsx` - Replaced `setInterval` polling with Supabase Realtime
-- `app/api/avatar-ads/webhooks/image/route.ts` - KIE image callback handler
-- `app/api/avatar-ads/webhooks/video/route.ts` - KIE video callback, auto-triggers merge
-- `hooks/useAvatarAdsRealtime.ts` - Reusable Realtime subscription hooks
+1. Copy environment template:
+   ```bash
+   cp .env.example .env
+   ```
 
-**Key Implementation Details:**
+2. Fill in required API keys (see Environment Variables below)
 
-1. **Backend Event Chain (100% Non-Blocking):**
-   - `POST /create` → triggers `generate_prompts` (non-blocking)
-   - Image generation → KIE webhook → triggers `generate_videos` (non-blocking)
-   - Video generation → KIE webhook → checks all scenes → triggers `merge_videos` (non-blocking)
-   - Video merge → **fal.ai webhook** → sets project to `completed`
+3. Install dependencies:
+   ```bash
+   pnpm install
+   ```
 
-2. **Frontend Realtime:**
-   - Initial fetch + subscribe pattern for each active project
-   - Subscribes to `postgres_changes` events on `avatar_ads_projects` table
-   - Receives updates from all webhooks (KIE + fal.ai) via Realtime
-   - Automatic cleanup when projects complete
+4. Start development server:
+   ```bash
+   pnpm dev
+   ```
 
-3. **Removed Components:**
-   - ❌ `setInterval(poll, 8000)` - replaced with Realtime
-   - ❌ `fetchStatusForProject()` - replaced with Realtime callbacks
-   - ❌ `check_merge_status` step - replaced with fal.ai webhook
-   - ❌ All polling/cron mechanisms - 100% event-driven
+5. Visit http://localhost:3000 and sign in via Clerk
 
-**Benefits:**
-- **100% event-driven**: Zero polling, zero cron jobs, zero background tasks
-- **< 1 second latency**: All status updates appear instantly
-- **Zero server load**: No continuous API calls or database queries
-- **Scalable**: Handles unlimited concurrent projects efficiently
-- **Reliable**: Webhooks retry on failure, idempotency prevents duplicates
+## Environment Variables
 
-**Supabase Setup Required:**
-```sql
--- Enable Realtime for avatar_ads tables
-ALTER PUBLICATION supabase_realtime ADD TABLE avatar_ads_projects;
-ALTER PUBLICATION supabase_realtime ADD TABLE avatar_ads_scenes;
-```
+Required environment variables (see `.env.example` for complete list):
 
-**Environment Variables Required:**
-```env
-NEXT_PUBLIC_SITE_URL=https://flowtra.ai  # For webhook URL construction (use ngrok URL for local dev)
-FAL_KEY=your_fal_api_key                 # For fal.ai API
-```
+### Supabase
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` - Public key for client-side
+- `SUPABASE_SECRET_KEY` - Secret key for server-side admin operations
 
-**Complete Documentation:**
-- See `docs/avatar-ads-complete-event-driven-architecture.md` for full technical details
+### AI Services
+- `KIE_API_KEY` - KIE API key for image/video generation
+- `OPENROUTER_API_KEY` - OpenRouter API key for Gemini
+- `FAL_KEY` - fal.ai API key for video merging
+- `KIE_CREDIT_THRESHOLD` - Minimum KIE credits before blocking generation
 
-**Testing:**
-1. Open browser console and watch for `[Avatar Ads Realtime]` logs
-2. Create new avatar ad project
+### Authentication
+- `CLERK_SECRET_KEY` - Clerk secret key (server-side)
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - Clerk public key (client-side)
+
+### Webhooks
+- `NEXT_PUBLIC_SITE_URL` - Base URL for webhook callbacks (use ngrok URL for local dev)
+
+### Analytics
+- `NEXT_PUBLIC_POSTHOG_KEY` - PostHog API key (optional)
+- `NEXT_PUBLIC_POSTHOG_HOST` - PostHog host (optional)
+
+### Email
+- `RESEND_API_KEY` - Resend API key for transactional emails
+- `RESEND_FROM` - From email address
+- `NOTIFY_EMAIL_TO` - Notification recipient email
+
+**NEVER commit `.env`** - always copy from `.env.example` locally.
+
+## Key Technical Patterns
+
+### Event-Driven Architecture (100%)
+- **NO polling loops**, **NO cron jobs**, **NO monitor-tasks**
+- ALL workflow progression via webhooks
+- Webhooks update database → Supabase Realtime → Frontend (<1s latency)
+- Idempotency: `webhook_received_at` timestamps prevent duplicate processing
+- Multiple webhook deliveries safe (stateless webhook handlers)
+
+### Realtime Updates
+- Frontend subscribes to Supabase Realtime (PostgreSQL pub/sub)
+- Initial fetch + subscribe pattern (catches updates while page was closed)
+- Automatic cleanup when projects complete
+- Retry logic with exponential backoff for transient failures
+
+### Non-Blocking Workflows
+- API endpoints return immediately after database insert
+- Background tasks run async (IIFE or fire-and-forget)
+- User sees instant confirmation, not loading spinners
+- Workflow steps triggered by webhooks, not API responses
+
+### Continuation Frames (Competitor UGC Replication)
+- Segment 2+ use previous segment's first frame as visual reference
+- Ensures coherent narrative flow across segments
+- Frame webhook auto-triggers next segment generation (event-driven)
+- Smart routing: Brand/product shots use reference images
+
+## Common Development Tasks
+
+### Adding a New Feature
+1. Review `design_guide.md` for UI patterns
+2. Create database migration if needed (Supabase SQL Editor)
+3. Add TypeScript types to `lib/supabase.ts` or workflow file
+4. Implement workflow logic in `lib/{feature}-workflow.ts`
+5. Create UI components in `components/pages/`
+6. Add API routes in `app/api/{feature}/`
+7. Add webhook handlers if event-driven
+8. Test: Create project → Monitor database → Verify Realtime updates
+
+### Modifying AI Prompts
+1. Update prompt in `lib/{workflow}-workflow.ts`
+2. Document change reason (comment)
+3. Test with real projects (not just mock data)
+4. Verify JSON output format matches downstream schema
+
+### Debugging Webhooks
+1. Check Supabase logs for database updates
+2. Check Vercel logs for webhook handler execution
+3. Verify idempotency: Is `webhook_received_at` set?
+4. Test locally: Use ngrok + set NEXT_PUBLIC_SITE_URL to ngrok URL
+
+### Testing Realtime Updates
+1. Open browser console and watch for Realtime logs
+2. Create new project
 3. Observe real-time status changes without page refresh
 4. Verify no polling requests in Network tab
 5. Confirm webhook callbacks trigger next steps immediately
 
-**Reference Documentation:**
-- See `docs/event-driven-architecture.md` for complete workflow diagrams
-- See `hooks/useAvatarAdsRealtime.example.tsx` for usage examples
-
----
-
-### **CURRENT: Unified Generation-Time Billing (Version 2.0 Restored)**
-
-**Implementation Date**: 2025-12-09 (Restored from Version 3.0)
-
-**Overview:**
-Version 2.0 provides a unified, simple billing model where **ALL video models charge credits at generation time** and **downloads are always FREE**. This version was restored after temporarily implementing Version 3.0 mixed billing.
-
-**Core Principles:**
-1. **Unified Upfront Billing**: All video models (veo3, veo3_fast, sora2, sora2_pro, grok, kling_2_6) charge credits at generation start
-2. **Free Downloads**: Download endpoints no longer deduct credits, only mark download status
-3. **Automatic Refunds**: Workflow error handlers refund credits if generation fails
-4. **Simple UX**: No confusion about "free generation" vs "paid generation" - all models work the same way
-
-**Modified Files (Restoration):**
-- `lib/constants.ts` - Removed FREE_GENERATION_MODELS/PAID_GENERATION_MODELS, consolidated costs
-- `lib/competitor-ugc-replication-workflow.ts` - Updated comments to reflect unified billing
-- `lib/avatar-ads-workflow.ts` - Added generation-time billing logic
-- `app/api/download-video/route.ts` - Simplified to free downloads
-- `app/api/avatar-ads/download/route.ts` - Simplified to free downloads
-- `components/ui/VideoModelSelector.tsx` - Unified UI: "Generation: X credits, Download: FREE"
-- `components/pages/landing/sections/ModelPricingSection.tsx` - All models show generation costs
-- `components/pages/CompetitorUgcReplicationPage.tsx` - Removed download cost logic
-- `components/pages/CharacterAdsPage.tsx` - Removed free generation badge logic
-- `components/pages/HistoryPage.tsx` - Simplified download cost to 0
-
-**Cost Structure (Version 2.0):**
-```typescript
-// ALL models charge at generation
-export const GENERATION_COSTS = {
-  'veo3': 150,        // Veo3 High Quality: 150 credits at generation
-  'veo3_fast': 20,    // Veo3 Fast: 20 credits at generation (per 8s segment)
-  'sora2': 6,         // Sora2: 6 credits at generation (per 10s video)
-  'sora2_pro': 0,     // Sora2 Pro: See getSora2ProCreditCost() (75-315 credits)
-  'grok': 20,         // Grok: 20 credits at generation (per 6s segment)
-  'kling_2_6': 110    // Kling 2.6: 110 credits at generation (per 5s block)
-} as const;
-
-// ALL downloads are FREE
-export function getDownloadCost(...): number {
-  return 0; // Version 2.0: ALL downloads are FREE
-}
-```
-
-**Technical Decisions:**
-- **Why unified billing?** Simplifies UX, eliminates user confusion, consistent behavior across all models
-- **Why rollback from Version 3.0?** Mixed billing created confusion - users didn't understand why some models were free to generate
-- **Why automatic refunds?** User trust - they pay upfront, so failures must be refunded
-- **Why generation-time for ALL models?** Prevents abuse, ensures committed users, fair pricing
-
-**Benefits:**
-- Clear, predictable pricing for all users
-- No download friction - users can download unlimited times
-- Encourages sharing and re-downloading
-- Simpler codebase - no conditional billing logic
-- Better user trust - pay only if satisfied (via refunds)
-
-**Known Limitations:**
-- Users pay upfront before seeing results (mitigated by refund policy)
-- Sora2 Pro pricing complexity (4 tier system) may confuse some users
-- Refunds depend on proper error handling in workflows
-
-**Testing Considerations:**
-- Test credit deduction timing (must be before API calls)
-- Test refund logic for all failure scenarios
-- Test all models charge correctly at generation
-- Verify downloads work without credit checks
-- Verify UI consistently shows "Generation: X, Download: FREE"
-
-**Related Documentation:**
-- `documents/local/pricing-and-billing-rules.md` - Should be updated to Version 2.0
-
----
-
-### **DEPRECATED: Mixed Billing Model (Version 3.0)**
-
-**Implementation Date**: 2025-10-13
-**Deprecated Date**: 2025-12-09
-**Status**: ❌ Rolled back to Version 2.0
-
-**Reason for Deprecation:**
-Version 3.0's mixed billing model created user confusion. Users did not understand why some models had "FREE generation" while others charged upfront. The dual billing strategies (free-gen + paid-download vs paid-gen + free-download) added unnecessary complexity to both the codebase and user experience.
-
-**What Was Version 3.0:**
-Version 3.0 introduces a dual-tier billing model where different video models have different billing strategies to optimize user experience and cost:
-- **Basic Models (Veo3 Fast, Sora2)**: FREE generation, PAID download (pay only if satisfied)
-- **Premium Models (Veo3, Sora2 Pro)**: PAID generation, FREE download (upfront payment)
-
-**Key Changes:**
-
-1. **Model Classification** (`lib/constants.ts`):
-```typescript
-// FREE generation models (charge at download)
-export const FREE_GENERATION_MODELS = ['veo3_fast', 'sora2'] as const;
-
-// PAID generation models (charge at generation)
-export const PAID_GENERATION_MODELS = ['veo3', 'sora2_pro'] as const;
-
-// Separate cost structures
-export const GENERATION_COSTS = { 'veo3': 150 }; // Sora2 Pro uses getSora2ProCreditCost()
-export const DOWNLOAD_COSTS = { 'veo3_fast': 20, 'sora2': 6 };
-```
-
-2. **Generation Phase** (Workflows):
-   - Only deduct credits for PAID generation models
-   - FREE generation models generate without credit check
-   - Refunds only apply to PAID generation models
-
-3. **Download Phase** (Download APIs):
-   - FREE generation models: Check credits and deduct at first download
-   - PAID generation models: No credit deduction (already paid)
-
-**Modified Files:**
-- `lib/constants.ts` - Added model classification, helper functions
-- `lib/competitor-ugc-replication-workflow.ts` - Generation billing logic
-- `app/api/download-video/route.ts` - Download billing logic
-- `app/api/avatar-ads/download/route.ts` - Download billing logic
-- `components/ui/VideoModelSelector.tsx` - UI shows "Generation: X credits" vs "Download: X credits"
-- `components/pages/PricingPage.tsx` - Updated messaging
-- `components/pages/LandingPage.tsx` - Updated messaging
-
-**Helper Functions Added:**
-```typescript
-isFreeGenerationModel(model): boolean // Check if model has free generation
-isPaidGenerationModel(model): boolean // Check if model has paid generation
-getGenerationCost(model, ...): number // Get generation cost (0 for free models)
-getDownloadCost(model): number // Get download cost (0 for paid models)
-```
-
-**Technical Decisions:**
-- **Why mixed billing?** Provides flexibility for users - try basic models risk-free, premium models for professional quality
-- **Why free generation for basic models?** Lowers entry barrier, users only pay if satisfied with result
-- **Why paid generation for premium?** Prevents abuse of expensive models, ensures committed users only
-
-**Benefits:**
-- Lower risk for new users (try before you buy with basic models)
-- Clear value proposition for premium models
-- Reduces wasted generations (users preview before downloading)
-- Flexibility for different use cases and budgets
-
-**Known Limitations:**
-- Users need to understand two different billing models
-- UI must clearly communicate which model uses which billing
-- Must prevent abuse of free generation (future: rate limiting)
-
-**Testing Considerations:**
-- Test credit deduction timing for both model types
-- Verify download billing only applies to free-generation models
-- Test insufficient credits at both generation and download phases
-- Verify UI correctly shows billing timing per model
-
-**Related Documentation:**
-- `documents/local/pricing-and-billing-rules.md` - Should be updated to Version 3.0
-
----
-
-### Dual-Mode Competitor UGC Replication Workflow (Version 2.0)
-
-**Implementation Date**: 2025-01-16
-
-**Overview:**
-Competitor UGC Replication workflow now supports two distinct generation modes:
-- **Traditional Auto-Generation Mode**: AI deeply analyzes product photos to create original creative content
-- **Competitor Reference Mode**: AI analyzes competitor ads to clone creative structure for our product
-
-The mode is automatically determined based on whether the user selects a competitor ad.
-
-**Key Changes:**
-
-1. **Workflow Path Separation** (`lib/competitor-ugc-replication-workflow.ts`):
-   - Modified `generateImageBasedPrompts()` function to support dual modes
-   - Mode detection: `if (competitorAdContext)` → Competitor Reference Mode
-   - Different prompt strategies for each mode
-
-2. **Traditional Mode** (No competitor selected):
-   ```
-   Product Photo → Deep AI Analysis → Extract Product Features → Generate Original Creative → Cover & Video
-   ```
-   - AI analyzes product appearance, colors, textures, design
-   - Infers product category and use cases
-   - Generates completely original advertising creative
-   - Product photo is the primary input for analysis
-
-3. **Competitor Reference Mode** (Competitor selected):
-   ```
-   Competitor Video/Image → Extract Creative Structure → Apply to Our Product → Cover & Video
-   ```
-   - AI analyzes competitor's complete ad structure:
-     - Complete video script and narrative flow
-     - First frame composition (for cover generation)
-     - Camera movements and transitions
-     - Color palette and visual aesthetics
-   - Product photo is used ONLY as "replacement material"
-   - AI clones competitor structure but replaces their product with ours
-
-**Modified Files:**
-- `lib/competitor-ugc-replication-workflow.ts` - Core prompt generation logic (lines 754-854)
-- `prompts/competitor-ugc-replication-workflow.md` - Complete documentation of both modes
-- `CLAUDE.md` - This implementation note
-
-**Prompt Strategy Differences:**
-
-| Aspect | Traditional Mode | Competitor Reference Mode |
-|--------|-----------------|---------------------------|
-| Product Photo Role | Deep analysis for features & selling points | Visual reference for product replacement only |
-| Creative Source | AI original generation | Clone competitor structure |
-| Analysis Focus | Product appearance, category, use cases | Competitor script, cameras, style |
-| Prompt Generation | Based on product features | Based on competitor structure |
-
-**Technical Implementation:**
-
-**Competitor Video Processing:**
-- Gemini only accepts YouTube URLs or base64 for videos
-- Use `fetchVideoAsBase64()` to download and convert competitor videos
-- 60-second timeout limit
-- Auto-detect MIME type (mp4/webm/mov)
-
-**Prompt Structure (Competitor Mode):**
-```
-1. Upload competitor video/image (video_url or image_url)
-2. Upload product photo (image_url)
-3. Text instructions:
-   - 🎯 COMPETITOR REFERENCE MODE
-   - Extract complete video script and narrative structure
-   - Analyze first frame composition and visual elements
-   - Document camera movements and transitions
-   - Capture color palette and lighting style
-   - CRITICAL: Clone structure, replace product
-```
-
-**Prompt Structure (Traditional Mode):**
-```
-1. Upload product photo (image_url)
-2. Text instructions:
-   - 🤖 TRADITIONAL AUTO-GENERATION MODE
-   - Analyze product visual elements
-   - Infer product category and use cases
-   - Generate original creative content
-   - Consider brand identity and user requirements
-```
-
-**JSON Output Compatibility:**
-- Both modes use identical JSON schema
-- Ensures downstream workflow steps (cover generation, video generation) work without modification
-- Same fields: description, setting, camera_type, action, dialogue, etc.
-
-**Technical Decisions:**
-- **Why dual mode?** Users need both original creativity AND ability to reference successful ads
-- **Why auto-switching?** Simplifies UX - selecting competitor automatically enables reference mode
-- **Why same JSON format?** Ensures no changes needed in cover/video generation logic
-- **Why video-to-base64?** Gemini limitation requires YouTube URLs or base64 format
-
-**Benefits:**
-- Original creativity for unique product differentiation
-- Proven creative structures from successful competitor ads
-- Seamless mode switching without UI changes
-- Product replacement accuracy maintained in both modes
-
-**Known Limitations:**
-- Video-to-base64 conversion limited to 60 seconds (large files may timeout)
-- Gemini API may have rate limits on video analysis
-- Quality of competitor cloning depends on AI's ability to extract structure
-
-**Testing Considerations:**
-- Test traditional mode: verify creative originality
-- Test competitor mode with video: verify structure cloning
-- Test competitor mode with image: verify style adaptation
-- Test product replacement accuracy in both modes
-- Verify JSON format consistency across modes
-
-**Related Documentation:**
-- `prompts/competitor-ugc-replication-workflow.md` - Complete prompt templates for both modes
-
----
-
-### Video Model Selection Simplified (Version 1.0)
-
-**Implementation Date**: 2025-12-20
-
-**Overview:**
-Simplified video model selection from 6 models to 2 models (Veo3.1 and Veo3.1 fast) for the Competitor UGC Replication workflow. This change streamlines the user experience, reduces complexity, and focuses on the most reliable and cost-effective models.
-
-**Supported Models:**
-- **veo3_fast** (Display: "Veo3.1 fast"): 20 credits per 8s segment - Fast generation with balanced quality
-- **veo3** (Display: "Veo3.1"): 150 credits per 8s segment - Premium quality generation
-
-**Duration Support:** 8, 16, 24, 32, 40, 48, 56, 64 seconds (all using 8-second segments)
-
-**Quality:** Always 'standard' (720p) - Quality selector UI completely removed
-
-**Removed Models:** sora2, sora2_pro, grok, kling_2_6, auto mode
-
-**Default Model:** veo3_fast
-
-**Backward Compatibility:**
-- Legacy database records with removed models display with "(Legacy)" suffix in UI
-- History API normalizes legacy models to veo3_fast for new operations
-- Download functionality works for all legacy videos
-
-**Key Changes:**
-
-1. **Type System Simplification** (`lib/constants.ts`):
-   - Reduced VideoModel from 6 union members to 2: `'veo3' | 'veo3_fast'`
-   - Reduced VideoDuration to only veo3-supported durations: `'8' | '16' | '24' | '32' | '40' | '48' | '56' | '64'`
-   - Added VIDEO_MODEL_DISPLAY_NAMES mapping for UI display
-   - Removed auto-selection logic functions (getAutoModeSelection, getActualModel)
-   - Simplified MODEL_CAPABILITIES to only include veo3 models
-
-2. **Display Name Abstraction**:
-   ```typescript
-   export const VIDEO_MODEL_DISPLAY_NAMES: Record<VideoModel, string> = {
-     'veo3': 'Veo3.1',
-     'veo3_fast': 'Veo3.1 fast'
-   } as const;
-
-   export function getVideoModelDisplayName(model: VideoModel): string {
-     return VIDEO_MODEL_DISPLAY_NAMES[model];
-   }
-   ```
-
-3. **Workflow Simplification** (`lib/competitor-ugc-replication-workflow.ts`):
-   - Removed auto mode resolution logic
-   - Removed Kling special handling (duration normalization)
-   - Removed Grok and Kling video generation endpoints
-   - All video generation now uses Veo3 API endpoint only
-
-4. **UI Component Updates**:
-   - **VideoModelSelector**: Reduced from 7 options to 2 options
-   - **CompetitorUgcReplicationPage**: Removed videoQuality state, removed auto-adjust logic
-   - **ConfigPopover**: Removed VideoQualitySelector component entirely
-   - **VideoDurationSelector**: Default options now show 8-64s (veo3 durations)
-
-5. **API Route Updates**:
-   - **history**: Added legacy model detection and normalization
-   - **create**: Added validation to reject legacy model creation
-   - **segments/[segmentIndex]**: Normalized legacy models for credit calculation
-   - **webhooks**: Added frame/video/merge webhook endpoints for event-driven architecture
-
-6. **Landing Page Updates**:
-   - **ModelPricingSection**: Simplified from 6 models to 2 models
-   - Updated all model references to use new display names
-
-**Modified Files:**
-- `lib/constants.ts` - Core type definitions and display names
-- `lib/competitor-ugc-replication-workflow.ts` - Workflow logic simplification
-- `components/ui/VideoModelSelector.tsx` - Model selection UI
-- `components/ui/VideoDurationSelector.tsx` - Duration options
-- `components/ui/VideoAspectRatioSelector.tsx` - Remove auto mode
-- `components/ui/ConfigPopover.tsx` - Remove quality selector
-- `components/pages/CompetitorUgcReplicationPage.tsx` - Main UI page
-- `components/pages/CharacterAdsPage.tsx` - Remove auto-selection
-- `components/pages/HistoryPage.tsx` - Legacy model support
-- `components/VideoDetailsModal.tsx` - Legacy model display
-- `components/pages/landing/sections/ModelPricingSection.tsx` - Landing page
-- `hooks/useCompetitorUgcReplicationWorkflow.ts` - Hook simplification
-- `app/api/competitor-ugc-replication/monitor-tasks/route.ts` - Task monitoring
-- `app/api/history/route.ts` - History with legacy support
-- `app/api/competitor-ugc-replication/create/route.ts` - Creation validation
-- `app/api/competitor-ugc-replication/[id]/segments/[segmentIndex]/route.ts` - Segment regeneration
-
-**Technical Decisions:**
-- **Why only 2 models?** Focus on most reliable models with best cost/quality ratio. Veo3 models have consistent 8s segments and predictable behavior.
-- **Why remove quality selector?** All veo3 models use standard quality (720p), eliminating confusion and simplifying UX.
-- **Why remove auto mode?** Auto-selection logic added complexity without clear user benefit. Users prefer explicit control.
-- **Why 8-second segments?** Standardizes billing and workflow. All durations are multiples of 8s for consistent user experience.
-- **Why keep legacy support?** Existing database records must remain accessible. Users can view/download historical videos.
-
-**Benefits:**
-- **Simplified UX**: Users choose between 2 clear options instead of 6 confusing ones
-- **Consistent behavior**: All models use same 8-second segment structure
-- **Reduced complexity**: Removed 4 different API endpoints and their special handling
-- **Better maintainability**: Single code path for video generation
-- **Clear pricing**: Linear per-segment pricing, no special cases
-- **Backward compatible**: Legacy videos remain accessible
-
-**Known Limitations:**
-- Users with legacy videos in sora2/grok/kling cannot create new videos with those models
-- Legacy model selection is not available for new projects
-- Some users may prefer removed models for specific use cases (not supported)
-
-**Testing Considerations:**
-- Test new project creation with veo3 and veo3_fast
-- Verify duration options only show 8-64s
-- Confirm quality selector is not visible
-- Test legacy video viewing in history (shows "(Legacy)" suffix)
-- Verify legacy video download works
-- Test credit calculation for different durations
-- Verify API validation rejects legacy model creation requests
-
-**Credit Calculation Examples:**
-- 8s veo3_fast: 20 credits (1 segment)
-- 64s veo3_fast: 160 credits (8 segments × 20)
-- 8s veo3: 150 credits (1 segment)
-- 64s veo3: 1200 credits (8 segments × 150)
-
-**Related Documentation:**
-- `documents/local/pricing-and-billing-rules.md` - Should reflect Version 1.0 simplified pricing
-
+## Security & Routing
+
+### Middleware Protection (Clerk)
+- `/dashboard` routes require authentication
+- API routes under `/api/{workflow}/` protected
+- Webhook routes public but validate payloads
+
+### Redirects
+- Legacy routes redirect to new standardized naming
+- Example: `/single-video` → `/competitor-ugc-replication`
+
+### Security Headers
+- XSS protection configured
+- Content sniffing prevention
+- Frame options set for clickjacking protection
+
+## Image Optimization
+
+Next.js image optimization configured for:
+- Unsplash, Supabase storage, Clerk domains
+- aiquickdraw.com, aiproxy.vip (KIE API domains)
+- WebP/AVIF formats with multiple device sizes
+- Production console removal enabled
+
+## Key Libraries
+
+### UI
+- TailwindCSS v4
+- Radix UI (headless components for accessibility)
+- Heroicons, Lucide React (icon libraries)
+- Framer Motion (animations)
+- CVA (class-variance-authority) - Component variant system
+
+### Data & Validation
+- Supabase client (@supabase/supabase-js)
+- Zod (schema validation)
+- React hooks for API calls
+
+### AI & Media
+- @fal-ai/client (video merge)
+- Custom fetch utilities with retry logic (`fetchWithRetry`, `httpRequest`)
+- Browser Image Compression (client-side compression)
+
+### Analytics & Monitoring
+- Vercel Analytics
+- PostHog (product analytics)
+- Error tracking via PostHog (`captureServerException`)
+
+### Email
+- Resend (transactional emails)
+
+## Git & Release Hygiene
+
+### Commit Convention
+Follow Conventional Commits format:
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring
+- `chore:` - Maintenance tasks
+
+### PR Guidelines
+- Keep PRs focused (one feature/fix per PR)
+- Run `pnpm lint && pnpm type-check && pnpm build` before pushing
+- Document pricing changes in `lib/constants.ts` first
+- Update corresponding UI components and documentation
+
+### Build Parity Checklist
+- **Always run `pnpm install --frozen-lockfile` before CI-critical builds**
+- **For type union changes (e.g., `VideoDuration`): Audit every setter/handler that consumes the type**
+- **Before pushing: Run `pnpm lint && pnpm build` from clean state (delete `.next`)**
+- **If Vercel fails: Capture exact stack trace and add regression tests**
+
+## Important Notes
+
+### Prompt Management
+When modifying AI prompts in the codebase:
+1. **Synchronize Documentation**: Update corresponding documentation in `prompts/` folder
+2. **Document Changes**: Record version and reason for prompt modifications
+3. **Test Thoroughly**: Validate updated prompts before deployment
+
+### Video Model Support
+**Current Models** (for new projects):
+- Veo3.1 (veo3) - 150 credits per 8s segment
+- Veo3.1 Fast (veo3_fast) - 20 credits per 8s segment
+
+**Legacy Models** (existing projects only):
+- Sora2, Sora2 Pro, Grok, Kling 2.6 - Display with "(Legacy)" suffix in UI
+
+### Billing Model
+Current version: **Version 2.0** (Unified Generation-Time Billing)
+- ALL models charge at generation start
+- ALL downloads are FREE
+- Do NOT implement Version 3.0 (deprecated mixed billing)

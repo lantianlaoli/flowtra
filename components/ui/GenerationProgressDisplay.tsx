@@ -25,7 +25,11 @@ import {
   Sparkles,
   Coins,
   Clock,
-  Maximize
+  Maximize,
+  ScanFace,
+  PencilLine,
+  Clapperboard,
+  Layers
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
@@ -36,6 +40,7 @@ export interface Generation {
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'awaiting_review';
   progress?: number; // 0-100
   stage?: string; // e.g., "Generating cover image...", "Creating video..."
+  currentStep?: string; // Internal step ID for icon mapping
   videoUrl?: string;
   coverUrl?: string;
   platform?: string;
@@ -341,6 +346,22 @@ function GenerationCard({
         return <Eye className="w-5 h-5 text-gray-900" />;
       case 'processing':
       case 'pending':
+        if (generation.currentStep) {
+          switch (generation.currentStep.toLowerCase()) {
+            case 'analyzing_images':
+              return <ScanFace className="w-5 h-5 text-gray-900" />;
+            case 'generating_prompts':
+              return <PencilLine className="w-5 h-5 text-gray-900" />;
+            case 'generating_image':
+              return <ImageIcon className="w-5 h-5 text-gray-900" />;
+            case 'reviewing':
+              return <Eye className="w-5 h-5 text-gray-900" />;
+            case 'generating_videos':
+              return <Clapperboard className="w-5 h-5 text-gray-900" />;
+            case 'merging_videos':
+              return <Layers className="w-5 h-5 text-gray-900" />;
+          }
+        }
         return <Sparkles className="w-5 h-5 text-gray-900" />;
       default:
         return null;
@@ -448,23 +469,45 @@ function GenerationCard({
         </div>
 
         {/* Progress Section */}
-        {(displayStatus === 'processing' || displayStatus === 'pending') && (
+        {(displayStatus === 'processing' || displayStatus === 'pending' || displayStatus === 'awaiting_review') && (
           <div className="pt-2 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
-                  <Loader2 className="w-2.5 h-2.5 text-white animate-spin" />
-                </div>
+                {(displayStatus === 'processing' || displayStatus === 'pending') ? (
+                  <div className="w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
+                    <Loader2 className="w-2.5 h-2.5 text-white animate-spin" />
+                  </div>
+                ) : (
+                  <div className="w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-2.5 h-2.5 text-white" />
+                  </div>
+                )}
                 <span className="text-[13px] font-bold text-gray-900">{progress}%</span>
               </div>
             </div>
             <div className="relative h-2 w-full bg-gray-100 rounded-full overflow-hidden">
               <motion.div
-                className="absolute inset-y-0 left-0 bg-gray-900"
+                className="absolute inset-y-0 left-0 bg-gray-900 overflow-hidden"
                 initial={{ width: '0%' }}
                 animate={{ width: `${progress}%` }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-              />
+              >
+                {/* Wave shimmer effect */}
+                <motion.div
+                  className="absolute inset-0 w-1/2 h-full"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)',
+                  }}
+                  animate={{
+                    x: ['-100%', '300%'],
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
+                />
+              </motion.div>
             </div>
           </div>
         )}

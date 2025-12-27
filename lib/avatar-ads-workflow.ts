@@ -92,7 +92,7 @@ Provide a concise 2-3 sentence description.`;
       max_tokens: 200,
       temperature: 0.2
     })
-  }, 3, 30000); // 3 retries, 30 second timeout
+  }, 5, 60000); // Increased: 5 retries, 60 second timeout for better reliability
 
   if (!response.ok) {
     throw new Error(`Product analysis failed: ${response.statusText}`);
@@ -399,7 +399,7 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
       max_tokens: 2000,
       temperature: 0.3
     })
-  }, 3, 30000);
+  }, 5, 60000); // Increased: 5 retries, 60 second timeout for better reliability
 
   if (!response.ok) {
     throw new Error(`Gemini prompt generation failed: ${response.statusText}`);

@@ -6,7 +6,7 @@ import { Buffer } from 'buffer';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 300; // 5 minutes for large video uploads
-export const experimental_bodySizeLimit = 100 * 1024 * 1024; // 100MB limit for video uploads
+export const experimental_bodySizeLimit = 500 * 1024 * 1024; // 500MB limit for video uploads
 
 /**
  * POST /api/competitor-ads/upload-temp
@@ -37,22 +37,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Advertisement file is required' }, { status: 400 });
     }
 
-    // Validate file type
-    const isImage = adFile.type.startsWith('image/');
+    // Validate file type - VIDEO ONLY
     const isVideo = adFile.type.startsWith('video/');
 
-    if (!isImage && !isVideo) {
-      return NextResponse.json({ error: 'File must be an image or video' }, { status: 400 });
+    if (!isVideo) {
+      return NextResponse.json({ error: 'Only video files are supported' }, { status: 400 });
     }
 
-    // Validate file size
-    const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
-    if (adFile.size > maxSize) {
-      return NextResponse.json(
-        { error: `File size must be less than ${isVideo ? '100MB' : '10MB'}` },
-        { status: 400 }
-      );
-    }
+    // No file size limit - all video sizes accepted
 
     console.log(`[POST /api/competitor-ads/upload-temp] Uploading temp file for analysis: ${adFile.name}`);
 
@@ -92,7 +84,7 @@ export async function POST(request: NextRequest) {
       success: true,
       path: data.path,
       publicUrl,
-      fileType: isVideo ? 'video' : 'image'
+      fileType: 'video'
     }, { status: 200 });
 
   } catch (error) {

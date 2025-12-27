@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { createClient } from '@/lib/supabase/client';
+import { RealtimeChannel } from '@supabase/supabase-js';
+import type { UserCredits } from '@/lib/supabase';
 
 interface CreditsData {
   credits_remaining: number;
@@ -38,6 +41,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
   const [creditsData, setCreditsData] = useState<CreditsData | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const isMountedRef = useRef(true);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     return () => {
@@ -105,6 +109,63 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
       fetchCredits();
     }
   }, [user?.id, credits, fetchCredits]);
+
+  // Set up Realtime subscription for credit updates
+  useEffect(() => {
+    if (!user?.id || credits === undefined) {
+      // Cleanup if user logs out or before initial fetch completes
+      if (channelRef.current) {
+        const supabase = createClient();
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      return;
+    }
+
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`user-credits:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'user_credits',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('[Credits Realtime] Credits updated:', payload.new);
+
+          if (payload.new && isMountedRef.current) {
+            const newCredits = payload.new as UserCredits;
+            setCreditsData({
+              credits_remaining: newCredits.credits_remaining,
+              subscription_credits: newCredits.subscription_credits,
+              purchased_credits: newCredits.purchased_credits,
+              has_purchased: newCredits.has_purchased,
+            });
+            setCredits(newCredits.credits_remaining);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Subscribed to credits updates');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime subscription error');
+        }
+      });
+
+    channelRef.current = channel;
+
+    // Cleanup subscription on unmount or user change
+    return () => {
+      console.log('[Credits Realtime] Unsubscribing');
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [user?.id, credits]);
 
   const refetchCredits = async () => {
     await fetchCredits();
