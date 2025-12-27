@@ -345,6 +345,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       segmentUpdates.first_frame_url = null;
       segmentUpdates.status = 'generating_first_frame';
       segmentUpdates.error_message = null;
+      // CRITICAL: Clear webhook timestamp to allow new webhook to process
+      segmentUpdates.first_frame_webhook_received_at = null;
 
       // NOTE: Closing frame generation has been REMOVED during regeneration
       // Reason: Closing frames are unnecessary and waste generation resources
@@ -356,6 +358,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       segmentUpdates.video_task_id = null;
       segmentUpdates.retry_count = 0;
       segmentUpdates.error_message = null;
+      // CRITICAL: Clear webhook timestamp to allow new webhook to process
+      segmentUpdates.video_webhook_received_at = null;
 
       // Normalize legacy models to current VideoModel type
       const rawModel = project.video_model || 'veo3_fast';

@@ -54,7 +54,7 @@ const clampPromptLength = (value: string) => {
   return `${value.slice(0, KIE_PROMPT_LIMIT - 3)}...`;
 };
 
-// Webhook URL configuration for event-driven architecture
+// Callback URL configuration for event-driven architecture
 const WEBHOOK_BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flowtra.ai';
 const FRAME_WEBHOOK_URL = `${WEBHOOK_BASE_URL}/api/competitor-ugc-replication/webhooks/frame`;
 const VIDEO_WEBHOOK_URL = `${WEBHOOK_BASE_URL}/api/competitor-ugc-replication/webhooks/video`;
@@ -2445,7 +2445,8 @@ Technical Requirements:
         aspect_ratio: aspectRatio,
         resolution: '1K',
         output_format: 'png'
-      }
+      },
+      callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates
     })
   }, 5, 30000);
 
@@ -2543,7 +2544,7 @@ Render Instructions:
   const requestPayload = {
     model: imageModel,
     input: inputPayload,
-    webhook: FRAME_WEBHOOK_URL // Event-driven: Register webhook for instant status updates
+    callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates
   };
 
   console.log(`📤 [createFrameFromImage] Full request payload:`, JSON.stringify(requestPayload, null, 2));
@@ -2661,7 +2662,7 @@ export async function createSmartSegmentFrame(
         resolution: overrides?.resolutionOverride || '1K',
         output_format: 'png'
       },
-      webhook: FRAME_WEBHOOK_URL // Event-driven: Register webhook for instant status updates
+      callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates
     };
 
     console.log(`   - 📤 Full KIE API request payload:`, JSON.stringify(requestPayload, null, 2));
@@ -2896,7 +2897,7 @@ export async function startSegmentVideoTask(
     generateVoiceover: true,
     includeDialogue: true,
     enableTranslation: false,
-    webhook: VIDEO_WEBHOOK_URL // Event-driven: Register webhook for instant status updates
+    callBackUrl: VIDEO_WEBHOOK_URL // Event-driven: Register callback for instant status updates
   };
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {

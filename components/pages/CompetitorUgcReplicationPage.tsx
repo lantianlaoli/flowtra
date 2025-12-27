@@ -55,6 +55,7 @@ const REPLICA_OUTPUT_FORMATS: ReplicaOutputFormat[] = ['png', 'jpg'];
 const STEP_DESCRIPTIONS: Record<string, string> = {
   generating_cover: 'Crafting your viral hook – the moment they stop scrolling…',
   generating_segment_frames: 'Designing each frame with the competitor\'s magic formula…',
+  reviewing_segment_frames: 'Review the generated frame, then start the video.',
   generating_segment_videos: 'Transforming scenes into engagement powerhouses…',
   merging_segments: 'Stitching viral moments into one compelling story…',
   awaiting_merge: 'All scenes are ready – assembling your video clone…',
@@ -73,6 +74,7 @@ const STATUS_MAP: Record<string, Generation['status']> = {
   generating_segment_frames: 'processing',
   generating_segment_videos: 'processing',
   merging_segments: 'processing',
+  segment_frames_ready: 'awaiting_review',
   ready_for_video: 'awaiting_review',
   generating_video: 'processing'
 };
@@ -130,6 +132,7 @@ const STEP_PROGRESS_HINTS: Record<string, number> = {
   generating_segment_videos: 70,
   merging_segments: 80,
   awaiting_merge: 95,
+  reviewing_segment_frames: 70,
   generating_video: 85,
   processing: 25,
   completed: 100,
@@ -155,8 +158,7 @@ const SESSION_STORAGE_KEY = 'flowtra_competitor_ugc_replication_generations';
 const COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS: VideoDurationOption[] = [
   {
     value: '8',
-    label: '8s',
-    recommended: true
+    label: '8s'
   },
   {
     value: '16',
@@ -825,6 +827,118 @@ export default function CompetitorUgcReplicationPage() {
     }
   }, [segmentInspector, inspectorPrompt, fetchStatusForProject, showSuccess, showError]);
 
+  // Modal version of segment regeneration handler (doesn't depend on segmentInspector state)
+  const handleModalSegmentRegenerate = useCallback(async ({
+    projectId,
+    segmentIndex,
+    type,
+    prompt,
+    productIds,
+    characterIds
+  }: {
+    projectId: string;
+    segmentIndex: number;
+    type: 'photo' | 'video';
+    prompt: SegmentPromptPayload;
+    productIds?: string[];
+    characterIds?: string[];
+  }) => {
+    try {
+      console.log('[DEBUG] Modal Regenerate started', { type, projectId, segmentIndex });
+
+      // Validate projectId
+      if (!projectId || typeof projectId !== 'string' || projectId === 'undefined') {
+        console.error('[DEBUG] Invalid projectId:', projectId);
+        showError('Project ID missing. Please refresh the page and try again.');
+        return;
+      }
+
+      // Validate prompt data
+      if (!prompt || !prompt.shots || !Array.isArray(prompt.shots)) {
+        console.error('[DEBUG] Invalid prompt data:', prompt);
+        showError('Invalid prompt data');
+        return;
+      }
+
+      // Find the generation and get current prompt
+      const gen = generations.find(g => (g as any).projectId === projectId);
+      const currentSegment = gen?.segments?.find(s => s.index === segmentIndex);
+      const currentPrompt = currentSegment?.prompt as Partial<SegmentPrompt> | undefined;
+
+      // Execute composeSegmentPromptUpdate with error handling
+      let mergedPrompt;
+      try {
+        mergedPrompt = composeSegmentPromptUpdate(prompt, currentPrompt);
+        console.log('[DEBUG] Merged prompt created successfully');
+      } catch (error) {
+        console.error('[DEBUG] composeSegmentPromptUpdate failed:', error);
+        showError('Failed to prepare prompt data');
+        return;
+      }
+
+      // Validate serializable
+      try {
+        JSON.stringify(mergedPrompt);
+        console.log('[DEBUG] mergedPrompt is serializable');
+      } catch (error) {
+        console.error('[DEBUG] mergedPrompt not serializable:', error);
+        showError('Invalid prompt data (not serializable)');
+        return;
+      }
+
+      const requestBody: Record<string, unknown> = {
+        prompt: mergedPrompt,
+        regenerate: type
+      };
+
+      if (type === 'photo') {
+        if (productIds?.length) {
+          requestBody.productIds = productIds.slice(0, 8);
+        }
+        if (characterIds?.length) {
+          requestBody.characterIds = characterIds.slice(0, 8);
+        }
+      }
+
+      const url = `/api/competitor-ugc-replication/${projectId}/segments/${segmentIndex}`;
+      console.log('[DEBUG] Sending request:', {
+        url,
+        method: 'PATCH',
+        bodyKeys: Object.keys(requestBody)
+      });
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('[DEBUG] Response received:', response.status);
+
+      if (!response.ok) {
+        let message = 'Failed to update segment';
+        try {
+          const data = await response.json();
+          message = data?.error || data?.message || message;
+          console.error('[DEBUG] Error response:', data);
+        } catch (parseError) {
+          console.error('[DEBUG] Failed to parse error response:', parseError);
+        }
+        throw new Error(message);
+      }
+
+      await fetchStatusForProject(projectId);
+      const successText = type === 'photo' ? 'First frame regeneration queued.' : 'Video regeneration queued.';
+      showSuccess(successText);
+    } catch (error) {
+      console.error('[DEBUG] Caught error in handleModalSegmentRegenerate:', error);
+      const message = error instanceof Error ? error.message : 'Segment regeneration failed';
+      showError(message);
+    }
+  }, [generations, fetchStatusForProject, showSuccess, showError]);
+
   const handleMergeProject = useCallback(async (projectId: string) => {
     if (!projectId) return;
     setMergeSubmitting(prev => ({ ...prev, [projectId]: true }));
@@ -1043,23 +1157,6 @@ export default function CompetitorUgcReplicationPage() {
     [availableDurations]
   );
 
-  // Filter duration options to only show supported durations for current model
-  const filteredDurationOptions = useMemo(
-    () => COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS.filter(option => availableDurations.includes(option.value)),
-    [availableDurations]
-  );
-
-  const disabledModels = useMemo<VideoModel[]>(
-    () => {
-      // Models should only be disabled by:
-      // 1. User's available credits (handled in VideoModelSelector)
-      // 2. Explicit disable props (if any)
-      // NOT by quality!
-      return [];
-    },
-    []
-  );
-
   // Calculate recommended duration based on competitor ad
   const recommendedDuration = useMemo(() => {
     // Competitor ads are now video-only
@@ -1073,6 +1170,29 @@ export default function CompetitorUgcReplicationPage() {
     }
     return null;
   }, [selectedCompetitorAd, selectedModel]);
+
+  // Filter duration options to only show supported durations for current model
+  // and dynamically add 'recommended' based on competitor ad analysis
+  const filteredDurationOptions = useMemo(
+    () => COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS
+      .filter(option => availableDurations.includes(option.value))
+      .map(option => ({
+        ...option,
+        recommended: recommendedDuration ? option.value === recommendedDuration : undefined
+      })),
+    [availableDurations, recommendedDuration]
+  );
+
+  const disabledModels = useMemo<VideoModel[]>(
+    () => {
+      // Models should only be disabled by:
+      // 1. User's available credits (handled in VideoModelSelector)
+      // 2. Explicit disable props (if any)
+      // NOT by quality!
+      return [];
+    },
+    []
+  );
 
   // Auto-adjust duration when it becomes invalid
   useEffect(() => {
@@ -1323,8 +1443,7 @@ export default function CompetitorUgcReplicationPage() {
                   <GenerationProgressDisplay
                     generations={displayedGenerations}
                     onDownload={handleDownloadGeneration}
-                    onReview={handleRequestVideoGeneration}
-                    reviewCtaLabel="Generate Video"
+                    onSegmentRegenerate={handleModalSegmentRegenerate}
                     emptyStateRightContent={
                       <blockquote
                         className="tiktok-embed"

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
+import SegmentEditorSplitPane from '@/components/competitor-ugc-replication/SegmentEditorSplitPane';
 
 export interface Generation {
   id: string;
@@ -119,6 +120,14 @@ interface GenerationProgressDisplayProps {
   onMerge?: (generation: Generation, updatedPlan?: any) => void;
   onReview?: (generation: Generation) => void;
   reviewCtaLabel?: string;
+  onSegmentRegenerate?: (options: {
+    projectId: string;
+    segmentIndex: number;
+    type: 'photo' | 'video';
+    prompt: any;
+    productIds?: string[];
+    characterIds?: string[];
+  }) => Promise<void> | void;
 }
 
 export default function GenerationProgressDisplay({
@@ -131,7 +140,8 @@ export default function GenerationProgressDisplay({
   onSegmentSelect,
   onMerge,
   onReview,
-  reviewCtaLabel = 'Review & Generate'
+  reviewCtaLabel = 'Review & Generate',
+  onSegmentRegenerate
 }: GenerationProgressDisplayProps) {
   // Load TikTok script when in empty state
   useEffect(() => {
@@ -222,6 +232,7 @@ export default function GenerationProgressDisplay({
           onMerge={onMerge}
           onReview={onReview}
           reviewCtaLabel={reviewCtaLabel}
+          onSegmentRegenerate={onSegmentRegenerate}
         />
       ))}
     </div>
@@ -237,6 +248,14 @@ interface GenerationCardProps {
   onMerge?: (generation: Generation) => void;
   onReview?: (generation: Generation) => void;
   reviewCtaLabel: string;
+  onSegmentRegenerate?: (options: {
+    projectId: string;
+    segmentIndex: number;
+    type: 'photo' | 'video';
+    prompt: any;
+    productIds?: string[];
+    characterIds?: string[];
+  }) => Promise<void> | void;
 }
 
 function GenerationCard({
@@ -247,7 +266,8 @@ function GenerationCard({
   onSegmentSelect,
   onMerge,
   onReview,
-  reviewCtaLabel
+  reviewCtaLabel,
+  onSegmentRegenerate
 }: GenerationCardProps) {
   const {
     status,
@@ -271,6 +291,7 @@ function GenerationCard({
   } = generation;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showSegmentEditor, setShowSegmentEditor] = useState(false);
   const hasSegments = Boolean(
     generation.isSegmented &&
     ((generation.segmentStatus?.total && generation.segmentStatus.total > 0) ||
@@ -388,7 +409,7 @@ function GenerationCard({
 
   const showBody = (displayStatus === 'attention' && hasSegmentFailure) ||
     (displayStatus === 'failed' && Boolean(errorMessage)) ||
-    (hasSegments && segmentCount !== 1) ||
+    hasSegments ||
     (status === 'completed' && (Boolean(videoUrl) || Boolean(coverUrl)));
 
   const MetaTag = ({ icon: Icon, text }: { icon?: React.ElementType; text: string }) => (
@@ -422,21 +443,15 @@ function GenerationCard({
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {onReview &&
-              !isPhotoOnly &&
-              !videoGenerationRequested &&
-              (status === 'pending' || status === 'awaiting_review') &&
-              coverUrl &&
-              !videoUrl && (
+            {hasSegments && generation.segments && generation.segments.length > 0 && !mergeComplete && (
               <button
-                onClick={() => onReview(generation)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-[13px] font-semibold hover:bg-gray-800 transition-all shadow-sm"
+                onClick={() => setShowSegmentEditor(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
               >
                 <PenSquare className="w-3.5 h-3.5" />
-                <span>{reviewCtaLabel}</span>
+                <span>Edit Segments</span>
               </button>
             )}
-
             {status === 'completed' && videoUrl && (
               <button
                 onClick={() => !isDownloading && !downloaded && onDownload?.(generation)}
@@ -575,47 +590,6 @@ function GenerationCard({
               </div>
             )}
 
-            {/* Segments Toggle */}
-            {hasSegments && segmentCount !== 1 && (
-              <div className="mt-4">
-                <button
-                  onClick={() => onToggleSegments?.(generation)}
-                  className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-100"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-gray-100 shadow-sm">
-                      <Boxes className="w-4 h-4 text-gray-600" />
-                    </div>
-                    <div className="text-left">
-                      <span className="block text-[13px] font-semibold text-gray-900">Segment Breakdown</span>
-                      <span className="block text-[11px] text-gray-500">Fine-tune individual clips and prompts</span>
-                    </div>
-                  </div>
-                  {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                </button>
-                
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="pt-4">
-                        <SegmentBoard
-                          generation={generation}
-                          segmentStatus={generation.segmentStatus}
-                          segments={generation.segments}
-                          onSelectSegment={onSegmentSelect}
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
-
             {/* Merge Action */}
             {hasSegments && segmentCount !== 1 && !mergeComplete && (
               <div className="mt-3">
@@ -642,6 +616,48 @@ function GenerationCard({
           </div>
         )}
       </div>
+
+      {/* Segment Editor Modal */}
+      {showSegmentEditor && hasSegments && generation.segments && generation.segments.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+              <h2 className="text-lg font-semibold text-gray-900">Edit Segments</h2>
+              <button
+                onClick={() => setShowSegmentEditor(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 min-h-0">
+              <SegmentEditorSplitPane
+                projectId={(generation as any).projectId || generation.id}
+                segments={generation.segments}
+                segmentPlan={generation.segmentPlan}
+                videoModel={generation.videoModel}
+                videoDuration={generation.videoDuration}
+                videoAspectRatio={generation.videoAspectRatio}
+                brandId={generation.brandId}
+                brandName={generation.brand}
+                onRegenerate={onSegmentRegenerate ? (options) => {
+                  const projectId = (generation as any).projectId || generation.id;
+                  if (!projectId) return;
+                  return onSegmentRegenerate({
+                    projectId,
+                    ...options
+                  });
+                } : undefined}
+                onMerge={onMerge ? () => onMerge(generation) : undefined}
+                isMerging={generation.mergeLoading}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

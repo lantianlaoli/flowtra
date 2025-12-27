@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin, type CompetitorUgcReplicationSegment } from '@/lib/supabase';
+import { buildSegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -123,11 +124,32 @@ export async function POST(request: NextRequest) {
         // Check if all segments have videos
         const { data: allSegments } = await supabase
           .from('competitor_ugc_replication_segments')
-          .select('id, segment_index, status, video_url')
+          .select('*')
           .eq('project_id', segment.project_id)
           .order('segment_index', { ascending: true });
 
         const allVideosReady = allSegments?.every(s => s.video_url);
+
+        // CRITICAL: Update segment_status whenever segments change
+        if (allSegments && allSegments.length > 0) {
+          const segmentStatus = buildSegmentStatusPayload(
+            allSegments as CompetitorUgcReplicationSegment[],
+            null // mergedVideoUrl - not merged yet
+          );
+
+          await supabase
+            .from('competitor_ugc_replication_projects')
+            .update({
+              segment_status: segmentStatus,
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', segment.project_id);
+
+          console.log(`✅ [UGC Video Webhook] Updated segment_status for project ${segment.project_id}:`, {
+            videosReady: segmentStatus.videosReady,
+            total: segmentStatus.total
+          });
+        }
 
         if (allVideosReady && allSegments && allSegments.length > 0) {
           console.log(`✅ [UGC Video Webhook] All ${allSegments.length} videos ready for project ${segment.project_id}`);
