@@ -147,14 +147,12 @@ export default function AvatarAdsShowcasePage() {
               <div className="flex justify-center lg:justify-end w-full">
                 <blockquote
                   className="tiktok-embed"
-                  cite="https://www.tiktok.com/@laolilantian/video/7586245504011439377"
-                  data-video-id="7586245504011439377"
+                  cite="https://www.tiktok.com/@laolilantian/video/7588829313886162184"
+                  data-video-id="7588829313886162184"
                   style={{ maxWidth: '605px', minWidth: '325px' }}
                 >
                   <section>
-                    <a href="https://www.tiktok.com/@laolilantian/video/7586245504011439377" target="_blank">
-                      View Tutorial
-                    </a>
+                    <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a> Learn to create viral UGC videos faster. Set up your brand in Assets, choose an avatar, and let AI script the rest. Preview and refine for perfect results. <a title="aiavatar" target="_blank" href="https://www.tiktok.com/tag/aiavatar?refer=embed">#AIAvatar</a> <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a> <a title="contentcreation" target="_blank" href="https://www.tiktok.com/tag/contentcreation?refer=embed">#ContentCreation</a> <a target="_blank" title="♬ original sound  - Lantian laoli" href="https://www.tiktok.com/music/original-sound-Lantian-laoli-7588829377820527361?refer=embed">♬ original sound  - Lantian laoli</a>
                   </section>
                 </blockquote>
                 <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
