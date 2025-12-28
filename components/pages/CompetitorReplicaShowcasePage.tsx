@@ -248,13 +248,29 @@ export default function CompetitorReplicaShowcasePage() {
               <div className="flex justify-center lg:justify-end w-full">
                 <blockquote
                   className="tiktok-embed"
-                  cite="https://www.tiktok.com/@laolilantian/video/7586255739849559297"
-                  data-video-id="7586255739849559297"
+                  cite="https://www.tiktok.com/@laolilantian/video/7588829935922351378"
+                  data-video-id="7588829935922351378"
                   style={{ maxWidth: '605px', minWidth: '325px' }}
                 >
                   <section>
-                    <a href="https://www.tiktok.com/@laolilantian/video/7586255739849559297" target="_blank">
-                      View Tutorial
+                    <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">
+                      @laolilantian
+                    </a>{' '}
+                    Watch how we quickly clone viral videos and swap products using our optimized tool. Adjust every frame and prompt in the editor for perfect results.{' '}
+                    <a title="videoai" target="_blank" href="https://www.tiktok.com/tag/videoai?refer=embed">
+                      #VideoAI
+                    </a>{' '}
+                    <a title="contentcreation" target="_blank" href="https://www.tiktok.com/tag/contentcreation?refer=embed">
+                      #ContentCreation
+                    </a>{' '}
+                    <a title="productmarketing" target="_blank" href="https://www.tiktok.com/tag/productmarketing?refer=embed">
+                      #ProductMarketing
+                    </a>{' '}
+                    <a title="techdemo" target="_blank" href="https://www.tiktok.com/tag/techdemo?refer=embed">
+                      #TechDemo
+                    </a>{' '}
+                    <a target="_blank" title="♬ original sound  - Lantian laoli" href="https://www.tiktok.com/mus/original-sound-Lantian-laoli-7588830007134063381?refer=embed">
+                      ♬ original sound  - Lantian laoli
                     </a>
                   </section>
                 </blockquote>
