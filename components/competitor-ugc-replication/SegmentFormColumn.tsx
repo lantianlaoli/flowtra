@@ -29,6 +29,7 @@ import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
+import { useToast } from '@/contexts/ToastContext';
 
 export type SegmentShotPayload = {
   id: number;
@@ -200,8 +201,17 @@ export default function SegmentFormColumn({
   const [characterLoading, setCharacterLoading] = useState(false);
   const [characterError, setCharacterError] = useState<string | null>(null);
 
+  // Auto-save state
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { showError } = useToast();
+
   const firstFrameUrl = segment?.firstFrameUrl || null;
   const videoUrl = segment?.videoUrl || null;
+
+  // Track segment index to detect when user switches to a different segment
+  const previousSegmentIndexRef = useRef(segmentIndex);
+  const isSegmentSwitch = previousSegmentIndexRef.current !== segmentIndex;
 
   const promptSeedSignature = useMemo(() => JSON.stringify({
     photo: initialPhotoPrompt?.trim() || '',
@@ -210,16 +220,21 @@ export default function SegmentFormColumn({
   const promptSeedRef = useRef(promptSeedSignature);
 
   useEffect(() => {
-    if (promptSeedRef.current === promptSeedSignature) {
+    if (promptSeedRef.current === promptSeedSignature && !isSegmentSwitch) {
       return;
     }
     promptSeedRef.current = promptSeedSignature;
+    previousSegmentIndexRef.current = segmentIndex;
     setPhotoPrompt(initialPhotoPrompt);
     setShots(initialShots);
     const continuationDefault = Boolean(normalizedPrompt.is_continuation_from_prev);
     setIsContinuation(continuationDefault);
-    setShotExpansion({});
-  }, [initialPhotoPrompt, initialShots, promptSeedSignature, normalizedPrompt.is_continuation_from_prev]);
+
+    // Only reset shot expansion when switching segments, not on auto-save updates
+    if (isSegmentSwitch) {
+      setShotExpansion({});
+    }
+  }, [initialPhotoPrompt, initialShots, promptSeedSignature, normalizedPrompt.is_continuation_from_prev, segmentIndex, isSegmentSwitch]);
 
   useEffect(() => {
     setShotExpansion(prev => {
@@ -416,6 +431,116 @@ export default function SegmentFormColumn({
     });
   };
 
+  // Auto-save logic
+  const saveChanges = async () => {
+    setAutoSaveStatus('saving');
+    try {
+      const normalizedShots = shots.map((shot, idx) => ({
+        id: idx + 1,
+        time_range: shot.time_range.trim(),
+        audio: shot.audio.trim(),
+        style: shot.style.trim(),
+        action: shot.action.trim(),
+        subject: shot.subject.trim(),
+        dialogue: shot.dialogue.trim(),
+        language: shot.language,
+        composition: shot.composition.trim(),
+        context_environment: shot.context_environment.trim(),
+        ambiance_colour_lighting: shot.ambiance_colour_lighting.trim(),
+        camera_motion_positioning: shot.camera_motion_positioning.trim()
+      }));
+
+      const payload = {
+        prompt: {
+          first_frame_description: photoPrompt,
+          shots: normalizedShots,
+          is_continuation_from_prev: isContinuation
+        },
+        regenerate: 'none'
+      };
+
+      const response = await fetch(`/api/competitor-ugc-replication/${projectId}/segments/${segmentIndex}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save changes');
+      }
+
+      // Update seed ref to prevent reverting changes on Realtime update
+      // Use normalizedShots to match the format that will come back from the database
+      promptSeedRef.current = JSON.stringify({
+        photo: photoPrompt.trim(),
+        shots: normalizedShots
+      });
+
+      setAutoSaveStatus('saved');
+
+      // Clear "saved" status after 2 seconds
+      setTimeout(() => {
+        setAutoSaveStatus('idle');
+      }, 2000);
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      setAutoSaveStatus('error');
+      showError('Failed to save changes. Please check your connection.');
+
+      // Clear error status after 3 seconds
+      setTimeout(() => {
+        setAutoSaveStatus('idle');
+      }, 3000);
+    }
+  };
+
+  // Debounced auto-save when prompt or shots change
+  useEffect(() => {
+    // Clear any existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    // Check if there are actual changes
+    const hasChanges =
+      photoPrompt.trim() !== initialPhotoPrompt.trim() ||
+      isContinuation !== Boolean(normalizedPrompt.is_continuation_from_prev) ||
+      shots.length !== initialShots.length ||
+      shots.some((shot, idx) => {
+        const initial = initialShots[idx];
+        if (!initial) return true;
+        return (
+          shot.time_range !== initial.time_range ||
+          shot.audio !== initial.audio ||
+          shot.style !== initial.style ||
+          shot.action !== initial.action ||
+          shot.subject !== initial.subject ||
+          shot.dialogue !== initial.dialogue ||
+          shot.language !== initial.language ||
+          shot.composition !== initial.composition ||
+          shot.context_environment !== initial.context_environment ||
+          shot.ambiance_colour_lighting !== initial.ambiance_colour_lighting ||
+          shot.camera_motion_positioning !== initial.camera_motion_positioning
+        );
+      });
+
+    if (!hasChanges) {
+      return;
+    }
+
+    // Debounce: Save after 1.5 seconds of inactivity
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      saveChanges();
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoPrompt, shots, isContinuation]);
+
   const handleRegenerate = (type: 'photo' | 'video') => {
     if (!onRegenerate) return;
     const normalizedShots = shots.map((shot, idx) => ({
@@ -451,12 +576,36 @@ export default function SegmentFormColumn({
     <div className="flex h-full flex-col bg-white">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-white px-4 py-3">
-        <h2 className="text-sm font-semibold text-black">Edit Segment {segmentIndex + 1}</h2>
-        {videoModel && videoDuration && (
-          <p className="mt-0.5 text-xs text-[#666666]">
-            {videoModel.toUpperCase()} • {videoDuration}s
-          </p>
-        )}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-black">Edit Segment {segmentIndex + 1}</h2>
+            {videoModel && videoDuration && (
+              <p className="mt-0.5 text-xs text-[#666666]">
+                {videoModel.toUpperCase()} • {videoDuration}s
+              </p>
+            )}
+          </div>
+          {/* Auto-save status indicator */}
+          {autoSaveStatus !== 'idle' && (
+            <div className="flex items-center gap-1.5">
+              {autoSaveStatus === 'saving' && (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                  <span className="text-xs text-blue-600 font-medium">Saving...</span>
+                </>
+              )}
+              {autoSaveStatus === 'saved' && (
+                <>
+                  <Check className="w-3.5 h-3.5 text-green-600" />
+                  <span className="text-xs text-green-600 font-medium">Saved</span>
+                </>
+              )}
+              {autoSaveStatus === 'error' && (
+                <span className="text-xs text-red-600 font-medium">Save failed</span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Form Content */}

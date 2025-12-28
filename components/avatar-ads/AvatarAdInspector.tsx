@@ -106,7 +106,10 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   const [editedScenes, setEditedScenes] = useState<StructuredVideoPrompt[]>([]);
   const [activeSceneIndex, setActiveSceneIndex] = useState<number>(0);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const isInitialized = useRef(false);
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousProjectIdRef = useRef<string | null>(null);
   
   const scenes = project?.generated_prompts?.scenes ?? [];
   const totalScenes = scenes.length;
@@ -136,8 +139,10 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
       if (data.project) {
         setProject(data.project);
 
+        // Show spinner for both initial generation and regeneration
         const shouldShowImageSpinner =
-          data.project.status === 'generating_image' && !data.project.generated_image_url;
+          data.project.current_step === 'regenerating_image' ||
+          (data.project.status === 'generating_image' && !data.project.generated_image_url);
         setIsRegeneratingImage(shouldShowImageSpinner);
       } else {
         console.warn('Project data missing in response, or response was empty.');
@@ -175,10 +180,16 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
         },
         (payload) => {
           const updatedProject = payload.new as InspectorProject;
-          setProject(updatedProject);
+          setProject(prev => ({
+            ...updatedProject,
+            // Preserve generated_prompts if not included in Realtime update
+            generated_prompts: updatedProject.generated_prompts ?? prev?.generated_prompts
+          }));
 
+          // Show spinner for both initial generation and regeneration
           const shouldShowImageSpinner =
-            updatedProject.status === 'generating_image' && !updatedProject.generated_image_url;
+            updatedProject.current_step === 'regenerating_image' ||
+            (updatedProject.status === 'generating_image' && !updatedProject.generated_image_url);
           setIsRegeneratingImage(shouldShowImageSpinner);
         }
       )
@@ -192,7 +203,9 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   }, [open, projectId]);
 
   useEffect(() => {
-    if (project && !isInitialized.current) {
+    const isProjectSwitch = previousProjectIdRef.current !== projectId;
+
+    if (project && (!isInitialized.current || isProjectSwitch)) {
       if (project.image_prompt) {
         setEditedImagePrompt(project.image_prompt);
       }
@@ -203,8 +216,9 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
       }
       setActiveSceneIndex(0);
       isInitialized.current = true;
+      previousProjectIdRef.current = projectId;
     }
-  }, [project]);
+  }, [project, projectId]);
 
   useEffect(() => {
     if (!totalScenes) {
@@ -275,6 +289,85 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
     }
   };
 
+  // Auto-save logic
+  const savePrompts = useCallback(async () => {
+    if (!project || !projectId) return;
+
+    setAutoSaveStatus('saving');
+    try {
+      const updatedGeneratedPrompts = {
+        ...project.generated_prompts,
+        image_prompt: editedImagePrompt,
+        scenes: project.generated_prompts?.scenes.map((scene, index) => {
+          const editedPrompt = editedScenes[index];
+          return editedPrompt ? { ...scene, prompt: editedPrompt } : scene;
+        })
+      };
+
+      const response = await fetch(`/api/avatar-ads/${projectId}/update-prompts`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updatedPrompts: updatedGeneratedPrompts })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save prompts');
+      }
+
+      setAutoSaveStatus('saved');
+
+      // Clear "saved" status after 2 seconds
+      setTimeout(() => {
+        setAutoSaveStatus('idle');
+      }, 2000);
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      setAutoSaveStatus('error');
+      showError('Failed to save changes. Please check your connection.');
+
+      // Clear error status after 3 seconds
+      setTimeout(() => {
+        setAutoSaveStatus('idle');
+      }, 3000);
+    }
+  }, [project, projectId, editedImagePrompt, editedScenes, showError]);
+
+  // Debounced auto-save when prompts change
+  useEffect(() => {
+    // Clear any existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    // Skip auto-save if not initialized or project not loaded
+    if (!project || !isInitialized.current) {
+      return;
+    }
+
+    // Check if there are actual changes
+    const imagePromptChanged = editedImagePrompt !== (project.image_prompt || '');
+    const scenesChanged = editedScenes.some((editedScene, index) => {
+      const originalScene = project.generated_prompts?.scenes?.[index]?.prompt;
+      if (!originalScene) return true;
+      return JSON.stringify(editedScene) !== JSON.stringify(originalScene);
+    });
+
+    if (!imagePromptChanged && !scenesChanged) {
+      return;
+    }
+
+    // Debounce: Save after 1.5 seconds of inactivity
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      savePrompts();
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [editedImagePrompt, editedScenes, project, savePrompts]);
+
   const handleConfirm = async () => {
     if (!project) return;
 
@@ -321,10 +414,32 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
             >
               {/* Header */}
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  Review & Edit Ad
-                  <p className="text-xs font-normal text-gray-500 ml-2">Please check image, adjust photos, and confirm video elements before generating.</p>
-                </h3>
+                <div className="flex items-center gap-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    Review & Edit Ad
+                    <p className="text-xs font-normal text-gray-500 ml-2">Please check image, adjust photos, and confirm video elements before generating.</p>
+                  </h3>
+                  {/* Auto-save status indicator */}
+                  {autoSaveStatus !== 'idle' && (
+                    <div className="flex items-center gap-1.5">
+                      {autoSaveStatus === 'saving' && (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                          <span className="text-xs text-blue-600 font-medium">Saving...</span>
+                        </>
+                      )}
+                      {autoSaveStatus === 'saved' && (
+                        <>
+                          <Award className="w-3.5 h-3.5 text-green-600" />
+                          <span className="text-xs text-green-600 font-medium">Saved</span>
+                        </>
+                      )}
+                      {autoSaveStatus === 'error' && (
+                        <span className="text-xs text-red-600 font-medium">Save failed</span>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={onClose}
                   className="text-gray-400 hover:text-gray-900 transition-colors"
