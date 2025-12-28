@@ -41,8 +41,8 @@ export const successCases: SuccessCase[] = [
     id: 'avatar-ads',
     user: '@laolilantian',
     avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_1.jpg',
-    quote: 'Open Flowtra AI, register, and enter the console. Prepare photos of your character and product. Create your brand and upload character/product photos.',
-    tiktokUrl: 'https://www.tiktok.com/@laolilantian/video/7586245504011439377',
+    quote: 'Learn to create viral UGC videos faster. Set up your brand in Assets, choose an avatar, and let AI script the rest. Preview and refine for perfect results.',
+    tiktokUrl: 'https://www.tiktok.com/@laolilantian/video/7588829313886162184',
     tiktokText: 'See the Tutorial',
     layout: 'multi-input-to-output',
     content: {
