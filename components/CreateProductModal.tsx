@@ -8,6 +8,7 @@ import { UserProduct } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 import { useImageCompression } from '@/hooks/useImageCompression';
+import { createClient } from '@/lib/supabase/client';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -63,11 +64,8 @@ export default function CreateProductModal({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Purification state tracking
-  const [purificationStatus, setPurificationStatus] = useState<'idle' | 'uploading' | 'purifying' | 'completed' | 'failed'>('idle');
-  const [purificationTaskId, setPurificationTaskId] = useState<string | null>(null);
-  const [purifiedImageUrl, setPurifiedImageUrl] = useState<string | null>(null);
-  const [purificationError, setPurificationError] = useState<string | null>(null);
+  // Purification state tracking (webhook-based)
+  const [purifyingPhotoId, setPurifyingPhotoId] = useState<string | null>(null);
 
   // Image compression hook
   const { compressImage, isCompressing, compressionProgress } = useImageCompression();
@@ -81,10 +79,7 @@ export default function CreateProductModal({
       setAnalysisStatus('idle');
       setAnalysisError(null);
       setFormError(null);
-      setPurificationStatus('idle');
-      setPurificationTaskId(null);
-      setPurifiedImageUrl(null);
-      setPurificationError(null);
+      setPurifyingPhotoId(null);
     }
   }, [isOpen]);
 
@@ -113,10 +108,8 @@ export default function CreateProductModal({
     // Reset all states
     setFormError(null);
     setAnalysisError(null);
-    setPurificationError(null);
     setUploadedImage(file);
     setAnalysisStatus('purifying');
-    setPurificationStatus('uploading');
 
     // Show original preview while purifying
     const reader = new FileReader();
@@ -148,7 +141,7 @@ export default function CreateProductModal({
     );
   };
 
-  // NEW: Complete purification + analysis workflow
+  // NEW: Complete purification + analysis workflow (webhook-based)
   const purifyAndAnalyzePhoto = async (file: File) => {
     try {
       // STEP 0: Compress if file > 4MB (to avoid Vercel 4.5MB limit)
@@ -157,20 +150,13 @@ export default function CreateProductModal({
 
       if (fileSizeMB > 4) {
         console.log(`[purify-workflow] File size ${fileSizeMB.toFixed(2)}MB exceeds 4MB, compressing...`);
-        setPurificationStatus('uploading'); // Show "Uploading..." during compression
-
         const compressionResult = await compressImage(file);
         fileToUpload = compressionResult.compressedFile;
-
-        console.log('[purify-workflow] Compression complete:', {
-          originalSizeMB: (compressionResult.originalSize / 1024 / 1024).toFixed(2),
-          compressedSizeMB: (compressionResult.compressedSize / 1024 / 1024).toFixed(2),
-          compressionRatio: `${compressionResult.compressionRatio.toFixed(1)}%`
-        });
+        console.log('[purify-workflow] Compression complete');
       }
 
-      // STEP 1: Upload to temporary storage for purification
-      setPurificationStatus('uploading');
+      // STEP 1: Upload to temporary storage
+      setAnalysisStatus('purifying');
       console.log('[purify-workflow] Starting temporary upload');
 
       const uploadFormData = new FormData();
@@ -189,89 +175,57 @@ export default function CreateProductModal({
       const { publicUrl: originalImageUrl } = await tempUploadResponse.json();
       console.log('[purify-workflow] Temporary upload complete:', originalImageUrl);
 
-      // STEP 2: Start purification
-      setPurificationStatus('purifying');
+      // STEP 2: Create temporary photo record for tracking
+      const createPhotoResponse = await fetch('/api/user-products/temp-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: originalImageUrl,
+          fileName: file.name
+        })
+      });
+
+      if (!createPhotoResponse.ok) {
+        const photoError = await createPhotoResponse.json().catch(() => ({}));
+        throw new Error(photoError?.error || 'Failed to create photo record');
+      }
+
+      const { photoId } = await createPhotoResponse.json();
+      setPurifyingPhotoId(photoId);
+      console.log('[purify-workflow] Temporary photo record created:', photoId);
+
+      // STEP 3: Start purification (webhook-based, no polling)
       console.log('[purify-workflow] Starting purification');
 
       const purifyResponse = await fetch('/api/user-products/purify-photo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: originalImageUrl })
+        body: JSON.stringify({
+          imageUrl: originalImageUrl,
+          photoId: photoId
+        })
       });
 
       if (!purifyResponse.ok) {
         const purifyError = await purifyResponse.json().catch(() => ({}));
-
-        // Check for insufficient credits
-        if (purifyResponse.status === 402) {
-          setAnalysisStatus('failed');
-          setPurificationStatus('failed');
-          setPurificationError(purifyError?.details || 'Insufficient credits for photo purification');
-          setFormError(purifyError?.details || 'Insufficient credits for photo purification');
-          return;
-        }
-
         throw new Error(purifyError?.error || 'Failed to start photo purification');
       }
 
       const { taskId } = await purifyResponse.json();
-      setPurificationTaskId(taskId);
       console.log('[purify-workflow] Purification task created:', taskId);
 
-      // STEP 3: Poll purification status
-      const purifiedUrl = await pollPurificationStatus(taskId);
-
-      setPurifiedImageUrl(purifiedUrl);
-      setPurificationStatus('completed');
-      console.log('[purify-workflow] Purification complete:', purifiedUrl);
-
-      // STEP 4: Update preview with purified image
-      setImagePreview(purifiedUrl);
-
-      // STEP 5: Analyze purified photo with Gemini
-      setAnalysisStatus('analyzing');
-      await analyzePhotoByUrl(purifiedUrl);
+      // STEP 4: Realtime subscription will handle completion
+      // Webhook will update database → Supabase Realtime → Frontend updates UI
 
     } catch (error) {
       console.error('[purify-workflow] Workflow failed:', error);
-      setPurificationStatus('failed');
       setAnalysisStatus('failed');
 
       const errorMessage = error instanceof Error ? error.message : 'Failed to purify product photo';
-      setPurificationError(errorMessage);
       setAnalysisError(errorMessage);
       setFormError(errorMessage);
+      setPurifyingPhotoId(null);
     }
-  };
-
-  // NEW: Poll purification status
-  const pollPurificationStatus = async (taskId: string, maxAttempts = 300, intervalMs = 2000): Promise<string> => {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await new Promise(resolve => setTimeout(resolve, intervalMs));
-
-      console.log(`[purify-workflow] Polling attempt ${attempt + 1}/${maxAttempts}`);
-
-      const statusResponse = await fetch(`/api/user-products/purify-photo?taskId=${taskId}`);
-
-      if (!statusResponse.ok) {
-        throw new Error('Failed to check purification status');
-      }
-
-      const statusData = await statusResponse.json();
-
-      if (statusData.status === 'success' && statusData.imageUrl) {
-        console.log('[purify-workflow] Purification succeeded');
-        return statusData.imageUrl;
-      }
-
-      if (statusData.status === 'fail') {
-        throw new Error('Photo purification failed. Please try a different photo.');
-      }
-
-      // Status is still 'waiting', continue polling
-    }
-
-    throw new Error('Photo purification timed out. Please try again.');
   };
 
   // NEW: Analyze photo by URL (for purified images)
@@ -294,13 +248,79 @@ export default function CreateProductModal({
       setProductName(payload.productName.slice(0, 100));
       setProductDetails(payload.productDetails || '');
       setAnalysisStatus('completed');
+      setPurifyingPhotoId(null); // Clear purifying state
       console.log('[purify-workflow] Analysis complete');
     } catch (error) {
       console.error('[purify-workflow] Analysis failed:', error);
       setAnalysisStatus('failed');
       setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze product photo');
+      setPurifyingPhotoId(null);
     }
   };
+
+  // NEW: Realtime subscription for purification status updates
+  useEffect(() => {
+    if (!purifyingPhotoId) {
+      console.log('[Purification Realtime] No active purification to monitor');
+      return;
+    }
+
+    console.log('[Purification Realtime] Setting up subscription for photo:', purifyingPhotoId);
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`product-photo-purification-${purifyingPhotoId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'user_product_photos',
+          filter: `id=eq.${purifyingPhotoId}`,
+        },
+        async (payload) => {
+          console.log('[Purification Realtime] Photo updated:', payload.new);
+
+          const updatedPhoto = payload.new as {
+            purification_status: 'idle' | 'uploading' | 'purifying' | 'completed' | 'failed';
+            photo_url?: string;
+            purification_error?: string;
+          };
+
+          if (updatedPhoto.purification_status === 'completed' && updatedPhoto.photo_url) {
+            console.log('[Purification Realtime] Purification completed:', updatedPhoto.photo_url);
+
+            // Update preview with purified image
+            setImagePreview(updatedPhoto.photo_url);
+
+            // Start analysis
+            setAnalysisStatus('analyzing');
+            await analyzePhotoByUrl(updatedPhoto.photo_url);
+
+          } else if (updatedPhoto.purification_status === 'failed') {
+            console.error('[Purification Realtime] Purification failed:', updatedPhoto.purification_error);
+
+            setAnalysisStatus('failed');
+            setAnalysisError(updatedPhoto.purification_error || 'Photo purification failed');
+            setFormError(updatedPhoto.purification_error || 'Photo purification failed');
+            setPurifyingPhotoId(null);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Purification Realtime] Subscribed to photo:', purifyingPhotoId);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Purification Realtime] Failed to subscribe to photo:', purifyingPhotoId);
+        }
+      });
+
+    // Cleanup subscription when photo ID changes or component unmounts
+    return () => {
+      console.log('[Purification Realtime] Cleaning up subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [purifyingPhotoId]);
 
   const analyzePhoto = async (file: File) => {
     try {
@@ -365,25 +385,35 @@ export default function CreateProductModal({
 
       setIsUploading(true);
       try {
-        // Use purified image URL if available, otherwise use original file
-        if (purifiedImageUrl) {
-          console.log('[submit] Uploading purified image from URL');
-          const photoResponse = await fetch(`/api/user-products/${newProduct.id}/photos/from-url`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageUrl: purifiedImageUrl })
-          });
+        // Use purified photo if available
+        if (purifyingPhotoId) {
+          console.log('[submit] Using purified photo from database');
 
-          const photoPayload = await photoResponse.json().catch(() => ({}));
-          if (!photoResponse.ok || !photoPayload?.photo) {
-            console.error('Purified photo upload failed:', {
-              status: photoResponse.status,
-              payload: photoPayload
-            });
-            throw new Error(photoPayload?.error || photoPayload?.details || 'Failed to save purified photo');
+          // Fetch final purified photo URL from database
+          const supabase = createClient();
+          const { data: photo, error: photoError } = await supabase
+            .from('user_product_photos')
+            .select('photo_url, purification_status')
+            .eq('id', purifyingPhotoId)
+            .single();
+
+          if (photoError || !photo || photo.purification_status !== 'completed') {
+            throw new Error('Purified photo not ready. Please wait for purification to complete.');
           }
 
-          newProduct.user_product_photos = [photoPayload.photo];
+          // Link purified photo to product
+          const linkResponse = await fetch(`/api/user-products/${newProduct.id}/photos/link`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoId: purifyingPhotoId })
+          });
+
+          const linkPayload = await linkResponse.json().catch(() => ({}));
+          if (!linkResponse.ok || !linkPayload?.photo) {
+            throw new Error(linkPayload?.error || 'Failed to link purified photo to product');
+          }
+
+          newProduct.user_product_photos = [linkPayload.photo];
         } else {
           console.log('[submit] Uploading original image file (fallback)');
           const uploadForm = new FormData();

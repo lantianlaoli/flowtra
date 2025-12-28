@@ -103,7 +103,7 @@ const STATUS_MAP: Record<string, Generation['status']> = {
   analyzing_images: 'processing',
   generating_prompts: 'processing',
   generating_image: 'processing',
-  awaiting_review: 'pending', // New status for review state - visually pending but active
+  awaiting_review: 'awaiting_review', // Preserve status to trigger review UI
   generating_videos: 'processing',
   merging_videos: 'processing'
 };
@@ -1083,7 +1083,7 @@ const formatDurationLabel = (seconds: number) => {
                 <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
                   <div className="bg-white border border-gray-200 rounded-3xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
                     <div className="flex-1 overflow-hidden min-h-0">
-                      <GenerationProgressDisplay
+                        <GenerationProgressDisplay
                         generations={displayedGenerations}
                         onDownload={handleDownloadGeneration}
                         emptyStateSteps={CHARACTER_EMPTY_STEPS}
@@ -1105,6 +1105,7 @@ const formatDurationLabel = (seconds: number) => {
                           </>
                         }
                         onReview={(generation) => setInspectorProjectId((generation as AvatarGeneration).projectId!)}
+                        reviewCtaLabel="Preview"
                       />
                     </div>
                   </div>

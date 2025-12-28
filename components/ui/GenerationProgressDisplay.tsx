@@ -411,6 +411,7 @@ function GenerationCard({
     (displayStatus === 'failed' && Boolean(errorMessage)) ||
     hasSegments ||
     (status === 'completed' && (Boolean(videoUrl) || Boolean(coverUrl)));
+  const showPreviewAction = displayStatus === 'awaiting_review' && Boolean(coverUrl) && Boolean(onReview);
 
   const MetaTag = ({ icon: Icon, text }: { icon?: React.ElementType; text: string }) => (
     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 border border-gray-100 rounded-lg text-[11px] font-medium text-gray-600">
@@ -499,6 +500,15 @@ function GenerationCard({
                 )}
                 <span className="text-[13px] font-bold text-gray-900">{progress}%</span>
               </div>
+              {showPreviewAction && (
+                <button
+                  onClick={() => onReview?.(generation)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[12px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  {reviewCtaLabel}
+                </button>
+              )}
             </div>
             <div className="relative h-2 w-full bg-gray-100 rounded-full overflow-hidden">
               <motion.div
@@ -603,8 +613,8 @@ function GenerationCard({
                     onClick={() => onMerge?.(generation)}
                     disabled={!canMerge}
                     className={`w-full py-3 rounded-xl font-bold text-[13px] transition-all border ${
-                      canMerge 
-                        ? 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800 shadow-sm' 
+                      canMerge
+                        ? 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800 shadow-sm'
                         : 'bg-gray-50 text-gray-400 border-gray-100'
                     }`}
                   >
@@ -613,6 +623,7 @@ function GenerationCard({
                 ) : null}
               </div>
             )}
+
           </div>
         )}
       </div>

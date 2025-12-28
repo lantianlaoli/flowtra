@@ -181,13 +181,19 @@ export interface UserProduct {
 // Database types for user_product_photos table
 export interface UserProductPhoto {
   id: string
-  product_id: string
+  product_id: string | null  // Allow null for temporary photos
   user_id: string
   photo_url: string
   file_name: string
   is_primary: boolean
   created_at: string
   updated_at: string
+  // Purification tracking fields
+  purification_task_id?: string | null
+  purification_status?: 'idle' | 'uploading' | 'purifying' | 'completed' | 'failed'
+  purification_error?: string | null
+  webhook_received_at?: string | null
+  original_photo_url?: string | null
 }
 
 // Database types for competitor_ads table

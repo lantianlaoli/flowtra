@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 const KIE_API_BASE_URL = 'https://api.kie.ai/api/v1/jobs';
 // Product photo purification is FREE - no credits required
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Validate request
     const body = await request.json();
-    const { imageUrl } = body;
+    const { imageUrl, photoId } = body;
 
     if (!imageUrl || typeof imageUrl !== 'string') {
       return NextResponse.json({
@@ -31,9 +32,28 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 3. Create purification task with nano-banana-pro (FREE - no credits required)
+    if (!photoId || typeof photoId !== 'string') {
+      return NextResponse.json({
+        error: 'Photo ID is required'
+      }, { status: 400 });
+    }
+
+    // 3. Verify NEXT_PUBLIC_SITE_URL is configured (required for webhooks)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!siteUrl) {
+      console.error('[purify-photo] NEXT_PUBLIC_SITE_URL not configured');
+      return NextResponse.json({
+        error: 'Webhook URL not configured. Please contact support.',
+        details: 'NEXT_PUBLIC_SITE_URL environment variable is required for photo purification.'
+      }, { status: 500 });
+    }
+
+    const callBackUrl = `${siteUrl}/api/user-products/webhooks/purify`;
+
+    // 4. Create purification task with nano-banana-pro (FREE - no credits required)
     const payload = {
       model: 'nano-banana-pro',
+      callBackUrl, // Add webhook URL
       input: {
         prompt: PURIFICATION_PROMPT,
         image_input: [imageUrl],
@@ -43,7 +63,7 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    console.log('[purify-photo] Starting FREE purification:', { userId, imageUrl });
+    console.log('[purify-photo] Starting FREE purification with webhook:', { userId, imageUrl, photoId, callBackUrl });
 
     const response = await fetchWithRetry(`${KIE_API_BASE_URL}/createTask`, {
       method: 'POST',
@@ -73,16 +93,41 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Product photo purification is FREE - no transaction recorded
+    const taskId = data.data.taskId;
+
+    // 5. Update photo record with purification tracking
+    const supabase = getSupabaseAdmin();
+    const { error: updateError } = await supabase
+      .from('user_product_photos')
+      .update({
+        purification_task_id: taskId,
+        purification_status: 'purifying',
+        original_photo_url: imageUrl,
+        purification_error: null,
+        webhook_received_at: null
+      })
+      .eq('id', photoId)
+      .eq('user_id', userId); // Security: Verify ownership
+
+    if (updateError) {
+      console.error('[purify-photo] Failed to update photo record:', updateError);
+      return NextResponse.json({
+        error: 'Failed to update photo record',
+        details: updateError.message
+      }, { status: 500 });
+    }
 
     console.log('[purify-photo] Task created successfully (FREE):', {
       userId,
-      taskId: data.data.taskId
+      photoId,
+      taskId,
+      callBackUrl
     });
 
     return NextResponse.json({
       success: true,
-      taskId: data.data.taskId,
+      taskId: taskId,
+      photoId: photoId,
       creditsDeducted: 0
     });
 
@@ -95,71 +140,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    // 1. Authenticate user
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // 2. Get taskId from query params
-    const { searchParams } = new URL(request.url);
-    const taskId = searchParams.get('taskId');
-
-    if (!taskId) {
-      return NextResponse.json({
-        error: 'Task ID is required'
-      }, { status: 400 });
-    }
-
-    // 3. Query KIE API for task status
-    const response = await fetchWithRetry(`${KIE_API_BASE_URL}/recordInfo?taskId=${taskId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      }
-    }, 3, 10000);
-
-    if (!response.ok) {
-      throw new Error(`Failed to check status: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    if (data.code !== 200) {
-      throw new Error(data.msg || 'KIE API error');
-    }
-
-    // 4. Parse task result
-    const taskData = data.data;
-    const state = taskData.state ? taskData.state.toLowerCase() : 'unknown';
-
-    let imageUrl = null;
-    if (state === 'success' && taskData.resultJson) {
-      try {
-        const parsedResult = JSON.parse(taskData.resultJson);
-        if (parsedResult.resultUrls && parsedResult.resultUrls.length > 0) {
-          imageUrl = parsedResult.resultUrls[0];
-        }
-      } catch (e) {
-        console.error('[purify-photo] Failed to parse result JSON:', e);
-      }
-    }
-
-    console.log('[purify-photo] Status check:', { userId, taskId, state, hasImage: !!imageUrl });
-
-    return NextResponse.json({
-      success: true,
-      status: state, // 'waiting', 'success', 'fail'
-      imageUrl: imageUrl
-    });
-
-  } catch (error) {
-    console.error('[purify-photo] GET error:', error);
-    return NextResponse.json({
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
-  }
-}
+// GET endpoint removed - polling deprecated, webhooks handle status updates

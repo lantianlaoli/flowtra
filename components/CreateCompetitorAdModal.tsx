@@ -179,10 +179,15 @@ export default function CreateCompetitorAdModal({
           return;
         }
 
+        // Extract AI-generated name from analysis before creating record
+        const aiGeneratedName = (analysis && typeof analysis === 'object' && 'name' in analysis && typeof analysis.name === 'string')
+          ? analysis.name
+          : tempName;
+
         // Step 3: Create database record with analysis results
         console.log('[CreateCompetitorAdModal] Step 3: Saving competitor ad...');
         console.log('[CreateCompetitorAdModal] brandId:', brandId);
-        console.log('[CreateCompetitorAdModal] competitorName:', tempName);
+        console.log('[CreateCompetitorAdModal] competitorName:', aiGeneratedName);
 
         const createResponse = await fetch('/api/competitor-ads/create-with-analysis', {
           method: 'POST',
@@ -191,7 +196,7 @@ export default function CreateCompetitorAdModal({
           },
           body: JSON.stringify({
             brand_id: brandId,
-            competitor_name: tempName,
+            competitor_name: aiGeneratedName,
             analysis_result: analysis,
             language: language,
             analysis_status: 'completed'
@@ -212,17 +217,8 @@ export default function CreateCompetitorAdModal({
         setAnalysisResult(analysis);
         setAnalysisLanguage(language);
 
-        // Auto-fill competitor name with AI-suggested name
-        if (analysis && typeof analysis === 'object' && 'name' in analysis) {
-          const suggestedName = analysis.name as string;
-          if (suggestedName && typeof suggestedName === 'string') {
-            setCompetitorName(suggestedName);
-          } else {
-            setCompetitorName(tempName);
-          }
-        } else {
-          setCompetitorName(tempName);
-        }
+        // Set competitor name (same as what was saved to database)
+        setCompetitorName(aiGeneratedName);
 
         onCompetitorAdCreated(competitorAd);
 

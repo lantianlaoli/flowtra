@@ -59,8 +59,8 @@ export default function VideoDurationSelector({
     event.stopPropagation();
   }, []);
 
-  // Ensure 8s always has recommended flag, regardless of how options are passed
-  const durationOptions: VideoDurationOption[] = (options ?? [
+  // Use provided options or default options (8s default recommended)
+  const durationOptions: VideoDurationOption[] = options ?? [
     {
       value: '8',
       label: '8s',
@@ -94,11 +94,7 @@ export default function VideoDurationSelector({
       value: '64',
       label: '64s'
     }
-  ]).map(option =>
-    option.value === '8'
-      ? { ...option, recommended: true }
-      : option
-  );
+  ];
 
   // Close dropdown when clicking outside
   useEffect(() => {
