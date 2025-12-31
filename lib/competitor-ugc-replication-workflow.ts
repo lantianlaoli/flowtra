@@ -2812,13 +2812,26 @@ export async function startSegmentVideoTask(
   segmentIndex: number,
   totalSegments: number
 ): Promise<string> {
-  const videoModel = (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'grok' | 'kling_2_6';
+  const videoModel = (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'grok' | 'kling_2_6';
 
-  const supportedSegmentModels: Array<'veo3' | 'veo3_fast' | 'grok' | 'kling_2_6'> = ['veo3', 'veo3_fast', 'grok', 'kling_2_6'];
+  const supportedSegmentModels: Array<'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'grok' | 'kling_2_6'> = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'grok', 'kling_2_6'];
   if (!supportedSegmentModels.includes(videoModel)) {
-    throw new Error(`Segmented workflow only supports Veo3, Grok, or Kling (see docs/kie/kling_2.6.md). Received ${videoModel}`);
+    throw new Error(`Segmented workflow only supports Veo3, Seedance 1.5 Pro, Grok, or Kling (see docs/kie/seedance1.5pro.md). Received ${videoModel}`);
   }
 
+  // Route to Seedance API if using seedance_1_5_pro model
+  if (videoModel === 'seedance_1_5_pro') {
+    return await startSegmentVideoTaskSeedance(
+      project,
+      segmentPrompt,
+      firstFrameUrl,
+      closingFrameUrl,
+      segmentIndex,
+      totalSegments
+    );
+  }
+
+  // Continue with Veo3/Grok/Kling logic for other models
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
   const languageCode = (project.language || 'en') as LanguageCode;
   const languageName = getLanguagePromptName(languageCode);
@@ -2920,4 +2933,98 @@ export async function startSegmentVideoTask(
   }
 
   return data.data.taskId;
+}
+
+/**
+ * Start video generation task using Seedance 1.5 Pro API
+ * Uses generic jobs/createTask endpoint (same as frame generation)
+ * Documentation: docs/kie/seedance1.5pro.md
+ */
+async function startSegmentVideoTaskSeedance(
+  project: SingleVideoProject,
+  segmentPrompt: SegmentPrompt,
+  firstFrameUrl: string,
+  closingFrameUrl: string | null | undefined,
+  segmentIndex: number,
+  totalSegments: number
+): Promise<string> {
+  const KIE_API_KEY = process.env.KIE_API_KEY;
+  if (!KIE_API_KEY) {
+    throw new Error('KIE_API_KEY environment variable is not configured');
+  }
+
+  // Prepare input_urls: first frame is required, closing frame optional
+  const hasClosingFrame = !!closingFrameUrl && closingFrameUrl !== firstFrameUrl;
+  const inputUrls = hasClosingFrame ? [firstFrameUrl, closingFrameUrl] : [firstFrameUrl];
+
+  console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${inputUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
+
+  const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+
+  // Build prompt text from segment fields
+  const promptParts: string[] = [];
+
+  if (segmentPrompt.first_frame_description) {
+    promptParts.push(segmentPrompt.first_frame_description);
+  }
+  if (segmentPrompt.action) {
+    promptParts.push(`Action: ${segmentPrompt.action}`);
+  }
+  if (segmentPrompt.subject) {
+    promptParts.push(`Subject: ${segmentPrompt.subject}`);
+  }
+  if (segmentPrompt.dialogue) {
+    promptParts.push(`Dialogue: ${segmentPrompt.dialogue}`);
+  }
+  if (segmentPrompt.style) {
+    promptParts.push(`Style: ${segmentPrompt.style}`);
+  }
+  if (segmentPrompt.context_environment) {
+    promptParts.push(`Environment: ${segmentPrompt.context_environment}`);
+  }
+  if (segmentPrompt.ambiance_colour_lighting) {
+    promptParts.push(`Lighting: ${segmentPrompt.ambiance_colour_lighting}`);
+  }
+  if (segmentPrompt.camera_motion_positioning) {
+    promptParts.push(`Camera: ${segmentPrompt.camera_motion_positioning}`);
+  }
+
+  const promptText = promptParts.join('. ').substring(0, 2500); // Max 2500 chars per Seedance API
+
+  const requestBody = {
+    model: 'bytedance/seedance-1.5-pro',
+    input: {
+      prompt: promptText,
+      input_urls: inputUrls,
+      aspect_ratio: aspectRatio, // '16:9' or '9:16'
+      resolution: '720p', // Fixed 720p for high quality
+      duration: '8', // Fixed 8s segments
+      fixed_lens: false, // Allow dynamic camera movement
+      generate_audio: true // Enable audio generation
+    },
+    callBackUrl: VIDEO_WEBHOOK_URL
+  };
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${KIE_API_KEY}`
+    },
+    body: JSON.stringify(requestBody)
+  }, 5, 30000);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Seedance API error: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json();
+
+  if (result.code !== 200 || !result.data?.taskId) {
+    throw new Error(`Seedance API failed: ${result.msg || 'Unknown error'}`);
+  }
+
+  console.log(`✅ Seedance task created: ${result.data.taskId} for segment ${segmentIndex + 1}`);
+  return result.data.taskId;
 }

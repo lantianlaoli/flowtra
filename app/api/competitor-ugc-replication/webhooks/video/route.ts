@@ -6,20 +6,29 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
- * KIE Video Generation Webhook Payload (Veo3)
- * Documentation: docs/kie/callback.md
+ * Unified Video Webhook Payload
+ * Supports both Veo3 format and Seedance format (generic jobs API)
+ * Documentation: docs/kie/callback.md (Veo3), docs/kie/seedance1.5pro.md (Seedance)
  */
 interface KIEVideoWebhookPayload {
   code: number;
   msg: string;
   data: {
     taskId: string;
+
+    // Veo3 format
     info?: {
       resultUrls?: string[];
       originUrls?: string[];
       resolution?: string;
     };
     fallbackFlag?: boolean;
+
+    // Seedance/Generic jobs format (same as frame webhook)
+    state?: 'waiting' | 'success' | 'fail';
+    resultJson?: string; // JSON string: {resultUrls: [...]}
+    failCode?: string;
+    failMsg?: string;
   };
 }
 
@@ -41,7 +50,7 @@ export async function POST(request: NextRequest) {
   try {
     const payload: KIEVideoWebhookPayload = await request.json();
     const { code, msg, data } = payload;
-    const { taskId, info, fallbackFlag } = data;
+    const { taskId, info, fallbackFlag, resultJson } = data;
 
     console.log('[UGC Video Webhook] Received:', { taskId, code });
 
@@ -68,9 +77,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 });
     }
 
-    const videoUrl = info?.resultUrls?.[0];
+    // Extract video URL from either format
+    let videoUrl: string | undefined;
+
+    // Format 1: Veo3 format (info.resultUrls)
+    if (info?.resultUrls?.[0]) {
+      videoUrl = info.resultUrls[0];
+      console.log('[UGC Video Webhook] Extracted videoUrl from Veo3 format');
+    }
+    // Format 2: Seedance format (resultJson)
+    else if (resultJson) {
+      try {
+        const parsed = JSON.parse(resultJson);
+        videoUrl = parsed.resultUrls?.[0];
+        console.log('[UGC Video Webhook] Extracted videoUrl from Seedance format');
+      } catch (parseError) {
+        console.error('[UGC Video Webhook] Failed to parse resultJson:', parseError);
+      }
+    }
+
+    console.log('[UGC Video Webhook] Extracted videoUrl:', videoUrl ? 'Found' : 'Missing');
 
     // Update segment based on webhook status
+    // Success: code 200 and video URL present (works for both formats)
     if (code === 200 && videoUrl) {
       // Success case: Update segment with video URL
       const { error: updateError } = await supabase

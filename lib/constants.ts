@@ -4,8 +4,9 @@
 
 // Generation costs (ALL models charge at generation time)
 export const GENERATION_COSTS = {
-  'veo3': 150,        // Veo3.1: 150 credits per 8s segment
-  'veo3_fast': 20     // Veo3.1 fast: 20 credits per 8s segment
+  'veo3': 150,           // Veo3.1: 150 credits per 8s segment
+  'veo3_fast': 20,       // Veo3.1 fast: 20 credits per 8s segment
+  'seedance_1_5_pro': 56 // Seedance 1.5 Pro: 56 credits per 8s segment (720p with audio)
 } as const;
 
 // DEPRECATED: Legacy CREDIT_COSTS for backwards compatibility
@@ -69,7 +70,8 @@ export const IMAGE_SIZE_OPTIONS = {
 // Video aspect ratio options for different models
 export const VIDEO_ASPECT_RATIO_OPTIONS = {
   'veo3': ['16:9', '9:16'],
-  'veo3_fast': ['16:9', '9:16']
+  'veo3_fast': ['16:9', '9:16'],
+  'seedance_1_5_pro': ['16:9', '9:16']
 } as const
 
 // Credit costs for different image models (all free)
@@ -81,8 +83,9 @@ export const IMAGE_CREDIT_COSTS = {
 
 // Processing times for different video models
 export const MODEL_PROCESSING_TIMES = {
-  'veo3_fast': '2-3 min',    // Veo3.1 fast: 2-3 minutes processing time
-  'veo3': '5-8 min'          // Veo3.1: 5-8 minutes processing time
+  'veo3_fast': '2-3 min',         // Veo3.1 fast: 2-3 minutes processing time
+  'veo3': '5-8 min',              // Veo3.1: 5-8 minutes processing time
+  'seedance_1_5_pro': '1-2 min'   // Seedance 1.5 Pro: 1-2 minutes processing time
 } as const
 
 // Processing times for different image models
@@ -170,7 +173,7 @@ export function getCreditCost(model: keyof typeof CREDIT_COSTS): number {
 
 // Get generation cost (ALL models charge at generation)
 export function getGenerationCost(
-  model: 'veo3' | 'veo3_fast',
+  model: VideoModel,
   videoDuration?: string,
   _videoQuality?: 'standard' | 'high' // Ignored, kept for backwards compatibility
 ): number {
@@ -185,7 +188,7 @@ export function getGenerationCost(
 
 // Get download cost (ALL downloads are FREE in Version 2.0)
 export function getDownloadCost(
-  model: 'veo3' | 'veo3_fast',
+  model: VideoModel,
   videoDuration?: string | null,
   segmentCount?: number | null
 ): number {
@@ -216,7 +219,7 @@ export function getImageCreditCost(model: keyof typeof IMAGE_CREDIT_COSTS): numb
 
 // Check if user has sufficient credits for a model
 // Version 2.0: ALL models require credits at generation time
-export function canAffordModel(userCredits: number, model: 'veo3' | 'veo3_fast'): boolean {
+export function canAffordModel(userCredits: number, model: VideoModel): boolean {
   return userCredits >= GENERATION_COSTS[model];
 }
 
@@ -302,7 +305,7 @@ export function getImageSizeOptions(model: 'nano_banana' | 'seedream'): readonly
 }
 
 // Get video aspect ratio options for a specific model
-export function getVideoAspectRatioOptions(model: 'veo3' | 'veo3_fast'): readonly string[] {
+export function getVideoAspectRatioOptions(model: VideoModel): readonly string[] {
   return VIDEO_ASPECT_RATIO_OPTIONS[model]
 }
 
@@ -326,12 +329,13 @@ export function getAutoImageSize(videoAspectRatio: '16:9' | '9:16', imageModel: 
 // Video model capabilities based on quality and duration
 export type VideoQuality = 'standard' | 'high';
 export type VideoDuration = '8' | '16' | '24' | '32' | '40' | '48' | '56' | '64';
-export type VideoModel = 'veo3' | 'veo3_fast';
+export type VideoModel = 'veo3' | 'veo3_fast' | 'seedance_1_5_pro';
 
 // Video model display names for UI
 export const VIDEO_MODEL_DISPLAY_NAMES: Record<VideoModel, string> = {
   'veo3': 'Veo3.1',
-  'veo3_fast': 'Veo3.1 fast'
+  'veo3_fast': 'Veo3.1 fast',
+  'seedance_1_5_pro': 'Seedance 1.5 Pro'
 } as const;
 
 export function getVideoModelDisplayName(model: VideoModel): string {
@@ -353,6 +357,11 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
   },
   {
     model: 'veo3_fast',
+    supportedQualities: ['standard'],
+    supportedDurations: ['8', '16', '24', '32', '40', '48', '56', '64']
+  },
+  {
+    model: 'seedance_1_5_pro',
     supportedQualities: ['standard'],
     supportedDurations: ['8', '16', '24', '32', '40', '48', '56', '64']
   }

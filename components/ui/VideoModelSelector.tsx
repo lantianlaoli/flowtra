@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Lock, Coins, Video, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  CREDIT_COSTS,
+  GENERATION_COSTS,
   canAffordModel,
   getProcessingTime,
   getModelCostByConfig,
@@ -60,11 +60,11 @@ export default function VideoModelSelector({
           return getModelCostByConfig(model, videoQuality, videoDuration);
         }
         // Fallback to base cost if no config provided
-        return CREDIT_COSTS[model] || 0;
+        return GENERATION_COSTS[model] || 0;
       }
       // Character ads duration-based cost (all veo3 models use 8s segments)
       const unitSeconds = 8;
-      const baseCost = CREDIT_COSTS[model] || 0;
+      const baseCost = GENERATION_COSTS[model] || 0;
       return Math.round((videoDurationSeconds / unitSeconds) * baseCost);
     };
 
@@ -89,6 +89,17 @@ export default function VideoModelSelector({
         features: 'Fast processing, 2-3 min',
         supported: isModelSupported('veo3_fast'),
         badge: 'Popular'
+      },
+      {
+        value: 'seedance_1_5_pro' as const,
+        label: getVideoModelDisplayName('seedance_1_5_pro'),
+        description: 'ByteDance model with audio',
+        cost: calculateDurationCost('seedance_1_5_pro'),
+        processingTime: getProcessingTime('seedance_1_5_pro'),
+        affordable: canAffordModel(credits, 'seedance_1_5_pro'),
+        features: 'Built-in audio, 1-2 min',
+        supported: isModelSupported('seedance_1_5_pro'),
+        badge: 'Audio'
       },
       {
         value: 'veo3' as const,

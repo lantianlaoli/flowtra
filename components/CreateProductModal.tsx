@@ -28,7 +28,7 @@ const STATUS_COPY: Record<AnalysisState, { label: string; badge: string; helper:
   purifying: {
     label: 'Purifying photo…',
     badge: 'bg-purple-100 text-purple-800',
-    helper: 'AI is removing background and centering your product. This may take up to 10 minutes.'
+    helper: 'AI is removing background and centering your product.'
   },
   analyzing: {
     label: 'Analyzing photo…',
@@ -105,19 +105,42 @@ export default function CreateProductModal({
       return;
     }
 
-    // Reset all states
-    setFormError(null);
-    setAnalysisError(null);
-    setUploadedImage(file);
-    setAnalysisStatus('purifying');
+    // Validate image dimensions before uploading
+    const img = document.createElement('img');
+    const objectUrl = URL.createObjectURL(file);
 
-    // Show original preview while purifying
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
 
-    // Start purification workflow
-    purifyAndAnalyzePhoto(file);
+      // Check minimum dimensions (300x300)
+      if (img.width < 300 || img.height < 300) {
+        setFormError(`Image too small. Minimum size is 300x300px. Your image is ${img.width}x${img.height}px.`);
+        if (event.target) event.target.value = '';
+        return;
+      }
+
+      // Image passes all validations - proceed with upload
+      setFormError(null);
+      setAnalysisError(null);
+      setUploadedImage(file);
+      setAnalysisStatus('purifying');
+
+      // Show original preview while purifying
+      const reader = new FileReader();
+      reader.onload = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+
+      // Start purification workflow
+      purifyAndAnalyzePhoto(file);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setFormError('Failed to load image. Please try a different file.');
+      if (event.target) event.target.value = '';
+    };
+
+    img.src = objectUrl;
   };
 
   const renderErrorMessage = (message: string) => {
@@ -268,6 +291,46 @@ export default function CreateProductModal({
     console.log('[Purification Realtime] Setting up subscription for photo:', purifyingPhotoId);
 
     const supabase = createClient();
+
+    // CRITICAL: Initial fetch to handle race conditions (webhook may complete before subscription)
+    const fetchInitialState = async () => {
+      const { data: photo, error } = await supabase
+        .from('user_product_photos')
+        .select('purification_status, photo_url, purification_error')
+        .eq('id', purifyingPhotoId)
+        .maybeSingle(); // Use maybeSingle() to handle 0 rows gracefully
+
+      if (error) {
+        console.error('[Purification Realtime] Failed to fetch initial state:', error);
+        return;
+      }
+
+      if (!photo) {
+        console.log('[Purification Realtime] Photo not found yet (race condition), waiting for Realtime update');
+        return;
+      }
+
+      console.log('[Purification Realtime] Initial state:', photo);
+
+      // If already completed when we subscribe, process immediately
+      if (photo.purification_status === 'completed' && photo.photo_url) {
+        console.log('[Purification Realtime] Already completed (race condition caught):', photo.photo_url);
+        setImagePreview(photo.photo_url);
+        setAnalysisStatus('analyzing');
+        await analyzePhotoByUrl(photo.photo_url);
+      } else if (photo.purification_status === 'failed') {
+        console.error('[Purification Realtime] Already failed (race condition caught):', photo.purification_error);
+        setAnalysisStatus('failed');
+        setAnalysisError(photo.purification_error || 'Photo purification failed');
+        setFormError(photo.purification_error || 'Photo purification failed');
+        setPurifyingPhotoId(null);
+      }
+    };
+
+    // Fetch initial state immediately
+    fetchInitialState();
+
+    // Then subscribe to future updates
     const channel = supabase
       .channel(`product-photo-purification-${purifyingPhotoId}`)
       .on(

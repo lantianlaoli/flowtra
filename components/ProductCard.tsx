@@ -151,11 +151,35 @@ export default function ProductCard({
       return;
     }
 
-    if (onPhotoUpload) {
-      setPhotoError(null);
-      onPhotoUpload(product.id, file);
-    }
-    if (e.target) e.target.value = '';
+    // Validate image dimensions before uploading
+    const img = document.createElement('img');
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      // Check minimum dimensions (300x300)
+      if (img.width < 300 || img.height < 300) {
+        setPhotoError(`Image too small. Minimum size is 300x300px. Your image is ${img.width}x${img.height}px.`);
+        if (e.target) e.target.value = '';
+        return;
+      }
+
+      // Image passes all validations - proceed with upload
+      if (onPhotoUpload) {
+        setPhotoError(null);
+        onPhotoUpload(product.id, file);
+      }
+      if (e.target) e.target.value = '';
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setPhotoError('Failed to load image. Please try a different file.');
+      if (e.target) e.target.value = '';
+    };
+
+    img.src = objectUrl;
   };
 
   // Compact mode rendering

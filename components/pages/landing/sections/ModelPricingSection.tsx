@@ -1,5 +1,5 @@
 import { Zap, Check } from 'lucide-react';
-import { SiGoogle, SiOpenai, SiX } from 'react-icons/si';
+import { SiGoogle, SiOpenai, SiX, SiBytedance } from 'react-icons/si';
 
 export default function ModelPricingSection() {
   // Credit to USD conversion rate
@@ -17,6 +17,18 @@ export default function ModelPricingSection() {
         { duration: '1 min', credits: 150, unit: 'per min' },
       ],
       quality: ['1080P'],
+    },
+    {
+      name: 'Seedance 1.5 Pro',
+      description: 'ByteDance model with built-in audio generation',
+      icon: SiBytedance,
+      badge: 'New',
+      durationRange: '8-64s',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { duration: '1 min', credits: 420, unit: 'per min' },
+      ],
+      quality: ['720P'],
     },
     {
       name: 'Veo3.1',
@@ -48,9 +60,6 @@ export default function ModelPricingSection() {
             <tr className="bg-[#F7F7F7] border-b border-[#E5E5E5]">
               <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
                 Model
-              </th>
-              <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
-                Quality
               </th>
               <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
                 Generation Cost
@@ -92,15 +101,6 @@ export default function ModelPricingSection() {
                             </div>
                           </div>
                         </div>
-                      </td>
-                    )}
-
-                    {/* Quality */}
-                    {isFirstRow && (
-                      <td className="px-6 py-6" rowSpan={rowSpan}>
-                        <span className="text-[14px] font-medium text-black">
-                          {model.quality.join(', ')}
-                        </span>
                       </td>
                     )}
 
@@ -148,10 +148,6 @@ export default function ModelPricingSection() {
                   </div>
                   <p className="text-sm text-gray-600 mt-0.5">
                     {model.description}
-                  </p>
-
-                  <p className="text-xs text-gray-500 mt-1">
-                    Quality: <span className="font-medium text-gray-700">{model.quality.join(', ')}</span>
                   </p>
                 </div>
               </div>
