@@ -618,7 +618,7 @@ function GenerationCard({
                         : 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed'
                     }`}
                   >
-                    {canMerge ? 'Finalize & Merge Video' : `Generate all videos first (${videosReady}/${totalSegments})`}
+                    {canMerge ? 'Finalize & Merge Video' : `All segments need videos (${videosReady}/${totalSegments})`}
                   </button>
                 )}
               </div>

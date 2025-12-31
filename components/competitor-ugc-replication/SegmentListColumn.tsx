@@ -77,7 +77,7 @@ export default function SegmentListColumn({
             ) : (
               <>
                 <Film className="w-4 h-4" />
-                Generate All Videos First ({videosReadyCount}/{segments.length})
+                All Segments Need Videos ({videosReadyCount}/{segments.length})
               </>
             )}
           </button>
