@@ -25,6 +25,11 @@ export default function SegmentListColumn({
     return segments.length > 1 && segments.every(seg => seg.videoUrl);
   }, [segments]);
 
+  // Count how many segments have videos
+  const videosReadyCount = useMemo(() => {
+    return segments.filter(seg => seg.videoUrl).length;
+  }, [segments]);
+
   return (
     <div className="flex h-full flex-col bg-[#F7F7F7]">
       {/* Header */}
@@ -51,12 +56,12 @@ export default function SegmentListColumn({
         </div>
       </div>
 
-      {/* Merge Button - Only shown when all videos are ready */}
-      {allVideosReady && onMerge && (
+      {/* Merge Button - Always shown for multi-segment projects */}
+      {segments.length > 1 && onMerge && (
         <div className="flex-shrink-0 border-t border-[#E5E5E5] bg-white p-3">
           <button
             onClick={onMerge}
-            disabled={isMerging}
+            disabled={!allVideosReady || isMerging}
             className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-black"
           >
             {isMerging ? (
@@ -64,10 +69,15 @@ export default function SegmentListColumn({
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Merging Videos...
               </>
-            ) : (
+            ) : allVideosReady ? (
               <>
                 <Film className="w-4 h-4" />
                 Merge All Segments
+              </>
+            ) : (
+              <>
+                <Film className="w-4 h-4" />
+                Generate All Videos First ({videosReadyCount}/{segments.length})
               </>
             )}
           </button>

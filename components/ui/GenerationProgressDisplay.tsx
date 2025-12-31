@@ -608,19 +608,19 @@ function GenerationCard({
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Merging your masterpiece...
                   </div>
-                ) : awaitingUserMerge ? (
+                ) : (
                   <button
                     onClick={() => onMerge?.(generation)}
                     disabled={!canMerge}
                     className={`w-full py-3 rounded-xl font-bold text-[13px] transition-all border ${
                       canMerge
                         ? 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800 shadow-sm'
-                        : 'bg-gray-50 text-gray-400 border-gray-100'
+                        : 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed'
                     }`}
                   >
-                    {canMerge ? 'Finalize & Merge Video' : `Rendering clips (${videosReady}/${totalSegments})`}
+                    {canMerge ? 'Finalize & Merge Video' : `Generate all videos first (${videosReady}/${totalSegments})`}
                   </button>
-                ) : null}
+                )}
               </div>
             )}
 
