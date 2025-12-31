@@ -31,7 +31,7 @@ import {
   Clapperboard,
   Layers
 } from 'lucide-react';
-import { getDownloadCost, type VideoModel } from '@/lib/constants';
+import { getDownloadCost, type VideoModel, getVideoModelDisplayName } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
 import SegmentEditorSplitPane from '@/components/competitor-ugc-replication/SegmentEditorSplitPane';
 
@@ -478,7 +478,7 @@ function GenerationCard({
           {product && <MetaTag icon={Package} text={product} />}
           {videoAspectRatio && <MetaTag icon={Maximize} text={videoAspectRatio} />}
           {videoDuration && <MetaTag icon={Clock} text={`${videoDuration}s`} />}
-          {videoModel && <MetaTag icon={Rocket} text={videoModel.replace(/_/g, ' ').toUpperCase()} />}
+          {videoModel && <MetaTag icon={Rocket} text={getVideoModelDisplayName(videoModel)} />}
           {typeof creditsCost === 'number' && (
             <MetaTag icon={Coins} text={creditsCost === 0 ? 'Free' : `${creditsCost} Credits`} />
           )}

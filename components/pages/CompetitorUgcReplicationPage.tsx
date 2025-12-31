@@ -152,7 +152,7 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 
 const ALL_VIDEO_QUALITIES: Array<'standard' | 'high'> = ['standard', 'high'];
 const ALL_VIDEO_DURATIONS: VideoDuration[] = ['8', '16', '24', '32', '40', '48', '56', '64'];
-const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast'];
+const ALL_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro'];
 const SESSION_STORAGE_KEY = 'flowtra_competitor_ugc_replication_generations';
 
 const COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS: VideoDurationOption[] = [

@@ -9,7 +9,7 @@ import type { VideoModel } from '@/lib/constants';
  * Validates that the video model is one of the supported models
  */
 function validateVideoModel(model: string): model is VideoModel {
-  return model === 'veo3' || model === 'veo3_fast';
+  return model === 'veo3' || model === 'veo3_fast' || model === 'seedance_1_5_pro';
 }
 
 export async function POST(request: NextRequest) {
@@ -75,13 +75,13 @@ export async function POST(request: NextRequest) {
       customScriptProvided: !!requestData.customScript
     });
 
-    // Validate video model (only veo3 and veo3_fast are supported)
+    // Validate video model (veo3, veo3_fast, and seedance_1_5_pro are supported)
     if (requestData.videoModel && !validateVideoModel(requestData.videoModel)) {
       return NextResponse.json(
         {
           error: 'Invalid video model',
-          supportedModels: ['veo3', 'veo3_fast'],
-          message: 'Please select Veo3.1 or Veo3.1 fast'
+          supportedModels: ['veo3', 'veo3_fast', 'seedance_1_5_pro'],
+          message: 'Please select Veo3.1, Veo3.1 fast, or Seedance 1.5 Pro'
         },
         { status: 400 }
       );

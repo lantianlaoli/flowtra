@@ -171,6 +171,7 @@ export default function CreditsPage() {
     'kling_2_6': 'Kling 2.6',
     'nano_banana': 'Nano Banana',
     'seedream': 'SeeDream',
+    'seedance_1_5_pro': 'Seedance 1.5 Pro',
   };
 
   // Parse transaction description to extract feature, action, model, and duration
