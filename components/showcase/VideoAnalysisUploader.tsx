@@ -258,117 +258,159 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
   // LEFT-RIGHT LAYOUT WRAPPER
   const hasVideo = uploadedVideoUrl && (state === 'uploading' || state === 'analyzing' || state === 'completed');
 
+  // Book demo email handler
+  const handleBookDemo = () => {
+    const email = process.env.NEXT_PUBLIC_EMAIL || 'lantianlaoli@gmail.com';
+    const subject = encodeURIComponent('Hey! Want to try Flowtra 👋');
+    const body = encodeURIComponent(`Hi Laoli,
+
+I'd love to give Flowtra a try!
+
+What I want to test:
+□ Avatar Ads - talking character videos
+□ Competitor Cloning - recreate successful ads with my product
+□ Both look awesome
+
+My use case:
+[Tell me a bit about what you do and how you'd use it]
+
+My materials:
+For Avatar Ads: [Share product image links or I can attach them]
+For Competitor Cloning: [Paste the TikTok video link you want to recreate]
+
+Best time to chat:
+[Whenever works, I'm flexible]
+
+Thanks!`);
+
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  };
+
+  // FULL-WIDTH STATES (no video preview)
+  // Rate Limited State
+  if (isRateLimited || state === 'rate_limited') {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="space-y-6 text-center max-w-md">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-black mx-auto">
+            <PartyPopper className="w-8 h-8 text-white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <h3 className="text-3xl font-bold text-black mb-3 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+              Free Analysis Used
+            </h3>
+            <p className="text-gray-600 mb-8">
+              Want to analyze more videos? Sign up for unlimited analyses and start cloning competitor ads.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/#pricing"
+              className="inline-flex items-center justify-center px-6 py-3 bg-black text-white font-medium hover:bg-gray-900 transition-colors"
+              style={{ borderRadius: '8px' }}
+            >
+              View Pricing
+            </Link>
+            <button
+              onClick={handleBookDemo}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
+              style={{ borderRadius: '8px' }}
+            >
+              <Mail className="w-4 h-4" strokeWidth={1.5} />
+              Book a Demo
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 mt-4">
+            Starting at $29/month
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error - Duration Exceeded
+  if (state === 'error_duration') {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="space-y-6 text-center max-w-md">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-black mx-auto">
+            <AlertTriangle className="w-8 h-8 text-white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <h3 className="text-3xl font-bold text-black mb-3 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+              Video Too Long
+            </h3>
+            <p className="text-gray-600 mb-4">
+              {error || 'Your video exceeds the maximum duration of 80 seconds.'}
+            </p>
+            <p className="text-gray-600 mb-8">
+              Please trim your video using an online tool:
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <a
+              href="https://www.videocompressor.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center px-6 py-3 bg-black text-white font-medium hover:bg-gray-900 transition-colors"
+              style={{ borderRadius: '8px' }}
+            >
+              Online Video Compressor →
+            </a>
+            <button
+              onClick={reset}
+              className="inline-flex items-center justify-center px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
+              style={{ borderRadius: '8px' }}
+            >
+              Try Another Video
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error - Upload/Analysis Failed
+  if (state === 'error_upload' || state === 'error_analysis') {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="space-y-6 text-center max-w-md">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-black mx-auto">
+            <XCircle className="w-8 h-8 text-white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <h3 className="text-3xl font-bold text-black mb-3 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+              {state === 'error_upload' ? 'Upload Failed' : 'Analysis Failed'}
+            </h3>
+            <p className="text-gray-600 mb-8">
+              {error || 'Something went wrong. Please try again.'}
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={reset}
+              className="inline-flex items-center justify-center px-6 py-3 bg-black text-white font-medium hover:bg-gray-900 transition-colors"
+              style={{ borderRadius: '8px' }}
+            >
+              Try Again
+            </button>
+            <a
+              href={`mailto:${process.env.NEXT_PUBLIC_EMAIL || 'hello@flowtra.com'}?subject=Analysis Error&body=${encodeURIComponent(`Error: ${error}`)}`}
+              className="inline-flex items-center justify-center px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
+              style={{ borderRadius: '8px' }}
+            >
+              Contact Support
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`grid gap-8 ${hasVideo ? 'lg:grid-cols-[1fr_400px]' : 'grid-cols-1'}`}>
       {/* LEFT COLUMN - Content */}
       <div className="min-h-[400px] flex flex-col justify-center">
-        {/* Rate Limited State */}
-        {(isRateLimited || state === 'rate_limited') && (
-          <div className="space-y-6 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-black mx-auto">
-              <PartyPopper className="w-8 h-8 text-white" strokeWidth={1.5} />
-            </div>
-            <div>
-              <h3 className="text-3xl font-bold text-black mb-3 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
-                Free Analysis Used
-              </h3>
-              <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                Want to analyze more videos? Sign up for unlimited analyses and start cloning competitor ads.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/#pricing"
-                className="inline-flex items-center justify-center px-6 py-3 bg-black text-white font-medium hover:bg-gray-900 transition-colors"
-                style={{ borderRadius: '8px' }}
-              >
-                View Pricing
-              </Link>
-              <a
-                href={`mailto:${process.env.NEXT_PUBLIC_EMAIL || 'hello@flowtra.com'}?subject=Question about Competitor Replica`}
-                className="inline-flex items-center justify-center px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
-                style={{ borderRadius: '8px' }}
-              >
-                Contact Sales
-              </a>
-            </div>
-            <p className="text-sm text-gray-500 mt-4">
-              Starting at $29/month
-            </p>
-          </div>
-        )}
-
-        {/* Error - Duration Exceeded */}
-        {state === 'error_duration' && (
-          <div className="space-y-6 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-black mx-auto">
-              <AlertTriangle className="w-8 h-8 text-white" strokeWidth={1.5} />
-            </div>
-            <div>
-              <h3 className="text-3xl font-bold text-black mb-3 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
-                Video Too Long
-              </h3>
-              <p className="text-gray-600 mb-4 max-w-md mx-auto">
-                {error || 'Your video exceeds the maximum duration of 80 seconds.'}
-              </p>
-              <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                Please trim your video using an online tool:
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <a
-                href="https://www.videocompressor.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-6 py-3 bg-black text-white font-medium hover:bg-gray-900 transition-colors"
-                style={{ borderRadius: '8px' }}
-              >
-                Online Video Compressor →
-              </a>
-              <button
-                onClick={reset}
-                className="inline-flex items-center justify-center px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
-                style={{ borderRadius: '8px' }}
-              >
-                Try Another Video
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Error - Upload/Analysis Failed */}
-        {(state === 'error_upload' || state === 'error_analysis') && (
-          <div className="space-y-6 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-black mx-auto">
-              <XCircle className="w-8 h-8 text-white" strokeWidth={1.5} />
-            </div>
-            <div>
-              <h3 className="text-3xl font-bold text-black mb-3 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
-                {state === 'error_upload' ? 'Upload Failed' : 'Analysis Failed'}
-              </h3>
-              <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                {error || 'Something went wrong. Please try again.'}
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button
-                onClick={reset}
-                className="inline-flex items-center justify-center px-6 py-3 bg-black text-white font-medium hover:bg-gray-900 transition-colors"
-                style={{ borderRadius: '8px' }}
-              >
-                Try Again
-              </button>
-              <a
-                href={`mailto:${process.env.NEXT_PUBLIC_EMAIL || 'hello@flowtra.com'}?subject=Analysis Error&body=${encodeURIComponent(`Error: ${error}`)}`}
-                className="inline-flex items-center justify-center px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
-                style={{ borderRadius: '8px' }}
-              >
-                Contact Support
-              </a>
-            </div>
-          </div>
-        )}
-
         {/* Uploading */}
         {state === 'uploading' && (
           <UploadingState
@@ -463,26 +505,13 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
-              <a
-                href={`mailto:${process.env.NEXT_PUBLIC_EMAIL || 'hello@flowtra.com'}?subject=Help with Competitor Replica`}
+              <button
+                onClick={handleBookDemo}
                 className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
                 style={{ borderRadius: '8px' }}
               >
                 <Mail className="w-4 h-4" strokeWidth={1.5} />
-                Contact Us for Help
-              </a>
-            </div>
-
-            {/* Reset */}
-            <div className="text-center pt-4">
-              <button
-                onClick={() => {
-                  reset();
-                  setIsRateLimited(false);
-                }}
-                className="text-sm text-gray-600 hover:text-black transition-colors underline"
-              >
-                Analyze another video
+                Book a Demo
               </button>
             </div>
           </div>
