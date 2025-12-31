@@ -135,6 +135,9 @@ importers:
       baseline-browser-mapping:
         specifier: ^2.9.4
         version: 2.9.4
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
       eslint:
         specifier: ^9.31.0
         version: 9.34.0(jiti@2.5.1)

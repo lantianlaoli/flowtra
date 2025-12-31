@@ -1,64 +1,91 @@
-// Server-side Resend client and helpers
-// Note: Do not import this from client components.
-import { Resend } from 'resend'
+import { sendWelcomeEmail } from '../lib/resend'
+import fs from 'fs'
+import path from 'path'
+import { config } from 'dotenv'
 
-type SendEmailParams = {
-  to: string | string[]
-  subject: string
-  html?: string
-  text?: string
-  from?: string
-}
+// Load environment variables from .env file
+config()
 
-function getResendClient() {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
-    throw new Error('RESEND_API_KEY is not set')
-  }
-  return new Resend(apiKey)
-}
+/**
+ * Script to preview and test the welcome email
+ *
+ * Usage:
+ *   Preview HTML in browser:
+ *     pnpm tsx scripts/preview-welcome-email.ts
+ *
+ *   Preview with custom name:
+ *     pnpm tsx scripts/preview-welcome-email.ts "John Doe"
+ *
+ *   Send actual email:
+ *     pnpm tsx scripts/preview-welcome-email.ts --send <email> [name]
+ *     pnpm tsx scripts/preview-welcome-email.ts --send test@example.com "John Doe"
+ */
 
-export async function sendEmail(params: SendEmailParams) {
-  const resend = getResendClient()
-  const from = params.from || process.env.RESEND_FROM || 'onboarding@resend.dev'
-  const to = Array.isArray(params.to) ? params.to : [params.to]
+async function main() {
+  const args = process.argv.slice(2)
 
-  return await resend.emails.send({
-    from,
-    to,
-    subject: params.subject,
-    html: params.html,
-    text: params.text ?? '',
-  })
-}
+  // Check if --send flag is present
+  const sendEmail = args[0] === '--send'
 
-export async function sendWelcomeEmail(options: {
-  to: string | string[]
-  name?: string | null
-}) {
-  const subject = 'Welcome to Flowtra — Let\'s Create Your First AI Ad'
-  const siteBase = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://www.flowtra.store').replace(/\/$/, '')
-  const appUrl = `${siteBase}/dashboard`
-  const logoUrl = `${siteBase}/android-chrome-192x192.png`
-  const avatarAdsUrl = `${siteBase}/features/avatar-ads`
-  const competitorReplicaUrl = `${siteBase}/features/competitor-replica`
-  const recipientName = options.name?.trim()
+  if (sendEmail) {
+    // Send actual email
+    const recipient = args[1]
+    const recipientName = args[2]
 
-  const greetingLine = recipientName ? `Hi ${recipientName},` : 'Hi there,'
+    if (!recipient) {
+      console.error('❌ Error: Email address required when using --send flag')
+      console.error('')
+      console.error('Usage: pnpm tsx scripts/preview-welcome-email.ts --send <email> [name]')
+      console.error('Example: pnpm tsx scripts/preview-welcome-email.ts --send test@example.com "John Doe"')
+      process.exit(1)
+    }
 
-  // Social media links from environment variables
-  const socialLinks = [
-    { label: 'Email', href: process.env.NEXT_PUBLIC_EMAIL ? `mailto:${process.env.NEXT_PUBLIC_EMAIL}` : null },
-    { label: 'X', href: process.env.NEXT_PUBLIC_X },
-    { label: 'LinkedIn', href: process.env.NEXT_PUBLIC_LINKEDIN?.startsWith('http') ? process.env.NEXT_PUBLIC_LINKEDIN : process.env.NEXT_PUBLIC_LINKEDIN ? `https://${process.env.NEXT_PUBLIC_LINKEDIN}` : null },
-    { label: 'TikTok', href: process.env.NEXT_PUBLIC_TIKTOK },
-    { label: 'Threads', href: process.env.NEXT_PUBLIC_THREADS },
-    { label: 'Instagram', href: process.env.NEXT_PUBLIC_INSTAGRAM },
-    { label: 'YouTube', href: process.env.NEXT_PUBLIC_YOUTUBE },
-    { label: 'Discord', href: process.env.NEXT_PUBLIC_DISCORD }
-  ].filter(link => link.href)
+    console.log('📧 Sending welcome email...')
+    console.log(`   To: ${recipient}`)
+    console.log(`   Name: ${recipientName || '(none)'}`)
+    console.log('')
 
-  const html = `<!DOCTYPE html>
+    try {
+      const result = await sendWelcomeEmail({
+        to: recipient,
+        name: recipientName,
+      })
+      console.log('✅ Email sent successfully!')
+      console.log('📊 Resend API response:', result)
+    } catch (error) {
+      console.error('❌ Failed to send welcome email')
+      console.error(error)
+      process.exit(1)
+    }
+  } else {
+    // Generate HTML preview
+    const testName = args[0] || 'Alex Chen'
+
+    console.log('🎨 Generating email preview...')
+    console.log(`   Test name: ${testName}`)
+    console.log('')
+
+    // Generate email content by creating a mock version
+    const siteBase = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://www.flowtra.store').replace(/\/$/, '')
+    const appUrl = `${siteBase}/dashboard`
+    const logoUrl = `${siteBase}/android-chrome-192x192.png`
+    const avatarAdsUrl = `${siteBase}/features/avatar-ads`
+    const competitorReplicaUrl = `${siteBase}/features/competitor-replica`
+    const greetingLine = testName ? `Hi ${testName},` : 'Hi there,'
+
+    // Social media links
+    const socialLinks = [
+      { label: 'Email', href: process.env.NEXT_PUBLIC_EMAIL ? `mailto:${process.env.NEXT_PUBLIC_EMAIL}` : null },
+      { label: 'X', href: process.env.NEXT_PUBLIC_X },
+      { label: 'LinkedIn', href: process.env.NEXT_PUBLIC_LINKEDIN?.startsWith('http') ? process.env.NEXT_PUBLIC_LINKEDIN : process.env.NEXT_PUBLIC_LINKEDIN ? `https://${process.env.NEXT_PUBLIC_LINKEDIN}` : null },
+      { label: 'TikTok', href: process.env.NEXT_PUBLIC_TIKTOK },
+      { label: 'Threads', href: process.env.NEXT_PUBLIC_THREADS },
+      { label: 'Instagram', href: process.env.NEXT_PUBLIC_INSTAGRAM },
+      { label: 'YouTube', href: process.env.NEXT_PUBLIC_YOUTUBE },
+      { label: 'Discord', href: process.env.NEXT_PUBLIC_DISCORD }
+    ].filter(link => link.href)
+
+    const html = `<!DOCTYPE html>
   <html lang="en">
     <body style="margin:0;padding:0;background-color:#f9fafb;color:#111827;font-family:'Inter',Arial,sans-serif;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;padding:32px 0;">
@@ -180,7 +207,7 @@ export async function sendWelcomeEmail(options: {
     </body>
   </html>`
 
-  const text = `Welcome to Flowtra — Your AI Ad Studio
+    const text = `Welcome to Flowtra — Your AI Ad Studio
 
 ${greetingLine}
 
@@ -213,10 +240,32 @@ CONNECT WITH US
 
 ${socialLinks.map(link => `• ${link.label}\n  ${link.href}`).join('\n\n')}` : ''}`
 
-  return await sendEmail({
-    to: options.to,
-    subject,
-    html,
-    text,
-  })
+    // Save HTML preview
+    const htmlPath = path.join(process.cwd(), 'scripts', 'preview-welcome-email.html')
+    fs.writeFileSync(htmlPath, html, 'utf-8')
+
+    // Save text preview
+    const textPath = path.join(process.cwd(), 'scripts', 'preview-welcome-email.txt')
+    fs.writeFileSync(textPath, text, 'utf-8')
+
+    console.log('✅ Email preview generated!')
+    console.log('')
+    console.log('📄 HTML version: scripts/preview-welcome-email.html')
+    console.log('📝 Text version: scripts/preview-welcome-email.txt')
+    console.log('')
+    console.log('🌐 Open the HTML file in your browser to see the visual preview')
+    console.log('')
+    console.log('📊 Email details:')
+    console.log(`   Subject: Welcome to Flowtra — Let's Create Your First AI Ad`)
+    console.log(`   Greeting: ${greetingLine}`)
+    console.log(`   Social links: ${socialLinks.length} configured`)
+    if (socialLinks.length > 0) {
+      console.log('   Links:', socialLinks.map(l => l.label).join(', '))
+    }
+    console.log('')
+    console.log('💡 Tip: Use --send flag to send a real email:')
+    console.log('   pnpm tsx scripts/preview-welcome-email.ts --send your@email.com "Your Name"')
+  }
 }
+
+void main()
