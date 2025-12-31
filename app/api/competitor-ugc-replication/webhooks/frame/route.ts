@@ -100,6 +100,25 @@ export async function POST(request: NextRequest) {
 
       console.log(`✅ [UGC Frame Webhook] Segment ${segment.segment_index} frame ready`);
 
+      // CRITICAL: Update previous segment's closing_frame_url
+      // This ensures smooth visual transitions between segments
+      if (segment.segment_index > 0 && imageUrl) {
+        const prevSegmentIndex = segment.segment_index - 1;
+        const { error: closingFrameError } = await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            closing_frame_url: imageUrl
+          })
+          .eq('project_id', segment.project_id)
+          .eq('segment_index', prevSegmentIndex);
+
+        if (closingFrameError) {
+          console.error(`[UGC Frame Webhook] Failed to update segment ${prevSegmentIndex} closing_frame_url:`, closingFrameError);
+        } else {
+          console.log(`✅ [UGC Frame Webhook] Updated segment ${prevSegmentIndex} closing_frame_url with segment ${segment.segment_index} first frame`);
+        }
+      }
+
       // Get project and all segments to check status
       const { data: project } = await supabase
         .from('competitor_ugc_replication_projects')
