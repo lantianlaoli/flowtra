@@ -2964,29 +2964,76 @@ async function startSegmentVideoTaskSeedance(
   // Build prompt text from segment fields
   const promptParts: string[] = [];
 
+  // Start with first frame description (opening scene)
   if (segmentPrompt.first_frame_description) {
     promptParts.push(segmentPrompt.first_frame_description);
   }
-  if (segmentPrompt.action) {
-    promptParts.push(`Action: ${segmentPrompt.action}`);
-  }
-  if (segmentPrompt.subject) {
-    promptParts.push(`Subject: ${segmentPrompt.subject}`);
-  }
-  if (segmentPrompt.dialogue) {
-    promptParts.push(`Dialogue: ${segmentPrompt.dialogue}`);
-  }
-  if (segmentPrompt.style) {
-    promptParts.push(`Style: ${segmentPrompt.style}`);
-  }
-  if (segmentPrompt.context_environment) {
-    promptParts.push(`Environment: ${segmentPrompt.context_environment}`);
-  }
-  if (segmentPrompt.ambiance_colour_lighting) {
-    promptParts.push(`Lighting: ${segmentPrompt.ambiance_colour_lighting}`);
-  }
-  if (segmentPrompt.camera_motion_positioning) {
-    promptParts.push(`Camera: ${segmentPrompt.camera_motion_positioning}`);
+
+  // Check if we have multiple shots - if yes, build timeline-based prompt
+  if (segmentPrompt.shots && segmentPrompt.shots.length > 0) {
+    console.log(`📝 Building multi-shot prompt for ${segmentPrompt.shots.length} shots`);
+
+    // Add each shot with its timeline
+    segmentPrompt.shots.forEach((shot, idx) => {
+      const shotParts: string[] = [];
+
+      // Timeline marker
+      if (shot.time_range) {
+        shotParts.push(`Shot ${idx + 1} (${shot.time_range}):`);
+      } else {
+        shotParts.push(`Shot ${idx + 1}:`);
+      }
+
+      // Core shot elements (action + subject are most important)
+      if (shot.action) shotParts.push(shot.action);
+      if (shot.subject) shotParts.push(`Subject: ${shot.subject}`);
+      if (shot.dialogue) shotParts.push(`Dialogue: "${shot.dialogue}"`);
+      if (shot.style) shotParts.push(`Style: ${shot.style}`);
+      if (shot.composition) shotParts.push(`Composition: ${shot.composition}`);
+      if (shot.audio) shotParts.push(`Audio: ${shot.audio}`);
+
+      promptParts.push(shotParts.join('. '));
+    });
+
+    // Add shared environmental context (applies to entire segment)
+    const environmentParts: string[] = [];
+    if (segmentPrompt.context_environment) {
+      environmentParts.push(`Environment: ${segmentPrompt.context_environment}`);
+    }
+    if (segmentPrompt.ambiance_colour_lighting) {
+      environmentParts.push(`Lighting: ${segmentPrompt.ambiance_colour_lighting}`);
+    }
+    if (segmentPrompt.camera_motion_positioning) {
+      environmentParts.push(`Camera: ${segmentPrompt.camera_motion_positioning}`);
+    }
+    if (environmentParts.length > 0) {
+      promptParts.push(environmentParts.join('. '));
+    }
+  } else {
+    // Fallback: Use top-level fields (backwards compatibility or single-shot segments)
+    console.log('📝 Building single-shot prompt from top-level fields');
+
+    if (segmentPrompt.action) {
+      promptParts.push(`Action: ${segmentPrompt.action}`);
+    }
+    if (segmentPrompt.subject) {
+      promptParts.push(`Subject: ${segmentPrompt.subject}`);
+    }
+    if (segmentPrompt.dialogue) {
+      promptParts.push(`Dialogue: ${segmentPrompt.dialogue}`);
+    }
+    if (segmentPrompt.style) {
+      promptParts.push(`Style: ${segmentPrompt.style}`);
+    }
+    if (segmentPrompt.context_environment) {
+      promptParts.push(`Environment: ${segmentPrompt.context_environment}`);
+    }
+    if (segmentPrompt.ambiance_colour_lighting) {
+      promptParts.push(`Lighting: ${segmentPrompt.ambiance_colour_lighting}`);
+    }
+    if (segmentPrompt.camera_motion_positioning) {
+      promptParts.push(`Camera: ${segmentPrompt.camera_motion_positioning}`);
+    }
   }
 
   const promptText = promptParts.join('. ').substring(0, 2500); // Max 2500 chars per Seedance API
