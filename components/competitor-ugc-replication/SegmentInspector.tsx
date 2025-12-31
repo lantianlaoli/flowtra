@@ -8,6 +8,7 @@ import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
+import { MODEL_PROCESSING_TIMES, type VideoModel } from '@/lib/constants';
 
 export type SegmentShotPayload = {
   id: number;
@@ -23,6 +24,13 @@ export type SegmentShotPayload = {
   ambiance_colour_lighting: string;
   camera_motion_positioning: string;
 };
+
+function getEstimatedTime(videoModel?: string): string {
+  if (!videoModel) return '';
+  const model = videoModel as VideoModel;
+  const timeRange = MODEL_PROCESSING_TIMES[model];
+  return timeRange ? ` (~${timeRange})` : '';
+}
 
 const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: string }> = [
   { value: 'en', label: 'English', native: 'English' },
@@ -558,7 +566,7 @@ export default function SegmentInspector({
                 {showPhotoSkeleton ? (
                   <div className="w-full h-full animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 flex flex-col items-center justify-center text-gray-500 text-sm">
                     <Loader2 className="w-6 h-6 animate-spin text-gray-600" />
-                    <span className="mt-2">Rendering first frame…</span>
+                    <span className="mt-2">Rendering first frame… (~1-2 min)</span>
                   </div>
                 ) : segment?.firstFrameUrl ? (
                   <NextImage
@@ -587,7 +595,7 @@ export default function SegmentInspector({
                 {showVideoSkeleton ? (
                   <div className="w-full h-full animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 flex flex-col items-center justify-center text-gray-500 text-sm">
                     <Loader2 className="w-6 h-6 animate-spin text-gray-600" />
-                    <span className="mt-2">Rendering clip…</span>
+                    <span className="mt-2">Rendering clip{getEstimatedTime(videoModel)}…</span>
                   </div>
                 ) : segment?.videoUrl ? (
                   <video

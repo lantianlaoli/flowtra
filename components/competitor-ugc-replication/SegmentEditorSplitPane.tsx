@@ -188,6 +188,7 @@ export default function SegmentEditorSplitPane({
             <SegmentPreviewColumn
               segment={selectedSegment}
               videoAspectRatio={videoAspectRatio}
+              videoModel={videoModel}
             />
           )}
         </Panel>

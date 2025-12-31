@@ -4,10 +4,12 @@ import NextImage from 'next/image';
 import clsx from 'clsx';
 import { Loader2, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
+import { MODEL_PROCESSING_TIMES, type VideoModel } from '@/lib/constants';
 
 interface SegmentPreviewColumnProps {
   segment: SegmentCardSummary;
   videoAspectRatio?: '16:9' | '9:16' | string | null;
+  videoModel?: string;
 }
 
 function getAspectRatioClass(ratio?: string | null) {
@@ -22,9 +24,17 @@ function getAspectRatioClass(ratio?: string | null) {
   }
 }
 
+function getEstimatedTime(videoModel?: string): string {
+  if (!videoModel) return '';
+  const model = videoModel as VideoModel;
+  const timeRange = MODEL_PROCESSING_TIMES[model];
+  return timeRange ? ` (~${timeRange})` : '';
+}
+
 export default function SegmentPreviewColumn({
   segment,
-  videoAspectRatio
+  videoAspectRatio,
+  videoModel
 }: SegmentPreviewColumnProps) {
   const normalizedStatus = (segment?.status || '').toLowerCase();
   const isGeneratingFirstFrame = normalizedStatus === 'generating_first_frame';
@@ -60,7 +70,7 @@ export default function SegmentPreviewColumn({
               {showPhotoSkeleton ? (
                 <div className="flex h-full w-full flex-col items-center justify-center animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-sm text-[#666666]">
                   <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
-                  <span className="mt-2">Rendering first frame…</span>
+                  <span className="mt-2">Rendering first frame… (~1-2 min)</span>
                 </div>
               ) : segment?.firstFrameUrl ? (
                 <NextImage
@@ -88,7 +98,7 @@ export default function SegmentPreviewColumn({
               {showVideoSkeleton ? (
                 <div className="flex h-full w-full flex-col items-center justify-center animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-sm text-[#666666]">
                   <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
-                  <span className="mt-2">Rendering video…</span>
+                  <span className="mt-2">Rendering video{getEstimatedTime(videoModel)}…</span>
                 </div>
               ) : segment?.videoUrl ? (
                 <video
