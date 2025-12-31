@@ -11,6 +11,7 @@ interface SegmentListColumnProps {
   onSelectSegment: (index: number) => void;
   onMerge?: () => void;
   isMerging?: boolean;
+  readOnly?: boolean;
 }
 
 export default function SegmentListColumn({
@@ -18,7 +19,8 @@ export default function SegmentListColumn({
   selectedIndex,
   onSelectSegment,
   onMerge,
-  isMerging
+  isMerging,
+  readOnly = false
 }: SegmentListColumnProps) {
   // Check if all segments have videos ready
   const allVideosReady = useMemo(() => {
@@ -56,8 +58,8 @@ export default function SegmentListColumn({
         </div>
       </div>
 
-      {/* Merge Button - Always shown for multi-segment projects */}
-      {segments.length > 1 && onMerge && (
+      {/* Merge Button - Always shown for multi-segment projects (hidden in read-only mode) */}
+      {segments.length > 1 && onMerge && !readOnly && (
         <div className="flex-shrink-0 border-t border-[#E5E5E5] bg-white p-3">
           <button
             onClick={onMerge}

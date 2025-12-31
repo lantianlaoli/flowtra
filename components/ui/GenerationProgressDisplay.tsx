@@ -292,6 +292,7 @@ function GenerationCard({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSegmentEditor, setShowSegmentEditor] = useState(false);
+  const [editorReadOnly, setEditorReadOnly] = useState(false);
   const hasSegments = Boolean(
     generation.isSegmented &&
     ((generation.segmentStatus?.total && generation.segmentStatus.total > 0) ||
@@ -446,11 +447,26 @@ function GenerationCard({
           <div className="flex items-center gap-2 flex-shrink-0">
             {hasSegments && generation.segments && generation.segments.length > 0 && !mergeComplete && (
               <button
-                onClick={() => setShowSegmentEditor(true)}
+                onClick={() => {
+                  setEditorReadOnly(false);
+                  setShowSegmentEditor(true);
+                }}
                 className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
               >
                 <PenSquare className="w-3.5 h-3.5" />
                 <span>Edit Segments</span>
+              </button>
+            )}
+            {hasSegments && generation.segments && generation.segments.length > 0 && mergeComplete && (
+              <button
+                onClick={() => {
+                  setEditorReadOnly(true);
+                  setShowSegmentEditor(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Review Segments</span>
               </button>
             )}
             {status === 'completed' && videoUrl && (
@@ -631,10 +647,12 @@ function GenerationCard({
       {/* Segment Editor Modal */}
       {showSegmentEditor && hasSegments && generation.segments && generation.segments.length > 0 && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] h-[90vh] flex flex-col">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
-              <h2 className="text-lg font-semibold text-gray-900">Edit Segments</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {editorReadOnly ? 'Review Segments' : 'Edit Segments'}
+              </h2>
               <button
                 onClick={() => setShowSegmentEditor(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -654,16 +672,17 @@ function GenerationCard({
                 videoAspectRatio={generation.videoAspectRatio}
                 brandId={generation.brandId}
                 brandName={generation.brand}
-                onRegenerate={onSegmentRegenerate ? (options) => {
+                onRegenerate={editorReadOnly ? undefined : (onSegmentRegenerate ? (options) => {
                   const projectId = (generation as any).projectId || generation.id;
                   if (!projectId) return;
                   return onSegmentRegenerate({
                     projectId,
                     ...options
                   });
-                } : undefined}
-                onMerge={onMerge ? () => onMerge(generation) : undefined}
+                } : undefined)}
+                onMerge={editorReadOnly ? undefined : (onMerge ? () => onMerge(generation) : undefined)}
                 isMerging={generation.mergeLoading}
+                readOnly={editorReadOnly}
               />
             </div>
           </div>

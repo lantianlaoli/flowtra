@@ -27,6 +27,7 @@ interface SegmentEditorSplitPaneProps {
   }) => Promise<void> | void;
   onMerge?: () => void;
   isMerging?: boolean;
+  readOnly?: boolean;
 }
 
 export default function SegmentEditorSplitPane({
@@ -40,7 +41,8 @@ export default function SegmentEditorSplitPane({
   brandName,
   onRegenerate,
   onMerge,
-  isMerging
+  isMerging,
+  readOnly = false
 }: SegmentEditorSplitPaneProps) {
   const [selectedSegmentIndex, setSelectedSegmentIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
@@ -168,6 +170,7 @@ export default function SegmentEditorSplitPane({
             onSelectSegment={handleSegmentSelect}
             onMerge={onMerge}
             isMerging={isMerging}
+            readOnly={readOnly}
           />
         </Panel>
 
@@ -218,6 +221,7 @@ export default function SegmentEditorSplitPane({
               brandName={brandName}
               onRegenerate={handleRegenerate}
               isSubmitting={submittingSegments[selectedSegmentIndex] || { photo: false, video: false }}
+              readOnly={readOnly}
             />
           )}
         </Panel>

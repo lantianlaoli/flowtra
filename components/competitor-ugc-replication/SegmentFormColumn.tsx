@@ -74,6 +74,7 @@ interface SegmentFormColumnProps {
     characterIds?: string[];
   }) => Promise<void> | void;
   isSubmitting?: { photo: boolean; video: boolean };
+  readOnly?: boolean;
 }
 
 const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: string }> = [
@@ -156,7 +157,8 @@ export default function SegmentFormColumn({
   brandId,
   brandName,
   onRegenerate,
-  isSubmitting
+  isSubmitting,
+  readOnly = false
 }: SegmentFormColumnProps) {
   const normalizedPrompt = useMemo(() => {
     const current = (segment?.prompt || {}) as Partial<SegmentPrompt>;
@@ -496,6 +498,11 @@ export default function SegmentFormColumn({
 
   // Debounced auto-save when prompt or shots change
   useEffect(() => {
+    // Skip auto-save in read-only mode
+    if (readOnly) {
+      return;
+    }
+
     // Clear any existing timeout
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
@@ -578,7 +585,9 @@ export default function SegmentFormColumn({
       <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-white px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-black">Edit Segment {segmentIndex + 1}</h2>
+            <h2 className="text-sm font-semibold text-black">
+              {readOnly ? 'View' : 'Edit'} Segment {segmentIndex + 1}
+            </h2>
             {videoModel && videoDuration && (
               <p className="mt-0.5 text-xs text-[#666666]">
                 {videoModel.toUpperCase()} • {videoDuration}s
@@ -586,7 +595,7 @@ export default function SegmentFormColumn({
             )}
           </div>
           {/* Auto-save status indicator */}
-          {autoSaveStatus !== 'idle' && (
+          {!readOnly && autoSaveStatus !== 'idle' && (
             <div className="flex items-center gap-1.5">
               {autoSaveStatus === 'saving' && (
                 <>
@@ -621,11 +630,13 @@ export default function SegmentFormColumn({
               value={photoPrompt}
               onChange={e => setPhotoPrompt(e.target.value)}
               rows={6}
+              disabled={readOnly}
+              readOnly={readOnly}
               className={`w-full rounded-lg border px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 ${
                 photoPromptTooLong
                   ? 'border-red-500 focus:ring-red-500'
                   : 'border-[#E5E5E5] focus:ring-black focus:border-black'
-              }`}
+              } ${readOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`}
               placeholder="Describe the exact frame you want..."
             />
             {photoPromptTooLong && (
@@ -635,12 +646,14 @@ export default function SegmentFormColumn({
               <button
                 type="button"
                 aria-pressed={isContinuation}
-                onClick={() => setIsContinuation(prev => !prev)}
+                onClick={() => !readOnly && setIsContinuation(prev => !prev)}
+                disabled={readOnly}
                 className={clsx(
                   'w-full text-left rounded-lg border px-4 py-3 flex items-center gap-3 transition',
                   isContinuation
                     ? 'border-black bg-gray-50 text-black'
-                    : 'border-[#E5E5E5] text-[#666666] hover:border-black hover:text-black'
+                    : 'border-[#E5E5E5] text-[#666666] hover:border-black hover:text-black',
+                  readOnly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
                 )}
               >
                 <span
@@ -666,7 +679,8 @@ export default function SegmentFormColumn({
               </button>
             )}
 
-            {/* Product References */}
+            {/* Product References - Hidden in read-only mode */}
+            {!readOnly && (
             <div className="pt-3 border-t border-dashed border-[#E5E5E5] space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -742,8 +756,10 @@ export default function SegmentFormColumn({
                 </p>
               )}
             </div>
+            )}
 
-            {/* Character References */}
+            {/* Character References - Hidden in read-only mode */}
+            {!readOnly && (
             <div className="pt-3 border-t border-dashed border-[#E5E5E5] space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -816,6 +832,7 @@ export default function SegmentFormColumn({
                 </p>
               )}
             </div>
+            )}
           </div>
 
           {/* Shots Editor */}
@@ -825,6 +842,7 @@ export default function SegmentFormColumn({
                 <Clapperboard className="w-4 h-4 text-black" />
                 <p className="text-sm font-semibold text-black">Shots</p>
               </div>
+              {!readOnly && (
               <div className="flex items-center gap-2">
                 {shots.length >= 4 && (
                   <span className="text-[11px] text-[#666666]">Max 4 shots</span>
@@ -845,6 +863,7 @@ export default function SegmentFormColumn({
                   <span className="sr-only">Add shot</span>
                 </button>
               </div>
+              )}
             </div>
             <div className="space-y-3">
               {shots.map(shot => {
@@ -875,6 +894,7 @@ export default function SegmentFormColumn({
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        {!readOnly && (
                         <button
                           type="button"
                           data-shot-control="true"
@@ -891,6 +911,7 @@ export default function SegmentFormColumn({
                           <Trash2 className="w-4 h-4" />
                           <span className="sr-only">Remove shot</span>
                         </button>
+                        )}
                         <button
                           type="button"
                           data-shot-control="true"
@@ -919,7 +940,11 @@ export default function SegmentFormColumn({
                             type="text"
                             value={shot.time_range}
                             onChange={e => handleShotChange(shot.id, 'time_range', e.target.value)}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5"
+                            disabled={readOnly}
+                            readOnly={readOnly}
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                             placeholder="00:00 - 00:02"
                           />
                         </div>
@@ -933,20 +958,27 @@ export default function SegmentFormColumn({
                           <textarea
                             value={shot.subject}
                             rows={1}
+                            disabled={readOnly}
+                            readOnly={readOnly}
                             onFocus={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = 'auto';
                               e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
                             }}
                             onBlur={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = '';
                             }}
                             onInput={(e) => {
+                              if (readOnly) return;
                               const target = e.target as HTMLTextAreaElement;
                               target.style.height = 'auto';
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'subject', target.value);
                             }}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
 
@@ -959,20 +991,27 @@ export default function SegmentFormColumn({
                           <textarea
                             value={shot.action}
                             rows={1}
+                            disabled={readOnly}
+                            readOnly={readOnly}
                             onFocus={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = 'auto';
                               e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
                             }}
                             onBlur={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = '';
                             }}
                             onInput={(e) => {
+                              if (readOnly) return;
                               const target = e.target as HTMLTextAreaElement;
                               target.style.height = 'auto';
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'action', target.value);
                             }}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
 
@@ -985,20 +1024,27 @@ export default function SegmentFormColumn({
                           <textarea
                             value={shot.style}
                             rows={1}
+                            disabled={readOnly}
+                            readOnly={readOnly}
                             onFocus={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = 'auto';
                               e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
                             }}
                             onBlur={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = '';
                             }}
                             onInput={(e) => {
+                              if (readOnly) return;
                               const target = e.target as HTMLTextAreaElement;
                               target.style.height = 'auto';
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'style', target.value);
                             }}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
 
@@ -1011,20 +1057,27 @@ export default function SegmentFormColumn({
                           <textarea
                             value={shot.audio}
                             rows={1}
+                            disabled={readOnly}
+                            readOnly={readOnly}
                             onFocus={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = 'auto';
                               e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
                             }}
                             onBlur={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = '';
                             }}
                             onInput={(e) => {
+                              if (readOnly) return;
                               const target = e.target as HTMLTextAreaElement;
                               target.style.height = 'auto';
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'audio', target.value);
                             }}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
 
@@ -1037,20 +1090,27 @@ export default function SegmentFormColumn({
                           <textarea
                             value={shot.dialogue}
                             rows={1}
+                            disabled={readOnly}
+                            readOnly={readOnly}
                             onFocus={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = 'auto';
                               e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
                             }}
                             onBlur={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = '';
                             }}
                             onInput={(e) => {
+                              if (readOnly) return;
                               const target = e.target as HTMLTextAreaElement;
                               target.style.height = 'auto';
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'dialogue', target.value);
                             }}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
 
@@ -1063,8 +1123,11 @@ export default function SegmentFormColumn({
                           <div className="relative" data-language-dropdown>
                             <button
                               type="button"
-                              onClick={() => setOpenLanguageDropdownId(openLanguageDropdownId === shot.id ? null : shot.id)}
-                              className="w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 pr-8 text-left text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5"
+                              onClick={() => !readOnly && setOpenLanguageDropdownId(openLanguageDropdownId === shot.id ? null : shot.id)}
+                              disabled={readOnly}
+                              className={`w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 pr-8 text-left text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 ${
+                                readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                              }`}
                             >
                               {LANGUAGE_OPTIONS.find(opt => opt.value === shot.language)?.native || 'Select language'}
                             </button>
@@ -1102,20 +1165,27 @@ export default function SegmentFormColumn({
                           <textarea
                             value={shot.composition}
                             rows={1}
+                            disabled={readOnly}
+                            readOnly={readOnly}
                             onFocus={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = 'auto';
                               e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
                             }}
                             onBlur={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = '';
                             }}
                             onInput={(e) => {
+                              if (readOnly) return;
                               const target = e.target as HTMLTextAreaElement;
                               target.style.height = 'auto';
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'composition', target.value);
                             }}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
 
@@ -1128,20 +1198,27 @@ export default function SegmentFormColumn({
                           <textarea
                             value={shot.camera_motion_positioning}
                             rows={1}
+                            disabled={readOnly}
+                            readOnly={readOnly}
                             onFocus={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = 'auto';
                               e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
                             }}
                             onBlur={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = '';
                             }}
                             onInput={(e) => {
+                              if (readOnly) return;
                               const target = e.target as HTMLTextAreaElement;
                               target.style.height = 'auto';
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'camera_motion_positioning', target.value);
                             }}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
 
@@ -1154,20 +1231,27 @@ export default function SegmentFormColumn({
                           <textarea
                             value={shot.context_environment}
                             rows={1}
+                            disabled={readOnly}
+                            readOnly={readOnly}
                             onFocus={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = 'auto';
                               e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
                             }}
                             onBlur={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = '';
                             }}
                             onInput={(e) => {
+                              if (readOnly) return;
                               const target = e.target as HTMLTextAreaElement;
                               target.style.height = 'auto';
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'context_environment', target.value);
                             }}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
 
@@ -1180,20 +1264,27 @@ export default function SegmentFormColumn({
                           <textarea
                             value={shot.ambiance_colour_lighting}
                             rows={1}
+                            disabled={readOnly}
+                            readOnly={readOnly}
                             onFocus={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = 'auto';
                               e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
                             }}
                             onBlur={(e) => {
+                              if (readOnly) return;
                               e.target.style.height = '';
                             }}
                             onInput={(e) => {
+                              if (readOnly) return;
                               const target = e.target as HTMLTextAreaElement;
                               target.style.height = 'auto';
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'ambiance_colour_lighting', target.value);
                             }}
-                            className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                            }`}
                           />
                         </div>
                       </div>
@@ -1204,7 +1295,8 @@ export default function SegmentFormColumn({
             </div>
           </div>
 
-          {/* Regenerate Buttons */}
+          {/* Regenerate Buttons - Hidden in read-only mode */}
+          {!readOnly && (
           <div className="rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3">
             <div className="flex flex-col gap-2">
               <button
@@ -1232,6 +1324,7 @@ export default function SegmentFormColumn({
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>
