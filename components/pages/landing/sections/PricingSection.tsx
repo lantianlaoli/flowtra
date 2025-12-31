@@ -1,5 +1,6 @@
 import { PricingButton } from '@/components/pages/landing/PricingButton';
-import { Check } from 'lucide-react';
+import { DemoContactCard } from '@/components/pages/landing/DemoContactCard';
+import { Check, Zap, TrendingUp, Crown } from 'lucide-react';
 
 export default function PricingSection({ showTitle = true }: { showTitle?: boolean }) {
   const LITE_PRICE = 29;
@@ -25,13 +26,20 @@ export default function PricingSection({ showTitle = true }: { showTitle?: boole
 
 
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
+
+        {/* Demo Contact Card */}
+
+        <DemoContactCard />
 
         {/* Lite Plan */}
 
         <article className="bg-white rounded-xl border border-[#E5E5E5] p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col" itemScope itemType="https://schema.org/Offer">
 
-          <h3 className="text-[20px] font-bold text-black mb-1" itemProp="name">Lite</h3>
+          <div className="flex items-center gap-2 mb-1">
+            <Zap className="w-5 h-5 text-black flex-shrink-0" />
+            <h3 className="text-[20px] font-bold text-black" itemProp="name">Lite</h3>
+          </div>
 
           <p className="text-[14px] text-[#666666] mb-6">Perfect for small creators starting out.</p>
 
@@ -89,9 +97,9 @@ export default function PricingSection({ showTitle = true }: { showTitle?: boole
 
         {/* Basic Plan (Recommended) */}
 
-        <article className="relative bg-white rounded-xl border-2 border-black p-8 shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col z-10" itemScope itemType="https://schema.org/Offer">
+        <article className="relative bg-white rounded-xl border-2 border-black p-8 shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col" itemScope itemType="https://schema.org/Offer">
 
-          <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+          <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20">
 
             <div className="bg-black text-white px-4 py-1 rounded-full text-[12px] font-bold uppercase tracking-wider shadow-md">
 
@@ -101,7 +109,10 @@ export default function PricingSection({ showTitle = true }: { showTitle?: boole
 
           </div>
 
-          <h3 className="text-[20px] font-bold text-black mb-1" itemProp="name">Basic</h3>
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="w-5 h-5 text-black flex-shrink-0" />
+            <h3 className="text-[20px] font-bold text-black" itemProp="name">Basic</h3>
+          </div>
 
           <p className="text-[14px] text-[#666666] mb-6">Most popular for growing brands.</p>
 
@@ -161,7 +172,10 @@ export default function PricingSection({ showTitle = true }: { showTitle?: boole
 
         <article className="bg-white rounded-xl border border-[#E5E5E5] p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col" itemScope itemType="https://schema.org/Offer">
 
-          <h3 className="text-[20px] font-bold text-black mb-1" itemProp="name">Pro</h3>
+          <div className="flex items-center gap-2 mb-1">
+            <Crown className="w-5 h-5 text-black flex-shrink-0" />
+            <h3 className="text-[20px] font-bold text-black" itemProp="name">Pro</h3>
+          </div>
 
           <p className="text-[14px] text-[#666666] mb-6">For power users and agencies.</p>
 

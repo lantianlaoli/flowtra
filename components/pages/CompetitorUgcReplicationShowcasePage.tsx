@@ -110,9 +110,6 @@ export default function CompetitorUgcReplicationShowcasePage() {
                 View Pricing
               </Link>
             </div>
-            <p className="text-sm text-gray-500">
-              100 free credits for new users ($1.80 value) • 1 credit ≈ $0.018
-            </p>
           </div>
 
           {/* TikTok Embed */}
@@ -407,7 +404,7 @@ export default function CompetitorUgcReplicationShowcasePage() {
                 href="/dashboard/competitor-ugc-replication"
                 className="inline-flex items-center justify-center gap-2 bg-black text-white px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
               >
-                Get Started - 100 Free Credits (~$1.80)
+                Get Started
                 <Zap className="w-5 h-5" />
               </Link>
             </div>

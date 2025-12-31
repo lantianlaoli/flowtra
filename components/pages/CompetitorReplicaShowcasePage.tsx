@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import Script from 'next/script';
 import {
@@ -17,8 +19,38 @@ import {
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
+import { VideoAnalysisModal } from '@/components/showcase/VideoAnalysisModal';
+import { BookDemoCTA } from '@/components/cta/BookDemoCTA';
+import { useState } from 'react';
+import { useUser } from '@clerk/nextjs';
 
 export default function CompetitorReplicaShowcasePage() {
+  const { isSignedIn } = useUser();
+  const [showVideoAnalysisModal, setShowVideoAnalysisModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useState<HTMLInputElement | null>(null)[0];
+
+  const handleTryYourVideo = () => {
+    if (!isSignedIn) {
+      // Redirect to sign-in page if not authenticated
+      window.location.href = '/sign-in?redirect_url=/features/competitor-replica';
+      return;
+    }
+    // Trigger file input directly
+    const input = document.getElementById('video-file-input') as HTMLInputElement;
+    input?.click();
+  };
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('video/')) {
+      setSelectedFile(file);
+      setShowVideoAnalysisModal(true);
+    }
+    // Reset input so the same file can be selected again
+    e.target.value = '';
+  };
+
   const features = [
     {
       icon: Copy,
@@ -284,7 +316,7 @@ export default function CompetitorReplicaShowcasePage() {
       <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-start">
-            
+
             {/* Left: AI Analysis Results (Notion Style) */}
             <div className="space-y-8">
                <div>
@@ -295,7 +327,7 @@ export default function CompetitorReplicaShowcasePage() {
                   <p className="text-gray-600 mb-6 leading-relaxed">
                     Our AI deconstructs every second of the video, capturing timing, actions, voiceovers, and camera angles to recreate the winning formula.
                   </p>
-                  
+
                   {/* Selling Points */}
                   <div className="flex flex-wrap gap-3 mb-8">
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm">
@@ -312,13 +344,13 @@ export default function CompetitorReplicaShowcasePage() {
                     </div>
                   </div>
 
-                  <Link
-                    href="/dashboard/competitor-ugc-replication"
+                  <button
+                    onClick={handleTryYourVideo}
                     className="inline-flex items-center justify-center px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
                   >
-                    Start Analyzing for Free
+                    Try Your Own Video
                     <ArrowRightIcon className="ml-2 w-4 h-4" />
-                  </Link>
+                  </button>
                </div>
 
                <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden font-mono text-sm">
@@ -517,8 +549,35 @@ export default function CompetitorReplicaShowcasePage() {
         </div>
       </section>
 
+      {/* Book Demo CTA - Compact */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <BookDemoCTA
+          variant="compact"
+          title="Ready to Clone Competitors?"
+          description="Book a demo to explore our AI-powered competitor video cloning feature."
+        />
+      </section>
 
       <Footer />
+
+      {/* Hidden file input for direct file selection */}
+      <input
+        id="video-file-input"
+        type="file"
+        accept="video/mp4,video/quicktime,video/webm"
+        onChange={handleFileSelected}
+        className="hidden"
+      />
+
+      {/* Video Analysis Modal */}
+      <VideoAnalysisModal
+        isOpen={showVideoAnalysisModal}
+        onClose={() => {
+          setShowVideoAnalysisModal(false);
+          setSelectedFile(null);
+        }}
+        initialFile={selectedFile}
+      />
     </div>
   );
 }

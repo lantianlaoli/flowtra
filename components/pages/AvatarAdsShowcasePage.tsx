@@ -15,6 +15,7 @@ import {
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
+import { BookDemoCTA } from '@/components/cta/BookDemoCTA';
 
 export default function AvatarAdsShowcasePage() {
   const features = [
@@ -69,9 +70,6 @@ export default function AvatarAdsShowcasePage() {
                 View Pricing
               </Link>
             </div>
-            <p className="text-sm text-gray-500">
-              100 free credits for new users ($1.80 value)
-            </p>
           </div>
 
           {/* Hero Right: Landing Page Example Video */}
@@ -424,12 +422,21 @@ export default function AvatarAdsShowcasePage() {
                 href="/dashboard/character-ads"
                 className="inline-flex items-center justify-center gap-2 bg-black text-white px-8 py-4 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
               >
-                Get Started - 100 Free Credits (~$1.80)
+                Get Started
                 <Zap className="w-5 h-5" />
               </Link>
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Book Demo CTA - Compact */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <BookDemoCTA
+          variant="compact"
+          title="Want to Try Avatar Ads?"
+          description="Book a demo to explore AI character videos with trial access."
+        />
       </section>
 
       <Footer />

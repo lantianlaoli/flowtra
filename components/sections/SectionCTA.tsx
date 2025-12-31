@@ -12,8 +12,8 @@ interface SectionCTAProps {
 }
 
 export default function SectionCTA({
-  title = 'Start with 100 free credits',
-  subtitle = 'No subscription. Create your first AI ad in minutes.',
+  title = 'Start Creating AI Videos',
+  subtitle = 'Create your first AI ad in minutes.',
   buttonText = 'Make My First Ad',
   signedInText = 'Go to Dashboard',
   className = '',

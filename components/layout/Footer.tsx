@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import { getSocialMediaLinks } from '@/lib/social-links';
 
 export default function Footer() {
+  const socialLinks = getSocialMediaLinks();
+
   return (
     <footer className="bg-white border-t border-[#E5E5E5] py-20">
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
@@ -60,16 +63,7 @@ export default function Footer() {
           <nav aria-labelledby="footer-contact">
             <h3 id="footer-contact" className="text-[14px] font-bold text-black mb-6 uppercase tracking-wider">Contact</h3>
             <ul className="space-y-4">
-              {[
-                { label: 'Email', href: `mailto:${process.env.NEXT_PUBLIC_EMAIL}` },
-                { label: 'X', href: process.env.NEXT_PUBLIC_X },
-                { label: 'LinkedIn', href: process.env.NEXT_PUBLIC_LINKEDIN?.startsWith('http') ? process.env.NEXT_PUBLIC_LINKEDIN : `https://${process.env.NEXT_PUBLIC_LINKEDIN}` },
-                { label: 'TikTok', href: process.env.NEXT_PUBLIC_TIKTOK },
-                { label: 'Threads', href: process.env.NEXT_PUBLIC_THREADS },
-                { label: 'Instagram', href: process.env.NEXT_PUBLIC_INSTAGRAM },
-                { label: 'YouTube', href: process.env.NEXT_PUBLIC_YOUTUBE },
-                { label: 'Discord', href: process.env.NEXT_PUBLIC_DISCORD }
-              ].filter(link => link.href).map((link) => (
+              {socialLinks.map((link) => (
                 <li key={link.label}>
                   <a href={link.href} className="text-[14px] text-[#666666] hover:text-black transition-colors" target="_blank" rel="noopener noreferrer">
                     {link.label}
