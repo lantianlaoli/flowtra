@@ -340,26 +340,14 @@ Thanks!`);
             <h3 className="text-3xl font-bold text-black mb-3 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
               Video Too Long
             </h3>
-            <p className="text-gray-600 mb-4">
-              {error || 'Your video exceeds the maximum duration of 80 seconds.'}
-            </p>
             <p className="text-gray-600 mb-8">
-              Please trim your video using an online tool:
+              {error || 'Video duration must not exceed 1 minute 20 seconds (80 seconds). Please trim your video before uploading.'}
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a
-              href="https://www.videocompressor.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center px-6 py-3 bg-black text-white font-medium hover:bg-gray-900 transition-colors"
-              style={{ borderRadius: '8px' }}
-            >
-              Online Video Compressor →
-            </a>
             <button
               onClick={reset}
-              className="inline-flex items-center justify-center px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center justify-center px-6 py-3 bg-black text-white font-medium hover:bg-gray-900 transition-colors"
               style={{ borderRadius: '8px' }}
             >
               Try Another Video

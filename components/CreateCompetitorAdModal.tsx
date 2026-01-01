@@ -108,7 +108,48 @@ export default function CreateCompetitorAdModal({
         return;
       }
 
-      // No file size limit - all video sizes accepted
+      // Validate file size - 500 MB maximum
+      const MAX_FILE_SIZE = 524288000; // 500 MB in bytes
+      if (file.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        setError(`File size exceeds 500 MB limit (${fileSizeMB} MB). Please compress your video.`);
+        setCompressionLink('https://www.onlineconverter.com/compress-video');
+        return;
+      }
+
+      // Clear compression link if file size is valid
+      setCompressionLink(null);
+
+      // Validate video duration - 80 seconds maximum
+      // Create temporary video element to read duration
+      const videoElement = document.createElement('video');
+      const videoUrl = URL.createObjectURL(file);
+
+      const validateDuration = new Promise<boolean>((resolve) => {
+        videoElement.onloadedmetadata = () => {
+          URL.revokeObjectURL(videoUrl); // Clean up
+          const duration = videoElement.duration;
+          if (duration > 80) {
+            setError(`Video duration must not exceed 1 minute 20 seconds (80 seconds). Current duration: ${Math.round(duration)}s. Please trim your video before uploading.`);
+            resolve(false);
+          } else {
+            resolve(true);
+          }
+        };
+
+        videoElement.onerror = () => {
+          URL.revokeObjectURL(videoUrl); // Clean up on error
+          setError('Unable to read video metadata. Please try a different file.');
+          resolve(false);
+        };
+
+        videoElement.src = videoUrl;
+      });
+
+      const isDurationValid = await validateDuration;
+      if (!isDurationValid) {
+        return;
+      }
 
       setAdFile(file);
       setFileType('video'); // Always video now
@@ -168,16 +209,6 @@ export default function CreateCompetitorAdModal({
 
         const { analysis, language } = await analyzeResponse.json();
         console.log('[CreateCompetitorAdModal] ✅ Analysis complete');
-
-        // Validate video duration before creating record
-        if (typeof analysis.video_duration_seconds === 'number' && analysis.video_duration_seconds > 80) {
-          setAnalysisStatus('failed');
-          setAnalysisError('Video duration must not exceed 1 minute 20 seconds (80 seconds).');
-          setCompressionLink('https://www.onlineconverter.com/compress-video');
-          console.error('[CreateCompetitorAdModal] ❌ Video duration exceeds 80 seconds');
-          setIsUploading(false);
-          return;
-        }
 
         // Extract AI-generated name from analysis before creating record
         const aiGeneratedName = (analysis && typeof analysis === 'object' && 'name' in analysis && typeof analysis.name === 'string')
@@ -328,7 +359,7 @@ export default function CreateCompetitorAdModal({
                   <p className="text-lg font-medium text-gray-800 mb-2">Upload a video</p>
                   <p className="text-sm text-gray-500">Choose a viral video to preview and analyze.</p>
                   <p className="text-xs text-gray-400 mt-3">
-                    Video files only • No file size limit
+                    Video files only • Max 500 MB • Max 80 seconds
                   </p>
                   {!canSelectFile && (
                     <p className="text-xs text-gray-500 mt-2">Finish the current upload before adding another file.</p>
@@ -457,9 +488,21 @@ export default function CreateCompetitorAdModal({
                           </>
                         )}
                       </p>
-                      <p className="text-sm text-gray-600 mt-3">
-                        The video has been saved, but analysis failed. You can retry analysis later from the Assets page.
-                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAnalysisStatus('idle');
+                          setAnalysisError(null);
+                          setAdFile(null);
+                          setFilePreview(null);
+                          setFileType(null);
+                          setError(null);
+                          setCompressionLink(null);
+                        }}
+                        className="mt-4 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+                      >
+                        Try Again
+                      </button>
                     </div>
                   )}
                 </div>
