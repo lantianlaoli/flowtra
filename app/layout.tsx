@@ -87,7 +87,7 @@ export const metadata: Metadata = {
     siteName: 'Flowtra',
     images: [
       {
-        url: '/opengraph-image.jpg',
+        url: '/opengraph-image.png',
         width: 1200,
         height: 630,
         alt: 'Turn Viral Videos Into Your Own - Flowtra AI Clone Competitor UGC',
