@@ -23,7 +23,7 @@ export default function SupportPage() {
     },
     {
       name: 'Discord Community',
-      url: process.env.NEXT_PUBLIC_DISCORD || 'https://discord.gg/dd5Qh54S',
+      url: process.env.NEXT_PUBLIC_DISCORD || 'https://discord.gg/gStwqdpRzt',
       icon: FaDiscord,
       description: 'Join our community for real-time help and discussions.',
       cta: 'Join Discord'
