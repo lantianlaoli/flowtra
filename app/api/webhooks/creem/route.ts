@@ -144,22 +144,46 @@ export async function POST(request: NextRequest) {
 
       // subscription.active - New subscription created successfully
       if (eventType === 'subscription.active') {
-        console.log(`🆕 New subscription activated for user ${userId}`)
+        console.log(`🆕 Subscription activated for user ${userId}`)
 
         const creemSubscriptionId = object.id
         const productId = object.product?.id || object.product
 
-        // Create subscription record
-        const createResult = await createSubscription(userId, object)
-        if (!createResult.success) {
-          console.error('❌ Failed to create subscription:', createResult.error)
-          return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 })
-        }
+        // Check if subscription already exists (trial-to-paid conversion detection)
+        const existingSubscription = await getUserSubscription(userId)
 
-        // Grant initial monthly credits
-        const subscription = await getUserSubscription(userId)
-        if (subscription.subscription) {
-          await grantSubscriptionAccess(userId, subscription.subscription.monthly_credits)
+        if (existingSubscription.subscription) {
+          // TRIAL-TO-PAID CONVERSION: Subscription exists from trialing event
+          console.log(`   Detected trial-to-paid conversion (subscription exists)`)
+          console.log(`   Preserving existing credits (no reset)`)
+
+          // Only update status to active
+          await updateSubscriptionStatus(creemSubscriptionId, 'active')
+
+          // Update billing period dates if provided
+          if (object.current_period_start_date && object.current_period_end_date) {
+            await updateSubscriptionPeriod(
+              creemSubscriptionId,
+              object.current_period_start_date,
+              object.current_period_end_date
+            )
+          }
+        } else {
+          // NEW SUBSCRIPTION: No existing record (user purchased without trial or active arrived first)
+          console.log(`   Creating new subscription (no trial or active arrived first)`)
+
+          // Create subscription record
+          const createResult = await createSubscription(userId, object)
+          if (!createResult.success) {
+            console.error('❌ Failed to create subscription:', createResult.error)
+            return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 })
+          }
+
+          // Grant initial monthly credits
+          const subscription = await getUserSubscription(userId)
+          if (subscription.subscription) {
+            await grantSubscriptionAccess(userId, subscription.subscription.monthly_credits)
+          }
         }
 
         // Record event
@@ -296,17 +320,37 @@ export async function POST(request: NextRequest) {
 
         const creemSubscriptionId = object.id
 
-        // Update subscription status
-        const subscription = await getUserSubscription(userId)
-        if (subscription.subscription) {
+        // Check if subscription already exists (idempotency)
+        const existingSubscription = await getUserSubscription(userId)
+
+        if (existingSubscription.subscription) {
+          // Subscription already exists, just update status
+          console.log(`   Subscription exists, updating status only`)
           await updateSubscriptionStatus(creemSubscriptionId, 'trialing')
+        } else {
+          // Create new subscription with trial status
+          console.log(`   Creating new subscription with trial status`)
+          const createResult = await createSubscription(userId, object)
+
+          if (!createResult.success) {
+            console.error('❌ Failed to create trial subscription:', createResult.error)
+            return NextResponse.json({ error: 'Failed to create trial subscription' }, { status: 500 })
+          }
+
+          // Grant full monthly credits for trial
+          const subscription = await getUserSubscription(userId)
+          if (subscription.subscription) {
+            const monthlyCredits = subscription.subscription.monthly_credits
+            console.log(`   Granting ${monthlyCredits} trial credits`)
+            await grantSubscriptionAccess(userId, monthlyCredits)
+          }
         }
 
         // Record event
         await recordSubscriptionEvent(userId, creemSubscriptionId, eventType, eventId, object)
 
-        console.log(`✅ Subscription trial started for user ${userId}`)
-        return NextResponse.json({ success: true, message: 'Subscription trial started' })
+        console.log(`✅ Trial started with full credits for user ${userId}`)
+        return NextResponse.json({ success: true, message: 'Trial started with full credits' })
       }
 
       // Unsupported event type

@@ -395,6 +395,64 @@ export default function CreditsPage() {
             </div>
           </div>
 
+          {/* Credits Breakdown */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-semibold text-[#000000] mb-6">Credits Balance</h2>
+
+            <div className="bg-white border border-[#E5E5E5] rounded-xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-sm text-[#666666] font-medium mb-1">Total Credits</p>
+                  <p className="text-4xl font-bold text-[#000000] tracking-tight">
+                    {(userCredits ?? 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="w-16 h-16 bg-black rounded-xl flex items-center justify-center">
+                  <Coins className="w-8 h-8 text-white" />
+                </div>
+              </div>
+
+              {/* Credits Breakdown */}
+              {(creditsData?.subscription_credits || creditsData?.purchased_credits) && (
+                <div className="space-y-3 pt-4 border-t border-[#E5E5E5]">
+                  <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">Breakdown</p>
+
+                  {(creditsData?.subscription_credits ?? 0) > 0 && (
+                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <div>
+                          <p className="text-sm font-medium text-[#000000]">Subscription Credits</p>
+                          <p className="text-xs text-[#666666]">From your active subscription plan</p>
+                        </div>
+                      </div>
+                      <p className="text-lg font-semibold text-[#000000]">
+                        {(creditsData?.subscription_credits ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+
+                  {(creditsData?.purchased_credits ?? 0) > 0 && (
+                    <div className="flex items-center justify-between p-3 bg-[#F7F7F7] rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <div>
+                          <p className="text-sm font-medium text-[#000000]">Purchased Credits (Legacy)</p>
+                          <p className="text-xs text-[#666666]">
+                            From one-time purchases before subscription system. These credits never expire.
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-lg font-semibold text-[#000000]">
+                        {(creditsData?.purchased_credits ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Subscription Management Section */}
           {!subscriptionLoading && subscription && (
             <div className="mb-8">
@@ -415,6 +473,20 @@ export default function CreditsPage() {
                             <span className="px-2 py-1 bg-[#000000] text-white text-xs font-medium rounded">
                               Active
                             </span>
+                          )}
+                          {subscription.status === 'trialing' && (
+                            <>
+                              <span className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded">
+                                Trial
+                              </span>
+                              <span className="text-xs text-[#666666]">
+                                Ends: {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                            </>
                           )}
                           {subscription.status === 'canceled' && (
                             <span className="px-2 py-1 bg-[#E5E5E5] text-[#666666] text-xs font-medium rounded">
@@ -520,85 +592,105 @@ export default function CreditsPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Trial Notice */}
+                  {subscription.status === 'trialing' && (
+                    <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <Sparkles className="w-5 h-5 text-blue-600 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-[#000000] mb-1">Trial Active</p>
+                        <p className="text-xs text-[#666666]">
+                          You have full access to {subscription.monthly_credits.toLocaleString()} credits during your trial.
+                          Your trial ends on {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}. Unused credits will remain after trial ends (no reset).
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Connected Accounts Section */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-semibold text-[#000000] mb-6">Connected Accounts</h2>
+          {/* Connected Accounts Section - Temporarily hidden */}
+          {false && (
+            <div className="mb-8">
+              <h2 className="text-2xl font-semibold text-[#000000] mb-6">Connected Accounts</h2>
 
-            {/* TikTok Connection Card */}
-            <div className="bg-white border border-[#E5E5E5] rounded-xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-[#000000] rounded-xl flex items-center justify-center">
-                    <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-                    </svg>
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-semibold text-[#000000]">TikTok</h3>
-                      {tiktokConnected && (
-                        <span className="px-2 py-1 bg-[#000000] text-white text-xs font-medium rounded">
-                          Connected
-                        </span>
-                      )}
+              {/* TikTok Connection Card */}
+              <div className="bg-white border border-[#E5E5E5] rounded-xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-[#000000] rounded-xl flex items-center justify-center">
+                      <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                      </svg>
                     </div>
 
-                    {tiktokLoading ? (
-                      <p className="text-sm text-[#666666]">Loading...</p>
-                    ) : tiktokConnected && tiktokConnection ? (
-                      <div className="flex items-center gap-2">
-                        {tiktokConnection.avatar_url && (
-                          <Image
-                            src={tiktokConnection.avatar_url}
-                            alt={tiktokConnection.display_name}
-                            width={24}
-                            height={24}
-                            className="h-6 w-6 rounded-full object-cover"
-                          />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-semibold text-[#000000]">TikTok</h3>
+                        {tiktokConnected && (
+                          <span className="px-2 py-1 bg-[#000000] text-white text-xs font-medium rounded">
+                            Connected
+                          </span>
                         )}
-                        <p className="text-sm text-[#666666]">
-                          Connected as <span className="font-medium text-[#000000]">{tiktokConnection.display_name}</span>
-                        </p>
                       </div>
-                    ) : (
-                      <p className="text-sm text-[#666666]">
-                        Connect your TikTok account to publish videos directly
-                      </p>
-                    )}
+
+                      {tiktokLoading ? (
+                        <p className="text-sm text-[#666666]">Loading...</p>
+                      ) : tiktokConnected && tiktokConnection ? (
+                        <div className="flex items-center gap-2">
+                          {tiktokConnection!.avatar_url && (
+                            <Image
+                              src={tiktokConnection!.avatar_url!}
+                              alt={tiktokConnection!.display_name || 'TikTok User'}
+                              width={24}
+                              height={24}
+                              className="h-6 w-6 rounded-full object-cover"
+                            />
+                          )}
+                          <p className="text-sm text-[#666666]">
+                            Connected as <span className="font-medium text-[#000000]">{tiktokConnection!.display_name}</span>
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-[#666666]">
+                          Connect your TikTok account to publish videos directly
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-3">
-                  {tiktokConnected ? (
-                    <button
-                      onClick={handleDisconnectTikTok}
-                      disabled={unbindingTiktok}
-                      className="flex items-center gap-2 px-6 py-3 bg-white border border-[#E5E5E5] text-[#000000] text-sm font-medium rounded-lg hover:bg-[#F7F7F7] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      {unbindingTiktok ? 'Disconnecting...' : 'Disconnect'}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleConnectTikTok}
-                      disabled={tiktokLoading}
-                      className="flex items-center gap-2 px-6 py-3 bg-[#000000] text-white text-sm font-medium rounded-lg hover:bg-[#1a1a1a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Link2 className="w-4 h-4" />
-                      Connect TikTok
-                    </button>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {tiktokConnected ? (
+                      <button
+                        onClick={handleDisconnectTikTok}
+                        disabled={unbindingTiktok}
+                        className="flex items-center gap-2 px-6 py-3 bg-white border border-[#E5E5E5] text-[#000000] text-sm font-medium rounded-lg hover:bg-[#F7F7F7] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        {unbindingTiktok ? 'Disconnecting...' : 'Disconnect'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleConnectTikTok}
+                        disabled={tiktokLoading}
+                        className="flex items-center gap-2 px-6 py-3 bg-[#000000] text-white text-sm font-medium rounded-lg hover:bg-[#1a1a1a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Link2 className="w-4 h-4" />
+                        Connect TikTok
+                      </button>
+                    )}
 
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Transaction History */}
           <div>

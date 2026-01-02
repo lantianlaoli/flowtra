@@ -49,20 +49,6 @@ export default function CreditsDisplay({
           <div className="text-2xl font-bold text-black tabular-nums">
             {credits.toLocaleString()}
           </div>
-
-          {/* Breakdown - Show only if user has both subscription and purchased credits */}
-          {hasBothTypes && (
-            <div className="mt-2 space-y-1 text-xs text-gray-600">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                <span>Subscription: {subscriptionCredits.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                <span>Purchased: {purchasedCredits.toLocaleString()}</span>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Manage Subscription Button - Show only for subscribers */}
