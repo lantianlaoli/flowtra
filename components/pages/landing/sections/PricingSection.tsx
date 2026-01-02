@@ -55,6 +55,25 @@ export default function PricingSection({ showTitle = true }: { showTitle?: boole
 
             </div>
 
+            {/* Trial Badge */}
+            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F7F7F7] border border-[#E5E5E5] rounded-full">
+              <span className="text-[10px] font-medium text-[#000000] uppercase tracking-wider">
+                1 Day Free Trial
+              </span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                className="opacity-60"
+              >
+                <path
+                  d="M6 1L7.5 4.5L11 5L8.5 7.5L9 11L6 9L3 11L3.5 7.5L1 5L4.5 4.5L6 1Z"
+                  fill="#000000"
+                />
+              </svg>
+            </div>
+
           </div>
 
           <ul className="space-y-4 mb-10 flex-grow">
