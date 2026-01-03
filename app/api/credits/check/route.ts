@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 import { auth } from '@clerk/nextjs/server'
 import { getUserCredits, initializeUserCredits } from '@/lib/credits'
+import { getUserSubscription } from '@/lib/subscription'
 import { INITIAL_FREE_CREDITS } from '@/lib/constants'
 
 export async function GET() {
@@ -15,17 +16,19 @@ export async function GET() {
         credits: 0,
         hasCredits: false,
         userId: null,
+        subscription: null,
         note: 'Dev fallback: Supabase env not configured'
       })
     }
 
     const { userId } = await auth()
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const result = await getUserCredits(userId)
+    const subscriptionResult = await getUserSubscription(userId)
 
     if (!result.success) {
       return NextResponse.json(
@@ -46,6 +49,7 @@ export async function GET() {
           credits: initResult.credits, // Return full credits object
           hasCredits: initResult.credits.credits_remaining > 0,
           userId: userId,
+          subscription: subscriptionResult.subscription || null,
           initialized: true
         })
       }
@@ -63,7 +67,8 @@ export async function GET() {
       success: true,
       credits: result.credits, // Return full credits object
       hasCredits: result.credits.credits_remaining > 0,
-      userId: userId
+      userId: userId,
+      subscription: subscriptionResult.subscription || null
     })
 
   } catch (error) {

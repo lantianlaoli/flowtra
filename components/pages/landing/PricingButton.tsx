@@ -13,7 +13,7 @@ interface PricingButtonProps {
 export function PricingButton({ packageName }: PricingButtonProps) {
   const { isLoaded, user } = useUser();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [subscribedTier, setSubscribedTier] = useState<string | null>(null);
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
 
   // Check if user already has an active subscription
@@ -28,10 +28,12 @@ export function PricingButton({ packageName }: PricingButtonProps) {
         const response = await fetch('/api/credits/check');
         const data = await response.json();
 
-        if (data.success && data.credits) {
-          // User has active subscription if they have subscription_credits > 0
-          const hasSubscription = (data.credits.subscription_credits || 0) > 0;
-          setHasActiveSubscription(hasSubscription);
+        if (data.success && data.subscription) {
+          // User has active subscription if status is active or trialing
+          const activeStatuses = ['active', 'trialing'];
+          if (activeStatuses.includes(data.subscription.status)) {
+            setSubscribedTier(data.subscription.tier);
+          }
         }
       } catch (error) {
         console.error('Failed to check subscription status:', error);
@@ -68,8 +70,8 @@ export function PricingButton({ packageName }: PricingButtonProps) {
     );
   }
 
-  // If user already has an active subscription, show "Already Subscribed"
-  if (hasActiveSubscription) {
+  // If user subscribed to THIS specific tier, show "Already Subscribed"
+  if (subscribedTier === packageName) {
     return (
       <button
         disabled
@@ -80,6 +82,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
     );
   }
 
+  // If user subscribed to a different tier, allow upgrade/downgrade
   const handleClick = async () => {
     if (isProcessing) {
       return;
@@ -90,6 +93,20 @@ export function PricingButton({ packageName }: PricingButtonProps) {
     if (!email) {
       alert('Email address is required for purchase. Please check your account settings.');
       return;
+    }
+
+    // Warn user if they already have a subscription to a different tier
+    if (subscribedTier) {
+      const currentTier = subscribedTier.charAt(0).toUpperCase() + subscribedTier.slice(1);
+      const newTier = packageName.charAt(0).toUpperCase() + packageName.slice(1);
+      const confirmed = confirm(
+        `You are currently subscribed to the ${currentTier} plan. ` +
+        `This will create a new ${newTier} subscription. ` +
+        `Please cancel your existing subscription in your account settings first.`
+      );
+      if (!confirmed) {
+        return;
+      }
     }
 
     try {
@@ -113,7 +130,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
       disabled={isProcessing}
       className={purchaseButtonClass}
     >
-      {isProcessing ? 'Processing...' : 'Get Started'}
+      {isProcessing ? 'Processing...' : subscribedTier ? 'Change Plan' : 'Get Started'}
     </button>
   );
 }
