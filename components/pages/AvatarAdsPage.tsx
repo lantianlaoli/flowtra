@@ -180,6 +180,8 @@ export default function AvatarAdsPage() {
   const [hasAIGeneratedDialogue, setHasAIGeneratedDialogue] = useState(false);
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const userHasManuallyCollapsed = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [showExpandCollapseIcon, setShowExpandCollapseIcon] = useState(false);
 
   // Inspector state
@@ -574,32 +576,61 @@ const formatDurationLabel = (seconds: number) => {
   }, []);
 
   useEffect(() => {
-    const checkOverflow = () => {
-      if (textareaRef.current) {
-        // We consider it overflowing if scrollHeight is greater than clientHeight + some tolerance (e.g., 1px for rounding)
-        // Also ensure it's not expanded, or if expanded, that it actually needs to scroll
-        const isOverflowing = textareaRef.current.scrollHeight > (textareaRef.current.clientHeight + 1);
-        setShowExpandCollapseIcon(isOverflowing);
+    const checkState = () => {
+      if (!textareaRef.current) return;
+
+      const scrollHeight = textareaRef.current.scrollHeight;
+      // Base height is approx 48px. If content exceeds ~54px, it's multi-line.
+      const isContentLong = scrollHeight > 54;
+
+      // 1. Icon Visibility: Always show if content is long enough to warrant collapsing/expanding
+      setShowExpandCollapseIcon(isContentLong);
+
+      // 2. Auto-Expand Logic:
+      if (isContentLong) {
+        // If content is long, not expanded, and user hasn't explicitly collapsed it -> Expand
+        if (!isTextareaExpanded && !userHasManuallyCollapsed.current) {
+          setIsTextareaExpanded(true);
+        }
+      } else {
+        // If content is short, always collapse and reset manual flag
+        if (isTextareaExpanded) setIsTextareaExpanded(false);
+        userHasManuallyCollapsed.current = false;
       }
     };
 
-    checkOverflow(); // Initial check
+    checkState(); // Initial check
 
     // Re-check when customDialogue changes or window resizes
-    const resizeObserver = new ResizeObserver(checkOverflow);
+    const resizeObserver = new ResizeObserver(checkState);
     const currentTextarea = textareaRef.current;
     if (currentTextarea) {
       resizeObserver.observe(currentTextarea);
     }
-    window.addEventListener('resize', checkOverflow);
+    window.addEventListener('resize', checkState);
 
     return () => {
       if (currentTextarea) {
         resizeObserver.unobserve(currentTextarea);
       }
-      window.removeEventListener('resize', checkOverflow);
+      window.removeEventListener('resize', checkState);
     };
-  }, [customDialogue, isTextareaExpanded]);
+  }, [customDialogue, isTextareaExpanded]); // Re-run when customDialogue changes
+
+  // Click outside to collapse
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isTextareaExpanded && containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsTextareaExpanded(false);
+        userHasManuallyCollapsed.current = true; // Treat click-outside as a manual collapse action
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isTextareaExpanded]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1022,8 +1053,7 @@ const formatDurationLabel = (seconds: number) => {
   }, [customDialogue]);
 
   const handleCustomDialogueChange = (value: string) => {
-    const limitedValue = clampDialogueToWordLimit(value, maxWordLimit);
-    setCustomDialogue(limitedValue);
+    setCustomDialogue(value);
     setDialogueError(null);
 
     if (hasAIGeneratedDialogue) {
@@ -1130,39 +1160,61 @@ const formatDurationLabel = (seconds: number) => {
               </button>
             </>
           }
-          centerInput={
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative bg-white border border-gray-200 rounded-3xl px-5 py-3 shadow-sm transition-all flex flex-col justify-end" style={{minHeight: '52px'}}>
-                <textarea
-                  ref={textareaRef}
-                  value={customDialogue}
-                  onChange={(e) => handleCustomDialogueChange(e.target.value)}
-                  onInput={(e) => {
-                    e.currentTarget.style.height = 'auto';
-                    e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
-                  }}
-                  placeholder="Type your custom script here (AI will generate if left blank)"
-                  rows={1}
-                  className={`w-full bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none focus-visible:border-none text-sm text-gray-900 placeholder:text-gray-400 pr-10 !outline-none !ring-0 shadow-none resize-none transition-all duration-300 ${isTextareaExpanded ? 'max-h-[300px]' : 'max-h-[72px]'} overflow-y-auto`}
-                  style={{ minHeight: '24px' }}
-                />
-                <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                  {showExpandCollapseIcon && (
-                    <button
-                      type="button"
-                      onClick={() => setIsTextareaExpanded(!isTextareaExpanded)}
-                      className="inline-flex items-center justify-center w-6 h-6 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
-                      title={isTextareaExpanded ? 'Collapse' : 'Expand'}
-                    >
-                      {isTextareaExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                    </button>
-                  )}
-                </div>
-              </div>
-              {dialogueError && <div className="text-[11px] text-red-500 mt-1">{dialogueError}</div>}
-            </div>
-          }
-          configButton={
+                              centerInput={
+                                <div className="flex-1 min-w-[200px]">
+                                  {/* Placeholder div to hold space in the flex row */}
+                                  <div className="relative h-[48px] w-full">
+                                    {/* Actual Input Container - Always absolute, anchored to bottom for smooth animation */}
+                                    <div 
+                                      ref={containerRef}
+                                      className={`
+                                        absolute bottom-0 left-0 right-0 bg-white border rounded-[24px] px-4 py-3 flex flex-col justify-center
+                                        transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] origin-bottom overflow-hidden
+                                        ${isTextareaExpanded 
+                                          ? 'max-h-[240px] shadow-xl border-black/20 z-50' 
+                                          : 'max-h-[48px] shadow-sm border-gray-200 z-0'
+                                        }
+                                        focus-within:border-black focus-within:ring-1 focus-within:ring-black/5
+                                      `}
+                                    >
+                                      <textarea
+                                        ref={textareaRef}
+                                        value={customDialogue}
+                                        onChange={(e) => handleCustomDialogueChange(e.target.value)}
+                                        onInput={(e) => {
+                                          e.currentTarget.style.height = 'auto';
+                                          e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
+                                        }}
+                                        placeholder="Type your custom script here (AI will generate if left blank)"
+                                        rows={1}
+                                        className={`w-full bg-transparent border-none !outline-none !ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-sm text-gray-900 placeholder:text-gray-400 pr-8 resize-none overflow-y-auto leading-relaxed`}
+                                        style={{ height: 'auto', minHeight: '24px' }}
+                                      />
+                                      <div className="absolute bottom-1.5 right-1.5 flex items-center bg-white/80 backdrop-blur-sm rounded-full pl-1 pt-1">
+                                        {showExpandCollapseIcon && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const newState = !isTextareaExpanded;
+                                              setIsTextareaExpanded(newState);
+                                              if (!newState) {
+                                                userHasManuallyCollapsed.current = true; // User explicitly collapsed
+                                              } else {
+                                                userHasManuallyCollapsed.current = false; // User expanded (reset flag)
+                                              }
+                                            }}
+                                            className="inline-flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-black hover:bg-gray-100 transition-all"
+                                            title={isTextareaExpanded ? 'Collapse' : 'Expand'}
+                                          >
+                                            {isTextareaExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {dialogueError && <div className="text-[11px] text-red-500 mt-1 ml-2 absolute bottom-[-20px] left-0">{dialogueError}</div>}
+                                </div>
+                              }          configButton={
             <ConfigPopover
               videoDuration={videoDuration}
               onDurationChange={setVideoDuration}

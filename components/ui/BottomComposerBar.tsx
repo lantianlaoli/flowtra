@@ -45,10 +45,10 @@ export default function BottomComposerBar({
   return (
     <div className={`fixed bottom-0 left-0 right-0 md:left-72 z-40 px-3 md:px-12 lg:px-16 pb-4 md:pb-6 pointer-events-none ${className}`}>
       <div className={`max-w-[1280px] mx-auto ${compact ? 'flex justify-center' : ''}`}>
-        <div className={`bg-white/98 backdrop-blur border border-[#E5E5E5] rounded-[24px] md:rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.1)] p-2 md:p-3 flex flex-row items-center gap-2 md:gap-3 pointer-events-auto ${compact ? 'w-fit' : ''}`}>
+        <div className={`bg-white/98 backdrop-blur border border-[#E5E5E5] rounded-[24px] md:rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.1)] p-2 md:p-3 flex flex-row items-end gap-2 md:gap-3 pointer-events-auto ${compact ? 'w-fit' : ''}`}>
           {/* Left controls - dynamic per page */}
           {leftControls && (
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0 h-12">
               {leftControls}
             </div>
           )}
@@ -61,7 +61,7 @@ export default function BottomComposerBar({
           )}
 
           {/* Right actions - standardized */}
-          <div className={`flex items-center gap-2 flex-shrink-0 ${compact ? '' : 'ml-auto'}`}>
+          <div className={`flex items-center gap-2 flex-shrink-0 h-12 ${compact ? '' : 'ml-auto'}`}>
             {/* Config button */}
             {configButton}
 
@@ -70,7 +70,7 @@ export default function BottomComposerBar({
               onClick={onGenerate}
               disabled={!canGenerate || isGenerating}
               className={`
-                flex items-center justify-center gap-2 px-6 h-12 rounded-xl cursor-pointer
+                flex items-center justify-center gap-2 px-6 h-12 rounded-[24px] cursor-pointer
                 font-semibold text-sm whitespace-nowrap min-w-[140px]
                 transition-all duration-200
                 ${canGenerate && !isGenerating
