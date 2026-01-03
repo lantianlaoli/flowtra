@@ -162,6 +162,7 @@ export async function POST(request: NextRequest) {
           }
 
           // ✅ Pure Event-Driven: Trigger next segment directly (no polling needed)
+          // CRITICAL: Must await continuation before webhook returns to prevent Vercel from killing process
           if (project.is_segmented && segment.segment_index < (project.segment_count - 1)) {
             const nextSegmentIndex = segment.segment_index + 1;
             const nextSegment = allSegments.find(s => s.segment_index === nextSegmentIndex);
@@ -169,83 +170,80 @@ export async function POST(request: NextRequest) {
             if (nextSegment && nextSegment.status === 'awaiting_prev_first_frame') {
               console.log(`🔄 [UGC Frame Webhook] Triggering continuation for segment ${nextSegmentIndex}`);
 
-              // Non-blocking: Trigger next segment frame generation in background
-              (async () => {
-                try {
-                  // Fetch full project details for frame generation
-                  const { data: fullProject } = await supabase
-                    .from('competitor_ugc_replication_projects')
-                    .select('*')
-                    .eq('id', segment.project_id)
-                    .single();
+              try {
+                // Fetch full project details for frame generation
+                const { data: fullProject } = await supabase
+                  .from('competitor_ugc_replication_projects')
+                  .select('*')
+                  .eq('id', segment.project_id)
+                  .single();
 
-                  if (!fullProject) {
-                    throw new Error('Project not found for continuation');
-                  }
-
-                  // Fetch next segment's prompt
-                  const { data: nextSegmentData } = await supabase
-                    .from('competitor_ugc_replication_segments')
-                    .select('*')
-                    .eq('id', nextSegment.id)
-                    .single();
-
-                  if (!nextSegmentData || !nextSegmentData.prompt) {
-                    throw new Error('Next segment prompt not found');
-                  }
-
-                  const segmentPrompt = nextSegmentData.prompt as SegmentPrompt;
-                  const aspectRatio = (fullProject.video_aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16';
-                  const brandLogoUrl = fullProject.brand_logo_url as string | null;
-                  const productImageUrls = fullProject.product_image_urls as string[] | null;
-                  const competitorFileType = fullProject.competitor_file_type as 'video' | null;
-
-                  // Mark as generating
-                  await supabase
-                    .from('competitor_ugc_replication_segments')
-                    .update({
-                      status: 'generating_first_frame',
-                      last_processed_at: new Date().toISOString()
-                    })
-                    .eq('id', nextSegment.id);
-
-                  // ✅ Direct API call: Generate next segment's first frame
-                  const taskId = await createSmartSegmentFrame(
-                    segmentPrompt,
-                    nextSegmentIndex,
-                    'first',
-                    aspectRatio,
-                    brandLogoUrl,
-                    productImageUrls,
-                    undefined, // brandContext - not needed for continuation
-                    competitorFileType,
-                    undefined, // overrides
-                    imageUrl // Use current segment's first frame as continuation reference
-                  );
-
-                  // Save task ID
-                  await supabase
-                    .from('competitor_ugc_replication_segments')
-                    .update({
-                      first_frame_task_id: taskId,
-                      last_processed_at: new Date().toISOString()
-                    })
-                    .eq('id', nextSegment.id);
-
-                  console.log(`✅ [UGC Frame Webhook] Continuation triggered for segment ${nextSegmentIndex}, taskId: ${taskId}`);
-                } catch (error) {
-                  console.error(`❌ [UGC Frame Webhook] Failed to trigger continuation for segment ${nextSegmentIndex}:`, error);
-                  // Mark segment as failed
-                  await supabase
-                    .from('competitor_ugc_replication_segments')
-                    .update({
-                      status: 'failed',
-                      error_message: error instanceof Error ? error.message : 'Continuation trigger failed',
-                      last_processed_at: new Date().toISOString()
-                    })
-                    .eq('id', nextSegment.id);
+                if (!fullProject) {
+                  throw new Error('Project not found for continuation');
                 }
-              })();
+
+                // Fetch next segment's prompt
+                const { data: nextSegmentData } = await supabase
+                  .from('competitor_ugc_replication_segments')
+                  .select('*')
+                  .eq('id', nextSegment.id)
+                  .single();
+
+                if (!nextSegmentData || !nextSegmentData.prompt) {
+                  throw new Error('Next segment prompt not found');
+                }
+
+                const segmentPrompt = nextSegmentData.prompt as SegmentPrompt;
+                const aspectRatio = (fullProject.video_aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16';
+                const brandLogoUrl = fullProject.brand_logo_url as string | null;
+                const productImageUrls = fullProject.product_image_urls as string[] | null;
+                const competitorFileType = fullProject.competitor_file_type as 'video' | null;
+
+                // Mark as generating
+                await supabase
+                  .from('competitor_ugc_replication_segments')
+                  .update({
+                    status: 'generating_first_frame',
+                    last_processed_at: new Date().toISOString()
+                  })
+                  .eq('id', nextSegment.id);
+
+                // ✅ Direct API call: Generate next segment's first frame
+                const taskId = await createSmartSegmentFrame(
+                  segmentPrompt,
+                  nextSegmentIndex,
+                  'first',
+                  aspectRatio,
+                  brandLogoUrl,
+                  productImageUrls,
+                  undefined, // brandContext - not needed for continuation
+                  competitorFileType,
+                  undefined, // overrides
+                  imageUrl // Use current segment's first frame as continuation reference
+                );
+
+                // Save task ID
+                await supabase
+                  .from('competitor_ugc_replication_segments')
+                  .update({
+                    first_frame_task_id: taskId,
+                    last_processed_at: new Date().toISOString()
+                  })
+                  .eq('id', nextSegment.id);
+
+                console.log(`✅ [UGC Frame Webhook] Continuation triggered for segment ${nextSegmentIndex}, taskId: ${taskId}`);
+              } catch (error) {
+                console.error(`❌ [UGC Frame Webhook] Failed to trigger continuation for segment ${nextSegmentIndex}:`, error);
+                // Mark segment as failed
+                await supabase
+                  .from('competitor_ugc_replication_segments')
+                  .update({
+                    status: 'failed',
+                    error_message: error instanceof Error ? error.message : 'Continuation trigger failed',
+                    last_processed_at: new Date().toISOString()
+                  })
+                  .eq('id', nextSegment.id);
+              }
             }
           }
         }
