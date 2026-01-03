@@ -14,41 +14,41 @@ import {
   Users,
   Globe,
   Clock,
-  Scissors
+  Scissors,
+  Link as LinkIcon
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
-import { VideoAnalysisModal } from '@/components/showcase/VideoAnalysisModal';
 import { BookDemoCTA } from '@/components/cta/BookDemoCTA';
 import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 
 export default function CompetitorReplicaShowcasePage() {
   const { isSignedIn } = useUser();
-  const [showVideoAnalysisModal, setShowVideoAnalysisModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useState<HTMLInputElement | null>(null)[0];
+  const [tiktokUrl, setTiktokUrl] = useState('');
 
-  const handleTryYourVideo = () => {
+  const isValidTikTokUrl = (url: string): boolean => {
+    const patterns = [
+      /^https?:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/video\/\d+/,
+      /^https?:\/\/vm\.tiktok\.com\/[\w]+/
+    ];
+    return patterns.some(pattern => pattern.test(url.trim()));
+  };
+
+  const handleAnalyzeTikTok = () => {
     if (!isSignedIn) {
-      // Redirect to sign-in page if not authenticated
       window.location.href = '/sign-in?redirect_url=/features/competitor-replica';
       return;
     }
-    // Trigger file input directly
-    const input = document.getElementById('video-file-input') as HTMLInputElement;
-    input?.click();
-  };
 
-  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type.startsWith('video/')) {
-      setSelectedFile(file);
-      setShowVideoAnalysisModal(true);
+    if (!isValidTikTokUrl(tiktokUrl)) {
+      alert('Please enter a valid TikTok video URL');
+      return;
     }
-    // Reset input so the same file can be selected again
-    e.target.value = '';
+
+    // Redirect to dashboard with TikTok URL parameter
+    window.location.href = `/dashboard/competitor-ugc-replication?tiktok_url=${encodeURIComponent(tiktokUrl)}`;
   };
 
   const features = [
@@ -344,13 +344,28 @@ export default function CompetitorReplicaShowcasePage() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={handleTryYourVideo}
-                    className="inline-flex items-center justify-center px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-                  >
-                    Try Your Own Video
-                    <ArrowRightIcon className="ml-2 w-4 h-4" />
-                  </button>
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <LinkIcon className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <input
+                        type="url"
+                        placeholder="Paste TikTok video URL (e.g. https://www.tiktok.com/@username/video/1234...)"
+                        value={tiktokUrl}
+                        onChange={(e) => setTiktokUrl(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-300 rounded-lg text-base font-medium placeholder:text-gray-400 focus:border-black focus:ring-0 focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <button
+                      onClick={handleAnalyzeTikTok}
+                      disabled={!tiktokUrl.trim()}
+                      className="w-full inline-flex items-center justify-center px-6 py-3.5 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      Analyze TikTok Video
+                      <ArrowRightIcon className="ml-2 w-4 h-4" />
+                    </button>
+                  </div>
                </div>
 
                <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden font-mono text-sm">
@@ -559,25 +574,6 @@ export default function CompetitorReplicaShowcasePage() {
       </section>
 
       <Footer />
-
-      {/* Hidden file input for direct file selection */}
-      <input
-        id="video-file-input"
-        type="file"
-        accept="video/mp4,video/quicktime,video/webm"
-        onChange={handleFileSelected}
-        className="hidden"
-      />
-
-      {/* Video Analysis Modal */}
-      <VideoAnalysisModal
-        isOpen={showVideoAnalysisModal}
-        onClose={() => {
-          setShowVideoAnalysisModal(false);
-          setSelectedFile(null);
-        }}
-        initialFile={selectedFile}
-      />
     </div>
   );
 }
