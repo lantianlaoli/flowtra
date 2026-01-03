@@ -9,6 +9,10 @@ import FlowtraLoading from '@/components/ui/FlowtraLoading';
 export default function SelectPlanPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+
+  // TEMPORARY: All subscription checks disabled to allow all users access
+  // TODO: Re-enable after fixing webhook handling
+  /*
   const [isChecking, setIsChecking] = useState(true);
   const [isPolling, setIsPolling] = useState(false);
 
@@ -81,6 +85,11 @@ export default function SelectPlanPage() {
   }, [isPolling, user, router]);
 
   if (!isLoaded || isChecking) {
+    return <FlowtraLoading />;
+  }
+  */
+
+  if (!isLoaded) {
     return <FlowtraLoading />;
   }
 
