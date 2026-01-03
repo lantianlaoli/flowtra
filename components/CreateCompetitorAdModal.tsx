@@ -38,6 +38,10 @@ export default function CreateCompetitorAdModal({
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [fileType, setFileType] = useState<'image' | 'video' | null>(null);
 
+  // Input mode state (NEW)
+  const [inputMode, setInputMode] = useState<'file' | 'tiktok'>('file');
+  const [tiktokUrl, setTiktokUrl] = useState('');
+
   // API state
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +84,8 @@ export default function CreateCompetitorAdModal({
       setAdFile(null);
       setFilePreview(null);
       setFileType(null);
+      setInputMode('file'); // Reset to file mode
+      setTiktokUrl(''); // Clear TikTok URL
       setError(null);
       setWarning(null);
       setAnalysisStatus('idle');
@@ -100,6 +106,112 @@ export default function CreateCompetitorAdModal({
     }
   }, [analysisResult]);
 
+
+  // TikTok URL validation
+  const isValidTikTokUrl = (url: string): boolean => {
+    if (!url || typeof url !== 'string') {
+      return false;
+    }
+
+    const patterns = [
+      /^https?:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/video\/\d+/,  // Full URL
+      /^https?:\/\/vm\.tiktok\.com\/[\w]+/                       // Short URL
+    ];
+
+    return patterns.some(pattern => pattern.test(url.trim()));
+  };
+
+  // Handle TikTok URL analysis
+  const handleTikTokAnalyze = async () => {
+    // Validate TikTok URL
+    if (!isValidTikTokUrl(tiktokUrl)) {
+      setError('Please enter a valid TikTok video URL (e.g., https://www.tiktok.com/@user/video/123)');
+      return;
+    }
+
+    console.log('[CreateCompetitorAdModal] Starting TikTok video analysis...');
+    setAnalysisStatus('analyzing');
+    setIsUploading(true);
+    setError(null);
+    setWarning(null);
+
+    try {
+      // Step 1: Analyze the TikTok video (API handles fetching CDN URL)
+      console.log('[CreateCompetitorAdModal] Step 1: Analyzing TikTok video with AI...');
+      const analyzeResponse = await fetch('/api/competitor-ads/analyze-preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          tiktok_url: tiktokUrl,
+          competitor_name: '' // Will use AI-generated name
+        })
+      });
+
+      if (!analyzeResponse.ok) {
+        const analyzeError = await analyzeResponse.json();
+        throw new Error(analyzeError.error || analyzeError.details || 'TikTok video analysis failed');
+      }
+
+      const { analysis, language, video_url } = await analyzeResponse.json();
+      console.log('[CreateCompetitorAdModal] ✅ Analysis complete');
+
+      // Set video preview URL (TikTok CDN URL)
+      if (video_url) {
+        setFilePreview(video_url);
+        setFileType('video');
+      }
+
+      // Extract AI-generated name from analysis
+      const aiGeneratedName = (analysis && typeof analysis === 'object' && 'name' in analysis && typeof analysis.name === 'string')
+        ? analysis.name
+        : 'tiktok-video';
+
+      // Step 2: Create database record with analysis results
+      console.log('[CreateCompetitorAdModal] Step 2: Saving competitor ad...');
+      console.log('[CreateCompetitorAdModal] brandId:', brandId);
+      console.log('[CreateCompetitorAdModal] competitorName:', aiGeneratedName);
+
+      const createResponse = await fetch('/api/competitor-ads/create-with-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          brand_id: brandId,
+          competitor_name: aiGeneratedName,
+          analysis_result: analysis,
+          language: language,
+          analysis_status: 'completed'
+        })
+      });
+
+      if (!createResponse.ok) {
+        const createError = await createResponse.json();
+        throw new Error(createError.error || createError.details || 'Failed to save competitor ad');
+      }
+
+      const { competitorAd } = await createResponse.json();
+      console.log('[CreateCompetitorAdModal] ✅ Record created, ID:', competitorAd.id);
+
+      // Update UI state
+      setCreatedAdId(competitorAd.id);
+      setAnalysisStatus('completed');
+      setAnalysisResult(analysis);
+      setAnalysisLanguage(language);
+      setCompetitorName(aiGeneratedName);
+
+      onCompetitorAdCreated(competitorAd);
+
+    } catch (err) {
+      console.error('[CreateCompetitorAdModal] TikTok analysis error:', err);
+      setAnalysisStatus('failed');
+      setAnalysisError(err instanceof Error ? err.message : 'TikTok video analysis failed');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -358,23 +470,116 @@ export default function CreateCompetitorAdModal({
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             {/* Left Column: Preview + Analysis (60%) */}
             <div className="w-full md:w-3/5 border-r border-gray-200 overflow-y-auto p-6 bg-gray-50">
+              {/* Input Mode Toggle (Only show when idle or failed) */}
+              {(analysisStatus === 'idle' || analysisStatus === 'failed') && !filePreview && (
+                <div className="mb-4">
+                  <div className="flex gap-2 justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInputMode('file');
+                        setError(null);
+                        setTiktokUrl('');
+                      }}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                        inputMode === 'file'
+                          ? 'bg-black text-white shadow-sm'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Upload Video File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInputMode('tiktok');
+                        setError(null);
+                        setAdFile(null);
+                      }}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                        inputMode === 'tiktok'
+                          ? 'bg-black text-white shadow-sm'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      TikTok URL
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {!filePreview ? (
-                <button
-                  type="button"
-                  onClick={triggerFileInput}
-                  disabled={!canSelectFile}
-                  className="w-full h-full min-h-[320px] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl bg-white shadow-sm hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Upload className="w-14 h-14 text-gray-300 mb-4" />
-                  <p className="text-lg font-medium text-gray-800 mb-2">Upload a video</p>
-                  <p className="text-sm text-gray-500">Choose a viral video to preview and analyze.</p>
-                  <p className="text-xs text-gray-400 mt-3">
-                    Video files only • Max 500 MB • Max 80 seconds
-                  </p>
-                  {!canSelectFile && (
-                    <p className="text-xs text-gray-500 mt-2">Finish the current upload before adding another file.</p>
-                  )}
-                </button>
+                inputMode === 'file' ? (
+                  // FILE UPLOAD MODE
+                  <button
+                    type="button"
+                    onClick={triggerFileInput}
+                    disabled={!canSelectFile}
+                    className="w-full h-full min-h-[320px] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl bg-white shadow-sm hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Upload className="w-14 h-14 text-gray-300 mb-4" />
+                    <p className="text-lg font-medium text-gray-800 mb-2">Upload a video</p>
+                    <p className="text-sm text-gray-500">Choose a viral video to preview and analyze.</p>
+                    <p className="text-xs text-gray-400 mt-3">
+                      Video files only • Max 15 MB • Max 80 seconds
+                    </p>
+                    {!canSelectFile && (
+                      <p className="text-xs text-gray-500 mt-2">Finish the current upload before adding another file.</p>
+                    )}
+                  </button>
+                ) : (
+                  // TIKTOK URL MODE
+                  <div className="w-full h-full min-h-[320px] flex flex-col items-center justify-center p-8">
+                    <div className="w-full max-w-md space-y-4">
+                      <div className="text-center mb-6">
+                        <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Analyze TikTok Video</h3>
+                        <p className="text-sm text-gray-600">Paste a TikTok link to automatically fetch and analyze the video</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label htmlFor="tiktok-url" className="block text-sm font-medium text-gray-700">
+                          TikTok Video URL
+                        </label>
+                        <input
+                          id="tiktok-url"
+                          type="url"
+                          placeholder="https://www.tiktok.com/@username/video/1234567890"
+                          value={tiktokUrl}
+                          onChange={(e) => {
+                            setTiktokUrl(e.target.value);
+                            setError(null);
+                          }}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+                          disabled={isUploading}
+                        />
+                        <p className="text-xs text-gray-500">
+                          Works with full or short TikTok links (tiktok.com or vm.tiktok.com)
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={handleTikTokAnalyze}
+                          disabled={!tiktokUrl || isUploading}
+                          className="w-full px-4 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {isUploading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Analyzing...</span>
+                            </>
+                          ) : (
+                            <span>Analyze TikTok Video</span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="space-y-4">
                   {/* Media Preview */}

@@ -1224,23 +1224,33 @@ export async function analyzeCompetitorAdWithLanguage(
   console.log('[analyzeCompetitorAdWithLanguage] File type: video (video-only mode)');
   console.log('[analyzeCompetitorAdWithLanguage] File URL:', competitorAdContext.file_url);
 
-  // Process video to base64 (Gemini requirement for all competitor videos)
+  // Detect if URL is a direct video URL (TikTok CDN) or needs base64 conversion (Supabase Storage)
+  // TikTok CDN URLs work directly with OpenRouter - no base64 conversion needed
+  const isDirectVideoUrl = competitorAdContext.file_url.includes('tiktokcdn.com');
+
   let processedFileUrl: string;
   try {
-    processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
-    console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
+    if (isDirectVideoUrl) {
+      // Use TikTok CDN URL directly - no base64 conversion
+      processedFileUrl = competitorAdContext.file_url;
+      console.log('[analyzeCompetitorAdWithLanguage] Using direct video URL (TikTok CDN)');
+    } else {
+      // Convert Supabase Storage URL to base64 (Gemini requirement)
+      processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
+      console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
 
-    // Validate Base64 size (Gemini 2.5 Flash has ~20MB request size limit)
-    const base64SizeInMB = processedFileUrl.length / (1024 * 1024);
-    const MAX_BASE64_SIZE_MB = MAX_BASE64_VIDEO_SIZE_BYTES / (1024 * 1024);
-    const MAX_ORIGINAL_SIZE_MB = MAX_COMPETITOR_VIDEO_SIZE_BYTES / (1024 * 1024);
+      // Validate Base64 size (Gemini 2.5 Flash has ~20MB request size limit)
+      const base64SizeInMB = processedFileUrl.length / (1024 * 1024);
+      const MAX_BASE64_SIZE_MB = MAX_BASE64_VIDEO_SIZE_BYTES / (1024 * 1024);
+      const MAX_ORIGINAL_SIZE_MB = MAX_COMPETITOR_VIDEO_SIZE_BYTES / (1024 * 1024);
 
-    if (base64SizeInMB > MAX_BASE64_SIZE_MB) {
-      console.error(`[analyzeCompetitorAdWithLanguage] Base64 size too large: ${base64SizeInMB.toFixed(2)}MB (max: ${MAX_BASE64_SIZE_MB}MB)`);
-      throw new Error(
-        `Video file too large for AI analysis (${base64SizeInMB.toFixed(1)} MB after encoding). ` +
-        `Maximum supported size is ${MAX_BASE64_SIZE_MB} MB. Please compress your video to under ${MAX_ORIGINAL_SIZE_MB} MB and try again.`
-      );
+      if (base64SizeInMB > MAX_BASE64_SIZE_MB) {
+        console.error(`[analyzeCompetitorAdWithLanguage] Base64 size too large: ${base64SizeInMB.toFixed(2)}MB (max: ${MAX_BASE64_SIZE_MB}MB)`);
+        throw new Error(
+          `Video file too large for AI analysis (${base64SizeInMB.toFixed(1)} MB after encoding). ` +
+          `Maximum supported size is ${MAX_BASE64_SIZE_MB} MB. Please compress your video to under ${MAX_ORIGINAL_SIZE_MB} MB and try again.`
+        );
+      }
     }
   } catch (error) {
     console.error('[analyzeCompetitorAdWithLanguage] Video processing failed:', error);
