@@ -10,6 +10,8 @@ import {
   getReplicaPhotoCredits,
   DEFAULT_SEGMENT_DURATION_SECONDS,
   snapDurationToModel,
+  MAX_BASE64_VIDEO_SIZE_BYTES,
+  MAX_COMPETITOR_VIDEO_SIZE_BYTES,
   type LanguageCode,
   type VideoDuration,
   type VideoModel
@@ -1228,8 +1230,25 @@ export async function analyzeCompetitorAdWithLanguage(
   try {
     processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
     console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
+
+    // Validate Base64 size (Gemini 2.5 Flash has ~20MB request size limit)
+    const base64SizeInMB = processedFileUrl.length / (1024 * 1024);
+    const MAX_BASE64_SIZE_MB = MAX_BASE64_VIDEO_SIZE_BYTES / (1024 * 1024);
+    const MAX_ORIGINAL_SIZE_MB = MAX_COMPETITOR_VIDEO_SIZE_BYTES / (1024 * 1024);
+
+    if (base64SizeInMB > MAX_BASE64_SIZE_MB) {
+      console.error(`[analyzeCompetitorAdWithLanguage] Base64 size too large: ${base64SizeInMB.toFixed(2)}MB (max: ${MAX_BASE64_SIZE_MB}MB)`);
+      throw new Error(
+        `Video file too large for AI analysis (${base64SizeInMB.toFixed(1)} MB after encoding). ` +
+        `Maximum supported size is ${MAX_BASE64_SIZE_MB} MB. Please compress your video to under ${MAX_ORIGINAL_SIZE_MB} MB and try again.`
+      );
+    }
   } catch (error) {
     console.error('[analyzeCompetitorAdWithLanguage] Video processing failed:', error);
+    // Re-throw with original error message if it's already a user-friendly error
+    if (error instanceof Error && error.message.includes('too large')) {
+      throw error;
+    }
     throw new Error('Failed to process competitor video');
   }
 

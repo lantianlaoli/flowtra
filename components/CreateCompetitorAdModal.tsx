@@ -9,6 +9,10 @@ import { getLanguageDisplayInfo } from '@/lib/language';
 import CompetitorShotsEditor from './CompetitorShotsEditor';
 import { CompetitorShotForm, parseShotsFromAnalysis } from '@/lib/competitor-shot-form';
 import { uploadFileToSupabase } from '@/lib/upload-to-supabase';
+import {
+  MAX_COMPETITOR_VIDEO_SIZE_BYTES,
+  BASE64_SIZE_MULTIPLIER
+} from '@/lib/constants';
 
 interface CreateCompetitorAdModalProps {
   isOpen: boolean;
@@ -108,12 +112,18 @@ export default function CreateCompetitorAdModal({
         return;
       }
 
-      // Validate file size - 500 MB maximum
-      const MAX_FILE_SIZE = 524288000; // 500 MB in bytes
-      if (file.size > MAX_FILE_SIZE) {
+      // Validate file size - 15 MB maximum (ensures Base64 stays under 20MB API limit)
+      // Base64 encoding increases size by ~37%, so 15MB * 1.37 ≈ 20MB
+      if (file.size > MAX_COMPETITOR_VIDEO_SIZE_BYTES) {
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-        setError(`File size exceeds 500 MB limit (${fileSizeMB} MB). Please compress your video.`);
+        const estimatedBase64MB = ((file.size * BASE64_SIZE_MULTIPLIER) / (1024 * 1024)).toFixed(2);
+        const maxSizeMB = (MAX_COMPETITOR_VIDEO_SIZE_BYTES / (1024 * 1024)).toFixed(0);
+        setError(
+          `Video file too large (${fileSizeMB} MB, ~${estimatedBase64MB} MB after encoding). ` +
+          `Maximum: ${maxSizeMB} MB to ensure AI analysis succeeds. Please compress your video first.`
+        );
         setCompressionLink('https://www.onlineconverter.com/compress-video');
+        setWarning('Tip: Most competitor ads are under 10 MB. Compress to improve upload speed.');
         return;
       }
 
