@@ -756,86 +756,85 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
     }
 
-    // Start the AI workflow in background (fire-and-forget for instant UX)
-    // Wrap in IIFE to ensure error handling is reliable
-    (async () => {
-      try {
-        if (isReplicaMode) {
-          await startReplicaWorkflow(
-            project.id,
-            { ...request, imageUrl, resolvedVideoModel: actualVideoModel },
-            productContext,
-            competitorAdContext
-          );
-        } else {
-          await startAIWorkflow(
-            project.id,
-            { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel },
-            productContext,
-            competitorAdContext, // Pass competitor ad context for reference
-            brandLogoUrl, // NEW: Pass brand logo URL for brand-only shots
-            shotPlanForSegments
-          );
-        }
-      } catch (workflowError) {
-        console.error('❌ Background workflow error:', workflowError);
-        console.error('Stack trace:', workflowError instanceof Error ? workflowError.stack : 'No stack available');
-        console.error('Context:', {
-          projectId: project.id,
-          userId: request.userId,
-          videoModel: actualVideoModel,
-          generationCost,
-          photoOnly: request.photoOnly,
-          isReplicaMode
-        });
+    // CRITICAL FIX: Must await workflow completion before returning
+    // Vercel terminates serverless functions immediately after API response
+    // Fire-and-forget IIFE would be killed before generateImageBasedPrompts executes
+    try {
+      if (isReplicaMode) {
+        await startReplicaWorkflow(
+          project.id,
+          { ...request, imageUrl, resolvedVideoModel: actualVideoModel },
+          productContext,
+          competitorAdContext
+        );
+      } else {
+        await startAIWorkflow(
+          project.id,
+          { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel },
+          productContext,
+          competitorAdContext, // Pass competitor ad context for reference
+          brandLogoUrl, // NEW: Pass brand logo URL for brand-only shots
+          shotPlanForSegments
+        );
+      }
+    } catch (workflowError) {
+      console.error('❌ Workflow error:', workflowError);
+      console.error('Stack trace:', workflowError instanceof Error ? workflowError.stack : 'No stack available');
+      console.error('Context:', {
+        projectId: project.id,
+        userId: request.userId,
+        videoModel: actualVideoModel,
+        generationCost,
+        photoOnly: request.photoOnly,
+        isReplicaMode
+      });
 
-        // REFUND credits on failure (ALL models now charge at generation)
-        if (generationCost > 0) {
-          console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure`);
-          try {
-            await deductCredits(request.userId, -generationCost); // Negative = refund
-            await recordCreditTransaction(
-              request.userId,
-              'refund',
-              generationCost,
-              isReplicaMode
-                ? 'Competitor UGC Replication - Refund for failed replica photo generation'
-                : `Competitor UGC Replication - Refund for failed ${actualVideoModel.toUpperCase()} generation`,
-              project.id,
-              true
-            );
-            console.log(`✅ Successfully refunded ${generationCost} credits to user ${request.userId}`);
-          } catch (refundError) {
-            console.error('❌ CRITICAL: Refund failed:', refundError);
-            console.error('Refund error stack:', refundError instanceof Error ? refundError.stack : 'No stack available');
-            // TODO: This should trigger alerting - user paid but didn't get service
-          }
-        }
-
-        // Update project status to failed
+      // REFUND credits on failure (ALL models now charge at generation)
+      if (generationCost > 0) {
+        console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure`);
         try {
-          const { error: updateError } = await supabase
-            .from('competitor_ugc_replication_projects')
-            .update({
-              status: 'failed',
-              error_message: `Workflow failed: ${workflowError instanceof Error ? workflowError.message : 'Unknown error'}`,
-              last_processed_at: new Date().toISOString()
-            })
-            .eq('id', project.id);
-
-          if (updateError) {
-            console.error('❌ CRITICAL: Failed to update project status to failed:', updateError);
-            // TODO: This should trigger alerting - project stuck in processing state
-          } else {
-            console.log(`✅ Marked project ${project.id} as failed`);
-          }
-        } catch (dbError) {
-          console.error('❌ CRITICAL: Database update exception:', dbError);
-          console.error('DB error stack:', dbError instanceof Error ? dbError.stack : 'No stack available');
-          // TODO: This should trigger alerting
+          await deductCredits(request.userId, -generationCost); // Negative = refund
+          await recordCreditTransaction(
+            request.userId,
+            'refund',
+            generationCost,
+            isReplicaMode
+              ? 'Competitor UGC Replication - Refund for failed replica photo generation'
+              : `Competitor UGC Replication - Refund for failed ${actualVideoModel.toUpperCase()} generation`,
+            project.id,
+            true
+          );
+          console.log(`✅ Successfully refunded ${generationCost} credits to user ${request.userId}`);
+        } catch (refundError) {
+          console.error('❌ CRITICAL: Refund failed:', refundError);
+          console.error('Refund error stack:', refundError instanceof Error ? refundError.stack : 'No stack available');
+          // TODO: This should trigger alerting - user paid but didn't get service
         }
       }
-    })();
+
+      // Update project status to failed
+      try {
+        const { error: updateError } = await supabase
+          .from('competitor_ugc_replication_projects')
+          .update({
+            status: 'failed',
+            error_message: `Workflow failed: ${workflowError instanceof Error ? workflowError.message : 'Unknown error'}`,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', project.id);
+
+        if (updateError) {
+          console.error('❌ CRITICAL: Failed to update project status to failed:', updateError);
+          // TODO: This should trigger alerting - project stuck in processing state
+        } else {
+          console.log(`✅ Marked project ${project.id} as failed`);
+        }
+      } catch (dbError) {
+        console.error('❌ CRITICAL: Database update exception:', dbError);
+        console.error('DB error stack:', dbError instanceof Error ? dbError.stack : 'No stack available');
+        // TODO: This should trigger alerting
+      }
+    }
 
     return {
       success: true,
