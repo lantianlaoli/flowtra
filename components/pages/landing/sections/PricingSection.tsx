@@ -106,6 +106,27 @@ export default function PricingSection({ showTitle = true }: { showTitle?: boole
 
             ))}
 
+            {/* Bonus: n8n Workflow */}
+            <li className="flex items-start gap-3 text-[14px] pt-2 border-t border-[#E5E5E5]">
+              <Check className="w-4 h-4 text-black flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span className="font-semibold text-black">
+                  Bonus: TikTok Clone n8n Workflow
+                </span>
+                <div className="text-[12px] text-[#666666] mt-1">
+                  ($39.9 value) •{' '}
+                  <a
+                    href="https://lantianlaoli.gumroad.com/l/ivzajh"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-black underline hover:no-underline"
+                  >
+                    Preview
+                  </a>
+                </div>
+              </div>
+            </li>
+
           </ul>
 
           <PricingButton packageName="lite" />
