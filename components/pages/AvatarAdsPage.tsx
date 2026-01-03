@@ -574,13 +574,6 @@ const formatDurationLabel = (seconds: number) => {
   }, []);
 
   useEffect(() => {
-    setCustomDialogue(prev => {
-      const limited = clampDialogueToWordLimit(prev, dialogueWordLimit);
-      return limited === prev ? prev : limited;
-    });
-  }, [dialogueWordLimit]);
-
-  useEffect(() => {
     const checkOverflow = () => {
       if (textareaRef.current) {
         // We consider it overflowing if scrollHeight is greater than clientHeight + some tolerance (e.g., 1px for rounding)
