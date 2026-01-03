@@ -20,10 +20,16 @@ export default function SelectPlanPage() {
         const response = await fetch('/api/credits/check');
         const data = await response.json();
 
-        if (data.success && data.credits?.has_purchased) {
-          // User has already purchased, redirect to dashboard
-          router.push('/dashboard');
-          return;
+        if (data.success && data.credits) {
+          // User has access if they have purchased OR have active subscription
+          const hasAccess = data.credits.has_purchased ||
+                           (data.credits.subscription_credits || 0) > 0;
+
+          if (hasAccess) {
+            // User has already purchased or subscribed, redirect to dashboard
+            router.push('/dashboard');
+            return;
+          }
         }
 
         setIsChecking(false);
@@ -47,9 +53,15 @@ export default function SelectPlanPage() {
         const response = await fetch('/api/credits/check');
         const data = await response.json();
 
-        if (data.success && data.credits?.has_purchased) {
-          clearInterval(pollInterval);
-          router.push('/dashboard');
+        if (data.success && data.credits) {
+          // Check if user has purchased OR has active subscription
+          const hasAccess = data.credits.has_purchased ||
+                           (data.credits.subscription_credits || 0) > 0;
+
+          if (hasAccess) {
+            clearInterval(pollInterval);
+            router.push('/dashboard');
+          }
         }
       } catch (error) {
         console.error('Polling error:', error);

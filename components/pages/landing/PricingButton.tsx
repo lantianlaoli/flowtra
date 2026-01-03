@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SignInButton, useUser } from '@clerk/nextjs';
 import { handleCreemCheckout } from '@/lib/payment';
 
@@ -13,12 +13,41 @@ interface PricingButtonProps {
 export function PricingButton({ packageName }: PricingButtonProps) {
   const { isLoaded, user } = useUser();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
+
+  // Check if user already has an active subscription
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (!user) {
+        setIsCheckingSubscription(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/credits/check');
+        const data = await response.json();
+
+        if (data.success && data.credits) {
+          // User has active subscription if they have subscription_credits > 0
+          const hasSubscription = (data.credits.subscription_credits || 0) > 0;
+          setHasActiveSubscription(hasSubscription);
+        }
+      } catch (error) {
+        console.error('Failed to check subscription status:', error);
+      } finally {
+        setIsCheckingSubscription(false);
+      }
+    };
+
+    checkSubscription();
+  }, [user]);
 
   const purchaseButtonClass = packageName === 'basic'
     ? 'w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer'
     : 'w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
 
-  if (!isLoaded) {
+  if (!isLoaded || isCheckingSubscription) {
     return (
       <button
         disabled
@@ -36,6 +65,18 @@ export function PricingButton({ packageName }: PricingButtonProps) {
           Get Started
         </button>
       </SignInButton>
+    );
+  }
+
+  // If user already has an active subscription, show "Already Subscribed"
+  if (hasActiveSubscription) {
+    return (
+      <button
+        disabled
+        className="w-full bg-green-600 text-white py-3 rounded-lg cursor-not-allowed opacity-75"
+      >
+        Already Subscribed
+      </button>
     );
   }
 
