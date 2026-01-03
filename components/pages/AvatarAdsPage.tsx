@@ -1033,12 +1033,6 @@ const formatDurationLabel = (seconds: number) => {
     setCustomDialogue(limitedValue);
     setDialogueError(null);
 
-    const words = countDialogueWords(limitedValue);
-    const newDuration = getDurationForWordCount(words);
-    if (newDuration !== videoDuration) {
-      setVideoDuration(newDuration);
-    }
-
     if (hasAIGeneratedDialogue) {
       setHasAIGeneratedDialogue(false);
     }
