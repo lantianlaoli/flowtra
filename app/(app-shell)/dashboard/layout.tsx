@@ -15,6 +15,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (!isLoaded || !user) return
 
       try {
+        // TEMPORARY: Disabled subscription check to allow all users into dashboard
+        // TODO: Re-enable after fixing webhook handling
+        /*
         // Call API to check purchase status
         const response = await fetch('/api/credits/check')
         const data = await response.json()
@@ -29,6 +32,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             return
           }
         }
+        */
 
         setIsCheckingPurchase(false)
       } catch (error) {
