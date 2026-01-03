@@ -296,54 +296,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ✅ Event-Driven Architecture: Immediately trigger workflow (no monitor-tasks needed)
-    // Frontend uses Supabase Realtime to get instant status updates
-    console.log(`✅ Character ads project ${project.id} created with status='pending'`);
-    console.log(`Immediately triggering generate_prompts step...`);
+    // CRITICAL FIX: Must await workflow completion before returning
+    // Vercel terminates serverless functions immediately after API response
+    // Fire-and-forget IIFE would be killed before processAvatarAdsProject executes
+    console.log(`✅ Avatar Ads project ${project.id} created with status='pending'`);
+    console.log(`Starting workflow: generate_prompts → generate_image → awaiting_review...`);
 
-    // Trigger workflow in background (non-blocking)
-    (async () => {
-      try {
-        const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
+    try {
+      const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
 
-        // Start with generate_prompts and continue with subsequent steps
-        let currentStep = 'generate_prompts';
-        let result = await processAvatarAdsProject(project, currentStep);
-        console.log(`✅ ${currentStep} completed for project ${project.id}`);
+      // Start with generate_prompts and continue with subsequent steps
+      let currentStep = 'generate_prompts';
+      let result = await processAvatarAdsProject(project, currentStep);
+      console.log(`✅ ${currentStep} completed for project ${project.id}`);
 
-        // Continue with next steps automatically
-        while (result.nextStep) {
-          currentStep = result.nextStep;
-          console.log(`⏭️ Triggering next step: ${currentStep} for project ${project.id}`);
+      // Continue with next steps automatically until we hit a stopping point
+      // Stop at 'check_image_status' (user review) or when no nextStep
+      while (result.nextStep) {
+        currentStep = result.nextStep;
+        console.log(`⏭️ Triggering next step: ${currentStep} for project ${project.id}`);
 
-          // Get fresh project data before next step
-          const { data: freshProject } = await supabase
-            .from('avatar_ads_projects')
-            .select('*')
-            .eq('id', project.id)
-            .single();
+        // Get fresh project data before next step
+        const { data: freshProject } = await supabase
+          .from('avatar_ads_projects')
+          .select('*')
+          .eq('id', project.id)
+          .single();
 
-          if (!freshProject) {
-            throw new Error('Project not found');
-          }
-
-          result = await processAvatarAdsProject(freshProject, currentStep);
-          console.log(`✅ ${currentStep} completed for project ${project.id}`);
+        if (!freshProject) {
+          throw new Error('Project not found');
         }
 
-        console.log(`✅ All workflow steps completed for project ${project.id}`);
-      } catch (error) {
-        console.error(`❌ Workflow failed for project ${project.id}:`, error);
-        // Update project status so frontend gets error via Realtime
-        await supabase
-          .from('avatar_ads_projects')
-          .update({
-            status: 'failed',
-            error_message: error instanceof Error ? error.message : 'Workflow execution failed'
-          })
-          .eq('id', project.id);
+        result = await processAvatarAdsProject(freshProject, currentStep);
+        console.log(`✅ ${currentStep} completed for project ${project.id}`);
+
+        // Stop at 'awaiting_review' - user needs to review cover image
+        if (freshProject.status === 'awaiting_review') {
+          console.log(`⏸️ Workflow paused at 'awaiting_review' - waiting for user action`);
+          break;
+        }
       }
-    })();
+
+      console.log(`✅ Workflow initialization completed for project ${project.id}`);
+    } catch (error) {
+      console.error(`❌ Workflow failed for project ${project.id}:`, error);
+      console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack available');
+
+      // Update project status so frontend gets error via Realtime
+      await supabase
+        .from('avatar_ads_projects')
+        .update({
+          status: 'failed',
+          error_message: error instanceof Error ? error.message : 'Workflow execution failed',
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', project.id);
+
+      // Don't throw - return success response with failed project status
+      // Frontend will receive the error via Realtime subscription
+    }
 
     return NextResponse.json({
       id: project.id,
