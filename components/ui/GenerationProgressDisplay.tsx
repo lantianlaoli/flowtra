@@ -300,6 +300,7 @@ function GenerationCard({
   );
   const isExpanded = expandedGenerationId === generation.id;
   const videosReady = generation.segmentStatus?.videosReady ?? 0;
+  const framesReady = generation.segmentStatus?.framesReady ?? 0;
   const totalSegments = generation.segmentStatus?.total ?? generation.segmentCount ?? 0;
   const awaitingUserMerge = generation.awaitingMerge === true;
   const mergedVideoUrl =
@@ -616,8 +617,8 @@ function GenerationCard({
               </div>
             )}
 
-            {/* Merge Action */}
-            {hasSegments && segmentCount !== 1 && !mergeComplete && (
+            {/* Merge Action - Only show when at least some frames are ready */}
+            {hasSegments && segmentCount !== 1 && !mergeComplete && (framesReady > 0 || videosReady > 0) && (
               <div className="mt-3">
                 {mergeInProgress ? (
                   <div className="flex items-center justify-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 font-semibold text-[13px]">
@@ -680,7 +681,11 @@ function GenerationCard({
                     ...options
                   });
                 } : undefined)}
-                onMerge={editorReadOnly ? undefined : (onMerge ? () => onMerge(generation) : undefined)}
+                onMerge={editorReadOnly ? undefined : (onMerge ? () => {
+                  // Close editor modal when merge starts (merge completes in 4-5 seconds)
+                  setShowSegmentEditor(false);
+                  onMerge(generation);
+                } : undefined)}
                 isMerging={generation.mergeLoading}
                 readOnly={editorReadOnly}
               />
