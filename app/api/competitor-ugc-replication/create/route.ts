@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const maxDuration = 300; // 5 minutes max for complex AI prompt generation
 import { startWorkflowProcess, StartWorkflowRequest } from '@/lib/competitor-ugc-replication-workflow';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import type { VideoModel } from '@/lib/constants';
