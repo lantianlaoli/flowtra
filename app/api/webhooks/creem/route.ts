@@ -319,9 +319,11 @@ export async function POST(request: NextRequest) {
 
         console.log(`   Current status: ${status}`)
 
-        // If subscription exists in our database, update its status
+        // Check if subscription exists
         const subscription = await getUserSubscription(userId)
+
         if (subscription.subscription) {
+          // Subscription exists - just update it
           await updateSubscriptionStatus(creemSubscriptionId, status)
 
           // Update billing period dates if provided
@@ -333,7 +335,27 @@ export async function POST(request: NextRequest) {
             )
           }
         } else {
-          console.log(`   No existing subscription found, will be created on subscription.active`)
+          // CRITICAL: In production, Creem sends subscription.update BEFORE subscription.trialing
+          // We must create subscription here to avoid missing subscriptions
+          console.log(`   No existing subscription found - creating from subscription.update`)
+          console.log(`   This is normal in production (subscription.update arrives before subscription.trialing)`)
+
+          // Create subscription
+          const createResult = await createSubscription(userId, object)
+          if (!createResult.success) {
+            console.error('❌ Failed to create subscription:', createResult.error)
+            return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 })
+          }
+
+          // Grant initial credits if status is trialing or active
+          if (['trialing', 'active'].includes(status)) {
+            const newSubscription = await getUserSubscription(userId)
+            if (newSubscription.subscription) {
+              const monthlyCredits = newSubscription.subscription.monthly_credits
+              console.log(`   Granting ${monthlyCredits} credits (status: ${status})`)
+              await grantSubscriptionAccess(userId, monthlyCredits)
+            }
+          }
         }
 
         // Record event
