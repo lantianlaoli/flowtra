@@ -48,17 +48,46 @@ export async function POST(request: NextRequest) {
     try {
       // ===== CHECKOUT COMPLETED EVENTS =====
 
-      // checkout.completed with subscription - Acknowledge and let subscription.active handle it
+      // checkout.completed with subscription - Handle subscription creation directly
+      // CRITICAL: In production, Creem may ONLY send checkout.completed, not subscription.trialing/active
+      // So we must handle subscription creation here to ensure it works in all environments
       if (eventType === 'checkout.completed' && object.subscription) {
         console.log(`✅ Subscription checkout completed for user ${userId}`)
         console.log(`   Subscription ID: ${object.subscription.id}`)
-        console.log(`   Will be processed by subscription.active event`)
+        console.log(`   Subscription status: ${object.subscription.status}`)
+
+        const creemSubscriptionId = object.subscription.id
+        const subscriptionStatus = object.subscription.status
+
+        // Check if subscription already exists (idempotency)
+        const existingSubscription = await getUserSubscription(userId)
+
+        if (!existingSubscription.subscription) {
+          // Subscription doesn't exist yet - create it now
+          console.log(`   Creating subscription from checkout.completed event`)
+
+          const createResult = await createSubscription(userId, object.subscription)
+          if (!createResult.success) {
+            console.error('❌ Failed to create subscription:', createResult.error)
+            return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 })
+          }
+
+          // Grant initial credits based on subscription status
+          const subscription = await getUserSubscription(userId)
+          if (subscription.subscription) {
+            const monthlyCredits = subscription.subscription.monthly_credits
+            console.log(`   Granting ${monthlyCredits} credits (status: ${subscriptionStatus})`)
+            await grantSubscriptionAccess(userId, monthlyCredits)
+          }
+        } else {
+          console.log(`   Subscription already exists, skipping creation`)
+        }
 
         // Record event for audit trail
         if (eventId) {
           await recordSubscriptionEvent(
             userId,
-            object.subscription.id,
+            creemSubscriptionId,
             eventType,
             eventId,
             object
@@ -67,7 +96,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
           success: true,
-          message: 'Subscription checkout acknowledged'
+          message: 'Subscription checkout processed'
         })
       }
 
