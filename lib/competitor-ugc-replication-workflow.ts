@@ -1862,8 +1862,8 @@ ${strictSegmentFormat}`
           },
           body: requestPayload
         },
-        3,
-        30000
+        10,     // Increased from 3 to 10 retries (match analyzeCompetitorAdWithLanguage)
+        120000  // Increased from 30s to 120s timeout for complex prompts (production has higher latency)
       );
 
       const responseText = await response.text();
