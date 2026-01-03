@@ -18,7 +18,10 @@ const isPurchaseRequiredRoute = createRouteMatcher([
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     await auth.protect()
-    
+
+    // TEMPORARY: Disabled purchase check to allow all users into dashboard
+    // TODO: Re-enable after fixing webhook handling
+    /*
     // Additional check for purchase requirement
     const { userId } = await auth()
     if (userId && isPurchaseRequiredRoute(req) && !req.nextUrl.pathname.startsWith('/select-plan')) {
@@ -30,6 +33,7 @@ export default clerkMiddleware(async (auth, req) => {
         return NextResponse.redirect(selectPlanUrl)
       }
     }
+    */
   }
 })
 

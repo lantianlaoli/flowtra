@@ -168,13 +168,15 @@ function DiscoverSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [audibleId, setAudibleId] = useState<string | null>(null);
+  const [brokenImageIds, setBrokenImageIds] = useState<Set<string>>(new Set());
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return items;
-    return items.filter(i => i.type === filter);
-  }, [items, filter]);
+    const validItems = items.filter(i => !brokenImageIds.has(i.id));
+    if (filter === 'all') return validItems;
+    return validItems.filter(i => i.type === filter);
+  }, [items, filter, brokenImageIds]);
 
   const setVideoRef = useCallback((id: string, el: HTMLVideoElement | null) => {
     videoRefs.current[id] = el;
@@ -214,7 +216,7 @@ function DiscoverSection() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch('/api/discover?limit=48');
+        const res = await fetch('/api/discover?limit=8');
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || 'Failed');
         setItems(data.items || []);
@@ -290,6 +292,10 @@ function DiscoverSection() {
     }
   };
 
+  const handleImageError = (id: string) => {
+    setBrokenImageIds(prev => new Set([...prev, id]));
+  };
+
   return (
     <Card className="bg-white border-[#E5E5E5] border rounded-xl overflow-hidden">
       {/* Minimalist type filter with Tabs */}
@@ -337,6 +343,7 @@ function DiscoverSection() {
                   alt="ad"
                   loading="lazy"
                   className="w-full h-auto block"
+                  onError={() => handleImageError(item.id)}
                 />
 
                 {/* Auto-playing video overlay (if present) */}

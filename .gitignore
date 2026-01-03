@@ -51,3 +51,4 @@ Thumbs.db
 .gemini
 # clerk configuration (can include secrets)
 /.clerk/
+creem_records/
