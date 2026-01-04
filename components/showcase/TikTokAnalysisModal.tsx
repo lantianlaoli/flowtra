@@ -94,9 +94,9 @@ export function TikTokAnalysisModal({
       progressIntervalRef.current = setInterval(() => {
         setProgress(prev => {
           if (prev >= 90) return 90;
-          return prev + (Math.random() * 5); // Random increment
+          return prev + (Math.random() * 3); // Smaller, faster increments
         });
-      }, 800);
+      }, 500);
 
       // Start tip rotation
       tipIntervalRef.current = setInterval(() => {
@@ -323,8 +323,8 @@ export function TikTokAnalysisModal({
                           className="group p-4 rounded-xl border border-[#E9E9E9] bg-white hover:border-[#D0D0D0] hover:shadow-sm transition-all duration-200"
                         >
                           <div className="flex items-start gap-4">
-                            <div className="flex-shrink-0 w-12 pt-1">
-                              <span className="inline-block w-6 h-6 rounded-full bg-[#F7F6F3] text-[#787774] text-xs font-bold flex items-center justify-center border border-[#E9E9E9]">
+                            <div className="flex-shrink-0 w-8 flex justify-center pt-0.5">
+                              <span className="inline-flex w-6 h-6 rounded-full bg-[#F7F6F3] text-[#787774] text-xs font-bold items-center justify-center border border-[#E9E9E9]">
                                 {shot.shot_id}
                               </span>
                             </div>
