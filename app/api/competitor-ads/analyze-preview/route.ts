@@ -26,18 +26,18 @@ export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
     const body = await request.json();
-    const { file_url, uploaded_path, tiktok_url, competitor_name = '' } = body;
+    const { file_url, uploaded_path, tiktok_url, is_external_url, competitor_name = '' } = body;
 
-    // Allow unauthenticated users ONLY for TikTok URL mode
+    // Allow unauthenticated users ONLY for TikTok URL mode or External URL mode (which comes from TikTok)
     if (!userId) {
       // File upload mode requires authentication
-      if (!tiktok_url) {
+      if (!tiktok_url && !is_external_url) {
         return NextResponse.json(
           { error: 'Authentication required for file uploads' },
           { status: 401 }
         );
       }
-      // TikTok mode: Continue without userId (client-side rate limiting via sessionStorage)
+      // TikTok/External mode: Continue without userId
     }
 
     // Validation: Must provide exactly ONE of file_url or tiktok_url
@@ -55,10 +55,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // File upload mode: require uploaded_path for cleanup
-    if (file_url && !uploaded_path) {
+    // File upload mode: require uploaded_path for cleanup (unless external URL)
+    if (file_url && !uploaded_path && !is_external_url) {
       return NextResponse.json(
-        { error: 'uploaded_path is required when using file_url' },
+        { error: 'uploaded_path is required when using file_url (unless is_external_url is true)' },
         { status: 400 }
       );
     }
@@ -93,14 +93,18 @@ export async function POST(request: NextRequest) {
         throw error; // Re-throw unexpected errors
       }
     }
-    // MODE 2: File Upload (existing flow)
+    // MODE 2: File URL (Upload or External)
     else {
-      console.log(`[POST /api/competitor-ads/analyze-preview] Mode: File Upload`);
+      console.log(`[POST /api/competitor-ads/analyze-preview] Mode: File URL (${is_external_url ? 'External' : 'Upload'})`);
       console.log(`[POST /api/competitor-ads/analyze-preview] File URL: ${file_url}`);
 
       videoUrl = file_url;
-      needsFileCleanup = true;
-      cleanupPath = uploaded_path;
+      
+      // Only cleanup if it's a user upload
+      if (!is_external_url) {
+        needsFileCleanup = true;
+        cleanupPath = uploaded_path;
+      }
     }
 
     // Perform AI analysis (competitor ads are video-only now)
