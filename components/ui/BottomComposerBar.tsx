@@ -45,7 +45,7 @@ export default function BottomComposerBar({
   return (
     <div className={`fixed bottom-0 left-0 right-0 md:left-72 z-40 px-3 md:px-12 lg:px-16 pb-4 md:pb-6 pointer-events-none ${className}`}>
       <div className={`max-w-[1280px] mx-auto ${compact ? 'flex justify-center' : ''}`}>
-        <div className={`bg-white/98 backdrop-blur border border-[#E5E5E5] rounded-[24px] md:rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.1)] p-2 md:p-3 flex flex-row items-end gap-2 md:gap-3 pointer-events-auto ${compact ? 'w-fit' : ''}`}>
+        <div className={`bg-white/98 backdrop-blur border border-[#E5E5E5] rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-2 md:p-3 flex flex-row items-end gap-2 md:gap-3 pointer-events-auto ${compact ? 'w-fit' : ''}`}>
           {/* Left controls - dynamic per page */}
           {leftControls && (
             <div className="flex items-center gap-2 flex-shrink-0 h-12">
@@ -70,12 +70,12 @@ export default function BottomComposerBar({
               onClick={onGenerate}
               disabled={!canGenerate || isGenerating}
               className={`
-                flex items-center justify-center gap-2 px-6 h-12 rounded-[24px] cursor-pointer
+                flex items-center justify-center gap-2 px-6 h-12 rounded-lg cursor-pointer
                 font-semibold text-sm whitespace-nowrap min-w-[140px]
                 transition-all duration-200
                 ${canGenerate && !isGenerating
                   ? 'bg-black hover:bg-black/90 text-white shadow-sm'
-                  : 'bg-[#F1F1F1] text-[#999999] cursor-not-allowed border border-[#E5E5E5]'
+                  : 'bg-[#F7F7F7] text-[#999999] cursor-not-allowed border border-[#E5E5E5]'
                 }
               `}
             >
@@ -89,7 +89,7 @@ export default function BottomComposerBar({
                 }
               </span>
               {canAfford && !isGenerating && generationCost > 0 && (
-                <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded text-xs ml-1">
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded-md text-xs ml-1">
                   <Coins className="w-3 h-3" />
                   {generationCost}
                 </span>

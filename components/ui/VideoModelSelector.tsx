@@ -189,7 +189,7 @@ export default function VideoModelSelector({
         {/* Dropdown Button */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-md transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
+          className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-lg transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
           <div className="min-w-0">
             <span className="font-medium truncate">
@@ -210,7 +210,7 @@ export default function VideoModelSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] max-h-[280px] overflow-y-auto"
+            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] max-h-[280px] overflow-y-auto"
           >
             {visibleOptions.map((option) => {
               const disabledByConstraint = disabledModels.includes(option.value);

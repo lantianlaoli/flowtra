@@ -161,7 +161,7 @@ export default function ConfigPopover({
                 type="button"
                 onClick={() => onPhotoAspectRatioChange?.(option)}
                 className={cn(
-                  'px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
+                  'px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors',
                   isSelected
                     ? 'bg-black text-white border-black shadow-sm'
                     : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
@@ -187,7 +187,7 @@ export default function ConfigPopover({
                 type="button"
                 onClick={() => onPhotoResolutionChange?.(option)}
                 className={cn(
-                  'px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
+                  'px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors',
                   isSelected
                     ? 'bg-black text-white border-black shadow-sm'
                     : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
@@ -213,7 +213,7 @@ export default function ConfigPopover({
                 type="button"
                 onClick={() => onPhotoOutputFormatChange?.(option as 'png' | 'jpg')}
                 className={cn(
-                  'px-3 py-1.5 rounded-full border text-sm font-medium transition-colors uppercase',
+                  'px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors uppercase',
                   isSelected
                     ? 'bg-black text-white border-black shadow-sm'
                     : 'border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
@@ -273,9 +273,9 @@ export default function ConfigPopover({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          'h-12 px-4 rounded-xl border flex items-center gap-2 transition-all duration-200 bg-white outline-none',
+          'h-12 px-4 rounded-lg border flex items-center gap-2 transition-all duration-200 bg-white outline-none',
           disabled
-            ? 'bg-[#F1F1F1] border-[#E5E5E5] text-[#999999] cursor-not-allowed'
+            ? 'bg-[#F7F7F7] border-[#E5E5E5] text-[#999999] cursor-not-allowed'
             : 'border-[#E5E5E5] hover:border-[#CCCCCC] text-black shadow-sm',
           isOpen ? 'border-black ring-1 ring-black' : ''
         )}

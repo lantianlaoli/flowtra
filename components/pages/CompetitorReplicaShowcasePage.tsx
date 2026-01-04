@@ -21,12 +21,26 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 import { BookDemoCTA } from '@/components/cta/BookDemoCTA';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { TikTokAnalysisModal } from '@/components/showcase/TikTokAnalysisModal';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function CompetitorReplicaShowcasePage() {
   const { isSignedIn } = useUser();
+  const { showError } = useToast();
   const [tiktokUrl, setTiktokUrl] = useState('');
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+  const [selectedTikTokUrl, setSelectedTikTokUrl] = useState('');
+  const [hasUsedFreeAnalysis, setHasUsedFreeAnalysis] = useState(false);
+
+  // Check if user has already used free analysis
+  useEffect(() => {
+    const analysisUsed = sessionStorage.getItem('tiktok_analysis_used');
+    if (analysisUsed) {
+      setHasUsedFreeAnalysis(true);
+    }
+  }, []);
 
   const isValidTikTokUrl = (url: string): boolean => {
     const patterns = [
@@ -37,18 +51,22 @@ export default function CompetitorReplicaShowcasePage() {
   };
 
   const handleAnalyzeTikTok = () => {
-    if (!isSignedIn) {
-      window.location.href = '/sign-in?redirect_url=/features/competitor-replica';
+    // Check session rate limit
+    const analysisUsed = sessionStorage.getItem('tiktok_analysis_used');
+    if (analysisUsed) {
+      showError('You have already used your free analysis for this session. Sign up to analyze more videos!');
       return;
     }
 
-    if (!isValidTikTokUrl(tiktokUrl)) {
-      alert('Please enter a valid TikTok video URL');
+    // Validate TikTok URL
+    if (!tiktokUrl || !isValidTikTokUrl(tiktokUrl)) {
+      showError('Please enter a valid TikTok video URL');
       return;
     }
 
-    // Redirect to dashboard with TikTok URL parameter
-    window.location.href = `/dashboard/competitor-ugc-replication?tiktok_url=${encodeURIComponent(tiktokUrl)}`;
+    // Open modal (no redirect, no auth check)
+    setSelectedTikTokUrl(tiktokUrl);
+    setIsAnalysisModalOpen(true);
   };
 
   const features = [
@@ -365,6 +383,19 @@ export default function CompetitorReplicaShowcasePage() {
                       Analyze TikTok Video
                       <ArrowRightIcon className="ml-2 w-4 h-4" />
                     </button>
+
+                    {/* Rate Limit Warning */}
+                    {hasUsedFreeAnalysis && (
+                      <div className="p-4 bg-[#F7F6F3] border border-[#E5E5E5] rounded-lg">
+                        <p className="text-sm text-[#37352F]">
+                          You've used your free analysis for this session.{' '}
+                          <Link href="/sign-up" className="underline font-medium text-black hover:text-[#37352F]">
+                            Sign up
+                          </Link>{' '}
+                          to analyze more videos.
+                        </p>
+                      </div>
+                    )}
                   </div>
                </div>
 
@@ -572,6 +603,27 @@ export default function CompetitorReplicaShowcasePage() {
           description="Book a demo to explore our AI-powered competitor video cloning feature."
         />
       </section>
+
+      {/* TikTok Analysis Modal */}
+      <TikTokAnalysisModal
+        isOpen={isAnalysisModalOpen}
+        onClose={() => setIsAnalysisModalOpen(false)}
+        tiktokUrl={selectedTikTokUrl}
+        onComplete={(result) => {
+          // Mark session as used
+          sessionStorage.setItem('tiktok_analysis_used', JSON.stringify({
+            used: true,
+            timestamp: Date.now()
+          }));
+          setHasUsedFreeAnalysis(true);
+
+          // Save analysis for dashboard
+          sessionStorage.setItem('showcase_tiktok_analysis', JSON.stringify({
+            ...result,
+            tiktokUrl: selectedTikTokUrl
+          }));
+        }}
+      />
 
       <Footer />
     </div>

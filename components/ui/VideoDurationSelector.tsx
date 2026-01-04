@@ -182,7 +182,7 @@ export default function VideoDurationSelector({
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
           className={cn(
-            "w-full px-3 py-2 text-sm bg-white border rounded-md transition-colors duration-150 text-gray-900 text-left flex items-center justify-between",
+            "w-full px-3 py-2 text-sm bg-white border rounded-lg transition-colors duration-150 text-gray-900 text-left flex items-center justify-between",
             disabled
               ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
               : "border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 cursor-pointer"
@@ -193,7 +193,7 @@ export default function VideoDurationSelector({
               {selectedOption?.label}
             </span>
             {selectedOption?.recommended || (recommendedDuration && selectedOption?.value === recommendedDuration) ? (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
                 <Sparkles className="w-3 h-3" />
                 Recommended
               </span>
@@ -217,7 +217,7 @@ export default function VideoDurationSelector({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.98 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                className="fixed bg-white border border-gray-300 rounded-md shadow-2xl z-[9999] overflow-hidden"
+                className="fixed bg-white border border-gray-300 rounded-lg shadow-2xl z-[9999] overflow-hidden"
                 style={{
                   top: dropdownPosition.top,
                   left: dropdownPosition.left,
@@ -252,7 +252,7 @@ export default function VideoDurationSelector({
                         )} />
                         <span className="font-medium">{option.label}</span>
                         {(isRecommended || option.recommended) && (
-                          <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                          <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
                             <Sparkles className="w-3 h-3" />
                             Recommended
                           </span>

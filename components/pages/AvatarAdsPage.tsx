@@ -1137,11 +1137,11 @@ const formatDurationLabel = (seconds: number) => {
             <>
               <button
                 onClick={() => setIsPersonPickerOpen(true)}
-                className={`flex-shrink-0 w-12 h-12 rounded-full border transition flex items-center justify-center text-sm font-medium ${hasPersonPhoto ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
+                className={`flex-shrink-0 w-12 h-12 rounded-lg border transition flex items-center justify-center text-sm font-medium ${hasPersonPhoto ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
                 title={hasPersonPhoto ? 'Change character photo' : 'Select character'}
               >
                 {hasPersonPhoto ? (
-                  <Image src={selectedPersonPhotoUrl} alt="Character" width={48} height={48} className="object-cover w-full h-full rounded-full" />
+                  <Image src={selectedPersonPhotoUrl} alt="Character" width={48} height={48} className="object-cover w-full h-full rounded-lg" />
                 ) : (
                   <Video className="w-5 h-5 text-gray-500" />
                 )}
@@ -1149,11 +1149,11 @@ const formatDurationLabel = (seconds: number) => {
 
               <button
                 onClick={() => setIsProductPickerOpen(true)}
-                className={`flex-shrink-0 w-12 h-12 rounded-full border transition flex items-center justify-center ${selectedProduct ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
+                className={`flex-shrink-0 w-12 h-12 rounded-lg border transition flex items-center justify-center ${selectedProduct ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
                 title={selectedProduct ? 'Change product' : 'Optional: select brand & product'}
               >
                 {primaryProductPhoto ? (
-                  <Image src={primaryProductPhoto} alt="Product" width={48} height={48} className="object-cover w-full h-full rounded-full" />
+                  <Image src={primaryProductPhoto} alt="Product" width={48} height={48} className="object-cover w-full h-full rounded-lg" />
                 ) : (
                   <Package className="w-5 h-5 text-gray-500" />
                 )}
@@ -1168,7 +1168,7 @@ const formatDurationLabel = (seconds: number) => {
                                     <div 
                                       ref={containerRef}
                                       className={`
-                                        absolute bottom-0 left-0 right-0 bg-white border rounded-[24px] px-4 py-3 flex flex-col justify-center
+                                        absolute bottom-0 left-0 right-0 bg-white border rounded-lg px-4 py-3 flex flex-col justify-center
                                         transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] origin-bottom overflow-hidden
                                         ${isTextareaExpanded 
                                           ? 'max-h-[240px] shadow-xl border-black/20 z-50' 
@@ -1190,7 +1190,7 @@ const formatDurationLabel = (seconds: number) => {
                                         className={`w-full bg-transparent border-none !outline-none !ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-sm text-gray-900 placeholder:text-gray-400 pr-8 resize-none overflow-y-auto leading-relaxed`}
                                         style={{ height: 'auto', minHeight: '24px' }}
                                       />
-                                      <div className="absolute bottom-1.5 right-1.5 flex items-center bg-white/80 backdrop-blur-sm rounded-full pl-1 pt-1">
+                                      <div className="absolute bottom-2.5 right-2 flex items-center bg-white/80 backdrop-blur-sm rounded-md">
                                         {showExpandCollapseIcon && (
                                           <button
                                             type="button"
@@ -1203,7 +1203,7 @@ const formatDurationLabel = (seconds: number) => {
                                                 userHasManuallyCollapsed.current = false; // User expanded (reset flag)
                                               }
                                             }}
-                                            className="inline-flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-black hover:bg-gray-100 transition-all"
+                                            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-black hover:bg-gray-100 transition-all"
                                             title={isTextareaExpanded ? 'Collapse' : 'Expand'}
                                           >
                                             {isTextareaExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}

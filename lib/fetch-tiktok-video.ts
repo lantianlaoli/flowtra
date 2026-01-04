@@ -105,19 +105,84 @@ export async function fetchTikTokVideoUrl(tiktokUrl: string): Promise<string> {
   console.log('[fetchTikTokVideoUrl] Fetching TikTok video:', tiktokUrl);
 
   try {
-    // 4. Call RapidAPI with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), RAPIDAPI_CONFIG.timeout);
+    // 4. Call RapidAPI with timeout and retries
+    const MAX_RETRIES = 3;
+    let lastError: Error | null = null;
+    let response: Response | null = null;
 
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: RAPIDAPI_CONFIG.headers,
-      signal: controller.signal
-    });
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), RAPIDAPI_CONFIG.timeout);
 
-    clearTimeout(timeoutId);
+        response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: RAPIDAPI_CONFIG.headers,
+          signal: controller.signal
+        });
 
-    // 5. Handle non-2xx responses
+        clearTimeout(timeoutId);
+
+        // Success - break loop
+        if (response.ok) {
+          break;
+        }
+
+        // Specific handling for 429 (Rate Limit) - Retry
+        if (response.status === 429) {
+          console.warn(`[fetchTikTokVideoUrl] Rate limit (429) encountered. Attempt ${attempt}/${MAX_RETRIES}`);
+          if (attempt < MAX_RETRIES) {
+            const delay = 1000 * Math.pow(2, attempt - 1); // Exponential backoff: 1s, 2s, 4s
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+        
+        // Handle 5xx errors (Server Error) - Retry
+        if (response.status >= 500) {
+            console.warn(`[fetchTikTokVideoUrl] Server error (${response.status}) encountered. Attempt ${attempt}/${MAX_RETRIES}`);
+            if (attempt < MAX_RETRIES) {
+              const delay = 1000 * Math.pow(2, attempt - 1);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              continue;
+            }
+        }
+
+        // For other errors (404, 403, etc.), stop retrying immediately
+        break;
+
+      } catch (reqError) {
+        lastError = reqError as Error;
+        // Check if it's a timeout (AbortError)
+        if (reqError instanceof Error && reqError.name === 'AbortError') {
+           console.warn(`[fetchTikTokVideoUrl] Request timeout. Attempt ${attempt}/${MAX_RETRIES}`);
+           if (attempt < MAX_RETRIES) {
+             // Retry on timeout
+             const delay = 1000; 
+             await new Promise(resolve => setTimeout(resolve, delay));
+             continue;
+           }
+        }
+        // For other network errors, we might want to retry as well
+        if (attempt < MAX_RETRIES) {
+             console.warn(`[fetchTikTokVideoUrl] Network error: ${reqError}. Attempt ${attempt}/${MAX_RETRIES}`);
+             const delay = 1000;
+             await new Promise(resolve => setTimeout(resolve, delay));
+             continue;
+        }
+      }
+    }
+
+    if (!response && lastError) {
+       // All retries failed with exception
+       throw lastError;
+    }
+
+    if (!response) {
+       throw new Error('Failed to initiate request');
+    }
+
+    // 5. Handle non-2xx responses (after retries exhausted)
     if (!response.ok) {
       if (response.status === 404) {
         throw new TikTokFetchError(

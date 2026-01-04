@@ -150,7 +150,7 @@ export default function FormatSelector({
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
           className={cn(
-            "w-full px-3 py-2 text-sm border rounded-md transition-colors duration-150 text-gray-900 text-left flex items-center justify-between",
+            "w-full px-3 py-2 text-sm border rounded-lg transition-colors duration-150 text-gray-900 text-left flex items-center justify-between",
             disabled
               ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
               : 'bg-white border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 cursor-pointer'
@@ -177,7 +177,7 @@ export default function FormatSelector({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-              className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-[9999] overflow-hidden"
+              className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] overflow-hidden"
             >
               {formatOptions.map((option) => {
                 const IconComponent = option.icon;

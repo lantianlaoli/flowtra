@@ -25,13 +25,20 @@ export const experimental_bodySizeLimit = 50 * 1024 * 1024; // 50MB limit for vi
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { file_url, uploaded_path, tiktok_url, competitor_name = '' } = body;
+
+    // Allow unauthenticated users ONLY for TikTok URL mode
+    if (!userId) {
+      // File upload mode requires authentication
+      if (!tiktok_url) {
+        return NextResponse.json(
+          { error: 'Authentication required for file uploads' },
+          { status: 401 }
+        );
+      }
+      // TikTok mode: Continue without userId (client-side rate limiting via sessionStorage)
+    }
 
     // Validation: Must provide exactly ONE of file_url or tiktok_url
     if (!file_url && !tiktok_url) {

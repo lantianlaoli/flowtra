@@ -66,8 +66,8 @@ export default function BrandDropdownSelector({
         disabled={disabled || isLoading}
         onClick={() => setIsOpen(prev => !prev)}
         className={cn(
-          'inline-flex items-center justify-between gap-3 px-4 h-12 border rounded-xl bg-white transition-all duration-200 min-w-[160px] outline-none',
-          disabled ? 'bg-[#F1F1F1] border-[#E5E5E5] opacity-60 cursor-not-allowed' : 'border-[#E5E5E5] hover:border-[#CCCCCC] shadow-sm',
+          'inline-flex items-center justify-between gap-3 px-4 h-12 border rounded-lg bg-white transition-all duration-200 min-w-[160px] outline-none',
+          disabled ? 'bg-[#F7F7F7] border-[#E5E5E5] opacity-60 cursor-not-allowed' : 'border-[#E5E5E5] hover:border-[#CCCCCC] shadow-sm',
           isOpen && !disabled ? 'border-black ring-1 ring-black' : ''
         )}
       >

@@ -313,6 +313,65 @@ export default function CompetitorUgcReplicationPage() {
   }, [selectedCompetitorAd, selectedModel]);
 
 
+  // Check for showcase TikTok analysis and auto-create competitor ad
+  useEffect(() => {
+    const handleShowcaseAnalysis = async () => {
+      if (typeof window === 'undefined') return;
+
+      const showcaseData = window.sessionStorage.getItem('showcase_tiktok_analysis');
+      if (!showcaseData) return;
+
+      try {
+        const { analysis, language, videoUrl, tiktokUrl } = JSON.parse(showcaseData);
+
+        // Clear from storage immediately (one-time use)
+        window.sessionStorage.removeItem('showcase_tiktok_analysis');
+
+        console.log('[CompetitorUgcReplicationPage] Found showcase analysis, creating competitor ad...');
+
+        // Only create if user has selected a brand
+        if (!selectedBrand) {
+          showError('Please select a brand first before using your TikTok analysis.');
+          return;
+        }
+
+        // Create competitor ad via API
+        const response = await fetch('/api/competitor-ads/create-with-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            brand_id: selectedBrand.id,
+            competitor_name: analysis.name || 'TikTok Video',
+            analysis_result: analysis,
+            language: language,
+            video_duration_seconds: analysis.video_duration_seconds
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to create competitor ad from showcase analysis');
+        }
+
+        const data = await response.json();
+        const createdAd: CompetitorAd = data.competitorAd;
+
+        console.log('[CompetitorUgcReplicationPage] ✅ Created competitor ad:', createdAd.id);
+
+        // Auto-select the created competitor ad
+        setSelectedCompetitorAd(createdAd);
+
+        showSuccess('Your TikTok analysis has been loaded! Ready to generate.');
+      } catch (error) {
+        console.error('[CompetitorUgcReplicationPage] Failed to process showcase analysis:', error);
+        showError('Failed to load your TikTok analysis. Please try again.');
+      }
+    };
+
+    // Delay to ensure selectedBrand is loaded first
+    const timer = setTimeout(handleShowcaseAnalysis, 500);
+    return () => clearTimeout(timer);
+  }, [selectedBrand, showSuccess, showError]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const saved = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
