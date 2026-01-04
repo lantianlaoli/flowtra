@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { GiftIcon, Check, Heart, MessageCircle, Share2, Eye, Sparkles } from 'lucide-react';
 import { SiDiscord } from 'react-icons/si';
-import { HeroPrimaryButton } from '@/components/pages/landing/HeroPrimaryButton';
+import TikTokInputHero from '@/components/pages/landing/TikTokInputHero';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 import BlackFridayBadge from '@/components/landing/BlackFridayBadge';
 import FounderCard from '@/components/ui/FounderCard';
@@ -57,18 +57,18 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
 
 
         {/* CTA Buttons */}
-        <div className="flex flex-row items-start gap-3">
-          <HeroPrimaryButton />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3 w-full">
+          <TikTokInputHero />
           {/* Discord Community Button */}
           <a
             href="https://discord.gg/gStwqdpRzt"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-[#5865F2] hover:bg-[#4752C4] relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 flex-1 justify-center cursor-pointer text-white transition-all duration-200 hover:-translate-y-[1px] active:translate-y-0"
+            className="bg-[#5865F2] hover:bg-[#4752C4] relative h-14 px-6 rounded-lg text-lg font-semibold flex items-center gap-2 justify-center cursor-pointer text-white transition-all duration-200 hover:-translate-y-[1px] active:translate-y-0 sm:w-auto w-full"
             title="Join our Discord community"
           >
             <SiDiscord className="w-5 h-5" />
-            <span>Join our Community</span>
+            <span className="whitespace-nowrap">Join Community</span>
           </a>
         </div>
 
