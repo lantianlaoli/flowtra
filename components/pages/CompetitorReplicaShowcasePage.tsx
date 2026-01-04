@@ -363,26 +363,28 @@ export default function CompetitorReplicaShowcasePage() {
                   </div>
 
                   <div className="space-y-3">
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <LinkIcon className="w-5 h-5 text-gray-400" />
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <LinkIcon className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <input
+                          type="url"
+                          placeholder="Paste TikTok video URL..."
+                          value={tiktokUrl}
+                          onChange={(e) => setTiktokUrl(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3 border border-[#E5E5E5] rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:border-black focus:ring-1 focus:ring-black focus:outline-none transition-all shadow-sm"
+                        />
                       </div>
-                      <input
-                        type="url"
-                        placeholder="Paste TikTok video URL (e.g. https://www.tiktok.com/@username/video/1234...)"
-                        value={tiktokUrl}
-                        onChange={(e) => setTiktokUrl(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 border border-[#E5E5E5] rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:border-black focus:ring-1 focus:ring-black focus:outline-none transition-all shadow-sm"
-                      />
+                      <button
+                        onClick={handleAnalyzeTikTok}
+                        disabled={!tiktokUrl.trim()}
+                        className="flex-shrink-0 w-12 h-[50px] inline-flex items-center justify-center bg-black text-white rounded-lg hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:border disabled:cursor-not-allowed shadow-sm"
+                        aria-label="Analyze TikTok Video"
+                      >
+                        <ArrowRightIcon className="w-5 h-5" />
+                      </button>
                     </div>
-                    <button
-                      onClick={handleAnalyzeTikTok}
-                      disabled={!tiktokUrl.trim()}
-                      className="w-full inline-flex items-center justify-center px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:border disabled:cursor-not-allowed shadow-sm"
-                    >
-                      Analyze TikTok Video
-                      <ArrowRightIcon className="ml-2 w-4 h-4" />
-                    </button>
 
                     {/* Rate Limit Warning */}
                     {hasUsedFreeAnalysis && (
