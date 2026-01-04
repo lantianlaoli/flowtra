@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import { useToast } from '@/contexts/ToastContext';
 import { TikTokAnalysisModal } from '@/components/showcase/TikTokAnalysisModal';
 import { Link as LinkIcon, ArrowRight, HelpCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function TikTokInputHero() {
   const { isSignedIn } = useUser();
@@ -15,14 +16,6 @@ export default function TikTokInputHero() {
   const [hasUsedFreeAnalysis, setHasUsedFreeAnalysis] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Check if user has already used free analysis
-  useEffect(() => {
-    const analysisUsed = sessionStorage.getItem('tiktok_analysis_used');
-    if (analysisUsed) {
-      setHasUsedFreeAnalysis(true);
-    }
-  }, []);
-
   const isValidTikTokUrl = (url: string): boolean => {
     const patterns = [
       /^https?:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/video\/\d+/,
@@ -30,6 +23,16 @@ export default function TikTokInputHero() {
     ];
     return patterns.some(pattern => pattern.test(url.trim()));
   };
+
+  const isUrlValid = tiktokUrl.trim() !== '' && !validationError && isValidTikTokUrl(tiktokUrl);
+
+  // Check if user has already used free analysis
+  useEffect(() => {
+    const analysisUsed = sessionStorage.getItem('tiktok_analysis_used');
+    if (analysisUsed) {
+      setHasUsedFreeAnalysis(true);
+    }
+  }, []);
 
   const validateUrl = (url: string) => {
     if (!url) {
@@ -73,7 +76,11 @@ export default function TikTokInputHero() {
   return (
     <>
       <div className="w-full max-w-lg">
-        <div className="flex gap-2 h-14">
+        <motion.div 
+          className="flex gap-2 h-14"
+          animate={{ x: isUrlValid ? 12 : 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        >
           <div className="relative flex-1 h-full">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <LinkIcon className="w-5 h-5 text-gray-400" />
@@ -86,6 +93,8 @@ export default function TikTokInputHero() {
               className={`w-full h-full pl-12 pr-10 border rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:ring-0 focus:outline-none transition-all shadow-sm focus:shadow-md ${
                 validationError 
                   ? 'border-red-300 focus:border-red-400' 
+                  : isUrlValid
+                  ? 'border-green-500 focus:border-green-600 shadow-emerald-100'
                   : 'border-[#E5E5E5] focus:border-[#CCCCCC]'
               }`}
             />
@@ -104,13 +113,14 @@ export default function TikTokInputHero() {
           </div>
           <button
             onClick={handleAnalyzeTikTok}
-            disabled={!tiktokUrl.trim() || !!validationError}
-            className="flex-shrink-0 w-14 h-14 inline-flex items-center justify-center bg-black text-white rounded-lg hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:border disabled:cursor-not-allowed shadow-sm"
+            disabled={!isUrlValid}
+            className="flex-shrink-0 px-6 h-14 inline-flex items-center justify-center gap-2 bg-black text-white rounded-lg hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:border disabled:cursor-not-allowed shadow-sm cursor-pointer"
             aria-label="Analyze TikTok Video"
           >
-            <ArrowRight className="w-6 h-6" />
+            <span className="font-semibold">Analyze</span>
+            <ArrowRight className="w-5 h-5" />
           </button>
-        </div>
+        </motion.div>
         
         {/* Validation Error Message */}
         {validationError && (

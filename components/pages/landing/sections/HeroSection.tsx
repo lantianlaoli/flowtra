@@ -68,7 +68,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
             title="Join our Discord community"
           >
             <SiDiscord className="w-5 h-5" />
-            <span className="whitespace-nowrap">Join Community</span>
+            <span className="whitespace-nowrap">Join</span>
           </a>
         </div>
 
