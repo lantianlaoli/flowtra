@@ -15,7 +15,8 @@ import {
   Globe,
   Clock,
   Scissors,
-  Link as LinkIcon
+  Link as LinkIcon,
+  HelpCircle
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -33,6 +34,7 @@ export default function CompetitorReplicaShowcasePage() {
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [selectedTikTokUrl, setSelectedTikTokUrl] = useState('');
   const [hasUsedFreeAnalysis, setHasUsedFreeAnalysis] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Check if user has already used free analysis
   useEffect(() => {
@@ -42,12 +44,32 @@ export default function CompetitorReplicaShowcasePage() {
     }
   }, []);
 
+  const validateUrl = (url: string) => {
+    if (!url) {
+      setValidationError(null);
+      return false;
+    }
+    const isValid = isValidTikTokUrl(url);
+    if (!isValid) {
+      setValidationError('Please enter a valid TikTok video URL (e.g., https://www.tiktok.com/@user/video/...)');
+    } else {
+      setValidationError(null);
+    }
+    return isValid;
+  };
+
   const isValidTikTokUrl = (url: string): boolean => {
     const patterns = [
       /^https?:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/video\/\d+/,
       /^https?:\/\/vm\.tiktok\.com\/[\w]+/
     ];
     return patterns.some(pattern => pattern.test(url.trim()));
+  };
+
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setTiktokUrl(url);
+    validateUrl(url);
   };
 
   const handleAnalyzeTikTok = () => {
@@ -59,7 +81,7 @@ export default function CompetitorReplicaShowcasePage() {
     }
 
     // Validate TikTok URL
-    if (!tiktokUrl || !isValidTikTokUrl(tiktokUrl)) {
+    if (!tiktokUrl || !validateUrl(tiktokUrl)) {
       showError('Please enter a valid TikTok video URL');
       return;
     }
@@ -372,19 +394,42 @@ export default function CompetitorReplicaShowcasePage() {
                           type="url"
                           placeholder="Paste TikTok video URL..."
                           value={tiktokUrl}
-                          onChange={(e) => setTiktokUrl(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3 border border-[#E5E5E5] rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:border-[#CCCCCC] focus:ring-0 focus:outline-none transition-all shadow-sm focus:shadow-md"
+                          onChange={handleUrlChange}
+                          className={`w-full pl-12 pr-10 py-3 border rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:ring-0 focus:outline-none transition-all shadow-sm focus:shadow-md ${
+                            validationError 
+                              ? 'border-red-300 focus:border-red-400' 
+                              : 'border-[#E5E5E5] focus:border-[#CCCCCC]'
+                          }`}
                         />
+                        {/* Help Tooltip */}
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center group">
+                          <HelpCircle className="w-5 h-5 text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
+                          <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 leading-relaxed">
+                            <p className="font-semibold mb-1">How to get the URL:</p>
+                            <ol className="list-decimal pl-4 space-y-1 text-gray-300">
+                              <li>Find a video on TikTok web</li>
+                              <li>Copy the URL from browser address bar</li>
+                            </ol>
+                            <div className="absolute bottom-[-6px] right-4 w-3 h-3 bg-gray-900 rotate-45"></div>
+                          </div>
+                        </div>
                       </div>
                       <button
                         onClick={handleAnalyzeTikTok}
-                        disabled={!tiktokUrl.trim()}
+                        disabled={!tiktokUrl.trim() || !!validationError}
                         className="flex-shrink-0 w-12 h-[50px] inline-flex items-center justify-center bg-black text-white rounded-lg hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:border disabled:cursor-not-allowed shadow-sm"
                         aria-label="Analyze TikTok Video"
                       >
                         <ArrowRightIcon className="w-5 h-5" />
                       </button>
                     </div>
+
+                    {/* Validation Error Message */}
+                    {validationError && (
+                      <p className="text-sm text-red-500 pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                        {validationError}
+                      </p>
+                    )}
 
                     {/* Rate Limit Warning */}
                     {hasUsedFreeAnalysis && (
