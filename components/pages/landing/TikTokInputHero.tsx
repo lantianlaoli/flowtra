@@ -76,11 +76,7 @@ export default function TikTokInputHero() {
   return (
     <>
       <div className="w-full max-w-lg">
-        <motion.div 
-          className="flex gap-2 h-14"
-          animate={{ x: isUrlValid ? 12 : 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        >
+        <div className="flex gap-2 h-14">
           <div className="relative flex-1 h-full">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <LinkIcon className="w-5 h-5 text-gray-400" />
@@ -90,14 +86,27 @@ export default function TikTokInputHero() {
               placeholder="Paste TikTok URL..."
               value={tiktokUrl}
               onChange={handleUrlChange}
-              className={`w-full h-full pl-12 pr-10 border rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:ring-0 focus:outline-none transition-all shadow-sm focus:shadow-md ${
+              className={`w-full h-full pl-12 pr-10 border rounded-lg text-base font-medium placeholder:text-gray-400 focus:ring-0 focus:outline-none transition-all shadow-sm ${
                 validationError 
-                  ? 'border-red-300 focus:border-red-400' 
-                  : isUrlValid
-                  ? 'border-green-500 focus:border-green-600 shadow-emerald-100'
-                  : 'border-[#E5E5E5] focus:border-[#CCCCCC]'
+                  ? 'border-red-300 focus:border-red-400 bg-white' 
+                  : 'border-[#E5E5E5] focus:border-[#CCCCCC] bg-white'
               }`}
             />
+            {/* Valid URL Flood Animation */}
+            {isUrlValid && (
+              <div className="absolute inset-0 rounded-lg pointer-events-none overflow-hidden mix-blend-multiply opacity-50">
+                <motion.div
+                  className="w-full h-full bg-gradient-to-r from-transparent via-[#E5E5E5] to-transparent"
+                  initial={{ x: '-100%' }}
+                  animate={{ x: '100%' }}
+                  transition={{ 
+                    repeat: Infinity, 
+                    duration: 1.5, 
+                    ease: "linear" 
+                  }}
+                />
+              </div>
+            )}
             {/* Help Tooltip */}
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center group">
               <HelpCircle className="w-5 h-5 text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
@@ -120,7 +129,7 @@ export default function TikTokInputHero() {
             <span className="font-semibold">Analyze</span>
             <ArrowRight className="w-5 h-5" />
           </button>
-        </motion.div>
+        </div>
         
         {/* Validation Error Message */}
         {validationError && (
