@@ -177,14 +177,14 @@ export default function CompetitorReplicaShowcasePage() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   href="/dashboard/competitor-ugc-replication"
-                  className="inline-flex items-center justify-center px-8 py-4 bg-black text-white rounded-lg font-semibold hover:bg-gray-900 transition-colors"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-black text-white rounded-lg font-semibold hover:bg-black/90 active:scale-[0.98] transition-all shadow-sm"
                 >
                   Start Cloning
                   <ArrowRightIcon className="ml-2 w-5 h-5" />
                 </Link>
                 <Link
                   href="/#pricing"
-                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-black border-2 border-black rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-black border border-[#E5E5E5] rounded-lg font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all shadow-sm"
                 >
                   View Pricing
                 </Link>
@@ -286,7 +286,7 @@ export default function CompetitorReplicaShowcasePage() {
                  <div className="pt-6">
                     <Link
                       href="/dashboard/competitor-ugc-replication"
-                      className="inline-flex items-center justify-center gap-2 bg-black text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-gray-800 transition-colors"
+                      className="inline-flex items-center justify-center gap-2 bg-black text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-black/90 active:scale-[0.98] transition-all shadow-sm"
                     >
                       Start Cloning
                       <ArrowRightIcon className="w-4 h-4" />
@@ -372,13 +372,13 @@ export default function CompetitorReplicaShowcasePage() {
                         placeholder="Paste TikTok video URL (e.g. https://www.tiktok.com/@username/video/1234...)"
                         value={tiktokUrl}
                         onChange={(e) => setTiktokUrl(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-300 rounded-lg text-base font-medium placeholder:text-gray-400 focus:border-black focus:ring-0 focus:outline-none transition-colors"
+                        className="w-full pl-12 pr-4 py-3 border border-[#E5E5E5] rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:border-black focus:ring-1 focus:ring-black focus:outline-none transition-all shadow-sm"
                       />
                     </div>
                     <button
                       onClick={handleAnalyzeTikTok}
                       disabled={!tiktokUrl.trim()}
-                      className="w-full inline-flex items-center justify-center px-6 py-3.5 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      className="w-full inline-flex items-center justify-center px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:border disabled:cursor-not-allowed shadow-sm"
                     >
                       Analyze TikTok Video
                       <ArrowRightIcon className="ml-2 w-4 h-4" />
@@ -522,7 +522,7 @@ export default function CompetitorReplicaShowcasePage() {
                  <div className="pt-4">
                     <Link
                       href="/dashboard/competitor-ugc-replication"
-                      className="inline-flex items-center justify-center px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+                      className="inline-flex items-center justify-center px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-black/90 active:scale-[0.98] transition-all shadow-sm"
                     >
                       Start Editing
                       <ArrowRightIcon className="ml-2 w-4 h-4" />
