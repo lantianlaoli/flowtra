@@ -373,7 +373,7 @@ export default function CompetitorReplicaShowcasePage() {
                           placeholder="Paste TikTok video URL..."
                           value={tiktokUrl}
                           onChange={(e) => setTiktokUrl(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3 border border-[#E5E5E5] rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:border-black focus:ring-1 focus:ring-black focus:outline-none transition-all shadow-sm"
+                          className="w-full pl-12 pr-4 py-3 border border-[#E5E5E5] rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:border-[#CCCCCC] focus:ring-0 focus:outline-none transition-all shadow-sm focus:shadow-md"
                         />
                       </div>
                       <button
