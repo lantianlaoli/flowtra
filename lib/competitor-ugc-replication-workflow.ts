@@ -3,6 +3,7 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import {
   getActualImageModel,
   IMAGE_MODELS,
+  GENERATION_COSTS,
   getGenerationCost,
   getLanguagePromptName,
   getSegmentCountFromDuration,
@@ -605,6 +606,13 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     let generationCost = 0;
     const duration = request.videoDuration;
     const quality = request.videoQuality || 'standard';
+
+    console.log(`💳 [CREDITS DEBUG] Calculating generation cost:`, {
+      model: actualVideoModel,
+      duration,
+      quality,
+      videoDuration: request.videoDuration
+    });
     if (isReplicaMode) {
       const replicaResolution = request.photoResolution || '2K';
       generationCost = getReplicaPhotoCredits(replicaResolution);
@@ -651,6 +659,14 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         duration,
         quality
       );
+
+      console.log(`💳 [CREDITS DEBUG] Generation cost calculated:`, {
+        model: actualVideoModel,
+        duration,
+        segments: Math.ceil(Number(duration) / 8),
+        costPerSegment: GENERATION_COSTS[actualVideoModel],
+        totalCost: generationCost
+      });
 
       // Check and deduct credits for ALL models
       if (generationCost > 0) {
@@ -743,6 +759,14 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         details: insertError.message
       };
     }
+
+    console.log(`✅ [CREDITS DEBUG] Project created with credits info:`, {
+      projectId: project.id,
+      videoDuration: duration,
+      segmentCount,
+      creditsDeducted: generationCost,
+      savedInDB: project.credits_cost
+    });
 
     if (precomputedSegmentPlan?.length === segmentCount) {
       const { error: planSeedError } = await supabase

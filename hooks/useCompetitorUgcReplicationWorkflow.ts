@@ -340,6 +340,7 @@ export const useCompetitorUgcReplicationWorkflow = (
     imageSize,
     videoAspectRatio,
     resolveVideoConfig,
+    videoDuration,
     selectedLanguage,
     useCustomScript,
     customScript,
