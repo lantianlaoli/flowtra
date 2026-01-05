@@ -110,9 +110,15 @@ export async function POST(request: NextRequest) {
     // Perform AI analysis (competitor ads are video-only now)
     const supabase = getSupabaseAdmin();
     try {
+      // Use TEMP_ANALYSIS_VIDEO_OPENROUTER_MODEL for TikTok URL mode
+      // Use default OPENROUTER_MODEL for file upload mode
+      const shouldUseTempModel = !!(tiktok_url || is_external_url);
+
       const { analysis, language } = await analyzeCompetitorAdWithLanguage({
         file_url: videoUrl,
         competitor_name: competitor_name
+      }, {
+        model: shouldUseTempModel ? process.env.TEMP_ANALYSIS_VIDEO_OPENROUTER_MODEL : undefined
       });
 
       console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Analysis complete, language: ${language}`);

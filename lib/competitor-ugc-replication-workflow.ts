@@ -1218,7 +1218,8 @@ async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
  * @returns Object with { analysis: {...}, language: 'en' }
  */
 export async function analyzeCompetitorAdWithLanguage(
-  competitorAdContext: { file_url: string; competitor_name?: string }
+  competitorAdContext: { file_url: string; competitor_name?: string },
+  options?: { model?: string }
 ): Promise<{ analysis: Record<string, unknown>; language: LanguageCode }> {
   console.log('[analyzeCompetitorAdWithLanguage] 🔍 Starting competitor analysis with language detection...');
   console.log('[analyzeCompetitorAdWithLanguage] File type: video (video-only mode)');
@@ -1389,7 +1390,7 @@ export async function analyzeCompetitorAdWithLanguage(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+      model: options?.model || process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
       response_format: responseFormat,
       messages: [
         {
