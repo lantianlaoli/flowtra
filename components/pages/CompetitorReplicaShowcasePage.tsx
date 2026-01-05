@@ -435,7 +435,7 @@ export default function CompetitorReplicaShowcasePage() {
                     {hasUsedFreeAnalysis && (
                       <div className="p-4 bg-[#F7F6F3] border border-[#E5E5E5] rounded-lg">
                         <p className="text-sm text-[#37352F]">
-                          You've used your free analysis for this session.{' '}
+                          You&apos;ve used your free analysis for this session.{' '}
                           <Link href="/sign-up" className="underline font-medium text-black hover:text-[#37352F]">
                             Sign up
                           </Link>{' '}

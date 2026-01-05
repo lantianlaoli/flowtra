@@ -1679,14 +1679,12 @@ async function generateImageBasedPrompts(
     first_frame_description: {
       type: "string",
       minLength: 20,
-      description: "Detailed description of the opening frame: scene setup, subject positioning, visual composition, key elements. This describes the exact moment when the segment begins - what viewers see first. REQUIRED: Must be at least 20 characters describing the visual scene."
+      description: "Detailed description of the opening frame"
     },
-    is_continuation_from_prev: { type: "boolean", description: "true if this segment continues the same camera setup as the previous segment" },
+    is_continuation_from_prev: { type: "boolean", description: "Continues from previous segment" },
     shots: {
       type: "array",
-      minItems: 2,
-      maxItems: 4,
-      description: `Timeline beats that cover the entire ${perSegmentDuration}-second segment (each entry is a relative time span)`,
+      description: `Timeline beats for the segment`,
       items: {
         type: "object",
         properties: shotProperties,
@@ -1751,9 +1749,7 @@ No other top-level keys or metadata.`;
         properties: {
           segments: {
             type: "array",
-            description: `Final storyboard with EXACTLY ${segmentCount} segments`,
-            minItems: segmentCount,
-            maxItems: segmentCount,
+            description: `Final storyboard`,
             items: {
               type: "object",
               properties: segmentProperties,
