@@ -289,6 +289,14 @@ const normalizeSegmentShots = (
     ? segmentDurationSeconds
     : DEFAULT_SEGMENT_DURATION_SECONDS;
 
+  // CRITICAL FIX: When a competitor shot is provided, use ONLY that shot
+  // Do NOT process rawShots which may contain all competitor shots from the full timeline
+  // This prevents data duplication and JSON Schema overflow
+  if (competitorShot) {
+    console.log(`🔧 [NORMALIZATION] Using single competitor shot (ID: ${competitorShot.id}), ignoring rawShots array to prevent duplication`);
+    return [convertCompetitorShotToSegmentShot(1, defaultLanguage, competitorShot, duration)];
+  }
+
   if (Array.isArray(rawShots) && rawShots.length > 0) {
     return rawShots.map((shot, index) => {
       const record = (shot && typeof shot === 'object') ? (shot as Record<string, unknown>) : {};
@@ -318,10 +326,6 @@ const normalizeSegmentShots = (
         camera_motion_positioning: cleanSegmentText(record.camera_motion_positioning) || cleanSegmentText(fallbackSegment.camera_motion_positioning) || ''
       };
     });
-  }
-
-  if (competitorShot) {
-    return [convertCompetitorShotToSegmentShot(1, defaultLanguage, competitorShot, duration)];
   }
 
   return [buildFallbackShot(1, defaultLanguage, fallbackSegment, duration)];
