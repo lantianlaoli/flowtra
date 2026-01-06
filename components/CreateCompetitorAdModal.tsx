@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Upload, Loader2, Target, CheckCircle, XCircle, Languages, Sparkles, Film, Volume2, Maximize, AlertCircle } from 'lucide-react';
+import { X, Upload, Loader2, Target, CheckCircle, XCircle, Languages, Sparkles, Film, Volume2, Maximize, AlertCircle, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
 import { getLanguageDisplayInfo } from '@/lib/language';
@@ -679,54 +679,62 @@ export default function CreateCompetitorAdModal({
 
                   {/* Phase: Completed (Form + Results) */}
                   {analysisStatus === 'completed' && analysisResult && (
-                    <div className="space-y-6 animate-in fade-in duration-500">
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
                       
-                      {/* Header */}
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                           <CheckCircle className="w-5 h-5 text-green-600" />
-                           <span className="text-sm font-semibold text-green-700">Analysis Complete</span>
+                      {/* Status & Name Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                           <div className="w-5 h-5 bg-green-50 rounded-full flex items-center justify-center">
+                              <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                           </div>
+                           <span className="text-xs font-bold text-green-600 uppercase tracking-widest">Analysis Complete</span>
                         </div>
                         
-                        {/* Video Name Input */}
-                        <div className="space-y-2">
-                           <label htmlFor="competitor-name" className="block text-sm font-medium text-gray-700">
+                        {/* Video Name Input - Minimalist & Editable */}
+                        <div className="group relative">
+                           <label htmlFor="competitor-name" className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
                               Video Name
                            </label>
-                           <input
-                              id="competitor-name"
-                              type="text"
-                              value={competitorName}
-                              onChange={(e) => setCompetitorName(e.target.value)}
-                              placeholder="Name your video..."
-                              className="w-full text-xl font-bold border-0 border-b-2 border-gray-200 focus:border-black px-0 py-2 focus:ring-0 placeholder:text-gray-300 transition-colors"
-                              disabled={isUploading}
-                              required
-                           />
+                           <div className="relative flex items-center">
+                              <input
+                                 id="competitor-name"
+                                 type="text"
+                                 value={competitorName}
+                                 onChange={(e) => setCompetitorName(e.target.value)}
+                                 placeholder="Name your video..."
+                                 className="w-full text-2xl font-bold bg-transparent border-none focus:ring-0 p-0 pr-8 placeholder:text-gray-200"
+                                 disabled={isUploading}
+                                 required
+                              />
+                              <Pencil className="absolute right-0 w-4 h-4 text-gray-300 group-hover:text-black transition-colors pointer-events-none" />
+                           </div>
+                           <div className="h-0.5 w-full bg-gray-100 group-hover:bg-gray-200 transition-colors mt-1" />
                         </div>
                       </div>
 
-                      {/* Analysis Stats */}
-                      <div className="grid grid-cols-3 gap-3">
-                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 text-center">
-                            <div className="text-xs text-gray-500 mb-1">Shots</div>
-                            <div className="text-lg font-bold text-gray-900">{shotsDraft.length}</div>
+                      {/* Analysis Stats Cards */}
+                      <div className="grid grid-cols-3 gap-4">
+                         <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100 flex flex-col items-center justify-center gap-1 hover:bg-gray-50 transition-colors">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Shots</span>
+                            <span className="text-xl font-black text-black">{shotsDraft.length}</span>
                          </div>
-                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 text-center">
-                            <div className="text-xs text-gray-500 mb-1">Duration</div>
-                            <div className="text-lg font-bold text-gray-900">{analysisResult.video_duration_seconds as number}s</div>
+                         <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100 flex flex-col items-center justify-center gap-1 hover:bg-gray-50 transition-colors">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Duration</span>
+                            <span className="text-xl font-black text-black">{(analysisResult as any).video_duration_seconds}s</span>
                          </div>
-                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 text-center">
-                            <div className="text-xs text-gray-500 mb-1">Lang</div>
-                            <div className="text-lg font-bold text-gray-900">{languageDisplay?.code.toUpperCase()}</div>
+                         <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100 flex flex-col items-center justify-center gap-1 hover:bg-gray-50 transition-colors">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Language</span>
+                            <span className="text-xl font-black text-black">{languageDisplay?.code.toUpperCase()}</span>
                          </div>
                       </div>
 
                       {/* Shot Editor */}
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                          Shot Breakdown
-                        </h4>
+                      <div className="space-y-4 pt-4 border-t border-gray-100">
+                        <div className="flex items-center justify-between">
+                           <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                             Shot Breakdown
+                           </h4>
+                        </div>
                         <CompetitorShotsEditor
                           shots={shotsDraft}
                           onShotsChange={setShotsDraft}
