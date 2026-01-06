@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Upload, Loader2, Target, CheckCircle, XCircle, Languages } from 'lucide-react';
+import { X, Upload, Loader2, Target, CheckCircle, XCircle, Languages, Sparkles, Film, Volume2, Maximize, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
 import { getLanguageDisplayInfo } from '@/lib/language';
@@ -23,6 +23,14 @@ interface CreateCompetitorAdModalProps {
 }
 
 type AnalysisStatus = 'idle' | 'analyzing' | 'completed' | 'failed';
+
+const LOADING_TIPS = [
+  "Deconstructing narrative structure...",
+  "Identifying camera movements...",
+  "Analyzing lighting and color palettes...",
+  "Extracting key dialogue and audio cues...",
+  "Mapping shot transitions...",
+];
 
 export default function CreateCompetitorAdModal({
   isOpen,
@@ -57,20 +65,16 @@ export default function CreateCompetitorAdModal({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [shotsDraft, setShotsDraft] = useState<CompetitorShotForm[]>([]);
-  const [analysisStep, setAnalysisStep] = useState(0);
-  const analysisSteps = [
-    'Analyzing ad structure...',
-    'Extracting creative elements...',
-    'Detecting language...',
-    'Identifying key shots...'
-  ];
+  const [tipIndex, setTipIndex] = useState(0);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (analysisStatus === 'analyzing') {
       interval = setInterval(() => {
-        setAnalysisStep((prev) => (prev + 1) % analysisSteps.length);
+        setTipIndex((prev) => (prev + 1) % LOADING_TIPS.length);
       }, 3000);
+    } else {
+      setTipIndex(0);
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -94,7 +98,6 @@ export default function CreateCompetitorAdModal({
       setAnalysisError(null);
       setCreatedAdId(null);
       setShotsDraft([]);
-      setAnalysisStep(0);
     }
   }, [isOpen]);
 
@@ -468,10 +471,15 @@ export default function CreateCompetitorAdModal({
 
           {/* Two-Column Layout */}
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            {/* Main Column: Preview + Analysis + Selection */}
-            <div className={`w-full ${analysisStatus === 'completed' ? 'md:w-3/5 border-r border-gray-200' : 'md:w-full'} overflow-y-auto p-6 bg-gray-50 transition-all duration-300`}>
+            {/* Left Column */}
+            <div 
+              className={`
+                ${!filePreview ? 'w-full' : 'w-full md:w-[45%] border-r border-gray-200'}
+                overflow-y-auto p-6 bg-gray-50 transition-all duration-300 flex flex-col items-center justify-center
+              `}
+            >
               {!filePreview ? (
-                <div className="h-full flex flex-col gap-6">
+                <div className="h-full w-full flex flex-col gap-6">
                    {/* Error Display (moved from form) */}
                    {error && (
                     <div className="w-full bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -562,196 +570,203 @@ export default function CreateCompetitorAdModal({
                     </div>
                   </div>
                 </div>
-              ) : (                <div className="space-y-4">
-                  {/* Media Preview */}
-                  <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              ) : (
+                <>
+                  <div className="relative w-full max-w-[320px] bg-black rounded-xl overflow-hidden shadow-lg ring-1 ring-black/5">
                     {fileType === 'image' ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={filePreview}
                         alt="Preview"
-                        className="w-full h-auto max-h-96 object-contain"
+                        className="w-full h-auto object-contain"
                       />
                     ) : (
                       <video
                         src={filePreview}
                         controls
-                        className="w-full h-auto max-h-96 object-contain"
+                        className="w-full h-auto object-contain"
                       />
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 text-center">
-                    Supported formats: MP4, MOV, WEBM (video only)
-                  </p>
+                  
+                  {/* Meta Badges */}
+                  <div className="mt-6 flex gap-4 text-xs font-medium text-gray-500">
+                    {analysisStatus === 'analyzing' ? (
+                      // Skeleton Badges
+                      <>
+                        <div className="h-4 w-12 bg-gray-200 rounded animate-pulse" />
+                        <div className="h-4 w-12 bg-gray-200 rounded animate-pulse" />
+                        <div className="h-4 w-12 bg-gray-200 rounded animate-pulse" />
+                      </>
+                    ) : (
+                      // Real Badges
+                      <>
+                        {analysisResult && (typeof analysisResult.video_duration_seconds === 'number') && (
+                          <div className="flex items-center gap-1.5">
+                            <Film className="w-4 h-4" />
+                            {analysisResult.video_duration_seconds}s
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <Maximize className="w-4 h-4" />
+                          9:16
+                        </div>
+                        {languageDisplay && (
+                          <div className="flex items-center gap-1.5">
+                            <Volume2 className="w-4 h-4" />
+                            {languageDisplay.code.toUpperCase()}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
 
-                  {/* Analysis Progress */}
+            {/* Right Column: Analysis/Result */}
+            {filePreview && (
+              <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-white">
+                <div className="max-w-2xl mx-auto space-y-8">
+                  
+                  {/* Phase: Analyzing (Skeleton) */}
                   {analysisStatus === 'analyzing' && (
-                    <div className="bg-white rounded-lg shadow-sm p-6">
-                      <div className="flex items-center gap-3">
-                        <Loader2 className="w-5 h-5 text-black animate-spin" />
-                        <div className="h-6 overflow-hidden">
-                          <AnimatePresence mode="wait">
-                            <motion.h3
-                              key={analysisStep}
-                              initial={{ y: 20, opacity: 0 }}
-                              animate={{ y: 0, opacity: 1 }}
-                              exit={{ y: -20, opacity: 0 }}
-                              transition={{ duration: 0.3 }}
-                              className="font-semibold text-gray-900"
-                            >
-                              {analysisSteps[analysisStep]}
-                            </motion.h3>
-                          </AnimatePresence>
+                    <div className="space-y-8">
+                      {/* Header Info */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="px-2.5 py-1 bg-gray-100 text-gray-800 text-xs font-semibold rounded-md border border-gray-200">
+                            AI ANALYSIS
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {new Date().toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="h-8 w-3/4 bg-gray-100 rounded animate-pulse" />
+                          <div className="h-4 w-1/2 bg-gray-100 rounded animate-pulse" />
+                          
+                          {/* Analyzing Tip Overlay */}
+                          <div className="flex items-center gap-2 text-sm text-gray-500 mt-4">
+                            <Sparkles className="w-4 h-4 text-black animate-pulse" />
+                            <span className="animate-pulse">{LOADING_TIPS[tipIndex]}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="mt-4 w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                        <motion.div 
-                          initial={{ width: "0%" }}
-                          animate={{ width: "100%" }}
-                          transition={{ duration: 20, ease: "linear" }}
-                          className="bg-black h-full"
+
+                      {/* Shot List Skeleton */}
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                          Shot Breakdown
+                        </h4>
+                        <div className="space-y-3">
+                          {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="p-4 rounded-xl border border-gray-100 bg-white space-y-3">
+                              <div className="flex gap-4">
+                                <div className="w-12 h-6 bg-gray-100 rounded animate-pulse" />
+                                <div className="flex-1 space-y-2">
+                                  <div className="h-4 w-3/4 bg-gray-100 rounded animate-pulse" />
+                                  <div className="h-3 w-full bg-gray-100 rounded animate-pulse" />
+                                  <div className="h-3 w-5/6 bg-gray-100 rounded animate-pulse" />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Phase: Completed (Form + Results) */}
+                  {analysisStatus === 'completed' && analysisResult && (
+                    <div className="space-y-6 animate-in fade-in duration-500">
+                      
+                      {/* Header */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                           <CheckCircle className="w-5 h-5 text-green-600" />
+                           <span className="text-sm font-semibold text-green-700">Analysis Complete</span>
+                        </div>
+                        
+                        {/* Video Name Input */}
+                        <div className="space-y-2">
+                           <label htmlFor="competitor-name" className="block text-sm font-medium text-gray-700">
+                              Video Name
+                           </label>
+                           <input
+                              id="competitor-name"
+                              type="text"
+                              value={competitorName}
+                              onChange={(e) => setCompetitorName(e.target.value)}
+                              placeholder="Name your video..."
+                              className="w-full text-xl font-bold border-0 border-b-2 border-gray-200 focus:border-black px-0 py-2 focus:ring-0 placeholder:text-gray-300 transition-colors"
+                              disabled={isUploading}
+                              required
+                           />
+                        </div>
+                      </div>
+
+                      {/* Analysis Stats */}
+                      <div className="grid grid-cols-3 gap-3">
+                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 text-center">
+                            <div className="text-xs text-gray-500 mb-1">Shots</div>
+                            <div className="text-lg font-bold text-gray-900">{shotsDraft.length}</div>
+                         </div>
+                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 text-center">
+                            <div className="text-xs text-gray-500 mb-1">Duration</div>
+                            <div className="text-lg font-bold text-gray-900">{analysisResult.video_duration_seconds as number}s</div>
+                         </div>
+                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 text-center">
+                            <div className="text-xs text-gray-500 mb-1">Lang</div>
+                            <div className="text-lg font-bold text-gray-900">{languageDisplay?.code.toUpperCase()}</div>
+                         </div>
+                      </div>
+
+                      {/* Shot Editor */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                          Shot Breakdown
+                        </h4>
+                        <CompetitorShotsEditor
+                          shots={shotsDraft}
+                          onShotsChange={setShotsDraft}
+                          showSummary={false}
                         />
                       </div>
                     </div>
                   )}
 
-                  {/* Analysis Complete */}
-                  {analysisStatus === 'completed' && analysisResult && (
-                    <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
-                      <div className="flex items-center gap-3 mb-4">
-                        <CheckCircle className="w-6 h-6 text-black" />
-                        <h3 className="font-semibold text-gray-900">Analysis Complete</h3>
-                      </div>
-
-                      {/* One-line summary: Language, Duration, Shots */}
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* Language */}
-                        {languageDisplay && (
-                          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-                            <Languages className="w-4 h-4 text-gray-500" />
-                            <span className="font-semibold text-gray-900">{languageDisplay.label}</span>
-                            <span className="text-xs uppercase tracking-wide text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">
-                              {languageDisplay.code.toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Duration */}
-                        {typeof analysisResult.video_duration_seconds === 'number' && (
-                          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-                            <span className="text-gray-900 font-semibold">Duration:</span>
-                            <span className="font-bold text-black">
-                              {analysisResult.video_duration_seconds}s
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Shots count */}
-                        {shotsDraft.length > 0 && (
-                          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-                            <span className="text-gray-900 font-semibold">Shots:</span>
-                            <span className="font-bold text-black">
-                              {shotsDraft.length}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <CompetitorShotsEditor
-                        shots={shotsDraft}
-                        onShotsChange={setShotsDraft}
-                        showSummary={false}
-                      />
-                    </div>
-                  )}
-
-                  {/* Analysis Failed */}
+                  {/* Phase: Failed */}
                   {analysisStatus === 'failed' && (
-                    <div className="bg-white rounded-lg shadow-sm p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <XCircle className="w-6 h-6 text-red-600" />
-                        <h3 className="font-semibold text-gray-900">Analysis Failed</h3>
-                      </div>
-                      <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
-                        {analysisError || 'An error occurred during analysis'}
-                        {compressionLink && (
-                          <>
-                            <br />
-                            <span className="font-semibold">Please use a video compression website to process your video before uploading:</span>{' '}
-                            <a href={compressionLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">
-                              {compressionLink}
-                            </a>
-                          </>
-                        )}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAnalysisStatus('idle');
-                          setAnalysisError(null);
-                          setAdFile(null);
-                          setFilePreview(null);
-                          setFileType(null);
-                          setError(null);
-                          setCompressionLink(null);
-                        }}
-                        className="mt-4 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
-                      >
-                        Try Again
-                      </button>
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                          <AlertCircle className="w-8 h-8 text-red-500" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Analysis Failed</h3>
+                        <p className="text-gray-500 max-w-sm mb-6">{analysisError}</p>
+                        
+                        <button
+                          onClick={() => {
+                            setAnalysisStatus('idle');
+                            setAdFile(null);
+                            setFilePreview(null);
+                            setFileType(null);
+                            setError(null);
+                            setCompressionLink(null);
+                          }}
+                          className="px-6 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+                        >
+                          Try Again
+                        </button>
                     </div>
                   )}
+
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
 
-            {/* Right Column: Form (40%) - Only visible after analysis */}
-            {analysisStatus === 'completed' && (
-              <div className="w-full md:w-2/5 overflow-y-auto p-6 animate-in slide-in-from-right fade-in duration-300">
-                <form className="space-y-4">
-                {/* Ad Name */}
-                <div>
-                  <label htmlFor="competitor-name" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Video Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="competitor-name"
-                    type="text"
-                    value={competitorName}
-                    onChange={(e) => setCompetitorName(e.target.value)}
-                    placeholder="AI will suggest a name after analysis..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                    disabled={isUploading}
-                    required
-                  />
-                </div>
-
-                {/* Error Message */}
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                    <p>{error}</p>
-                    {compressionLink && (
-                      <p className="mt-2">
-                        Please use a video compression website to process your video before uploading:{' '}
-                        <a href={compressionLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">
-                          {compressionLink}
-                        </a>
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Warning Message */}
-                {warning && (
-                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
-                    {warning}
-                  </div>
-                )}
-                              </form>
-                            </div>
-                          )}
-                        </div>
-                        {/* Footer Actions */}
+          {/* Footer Actions */}
           <div className="bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3 shrink-0">
             {showUGCButton ? (
               <button
