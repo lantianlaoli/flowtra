@@ -474,7 +474,7 @@ export default function CreateCompetitorAdModal({
             {/* Left Column */}
             <div 
               className={`
-                ${!filePreview ? 'w-full' : 'w-full md:w-[45%] border-r border-gray-200'}
+                ${!filePreview ? 'w-full' : 'w-full md:w-1/2 border-r border-gray-200'}
                 overflow-y-auto p-6 bg-gray-50 transition-all duration-300 flex flex-col items-center justify-center
               `}
             >
@@ -572,7 +572,7 @@ export default function CreateCompetitorAdModal({
                 </div>
               ) : (
                 <>
-                  <div className="relative w-full max-w-[320px] bg-black rounded-xl overflow-hidden shadow-lg ring-1 ring-black/5">
+                  <div className="relative w-full max-w-md bg-black rounded-xl overflow-hidden shadow-lg ring-1 ring-black/5">
                     {fileType === 'image' ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
