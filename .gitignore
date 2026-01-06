@@ -49,6 +49,7 @@ Thumbs.db
 .playwright-mcp
 
 .gemini
+.gemini-clipboard
 # clerk configuration (can include secrets)
 /.clerk/
 creem_records/

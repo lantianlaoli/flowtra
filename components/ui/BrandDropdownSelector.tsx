@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Building2, ChevronDown, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { UserBrand } from '@/lib/supabase';
+import { useBrandsCache } from '@/hooks/useBrandsCache';
 import { cn } from '@/lib/utils';
 
 interface BrandDropdownSelectorProps {
@@ -19,27 +20,9 @@ export default function BrandDropdownSelector({
   disabled = false,
   className
 }: BrandDropdownSelectorProps) {
-  const [brands, setBrands] = useState<UserBrand[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { brands, isLoading, error, refresh } = useBrandsCache();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const loadBrands = async () => {
-      try {
-        const response = await fetch('/api/brands');
-        if (response.ok) {
-          const data = await response.json();
-          setBrands(Array.isArray(data.brands) ? data.brands : []);
-        }
-      } catch (error) {
-        console.error('Failed to load brands:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadBrands();
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -105,8 +88,21 @@ export default function BrandDropdownSelector({
         <div className="absolute z-20 bottom-full mb-2 w-72 rounded-xl border border-[#E5E5E5] bg-white shadow-xl overflow-hidden">
           <div className="max-h-72 overflow-y-auto">
             {brands.length === 0 ? (
-              <div className="px-4 py-3 text-sm text-gray-500">
-                No brands found. Visit Assets to create one.
+              <div className="px-4 py-3 text-sm text-gray-500 space-y-2">
+                <p>
+                  {error
+                    ? 'Failed to load brands. Please try again.'
+                    : 'No brands found. Visit Assets to create one.'}
+                </p>
+                {error && (
+                  <button
+                    type="button"
+                    onClick={() => refresh()}
+                    className="inline-flex items-center justify-center px-3 h-9 rounded-lg border border-[#E5E5E5] bg-white text-sm font-semibold text-black hover:bg-gray-50 transition"
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             ) : (
               brands.map(brand => (
