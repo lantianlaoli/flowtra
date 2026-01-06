@@ -52,7 +52,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
   const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
   const fetchCredits = useCallback(async () => {
-    if (!user?.id || isLoading) return;
+    if (!user?.id) return;
 
     setIsLoading(true);
     try {
@@ -102,7 +102,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
     } finally {
       if (isMountedRef.current) setIsLoading(false);
     }
-  }, [user?.id, isLoading]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (user?.id && credits === undefined) {
@@ -112,13 +112,18 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
 
   // Set up Realtime subscription for credit updates
   useEffect(() => {
-    if (!user?.id || credits === undefined) {
-      // Cleanup if user logs out or before initial fetch completes
+    if (!user?.id) {
+      // Cleanup if user logs out
       if (channelRef.current) {
         const supabase = createClient();
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
+      return;
+    }
+
+    // Only set up subscription after initial fetch completes (credits is no longer undefined)
+    if (credits === undefined) {
       return;
     }
 
@@ -153,7 +158,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
         if (status === 'SUBSCRIBED') {
           console.log('✅ Subscribed to credits updates');
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Realtime subscription error');
+          console.warn('⚠️ Realtime subscription error - retrying on next update');
         }
       });
 

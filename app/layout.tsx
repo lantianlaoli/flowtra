@@ -5,14 +5,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { PHProvider, PostHogPageView } from '@/providers/posthog';
 import { ToastProvider } from '@/contexts/ToastContext';
-import { Inter } from 'next/font/google';
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-inter',
-});
 
 export const metadata: Metadata = {
   title: "Turn Viral Videos Into Your Own with AI - Flowtra | Clone TikTok & Instagram Ads",
@@ -236,7 +229,7 @@ export default function RootLayout({
             }}
           />
         </head>
-        <body className={`${inter.variable} font-sans antialiased`}>
+        <body className="font-sans antialiased">
           <Script
             src="https://www.googletagmanager.com/gtag/js?id=G-CP7HSQFTCP"
             strategy="lazyOnload"

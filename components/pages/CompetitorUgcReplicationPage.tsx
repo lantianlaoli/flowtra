@@ -1593,6 +1593,14 @@ export default function CompetitorUgcReplicationPage() {
             disabled={isGenerating}
             className="flex-shrink-0"
           />
+          <CompetitorAdSelector
+            brandId={selectedBrand?.id || null}
+            brandName={selectedBrand?.brand_name}
+            selectedCompetitorAd={selectedCompetitorAd}
+            onSelect={setSelectedCompetitorAd}
+            variant="compact"
+            className="flex-shrink-0"
+          />
         </>
       }
       configButton={
@@ -1649,19 +1657,7 @@ export default function CompetitorUgcReplicationPage() {
       />
     )}
 
-    {/* Competitor Ad Selector - Shows above composer when brand is selected */}
-  {selectedBrand && (
-      <div className="fixed bottom-[108px] left-0 right-0 md:left-72 px-4 sm:px-8 lg:px-10">
-        <div className="max-w-7xl mx-auto">
-          <CompetitorAdSelector
-            brandId={selectedBrand.id}
-            brandName={selectedBrand.brand_name}
-            selectedCompetitorAd={selectedCompetitorAd}
-            onSelect={setSelectedCompetitorAd}
-          />
-        </div>
-      </div>
-    )}
+    {/* Competitor Ad Selector - Shows above composer when brand is selected - REMOVED (Moved to BottomComposerBar) */}
 
     {/* Validation Modal - Missing brand/product selection */}
     {showValidationModal && (

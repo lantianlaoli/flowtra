@@ -123,10 +123,9 @@ export default function CompetitorShotsEditor({
             const isExpanded = expandedShots.has(shot.shot_id);
             return (
               <div key={shot.shot_id} className="rounded-xl border border-[#E5E5E5] bg-white overflow-hidden transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
-                <button
-                  type="button"
+                <div
                   onClick={() => toggleShot(shot.shot_id)}
-                  className="flex w-full items-center justify-between px-4 py-3 hover:bg-[#F7F7F7] transition-colors"
+                  className="flex w-full items-center justify-between px-4 py-3 hover:bg-[#F7F7F7] transition-colors cursor-pointer"
                 >
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="rounded-md bg-black text-white px-2 py-1 text-xs font-bold">
@@ -151,7 +150,7 @@ export default function CompetitorShotsEditor({
                     </button>
                     {isExpanded ? <ChevronUp className="w-4 h-4 text-[#666666]" /> : <ChevronDown className="w-4 h-4 text-[#666666]" />}
                   </div>
-                </button>
+                </div>
 
                 <AnimatePresence>
                   {isExpanded && (
