@@ -168,14 +168,14 @@ export default function CompetitorAdSelector({
         <div className="flex items-center gap-2 overflow-hidden flex-1">
           <div
             className={cn(
-              'flex items-center justify-center flex-shrink-0 bg-black rounded-lg',
+              'flex items-center justify-center flex-shrink-0 bg-gray-100 rounded-full border border-gray-200',
               compact ? 'w-6 h-6' : 'w-10 h-10'
             )}
           >
             {isLoading ? (
-              <Loader2 className={cn('text-white animate-spin', compact ? 'w-3.5 h-3.5' : 'w-5 h-5')} />
+              <Loader2 className={cn('text-gray-500 animate-spin', compact ? 'w-3.5 h-3.5' : 'w-5 h-5')} />
             ) : (
-              <Video className={cn('text-white', compact ? 'w-3.5 h-3.5' : 'w-5 h-5')} />
+              <Video className={cn('text-gray-500', compact ? 'w-3.5 h-3.5' : 'w-5 h-5')} />
             )}
           </div>
           

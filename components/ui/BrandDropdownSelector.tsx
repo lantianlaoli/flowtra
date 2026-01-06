@@ -76,8 +76,10 @@ export default function BrandDropdownSelector({
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-gray-500">
-            <Building2 className="w-4 h-4" />
+          <div className="flex items-center gap-2 text-gray-500 overflow-hidden">
+            <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 border border-gray-100">
+              <Building2 className="w-3.5 h-3.5" />
+            </div>
             <span className="text-sm font-medium">Select brand</span>
           </div>
         )}
