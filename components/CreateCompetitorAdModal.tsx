@@ -417,6 +417,8 @@ export default function CreateCompetitorAdModal({
     router.push('/dashboard/competitor-ugc-replication');
   };
 
+  const isAnalysisMode = analysisStatus !== 'idle' || !!filePreview;
+
   return (
     <>
       <input
@@ -474,11 +476,11 @@ export default function CreateCompetitorAdModal({
             {/* Left Column */}
             <div 
               className={`
-                ${!filePreview ? 'w-full' : 'w-full md:w-1/2 border-r border-gray-200'}
+                ${!isAnalysisMode ? 'w-full' : 'w-full md:w-1/2 border-r border-gray-200'}
                 overflow-y-auto p-6 bg-gray-50 transition-all duration-300 flex flex-col items-center justify-center
               `}
             >
-              {!filePreview ? (
+              {!isAnalysisMode ? (
                 <div className="h-full w-full flex flex-col gap-6">
                    {/* Error Display (moved from form) */}
                    {error && (
@@ -594,20 +596,27 @@ export default function CreateCompetitorAdModal({
                 </div>
               ) : (
                 <>
-                  <div className="relative w-full max-w-md bg-black rounded-xl overflow-hidden shadow-lg ring-1 ring-black/5">
-                    {fileType === 'image' ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={filePreview}
-                        alt="Preview"
-                        className="w-full h-auto object-contain"
-                      />
+                  <div className="relative w-full max-w-md aspect-[9/16] bg-black rounded-xl overflow-hidden shadow-lg ring-1 ring-black/5 flex items-center justify-center">
+                    {filePreview ? (
+                      fileType === 'image' ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={filePreview}
+                          alt="Preview"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <video
+                          src={filePreview}
+                          controls
+                          className="w-full h-full object-contain"
+                        />
+                      )
                     ) : (
-                      <video
-                        src={filePreview}
-                        controls
-                        className="w-full h-auto object-contain"
-                      />
+                      <div className="flex flex-col items-center gap-4 text-white/50">
+                        <Loader2 className="w-10 h-10 animate-spin" />
+                        <span className="text-sm font-medium">Fetching video...</span>
+                      </div>
                     )}
                   </div>
                   
@@ -623,10 +632,10 @@ export default function CreateCompetitorAdModal({
                     ) : (
                       // Real Badges
                       <>
-                        {analysisResult && (typeof analysisResult.video_duration_seconds === 'number') && (
+                        {analysisResult && (typeof (analysisResult as any).video_duration_seconds === 'number') && (
                           <div className="flex items-center gap-1.5">
                             <Film className="w-4 h-4" />
-                            {analysisResult.video_duration_seconds}s
+                            {(analysisResult as any).video_duration_seconds}s
                           </div>
                         )}
                         <div className="flex items-center gap-1.5">
@@ -647,7 +656,7 @@ export default function CreateCompetitorAdModal({
             </div>
 
             {/* Right Column: Analysis/Result */}
-            {filePreview && (
+            {isAnalysisMode && (
               <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-white">
                 <div className="max-w-2xl mx-auto space-y-8">
                   
