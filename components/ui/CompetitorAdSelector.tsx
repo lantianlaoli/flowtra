@@ -128,24 +128,9 @@ export default function CompetitorAdSelector({
     setExpandedAdId(expandedAdId === adId ? null : adId);
   };
 
-  if (!brandId) {
-    return null;
-  }
-
-  if (isLoading) {
-    return (
-      <div className={cn('bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl p-6', className)}>
-        <div className="flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-black" />
-          <span className="ml-2 text-sm text-[#666666]">Loading viral videos...</span>
-        </div>
-      </div>
-    );
-  }
-
   const compact = variant === 'compact';
 
-  if (competitorAds.length === 0 && !compact) {
+  if (competitorAds.length === 0 && !compact && brandId) {
     return (
       <div className={cn('bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl p-6', className)}>
         <div className="flex items-start gap-4">
@@ -185,28 +170,57 @@ export default function CompetitorAdSelector({
               compact ? 'w-8 h-8' : 'w-10 h-10'
             )}
           >
-            <Target className={cn('text-white', compact ? 'w-4 h-4' : 'w-5 h-5')} />
+            {isLoading ? (
+              <Loader2 className={cn('text-white animate-spin', compact ? 'w-4 h-4' : 'w-5 h-5')} />
+            ) : (
+              <Target className={cn('text-white', compact ? 'w-4 h-4' : 'w-5 h-5')} />
+            )}
           </div>
           <div className="text-left">
             <h3 className={cn('font-semibold text-black', compact ? 'text-sm' : 'text-sm')}>
-              {compact ? (selectedCompetitorAd ? 'Selected video' : (competitorAds.length === 0 ? 'No videos found' : 'Add first video')) : 'Reference Viral Video'}
+              {compact ? (
+                isLoading 
+                  ? 'Loading...'
+                  : selectedCompetitorAd 
+                    ? 'Selected video' 
+                    : !brandId 
+                      ? 'Select Brand' 
+                      : competitorAds.length === 0 
+                        ? 'No videos found' 
+                        : 'Select video'
+              ) : 'Reference Viral Video'}
             </h3>
             {!compact && (
               <p className="text-sm text-[#666666] mt-0.5">
-                {selectedCompetitorAd
-                  ? `Selected: ${selectedCompetitorAd.competitor_name}`
-                  : `${competitorAds.length} viral ${competitorAds.length === 1 ? 'video' : 'videos'} available`}
+                {isLoading
+                  ? 'Loading viral videos...'
+                  : !brandId 
+                    ? 'Select a brand to view videos' 
+                    : selectedCompetitorAd
+                      ? `Selected: ${selectedCompetitorAd.competitor_name}`
+                      : `${competitorAds.length} viral ${competitorAds.length === 1 ? 'video' : 'videos'} available`
+                }
               </p>
             )}
-            {compact && (selectedCompetitorAd ? (
-              <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
-                {selectedCompetitorAd.competitor_name}
-              </p>
-            ) : competitorAds.length === 0 && (
-               <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
-                Add in Assets
-              </p>
-            ))}
+            {compact && (
+              isLoading ? (
+                <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
+                  Please wait
+                </p>
+              ) : selectedCompetitorAd ? (
+                <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
+                  {selectedCompetitorAd.competitor_name}
+                </p>
+              ) : !brandId ? (
+                <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
+                  Required
+                </p>
+              ) : competitorAds.length === 0 && (
+                 <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
+                  Add in Assets
+                </p>
+              )
+            )}
           </div>
         </div>
         <svg
@@ -226,14 +240,27 @@ export default function CompetitorAdSelector({
           style={{
             position: 'fixed',
             left: `${buttonRect.left}px`,
-            right: `${window.innerWidth - buttonRect.right}px`,
+            // Remove 'right' to allow width to grow based on content or max-width
+            // right: `${window.innerWidth - buttonRect.right}px`, 
             bottom: `${window.innerHeight - buttonRect.top + 8}px`,
             maxHeight: '50vh',
+            minWidth: '320px', // Ensure it's not too narrow
+            maxWidth: '90vw',  // Prevent it from going off screen
+            width: 'max-content', // Allow it to fit the grid
+            zIndex: 110,
           }}
-          className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] overflow-hidden z-[110]"
+          className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] overflow-hidden"
         >
           <div className="p-6 pb-16 space-y-4 max-h-[50vh] overflow-y-auto">
-            {competitorAds.length === 0 ? (
+            {!brandId ? (
+               <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                  <Info className="w-8 h-8 text-gray-300 mb-2" />
+                  <p className="text-sm font-semibold text-gray-900">No Brand Selected</p>
+                  <p className="text-xs text-gray-500 mt-1 max-w-[200px]">
+                    Please select a brand first to see available viral videos.
+                  </p>
+               </div>
+            ) : competitorAds.length === 0 ? (
                <div className="flex flex-col items-center justify-center py-4 text-center">
                   <Info className="w-8 h-8 text-gray-300 mb-2" />
                   <p className="text-sm font-semibold text-gray-900">No viral videos yet</p>
