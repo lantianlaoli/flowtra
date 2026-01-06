@@ -702,13 +702,13 @@ export default function CreateCompetitorAdModal({
                                  value={competitorName}
                                  onChange={(e) => setCompetitorName(e.target.value)}
                                  placeholder="Name your video..."
-                                 className="w-full text-2xl font-bold bg-transparent border-none focus:ring-0 p-0 pr-8 placeholder:text-gray-200"
+                                 className="w-full text-2xl font-bold bg-transparent border-none focus:ring-0 focus:outline-none p-0 pr-8 placeholder:text-gray-200 transition-all"
                                  disabled={isUploading}
                                  required
                               />
-                              <Pencil className="absolute right-0 w-4 h-4 text-gray-300 group-hover:text-black transition-colors pointer-events-none" />
+                              <Pencil className="absolute right-0 w-4 h-4 text-gray-300 group-hover:text-black group-focus-within:text-black transition-colors pointer-events-none" />
                            </div>
-                           <div className="h-0.5 w-full bg-gray-100 group-hover:bg-gray-200 transition-colors mt-1" />
+                           <div className="h-0.5 w-full bg-gray-100 group-hover:bg-gray-200 group-focus-within:bg-black transition-all duration-300 mt-1" />
                         </div>
                       </div>
 
