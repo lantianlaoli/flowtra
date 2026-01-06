@@ -468,120 +468,101 @@ export default function CreateCompetitorAdModal({
 
           {/* Two-Column Layout */}
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            {/* Left Column: Preview + Analysis (60%) */}
-            <div className="w-full md:w-3/5 border-r border-gray-200 overflow-y-auto p-6 bg-gray-50">
-              {/* Input Mode Toggle (Only show when idle or failed) */}
-              {(analysisStatus === 'idle' || analysisStatus === 'failed') && !filePreview && (
-                <div className="mb-4">
-                  <div className="flex gap-2 justify-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInputMode('file');
-                        setError(null);
-                        setTiktokUrl('');
-                      }}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        inputMode === 'file'
-                          ? 'bg-black text-white shadow-sm'
-                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      Upload Video File
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInputMode('tiktok');
-                        setError(null);
-                        setAdFile(null);
-                      }}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        inputMode === 'tiktok'
-                          ? 'bg-black text-white shadow-sm'
-                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      TikTok URL
-                    </button>
-                  </div>
-                </div>
-              )}
-
+            {/* Main Column: Preview + Analysis + Selection */}
+            <div className={`w-full ${analysisStatus === 'completed' ? 'md:w-3/5 border-r border-gray-200' : 'md:w-full'} overflow-y-auto p-6 bg-gray-50 transition-all duration-300`}>
               {!filePreview ? (
-                inputMode === 'file' ? (
-                  // FILE UPLOAD MODE
-                  <button
-                    type="button"
-                    onClick={triggerFileInput}
-                    disabled={!canSelectFile}
-                    className="w-full h-full min-h-[320px] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl bg-white shadow-sm hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Upload className="w-14 h-14 text-gray-300 mb-4" />
-                    <p className="text-lg font-medium text-gray-800 mb-2">Upload a video</p>
-                    <p className="text-sm text-gray-500">Choose a viral video to preview and analyze.</p>
-                    <p className="text-xs text-gray-400 mt-3">
-                      Video files only • Max 15 MB • Max 80 seconds
-                    </p>
-                    {!canSelectFile && (
-                      <p className="text-xs text-gray-500 mt-2">Finish the current upload before adding another file.</p>
-                    )}
-                  </button>
-                ) : (
-                  // TIKTOK URL MODE
-                  <div className="w-full h-full min-h-[320px] flex flex-col items-center justify-center p-8">
-                    <div className="w-full max-w-md space-y-4">
-                      <div className="text-center mb-6">
-                        <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
-                          </svg>
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Analyze TikTok Video</h3>
-                        <p className="text-sm text-gray-600">Paste a TikTok link to automatically fetch and analyze the video</p>
-                      </div>
-
-                      <div className="space-y-3">
-                        <label htmlFor="tiktok-url" className="block text-sm font-medium text-gray-700">
-                          TikTok Video URL
-                        </label>
-                        <input
-                          id="tiktok-url"
-                          type="url"
-                          placeholder="https://www.tiktok.com/@username/video/1234567890"
-                          value={tiktokUrl}
-                          onChange={(e) => {
-                            setTiktokUrl(e.target.value);
-                            setError(null);
-                          }}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-                          disabled={isUploading}
-                        />
-                        <p className="text-xs text-gray-500">
-                          Works with full or short TikTok links (tiktok.com or vm.tiktok.com)
+                <div className="h-full flex flex-col gap-6">
+                   {/* Error Display (moved from form) */}
+                   {error && (
+                    <div className="w-full bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                      <p>{error}</p>
+                      {compressionLink && (
+                        <p className="mt-2">
+                          Please use a video compression website to process your video before uploading:{' '}
+                          <a href={compressionLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">
+                            {compressionLink}
+                          </a>
                         </p>
+                      )}
+                    </div>
+                  )}
 
-                        <button
-                          type="button"
-                          onClick={handleTikTokAnalyze}
-                          disabled={!tiktokUrl || isUploading}
-                          className="w-full px-4 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                          {isUploading ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>Analyzing...</span>
-                            </>
-                          ) : (
-                            <span>Analyze TikTok Video</span>
-                          )}
-                        </button>
-                      </div>
+                  <div className="flex-1 flex flex-col md:flex-row gap-6 items-stretch">
+                    {/* Option 1: File Upload */}
+                    <div className="flex-1">
+                      <button
+                        type="button"
+                        onClick={triggerFileInput}
+                        disabled={!canSelectFile}
+                        className="w-full h-full min-h-[300px] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl bg-white shadow-sm hover:bg-gray-50 hover:border-black transition-all group disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-6 group-hover:bg-gray-100 transition-colors">
+                            <Upload className="w-8 h-8 text-gray-400 group-hover:text-black transition-colors" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-2">Upload Video</h3>
+                        <p className="text-sm text-gray-500 text-center px-4 mb-4">
+                          Drag & drop or click to browse
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          MP4, MOV • Max 15 MB • 80s
+                        </p>
+                      </button>
+                    </div>
+
+                    {/* Divider with OR */}
+                    <div className="relative flex items-center justify-center">
+                        <div className="absolute inset-0 flex items-center justify-center md:flex-col">
+                            <div className="w-full h-px md:w-px md:h-full bg-gray-200"></div>
+                        </div>
+                        <span className="relative z-10 bg-gray-50 px-2 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                            OR
+                        </span>
+                    </div>
+
+                    {/* Option 2: TikTok URL */}
+                    <div className="flex-1 flex flex-col">
+                        <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-gray-200 shadow-sm">
+                             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+                                <svg className="w-8 h-8 text-black" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
+                                </svg>
+                             </div>
+                             <h3 className="text-xl font-semibold text-gray-900 mb-6">Paste TikTok URL</h3>
+                             
+                             <div className="w-full space-y-3">
+                                <input
+                                  id="tiktok-url"
+                                  type="url"
+                                  placeholder="https://www.tiktok.com/@user/video/..."
+                                  value={tiktokUrl}
+                                  onChange={(e) => {
+                                    setTiktokUrl(e.target.value);
+                                    setError(null);
+                                  }}
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+                                  disabled={isUploading}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleTikTokAnalyze}
+                                  disabled={!tiktokUrl || isUploading}
+                                  className="w-full px-4 py-3 bg-black text-white rounded-xl font-medium hover:bg-gray-800 transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                  {isUploading ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      <span>Analyzing...</span>
+                                    </>
+                                  ) : (
+                                    <span>Analyze</span>
+                                  )}
+                                </button>
+                             </div>
+                        </div>
                     </div>
                   </div>
-                )
-              ) : (
-                <div className="space-y-4">
+                </div>
+              ) : (                <div className="space-y-4">
                   {/* Media Preview */}
                   <div className="bg-white rounded-lg shadow-sm overflow-hidden">
                     {fileType === 'image' ? (
@@ -724,9 +705,10 @@ export default function CreateCompetitorAdModal({
               )}
             </div>
 
-            {/* Right Column: Form (40%) */}
-            <div className="w-full md:w-2/5 overflow-y-auto p-6">
-              <form className="space-y-4">
+            {/* Right Column: Form (40%) - Only visible after analysis */}
+            {analysisStatus === 'completed' && (
+              <div className="w-full md:w-2/5 overflow-y-auto p-6 animate-in slide-in-from-right fade-in duration-300">
+                <form className="space-y-4">
                 {/* Ad Name */}
                 <div>
                   <label htmlFor="competitor-name" className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -739,7 +721,7 @@ export default function CreateCompetitorAdModal({
                     onChange={(e) => setCompetitorName(e.target.value)}
                     placeholder="AI will suggest a name after analysis..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                    disabled={isUploading || analysisStatus !== 'idle'}
+                    disabled={isUploading}
                     required
                   />
                 </div>
@@ -765,11 +747,11 @@ export default function CreateCompetitorAdModal({
                     {warning}
                   </div>
                 )}
-              </form>
-            </div>
-          </div>
-
-          {/* Footer Actions */}
+                              </form>
+                            </div>
+                          )}
+                        </div>
+                        {/* Footer Actions */}
           <div className="bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3 shrink-0">
             {showUGCButton ? (
               <button
