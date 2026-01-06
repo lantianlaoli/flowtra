@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Target, Loader2, Info, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Target, Loader2, Info, ChevronRight, AlertTriangle, Play, Video } from 'lucide-react';
 import { CompetitorAd } from '@/lib/supabase';
 import CompetitorAdCard from '../CompetitorAdCard';
 import { cn } from '@/lib/utils';
@@ -150,7 +150,7 @@ export default function CompetitorAdSelector({
     <div
       className={cn(
         'bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl overflow-hidden relative',
-        compact ? 'h-12 rounded-lg bg-white' : '',
+        compact ? 'rounded-lg bg-white border-none' : '',
         className
       )}
     >
@@ -159,39 +159,42 @@ export default function CompetitorAdSelector({
         ref={buttonRef}
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
-          'w-full flex items-center justify-between transition-colors',
-          compact ? 'h-12 px-4 hover:bg-[#F7F7F7]' : 'px-6 py-4 hover:bg-white'
+          'transition-all duration-200 outline-none',
+          compact 
+            ? 'inline-flex items-center justify-between gap-3 px-4 h-12 border border-[#E5E5E5] rounded-lg bg-white hover:border-[#CCCCCC] shadow-sm min-w-[180px]' 
+            : 'w-full flex items-center gap-3 px-6 py-4 hover:bg-white'
         )}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 overflow-hidden flex-1">
           <div
             className={cn(
-              'bg-black rounded-lg flex items-center justify-center flex-shrink-0',
-              compact ? 'w-8 h-8' : 'w-10 h-10'
+              'flex items-center justify-center flex-shrink-0 bg-black rounded-lg',
+              compact ? 'w-6 h-6' : 'w-10 h-10'
             )}
           >
             {isLoading ? (
-              <Loader2 className={cn('text-white animate-spin', compact ? 'w-4 h-4' : 'w-5 h-5')} />
+              <Loader2 className={cn('text-white animate-spin', compact ? 'w-3.5 h-3.5' : 'w-5 h-5')} />
             ) : (
-              <Target className={cn('text-white', compact ? 'w-4 h-4' : 'w-5 h-5')} />
+              <Video className={cn('text-white', compact ? 'w-3.5 h-3.5' : 'w-5 h-5')} />
             )}
           </div>
-          <div className="text-left">
-            <h3 className={cn('font-semibold text-black', compact ? 'text-sm' : 'text-sm')}>
+          
+          <div className="text-left min-w-0 flex-1">
+            <h3 className={cn('font-semibold text-black truncate', compact ? 'text-sm' : 'text-sm')}>
               {compact ? (
                 isLoading 
                   ? 'Loading...'
                   : selectedCompetitorAd 
-                    ? 'Selected video' 
+                    ? selectedCompetitorAd.competitor_name
                     : !brandId 
                       ? 'Select Brand' 
                       : competitorAds.length === 0 
-                        ? 'No videos found' 
+                        ? 'No videos' 
                         : 'Select video'
               ) : 'Reference Viral Video'}
             </h3>
             {!compact && (
-              <p className="text-sm text-[#666666] mt-0.5">
+              <p className="text-sm text-[#666666] mt-0.5 truncate">
                 {isLoading
                   ? 'Loading viral videos...'
                   : !brandId 
@@ -202,29 +205,11 @@ export default function CompetitorAdSelector({
                 }
               </p>
             )}
-            {compact && (
-              isLoading ? (
-                <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
-                  Please wait
-                </p>
-              ) : selectedCompetitorAd ? (
-                <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
-                  {selectedCompetitorAd.competitor_name}
-                </p>
-              ) : !brandId ? (
-                <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
-                  Required
-                </p>
-              ) : competitorAds.length === 0 && (
-                 <p className="text-xs text-[#666666] mt-0.5 truncate max-w-[160px]">
-                  Add in Assets
-                </p>
-              )
-            )}
           </div>
         </div>
+
         <svg
-          className={cn('text-black transition-transform', compact ? 'w-4 h-4' : 'w-5 h-5', isExpanded ? 'rotate-180' : '')}
+          className={cn('text-gray-400 transition-transform flex-shrink-0', compact ? 'w-4 h-4' : 'w-5 h-5', isExpanded ? 'rotate-180' : '')}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
