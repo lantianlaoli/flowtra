@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Upload, Loader2, Target, CheckCircle, XCircle, Languages, Sparkles, Film, Volume2, Maximize, AlertCircle, Pencil } from 'lucide-react';
+import { X, Upload, Loader2, Target, CheckCircle, XCircle, Languages, Sparkles, Film, Volume2, Maximize, AlertCircle, Pencil, ClipboardPaste } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
 import { getLanguageDisplayInfo } from '@/lib/language';
@@ -538,18 +538,40 @@ export default function CreateCompetitorAdModal({
                              <h3 className="text-xl font-semibold text-gray-900 mb-6">Paste TikTok URL</h3>
                              
                              <div className="w-full space-y-3">
-                                <input
-                                  id="tiktok-url"
-                                  type="url"
-                                  placeholder="https://www.tiktok.com/@user/video/..."
-                                  value={tiktokUrl}
-                                  onChange={(e) => {
-                                    setTiktokUrl(e.target.value);
-                                    setError(null);
-                                  }}
-                                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-                                  disabled={isUploading}
-                                />
+                                <div className="relative group">
+                                  <input
+                                    id="tiktok-url"
+                                    type="url"
+                                    placeholder="https://www.tiktok.com/@user/video/..."
+                                    value={tiktokUrl}
+                                    onChange={(e) => {
+                                      setTiktokUrl(e.target.value);
+                                      setError(null);
+                                    }}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent text-sm pr-12"
+                                    disabled={isUploading}
+                                  />
+                                  {!tiktokUrl && !isUploading && (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const text = await navigator.clipboard.readText();
+                                          if (text) {
+                                            setTiktokUrl(text);
+                                            setError(null);
+                                          }
+                                        } catch (err) {
+                                          console.error('Failed to read clipboard:', err);
+                                        }
+                                      }}
+                                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-all"
+                                      title="Paste from clipboard"
+                                    >
+                                      <ClipboardPaste className="w-5 h-5" />
+                                    </button>
+                                  )}
+                                </div>
                                 <button
                                   type="button"
                                   onClick={handleTikTokAnalyze}
