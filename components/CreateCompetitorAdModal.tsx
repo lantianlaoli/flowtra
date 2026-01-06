@@ -124,7 +124,7 @@ export default function CreateCompetitorAdModal({
     return patterns.some(pattern => pattern.test(url.trim()));
   };
 
-  // Handle TikTok URL analysis
+  // Handle TikTok URL analysis (Two-Step Process)
   const handleTikTokAnalyze = async () => {
     // Validate TikTok URL
     if (!isValidTikTokUrl(tiktokUrl)) {
@@ -133,48 +133,74 @@ export default function CreateCompetitorAdModal({
     }
 
     console.log('[CreateCompetitorAdModal] Starting TikTok video analysis...');
-    setAnalysisStatus('analyzing');
     setIsUploading(true);
     setError(null);
     setWarning(null);
 
     try {
-      // Step 1: Analyze the TikTok video (API handles fetching CDN URL)
-      console.log('[CreateCompetitorAdModal] Step 1: Analyzing TikTok video with AI...');
+      // =====================================================================
+      // STEP 1: Fetch Video URL (Fast - 1-3 seconds)
+      // =====================================================================
+      console.log('[CreateCompetitorAdModal] Step 1: Fetching TikTok video URL...');
+
+      const videoRes = await fetch('/api/tiktok/fetch-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tiktok_url: tiktokUrl }),
+      });
+
+      if (!videoRes.ok) {
+        const errorData = await videoRes.json();
+        throw new Error(errorData.error || 'Failed to fetch TikTok video');
+      }
+
+      const videoData = await videoRes.json();
+      if (!videoData.success || !videoData.video_url) {
+        throw new Error('Failed to retrieve video URL');
+      }
+
+      const fetchedVideoUrl = videoData.video_url;
+      console.log('[CreateCompetitorAdModal] ✅ Video URL fetched');
+
+      // IMMEDIATELY show video preview (this is the key UX improvement!)
+      setFilePreview(fetchedVideoUrl);
+      setFileType('video');
+
+      // =====================================================================
+      // STEP 2: Analyze Video with AI (Slow - 30-60 seconds)
+      // =====================================================================
+      console.log('[CreateCompetitorAdModal] Step 2: Analyzing video with AI...');
+      setAnalysisStatus('analyzing'); // NOW we show "analyzing" state with video visible
+
       const analyzeResponse = await fetch('/api/competitor-ads/analyze-preview', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          tiktok_url: tiktokUrl,
+          file_url: fetchedVideoUrl,
+          is_external_url: true,
           competitor_name: '' // Will use AI-generated name
         })
       });
 
       if (!analyzeResponse.ok) {
         const analyzeError = await analyzeResponse.json();
-        throw new Error(analyzeError.error || analyzeError.details || 'TikTok video analysis failed');
+        throw new Error(analyzeError.error || analyzeError.details || 'Video analysis failed');
       }
 
-      const { analysis, language, video_url } = await analyzeResponse.json();
+      const { analysis, language } = await analyzeResponse.json();
       console.log('[CreateCompetitorAdModal] ✅ Analysis complete');
-
-      // Set video preview URL (TikTok CDN URL)
-      if (video_url) {
-        setFilePreview(video_url);
-        setFileType('video');
-      }
 
       // Extract AI-generated name from analysis
       const aiGeneratedName = (analysis && typeof analysis === 'object' && 'name' in analysis && typeof analysis.name === 'string')
         ? analysis.name
         : 'tiktok-video';
 
-      // Step 2: Create database record with analysis results
-      console.log('[CreateCompetitorAdModal] Step 2: Saving competitor ad...');
-      console.log('[CreateCompetitorAdModal] brandId:', brandId);
-      console.log('[CreateCompetitorAdModal] competitorName:', aiGeneratedName);
+      // =====================================================================
+      // STEP 3: Save to Database
+      // =====================================================================
+      console.log('[CreateCompetitorAdModal] Step 3: Saving competitor ad...');
 
       const createResponse = await fetch('/api/competitor-ads/create-with-analysis', {
         method: 'POST',
@@ -538,7 +564,7 @@ export default function CreateCompetitorAdModal({
                                 </svg>
                              </div>
                              <h3 className="text-xl font-semibold text-gray-900 mb-6">Paste TikTok URL</h3>
-                             
+
                              <div className="w-full space-y-3">
                                 <div className="relative group">
                                   <input
@@ -550,10 +576,45 @@ export default function CreateCompetitorAdModal({
                                       setTiktokUrl(e.target.value);
                                       setError(null);
                                     }}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent text-sm pr-12"
+                                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent text-sm"
                                     disabled={isUploading}
                                   />
+                                  {/* Help Icon with Tooltip */}
                                   {!tiktokUrl && !isUploading && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 group/help">
+                                      <svg
+                                        className="w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors cursor-help"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                        />
+                                      </svg>
+                                      {/* Tooltip */}
+                                      <div className="absolute bottom-full right-0 mb-2 w-72 p-4 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 group-hover/help:opacity-100 transition-opacity pointer-events-none z-20 leading-relaxed">
+                                        <p className="font-semibold mb-2 text-sm">How to get the TikTok URL:</p>
+                                        <ol className="list-decimal pl-4 space-y-1.5 text-gray-300 mb-3">
+                                          <li>Open TikTok on your web browser</li>
+                                          <li>Find the video you want to analyze</li>
+                                          <li>Copy the URL from the address bar</li>
+                                        </ol>
+                                        <div className="pt-2 border-t border-gray-700">
+                                          <p className="text-[10px] text-gray-400 mb-1">Example URL:</p>
+                                          <code className="block px-2 py-1 bg-gray-800 rounded text-[10px] font-mono break-all text-gray-200">
+                                            https://www.tiktok.com/@rourke.heath/video/7590342363638287638
+                                          </code>
+                                        </div>
+                                        {/* Arrow */}
+                                        <div className="absolute bottom-[-6px] right-4 w-3 h-3 bg-gray-900 rotate-45"></div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {tiktokUrl && !isUploading && (
                                     <button
                                       type="button"
                                       onClick={async () => {

@@ -105,13 +105,15 @@ export async function fetchTikTokVideoUrl(tiktokUrl: string): Promise<string> {
   console.log('[fetchTikTokVideoUrl] Fetching TikTok video:', tiktokUrl);
 
   try {
-    // 4. Call RapidAPI with timeout and retries
+    // 4. Call RapidAPI with timeout and retries (including response validation)
     const MAX_RETRIES = 5;
     let lastError: Error | null = null;
-    let response: Response | null = null;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      let response: Response | null = null;
+
       try {
+        // 4a. Make HTTP request with timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), RAPIDAPI_CONFIG.timeout);
 
@@ -123,116 +125,149 @@ export async function fetchTikTokVideoUrl(tiktokUrl: string): Promise<string> {
 
         clearTimeout(timeoutId);
 
-        // Success - break loop
-        if (response.ok) {
-          break;
-        }
+        // 4b. Handle HTTP-level errors (before parsing JSON)
+        if (!response.ok) {
+          const isRetriable =
+            response.status === 429 || // Rate limit
+            response.status >= 500 ||  // Server error
+            response.status === 404 || // Not found (sometimes flaky)
+            response.status === 403;   // Forbidden (sometimes flaky)
 
-        const isRetriable = 
-          response.status === 429 || // Rate limit
-          response.status >= 500 ||  // Server error
-          response.status === 404 || // Not found (sometimes flaky)
-          response.status === 403;   // Forbidden (sometimes flaky)
-
-        if (isRetriable) {
-          console.warn(`[fetchTikTokVideoUrl] API error (${response.status}) encountered. Attempt ${attempt}/${MAX_RETRIES}`);
-          if (attempt < MAX_RETRIES) {
-            // Aggressive backoff: 1s, 2s, 4s, 8s...
+          if (isRetriable && attempt < MAX_RETRIES) {
+            console.warn(`[fetchTikTokVideoUrl] HTTP ${response.status} error. Retrying... (${attempt}/${MAX_RETRIES})`);
             const delay = 1000 * Math.pow(2, attempt - 1);
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
+
+          // Non-retriable or final attempt - throw specific error
+          if (response.status === 404) {
+            throw new TikTokFetchError(
+              'Video not found. Please check the TikTok link and try again.',
+              404
+            );
+          }
+
+          if (response.status === 429) {
+            throw new TikTokFetchError(
+              'Too many requests. Please wait a moment and try again.',
+              429
+            );
+          }
+
+          if (response.status === 403) {
+            throw new TikTokFetchError(
+              'Video is private or unavailable. Please use a public video.',
+              403
+            );
+          }
+
+          throw new TikTokFetchError(
+            `TikTok API error: ${response.status} ${response.statusText}`,
+            response.status
+          );
         }
 
-        // For other errors, stop retrying immediately
-        break;
+        // 4c. Parse JSON response
+        const data = await response.json() as TikTokApiResponse;
+
+        // 4d. Check for API-level errors (data.error field)
+        if (data.error) {
+          console.warn(`[fetchTikTokVideoUrl] API returned error: "${data.error}". Attempt ${attempt}/${MAX_RETRIES}`);
+
+          // Retry on potentially transient API errors
+          const isRetriableApiError =
+            data.error.toLowerCase().includes('not found') ||       // Video temporarily unavailable
+            data.error.toLowerCase().includes('unavailable') ||      // CDN issues
+            data.error.toLowerCase().includes('timeout') ||          // Backend timeout
+            data.error.toLowerCase().includes('try again');          // Generic retry hint
+
+          if (isRetriableApiError && attempt < MAX_RETRIES) {
+            // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+            const delay = 1000 * Math.pow(2, attempt - 1);
+            console.warn(`[fetchTikTokVideoUrl] Retrying after ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+
+          // Non-retriable or final attempt
+          throw new TikTokFetchError(
+            `Failed to fetch TikTok video: ${data.error}`,
+            400
+          );
+        }
+
+        // 4e. Validate response structure
+        if (!data.play) {
+          console.warn(`[fetchTikTokVideoUrl] Missing "play" field in response. Attempt ${attempt}/${MAX_RETRIES}`);
+
+          // Retry on missing data (might be temporary API issue)
+          if (attempt < MAX_RETRIES) {
+            const delay = 1000 * Math.pow(2, attempt - 1);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+
+          // Final attempt - throw error
+          throw new TikTokFetchError(
+            'TikTok API did not return a valid video URL. The video may be unavailable.',
+            500
+          );
+        }
+
+        // 4f. Success! Return video URL
+        console.log('[fetchTikTokVideoUrl] ✅ Successfully fetched video URL');
+        console.log('[fetchTikTokVideoUrl] CDN URL:', data.play.substring(0, 80) + '...');
+        return data.play;
 
       } catch (reqError) {
         lastError = reqError as Error;
-        // Check if it's a timeout (AbortError)
+
+        // If it's a TikTokFetchError, check if we should retry
+        if (reqError instanceof TikTokFetchError) {
+          // Already logged above, just re-throw on final attempt
+          if (attempt >= MAX_RETRIES) {
+            throw reqError;
+          }
+          // Otherwise continue to next retry
+          continue;
+        }
+
+        // Handle timeout (AbortError)
         if (reqError instanceof Error && reqError.name === 'AbortError') {
-           console.warn(`[fetchTikTokVideoUrl] Request timeout. Attempt ${attempt}/${MAX_RETRIES}`);
-           if (attempt < MAX_RETRIES) {
-             // Retry on timeout
-             const delay = 1000 * Math.pow(2, attempt - 1); 
-             await new Promise(resolve => setTimeout(resolve, delay));
-             continue;
-           }
+          console.warn(`[fetchTikTokVideoUrl] Request timeout (${RAPIDAPI_CONFIG.timeout}ms). Attempt ${attempt}/${MAX_RETRIES}`);
+          if (attempt < MAX_RETRIES) {
+            const delay = 1000 * Math.pow(2, attempt - 1);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new TikTokFetchError(
+            'Request timeout while fetching TikTok video. Please try again.',
+            408
+          );
         }
-        // For other network errors, retry
+
+        // Handle other network errors
+        console.warn(`[fetchTikTokVideoUrl] Network error: ${reqError}. Attempt ${attempt}/${MAX_RETRIES}`);
         if (attempt < MAX_RETRIES) {
-             console.warn(`[fetchTikTokVideoUrl] Network error: ${reqError}. Attempt ${attempt}/${MAX_RETRIES}`);
-             const delay = 1000 * Math.pow(2, attempt - 1);
-             await new Promise(resolve => setTimeout(resolve, delay));
-             continue;
+          const delay = 1000 * Math.pow(2, attempt - 1);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
-      }
-    }
 
-    if (!response && lastError) {
-       // All retries failed with exception
-       throw lastError;
-    }
-
-    if (!response) {
-       throw new Error('Failed to initiate request');
-    }
-
-    // 5. Handle non-2xx responses (after retries exhausted)
-    if (!response.ok) {
-      if (response.status === 404) {
+        // Final attempt - throw
         throw new TikTokFetchError(
-          'Video not found. Please check the TikTok link and try again.',
-          404
+          'Network error while fetching TikTok video. Please check your connection and try again.',
+          500
         );
       }
-
-      if (response.status === 429) {
-        throw new TikTokFetchError(
-          'Too many requests. Please wait a moment and try again.',
-          429
-        );
-      }
-
-      if (response.status === 403) {
-        throw new TikTokFetchError(
-          'Video is private or unavailable. Please use a public video.',
-          403
-        );
-      }
-
-      // Generic error
-      throw new TikTokFetchError(
-        `TikTok API error: ${response.status} ${response.statusText}`,
-        response.status
-      );
     }
 
-    // 6. Parse response
-    const data = await response.json() as TikTokApiResponse;
-
-    // 7. Check for API-level errors
-    if (data.error) {
-      console.error('[fetchTikTokVideoUrl] TikTok API returned error:', data.error);
-      throw new TikTokFetchError(
-        `Failed to fetch TikTok video: ${data.error}`,
-        400
-      );
-    }
-
-    // 8. Extract video URL (prefer watermark-free)
-    if (!data.play) {
-      console.error('[fetchTikTokVideoUrl] Missing "play" field in response:', data);
-      throw new TikTokFetchError(
-        'TikTok API did not return a valid video URL. The video may be unavailable.',
-        500
-      );
-    }
-
-    console.log('[fetchTikTokVideoUrl] ✅ Successfully fetched video URL');
-    console.log('[fetchTikTokVideoUrl] CDN URL:', data.play.substring(0, 80) + '...');
-
-    return data.play;
+    // Should never reach here, but handle gracefully
+    throw lastError || new TikTokFetchError(
+      'Failed to fetch TikTok video after maximum retries.',
+      500
+    );
 
   } catch (error) {
     // Handle abort/timeout
