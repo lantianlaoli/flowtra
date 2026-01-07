@@ -29,7 +29,9 @@ import {
   ScanFace,
   PencilLine,
   Clapperboard,
-  Layers
+  Layers,
+  MousePointerClick,
+  CirclePause
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel, getVideoModelDisplayName } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
@@ -101,7 +103,7 @@ const DEFAULT_STEPS: EmptyStateStep[] = [
   },
   {
     number: 4,
-    description: 'Edit segment photos and prompts'
+    description: 'Review AI-generated frames and refine prompts to match your vision'
   },
   {
     number: 5,
@@ -392,18 +394,26 @@ function GenerationCard({
   };
 
   const getStatusText = () => {
+    const formatStage = (s?: string) => {
+      if (!s) return s;
+      return s
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    };
+
     switch (displayStatus) {
       case 'completed':
         return 'Ready to Download';
       case 'failed':
         return 'Generation Failed';
       case 'attention':
-        return 'Action Required';
+        return 'Needs Review';
       case 'processing':
-        return displayStage || 'Generating...';
+        return formatStage(displayStage) || 'Generating...';
       case 'pending':
       case 'awaiting_review':
-        return displayStage || 'In Queue';
+        return formatStage(displayStage) || 'In Queue';
       default:
         return 'Unknown';
     }
@@ -435,28 +445,32 @@ function GenerationCard({
             <div className="p-2 rounded-xl bg-gray-50">
               {getStatusIcon()}
             </div>
-            <div className="min-w-0">
-              <h4 className="text-[15px] font-semibold text-gray-900 leading-tight truncate">
-                {getStatusText()}
-              </h4>
-              <p className="text-[12px] text-gray-500 mt-0.5 font-medium">
-                {new Date(generation.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
+            <div className="min-w-0 flex items-center gap-2">
+              <div>
+                <h4 className="text-[15px] font-semibold text-gray-900 leading-tight truncate">
+                  {getStatusText()}
+                </h4>
+                <p className="text-[12px] text-gray-500 mt-0.5 font-medium">
+                  {new Date(generation.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
             {hasSegments && generation.segments && generation.segments.length > 0 && !mergeComplete && (
-              <button
-                onClick={() => {
-                  setEditorReadOnly(false);
-                  setShowSegmentEditor(true);
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
-              >
-                <PenSquare className="w-3.5 h-3.5" />
-                <span>Edit Segments</span>
-              </button>
+              <div className="flex flex-col gap-1.5 items-end">
+                <button
+                  onClick={() => {
+                    setEditorReadOnly(false);
+                    setShowSegmentEditor(true);
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-transparent rounded-xl text-[13px] font-medium transition-all bg-black text-white hover:bg-gray-800 shadow-sm"
+                >
+                  <MousePointerClick className="w-3.5 h-3.5" />
+                  <span>Edit & Review Frames</span>
+                </button>
+              </div>
             )}
             {hasSegments && generation.segments && generation.segments.length > 0 && mergeComplete && (
               <button
@@ -502,11 +516,15 @@ function GenerationCard({
         </div>
 
         {/* Progress Section */}
-        {(displayStatus === 'processing' || displayStatus === 'pending' || displayStatus === 'awaiting_review') && (
+        {(displayStatus === 'processing' || displayStatus === 'pending' || displayStatus === 'awaiting_review' || displayStatus === 'attention') && (
           <div className="pt-2 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {(displayStatus === 'processing' || displayStatus === 'pending') ? (
+                {displayStatus === 'attention' ? (
+                  <div className="w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
+                    <CirclePause className="w-2.5 h-2.5 text-white" />
+                  </div>
+                ) : (displayStatus === 'processing' || displayStatus === 'pending') ? (
                   <div className="w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
                     <Loader2 className="w-2.5 h-2.5 text-white animate-spin" />
                   </div>
@@ -515,7 +533,15 @@ function GenerationCard({
                     <CheckCircle className="w-2.5 h-2.5 text-white" />
                   </div>
                 )}
-                <span className="text-[13px] font-bold text-gray-900">{progress}%</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-gray-900">{progress}%</span>
+                  {hasSegments && generation.segments && generation.segments.length > 0 && !mergeComplete && (
+                    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded-full text-[10px] font-medium text-gray-900 whitespace-nowrap">
+                      <AlertCircle className="w-2.5 h-2.5 flex-shrink-0" />
+                      <span>Review Needed</span>
+                    </div>
+                  )}
+                </div>
               </div>
               {showPreviewAction && (
                 <button
@@ -558,17 +584,17 @@ function GenerationCard({
         {showBody && (
           <div className="pt-2">
             {displayStatus === 'attention' && hasSegmentFailure && (
-              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
-                <p className="text-[12px] text-amber-700 leading-relaxed font-medium">
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-gray-900 mt-0.5" />
+                <p className="text-[12px] text-gray-600 leading-relaxed font-medium">
                   Some segments require your attention. Please review and adjust the prompts.
                 </p>
               </div>
             )}
             {displayStatus === 'failed' && errorMessage && (
-              <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-2.5">
-                <XCircle className="w-4 h-4 text-rose-600 mt-0.5" />
-                <p className="text-[12px] text-rose-700 leading-relaxed font-medium">
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-start gap-2.5">
+                <XCircle className="w-4 h-4 text-gray-900 mt-0.5" />
+                <p className="text-[12px] text-gray-600 leading-relaxed font-medium">
                   {errorMessage}
                 </p>
               </div>
@@ -635,7 +661,7 @@ function GenerationCard({
                         : 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed'
                     }`}
                   >
-                    {canMerge ? 'Finalize & Merge Video' : `All segments need videos (${videosReady}/${totalSegments})`}
+                    Finalize & Merge Video
                   </button>
                 )}
               </div>
@@ -833,17 +859,17 @@ function getSegmentStatusBadge(status: string) {
   const normalized = status?.toLowerCase() || '';
   switch (normalized) {
     case 'first_frame_ready':
-      return { label: 'Photo Ready', className: 'bg-orange-50 text-orange-700 border border-orange-100' };
+      return { label: 'Photo Ready', className: 'bg-gray-100 text-gray-900 border border-gray-200' };
     case 'generating_first_frame':
       return { label: 'Generating...', className: 'bg-gray-50 text-gray-600 border border-gray-100' };
     case 'retrying_first_frame':
-      return { label: 'Retrying', className: 'bg-yellow-50 text-yellow-700 border border-yellow-100' };
+      return { label: 'Retrying', className: 'bg-gray-100 text-gray-700 border border-gray-200' };
     case 'generating_video':
-      return { label: 'Rendering Video', className: 'bg-blue-50 text-blue-700 border border-blue-100' };
+      return { label: 'Rendering Video', className: 'bg-gray-900 text-white border border-transparent' };
     case 'video_ready':
-      return { label: 'Complete', className: 'bg-green-50 text-green-700 border border-green-100' };
+      return { label: 'Complete', className: 'bg-black text-white border border-transparent' };
     case 'failed':
-      return { label: 'Failed', className: 'bg-red-50 text-red-700 border border-red-100' };
+      return { label: 'Failed', className: 'bg-gray-200 text-gray-900 border border-gray-300' };
     default:
       return { label: 'Queued', className: 'bg-gray-50 text-gray-500 border border-gray-100' };
   }

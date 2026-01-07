@@ -71,15 +71,10 @@ export default function SegmentListColumn({
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Merging Videos...
               </>
-            ) : allVideosReady ? (
-              <>
-                <Film className="w-4 h-4" />
-                Merge All Segments
-              </>
             ) : (
               <>
                 <Film className="w-4 h-4" />
-                All Segments Need Videos ({videosReadyCount}/{segments.length})
+                Merge All Segments
               </>
             )}
           </button>
