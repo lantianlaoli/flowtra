@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import Script from 'next/script';
 import {
   SparklesIcon,
@@ -509,9 +510,11 @@ export default function CompetitorReplicaShowcasePage() {
               {/* Image Side */}
               <div className="w-full lg:w-3/5">
                  <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
-                    <img 
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/clone_competitor_segment_edit.png" 
-                      alt="Flowtra Segment Editor Interface" 
+                    <Image
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/clone_competitor_segment_edit.png"
+                      alt="Flowtra Segment Editor Interface"
+                      width={1200}
+                      height={800}
                       className="w-full h-auto"
                       loading="lazy"
                     />

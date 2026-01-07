@@ -13,6 +13,7 @@
  */
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useAvatarAdsRealtime, useAvatarAdsScenesRealtime } from '@/hooks/useAvatarAdsRealtime';
 
 // ============================================
@@ -44,7 +45,12 @@ export function AvatarAdsProjectMonitor({ projectId }: { projectId: string }) {
       <h2>Project Status: {project.status}</h2>
       <div>Progress: {project.progress_percentage}%</div>
       {project.generated_image_url && (
-        <img src={project.generated_image_url} alt="Generated" />
+        <Image
+          src={project.generated_image_url}
+          alt="Generated"
+          width={800}
+          height={600}
+        />
       )}
       {project.merged_video_url && (
         <video src={project.merged_video_url} controls />

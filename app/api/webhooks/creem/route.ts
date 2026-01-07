@@ -188,15 +188,23 @@ export async function POST(request: NextRequest) {
           console.log(`   Preserving existing credits (no reset)`)
 
           // Only update status to active
-          await updateSubscriptionStatus(creemSubscriptionId, 'active')
+          const statusResult = await updateSubscriptionStatus(creemSubscriptionId, 'active')
+          if (!statusResult.success) {
+            console.error('❌ Failed to update status:', statusResult.error)
+            return NextResponse.json({ error: statusResult.error }, { status: 500 })
+          }
 
           // Update billing period dates if provided
           if (object.current_period_start_date && object.current_period_end_date) {
-            await updateSubscriptionPeriod(
+            const periodResult = await updateSubscriptionPeriod(
               creemSubscriptionId,
               object.current_period_start_date,
               object.current_period_end_date
             )
+            if (!periodResult.success) {
+              console.error('❌ Failed to update period:', periodResult.error)
+              return NextResponse.json({ error: periodResult.error }, { status: 500 })
+            }
           }
         } else {
           // NEW SUBSCRIPTION: No existing record (user purchased without trial or active arrived first)
@@ -212,11 +220,15 @@ export async function POST(request: NextRequest) {
           // Grant initial monthly credits
           const subscription = await getUserSubscription(userId)
           if (subscription.subscription) {
-            await grantSubscriptionAccess(
+            const grantResult = await grantSubscriptionAccess(
               userId,
               subscription.subscription.monthly_credits,
               subscription.subscription.tier
             )
+            if (!grantResult.success) {
+              console.error('❌ Failed to grant credits:', grantResult.error)
+              return NextResponse.json({ error: grantResult.error }, { status: 500 })
+            }
           }
         }
 
@@ -233,26 +245,55 @@ export async function POST(request: NextRequest) {
 
         const creemSubscriptionId = object.id
 
+        // Check if subscription exists (handle race condition: paid arrives before active)
+        const existingSubscription = await getUserSubscription(userId)
+
+        if (!existingSubscription.subscription) {
+          // Subscription doesn't exist yet - create it (subscription.paid arrived before subscription.active)
+          console.log(`⚠️ subscription.paid arrived before subscription creation - creating now`)
+
+          const createResult = await createSubscription(userId, object)
+          if (!createResult.success) {
+            console.error('❌ Failed to create subscription:', createResult.error)
+            return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 })
+          }
+        }
+
+        // 🔧 FIX: Update status (was missing - critical bug)
+        const statusResult = await updateSubscriptionStatus(
+          creemSubscriptionId,
+          object.status || 'active'
+        )
+        if (!statusResult.success) {
+          console.error('❌ Failed to update status:', statusResult.error)
+          return NextResponse.json({ error: statusResult.error }, { status: 500 })
+        }
+
         // Reset monthly credits to full allocation
         const resetResult = await resetMonthlyCredits(userId, creemSubscriptionId)
         if (!resetResult.success) {
           console.error('❌ Failed to reset monthly credits:', resetResult.error)
+          return NextResponse.json({ error: resetResult.error }, { status: 500 })
         }
 
         // Update billing period dates
         if (object.current_period_start_date && object.current_period_end_date) {
-          await updateSubscriptionPeriod(
+          const periodResult = await updateSubscriptionPeriod(
             creemSubscriptionId,
             object.current_period_start_date,
             object.current_period_end_date
           )
+          if (!periodResult.success) {
+            console.error('❌ Failed to update period:', periodResult.error)
+            return NextResponse.json({ error: periodResult.error }, { status: 500 })
+          }
         }
 
         // Record event
         await recordSubscriptionEvent(userId, creemSubscriptionId, eventType, eventId, object)
 
-        console.log(`✅ Monthly credits reset for user ${userId}`)
-        return NextResponse.json({ success: true, message: 'Monthly credits reset' })
+        console.log(`✅ Monthly credits reset and status updated for user ${userId}`)
+        return NextResponse.json({ success: true, message: 'Monthly credits reset and status updated' })
       }
 
       // subscription.canceled - Subscription canceled, preserve credits until expiration
@@ -329,15 +370,23 @@ export async function POST(request: NextRequest) {
 
         if (subscription.subscription) {
           // Subscription exists - just update it
-          await updateSubscriptionStatus(creemSubscriptionId, status)
+          const statusResult = await updateSubscriptionStatus(creemSubscriptionId, status)
+          if (!statusResult.success) {
+            console.error('❌ Failed to update status:', statusResult.error)
+            return NextResponse.json({ error: statusResult.error }, { status: 500 })
+          }
 
           // Update billing period dates if provided
           if (object.current_period_start_date && object.current_period_end_date) {
-            await updateSubscriptionPeriod(
+            const periodResult = await updateSubscriptionPeriod(
               creemSubscriptionId,
               object.current_period_start_date,
               object.current_period_end_date
             )
+            if (!periodResult.success) {
+              console.error('❌ Failed to update period:', periodResult.error)
+              return NextResponse.json({ error: periodResult.error }, { status: 500 })
+            }
           }
         } else {
           // CRITICAL: In production, Creem sends subscription.update BEFORE subscription.trialing
@@ -359,7 +408,11 @@ export async function POST(request: NextRequest) {
               const monthlyCredits = newSubscription.subscription.monthly_credits
               const tier = newSubscription.subscription.tier
               console.log(`   Granting ${monthlyCredits} credits (status: ${status})`)
-              await grantSubscriptionAccess(userId, monthlyCredits, tier)
+              const grantResult = await grantSubscriptionAccess(userId, monthlyCredits, tier)
+              if (!grantResult.success) {
+                console.error('❌ Failed to grant credits:', grantResult.error)
+                return NextResponse.json({ error: grantResult.error }, { status: 500 })
+              }
             }
           }
         }

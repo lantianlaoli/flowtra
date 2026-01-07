@@ -59,9 +59,12 @@ export function useBrandsCache() {
     };
   });
 
-  const isMountedRef = useRef(true);
+  const isMountedRef = useRef(false);
 
   useEffect(() => {
+    // React StrictMode (dev) runs mount/unmount/mount to detect side effects,
+    // while preserving hook state; ensure we re-mark mounted on each effect run.
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };

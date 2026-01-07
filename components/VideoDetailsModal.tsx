@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, Loader2, Check } from 'lucide-react';
+import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Zap, Coins, Calendar, Film } from 'lucide-react';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -126,6 +126,20 @@ const formatDateTime = (dateString: string) => {
 };
 
 export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, isDownloading }: VideoDetailsModalProps) {
+  const [expandedShots, setExpandedShots] = useState<Set<string>>(new Set());
+
+  const toggleShot = (shotKey: string) => {
+    setExpandedShots(prev => {
+      const next = new Set(prev);
+      if (next.has(shotKey)) {
+        next.delete(shotKey);
+      } else {
+        next.add(shotKey);
+      }
+      return next;
+    });
+  };
+
   // Close on ESC key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -206,7 +220,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
     // Custom text (script or dialogue)
     if (promptsContent.type === 'custom-script' || promptsContent.type === 'custom-dialogue') {
       return (
-        <div className="border border-[#E5E5E5] rounded-lg overflow-hidden bg-white">
+        <div className="border border-[#E5E5E5] rounded-xl overflow-hidden bg-white shadow-sm">
           <div className="p-6 max-h-[calc(90vh-300px)] overflow-y-auto">
             <p className="text-sm leading-relaxed text-black whitespace-pre-wrap">
               {promptsContent.data}
@@ -222,38 +236,94 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
       const segments = data?.segments || [];
 
       return (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {segments.map((segment: any, segmentIdx: number) => (
-            <div key={segmentIdx} className="border border-[#E5E5E5] rounded-lg bg-white overflow-hidden">
-              <div className="bg-[#F7F7F7] px-4 py-3 border-b border-[#E5E5E5]">
-                <h4 className="text-sm font-semibold text-black">
-                  Segment {segmentIdx + 1}
-                </h4>
+            <div key={segmentIdx} className="border border-[#E5E5E5] rounded-xl bg-white overflow-hidden shadow-sm">
+              <div className="bg-black px-5 py-3.5 border-b border-black flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <Film className="w-4 h-4 text-white/70" />
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Segment {segmentIdx + 1}
+                  </h4>
+                </div>
+                <div className="flex gap-2">
+                   <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded uppercase font-bold tracking-tighter">AI Analysis</span>
+                </div>
               </div>
 
-              <div className="p-4 space-y-3">
-                {/* Shots - Only show dialogue */}
+              <div className="p-5 space-y-5">
+                {typeof segment.first_frame_description === 'string' && segment.first_frame_description.trim() && (
+                  <div className="bg-[#F7F7F7] rounded-lg p-4 border border-[#E5E5E5]">
+                    <div className="flex items-center gap-2 mb-2 text-black">
+                      <Camera className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-wider">First Frame</span>
+                    </div>
+                    <p className="text-sm text-black leading-relaxed">
+                      {segment.first_frame_description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Shots */}
                 {segment.shots && segment.shots.length > 0 && (
                   <div className="space-y-3">
-                    {segment.shots.map((shot: any, shotIdx: number) => (
-                      <div key={shotIdx} className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-[#666666]">Shot {shot.id}</span>
-                          {shot.time_range && (
-                            <>
-                              <span className="text-[#E5E5E5]">•</span>
-                              <span className="text-xs text-[#666666]">{shot.time_range}</span>
-                            </>
-                          )}
-                        </div>
+                    {segment.shots.map((shot: any, shotIdx: number) => {
+                      const shotKey = `${segmentIdx}-${shotIdx}`;
+                      const isExpanded = expandedShots.has(shotKey);
+                      
+                      return (
+                        <div key={shotIdx} className="border border-[#E5E5E5] rounded-lg overflow-hidden transition-all bg-white hover:border-black/20">
+                          {/* Shot Header - Collapsible Toggle */}
+                          <div 
+                            onClick={() => toggleShot(shotKey)}
+                            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#F7F7F7] transition-colors select-none"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={cn(
+                                "flex items-center justify-center w-6 h-6 rounded text-[10px] font-bold transition-colors",
+                                isExpanded ? "bg-black text-white" : "bg-[#F7F7F7] text-black"
+                              )}>
+                                {shot.id || shotIdx + 1}
+                              </div>
+                              <span className="text-sm font-semibold text-black">Shot {shot.id || shotIdx + 1}</span>
+                              {shot.time_range && (
+                                <span className="text-xs text-[#666666] font-mono bg-gray-100 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {shot.time_range}
+                                </span>
+                              )}
+                            </div>
+                            <div className={cn(
+                              "transition-transform duration-200",
+                              isExpanded ? "rotate-180" : ""
+                            )}>
+                              <ChevronDown className="w-4 h-4 text-[#666666]" />
+                            </div>
+                          </div>
 
-                        {shot.dialogue && (
-                          <p className="text-sm text-black leading-relaxed pl-4 border-l-2 border-[#E5E5E5]">
-                            {shot.dialogue}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                          {/* Expanded Content */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <div className="p-4 border-t border-[#E5E5E5] space-y-3 bg-[#FAFAFA]/50">
+                                  <DetailRow icon={<Play className="w-3.5 h-3.5" />} label="Action" value={shot.action} />
+                                  <DetailRow icon={<User className="w-3.5 h-3.5" />} label="Subject" value={shot.subject} />
+                                  <DetailRow icon={<MessageSquare className="w-3.5 h-3.5" />} label="Dialogue" value={shot.dialogue} />
+                                  <DetailRow icon={<Music className="w-3.5 h-3.5" />} label="Audio" value={shot.audio} />
+                                  <DetailRow icon={<Sparkles className="w-3.5 h-3.5" />} label="Style" value={shot.style} />
+                                  <DetailRow icon={<Layout className="w-3.5 h-3.5" />} label="Composition" value={shot.composition} />
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -269,20 +339,29 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
       const scenes = data?.scenes || [];
 
       return (
-        <div className="space-y-3">
-          {/* Video Scenes - Only show dialogue */}
+        <div className="space-y-4">
           {scenes.map((scene: any, idx: number) => {
             const prompt = scene.prompt || {};
+            const dialogue = prompt.video_prompt 
+              ? prompt.video_prompt.replace('dialogue, the character in the video says: ', '').replace(/^["']|["']$/g, '')
+              : null;
+              
             return (
-              <div key={idx} className="space-y-2">
-                <div className="text-xs font-semibold text-[#666666]">
-                  Scene {scene.scene}
+              <div key={idx} className="border border-[#E5E5E5] rounded-xl bg-white p-5 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Film className="w-4 h-4 text-[#666666]" />
+                    <span className="text-sm font-bold text-black uppercase tracking-wider">Scene {scene.scene}</span>
+                  </div>
                 </div>
 
-                {prompt.video_prompt && (
-                  <p className="text-sm text-black leading-relaxed pl-4 border-l-2 border-[#E5E5E5]">
-                    {prompt.video_prompt.replace('dialogue, the character in the video says: ', '').replace(/^["']|["']$/g, '')}
-                  </p>
+                {dialogue && (
+                  <div className="bg-[#F7F7F7] rounded-lg p-4 border border-[#E5E5E5] flex gap-3">
+                    <MessageSquare className="w-4 h-4 text-[#666666] flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-black leading-relaxed italic">
+                      &ldquo;{dialogue}&rdquo;
+                    </p>
+                  </div>
                 )}
               </div>
             );
@@ -335,15 +414,16 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
             {/* Content - Split Layout */}
             <div className="flex-1 flex overflow-hidden">
               {/* LEFT: Video Preview Only - No Download Button */}
-              <div className="w-[35%] bg-[#F7F7F7] flex items-center justify-center p-6">
+              <div className="w-[40%] bg-[#F7F7F7] flex items-center justify-center p-8 border-r border-[#E5E5E5]">
                 <div className={cn(
-                  "relative w-full max-w-sm rounded-lg overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.08)]",
+                  "relative rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.15)] bg-black ring-1 ring-black/5",
+                  "w-full max-w-full max-h-full",
                   getAspectRatioClass()
                 )}>
                   {item.status === 'completed' && item.videoUrl ? (
                     <VideoPlayer
                       src={item.videoUrl}
-                      className="absolute inset-0 w-full h-full object-contain bg-black"
+                      className="absolute inset-0 w-full h-full object-contain"
                       autoPlay={false}
                       loop={true}
                       playsInline={true}
@@ -354,7 +434,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                       src={item.coverImageUrl}
                       alt="Cover"
                       fill
-                      className="object-contain bg-black"
+                      className="object-contain"
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/5">
@@ -370,12 +450,12 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                 <div className="flex-1 overflow-y-auto p-8 space-y-5">
 
                   {/* Compact Parameters Card */}
-                  <div className="border border-[#E5E5E5] rounded-lg p-4 bg-[#FAFAFA]">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-xs font-semibold text-black uppercase tracking-wide">Quick Info</h3>
+                  <div className="border border-[#E5E5E5] rounded-xl p-5 bg-[#FAFAFA] shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xs font-bold text-black uppercase tracking-wider">Project Info</h3>
                       <span
                         className={cn(
-                          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium',
+                          'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-tight',
                           item.status === 'completed' && 'bg-black text-white',
                           item.status === 'processing' && 'bg-white text-black border border-[#E5E5E5]',
                           item.status === 'failed' && 'bg-white text-black border border-black'
@@ -390,23 +470,49 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                     </div>
 
                     {/* Compact Grid */}
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-xs">
-                      <CompactParam label="Model" value={getModelDisplayName(item.videoModel)} />
-                      <CompactParam label="Ratio" value={formatAspectRatio(item)} />
-                      <CompactParam label="Duration" value={formatDuration(item)} />
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                      <CompactParam 
+                        icon={<Cpu className="w-3.5 h-3.5" />} 
+                        label="AI Model" 
+                        value={getModelDisplayName(item.videoModel)} 
+                      />
+                      <CompactParam 
+                        icon={<Maximize className="w-3.5 h-3.5" />} 
+                        label="Ratio" 
+                        value={formatAspectRatio(item)} 
+                      />
+                      <CompactParam 
+                        icon={<Clock className="w-3.5 h-3.5" />} 
+                        label="Duration" 
+                        value={formatDuration(item)} 
+                      />
 
                       {(isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.language && (
-                        <CompactParam label="Language" value={item.language.toUpperCase()} />
+                        <CompactParam 
+                          icon={<Languages className="w-3.5 h-3.5" />} 
+                          label="Language" 
+                          value={item.language.toUpperCase()} 
+                        />
                       )}
                       {isCompetitorUgcReplication(item) && item.videoQuality && (
-                        <CompactParam label="Quality" value={item.videoQuality} capitalize />
+                        <CompactParam 
+                          icon={<Zap className="w-3.5 h-3.5" />} 
+                          label="Quality" 
+                          value={item.videoQuality} 
+                          capitalize 
+                        />
                       )}
 
-                      <CompactParam label="Credits" value={`${item.creditsUsed}`} />
+                      <CompactParam 
+                        icon={<Coins className="w-3.5 h-3.5" />} 
+                        label="Credits" 
+                        value={`${item.creditsUsed}`} 
+                      />
                       <CompactParam
-                        label="Created"
+                        icon={<Calendar className="w-3.5 h-3.5" />}
+                        label="Created At"
                         value={formatDateTime(item.createdAt).split(',')[0]}
-                        className="col-span-2"
+                        className="col-span-1 md:col-span-2"
                       />
                     </div>
                   </div>
@@ -477,25 +583,49 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
 
 // Compact parameter display component
 function CompactParam({
+  icon,
   label,
   value,
   capitalize,
   className
 }: {
+  icon: React.ReactNode;
   label: string;
   value: string;
   capitalize?: boolean;
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col", className)}>
-      <span className="text-[#666666] font-medium mb-0.5">{label}</span>
-      <span className={cn(
-        'text-black font-semibold',
-        capitalize && 'capitalize'
-      )}>
-        {value}
-      </span>
+    <div className={cn("flex items-start gap-2.5", className)}>
+      <div className="mt-0.5 text-[#666666] flex-shrink-0">
+        {icon}
+      </div>
+      <div className="flex flex-col">
+        <span className="text-[10px] font-bold text-[#666666] uppercase tracking-wider mb-0.5">{label}</span>
+        <span className={cn(
+          'text-sm text-black font-semibold leading-tight',
+          capitalize && 'capitalize'
+        )}>
+          {value}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Detail row with icon for prompts
+function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string }) {
+  if (!value || !value.trim()) return null;
+  
+  return (
+    <div className="flex gap-3">
+      <div className="mt-0.5 text-[#666666] flex-shrink-0">
+        {icon}
+      </div>
+      <div className="space-y-0.5">
+        <span className="block text-[10px] font-bold text-[#666666] uppercase tracking-wider">{label}</span>
+        <p className="text-sm text-black leading-relaxed">{value}</p>
+      </div>
     </div>
   );
 }

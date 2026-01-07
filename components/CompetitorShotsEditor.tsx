@@ -16,7 +16,10 @@ import {
   Layout, 
   Sun, 
   Music,
-  Clock
+  Clock,
+  Film,
+  Camera,
+  MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -79,202 +82,239 @@ export default function CompetitorShotsEditor({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header with Add Button */}
-      <div className="flex items-center justify-between border-b border-[#E5E5E5] pb-3">
-        <div className="flex items-center gap-3">
-          <h4 className="text-sm font-semibold text-black">Shot List</h4>
-          {showSummary && (
-            <div className="flex gap-2">
-              <span className="inline-flex items-center rounded-full bg-[#F7F7F7] border border-[#E5E5E5] px-2 py-0.5 text-xs font-medium text-[#666666]">
-                {shots.length} shots
+      <div className="flex items-end justify-between border-b border-[#E5E5E5] pb-4">
+        <div className="space-y-1">
+          <h3 className="text-xl font-semibold text-black tracking-tight flex items-center gap-2">
+            {title || "Shot List"}
+            {showSummary && (
+              <span className="inline-flex items-center rounded-full bg-[#F7F7F7] border border-[#E5E5E5] px-2.5 py-0.5 text-xs font-medium text-[#666666]">
+                {shots.length} shots • {totalDuration}s total
               </span>
-              <span className="inline-flex items-center rounded-full bg-[#F7F7F7] border border-[#E5E5E5] px-2 py-0.5 text-xs font-medium text-[#666666]">
-                {totalDuration}s
-              </span>
-            </div>
-          )}
+            )}
+          </h3>
+          {description && <p className="text-sm text-[#666666]">{description}</p>}
         </div>
         <button
           type="button"
           onClick={handleAddShot}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-black hover:bg-gray-50 transition-all shadow-sm"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E5E5] rounded-lg text-sm font-medium text-black hover:bg-[#F7F7F7] transition-all shadow-sm"
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-4 h-4" />
           Add Shot
         </button>
       </div>
 
       {shots.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#E5E5E5] bg-[#F7F7F7] p-8 text-center">
-          <p className="text-sm text-[#666666] mb-4">No shots yet. Create a storyboard.</p>
+        <div className="rounded-xl border border-dashed border-[#E5E5E5] bg-[#FAFAFA] p-12 text-center flex flex-col items-center justify-center">
+          <div className="w-12 h-12 rounded-full bg-[#F0F0F0] flex items-center justify-center mb-4 text-[#666666]">
+            <Film className="w-6 h-6" />
+          </div>
+          <h4 className="text-base font-semibold text-black mb-1">No shots yet</h4>
+          <p className="text-sm text-[#666666] mb-6 max-w-xs mx-auto">Start building your video by adding shots to the storyboard.</p>
           <button
             type="button"
             onClick={handleAddShot}
-            className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-black/80 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white hover:bg-black/90 transition-colors shadow-lg shadow-black/10"
           >
             <Plus className="w-4 h-4" />
             Add First Shot
           </button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {shots.map((shot) => {
+        <div className="space-y-4">
+          {shots.map((shot, index) => {
             const isExpanded = expandedShots.has(shot.shot_id);
             return (
-              <div key={shot.shot_id} className="rounded-xl border border-[#E5E5E5] bg-white overflow-hidden transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
+              <div 
+                key={shot.shot_id} 
+                className={cn(
+                  "group rounded-xl border bg-white transition-all duration-200 overflow-hidden",
+                  isExpanded 
+                    ? "border-black/10 shadow-[0_8px_30px_rgba(0,0,0,0.04)] ring-1 ring-black/5" 
+                    : "border-[#E5E5E5] hover:border-gray-300 hover:shadow-sm"
+                )}
+              >
+                {/* Card Header / Summary */}
                 <div
                   onClick={() => toggleShot(shot.shot_id)}
-                  className="flex w-full items-center justify-between px-4 py-3 hover:bg-[#F7F7F7] transition-colors cursor-pointer"
+                  className="flex w-full items-center justify-between px-5 py-4 cursor-pointer select-none"
                 >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="rounded-md bg-black text-white px-2 py-1 text-xs font-bold">
-                      #{shot.shot_id}
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold transition-colors",
+                      isExpanded ? "bg-black text-white" : "bg-[#F7F7F7] text-black group-hover:bg-[#EAEAEA]"
+                    )}>
+                      {index + 1}
                     </div>
-                    <div className="text-xs font-medium text-[#666666] font-mono">
-                      {shot.start_time || '00:00'} - {shot.end_time || '00:00'}
+                    
+                    <div className="flex flex-col items-start gap-0.5">
+                      <div className="text-sm font-semibold text-black flex items-center gap-2">
+                        Shot {index + 1}
+                        {shot.subject && <span className="text-xs font-normal text-[#666666]">• {shot.subject.substring(0, 30)}{shot.subject.length > 30 ? '...' : ''}</span>}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-[#666666] font-mono">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {shot.start_time || '00:00'} - {shot.end_time || '00:00'}
+                        </span>
+                        <span className="w-1 h-1 rounded-full bg-gray-300" />
+                        <span>{shot.duration_seconds}s</span>
+                      </div>
                     </div>
-                    <div className="text-xs font-semibold text-black">{shot.duration_seconds}s</div>
                   </div>
-                  <div className="flex items-center gap-3">
+
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRemoveShot(shot.shot_id);
                       }}
-                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                       title="Delete shot"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                    {isExpanded ? <ChevronUp className="w-4 h-4 text-[#666666]" /> : <ChevronDown className="w-4 h-4 text-[#666666]" />}
+                    <div className={cn(
+                      "p-1 rounded-md transition-transform duration-200",
+                      isExpanded ? "bg-gray-100 rotate-180" : "bg-transparent"
+                    )}>
+                      <ChevronDown className="w-4 h-4 text-[#666666]" />
+                    </div>
                   </div>
                 </div>
 
+                {/* Expanded Content */}
                 <AnimatePresence>
                   {isExpanded && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
+                      transition={{ duration: 0.2, ease: "easeInOut" }}
                     >
-                      <div className="border-t border-[#E5E5E5] p-4 space-y-4 bg-[#FAFAFA]">
-                        <div className="grid grid-cols-3 gap-3">
-                          <ShotInput
-                            label="Start"
-                            icon={<Clock className="w-3 h-3" />}
-                            value={shot.start_time}
-                            onChange={(value) => updateShot(shot.shot_id, 'start_time', value)}
-                            placeholder="00:00"
+                      <div className="border-t border-[#E5E5E5] bg-[#FAFAFA]/50 p-5 space-y-6">
+                        
+                        {/* Section: Timing */}
+                        <div className="space-y-3">
+                          <SectionHeader icon={<Clock className="w-3.5 h-3.5" />} title="Timing" />
+                          <div className="grid grid-cols-3 gap-4">
+                            <ShotInput
+                              label="Start Time"
+                              value={shot.start_time}
+                              onChange={(value) => updateShot(shot.shot_id, 'start_time', value)}
+                              placeholder="00:00"
+                              mono
+                            />
+                            <ShotInput
+                              label="End Time"
+                              value={shot.end_time}
+                              onChange={(value) => updateShot(shot.shot_id, 'end_time', value)}
+                              placeholder="00:08"
+                              mono
+                            />
+                            <ShotInput
+                              label="Duration (s)"
+                              type="number"
+                              value={String(shot.duration_seconds)}
+                              onChange={(value) => updateShot(shot.shot_id, 'duration_seconds', Number(value))}
+                              mono
+                            />
+                          </div>
+                        </div>
+
+                        {/* Section: Visual Content */}
+                        <div className="space-y-3">
+                          <SectionHeader icon={<Eye className="w-3.5 h-3.5" />} title="Visual Content" />
+                          <ShotTextarea
+                            label="Visual Description (Prompts)"
+                            value={shot.first_frame_description}
+                            onChange={(value) => updateShot(shot.shot_id, 'first_frame_description', value)}
+                            placeholder="Describe what happens in this shot in detail..."
+                            minHeight="min-h-[100px]"
                           />
-                          <ShotInput
-                            label="End"
-                            icon={<Clock className="w-3 h-3" />}
-                            value={shot.end_time}
-                            onChange={(value) => updateShot(shot.shot_id, 'end_time', value)}
-                            placeholder="00:08"
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <ShotTextarea
+                              label="Subject"
+                              value={shot.subject}
+                              onChange={(value) => updateShot(shot.shot_id, 'subject', value)}
+                              placeholder="e.g. A woman in a red dress"
+                            />
+                            <ShotTextarea
+                              label="Environment"
+                              value={shot.context_environment}
+                              onChange={(value) => updateShot(shot.shot_id, 'context_environment', value)}
+                              placeholder="e.g. Sunny park, afternoon"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Section: Style & Camera */}
+                        <div className="space-y-3">
+                          <SectionHeader icon={<Camera className="w-3.5 h-3.5" />} title="Cinematography" />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <ShotTextarea
+                              label="Camera Motion"
+                              value={shot.camera_motion_positioning}
+                              onChange={(value) => updateShot(shot.shot_id, 'camera_motion_positioning', value)}
+                              placeholder="e.g. Slow pan right, close up"
+                            />
+                            <ShotTextarea
+                              label="Composition"
+                              value={shot.composition}
+                              onChange={(value) => updateShot(shot.shot_id, 'composition', value)}
+                              placeholder="e.g. Rule of thirds, center framed"
+                            />
+                            <ShotTextarea
+                              label="Lighting"
+                              value={shot.ambiance_colour_lighting}
+                              onChange={(value) => updateShot(shot.shot_id, 'ambiance_colour_lighting', value)}
+                              placeholder="e.g. Soft natural lighting, warm tones"
+                            />
+                            <ShotTextarea
+                              label="Art Style"
+                              value={shot.style}
+                              onChange={(value) => updateShot(shot.shot_id, 'style', value)}
+                              placeholder="e.g. Cinematic, photorealistic, film grain"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Section: Audio */}
+                        <div className="space-y-3">
+                          <SectionHeader icon={<Music className="w-3.5 h-3.5" />} title="Audio & Action" />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <ShotTextarea
+                              label="Action"
+                              value={shot.action}
+                              onChange={(value) => updateShot(shot.shot_id, 'action', value)}
+                              placeholder="Describe the movement..."
+                            />
+                            <ShotTextarea
+                              label="Audio / Dialogue"
+                              value={shot.audio}
+                              onChange={(value) => updateShot(shot.shot_id, 'audio', value)}
+                              placeholder="Sound effects, music mood, or dialogue"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Footer Toggles */}
+                        <div className="flex items-center gap-6 pt-4 border-t border-[#E5E5E5]">
+                          <Toggle 
+                            label="Contains Brand Asset" 
+                            checked={Boolean(shot.contains_brand)} 
+                            onChange={(checked) => updateShot(shot.shot_id, 'contains_brand', checked)}
                           />
-                          <ShotInput
-                            label="Duration"
-                            icon={<Clock className="w-3 h-3" />}
-                            type="number"
-                            value={String(shot.duration_seconds)}
-                            onChange={(value) => updateShot(shot.shot_id, 'duration_seconds', Number(value))}
+                          <Toggle 
+                            label="Contains Product" 
+                            checked={Boolean(shot.contains_product)} 
+                            onChange={(checked) => updateShot(shot.shot_id, 'contains_product', checked)}
                           />
                         </div>
 
-                        <ShotTextarea
-                          label="Visual Description"
-                          icon={<Eye className="w-3 h-3" />}
-                          value={shot.first_frame_description}
-                          onChange={(value) => updateShot(shot.shot_id, 'first_frame_description', value)}
-                        />
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <ShotTextarea
-                            label="Subject"
-                            icon={<User className="w-3 h-3" />}
-                            value={shot.subject}
-                            onChange={(value) => updateShot(shot.shot_id, 'subject', value)}
-                          />
-                          <ShotTextarea
-                            label="Environment"
-                            icon={<MapPin className="w-3 h-3" />}
-                            value={shot.context_environment}
-                            onChange={(value) => updateShot(shot.shot_id, 'context_environment', value)}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <ShotTextarea
-                            label="Action"
-                            icon={<Play className="w-3 h-3" />}
-                            value={shot.action}
-                            onChange={(value) => updateShot(shot.shot_id, 'action', value)}
-                          />
-                          <ShotTextarea
-                            label="Style"
-                            icon={<Sparkles className="w-3 h-3" />}
-                            value={shot.style}
-                            onChange={(value) => updateShot(shot.shot_id, 'style', value)}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <ShotTextarea
-                            label="Camera"
-                            icon={<Video className="w-3 h-3" />}
-                            value={shot.camera_motion_positioning}
-                            onChange={(value) => updateShot(shot.shot_id, 'camera_motion_positioning', value)}
-                          />
-                          <ShotTextarea
-                            label="Composition"
-                            icon={<Layout className="w-3 h-3" />}
-                            value={shot.composition}
-                            onChange={(value) => updateShot(shot.shot_id, 'composition', value)}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <ShotTextarea
-                            label="Lighting"
-                            icon={<Sun className="w-3 h-3" />}
-                            value={shot.ambiance_colour_lighting}
-                            onChange={(value) => updateShot(shot.shot_id, 'ambiance_colour_lighting', value)}
-                          />
-                          <ShotTextarea
-                            label="Audio"
-                            icon={<Music className="w-3 h-3" />}
-                            value={shot.audio}
-                            onChange={(value) => updateShot(shot.shot_id, 'audio', value)}
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between pt-2 border-t border-[#E5E5E5] mt-2">
-                           <div className="flex gap-4">
-                              <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(shot.contains_brand)}
-                                  onChange={(e) => updateShot(shot.shot_id, 'contains_brand', e.target.checked)}
-                                  className="rounded border-gray-300 text-black focus:ring-black"
-                                />
-                                Brand
-                              </label>
-                              <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(shot.contains_product)}
-                                  onChange={(e) => updateShot(shot.shot_id, 'contains_product', e.target.checked)}
-                                  className="rounded border-gray-300 text-black focus:ring-black"
-                                />
-                                Product
-                              </label>
-                           </div>
-                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -288,20 +328,30 @@ export default function CompetitorShotsEditor({
   );
 }
 
+// Sub-components
+
+function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
+  return (
+    <div className="flex items-center gap-2 text-[#666666] mb-1">
+      {icon}
+      <span className="text-xs font-semibold uppercase tracking-wider">{title}</span>
+    </div>
+  );
+}
+
 interface ShotInputProps {
   label: string;
-  icon?: React.ReactNode;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   type?: 'text' | 'number';
+  mono?: boolean;
 }
 
-function ShotInput({ label, icon, value, onChange, placeholder, type = 'text' }: ShotInputProps) {
+function ShotInput({ label, value, onChange, placeholder, type = 'text', mono }: ShotInputProps) {
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#666666]">
-        {icon}
+      <label className="text-[11px] font-medium text-[#666666]">
         {label}
       </label>
       <input
@@ -309,7 +359,11 @@ function ShotInput({ label, icon, value, onChange, placeholder, type = 'text' }:
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-sm text-black placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all"
+        className={cn(
+          "w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-sm text-black placeholder:text-gray-300",
+          "focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all",
+          mono && "font-mono"
+        )}
       />
     </div>
   );
@@ -317,23 +371,48 @@ function ShotInput({ label, icon, value, onChange, placeholder, type = 'text' }:
 
 interface ShotTextareaProps {
   label: string;
-  icon?: React.ReactNode;
   value: string;
   onChange: (value: string) => void;
+  placeholder?: string;
+  minHeight?: string;
 }
 
-function ShotTextarea({ label, icon, value, onChange }: ShotTextareaProps) {
+function ShotTextarea({ label, value, onChange, placeholder, minHeight = "min-h-[80px]" }: ShotTextareaProps) {
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#666666]">
-        {icon}
+      <label className="text-[11px] font-medium text-[#666666]">
         {label}
       </label>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-sm text-black placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all min-h-[80px] resize-y"
+        placeholder={placeholder}
+        className={cn(
+          "w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-sm text-black placeholder:text-gray-300",
+          "focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all resize-y",
+          minHeight
+        )}
       />
     </div>
+  );
+}
+
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (c: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2.5 cursor-pointer group">
+      <div className={cn(
+        "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+        checked ? "bg-black border-black" : "bg-white border-[#E5E5E5] group-hover:border-gray-400"
+      )}>
+        {checked && <div className="w-2 h-2 bg-white rounded-[1px]" />}
+        <input 
+          type="checkbox" 
+          className="hidden" 
+          checked={checked} 
+          onChange={(e) => onChange(e.target.checked)} 
+        />
+      </div>
+      <span className="text-xs font-medium text-black">{label}</span>
+    </label>
   );
 }
