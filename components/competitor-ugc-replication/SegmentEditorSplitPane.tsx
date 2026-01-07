@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Boxes } from 'lucide-react';
+import { Boxes, GripVertical } from 'lucide-react';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import SegmentListColumn from './SegmentListColumn';
@@ -174,9 +174,14 @@ export default function SegmentEditorSplitPane({
           />
         </Panel>
 
-        {/* Divider 1 */}
-        <Separator className="group relative w-[1px] bg-[#E5E5E5] transition-colors hover:bg-black">
-          <div className="absolute left-1/2 top-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-400 opacity-0 transition-opacity group-hover:opacity-100" />
+        {/* Divider 1 - Improved Hit Area */}
+        <Separator className="group relative z-10 w-2 cursor-col-resize bg-transparent outline-none flex justify-center items-center hover:bg-gray-50 transition-colors">
+          <div className="h-full w-[1px] bg-[#E5E5E5] group-hover:bg-black group-active:bg-black transition-colors" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="h-8 w-4 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 transition-opacity">
+              <GripVertical className="h-4 w-4 text-black" />
+            </div>
+          </div>
         </Separator>
 
         {/* Middle Panel: Preview */}
@@ -196,9 +201,14 @@ export default function SegmentEditorSplitPane({
           )}
         </Panel>
 
-        {/* Divider 2 */}
-        <Separator className="group relative w-[1px] bg-[#E5E5E5] transition-colors hover:bg-black">
-          <div className="absolute left-1/2 top-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-400 opacity-0 transition-opacity group-hover:opacity-100" />
+        {/* Divider 2 - Improved Hit Area */}
+        <Separator className="group relative z-10 w-2 cursor-col-resize bg-transparent outline-none flex justify-center items-center hover:bg-gray-50 transition-colors">
+          <div className="h-full w-[1px] bg-[#E5E5E5] group-hover:bg-black group-active:bg-black transition-colors" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="h-8 w-4 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 transition-opacity">
+              <GripVertical className="h-4 w-4 text-black" />
+            </div>
+          </div>
         </Separator>
 
         {/* Right Panel: Form */}

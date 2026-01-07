@@ -31,7 +31,8 @@ import {
   Clapperboard,
   Layers,
   MousePointerClick,
-  CirclePause
+  CirclePause,
+  ArrowRight
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel, getVideoModelDisplayName } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
@@ -676,10 +677,43 @@ function GenerationCard({
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {editorReadOnly ? 'Review Segments' : 'Edit Segments'}
-              </h2>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0 bg-gray-50">
+              <div className="flex items-center gap-8">
+                <div className="flex items-center gap-2">
+                  <Clapperboard className="w-5 h-5 text-black" />
+                  <h2 className="text-lg font-semibold text-gray-900 whitespace-nowrap">
+                    {editorReadOnly ? 'Review Your Video' : 'Compose Your Video'}
+                  </h2>
+                </div>
+
+                {!editorReadOnly && (
+                  <div className="hidden lg:flex items-center gap-5">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-black text-white text-[10px] font-bold">1</span>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>Refine Frames & Assets</span>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-3 h-3 text-gray-300" />
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-black text-white text-[10px] font-bold">2</span>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+                        <Clapperboard className="w-3.5 h-3.5" />
+                        <span>Generate Segment Clips</span>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-3 h-3 text-gray-300" />
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-black text-white text-[10px] font-bold">3</span>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Merge Final Video</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => setShowSegmentEditor(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"

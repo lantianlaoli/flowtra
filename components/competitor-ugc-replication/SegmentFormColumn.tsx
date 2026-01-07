@@ -582,17 +582,13 @@ export default function SegmentFormColumn({
   return (
     <div className="flex h-full flex-col bg-white">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-white px-4 py-3">
+      <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-gray-50 px-4 py-3">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-black" />
             <h2 className="text-sm font-semibold text-black">
-              {readOnly ? 'View' : 'Edit'} Segment {segmentIndex + 1}
+              Visual Prompt
             </h2>
-            {videoModel && videoDuration && (
-              <p className="mt-0.5 text-xs text-[#666666]">
-                {videoModel.toUpperCase()} • {videoDuration}s
-              </p>
-            )}
           </div>
           {/* Auto-save status indicator */}
           {!readOnly && autoSaveStatus !== 'idle' && (
@@ -623,7 +619,7 @@ export default function SegmentFormColumn({
           {/* Photo Prompt Section */}
           <div className="rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-black" />
+              <ImageIcon className="w-4 h-4 text-black" />
               <p className="text-sm font-semibold text-black">Photo Prompt</p>
             </div>
             <textarea

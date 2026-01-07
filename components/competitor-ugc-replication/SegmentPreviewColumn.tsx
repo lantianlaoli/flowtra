@@ -2,7 +2,7 @@
 
 import NextImage from 'next/image';
 import clsx from 'clsx';
-import { Loader2, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
+import { Loader2, Image as ImageIcon, Video as VideoIcon, Eye } from 'lucide-react';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import { MODEL_PROCESSING_TIMES, type VideoModel } from '@/lib/constants';
 
@@ -53,8 +53,11 @@ export default function SegmentPreviewColumn({
   return (
     <div className="flex h-full flex-col bg-white">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-white px-4 py-3">
-        <h2 className="text-sm font-semibold text-black">Preview</h2>
+      <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-gray-50 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Eye className="h-4 w-4 text-black" />
+          <h2 className="text-sm font-semibold text-black">Preview</h2>
+        </div>
       </div>
 
       {/* Preview Content - Side by Side Layout */}

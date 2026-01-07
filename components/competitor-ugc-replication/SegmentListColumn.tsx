@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Loader2, Film } from 'lucide-react';
+import { Loader2, Film, List } from 'lucide-react';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import SegmentListItem from './SegmentListItem';
 
@@ -33,10 +33,11 @@ export default function SegmentListColumn({
   }, [segments]);
 
   return (
-    <div className="flex h-full flex-col bg-[#F7F7F7]">
+    <div className="flex h-full flex-col bg-white">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-white px-4 py-3">
+      <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-gray-50 px-4 py-3">
         <div className="flex items-center gap-2">
+          <List className="h-4 w-4 text-black" />
           <h2 className="text-sm font-semibold text-black">Segments</h2>
           <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-md bg-gray-100 px-1.5 text-xs font-medium text-[#666666]">
             {segments.length}
