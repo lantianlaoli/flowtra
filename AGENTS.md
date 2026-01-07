@@ -3,6 +3,7 @@
 ## Quick Rules
 - **Package Manager**: ALWAYS use `pnpm` for ALL dependency operations
 - **Lock File**: EVERY pnpm operation must update `pnpm-lock.yaml` - commit it
+- **Database Schema Verification**: ALWAYS use Supabase MCP to verify schema BEFORE any database code
 - **Language**: Application code, docs, comments: English. UI copy: English ONLY.
 - **Design**: Follow minimalist SaaS style from design_guide.md
 - **Secrets**: Never commit .env - copy from .env.example locally
@@ -214,6 +215,39 @@
 
 ## Development Workflow
 
+### Task Completion Notification (AI Agents)
+
+**CRITICAL: Sound notification on task completion**
+
+When you (AI Agent) complete ANY significant task, you MUST execute the sound notification script:
+- ✅ Completing planned implementation tasks
+- ✅ Finishing code generation or refactoring work
+- ✅ Successfully running builds, tests, or deployments
+- ✅ Completing database migrations or API integrations
+- ✅ Finishing multi-step workflow execution
+
+**Command to run**:
+```bash
+./agent-task-complete-sound.sh
+```
+
+**When to trigger**:
+- After marking all todos as completed
+- After successful build/test/deployment operations
+- After finishing any task that took multiple steps
+- When you would normally report "Completed successfully" or "Done"
+
+**Sound**: Ping.aiff (clean, professional - suitable for agent workflows)
+
+**Example workflow**:
+1. User requests: "Implement feature X"
+2. You plan and execute the feature
+3. You verify it works (run build, tests, etc.)
+4. You run `./agent-task-complete-sound.sh` to notify the user
+5. You report completion to the user
+
+This ensures the user is immediately notified when tasks complete, especially useful when they're working on other things.
+
 ### CRITICAL: pnpm Dependency Management
 
 **ALWAYS use pnpm** (never npm or yarn):
@@ -247,6 +281,106 @@ git add package.json pnpm-lock.yaml
 git commit -m "feat: add react-query for data fetching"
 ```
 
+### CRITICAL: Database Schema Verification
+
+**ALWAYS verify database schema via Supabase MCP BEFORE writing any INSERT/UPDATE/SELECT code**.
+
+**Mandatory Workflow**:
+
+1. **Identify Target Table**:
+   ```typescript
+   // Example: Need to update competitor_ugc_replication_segments
+   ```
+
+2. **Verify Schema via MCP**:
+   ```typescript
+   // Use Supabase MCP to get column list
+   await mcp__supabase__execute_sql({
+     query: `
+       SELECT column_name, data_type, is_nullable
+       FROM information_schema.columns
+       WHERE table_name = 'competitor_ugc_replication_segments'
+       ORDER BY ordinal_position;
+     `
+   });
+   ```
+
+3. **Document Verification in Code**:
+   ```typescript
+   // Schema verified via Supabase MCP (2026-01-07):
+   // competitor_ugc_replication_segments has: status, first_frame_url,
+   // first_frame_webhook_received_at (NO last_processed_at)
+
+   await supabase
+     .from('competitor_ugc_replication_segments')
+     .update({
+       status: 'first_frame_ready',
+       first_frame_webhook_received_at: new Date().toISOString()
+       // ✅ Only using verified columns
+     })
+     .eq('id', segment.id);
+   ```
+
+4. **Use Exact Column Names**:
+   - Copy-paste from MCP output
+   - Never assume fields exist based on naming patterns
+   - Check nullable constraints before setting null
+
+**Real-World Example (Wrong)**:
+```typescript
+// ❌ NO schema verification, assumed field exists
+
+await supabase
+  .from('competitor_ugc_replication_segments')
+  .update({
+    status: 'ready',
+    last_processed_at: new Date().toISOString() // ❌ Field doesn't exist!
+  })
+  .eq('id', segment.id);
+
+// Result: 400 error, stuck segments, manual repair required
+```
+
+**Real-World Example (Correct)**:
+```typescript
+// Schema verified via Supabase MCP (2026-01-07):
+// competitor_ugc_replication_segments columns:
+// - id, project_id, segment_index, status, prompt
+// - first_frame_task_id, first_frame_url, first_frame_webhook_received_at
+// - video_task_id, video_url, video_webhook_received_at
+// - error_message, retry_count, contains_brand, contains_product
+// NOTE: No last_processed_at field (only exists in projects table)
+
+await supabase
+  .from('competitor_ugc_replication_segments')
+  .update({
+    status: 'first_frame_ready',
+    first_frame_url: imageUrl,
+    first_frame_webhook_received_at: new Date().toISOString()
+    // ✅ All fields verified via MCP
+  })
+  .eq('id', segment.id);
+```
+
+**Why This Matters**:
+The `last_processed_at` bug (2026-01-07) was caused by assuming this field existed in the segments table when it only existed in the projects table. This caused:
+- 400 database errors
+- Segment continuation chain breakage
+- 3 stuck projects requiring manual repair
+- MCP verification would have caught this immediately
+
+**MCP Tool Reference**:
+- `list_tables(schemas: ["public"])` - Table overview
+- `execute_sql(query: "SELECT...")` - Schema inspection
+- `generate_typescript_types()` - Type generation (run after migrations)
+
+**Type Safety (Recommended)**:
+```bash
+# Generate TypeScript types from database schema
+pnpm db:types
+# Commit lib/database.types.ts to git
+```
+
 ### Pre-Deployment Checklist
 
 Run these commands before EVERY commit/push:
@@ -255,11 +389,13 @@ Run these commands before EVERY commit/push:
 pnpm lint                       # Fix all ESLint errors
 pnpm type-check                 # Fix all TypeScript errors
 pnpm build                      # Ensure production build succeeds
+pnpm test:e2e                   # Run E2E tests (NEW)
 git diff pnpm-lock.yaml         # Verify lock file updated (if deps changed)
 ```
 
 **Additional Checks**:
 - Verify no secrets in .env committed
+- **Database code: MCP verification documented in comments** (NEW)
 - Test locally: `pnpm start` (production server)
 - If dependencies changed: Lock file MUST be updated
 
@@ -283,6 +419,56 @@ git diff pnpm-lock.yaml         # Verify lock file updated (if deps changed)
    ```
 
 5. Visit http://localhost:3000 and sign in via Clerk
+
+### Testing
+
+**E2E Tests (Playwright)**:
+
+```bash
+pnpm test:e2e         # Run all E2E tests
+pnpm test:e2e:ui      # Interactive UI mode
+pnpm test:e2e:headed  # Watch tests in browser
+pnpm test:e2e:debug   # Step-by-step debugging
+```
+
+**Test Structure**:
+```
+tests/e2e/
+├── competitor-ugc-replication/
+│   ├── happy-path.spec.ts          # 16s 2-segment flow
+│   ├── single-segment.spec.ts      # 8s no-merge
+│   ├── continuation-frames.spec.ts # Auto-trigger test
+│   └── error-handling.spec.ts      # Retry scenarios
+└── avatar-ads/
+    └── basic-flow.spec.ts
+```
+
+**Test Helpers**:
+- `tests/helpers/auth.ts` - Clerk authentication
+- `tests/helpers/webhooks.ts` - Simulate KIE/fal.ai callbacks
+- `tests/helpers/waiters.ts` - Smart polling (exponential backoff)
+- `tests/helpers/database.ts` - Test data setup/cleanup
+
+**Writing Tests**:
+1. Use helpers for auth, webhooks, waiting
+2. Always cleanup test data in afterEach
+3. Use smart waiters (exponential backoff) not hardcoded sleeps
+4. Simulate webhooks for deterministic testing
+
+**Example**:
+```typescript
+import { test, expect } from '@playwright/test';
+import { signIn } from '../helpers/auth';
+import { triggerFrameWebhook } from '../helpers/webhooks';
+import { waitForProjectStatus } from '../helpers/waiters';
+
+test('clone: 16s video generation', async ({ page }) => {
+  await signIn(page);
+  // ... test flow
+  await waitForProjectStatus(projectId, 'segment_frames_ready');
+  expect(await page.locator('.progress').textContent()).toBe('70%');
+});
+```
 
 ## Environment Variables
 

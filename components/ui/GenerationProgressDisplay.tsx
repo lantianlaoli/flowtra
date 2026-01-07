@@ -103,11 +103,11 @@ const DEFAULT_STEPS: EmptyStateStep[] = [
   },
   {
     number: 4,
-    description: 'Review AI-generated frames and refine prompts to match your vision'
+    description: 'When progress reaches 35%, click "Edit" to manually refine photos and prompts for each segment'
   },
   {
     number: 5,
-    description: 'Merge final results'
+    description: 'Once satisfied, trigger video generation for each segment and merge the final result'
   },
 ];
 
@@ -468,7 +468,7 @@ function GenerationCard({
                   className="inline-flex items-center gap-2 px-4 py-2 border border-transparent rounded-xl text-[13px] font-medium transition-all bg-black text-white hover:bg-gray-800 shadow-sm"
                 >
                   <MousePointerClick className="w-3.5 h-3.5" />
-                  <span>Edit & Review Frames</span>
+                  <span>Edit & Generate (35%)</span>
                 </button>
               </div>
             )}
@@ -647,7 +647,7 @@ function GenerationCard({
             {hasSegments && segmentCount !== 1 && !mergeComplete && (framesReady > 0 || videosReady > 0) && (
               <div className="mt-3">
                 {mergeInProgress ? (
-                  <div className="flex items-center justify-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 font-semibold text-[13px]">
+                  <div className="flex items-center justify-center gap-3 p-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 font-semibold text-[13px]">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Merging your masterpiece...
                   </div>
@@ -859,7 +859,7 @@ function getSegmentStatusBadge(status: string) {
   const normalized = status?.toLowerCase() || '';
   switch (normalized) {
     case 'first_frame_ready':
-      return { label: 'Photo Ready', className: 'bg-gray-100 text-gray-900 border border-gray-200' };
+      return { label: 'Ready for Video', className: 'bg-gray-100 text-gray-900 border border-gray-200' };
     case 'generating_first_frame':
       return { label: 'Generating...', className: 'bg-gray-50 text-gray-600 border border-gray-100' };
     case 'retrying_first_frame':

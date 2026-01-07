@@ -57,7 +57,9 @@ This document provides essential context for AI agents working on the Flowtra co
 1. Upload competitor video
 2. AI analyzes: Shot breakdown (10 elements/shot), timing, style, camera work
 3. AI generates prompts that clone structure but feature your product
-4. Generate video in 8-second segments with continuation frames
+4. **Manual Intervention (35% Progress)**: User clicks "Edit" to refine photos and prompts for each segment until satisfied.
+5. **Video Generation**: User triggers video generation for segments individually after review.
+6. **Final Merge**: Combine all approved segments into the final video.
 
 **Implementation**:
 - Workflow: `lib/competitor-ugc-replication-workflow.ts`
@@ -65,12 +67,13 @@ This document provides essential context for AI agents working on the Flowtra co
 - API: `app/api/competitor-ugc-replication/` (create, status, merge, webhooks)
 - Database: `competitor_ugc_replication_projects`, `competitor_ugc_replication_segments`
 - Models: veo3 or veo3_fast (user choice)
-- Architecture: 3-phase (Frame → Video → Merge), event-driven
+- Architecture: 4-phase (Frame → Review → Video → Merge), event-driven
 
-**3-Phase Workflow**:
-1. Frame Generation (Sequential with continuation)
-2. Video Generation (Parallel)
-3. Video Merge (Conditional - only for multi-segment)
+**4-Phase Workflow**:
+1. Frame Generation (Starts at 35% progress)
+2. Manual Review & Confirmation (User refines and triggers video generation)
+3. Video Generation (Parallel segments)
+4. Video Merge (Conditional - only for multi-segment)
 
 ## Credit System (Version 2.0)
 
@@ -192,7 +195,37 @@ pnpm remove <package>           # Remove package (updates lock file)
 
 **Why**: Lock file ensures deterministic builds. Mismatched dependencies cause Vercel build failures.
 
-### 3. Pre-Deployment Checks
+### 3. Database Schema Verification: Supabase MCP MANDATORY
+
+**ALWAYS use Supabase MCP to verify schema BEFORE any database code**.
+
+**Workflow**:
+1. Identify table → 2. Run MCP query → 3. Document in code → 4. Use exact columns
+
+**Example**:
+```typescript
+// Schema verified via MCP (2026-01-07):
+// competitor_ugc_replication_segments columns: id, status, first_frame_url...
+// NO last_processed_at (only in projects table)
+
+await supabase
+  .from('competitor_ugc_replication_segments')
+  .update({
+    status: 'ready',
+    // ✅ Only verified columns
+  })
+  .eq('id', id);
+```
+
+**MCP Query**:
+```sql
+SELECT column_name, data_type FROM information_schema.columns
+WHERE table_name = 'your_table' ORDER BY ordinal_position;
+```
+
+**Why**: Prevents bugs like the recent `last_processed_at` 400 error (field didn't exist in segments table).
+
+### 4. Pre-Deployment Checks
 
 Run before every commit:
 
@@ -200,7 +233,13 @@ Run before every commit:
 pnpm lint                       # Fix ESLint errors
 pnpm type-check                 # Fix TypeScript errors
 pnpm build                      # Ensure production build succeeds
+pnpm test:e2e                   # Run E2E tests (NEW)
 ```
+
+**Additional Checks**:
+- No .env committed
+- **Database code: MCP verification documented** (NEW)
+- Lock file updated (if deps changed)
 
 ## Development Commands
 
@@ -210,8 +249,68 @@ pnpm build            # Production build
 pnpm start            # Start production server
 pnpm lint             # Run ESLint
 pnpm type-check       # TypeScript validation
-npx playwright test   # E2E tests
+pnpm test:e2e         # Run E2E tests
+pnpm test:e2e:ui      # Interactive UI mode
+pnpm test:e2e:headed  # Watch tests in browser
 ```
+
+## Testing
+
+### E2E Tests
+
+**Commands**:
+```bash
+pnpm test:e2e         # Run all E2E tests
+pnpm test:e2e:ui      # Interactive UI mode
+pnpm test:e2e:headed  # Watch tests in browser
+```
+
+**Coverage**:
+- Competitor UGC Replication: Happy path, single segment, continuation frames, errors
+- Avatar Ads: Basic flow
+
+**Test Helpers**:
+- Auth: `tests/helpers/auth.ts`
+- Webhooks: `tests/helpers/webhooks.ts`
+- Waiters: `tests/helpers/waiters.ts`
+
+**Example**:
+```typescript
+import { test } from '@playwright/test';
+import { signIn, triggerFrameWebhook, waitForProjectStatus } from '../helpers';
+
+test('clone: 16s video', async ({ page }) => {
+  await signIn(page);
+  // Create project, wait for webhooks, verify completion
+  await waitForProjectStatus(projectId, 'completed');
+});
+```
+
+## Task Completion Notification (Gemini)
+
+**CRITICAL: Sound notification on task completion**
+
+When you (Gemini) complete ANY significant task, you MUST execute the sound notification script:
+- ✅ Completing code generation or refactoring
+- ✅ Successfully running builds, tests, or deployments
+- ✅ Finishing database operations or API integrations
+- ✅ Completing multi-step workflows
+- ✅ Resolving bugs or implementation issues
+
+**Command to run**:
+```bash
+./gemini-task-complete-sound.sh
+```
+
+**When to trigger**:
+- After successful completion of user-requested tasks
+- After build/test/deployment operations succeed
+- After finishing implementation work
+- When you would normally report "Task completed" or "Done"
+
+**Sound**: Hero.aiff (powerful, impactful - fitting for Gemini's capabilities)
+
+This ensures the user is immediately notified when work completes, especially useful when multitasking.
 
 ## Environment Variables
 
@@ -303,6 +402,8 @@ return new Response(JSON.stringify({ project_id: project.id }), { status: 200 })
 8. **DO NOT** use `setInterval` for status updates (use Supabase Realtime)
 9. **DO NOT** skip type-check before building
 10. **DO NOT** expose API keys in client code
+11. **DO NOT** write database code without MCP schema verification
+12. **DO NOT** assume database fields exist based on naming patterns
 
 ## Testing Guidelines
 

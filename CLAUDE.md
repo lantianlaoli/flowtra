@@ -335,6 +335,37 @@ Unified generation-time billing - ALL models charge credits at generation start,
 
 ## Development Workflow
 
+### Task Completion Notification
+
+**CRITICAL: Sound notification on task completion**
+
+When you (Claude Code) complete ANY of the following tasks, you MUST execute the sound notification script:
+- ✅ Completing a planned task (after using EnterPlanMode and implementing the plan)
+- ✅ Finishing code generation or refactoring work
+- ✅ Successfully running builds, tests, or deployments
+- ✅ Completing database migrations or API integrations
+- ✅ Finishing any multi-step workflow execution
+
+**Command to run**:
+```bash
+./task-complete-sound.sh
+```
+
+**When to trigger**:
+- After marking all todos as completed
+- After successful build/test/deployment operations
+- After finishing any task that took multiple steps
+- When you would normally say "Done!" or "Completed successfully"
+
+**Example workflow**:
+1. User requests: "Add a new feature X"
+2. You plan and execute the feature
+3. You verify it works (run build, tests, etc.)
+4. You run `./task-complete-sound.sh` to notify the user
+5. You report completion to the user
+
+This ensures the user is immediately notified when tasks complete, especially useful when they're working on other things.
+
 ### CRITICAL: Dependency Management
 
 **ALWAYS use pnpm for ALL dependency operations** (never npm or yarn):
@@ -355,6 +386,52 @@ pnpm install --frozen-lockfile  # CI/production installs (no updates)
 
 **Why**: Lock file ensures deterministic builds. Mismatched dependencies cause Vercel build failures and hard-to-debug issues.
 
+### Testing
+
+#### E2E Tests (Playwright)
+
+Run E2E tests for critical user flows:
+
+```bash
+pnpm test:e2e              # Run all E2E tests
+pnpm test:e2e:ui           # Interactive UI mode
+pnpm test:e2e:headed       # Watch tests run in browser
+pnpm test:e2e:debug        # Step-by-step debugging
+```
+
+**Test Coverage**:
+- Competitor UGC Replication: Happy path (16s), single segment (8s), continuation frames, error handling
+- Avatar Ads: Basic flow (8-80s)
+
+**Writing New Tests**:
+1. Use helpers from `tests/helpers/` (auth, webhooks, waiters)
+2. Always cleanup test data in afterEach hooks
+3. Use smart waiting (exponential backoff) not hardcoded sleeps
+4. Simulate webhooks for deterministic testing
+
+**Example**:
+```typescript
+import { test, expect } from '@playwright/test';
+import { signIn, createTestBrand } from '../helpers/auth';
+import { triggerFrameWebhook, triggerVideoWebhook } from '../helpers/webhooks';
+import { waitForProjectStatus } from '../helpers/waiters';
+
+test('clone feature: 16-second video generation', async ({ page }) => {
+  await signIn(page);
+  const brand = await createTestBrand();
+
+  // Create project
+  await page.goto('/dashboard/competitor-ugc-replication');
+  await page.click('button:has-text("Generate Video")');
+
+  // Wait for frame generation (webhook-driven)
+  await waitForProjectStatus(projectId, 'segment_frames_ready');
+
+  // Cleanup
+  await deleteTestData(brand.id);
+});
+```
+
 ### Pre-Deployment Checklist
 
 Run these commands before EVERY commit/push:
@@ -364,11 +441,13 @@ pnpm install --frozen-lockfile  # Verify lock file integrity
 pnpm lint                       # Fix all ESLint errors
 pnpm type-check                 # Fix all TypeScript errors
 pnpm build                      # Ensure production build succeeds
+pnpm test:e2e                   # Run E2E tests
 ```
 
 **Additional Checks**:
 - Verify no secrets in .env committed
 - If dependencies changed: `git diff pnpm-lock.yaml` (must show updates)
+- **If database code changed: Document schema verification in comments**
 - Test locally: `pnpm start` (production server)
 
 ### Local Development Setup
@@ -451,6 +530,62 @@ Required environment variables (see `.env.example` for complete list):
 - Ensures coherent narrative flow across segments
 - Frame webhook auto-triggers next segment generation (event-driven)
 - Smart routing: Brand/product shots use reference images
+
+### Database Schema Verification (CRITICAL)
+
+**Rule**: ALWAYS verify database schema via Supabase MCP BEFORE writing any INSERT/UPDATE/SELECT code.
+
+**Mandatory Workflow**:
+
+1. **Identify Target Table**:
+   ```typescript
+   // Example: Need to update competitor_ugc_replication_segments
+   ```
+
+2. **Verify Schema via MCP**:
+   ```typescript
+   // Use Supabase MCP to get column list
+   await mcp__supabase__execute_sql({
+     query: `
+       SELECT column_name, data_type, is_nullable
+       FROM information_schema.columns
+       WHERE table_name = 'competitor_ugc_replication_segments'
+       ORDER BY ordinal_position;
+     `
+   });
+   ```
+
+3. **Document Verification in Code**:
+   ```typescript
+   // Schema verified via Supabase MCP (2026-01-07):
+   // Available columns: id, project_id, segment_index, status, ...
+   // NOTE: No last_processed_at field (only in projects table)
+
+   await supabase
+     .from('competitor_ugc_replication_segments')
+     .update({ status: 'ready' }) // ✅ Verified column exists
+     .eq('id', segmentId);
+   ```
+
+4. **Use Exact Column Names**:
+   - Copy-paste from MCP output
+   - Never assume fields exist based on naming patterns
+   - Check nullable constraints before setting null
+
+**Why This Matters**:
+The recent `last_processed_at` bug was caused by assuming this field existed in the segments table when it only existed in the projects table. This verification step would have caught it immediately.
+
+**MCP Tool Reference**:
+- `list_tables(schemas: ["public"])` - Quick table overview
+- `execute_sql(query: "SELECT...")` - Detailed schema inspection
+- `generate_typescript_types()` - Auto-generate types (run after migrations)
+
+**Type Safety (Recommended)**:
+```bash
+# Generate TypeScript types from database schema
+pnpm db:types
+# Commit lib/database.types.ts to git
+```
 
 ## Common Development Tasks
 

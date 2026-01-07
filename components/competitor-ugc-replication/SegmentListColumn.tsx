@@ -60,7 +60,12 @@ export default function SegmentListColumn({
 
       {/* Merge Button - Always shown for multi-segment projects (hidden in read-only mode) */}
       {segments.length > 1 && onMerge && !readOnly && (
-        <div className="flex-shrink-0 border-t border-[#E5E5E5] bg-white p-3">
+        <div className="flex-shrink-0 border-t border-[#E5E5E5] bg-white p-3 space-y-3">
+          {!allVideosReady && !isMerging && (
+            <p className="text-[11px] text-[#666666] text-center px-2">
+              Generate each segment&apos;s video individually before merging the final result.
+            </p>
+          )}
           <button
             onClick={onMerge}
             disabled={!allVideosReady || isMerging}
