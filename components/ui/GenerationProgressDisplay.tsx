@@ -103,7 +103,7 @@ const DEFAULT_STEPS: EmptyStateStep[] = [
   },
   {
     number: 4,
-    description: 'When progress reaches 35%, click "Edit" to manually refine photos and prompts for each segment'
+    description: 'When ready, click "Edit" to manually refine photos and prompts for each segment'
   },
   {
     number: 5,
@@ -468,7 +468,7 @@ function GenerationCard({
                   className="inline-flex items-center gap-2 px-4 py-2 border border-transparent rounded-xl text-[13px] font-medium transition-all bg-black text-white hover:bg-gray-800 shadow-sm"
                 >
                   <MousePointerClick className="w-3.5 h-3.5" />
-                  <span>Edit & Generate (35%)</span>
+                  <span>Edit & Generate</span>
                 </button>
               </div>
             )}

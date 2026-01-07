@@ -39,7 +39,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
   const { user } = useUser();
   const [credits, setCredits] = useState<number | undefined>(undefined);
   const [creditsData, setCreditsData] = useState<CreditsData | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start with true to prevent 0 flash
   const isMountedRef = useRef(true);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
@@ -52,7 +52,10 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
   const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
   const fetchCredits = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
     try {

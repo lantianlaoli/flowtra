@@ -168,7 +168,7 @@ export function BookDemoDialog({ isOpen, onClose }: BookDemoDialogProps) {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Book a Demo</h3>
-                  <p className="text-sm text-gray-600">Tell us what you'd like to try</p>
+                  <p className="text-sm text-gray-600">Tell us what you&apos;d like to try</p>
                 </div>
               </div>
               <button
@@ -312,7 +312,7 @@ export function BookDemoDialog({ isOpen, onClose }: BookDemoDialogProps) {
                     <p className="text-sm font-medium text-green-900">
                       Demo request sent successfully!
                     </p>
-                    <p className="text-xs text-green-700">We'll get back to you soon.</p>
+                    <p className="text-xs text-green-700">We&apos;ll get back to you soon.</p>
                   </div>
                 </div>
 

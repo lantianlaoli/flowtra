@@ -1315,7 +1315,7 @@ export default function SegmentFormColumn({
                 onClick={() => handleRegenerate('video')}
               >
                 {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {videoUrl ? 'Regenerate Video' : 'Generate Video'}
+                {videoUrl ? 'Regenerate Video' : 'Confirm & Generate Video'}
               </button>
               {!regenEnabled && (
                 <p className="text-xs text-[#666666] text-center">

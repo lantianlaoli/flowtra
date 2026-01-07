@@ -23,10 +23,17 @@ export function useBrandsCache() {
   const { isLoaded, isSignedIn, userId } = useAuth();
 
   const [state, setState] = useState<BrandsCacheState>(() => {
-    if (!isLoaded || !isSignedIn || !userId) {
+    // If auth not loaded yet, show loading state
+    if (!isLoaded) {
+      return { brands: [], isLoading: true, error: null };
+    }
+
+    // If not signed in, show empty state
+    if (!isSignedIn || !userId) {
       return { brands: [], isLoading: false, error: null };
     }
 
+    // If we have cached data for this user, use it
     if (globalBrandsCache.userId === userId && globalBrandsCache.data !== null) {
       return {
         brands: globalBrandsCache.data,
@@ -34,10 +41,21 @@ export function useBrandsCache() {
         error: null
       };
     }
+
+    // If fetch is already in progress for this user, show loading
+    if (globalBrandsCache.userId === userId && (globalBrandsCache.fetching || globalBrandsCache.promise !== null)) {
+      return {
+        brands: [],
+        isLoading: true,
+        error: globalBrandsCache.error
+      };
+    }
+
+    // Otherwise, we need to fetch - show loading state
     return {
       brands: [],
-      isLoading: globalBrandsCache.userId === userId && (globalBrandsCache.fetching || globalBrandsCache.promise !== null),
-      error: globalBrandsCache.userId === userId ? globalBrandsCache.error : null
+      isLoading: true,
+      error: null
     };
   });
 

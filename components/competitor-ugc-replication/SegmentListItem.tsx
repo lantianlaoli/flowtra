@@ -21,7 +21,7 @@ export default function SegmentListItem({
       case 'generating_first_frame':
         return 'Generating';
       case 'first_frame_ready':
-        return 'Frame Ready';
+        return 'Ready for Video';
       case 'generating_video':
         return 'Generating';
       case 'video_ready':

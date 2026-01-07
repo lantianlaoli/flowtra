@@ -56,7 +56,7 @@ export default function SegmentBreakdownEditor({
       case 'generating_first_frame':
         return 'Generating frame';
       case 'first_frame_ready':
-        return 'Frame ready';
+        return 'Ready for Video';
       case 'generating_video':
         return 'Generating video';
       case 'video_ready':
@@ -183,9 +183,9 @@ export default function SegmentBreakdownEditor({
           {/* Footer */}
           <div className="border-t border-[#E5E5E5] bg-[#F7F7F7] px-8 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-[#666666]">
+              <div className="flex items-center gap-2 text-xs text-blue-600 font-medium">
                 <Edit3 className="h-3.5 w-3.5" />
-                <span>Click any segment to view details and edit</span>
+                <span>Review segment frames and click to generate videos.</span>
               </div>
               <Dialog.Close asChild>
                 <button

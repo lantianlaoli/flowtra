@@ -151,13 +151,15 @@ supabase
 - Segment 0: Starts frame generation immediately
 - Segments 1-7: Set to `status='awaiting_prev_first_frame'` (continuation dependency)
 
-### Step 2: Frame Generation (Sequential)
-- **Segment 0**: Generates immediately (no continuation dependency)
-- **Webhook arrives** → Updates segment 0 to `first_frame_ready`
-- **Webhook triggers Segment 1**: Uses Segment 0's `first_frame_url` as continuation reference
-- **Cascade continues**: Each frame webhook triggers the next segment
-- **All frames ready**: Project status becomes `segment_frames_ready`
-- **Next**: Waits for manual user approval
+### Step 2: User Review & Refinement (35% Progress)
+
+Once all first frames (or at least one frame in sequential mode) are ready, the project progress hits **35%**. The system pauses for manual intervention.
+
+- **Frontend Action**: Progress bar shows "Progress 35%: Open 'Edit' to manually refine...". Main button changes to "**Edit & Generate (35%)**".
+- **User Action**: Opens the Segment Editor to review AI-generated frames and prompts.
+- **Refinement**: User can regenerate frames or edit shot details until satisfied.
+- **Confirmation**: User clicks "**Confirm & Generate Video**" for each segment.
+- **State Transition**: Segment status moves from `first_frame_ready` (labeled as "**Ready for Video**") to `generating_video`.
 
 ### Step 3: User Approval (Manual)
 - User reviews all first frames in UI

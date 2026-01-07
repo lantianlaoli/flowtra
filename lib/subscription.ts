@@ -2,6 +2,7 @@
 
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { PACKAGES } from '@/lib/constants'
+import { recordCreditTransaction } from '@/lib/credits'
 
 interface Subscription {
   id: string
@@ -24,7 +25,8 @@ interface Subscription {
 // Grant subscription access by allocating monthly credits
 export async function grantSubscriptionAccess(
   userId: string,
-  monthlyCredits: number
+  monthlyCredits: number,
+  tier?: 'lite' | 'basic' | 'pro'
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabaseAdmin()
 
@@ -41,7 +43,24 @@ export async function grantSubscriptionAccess(
     return { success: false, error: 'Database error' }
   }
 
+  // Record transaction for audit trail
+  const tierLabel = tier ? ` - ${tier.charAt(0).toUpperCase() + tier.slice(1)} plan` : ''
+  const transactionResult = await recordCreditTransaction(
+    userId,
+    'purchase',
+    monthlyCredits,
+    `Subscription credits granted${tierLabel}`,
+    undefined,
+    true // Use admin client
+  )
+
+  if (!transactionResult.success) {
+    // Log warning but don't fail the grant (non-blocking)
+    console.warn(`⚠️ Failed to record transaction for subscription grant: ${transactionResult.error}`)
+  }
+
   console.log(`✅ Granted ${monthlyCredits} subscription credits to user ${userId}`)
+  console.log(`📝 Transaction recorded: ${transactionResult.success ? 'Yes' : 'Failed (non-blocking)'}`)
   return { success: true }
 }
 
@@ -76,7 +95,7 @@ export async function resetMonthlyCredits(
   // Get subscription details
   const { data: subscription, error: fetchError } = await supabase
     .from('user_subscriptions')
-    .select('monthly_credits')
+    .select('monthly_credits, tier')
     .eq('creem_subscription_id', creemSubscriptionId)
     .single()
 
@@ -96,6 +115,23 @@ export async function resetMonthlyCredits(
     return { success: false, error: 'Failed to reset credits' }
   }
 
+  // Record transaction for monthly renewal
+  const tierLabel = subscription.tier
+    ? ` - ${subscription.tier.charAt(0).toUpperCase() + subscription.tier.slice(1)} plan`
+    : ''
+  const transactionResult = await recordCreditTransaction(
+    userId,
+    'purchase',
+    subscription.monthly_credits,
+    `Monthly subscription credits${tierLabel}`,
+    undefined,
+    true // Use admin client
+  )
+
+  if (!transactionResult.success) {
+    console.warn(`⚠️ Failed to record transaction for monthly reset: ${transactionResult.error}`)
+  }
+
   // Reset usage tracking
   const { error: resetError } = await supabase
     .from('user_subscriptions')
@@ -107,6 +143,7 @@ export async function resetMonthlyCredits(
   }
 
   console.log(`🔄 Reset monthly credits for user ${userId}: ${subscription.monthly_credits}`)
+  console.log(`📝 Transaction recorded: ${transactionResult.success ? 'Yes' : 'Failed (non-blocking)'}`)
   return { success: true }
 }
 

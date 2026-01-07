@@ -1190,7 +1190,7 @@ export default function SegmentInspector({
             </div>
 
             <div className="rounded-3xl border border-gray-200 p-4 space-y-3">
-                <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2">
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-gray-900 text-white py-2.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1207,7 +1207,7 @@ export default function SegmentInspector({
                   onClick={() => handleRegenerate('video')}
                 >
                   {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {videoUrl ? 'Regenerate Video' : 'Generate Video'}
+                  {videoUrl ? 'Regenerate Video' : 'Confirm & Generate Video'}
                 </button>
                 {!regenEnabled && (
                   <p className="text-xs text-gray-500 text-center">

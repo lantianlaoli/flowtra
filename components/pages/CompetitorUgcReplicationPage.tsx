@@ -54,8 +54,8 @@ const REPLICA_OUTPUT_FORMATS: ReplicaOutputFormat[] = ['png', 'jpg'];
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
   generating_cover: 'Crafting your viral hook – the moment they stop scrolling…',
-  generating_segment_frames: 'Designing each frame with the competitor\'s magic formula…',
-  reviewing_segment_frames: 'Review the generated frame, then start the video.',
+  generating_segment_frames: 'Open "Edit" to manually refine photos and prompts for each segment until satisfied.',
+  reviewing_segment_frames: 'Frames ready! Click "Edit" to refine prompts, then trigger video generation for each segment.',
   generating_segment_videos: 'Transforming scenes into engagement powerhouses…',
   merging_segments: 'Stitching viral moments into one compelling story…',
   awaiting_merge: 'All scenes are ready – assembling your video clone…',
@@ -128,13 +128,13 @@ interface CompetitorUgcReplicationStatusPayload {
 const STEP_PROGRESS_HINTS: Record<string, number> = {
   generating_cover: 20,
   ready_for_video: 60,
-  generating_segment_frames: 25,
+  generating_segment_frames: 35,
   generating_segment_videos: 70,
   merging_segments: 80,
   awaiting_merge: 95,
-  reviewing_segment_frames: 70,
+  reviewing_segment_frames: 60,
   generating_video: 85,
-  processing: 25,
+  processing: 35,
   completed: 100,
   failed: 0
 };
@@ -556,7 +556,7 @@ export default function CompetitorUgcReplicationPage() {
       if (resolvedStatus === 'awaiting_review') {
         stageLabel = payloadData?.videoGenerationRequested
           ? 'Video queued…'
-          : 'Awaiting approval…';
+          : 'Awaiting Manual Review';
       }
       const resolvedStage = hasVideoReady ? 'Completed' : stageLabel;
 
@@ -575,10 +575,15 @@ export default function CompetitorUgcReplicationPage() {
           resolvedProgress = Math.max(resolvedProgress, videoProgress);
         } else if (framesReady > 0 && totalSegments > 0) {
           const ratio = Math.min(framesReady / totalSegments, 1);
-          const frameProgress = 25 + Math.round(ratio * 45);
+          const frameProgress = 35 + Math.round(ratio * 25);
           resolvedProgress = Math.max(resolvedProgress, frameProgress);
+
+          // Add granular stage description during frame generation
+          if (effectiveStep === 'generating_segment_frames' && framesReady < totalSegments) {
+            stageLabel = `Designing frame ${framesReady + 1} of ${totalSegments}...`;
+          }
         } else if (totalSegments > 0) {
-          resolvedProgress = Math.max(resolvedProgress, STEP_PROGRESS_HINTS.generating_segment_frames);
+          resolvedProgress = Math.max(resolvedProgress, 35);
         }
       }
 
@@ -1577,11 +1582,10 @@ export default function CompetitorUgcReplicationPage() {
           </section>
         </div>
       </div>
-    </div>
-
-    {/* Bottom Composer - Unified */}
-    <BottomComposerBar
-      compact={true}
+          </div>
+    
+          {/* Bottom Composer - Unified */}
+          <BottomComposerBar      compact={true}
       leftControls={
         <>
           <BrandDropdownSelector

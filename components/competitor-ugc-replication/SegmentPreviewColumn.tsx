@@ -109,8 +109,8 @@ export default function SegmentPreviewColumn({
                   className="h-full w-full rounded-lg bg-black object-contain"
                 />
               ) : (
-                <div className="text-center text-sm text-[#666666]">
-                  Video not generated yet.
+                <div className="text-center p-4">
+                  <div className="text-sm text-[#666666] mb-2">Video not generated yet.</div>
                 </div>
               )}
             </div>

@@ -499,7 +499,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                     {/* RIGHT: Editors (Scrollable) */}
                     <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
                       <div className="max-w-3xl mx-auto p-6 space-y-8">
-                        
+
                         {/* Image Prompt Edit Section */}
                         <div className="space-y-3">
                           <div className="flex items-start justify-between">

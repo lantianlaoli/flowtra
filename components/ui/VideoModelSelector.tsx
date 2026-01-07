@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Lock, Coins, Video, Zap } from 'lucide-react';
+import { ChevronDown, Check, Lock, Coins, Video, Zap, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
@@ -249,6 +249,19 @@ export default function VideoModelSelector({
           </motion.div>
         )}
         </AnimatePresence>
+      </div>
+      
+      {/* Kids Category Warning */}
+      <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2.5">
+        <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold text-blue-900 leading-tight">
+            Kids/Children Category Guidance
+          </p>
+          <p className="text-[10px] text-blue-700 leading-relaxed">
+            Due to Google safety restrictions, please select the <strong>Seedance</strong> model for children&apos;s products. Avoid using <strong>Veo</strong> series models for this category.
+          </p>
+        </div>
       </div>
     </div>
     </>

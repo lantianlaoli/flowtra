@@ -76,8 +76,9 @@ export async function POST(request: NextRequest) {
           const subscription = await getUserSubscription(userId)
           if (subscription.subscription) {
             const monthlyCredits = subscription.subscription.monthly_credits
+            const tier = subscription.subscription.tier
             console.log(`   Granting ${monthlyCredits} credits (status: ${subscriptionStatus})`)
-            await grantSubscriptionAccess(userId, monthlyCredits)
+            await grantSubscriptionAccess(userId, monthlyCredits, tier)
           }
         } else {
           console.log(`   Subscription already exists, skipping creation`)
@@ -211,7 +212,11 @@ export async function POST(request: NextRequest) {
           // Grant initial monthly credits
           const subscription = await getUserSubscription(userId)
           if (subscription.subscription) {
-            await grantSubscriptionAccess(userId, subscription.subscription.monthly_credits)
+            await grantSubscriptionAccess(
+              userId,
+              subscription.subscription.monthly_credits,
+              subscription.subscription.tier
+            )
           }
         }
 
@@ -352,8 +357,9 @@ export async function POST(request: NextRequest) {
             const newSubscription = await getUserSubscription(userId)
             if (newSubscription.subscription) {
               const monthlyCredits = newSubscription.subscription.monthly_credits
+              const tier = newSubscription.subscription.tier
               console.log(`   Granting ${monthlyCredits} credits (status: ${status})`)
-              await grantSubscriptionAccess(userId, monthlyCredits)
+              await grantSubscriptionAccess(userId, monthlyCredits, tier)
             }
           }
         }
@@ -392,8 +398,9 @@ export async function POST(request: NextRequest) {
           const subscription = await getUserSubscription(userId)
           if (subscription.subscription) {
             const monthlyCredits = subscription.subscription.monthly_credits
+            const tier = subscription.subscription.tier
             console.log(`   Granting ${monthlyCredits} trial credits`)
-            await grantSubscriptionAccess(userId, monthlyCredits)
+            await grantSubscriptionAccess(userId, monthlyCredits, tier)
           }
         }
 
