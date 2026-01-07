@@ -147,18 +147,12 @@ export async function POST(request: NextRequest) {
               .update({
                 status: 'segment_frames_ready',
                 current_step: 'reviewing_segment_frames',
-                progress_percentage: 70,
-                last_processed_at: new Date().toISOString()
+                progress_percentage: 70
               })
               .eq('id', segment.project_id);
           } else {
-            // Not all ready yet - just update last_processed_at
-            await supabase
-              .from('competitor_ugc_replication_projects')
-              .update({
-                last_processed_at: new Date().toISOString()
-              })
-              .eq('id', segment.project_id);
+            // Not all ready yet - continue waiting
+            console.log(`[UGC Frame Webhook] Waiting for remaining frames: ${allSegments.filter(s => !s.first_frame_url).length} pending`);
           }
 
           // ✅ Pure Event-Driven: Trigger next segment directly (no polling needed)
@@ -203,8 +197,7 @@ export async function POST(request: NextRequest) {
                 await supabase
                   .from('competitor_ugc_replication_segments')
                   .update({
-                    status: 'generating_first_frame',
-                    last_processed_at: new Date().toISOString()
+                    status: 'generating_first_frame'
                   })
                   .eq('id', nextSegment.id);
 
@@ -226,8 +219,7 @@ export async function POST(request: NextRequest) {
                 await supabase
                   .from('competitor_ugc_replication_segments')
                   .update({
-                    first_frame_task_id: taskId,
-                    last_processed_at: new Date().toISOString()
+                    first_frame_task_id: taskId
                   })
                   .eq('id', nextSegment.id);
 
@@ -239,8 +231,7 @@ export async function POST(request: NextRequest) {
                   .from('competitor_ugc_replication_segments')
                   .update({
                     status: 'failed',
-                    error_message: error instanceof Error ? error.message : 'Continuation trigger failed',
-                    last_processed_at: new Date().toISOString()
+                    error_message: error instanceof Error ? error.message : 'Continuation trigger failed'
                   })
                   .eq('id', nextSegment.id);
               }
@@ -276,8 +267,7 @@ export async function POST(request: NextRequest) {
           .from('competitor_ugc_replication_projects')
           .update({
             status: 'failed',
-            error_message: failMsg || msg || 'Frame generation failed',
-            last_processed_at: new Date().toISOString()
+            error_message: failMsg || msg || 'Frame generation failed'
           })
           .eq('id', segment.project_id);
       }
@@ -286,8 +276,7 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('competitor_ugc_replication_segments')
         .update({
-          first_frame_webhook_received_at: new Date().toISOString(),
-          last_processed_at: new Date().toISOString()
+          first_frame_webhook_received_at: new Date().toISOString()
         })
         .eq('id', segment.id);
     }
