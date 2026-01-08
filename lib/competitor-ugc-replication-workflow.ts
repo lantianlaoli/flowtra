@@ -1107,7 +1107,16 @@ function buildReplicaPrompt({
   productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string };
   language?: LanguageCode;
 }): string {
-  const brandName = productContext?.brand_name || 'the featured brand';
+  // Validate brand name - fallback to generic if too short or invalid
+  const rawBrandName = productContext?.brand_name || '';
+  const brandName = rawBrandName.trim().length >= 3
+    ? rawBrandName
+    : 'the featured product';
+
+  if (rawBrandName && rawBrandName.trim().length < 3) {
+    console.warn(`⚠️  Invalid brand name "${rawBrandName}" detected, using fallback: "${brandName}"`);
+  }
+
   const productDetails = truncateText(productContext?.product_details, 800);
   const brandSlogan = truncateText(productContext?.brand_slogan, 200);
   const subject = typeof competitorDescription?.subject === 'string' ? competitorDescription.subject : '';

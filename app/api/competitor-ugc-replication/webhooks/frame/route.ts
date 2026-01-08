@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { data: segment, error: fetchError } = await supabase
       .from('competitor_ugc_replication_segments')
-      .select('id, project_id, segment_index, status, first_frame_webhook_received_at')
+      .select('id, project_id, segment_index, status, first_frame_webhook_received_at, retry_count')
       .eq('first_frame_task_id', taskId)
       .single();
 
@@ -241,35 +241,119 @@ export async function POST(request: NextRequest) {
       }
 
     } else if (state === 'fail' || code !== 200) {
-      // Failure case
+      // Failure case - Check if we should retry
+      const MAX_RETRIES = 3;
+      const currentRetryCount = segment.retry_count || 0;
+      const shouldRetry = currentRetryCount < MAX_RETRIES && (
+        failCode === '422' || // Invalid parameters - might be transient
+        code === 500 || code === 503 // Server errors - definitely retry
+      );
+
       console.error('[UGC Frame Webhook] Frame generation failed:', {
         failCode,
         failMsg,
-        msg
+        msg,
+        retryCount: currentRetryCount,
+        willRetry: shouldRetry
       });
 
-      const { error: updateError } = await supabase
-        .from('competitor_ugc_replication_segments')
-        .update({
-          status: 'failed',
-          error_message: failMsg || msg || 'Frame generation failed',
-          first_frame_webhook_received_at: new Date().toISOString()
-        })
-        .eq('id', segment.id);
+      if (shouldRetry) {
+        // Retry: Increment retry_count and trigger regeneration
+        const newRetryCount = currentRetryCount + 1;
+        console.log(`🔄 [UGC Frame Webhook] Retrying segment ${segment.segment_index} (attempt ${newRetryCount}/${MAX_RETRIES})`);
 
-      if (updateError) {
-        console.error('[UGC Frame Webhook] Failed to update segment:', updateError);
-      }
-
-      // Also update project to failed if first segment fails
-      if (segment.segment_index === 0) {
         await supabase
-          .from('competitor_ugc_replication_projects')
+          .from('competitor_ugc_replication_segments')
+          .update({
+            retry_count: newRetryCount,
+            status: 'generating_first_frame',
+            error_message: null,
+            first_frame_webhook_received_at: new Date().toISOString() // Mark webhook received
+          })
+          .eq('id', segment.id);
+
+        // Fetch full project and segment data for retry
+        try {
+          const { data: fullProject } = await supabase
+            .from('competitor_ugc_replication_projects')
+            .select('*')
+            .eq('id', segment.project_id)
+            .single();
+
+          const { data: segmentData } = await supabase
+            .from('competitor_ugc_replication_segments')
+            .select('*')
+            .eq('id', segment.id)
+            .single();
+
+          if (fullProject && segmentData && segmentData.prompt) {
+            const segmentPrompt = segmentData.prompt as SegmentPrompt;
+            const aspectRatio = (fullProject.video_aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16';
+            const brandLogoUrl = fullProject.brand_logo_url as string | null;
+            const productImageUrls = fullProject.product_image_urls as string[] | null;
+            const competitorFileType = fullProject.competitor_file_type as 'video' | null;
+
+            // Retry frame generation
+            const taskId = await createSmartSegmentFrame(
+              segmentPrompt,
+              segment.segment_index,
+              'first',
+              aspectRatio,
+              brandLogoUrl,
+              productImageUrls,
+              undefined,
+              competitorFileType,
+              undefined,
+              undefined
+            );
+
+            await supabase
+              .from('competitor_ugc_replication_segments')
+              .update({ first_frame_task_id: taskId })
+              .eq('id', segment.id);
+
+            console.log(`✅ [UGC Frame Webhook] Retry triggered, new taskId: ${taskId}`);
+          }
+        } catch (retryError) {
+          console.error('[UGC Frame Webhook] Retry failed:', retryError);
+          // Fall through to mark as failed
+          await supabase
+            .from('competitor_ugc_replication_segments')
+            .update({
+              status: 'failed',
+              error_message: `Retry failed: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`
+            })
+            .eq('id', segment.id);
+        }
+      } else {
+        // Max retries reached or non-retryable error - mark as failed
+        const errorMessage = currentRetryCount >= MAX_RETRIES
+          ? `Frame generation failed after ${MAX_RETRIES} retries: ${failMsg || msg}`
+          : `Frame generation failed (non-retryable): ${failMsg || msg}`;
+
+        const { error: updateError } = await supabase
+          .from('competitor_ugc_replication_segments')
           .update({
             status: 'failed',
-            error_message: failMsg || msg || 'Frame generation failed'
+            error_message: errorMessage,
+            first_frame_webhook_received_at: new Date().toISOString()
           })
-          .eq('id', segment.project_id);
+          .eq('id', segment.id);
+
+        if (updateError) {
+          console.error('[UGC Frame Webhook] Failed to update segment:', updateError);
+        }
+
+        // Also update project to failed if first segment fails
+        if (segment.segment_index === 0) {
+          await supabase
+            .from('competitor_ugc_replication_projects')
+            .update({
+              status: 'failed',
+              error_message: errorMessage
+            })
+            .eq('id', segment.project_id);
+        }
       }
     } else {
       // Mark as received even if unexpected state to prevent retries
