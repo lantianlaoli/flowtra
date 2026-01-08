@@ -38,18 +38,40 @@ pnpm type-check
 - Do NOT proceed to the next step
 - Ask if they want to fix the errors first
 
-### 3. Remove Temporary Scripts
+### 3. Check Dependency Changes
+
+Check if `package.json` has been modified. If so, verify that `pnpm-lock.yaml` has also been updated.
+
+```bash
+git diff --name-only | grep package.json
+```
+
+**If package.json changed**:
+1. Check if pnpm-lock.yaml also changed:
+   ```bash
+   git diff --name-only | grep pnpm-lock.yaml
+   ```
+2. If pnpm-lock.yaml NOT changed, warn the user:
+   - "⚠️ package.json was modified but pnpm-lock.yaml was not updated"
+   - "Run `pnpm install` to update the lock file"
+   - Do NOT proceed until lock file is updated
+
+**Why this matters**:
+- Lock file ensures deterministic builds
+- Mismatched dependencies cause Vercel build failures
+- Every `pnpm add` or `pnpm remove` must update pnpm-lock.yaml
+
+### 4. Remove Temporary Scripts
 
 Search for and remove temporary script files. These are typically test scripts created during development.
 
 **Patterns to look for**:
-- Files matching `*-sound.sh` in the project root
 - Files matching `test-*.js` or `test-*.ts` in the project root (NOT in `tests/` directory)
 - Files matching `apply-*.sh` in the project root
 - Any files the user specifically mentions as temporary
 
 **How to identify temporary scripts**:
-1. Use Glob to find files: `*.sh`, `test-*.js`, `test-*.ts` in project root
+1. Use Glob to find files: `test-*.js`, `test-*.ts`, `apply-*.sh` in project root
 2. Read each file to verify it's a temporary test script (not a legitimate project script)
 3. Check git status to see if these files are tracked or untracked
 4. List all temporary files found and ask for confirmation before deletion
@@ -69,8 +91,9 @@ git rm filename.sh
 - Scripts in `scripts/` directory
 - Scripts in `.claude/` directory (unless user confirms)
 - Any file in `node_modules/`
+- Sound notification scripts: `*-sound.sh` (task-complete-sound.sh, gemini-task-complete-sound.sh, agent-task-complete-sound.sh, etc.)
 
-### 4. Verify Changes
+### 5. Verify Changes
 
 Before committing, show the user:
 1. Current git status
@@ -79,7 +102,7 @@ Before committing, show the user:
 
 Ask for confirmation to proceed with commit.
 
-### 5. Create Git Commit
+### 6. Create Git Commit
 
 If user confirms, create a commit following the project's conventional commit format:
 
@@ -105,7 +128,7 @@ EOF
 - Body: Checklist of completed tasks
 - Footer: Claude Code signature and co-author
 
-### 6. Push to GitHub (Optional)
+### 7. Push to GitHub (Optional)
 
 Ask the user if they want to push to GitHub:
 - If yes: Run `git push`
@@ -125,16 +148,27 @@ Ask the user if they want to push to GitHub:
 **Skill executes**:
 1. ✅ Build check passed
 2. ✅ Type check passed
-3. 🔍 Found temporary files:
-   - `task-complete-sound.sh` (untracked)
-   - `test-openrouter.js` (untracked)
-4. 🧹 Removed 2 temporary files
-5. 💾 Created commit with cleanup summary
-6. 🚀 Pushed to GitHub
+3. ✅ Dependency check passed (no package.json changes)
+4. 🔍 Found temporary files:
+   - `lib/test-hot.ts` (tracked)
+5. 🧹 Removed 1 temporary file
+6. 💾 Created commit with cleanup summary
+7. 🚀 Pushed to GitHub
+
+**Example with dependency changes**:
+1. ✅ Build check passed
+2. ✅ Type check passed
+3. ⚠️ package.json changed but pnpm-lock.yaml not updated
+4. User runs `pnpm install`
+5. ✅ Dependency check passed
+6. 💾 Created commit
+7. 🚀 Pushed to GitHub
 
 ## Notes
 
 - This Skill follows the project's pre-deployment checklist from `CLAUDE.md`
 - Temporary script detection is conservative - when in doubt, ask the user
 - Never delete files without user confirmation
-- Always run checks in order (build → type check → cleanup → commit)
+- Sound notification scripts (`*-sound.sh`) are production tools, NOT temporary files
+- Always verify pnpm-lock.yaml is updated when package.json changes
+- Always run checks in order (build → type check → dependency check → cleanup → commit)
