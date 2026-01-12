@@ -12,6 +12,7 @@ Disallow: /admin/
 Allow: /
 Allow: /blog
 Allow: /pricing
+Allow: /features/
 Allow: /terms
 Allow: /privacy
 Allow: /sora2-watermark-removal
