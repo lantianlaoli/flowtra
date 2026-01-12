@@ -1,9 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, type CompetitorUgcReplicationSegment } from '@/lib/supabase';
-import { buildSegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
+import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
+import { buildSegmentStatusPayload, startSegmentVideoTask, type SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+async function refreshProjectSegmentStatus(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  projectId: string
+) {
+  const { data: allSegments } = await supabase
+    .from('competitor_ugc_replication_segments')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('segment_index', { ascending: true });
+
+  if (!allSegments || allSegments.length === 0) return;
+
+  const segmentStatus = buildSegmentStatusPayload(
+    allSegments as CompetitorUgcReplicationSegment[],
+    null
+  );
+
+  // Schema verified via Supabase MCP (2025-03-08):
+  // competitor_ugc_replication_projects has segment_status, last_processed_at.
+  await supabase
+    .from('competitor_ugc_replication_projects')
+    .update({
+      segment_status: segmentStatus,
+      last_processed_at: new Date().toISOString()
+    })
+    .eq('id', projectId);
+}
 
 /**
  * Unified Video Webhook Payload
@@ -58,7 +86,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { data: segment, error: segmentError } = await supabase
       .from('competitor_ugc_replication_segments')
-      .select('id, project_id, segment_index, status, video_webhook_received_at, first_frame_url')
+      .select('id, project_id, segment_index, status, video_webhook_received_at, first_frame_url, closing_frame_url, prompt, retry_count')
       .eq('video_task_id', taskId)
       .single();
 
@@ -215,7 +243,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-    } else if (code === 400 || code === 422 || code === 500 || code === 501) {
+    } else if (code === 400 || code === 422 || code === 500 || code === 501 || code === 503) {
       // Failure case
       console.error('[UGC Video Webhook] Video generation failed for segment', segment.segment_index, {
         code,
@@ -223,28 +251,93 @@ export async function POST(request: NextRequest) {
       });
 
       // Determine if error is retryable (server errors only)
-      const isRetryable = code === 500;
+      const MAX_RETRIES = 3;
+      const currentRetryCount = segment.retry_count || 0;
+      const isRetryable = code >= 500 && currentRetryCount < MAX_RETRIES;
 
-      const { error: updateError } = await supabase
-        .from('competitor_ugc_replication_segments')
-        .update({
-          status: isRetryable ? 'generating_video' : 'failed', // Keep generating if retryable
-          error_message: msg,
-          video_webhook_received_at: new Date().toISOString()
-        })
-        .eq('id', segment.id);
+      // Schema verified via Supabase MCP (2025-03-08):
+      // competitor_ugc_replication_segments has retry_count, status, error_message, video_task_id, video_webhook_received_at.
+      if (isRetryable) {
+        const nextRetryCount = currentRetryCount + 1;
+        console.log(`🔄 [UGC Video Webhook] Retrying segment ${segment.segment_index} (attempt ${nextRetryCount}/${MAX_RETRIES})`);
 
-      if (updateError) {
-        console.error('[UGC Video Webhook] Failed to update segment:', updateError);
+        await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            retry_count: nextRetryCount,
+            status: 'generating_video',
+            error_message: null,
+            video_webhook_received_at: null
+          })
+          .eq('id', segment.id);
+
+        try {
+          const { data: project } = await supabase
+            .from('competitor_ugc_replication_projects')
+            .select('*')
+            .eq('id', segment.project_id)
+            .single();
+
+          if (!project) {
+            throw new Error('Project not found for retry');
+          }
+
+          if (!segment.first_frame_url || !segment.prompt) {
+            throw new Error('Missing first frame or prompt for retry');
+          }
+
+          const segmentPrompt = segment.prompt as SegmentPrompt;
+          const taskId = await startSegmentVideoTask(
+            project as SingleVideoProject,
+            segmentPrompt,
+            segment.first_frame_url,
+            segment.closing_frame_url,
+            segment.segment_index,
+            project.segment_count
+          );
+
+          await supabase
+            .from('competitor_ugc_replication_segments')
+            .update({
+              video_task_id: taskId,
+              video_webhook_received_at: null,
+              error_message: null,
+              status: 'generating_video'
+            })
+            .eq('id', segment.id);
+
+          console.log(`✅ [UGC Video Webhook] Retry triggered, new taskId: ${taskId}`);
+        } catch (retryError) {
+          console.error('[UGC Video Webhook] Retry failed:', retryError);
+          await supabase
+            .from('competitor_ugc_replication_segments')
+            .update({
+              status: 'failed',
+              error_message: `Retry failed: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`,
+              video_webhook_received_at: new Date().toISOString()
+            })
+            .eq('id', segment.id);
+        }
+      } else {
+        const errorMessage = currentRetryCount >= MAX_RETRIES
+          ? `Video generation failed after ${MAX_RETRIES} retries: ${msg}`
+          : `Video generation failed (non-retryable): ${msg}`;
+
+        const { error: updateError } = await supabase
+          .from('competitor_ugc_replication_segments')
+          .update({
+            status: 'failed',
+            error_message: errorMessage,
+            video_webhook_received_at: new Date().toISOString()
+          })
+          .eq('id', segment.id);
+
+        if (updateError) {
+          console.error('[UGC Video Webhook] Failed to update segment:', updateError);
+        }
       }
 
-      // Update project last_processed_at
-      await supabase
-        .from('competitor_ugc_replication_projects')
-        .update({
-          last_processed_at: new Date().toISOString()
-        })
-        .eq('id', segment.project_id);
+      await refreshProjectSegmentStatus(supabase, segment.project_id);
 
     } else {
       // Mark as received even if unexpected code to prevent retries
