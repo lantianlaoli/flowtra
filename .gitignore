@@ -53,3 +53,11 @@ Thumbs.db
 # clerk configuration (can include secrets)
 /.clerk/
 creem_records/
+
+opencode.json
+
+openspec/
+
+# OpenCode
+.opencode/
+AGENTS.md
