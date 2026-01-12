@@ -1,10 +1,14 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import Image from 'next/image';
-import { useEffect, useState } from 'react';
-import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/nextjs';
-import { Bars3Icon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import Link from "next/link";
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/nextjs";
+import {
+  Bars3Icon,
+  XMarkIcon,
+  ChevronDownIcon,
+} from "@heroicons/react/24/outline";
 
 interface HeaderProps {
   showAuthButtons?: boolean;
@@ -21,16 +25,19 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
       setCompact(y > 10);
     };
     onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#E5E5E5] h-[72px] sm:h-[80px] flex items-center">
-      <div className="mx-auto max-w-[1280px] w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+      <div className="mx-auto max-w-[1280px] w-full px-4 sm:px-6 lg:px-8 flex items-center">
         {/* Logo - Left */}
-        <div className="flex-1 flex justify-start">
-          <Link href="/" className="flex items-center gap-2 cursor-pointer transition-opacity hover:opacity-80">
+        <div className="flex items-center justify-start">
+          <Link
+            href="/"
+            className="flex items-center gap-2 cursor-pointer transition-opacity hover:opacity-80"
+          >
             <Image
               src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/flowtra-logo.png"
               alt="Flowtra AI Logo"
@@ -45,7 +52,10 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
         </div>
 
         {/* Links - Center */}
-        <nav className="hidden md:flex flex-1 justify-center items-center gap-8" aria-label="Main navigation">
+        <nav
+          className="hidden md:flex items-center gap-6 ml-auto mr-6"
+          aria-label="Main navigation"
+        >
           {/* Features Dropdown */}
           <div className="relative group">
             <button className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors flex items-center gap-1">
@@ -59,14 +69,20 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                   className="block px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
                 >
                   <div className="font-semibold text-black">Avatar Ads</div>
-                  <div className="text-[12px] opacity-70">AI character-driven videos</div>
+                  <div className="text-[12px] opacity-70">
+                    AI character-driven videos
+                  </div>
                 </Link>
                 <Link
                   href="/features/competitor-replica"
                   className="block px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
                 >
-                  <div className="font-semibold text-black">Competitor Replica</div>
-                  <div className="text-[12px] opacity-70">Clone competitor videos</div>
+                  <div className="font-semibold text-black">
+                    Competitor Replica
+                  </div>
+                  <div className="text-[12px] opacity-70">
+                    Clone competitor videos
+                  </div>
                 </Link>
               </div>
             </div>
@@ -92,7 +108,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
         </nav>
 
         {/* Auth Buttons - Right */}
-        <div className="flex-1 flex justify-end items-center gap-4">
+        <div className="flex items-center gap-4">
           {showAuthButtons && (
             <>
               <SignedOut>
@@ -132,14 +148,38 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
       {/* Mobile menu - Simplified */}
       <div
         className={`md:hidden absolute top-full left-0 w-full bg-white border-b border-[#E5E5E5] transition-all duration-300 ${
-          mobileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
+          mobileMenuOpen ? "opacity-100 visible" : "opacity-0 invisible"
         }`}
       >
         <div className="px-4 py-6 flex flex-col gap-4">
-          <Link href="/features/avatar-ads" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Avatar Ads</Link>
-          <Link href="/features/competitor-replica" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Competitor Replica</Link>
-          <Link href="/#pricing" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
-          <Link href="/#blog" className="text-[16px] font-medium text-black" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
+          <Link
+            href="/features/avatar-ads"
+            className="text-[16px] font-medium text-black"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            Avatar Ads
+          </Link>
+          <Link
+            href="/features/competitor-replica"
+            className="text-[16px] font-medium text-black"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            Competitor Replica
+          </Link>
+          <Link
+            href="/#pricing"
+            className="text-[16px] font-medium text-black"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            Pricing
+          </Link>
+          <Link
+            href="/#blog"
+            className="text-[16px] font-medium text-black"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            Blog
+          </Link>
         </div>
       </div>
     </header>
