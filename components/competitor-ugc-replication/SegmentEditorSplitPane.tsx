@@ -159,9 +159,9 @@ export default function SegmentEditorSplitPane({
         {/* Left Panel: Segment List */}
         <Panel
           id="segment-list"
-          defaultSize={20}
-          minSize={15}
-          maxSize={30}
+          defaultSize={16}
+          minSize={12}
+          maxSize={22}
           className="h-full"
         >
           <SegmentListColumn
@@ -187,9 +187,9 @@ export default function SegmentEditorSplitPane({
         {/* Middle Panel: Preview */}
         <Panel
           id="preview"
-          defaultSize={35}
-          minSize={25}
-          maxSize={50}
+          defaultSize={44}
+          minSize={34}
+          maxSize={56}
           className="h-full"
         >
           {selectedSegment && (
@@ -214,9 +214,9 @@ export default function SegmentEditorSplitPane({
         {/* Right Panel: Form */}
         <Panel
           id="form"
-          defaultSize={45}
-          minSize={30}
-          maxSize={60}
+          defaultSize={40}
+          minSize={28}
+          maxSize={50}
           className="h-full"
         >
           {selectedSegment && (

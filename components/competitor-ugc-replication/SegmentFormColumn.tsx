@@ -22,11 +22,11 @@ import {
   MapPin,
   Sun,
   Sparkles,
-  ShoppingBag,
   Image as ImageIcon
 } from 'lucide-react';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
+import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
 import { useToast } from '@/contexts/ToastContext';
@@ -101,8 +101,6 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
 ];
 
 const DEFAULT_LANGUAGE: LanguageCode = 'en';
-const MAX_REFERENCE_PRODUCTS = 10;
-const MAX_TOTAL_REFERENCES = 10;
 const PRODUCT_FETCH_MAX_ATTEMPTS = 3;
 const PHOTO_CHAR_LIMIT = 5000;
 
@@ -193,18 +191,10 @@ export default function SegmentFormColumn({
   }, [openLanguageDropdownId]);
 
   const [productOptions, setProductOptions] = useState<BrandProduct[]>([]);
-  const [productLoading, setProductLoading] = useState(false);
-  const [productError, setProductError] = useState<string | null>(null);
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const productCacheRef = useRef<Record<string, { items: BrandProduct[]; error?: string }>>({});
 
   const [characterOptions, setCharacterOptions] = useState<UserAvatar[]>([]);
-  const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
-  const [characterLoading, setCharacterLoading] = useState(false);
-  const [characterError, setCharacterError] = useState<string | null>(null);
 
-  // Auto-save state
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { showError } = useToast();
 
@@ -250,14 +240,8 @@ export default function SegmentFormColumn({
   }, [shots]);
 
   useEffect(() => {
-    setSelectedProductIds([]);
-  }, [brandId]);
-
-  useEffect(() => {
     if (!brandId) {
       setProductOptions([]);
-      setProductError(brandId ? null : 'Link this project to a brand to unlock product references.');
-      setProductLoading(false);
       return;
     }
 
@@ -268,9 +252,6 @@ export default function SegmentFormColumn({
     const cached = productCacheRef.current[brandId];
     if (cached) {
       setProductOptions(cached.items);
-      setProductError(cached.error ?? null);
-      setProductLoading(false);
-      setSelectedProductIds(prev => prev.filter(id => cached.items.some(item => item.id === id)));
       return () => {
         if (retryTimeout) clearTimeout(retryTimeout);
         if (activeController) activeController.abort();
@@ -280,8 +261,6 @@ export default function SegmentFormColumn({
     const fetchProducts = async (attempt = 1) => {
       if (cancelled) return;
       if (attempt === 1) {
-        setProductLoading(true);
-        setProductError(null);
       }
 
       const controller = new AbortController();
@@ -298,8 +277,6 @@ export default function SegmentFormColumn({
         const items: BrandProduct[] = Array.isArray(data?.products) ? data.products : [];
         productCacheRef.current[brandId] = { items };
         setProductOptions(items);
-        setSelectedProductIds(prev => prev.filter(id => items.some(item => item.id === id)));
-        setProductLoading(false);
       } catch (error) {
         if (cancelled || controller.signal.aborted) {
           return;
@@ -314,8 +291,6 @@ export default function SegmentFormColumn({
           const message = 'Unable to load products for this brand. Please refresh and try again.';
           productCacheRef.current[brandId] = { items: [], error: message };
           setProductOptions([]);
-          setProductError(message);
-          setProductLoading(false);
         }
       }
     };
@@ -337,9 +312,6 @@ export default function SegmentFormColumn({
     let cancelled = false;
 
     const fetchCharacters = async () => {
-      setCharacterLoading(true);
-      setCharacterError(null);
-
       try {
         const response = await fetch('/api/user-avatars');
         if (!response.ok) {
@@ -350,13 +322,10 @@ export default function SegmentFormColumn({
 
         const characters: UserAvatar[] = Array.isArray(data?.avatars) ? data.avatars : [];
         setCharacterOptions(characters);
-        setCharacterLoading(false);
       } catch (error) {
         if (cancelled) return;
         console.error('Failed to fetch characters:', error);
-        setCharacterError('Unable to load characters. Please refresh and try again.');
         setCharacterOptions([]);
-        setCharacterLoading(false);
       }
     };
 
@@ -405,37 +374,34 @@ export default function SegmentFormColumn({
   const submittingPhoto = isSubmitting?.photo ?? false;
   const submittingVideo = isSubmitting?.video ?? false;
 
+  const getMentionedIds = (prompt: string) => {
+    const productIds = new Set<string>();
+    const characterIds = new Set<string>();
+    const regex = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(prompt)) !== null) {
+      const type = match.groups?.type;
+      const name = match.groups?.name?.trim();
+      if (!type || !name) continue;
+      if (type === 'product') {
+        const product = productOptions.find(item => item.product_name === name);
+        if (product) productIds.add(product.id);
+      } else if (type === 'character') {
+        const character = characterOptions.find(item => item.avatar_name === name);
+        if (character) characterIds.add(character.id);
+      }
+    }
+    return { productIds: Array.from(productIds), characterIds: Array.from(characterIds) };
+  };
+
   const getProductPhotoUrl = (product?: BrandProduct | null) => {
     if (!product?.user_product_photos?.length) return null;
     const primary = product.user_product_photos.find(photo => photo.is_primary);
     return primary?.photo_url || product.user_product_photos[0]?.photo_url || null;
   };
 
-  const handleProductToggle = (product: BrandProduct) => {
-    const hasPhoto = Boolean(getProductPhotoUrl(product));
-    if (!hasPhoto) {
-      return;
-    }
-    setSelectedProductIds(prev => {
-      if (prev.includes(product.id)) {
-        return prev.filter(id => id !== product.id);
-      }
-      return [...prev, product.id];
-    });
-  };
-
-  const handleCharacterToggle = (character: UserAvatar) => {
-    setSelectedCharacterIds(prev => {
-      if (prev.includes(character.id)) {
-        return prev.filter(id => id !== character.id);
-      }
-      return [...prev, character.id];
-    });
-  };
-
   // Auto-save logic
   const saveChanges = async () => {
-    setAutoSaveStatus('saving');
     try {
       const normalizedShots = shots.map((shot, idx) => ({
         id: idx + 1,
@@ -477,22 +443,9 @@ export default function SegmentFormColumn({
         photo: photoPrompt.trim(),
         shots: normalizedShots
       });
-
-      setAutoSaveStatus('saved');
-
-      // Clear "saved" status after 2 seconds
-      setTimeout(() => {
-        setAutoSaveStatus('idle');
-      }, 2000);
     } catch (error) {
       console.error('Auto-save failed:', error);
-      setAutoSaveStatus('error');
       showError('Failed to save changes. Please check your connection.');
-
-      // Clear error status after 3 seconds
-      setTimeout(() => {
-        setAutoSaveStatus('idle');
-      }, 3000);
     }
   };
 
@@ -569,13 +522,12 @@ export default function SegmentFormColumn({
       shots: normalizedShots,
       is_continuation_from_prev: isContinuation
     };
-    const referenceProductIds = type === 'photo' && selectedProductIds.length ? selectedProductIds : undefined;
-    const referenceCharacterIds = type === 'photo' && selectedCharacterIds.length > 0 ? selectedCharacterIds : undefined;
+    const { productIds, characterIds } = getMentionedIds(photoPrompt);
     onRegenerate({
       type,
       prompt: payload,
-      productIds: referenceProductIds,
-      characterIds: referenceCharacterIds
+      productIds: type === 'photo' && productIds.length ? productIds : undefined,
+      characterIds: type === 'photo' && characterIds.length ? characterIds : undefined
     });
   };
 
@@ -590,26 +542,6 @@ export default function SegmentFormColumn({
               Visual Prompt
             </h2>
           </div>
-          {/* Auto-save status indicator */}
-          {!readOnly && autoSaveStatus !== 'idle' && (
-            <div className="flex items-center gap-1.5">
-              {autoSaveStatus === 'saving' && (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                  <span className="text-xs text-blue-600 font-medium">Saving...</span>
-                </>
-              )}
-              {autoSaveStatus === 'saved' && (
-                <>
-                  <Check className="w-3.5 h-3.5 text-green-600" />
-                  <span className="text-xs text-green-600 font-medium">Saved</span>
-                </>
-              )}
-              {autoSaveStatus === 'error' && (
-                <span className="text-xs text-red-600 font-medium">Save failed</span>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
@@ -622,18 +554,29 @@ export default function SegmentFormColumn({
               <ImageIcon className="w-4 h-4 text-black" />
               <p className="text-sm font-semibold text-black">Photo Prompt</p>
             </div>
-            <textarea
+            <PromptMentionTextarea
               value={photoPrompt}
-              onChange={e => setPhotoPrompt(e.target.value)}
+              onChange={setPhotoPrompt}
               rows={6}
               disabled={readOnly}
               readOnly={readOnly}
-              className={`w-full rounded-lg border px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 ${
-                photoPromptTooLong
-                  ? 'border-red-500 focus:ring-red-500'
-                  : 'border-[#E5E5E5] focus:ring-black focus:border-black'
-              } ${readOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+              hasError={photoPromptTooLong}
+              className={clsx(
+                'rounded-lg',
+                photoPromptTooLong ? 'border-red-500' : 'border-[#E5E5E5]',
+                readOnly ? 'bg-gray-50' : ''
+              )}
               placeholder="Describe the exact frame you want..."
+              characterMentions={characterOptions.map(character => ({
+                id: character.id,
+                label: character.avatar_name,
+                imageUrl: character.photo_url
+              }))}
+              productMentions={productOptions.map(product => ({
+                id: product.id,
+                label: product.product_name,
+                imageUrl: getProductPhotoUrl(product)
+              }))}
             />
             {photoPromptTooLong && (
               <p className="text-xs text-red-600">Photo prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
@@ -675,160 +618,6 @@ export default function SegmentFormColumn({
               </button>
             )}
 
-            {/* Product References - Hidden in read-only mode */}
-            {!readOnly && (
-            <div className="pt-3 border-t border-dashed border-[#E5E5E5] space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-black" />
-                  <p className="text-sm font-semibold text-black">Product References</p>
-                </div>
-                {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
-                  <span className="text-xs text-amber-600 font-medium">
-                    {selectedProductIds.length + selectedCharacterIds.length}/{MAX_TOTAL_REFERENCES} total references
-                  </span>
-                )}
-              </div>
-              {!brandId ? (
-                <p className="text-xs text-[#666666]">
-                  Link this project to a brand to enable product references.
-                </p>
-              ) : productLoading ? (
-                <div className="flex items-center gap-2 text-sm text-[#666666]">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading products…
-                </div>
-              ) : productError ? (
-                <p className="text-xs text-red-600">{productError}</p>
-              ) : productOptions.length === 0 ? (
-                <p className="text-xs text-[#666666]">
-                  No products with photos found for this brand yet.
-                </p>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {productOptions.map(product => {
-                    const photoUrl = getProductPhotoUrl(product);
-                    const isSelected = selectedProductIds.includes(product.id);
-                    const disabled = (!photoUrl && !isSelected);
-
-                    return (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() => handleProductToggle(product)}
-                        disabled={disabled}
-                        className={clsx(
-                          'relative flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition',
-                          isSelected ? 'border-black shadow-sm' : 'border-[#E5E5E5] hover:border-gray-300',
-                          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer bg-white'
-                        )}
-                      >
-                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 relative">
-                          {photoUrl ? (
-                            <NextImage src={photoUrl} alt={product.product_name} className="object-cover" fill sizes="48px" />
-                          ) : (
-                            <ImageIcon className="w-5 h-5 text-gray-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-black truncate">{product.product_name}</p>
-                        </div>
-                        {isSelected && (
-                          <Check className="w-4 h-4 text-black flex-shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {selectedProductIds.length > 0 && (
-                <p className="text-[11px] text-[#666666]">
-                  First-frame regeneration will reuse the selected product photos.
-                </p>
-              )}
-              {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
-                <p className="text-[11px] text-amber-600">
-                  You&apos;ve exceeded the {MAX_TOTAL_REFERENCES}-product recommended limit.
-                </p>
-              )}
-            </div>
-            )}
-
-            {/* Character References - Hidden in read-only mode */}
-            {!readOnly && (
-            <div className="pt-3 border-t border-dashed border-[#E5E5E5] space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-black" />
-                  <p className="text-sm font-semibold text-black">Character Reference</p>
-                </div>
-              </div>
-
-              {characterLoading ? (
-                <div className="flex items-center gap-2 text-sm text-[#666666]">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading characters…
-                </div>
-              ) : characterError ? (
-                <p className="text-xs text-red-600">{characterError}</p>
-              ) : characterOptions.length === 0 ? (
-                <p className="text-xs text-[#666666]">
-                  No avatars found. Add avatars in Assets to use this feature.
-                </p>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {characterOptions.map(character => {
-                    const isSelected = selectedCharacterIds.includes(character.id);
-                    const disabled = false;
-
-                    return (
-                      <button
-                        key={character.id}
-                        type="button"
-                        onClick={() => handleCharacterToggle(character)}
-                        disabled={disabled}
-                        className={clsx(
-                          'relative flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition',
-                          isSelected ? 'border-black shadow-sm' : 'border-[#E5E5E5] hover:border-gray-300',
-                          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer bg-white'
-                        )}
-                      >
-                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 relative">
-                          <NextImage
-                            src={character.photo_url}
-                            alt={character.avatar_name}
-                            className="object-cover"
-                            fill
-                            sizes="48px"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-black truncate">
-                            {character.avatar_name}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <Check className="w-4 h-4 text-black flex-shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && selectedCharacterIds.length > 0 && (
-                <p className="text-[11px] text-amber-600">
-                  First-frame regeneration will use {selectedCharacterIds.length} character{selectedCharacterIds.length > 1 ? 's' : ''} as visual reference.
-                </p>
-              )}
-
-              {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
-                <p className="text-[11px] text-amber-600">
-                  You&apos;ve exceeded the {MAX_TOTAL_REFERENCES}-image limit for references (products + characters).
-                </p>
-              )}
-            </div>
-            )}
           </div>
 
           {/* Shots Editor */}

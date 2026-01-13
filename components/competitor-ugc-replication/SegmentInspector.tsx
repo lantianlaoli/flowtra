@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import NextImage from 'next/image';
 import clsx from 'clsx';
-import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2, UserCircle, Clock, User, Clapperboard, Palette, Music, MessageSquare, Globe, Camera, Move, MapPin, Sun, Sparkles, ShoppingBag } from 'lucide-react';
+import { X, Image as ImageIcon, Video as VideoIcon, Loader2, Check, ChevronDown, Plus, Trash2, Link2, Clock, User, Clapperboard, Palette, Music, MessageSquare, Globe, Camera, Move, MapPin, Sun, Sparkles } from 'lucide-react';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
 import { MODEL_PROCESSING_TIMES, type VideoModel } from '@/lib/constants';
+import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 
 export type SegmentShotPayload = {
   id: number;
@@ -56,8 +57,6 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
 ];
 
 const DEFAULT_LANGUAGE: LanguageCode = 'en';
-const MAX_REFERENCE_PRODUCTS = 10;
-const MAX_TOTAL_REFERENCES = 10;
 const PRODUCT_FETCH_MAX_ATTEMPTS = 3;
 
 const normalizeShotLanguage = (value?: string): LanguageCode => {
@@ -184,14 +183,8 @@ export default function SegmentInspector({
   const [photoPreviewPending, setPhotoPreviewPending] = useState(false);
   const [videoPreviewPending, setVideoPreviewPending] = useState(false);
   const [productOptions, setProductOptions] = useState<BrandProduct[]>([]);
-  const [productLoading, setProductLoading] = useState(false);
-  const [productError, setProductError] = useState<string | null>(null);
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const productCacheRef = useRef<Record<string, { items: BrandProduct[]; error?: string }>>({});
   const [characterOptions, setCharacterOptions] = useState<UserAvatar[]>([]);
-  const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
-  const [characterLoading, setCharacterLoading] = useState(false);
-  const [characterError, setCharacterError] = useState<string | null>(null);
   const firstFrameUrl = segment?.firstFrameUrl || null;
   const videoUrl = segment?.videoUrl || null;
   const lastFirstFrameUrlRef = useRef<string | null>(firstFrameUrl);
@@ -226,20 +219,8 @@ export default function SegmentInspector({
   }, [shots]);
 
   useEffect(() => {
-    if (!open) {
-      setSelectedProductIds([]);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    setSelectedProductIds([]);
-  }, [brandId]);
-
-  useEffect(() => {
     if (!open || !brandId) {
       setProductOptions([]);
-      setProductError(brandId ? null : 'Link this project to a brand to unlock product references.');
-      setProductLoading(false);
       return;
     }
 
@@ -250,9 +231,6 @@ export default function SegmentInspector({
     const cached = productCacheRef.current[brandId];
     if (cached) {
       setProductOptions(cached.items);
-      setProductError(cached.error ?? null);
-      setProductLoading(false);
-      setSelectedProductIds(prev => prev.filter(id => cached.items.some(item => item.id === id)));
       return () => {
         if (retryTimeout) clearTimeout(retryTimeout);
         if (activeController) activeController.abort();
@@ -262,8 +240,6 @@ export default function SegmentInspector({
     const fetchProducts = async (attempt = 1) => {
       if (cancelled) return;
       if (attempt === 1) {
-        setProductLoading(true);
-        setProductError(null);
       }
 
       const controller = new AbortController();
@@ -280,8 +256,6 @@ export default function SegmentInspector({
         const items: BrandProduct[] = Array.isArray(data?.products) ? data.products : [];
         productCacheRef.current[brandId] = { items };
         setProductOptions(items);
-        setSelectedProductIds(prev => prev.filter(id => items.some(item => item.id === id)));
-        setProductLoading(false);
       } catch (error) {
         if (cancelled || controller.signal.aborted) {
           return;
@@ -296,8 +270,6 @@ export default function SegmentInspector({
           const message = 'Unable to load products for this brand. Please refresh and try again.';
           productCacheRef.current[brandId] = { items: [], error: message };
           setProductOptions([]);
-          setProductError(message);
-          setProductLoading(false);
         }
       }
     };
@@ -318,16 +290,12 @@ export default function SegmentInspector({
   // Fetch characters (avatars) when modal opens
   useEffect(() => {
     if (!open) {
-      setSelectedCharacterIds([]);
       return;
     }
 
     let cancelled = false;
 
     const fetchCharacters = async () => {
-      setCharacterLoading(true);
-      setCharacterError(null);
-
       try {
         const response = await fetch('/api/user-avatars');
         if (!response.ok) {
@@ -338,13 +306,10 @@ export default function SegmentInspector({
 
         const characters: UserAvatar[] = Array.isArray(data?.avatars) ? data.avatars : [];
         setCharacterOptions(characters);
-        setCharacterLoading(false);
       } catch (error) {
         if (cancelled) return;
         console.error('Failed to fetch characters:', error);
-        setCharacterError('Unable to load characters. Please refresh and try again.');
         setCharacterOptions([]);
-        setCharacterLoading(false);
       }
     };
 
@@ -412,38 +377,29 @@ export default function SegmentInspector({
   const showVideoSkeleton = videoPreviewPending || isGeneratingVideo;
   const submittingPhoto = isSubmitting?.photo ?? false;
   const submittingVideo = isSubmitting?.video ?? false;
-  const selectedProductCount = selectedProductIds.length;
-  const productSelectionLimitReached = selectedProductCount >= MAX_REFERENCE_PRODUCTS;
-
+  const getMentionedIds = (prompt: string) => {
+    const productIds = new Set<string>();
+    const characterIds = new Set<string>();
+    const regex = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(prompt)) !== null) {
+      const type = match.groups?.type;
+      const name = match.groups?.name?.trim();
+      if (!type || !name) continue;
+      if (type === 'product') {
+        const product = productOptions.find(item => item.product_name === name);
+        if (product) productIds.add(product.id);
+      } else if (type === 'character') {
+        const character = characterOptions.find(item => item.avatar_name === name);
+        if (character) characterIds.add(character.id);
+      }
+    }
+    return { productIds: Array.from(productIds), characterIds: Array.from(characterIds) };
+  };
   const getProductPhotoUrl = (product?: BrandProduct | null) => {
     if (!product?.user_product_photos?.length) return null;
     const primary = product.user_product_photos.find(photo => photo.is_primary);
     return primary?.photo_url || product.user_product_photos[0]?.photo_url || null;
-  };
-
-  const handleProductToggle = (product: BrandProduct) => {
-    const hasPhoto = Boolean(getProductPhotoUrl(product));
-    if (!hasPhoto) {
-      return;
-    }
-    setSelectedProductIds(prev => {
-      if (prev.includes(product.id)) {
-        return prev.filter(id => id !== product.id);
-      }
-      // Check combined limit with characters
-      // Soft limit: allow selection but show warning in UI
-      return [...prev, product.id];
-    });
-  };
-
-  const handleCharacterToggle = (character: UserAvatar) => {
-    setSelectedCharacterIds(prev => {
-      if (prev.includes(character.id)) {
-        return prev.filter(id => id !== character.id);
-      }
-      // Soft limit: allow selection but show warning in UI
-      return [...prev, character.id];
-    });
   };
 
   useEffect(() => {
@@ -487,8 +443,7 @@ export default function SegmentInspector({
       shots: normalizedShots,
       is_continuation_from_prev: isContinuation
     };
-    const referenceProductIds = type === 'photo' && selectedProductIds.length ? selectedProductIds : undefined;
-    const referenceCharacterIds = type === 'photo' && selectedCharacterIds.length > 0 ? selectedCharacterIds : undefined;
+    const { productIds, characterIds } = getMentionedIds(photoPrompt);
     if (type === 'photo') {
       setPhotoPreviewPending(true);
     } else {
@@ -497,8 +452,8 @@ export default function SegmentInspector({
     const maybePromise = onRegenerate({
       type,
       prompt: payload,
-      productIds: referenceProductIds,
-      characterIds: referenceCharacterIds
+      productIds: type === 'photo' && productIds.length ? productIds : undefined,
+      characterIds: type === 'photo' && characterIds.length ? characterIds : undefined
     });
     if (
       type === 'photo' &&
@@ -620,12 +575,22 @@ export default function SegmentInspector({
                 <Sparkles className="w-4 h-4 text-gray-900" />
                 <p className="text-sm font-semibold text-gray-900">Photo prompt</p>
               </div>
-              <textarea
+              <PromptMentionTextarea
                 value={photoPrompt}
-                onChange={e => setPhotoPrompt(e.target.value)}
+                onChange={setPhotoPrompt}
                 rows={6}
-                className={`w-full rounded-2xl border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 ${photoPromptTooLong ? 'border-red-500 focus:ring-red-500' : 'border-gray-200 focus:ring-gray-900 focus:border-gray-900'}`}
+                hasError={photoPromptTooLong}
                 placeholder="Describe the exact frame you want..."
+                characterMentions={characterOptions.map(character => ({
+                  id: character.id,
+                  label: character.avatar_name,
+                  imageUrl: character.photo_url
+                }))}
+                productMentions={productOptions.map(product => ({
+                  id: product.id,
+                  label: product.product_name,
+                  imageUrl: getProductPhotoUrl(product)
+                }))}
               />
               {photoPromptTooLong && (
                 <p className="text-xs text-red-600">Photo prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
@@ -664,155 +629,6 @@ export default function SegmentInspector({
                   />
                 </button>
               )}
-              <div className="pt-3 border-t border-dashed border-gray-100 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-gray-900" />
-                    <p className="text-sm font-semibold text-gray-900">Product references</p>
-                  </div>
-                  {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
-                    <span className="text-xs text-amber-600 font-medium">
-                      {selectedProductIds.length + selectedCharacterIds.length}/{MAX_TOTAL_REFERENCES} total references
-                    </span>
-                  )}
-                </div>
-                {!brandId ? (
-                  <p className="text-xs text-gray-500">
-                    Link this project to a brand to enable product references.
-                  </p>
-                ) : productLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Loading products…
-                  </div>
-                ) : productError ? (
-                  <p className="text-xs text-red-600">{productError}</p>
-                ) : productOptions.length === 0 ? (
-                  <p className="text-xs text-gray-500">
-                    No products with photos found for this brand yet.
-                  </p>
-                ) : (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {productOptions.map(product => {
-                      const photoUrl = getProductPhotoUrl(product);
-                      const isSelected = selectedProductIds.includes(product.id);
-                      const disabled = (!photoUrl && !isSelected);
-
-                      return (
-                        <button
-                          key={product.id}
-                          type="button"
-                          onClick={() => handleProductToggle(product)}
-                          disabled={disabled}
-                          className={clsx(
-                            'relative flex items-center gap-3 rounded-2xl border px-3 py-2 text-left transition',
-                            isSelected ? 'border-gray-900 shadow-sm' : 'border-gray-200 hover:border-gray-300',
-                            disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer bg-white'
-                          )}
-                        >
-                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 relative">
-                            {photoUrl ? (
-                              <NextImage src={photoUrl} alt={product.product_name} className="object-cover" fill sizes="48px" />
-                            ) : (
-                              <ImageIcon className="w-5 h-5 text-gray-400" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{product.product_name}</p>
-                          </div>
-                          {isSelected && (
-                            <Check className="w-4 h-4 text-gray-900 flex-shrink-0" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {selectedProductCount > 0 && (
-                  <p className="text-[11px] text-gray-500">
-                    First-frame regeneration will reuse the selected product photos.
-                  </p>
-                )}
-                {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
-                  <p className="text-[11px] text-amber-600">
-                    You’ve exceeded the {MAX_TOTAL_REFERENCES}-product recommended limit.
-                  </p>
-                )}
-              </div>
-
-              <div className="pt-3 border-t border-dashed border-gray-100 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-gray-900" />
-                    <p className="text-sm font-semibold text-gray-900">Character reference</p>
-                  </div>
-                </div>
-
-                {characterLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Loading characters…
-                  </div>
-                ) : characterError ? (
-                  <p className="text-xs text-red-600">{characterError}</p>
-                ) : characterOptions.length === 0 ? (
-                  <p className="text-xs text-gray-500">
-                    No avatars found. Add avatars in Assets to use this feature.
-                  </p>
-                ) : (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {characterOptions.map(character => {
-                      const isSelected = selectedCharacterIds.includes(character.id);
-                      // Soft limit
-                      const disabled = false;
-
-                      return (
-                        <button
-                          key={character.id}
-                          type="button"
-                          onClick={() => handleCharacterToggle(character)}
-                          disabled={disabled}
-                          className={clsx(
-                            'relative flex items-center gap-3 rounded-2xl border px-3 py-2 text-left transition',
-                            isSelected ? 'border-gray-900 shadow-sm' : 'border-gray-200 hover:border-gray-300',
-                            disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer bg-white'
-                          )}
-                        >
-                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 relative">
-                            <NextImage
-                              src={character.photo_url}
-                              alt={character.avatar_name}
-                              className="object-cover"
-                              fill
-                              sizes="48px"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {character.avatar_name}
-                            </p>
-                          </div>
-                          {isSelected && (
-                            <Check className="w-4 h-4 text-gray-900 flex-shrink-0" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && selectedCharacterIds.length > 0 && (
-                  <p className="text-[11px] text-amber-600">
-                    First-frame regeneration will use {selectedCharacterIds.length} character{selectedCharacterIds.length > 1 ? 's' : ''} as visual reference.
-                  </p>
-                )}
-
-                {(selectedProductIds.length + selectedCharacterIds.length) > MAX_TOTAL_REFERENCES && (
-                  <p className="text-[11px] text-amber-600">
-                    You&apos;ve exceeded the {MAX_TOTAL_REFERENCES}-image limit for references (products + characters).
-                  </p>
-                )}
-              </div>
             </div>
 
             <div className="rounded-3xl border border-gray-200 p-4 space-y-4">
