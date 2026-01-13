@@ -1619,6 +1619,7 @@ export default function CompetitorUgcReplicationPage() {
           userCredits={userCredits || 0}
           selectedLanguage={selectedLanguage}
           onLanguageChange={setSelectedLanguage}
+          hideLanguageSelector
           format={format}
           onFormatChange={setFormat}
           disabled={isGenerating}

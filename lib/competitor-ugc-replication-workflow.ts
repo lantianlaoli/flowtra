@@ -5,7 +5,6 @@ import {
   IMAGE_MODELS,
   GENERATION_COSTS,
   getGenerationCost,
-  getLanguagePromptName,
   getSegmentCountFromDuration,
   getSegmentDurationForModel,
   getReplicaPhotoCredits,
@@ -2896,7 +2895,6 @@ export async function startSegmentVideoTask(
   // Continue with Veo3/Grok/Kling logic for other models
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
   const languageCode = (project.language || 'en') as LanguageCode;
-  const languageName = getLanguagePromptName(languageCode);
   const prompts = (project.video_prompts || {}) as { ad_copy?: string };
   const providedAdCopyRaw = typeof prompts.ad_copy === 'string' ? prompts.ad_copy.trim() : undefined;
   const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
@@ -2948,7 +2946,6 @@ export async function startSegmentVideoTask(
       descriptor: voiceDescriptor,
       tone: voiceToneDescriptor
     },
-    dialogue_language: languageName,
     shots: normalizedShots
   };
   const fullPrompt = JSON.stringify(structuredPromptPayload);

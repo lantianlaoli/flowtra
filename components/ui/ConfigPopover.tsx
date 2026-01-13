@@ -26,8 +26,9 @@ interface ConfigPopoverProps {
   hideModelSelector?: boolean;
 
   // Language props
-  selectedLanguage: LanguageCode;
-  onLanguageChange: (language: LanguageCode) => void;
+  selectedLanguage?: LanguageCode;
+  onLanguageChange?: (language: LanguageCode) => void;
+  hideLanguageSelector?: boolean;
 
   // Format props
   format: Format;
@@ -61,6 +62,7 @@ export default function ConfigPopover({
   hideModelSelector = false,
   selectedLanguage,
   onLanguageChange,
+  hideLanguageSelector = false,
   format,
   onFormatChange,
   formatDisabled = false,
@@ -339,13 +341,14 @@ export default function ConfigPopover({
             <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
               {isPhotoMode ? renderPhotoOptions() : renderVideoOptions()}
 
-              {/* Language Selector */}
-              <LanguageSelector
-                selectedLanguage={selectedLanguage}
-                onLanguageChange={onLanguageChange}
-                label="Language"
-                showIcon
-              />
+              {!hideLanguageSelector && selectedLanguage && onLanguageChange && (
+                <LanguageSelector
+                  selectedLanguage={selectedLanguage}
+                  onLanguageChange={onLanguageChange}
+                  label="Language"
+                  showIcon
+                />
+              )}
 
             </div>
 

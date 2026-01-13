@@ -366,29 +366,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const normalizedModel: 'veo3' | 'veo3_fast' =
         (rawModel === 'veo3' || rawModel === 'veo3_fast') ? rawModel : 'veo3_fast';
 
-      const totalVideoCost = getGenerationCost(
-        normalizedModel,
-        project.video_duration,
-        project.video_quality || 'standard'
-      );
-      const segmentsCount = project.segment_count && project.segment_count > 0 ? project.segment_count : 1;
-      const videoCredits = totalVideoCost > 0 ? Math.max(1, Math.ceil(totalVideoCost / segmentsCount)) : 0;
-
-      console.log('[SEGMENT API] Video regeneration credit calculation:', {
-        model: normalizedModel,
-        videoDuration: project.video_duration,
-        totalVideoCost,
-        segmentsCount,
-        videoCredits
-      });
-
-      if (videoCredits > 0) {
-        const descriptor = project.video_model ? project.video_model.toUpperCase() : 'VIDEO';
-        console.log('[SEGMENT API] Deducting video credits:', { videoCredits, descriptor });
-        await ensureCredits(videoCredits, `Competitor UGC Replication - Segment video regeneration (${descriptor})`);
-      } else {
-        console.warn('[SEGMENT API] Video credits is 0, no deduction');
-      }
+      // Regenerating videos from the segment editor is free (no credit deduction).
 
       const hasFreshFirstFrame = shouldRegeneratePhoto ? false : Boolean(segmentRow.first_frame_url);
 
