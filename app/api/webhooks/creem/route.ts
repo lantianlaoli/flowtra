@@ -8,6 +8,7 @@ import {
   createSubscription,
   grantSubscriptionAccess,
   resetMonthlyCredits,
+  clearTrialCreditsOnCancellation,
   revokeSubscriptionAccess,
   updateSubscriptionStatus,
   updateSubscriptionPeriod,
@@ -302,14 +303,25 @@ export async function POST(request: NextRequest) {
 
         const creemSubscriptionId = object.id
 
-        // Don't revoke credits - user keeps credits until period ends
-        // Credits will be revoked when subscription.expired event is received
+        const clearResult = await clearTrialCreditsOnCancellation(userId, creemSubscriptionId)
+        if (!clearResult.success) {
+          console.error('❌ Failed to clear trial credits on cancellation:', clearResult.error)
+          return NextResponse.json({ error: clearResult.error }, { status: 500 })
+        }
 
         // Update subscription status
         await updateSubscriptionStatus(creemSubscriptionId, 'canceled')
 
         // Record event
         await recordSubscriptionEvent(userId, creemSubscriptionId, eventType, eventId, object)
+
+        if (clearResult.cleared) {
+          console.log(`✅ Subscription canceled during trial for user ${userId} (credits cleared)`)
+          return NextResponse.json({
+            success: true,
+            message: 'Subscription canceled during trial, credits cleared'
+          })
+        }
 
         console.log(`✅ Subscription marked as canceled for user ${userId} (credits preserved until expiration)`)
         return NextResponse.json({

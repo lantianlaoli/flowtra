@@ -147,6 +147,86 @@ export async function resetMonthlyCredits(
   return { success: true }
 }
 
+// Schema verified via Supabase MCP (2026-01-14):
+// user_subscriptions: id, creem_subscription_id, status
+// user_credits: user_id, credits_remaining, subscription_credits, updated_at
+// credit_transactions: user_id, type, amount, description, history_id, created_at
+type TrialCreditCleanupDeps = {
+  supabase?: ReturnType<typeof getSupabaseAdmin>
+  recordTransaction?: typeof recordCreditTransaction
+  now?: () => string
+}
+
+export async function clearTrialCreditsOnCancellation(
+  userId: string,
+  creemSubscriptionId: string,
+  deps?: TrialCreditCleanupDeps
+): Promise<{ success: boolean; cleared: boolean; error?: string }> {
+  const supabase = deps?.supabase ?? getSupabaseAdmin()
+  const recordTransaction = deps?.recordTransaction ?? recordCreditTransaction
+  const now = deps?.now ?? (() => new Date().toISOString())
+
+  const { data: subscription, error: subscriptionError } = await supabase
+    .from('user_subscriptions')
+    .select('id, status')
+    .eq('creem_subscription_id', creemSubscriptionId)
+    .single()
+
+  if (subscriptionError || !subscription) {
+    console.error('Failed to fetch subscription for trial cancel check:', subscriptionError)
+    return { success: false, cleared: false, error: 'Failed to fetch subscription' }
+  }
+
+  if (subscription.status !== 'trialing') {
+    return { success: true, cleared: false }
+  }
+
+  const { data: credits, error: creditsError } = await supabase
+    .from('user_credits')
+    .select('credits_remaining, subscription_credits')
+    .eq('user_id', userId)
+    .single()
+
+  if (creditsError || !credits) {
+    console.error('Failed to fetch user credits for trial cancel reset:', creditsError)
+    return { success: false, cleared: false, error: 'Failed to fetch user credits' }
+  }
+
+  const creditsToClear = credits.credits_remaining
+
+  const { error: updateError } = await supabase
+    .from('user_credits')
+    .update({
+      credits_remaining: 0,
+      subscription_credits: 0,
+      updated_at: now()
+    })
+    .eq('user_id', userId)
+
+  if (updateError) {
+    console.error('Failed to clear trial credits:', updateError)
+    return { success: false, cleared: false, error: 'Failed to clear trial credits' }
+  }
+
+  if (creditsToClear !== 0) {
+    const transactionResult = await recordTransaction(
+      userId,
+      'usage',
+      -creditsToClear,
+      'Trial cancellation: cleared all credits after subscription canceled during trial',
+      undefined,
+      true
+    )
+
+    if (!transactionResult.success) {
+      console.warn(`⚠️ Failed to record trial cancel transaction: ${transactionResult.error}`)
+    }
+  }
+
+  console.log(`🧹 Cleared trial credits for user ${userId}`)
+  return { success: true, cleared: true }
+}
+
 // Check if user has active subscription
 export async function hasActiveSubscription(userId: string): Promise<boolean> {
   const supabase = getSupabaseAdmin()

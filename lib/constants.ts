@@ -511,7 +511,7 @@ export function getRecommendedModel(
 
 export type LanguageCode =
   | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl' | 'sv' | 'no' | 'da'
-  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa';
+  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa' | 'id';
 
 // Language code to display name mapping
 export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
@@ -534,7 +534,8 @@ export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   'ro': 'Romanian',
   'zh': 'Chinese',
   'ur': 'Urdu',
-  'pa': 'Punjabi'
+  'pa': 'Punjabi',
+  'id': 'Indonesian'
 } as const;
 
 // Language code to native name mapping
@@ -558,7 +559,8 @@ export const LANGUAGE_NATIVE_NAMES: Record<LanguageCode, string> = {
   'ro': 'Română',
   'zh': '中文',
   'ur': 'اردو',
-  'pa': 'ਪੰਜਾਬੀ'
+  'pa': 'ਪੰਜਾਬੀ',
+  'id': 'Bahasa Indonesia'
 } as const;
 
 // Language code to natural language name for AI prompts
@@ -582,7 +584,8 @@ export const LANGUAGE_PROMPT_NAMES: Record<LanguageCode, string> = {
   'ro': 'Romanian (Română)',
   'zh': 'Chinese (中文)',
   'ur': 'Urdu (اردو)',
-  'pa': 'Punjabi (ਪੰਜਾਬੀ)'
+  'pa': 'Punjabi (ਪੰਜਾਬੀ)',
+  'id': 'Indonesian (Bahasa Indonesia)'
 } as const;
 
 // Get language display name
@@ -635,7 +638,8 @@ export function getLanguageVoiceStyle(code: LanguageCode): string {
     'ro': 'Romanian accent',
     'zh': 'Chinese accent',
     'ur': 'Urdu accent',
-    'pa': 'Punjabi accent'
+    'pa': 'Punjabi accent',
+    'id': 'Indonesian accent'
   };
 
   return voiceStyleMap[code] || 'English accent'; // fallback to English

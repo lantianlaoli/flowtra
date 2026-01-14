@@ -10,6 +10,7 @@ import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
 import { MODEL_PROCESSING_TIMES, type VideoModel } from '@/lib/constants';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
+import { getFlagEmoji } from '@/lib/language-utils';
 
 export type SegmentShotPayload = {
   id: number;
@@ -40,6 +41,7 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
   { value: 'fr', label: 'French', native: 'Français' },
   { value: 'de', label: 'German', native: 'Deutsch' },
   { value: 'it', label: 'Italian', native: 'Italiano' },
+  { value: 'id', label: 'Indonesian', native: 'Bahasa Indonesia' },
   { value: 'pt', label: 'Portuguese', native: 'Português' },
   { value: 'nl', label: 'Dutch', native: 'Nederlands' },
   { value: 'sv', label: 'Swedish', native: 'Svenska' },
@@ -874,7 +876,17 @@ export default function SegmentInspector({
                                   onClick={() => setOpenLanguageDropdownId(openLanguageDropdownId === shot.id ? null : shot.id)}
                                   className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 pr-8 text-left text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5"
                                 >
-                                  {LANGUAGE_OPTIONS.find(opt => opt.value === shot.language)?.native || 'Select language'}
+                                  <span className="flex items-center gap-2">
+                                    <span
+                                      className="text-base"
+                                      style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+                                    >
+                                      {getFlagEmoji(shot.language)}
+                                    </span>
+                                    <span>
+                                      {LANGUAGE_OPTIONS.find(opt => opt.value === shot.language)?.native || 'Select language'}
+                                    </span>
+                                  </span>
                                 </button>
                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                                 {openLanguageDropdownId === shot.id && (
@@ -892,7 +904,15 @@ export default function SegmentInspector({
                                           shot.language === option.value ? "bg-gray-50 font-medium text-gray-900" : "text-gray-700"
                                         )}
                                       >
-                                        <span>{option.native}</span>
+                                        <span className="flex items-center gap-2">
+                                          <span
+                                            className="text-base"
+                                            style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+                                          >
+                                            {getFlagEmoji(option.value)}
+                                          </span>
+                                          <span>{option.native}</span>
+                                        </span>
                                         {shot.language === option.value && <Check className="w-3.5 h-3.5" />}
                                       </button>
                                     ))}

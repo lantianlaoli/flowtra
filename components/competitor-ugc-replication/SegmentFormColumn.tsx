@@ -30,6 +30,7 @@ import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDispl
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
+import { getFlagEmoji } from '@/lib/language-utils';
 import { useToast } from '@/contexts/ToastContext';
 
 export type SegmentShotPayload = {
@@ -85,6 +86,7 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
   { value: 'fr', label: 'French', native: 'Français' },
   { value: 'de', label: 'German', native: 'Deutsch' },
   { value: 'it', label: 'Italian', native: 'Italiano' },
+  { value: 'id', label: 'Indonesian', native: 'Bahasa Indonesia' },
   { value: 'pt', label: 'Portuguese', native: 'Português' },
   { value: 'nl', label: 'Dutch', native: 'Nederlands' },
   { value: 'sv', label: 'Swedish', native: 'Svenska' },
@@ -212,8 +214,52 @@ export default function SegmentFormColumn({
   }), [initialPhotoPrompt, initialShots]);
   const promptSeedRef = useRef(promptSeedSignature);
 
+  const normalizeShotsForCompare = (items: SegmentShotPayload[]) =>
+    items.map((shot, idx) => ({
+      id: idx + 1,
+      time_range: shot.time_range.trim(),
+      audio: shot.audio.trim(),
+      style: shot.style.trim(),
+      action: shot.action.trim(),
+      subject: shot.subject.trim(),
+      dialogue: shot.dialogue.trim(),
+      language: shot.language,
+      composition: shot.composition.trim(),
+      context_environment: shot.context_environment.trim(),
+      ambiance_colour_lighting: shot.ambiance_colour_lighting.trim(),
+      camera_motion_positioning: shot.camera_motion_positioning.trim()
+    }));
+
+  const hasLocalEdits = (nextInitialPhoto: string, nextInitialShots: SegmentShotPayload[], nextContinuation: boolean) => {
+    if (photoPrompt.trim() !== nextInitialPhoto.trim()) return true;
+    if (isContinuation !== nextContinuation) return true;
+    if (shots.length !== nextInitialShots.length) return true;
+    const currentNormalized = normalizeShotsForCompare(shots);
+    const nextNormalized = normalizeShotsForCompare(nextInitialShots);
+    return currentNormalized.some((shot, idx) => {
+      const initial = nextNormalized[idx];
+      if (!initial) return true;
+      return (
+        shot.time_range !== initial.time_range ||
+        shot.audio !== initial.audio ||
+        shot.style !== initial.style ||
+        shot.action !== initial.action ||
+        shot.subject !== initial.subject ||
+        shot.dialogue !== initial.dialogue ||
+        shot.language !== initial.language ||
+        shot.composition !== initial.composition ||
+        shot.context_environment !== initial.context_environment ||
+        shot.ambiance_colour_lighting !== initial.ambiance_colour_lighting ||
+        shot.camera_motion_positioning !== initial.camera_motion_positioning
+      );
+    });
+  };
+
   useEffect(() => {
     if (promptSeedRef.current === promptSeedSignature && !isSegmentSwitch) {
+      return;
+    }
+    if (!isSegmentSwitch && hasLocalEdits(initialPhotoPrompt, initialShots, Boolean(normalizedPrompt.is_continuation_from_prev))) {
       return;
     }
     promptSeedRef.current = promptSeedSignature;
@@ -404,20 +450,10 @@ export default function SegmentFormColumn({
   // Auto-save logic
   const saveChanges = async () => {
     try {
-      const normalizedShots = shots.map((shot, idx) => ({
-        id: idx + 1,
-        time_range: shot.time_range.trim(),
-        audio: shot.audio.trim(),
-        style: shot.style.trim(),
-        action: shot.action.trim(),
-        subject: shot.subject.trim(),
-        dialogue: shot.dialogue.trim(),
-        language: shot.language,
-        composition: shot.composition.trim(),
-        context_environment: shot.context_environment.trim(),
-        ambiance_colour_lighting: shot.ambiance_colour_lighting.trim(),
-        camera_motion_positioning: shot.camera_motion_positioning.trim()
-      }));
+      const snapshotPhoto = photoPrompt.trim();
+      const snapshotContinuation = isContinuation;
+      const normalizedShots = normalizeShotsForCompare(shots);
+      const snapshotShotsSignature = JSON.stringify(normalizedShots);
 
       const payload = {
         prompt: {
@@ -440,10 +476,18 @@ export default function SegmentFormColumn({
 
       // Update seed ref to prevent reverting changes on Realtime update
       // Use normalizedShots to match the format that will come back from the database
-      promptSeedRef.current = JSON.stringify({
-        photo: photoPrompt.trim(),
-        shots: normalizedShots
-      });
+      const currentNormalized = normalizeShotsForCompare(shots);
+      const matchesSnapshot =
+        snapshotPhoto === photoPrompt.trim() &&
+        snapshotContinuation === isContinuation &&
+        JSON.stringify(currentNormalized) === snapshotShotsSignature;
+
+      if (matchesSnapshot) {
+        promptSeedRef.current = JSON.stringify({
+          photo: snapshotPhoto,
+          shots: normalizedShots
+        });
+      }
     } catch (error) {
       console.error('Auto-save failed:', error);
       showError('Failed to save changes. Please check your connection.');
@@ -918,7 +962,17 @@ export default function SegmentFormColumn({
                                 readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                               }`}
                             >
-                              {LANGUAGE_OPTIONS.find(opt => opt.value === shot.language)?.native || 'Select language'}
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className="text-base"
+                                  style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+                                >
+                                  {getFlagEmoji(shot.language)}
+                                </span>
+                                <span>
+                                  {LANGUAGE_OPTIONS.find(opt => opt.value === shot.language)?.native || 'Select language'}
+                                </span>
+                              </span>
                             </button>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                             {openLanguageDropdownId === shot.id && (
@@ -936,7 +990,15 @@ export default function SegmentFormColumn({
                                       shot.language === option.value ? "bg-gray-50 font-medium text-black" : "text-[#666666]"
                                     )}
                                   >
-                                    <span>{option.native}</span>
+                                    <span className="flex items-center gap-2">
+                                      <span
+                                        className="text-base"
+                                        style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+                                      >
+                                        {getFlagEmoji(option.value)}
+                                      </span>
+                                      <span>{option.native}</span>
+                                    </span>
                                     {shot.language === option.value && <Check className="w-3.5 h-3.5" />}
                                   </button>
                                 ))}

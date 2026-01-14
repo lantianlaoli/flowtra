@@ -33,6 +33,7 @@ const LANGUAGE_FLAG_MAP: Record<LanguageCode, string> = {
   'zh': '🇨🇳', // Chinese - China
   'ur': '🇵🇰', // Urdu - Pakistan
   'pa': '🇮🇳', // Punjabi - India
+  'id': '🇮🇩', // Indonesian - Indonesia
 };
 
 /**

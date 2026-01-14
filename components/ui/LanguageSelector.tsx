@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 export type LanguageCode =
   | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl' | 'sv' | 'no' | 'da'
-  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa';
+  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa' | 'id';
 
 interface LanguageSelectorProps {
   selectedLanguage: LanguageCode;
@@ -21,27 +21,29 @@ const LANGUAGE_OPTIONS: Array<{
   value: LanguageCode;
   label: string;
   nativeName: string;
+  flag: string;
 }> = [
-  { value: 'en', label: 'English', nativeName: 'English' },
-  { value: 'zh', label: 'Chinese', nativeName: '中文' },
-  { value: 'cs', label: 'Czech', nativeName: 'Čeština' },
-  { value: 'da', label: 'Danish', nativeName: 'Dansk' },
-  { value: 'nl', label: 'Dutch', nativeName: 'Nederlands' },
-  { value: 'fi', label: 'Finnish', nativeName: 'Suomi' },
-  { value: 'fr', label: 'French', nativeName: 'Français' },
-  { value: 'de', label: 'German', nativeName: 'Deutsch' },
-  { value: 'el', label: 'Greek', nativeName: 'Ελληνικά' },
-  { value: 'it', label: 'Italian', nativeName: 'Italiano' },
-  { value: 'no', label: 'Norwegian', nativeName: 'Norsk' },
-  { value: 'pl', label: 'Polish', nativeName: 'Polski' },
-  { value: 'pt', label: 'Portuguese', nativeName: 'Português' },
-  { value: 'pa', label: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
-  { value: 'ro', label: 'Romanian', nativeName: 'Română' },
-  { value: 'ru', label: 'Russian', nativeName: 'Русский' },
-  { value: 'es', label: 'Spanish', nativeName: 'Español' },
-  { value: 'sv', label: 'Swedish', nativeName: 'Svenska' },
-  { value: 'tr', label: 'Turkish', nativeName: 'Türkçe' },
-  { value: 'ur', label: 'Urdu', nativeName: 'اردو' },
+  { value: 'en', label: 'English', nativeName: 'English', flag: '🇺🇸' },
+  { value: 'zh', label: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
+  { value: 'cs', label: 'Czech', nativeName: 'Čeština', flag: '🇨🇿' },
+  { value: 'da', label: 'Danish', nativeName: 'Dansk', flag: '🇩🇰' },
+  { value: 'nl', label: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
+  { value: 'fi', label: 'Finnish', nativeName: 'Suomi', flag: '🇫🇮' },
+  { value: 'fr', label: 'French', nativeName: 'Français', flag: '🇫🇷' },
+  { value: 'de', label: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
+  { value: 'el', label: 'Greek', nativeName: 'Ελληνικά', flag: '🇬🇷' },
+  { value: 'it', label: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
+  { value: 'id', label: 'Indonesian', nativeName: 'Bahasa Indonesia', flag: '🇮🇩' },
+  { value: 'no', label: 'Norwegian', nativeName: 'Norsk', flag: '🇳🇴' },
+  { value: 'pl', label: 'Polish', nativeName: 'Polski', flag: '🇵🇱' },
+  { value: 'pt', label: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
+  { value: 'pa', label: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', flag: '🇮🇳' },
+  { value: 'ro', label: 'Romanian', nativeName: 'Română', flag: '🇷🇴' },
+  { value: 'ru', label: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
+  { value: 'es', label: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { value: 'sv', label: 'Swedish', nativeName: 'Svenska', flag: '🇸🇪' },
+  { value: 'tr', label: 'Turkish', nativeName: 'Türkçe', flag: '🇹🇷' },
+  { value: 'ur', label: 'Urdu', nativeName: 'اردو', flag: '🇵🇰' },
 ];
 
 export default function LanguageSelector({
@@ -108,6 +110,12 @@ export default function LanguageSelector({
           className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-lg transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
           <div className="min-w-0 flex items-center gap-2">
+            <span
+              className="text-base"
+              style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+            >
+              {selectedOption?.flag}
+            </span>
             <span className="font-medium truncate">
               {selectedOption?.label}
             </span>
@@ -143,6 +151,12 @@ export default function LanguageSelector({
                   )}
                 >
                   <div className="flex items-center gap-2">
+                    <span
+                      className="text-base"
+                      style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+                    >
+                      {option.flag}
+                    </span>
                     <span className="font-medium">
                       {option.label}
                     </span>

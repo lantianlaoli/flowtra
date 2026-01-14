@@ -61,3 +61,5 @@ openspec/
 # OpenCode
 .opencode/
 AGENTS.md
+
+.codex/

@@ -5,6 +5,7 @@ import { X, Loader2, Target, RefreshCcw, Languages, BadgeCheck, AlertTriangle, C
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompetitorAd } from '@/lib/supabase';
 import { getLanguageDisplayInfo, isLanguageCode } from '@/lib/language';
+import { getFlagEmoji } from '@/lib/language-utils';
 import { type LanguageCode } from '@/components/ui/LanguageSelector';
 import CompetitorShotsEditor from './CompetitorShotsEditor';
 import { CompetitorShotForm, parseShotsFromAnalysis, sanitizeShotsForSave } from '@/lib/competitor-shot-form';
@@ -27,6 +28,7 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
   { value: 'de', label: 'German', native: 'Deutsch' },
   { value: 'el', label: 'Greek', native: 'Ελληνικά' },
   { value: 'it', label: 'Italian', native: 'Italiano' },
+  { value: 'id', label: 'Indonesian', native: 'Bahasa Indonesia' },
   { value: 'no', label: 'Norwegian', native: 'Norsk' },
   { value: 'pl', label: 'Polish', native: 'Polski' },
   { value: 'pt', label: 'Portuguese', native: 'Português' },
@@ -387,7 +389,12 @@ export default function EditCompetitorAdModal({
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-md bg-gray-100 flex items-center justify-center border border-gray-200">
-                        <span className="text-xs font-semibold text-black uppercase">{selectedLanguageOption.value}</span>
+                        <span
+                          className="text-base"
+                          style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+                        >
+                          {getFlagEmoji(selectedLanguageOption.value)}
+                        </span>
                       </div>
                       <div className="text-left">
                         <p className="text-sm font-semibold text-black">{selectedLanguageOption.native}</p>
@@ -409,7 +416,12 @@ export default function EditCompetitorAdModal({
                             className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left transition-colors"
                           >
                             <div className="w-7 h-7 rounded bg-gray-100 flex items-center justify-center border border-gray-200">
-                              <span className="text-[10px] font-semibold text-black uppercase">{option.value}</span>
+                              <span
+                                className="text-base"
+                                style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+                              >
+                                {getFlagEmoji(option.value)}
+                              </span>
                             </div>
                             <div>
                               <p className="text-sm font-medium text-black">{option.native}</p>
