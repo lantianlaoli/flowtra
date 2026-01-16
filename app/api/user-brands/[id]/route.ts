@@ -292,9 +292,12 @@ export async function DELETE(
       }
     }
 
+    // Schema verified via Supabase MCP (2026-01-11):
+    // competitor_ads columns: id, user_id, brand_id, competitor_name, analysis_result,
+    // language, analysis_status, analysis_error, analyzed_at, video_duration_seconds.
     const { data: competitorAds, error: competitorsError } = await supabase
       .from('competitor_ads')
-      .select('id, ad_file_url')
+      .select('id')
       .eq('brand_id', brandId)
       .eq('user_id', userId);
 
@@ -307,7 +310,6 @@ export async function DELETE(
     }
 
     const competitorIds = (competitorAds || []).map(ad => ad.id);
-    const competitorUrls = (competitorAds || []).map(ad => ad.ad_file_url).filter(Boolean);
 
     if (competitorIds.length > 0) {
       const { error: deleteCompetitorsError } = await supabase

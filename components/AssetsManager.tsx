@@ -34,6 +34,7 @@ export default function AssetsManager() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deletingBrandId, setDeletingBrandId] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [deletingAvatarId, setDeletingAvatarId] = useState<string | null>(null);
 
@@ -109,17 +110,32 @@ export default function AssetsManager() {
   };
 
   const handleDeleteBrand = async (brandId: string) => {
+    if (deletingBrandId) {
+      return; // Prevent multiple simultaneous deletes
+    }
+
     try {
+      setDeletingBrandId(brandId);
       const response = await fetch(`/api/user-brands/${brandId}`, {
         method: 'DELETE'
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        // Refresh data to get updated product assignments
         await loadAssets();
+        showSuccess(data.message || 'Brand deleted successfully', 4000);
+        return;
       }
+
+      const errorMessage = data.message || data.error || 'Failed to delete brand';
+      console.error('Error deleting brand:', data);
+      showError(errorMessage, 5000);
     } catch (error) {
       console.error('Error deleting brand:', error);
+      showError('An error occurred while deleting the brand. Please try again.', 5000);
+    } finally {
+      setDeletingBrandId(null);
     }
   };
 

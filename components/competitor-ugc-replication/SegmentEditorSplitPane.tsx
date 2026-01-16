@@ -26,7 +26,9 @@ interface SegmentEditorSplitPaneProps {
     characterIds?: string[];
   }) => Promise<void> | void;
   onMerge?: () => void;
+  onDownload?: () => void;
   isMerging?: boolean;
+  isDownloading?: boolean;
   readOnly?: boolean;
 }
 
@@ -41,7 +43,9 @@ export default function SegmentEditorSplitPane({
   brandName,
   onRegenerate,
   onMerge,
+  onDownload,
   isMerging,
+  isDownloading,
   readOnly = false
 }: SegmentEditorSplitPaneProps) {
   const [selectedSegmentIndex, setSelectedSegmentIndex] = useState(0);
@@ -169,7 +173,9 @@ export default function SegmentEditorSplitPane({
             selectedIndex={selectedSegmentIndex}
             onSelectSegment={handleSegmentSelect}
             onMerge={onMerge}
+            onDownload={onDownload}
             isMerging={isMerging}
+            isDownloading={isDownloading}
             readOnly={readOnly}
           />
         </Panel>

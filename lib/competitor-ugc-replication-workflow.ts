@@ -11,7 +11,6 @@ import {
   DEFAULT_SEGMENT_DURATION_SECONDS,
   snapDurationToModel,
   MAX_BASE64_VIDEO_SIZE_BYTES,
-  MAX_COMPETITOR_VIDEO_SIZE_BYTES,
   type LanguageCode,
   type VideoDuration,
   type VideoModel
@@ -1207,7 +1206,6 @@ async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
     console.log(`[fetchVideoAsBase64] Starting download: ${videoUrl}`);
     const startTime = Date.now();
 
-    // Set timeout for video download (60 seconds)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
@@ -1221,13 +1219,11 @@ async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
     const arrayBuffer = await response.arrayBuffer();
     const downloadTime = Date.now() - startTime;
     const sizeInMB = (arrayBuffer.byteLength / (1024 * 1024)).toFixed(2);
-
     console.log(`[fetchVideoAsBase64] Downloaded ${sizeInMB}MB in ${downloadTime}ms`);
 
     const buffer = Buffer.from(arrayBuffer);
     const base64 = buffer.toString('base64');
 
-    // Detect mime type from URL extension
     let mimeType = 'video/mp4';
     if (videoUrl.endsWith('.webm')) mimeType = 'video/webm';
     else if (videoUrl.endsWith('.mov')) mimeType = 'video/mov';
@@ -1247,6 +1243,7 @@ async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
     throw error;
   }
 }
+
 /**
  * Analyze a competitor ad with automatic language detection.
  *
@@ -1261,37 +1258,30 @@ export async function analyzeCompetitorAdWithLanguage(
   console.log('[analyzeCompetitorAdWithLanguage] File type: video (video-only mode)');
   console.log('[analyzeCompetitorAdWithLanguage] File URL:', competitorAdContext.file_url);
 
-  // Detect if URL is a direct video URL (TikTok CDN) or needs base64 conversion (Supabase Storage)
-  // TikTok CDN URLs work directly with OpenRouter - no base64 conversion needed
   const isDirectVideoUrl = competitorAdContext.file_url.includes('tiktokcdn.com');
-
   let processedFileUrl: string;
+
   try {
     if (isDirectVideoUrl) {
-      // Use TikTok CDN URL directly - no base64 conversion
       processedFileUrl = competitorAdContext.file_url;
       console.log('[analyzeCompetitorAdWithLanguage] Using direct video URL (TikTok CDN)');
     } else {
-      // Convert Supabase Storage URL to base64 (Gemini requirement)
       processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
       console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
 
-      // Validate Base64 size (Gemini 2.5 Flash has ~20MB request size limit)
       const base64SizeInMB = processedFileUrl.length / (1024 * 1024);
-      const MAX_BASE64_SIZE_MB = MAX_BASE64_VIDEO_SIZE_BYTES / (1024 * 1024);
-      const MAX_ORIGINAL_SIZE_MB = MAX_COMPETITOR_VIDEO_SIZE_BYTES / (1024 * 1024);
+      const maxBase64SizeMB = MAX_BASE64_VIDEO_SIZE_BYTES / (1024 * 1024);
 
-      if (base64SizeInMB > MAX_BASE64_SIZE_MB) {
-        console.error(`[analyzeCompetitorAdWithLanguage] Base64 size too large: ${base64SizeInMB.toFixed(2)}MB (max: ${MAX_BASE64_SIZE_MB}MB)`);
+      if (base64SizeInMB > maxBase64SizeMB) {
+        console.error(`[analyzeCompetitorAdWithLanguage] Base64 size too large: ${base64SizeInMB.toFixed(2)}MB (max: ${maxBase64SizeMB}MB)`);
         throw new Error(
           `Video file too large for AI analysis (${base64SizeInMB.toFixed(1)} MB after encoding). ` +
-          `Maximum supported size is ${MAX_BASE64_SIZE_MB} MB. Please compress your video to under ${MAX_ORIGINAL_SIZE_MB} MB and try again.`
+          `Please trim or compress your video and try again.`
         );
       }
     }
   } catch (error) {
     console.error('[analyzeCompetitorAdWithLanguage] Video processing failed:', error);
-    // Re-throw with original error message if it's already a user-friendly error
     if (error instanceof Error && error.message.includes('too large')) {
       throw error;
     }

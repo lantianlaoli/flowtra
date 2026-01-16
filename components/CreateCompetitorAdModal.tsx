@@ -9,10 +9,7 @@ import { getLanguageDisplayInfo } from '@/lib/language';
 import CompetitorShotsEditor from './CompetitorShotsEditor';
 import { CompetitorShotForm, parseShotsFromAnalysis } from '@/lib/competitor-shot-form';
 import { uploadFileToSupabase } from '@/lib/upload-to-supabase';
-import {
-  MAX_COMPETITOR_VIDEO_SIZE_BYTES,
-  BASE64_SIZE_MULTIPLIER
-} from '@/lib/constants';
+import { MAX_COMPETITOR_VIDEO_SIZE_BYTES } from '@/lib/constants';
 
 interface CreateCompetitorAdModalProps {
   isOpen: boolean;
@@ -53,8 +50,6 @@ export default function CreateCompetitorAdModal({
   // API state
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
-  const [compressionLink, setCompressionLink] = useState<string | null>(null);
 
   // Analysis state
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('idle');
@@ -91,7 +86,6 @@ export default function CreateCompetitorAdModal({
       setInputMode('file'); // Reset to file mode
       setTiktokUrl(''); // Clear TikTok URL
       setError(null);
-      setWarning(null);
       setAnalysisStatus('idle');
       setAnalysisResult(null);
       setAnalysisLanguage(null);
@@ -135,7 +129,6 @@ export default function CreateCompetitorAdModal({
     console.log('[CreateCompetitorAdModal] Starting TikTok video analysis...');
     setIsUploading(true);
     setError(null);
-    setWarning(null);
 
     try {
       // =====================================================================
@@ -253,23 +246,16 @@ export default function CreateCompetitorAdModal({
         return;
       }
 
-      // Validate file size - 15 MB maximum (ensures Base64 stays under 20MB API limit)
-      // Base64 encoding increases size by ~37%, so 15MB * 1.37 ≈ 20MB
+      // Validate file size - 20 MB maximum
       if (file.size > MAX_COMPETITOR_VIDEO_SIZE_BYTES) {
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-        const estimatedBase64MB = ((file.size * BASE64_SIZE_MULTIPLIER) / (1024 * 1024)).toFixed(2);
         const maxSizeMB = (MAX_COMPETITOR_VIDEO_SIZE_BYTES / (1024 * 1024)).toFixed(0);
         setError(
-          `Video file too large (${fileSizeMB} MB, ~${estimatedBase64MB} MB after encoding). ` +
-          `Maximum: ${maxSizeMB} MB to ensure AI analysis succeeds. Please compress your video first.`
+          `Video file too large (${fileSizeMB} MB). ` +
+          `Maximum: ${maxSizeMB} MB. Please trim or compress your video before uploading.`
         );
-        setCompressionLink('https://www.onlineconverter.com/compress-video');
-        setWarning('Tip: Most competitor ads are under 10 MB. Compress to improve upload speed.');
         return;
       }
-
-      // Clear compression link if file size is valid
-      setCompressionLink(null);
 
       // Validate video duration - 80 seconds maximum
       // Create temporary video element to read duration
@@ -509,17 +495,9 @@ export default function CreateCompetitorAdModal({
               {!isAnalysisMode ? (
                 <div className="h-full w-full flex flex-col gap-6">
                    {/* Error Display (moved from form) */}
-                   {error && (
+                  {error && (
                     <div className="w-full bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                       <p>{error}</p>
-                      {compressionLink && (
-                        <p className="mt-2">
-                          Please use a video compression website to process your video before uploading:{' '}
-                          <a href={compressionLink} target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">
-                            {compressionLink}
-                          </a>
-                        </p>
-                      )}
                     </div>
                   )}
 
@@ -540,7 +518,7 @@ export default function CreateCompetitorAdModal({
                           Drag & drop or click to browse
                         </p>
                         <p className="text-xs text-gray-400">
-                          MP4, MOV • Max 15 MB • 80s
+                          MP4, MOV • Max 20 MB • 80s
                         </p>
                       </button>
                     </div>
@@ -852,7 +830,6 @@ export default function CreateCompetitorAdModal({
                             setFilePreview(null);
                             setFileType(null);
                             setError(null);
-                            setCompressionLink(null);
                           }}
                           className="px-6 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
                         >

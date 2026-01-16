@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Loader2, Film, List } from 'lucide-react';
+import { Download, Loader2, Film, List } from 'lucide-react';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import SegmentListItem from './SegmentListItem';
 
@@ -10,7 +10,9 @@ interface SegmentListColumnProps {
   selectedIndex: number;
   onSelectSegment: (index: number) => void;
   onMerge?: () => void;
+  onDownload?: () => void;
   isMerging?: boolean;
+  isDownloading?: boolean;
   readOnly?: boolean;
 }
 
@@ -19,12 +21,18 @@ export default function SegmentListColumn({
   selectedIndex,
   onSelectSegment,
   onMerge,
+  onDownload,
   isMerging,
+  isDownloading,
   readOnly = false
 }: SegmentListColumnProps) {
   // Check if all segments have videos ready
   const allVideosReady = useMemo(() => {
     return segments.length > 1 && segments.every(seg => seg.videoUrl);
+  }, [segments]);
+
+  const singleSegmentReady = useMemo(() => {
+    return segments.length === 1 && Boolean(segments[0]?.videoUrl);
   }, [segments]);
 
   // Count how many segments have videos
@@ -81,6 +89,34 @@ export default function SegmentListColumn({
               <>
                 <Film className="w-4 h-4" />
                 Merge All Segments
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Download Button - Shown for single-segment projects */}
+      {segments.length === 1 && onDownload && !readOnly && (
+        <div className="flex-shrink-0 border-t border-[#E5E5E5] bg-white p-3 space-y-3">
+          {!singleSegmentReady && !isDownloading && (
+            <p className="text-[11px] text-[#666666] text-center px-2">
+              Generate the segment video before downloading.
+            </p>
+          )}
+          <button
+            onClick={onDownload}
+            disabled={!singleSegmentReady || isDownloading}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-black"
+          >
+            {isDownloading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Preparing Download...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                Download Video
               </>
             )}
           </button>

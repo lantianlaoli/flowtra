@@ -652,21 +652,13 @@ export function getLanguageVoiceStyle(code: LanguageCode): string {
  * Maximum video file size for competitor ad analysis (bytes)
  *
  * Rationale:
- * - Base64 encoding increases size by ~37% (4/3 ratio)
- * - Gemini 2.5 Flash API has ~20MB request size limit
- * - 15 MB * 1.37 ≈ 20.55 MB (stays under API limit with buffer)
- * - Most competitor ads are under 10 MB
+ * - Keep uploads within provider expectations for video_url analysis
+ * - 20 MB is the maximum supported upload size
  */
-export const MAX_COMPETITOR_VIDEO_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
+export const MAX_COMPETITOR_VIDEO_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
 /**
  * Maximum Base64-encoded video size for API requests (bytes)
- * Based on Gemini 2.5 Flash API limitation
+ * Allows headroom for Base64 expansion on 20 MB uploads
  */
-export const MAX_BASE64_VIDEO_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
-
-/**
- * Base64 encoding size multiplier
- * Base64 increases size by 4/3 (≈1.37x)
- */
-export const BASE64_SIZE_MULTIPLIER = 1.37;
+export const MAX_BASE64_VIDEO_SIZE_BYTES = 30 * 1024 * 1024; // 30 MB

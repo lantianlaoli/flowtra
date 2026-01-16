@@ -550,8 +550,13 @@ export default function CompetitorUgcReplicationPage() {
                 : STEP_PROGRESS_HINTS.processing;
 
       const hasVideoReady = Boolean(payloadData?.videoUrl);
-      const resolvedStatus = hasVideoReady ? 'completed' as Generation['status'] : status;
-      let resolvedProgress = hasVideoReady ? 100 : baseProgress;
+      const totalSegments = nextSegmentStatus?.total || nextSegmentCount || gen.segmentCount || 0;
+      const videosReady = nextSegmentStatus?.videosReady || 0;
+      const singleSegmentCompleted = nextIsSegmented && totalSegments === 1 && videosReady === 1;
+      const resolvedStatus = (hasVideoReady || singleSegmentCompleted)
+        ? 'completed' as Generation['status']
+        : status;
+      let resolvedProgress = (hasVideoReady || singleSegmentCompleted) ? 100 : baseProgress;
       let stageLabel = getStageLabel(resolvedStatus, effectiveStep || payload.current_step);
       if (resolvedStatus === 'awaiting_review') {
         stageLabel = payloadData?.videoGenerationRequested
@@ -561,9 +566,7 @@ export default function CompetitorUgcReplicationPage() {
       const resolvedStage = hasVideoReady ? 'Completed' : stageLabel;
 
       if (nextIsSegmented) {
-        const totalSegments = nextSegmentStatus?.total || nextSegmentCount || gen.segmentCount || 0;
         const framesReady = nextSegmentStatus?.framesReady || 0;
-        const videosReady = nextSegmentStatus?.videosReady || 0;
 
         if (awaitingMerge) {
           resolvedProgress = Math.max(resolvedProgress, STEP_PROGRESS_HINTS.awaiting_merge);

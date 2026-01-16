@@ -746,7 +746,11 @@ function GenerationCard({
                   setShowSegmentEditor(false);
                   onMerge(generation);
                 } : undefined)}
+                onDownload={editorReadOnly ? undefined : (onDownload ? () => {
+                  onDownload(generation);
+                } : undefined)}
                 isMerging={generation.mergeLoading}
+                isDownloading={generation.isDownloading}
                 readOnly={editorReadOnly}
               />
             </div>

@@ -316,8 +316,8 @@ export default function BrandSection({
         title="Delete Brand"
         message={
           products.length > 0
-            ? `Are you sure you want to delete "${brand.brand_name}"? This will unlink ${products.length} ${products.length === 1 ? 'product' : 'products'} from this brand (products won't be deleted).`
-            : `Are you sure you want to delete "${brand.brand_name}"?`
+            ? `Are you sure you want to delete "${brand.brand_name}"? This will delete ${products.length} ${products.length === 1 ? 'product' : 'products'} under this brand.${competitorCount > 0 ? ` It will also remove ${competitorCount} ${competitorCount === 1 ? 'viral video' : 'viral videos'}.` : ''}`
+            : `Are you sure you want to delete "${brand.brand_name}"?${competitorCount > 0 ? ` It will also remove ${competitorCount} ${competitorCount === 1 ? 'viral video' : 'viral videos'}.` : ''}`
         }
         confirmText="Delete"
         variant="danger"
