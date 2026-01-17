@@ -994,8 +994,6 @@ const formatDurationLabel = (seconds: number) => {
     setIsGeneratingDialogue(true);
 
     const productName = selectedProduct.product_name || '';
-    const productDescription = selectedProduct.description || '';
-
     try {
       const response = await fetch('/api/avatar-ads/dialogue', {
         method: 'POST',
@@ -1004,7 +1002,6 @@ const formatDurationLabel = (seconds: number) => {
         },
         body: JSON.stringify({
           productName,
-          productDescription,
           productImageUrls: productPhotoUrls,
           language: selectedLanguage,
           videoDurationSeconds: videoDuration

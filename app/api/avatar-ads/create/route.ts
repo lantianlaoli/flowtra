@@ -110,10 +110,9 @@ export async function POST(request: NextRequest) {
     const productFiles: File[] = [];
     // Product context for AI workflow
     let productContext: {
-      product_details: string;
+      product_name?: string;
       brand_name?: string;
-      brand_slogan?: string;
-      brand_details?: string;
+      talking_head_script?: string;
     } | null = null;
 
     if (selectedProductId) {
@@ -142,9 +141,7 @@ export async function POST(request: NextRequest) {
             user_product_photos (*),
             brand:user_brands (
               id,
-              brand_name,
-              brand_slogan,
-              brand_details
+              brand_name
             )
           `)
           .eq('id', selectedProductId)
@@ -168,19 +165,9 @@ export async function POST(request: NextRequest) {
 
         productImageUrls.push(...product.user_product_photos.map((photo: { photo_url: string }) => photo.photo_url));
 
-        // Store product and brand context for AI workflow
-        if (!product.product_details) {
-          return NextResponse.json(
-            { error: 'Product details not found. Please ensure the product has been analyzed.' },
-            { status: 400 }
-          );
-        }
-
         productContext = {
-          product_details: product.product_details,
-          brand_name: product.brand?.brand_name,
-          brand_slogan: product.brand?.brand_slogan,
-          brand_details: product.brand?.brand_details
+          product_name: product.product_name,
+          brand_name: product.brand?.brand_name
         };
       }
     } else {
@@ -220,7 +207,7 @@ export async function POST(request: NextRequest) {
     if (talkingHeadMode && !productContext) {
       const trimmedDialogue = (customDialogue || '').trim();
       productContext = {
-        product_details: trimmedDialogue
+        talking_head_script: trimmedDialogue
           ? `Talking head delivery. Have the character speak directly to camera and read this script verbatim: ${trimmedDialogue}`
           : 'Talking head delivery. Have the character speak directly to camera about their experience or advice without showing a specific product.'
       };

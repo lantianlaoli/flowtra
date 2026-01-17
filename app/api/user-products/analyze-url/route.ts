@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function analyzeProductImage(imageUrl: string): Promise<{ productName: string; productDetails: string }> {
+async function analyzeProductImage(imageUrl: string): Promise<{ productName: string }> {
   const responseFormat = {
     type: 'json_schema',
     json_schema: {
@@ -52,15 +52,11 @@ async function analyzeProductImage(imageUrl: string): Promise<{ productName: str
       schema: {
         type: 'object',
         additionalProperties: false,
-        required: ['product_name', 'product_details'],
+        required: ['product_name'],
         properties: {
           product_name: {
             type: 'string',
             description: 'Merchandisable product name (max 80 characters)'
-          },
-          product_details: {
-            type: 'string',
-            description: 'Compelling product description (2-3 short sentences)'
           }
         }
       }
@@ -80,7 +76,7 @@ async function analyzeProductImage(imageUrl: string): Promise<{ productName: str
         content: [
           {
             type: 'input_text' as const,
-            text: 'Analyze this product photo and respond with JSON containing product_name and product_details. The name should feel like a polished SKU title and product_details should be 2-3 short sentences highlighting key features and materials.'
+            text: 'Analyze this product photo and respond with JSON containing product_name only. The name should feel like a polished SKU title.'
           },
           {
             type: 'image_url' as const,
@@ -115,14 +111,12 @@ async function analyzeProductImage(imageUrl: string): Promise<{ productName: str
 
   interface ProductMetadataSchema {
     product_name: string;
-    product_details: string;
   }
 
   const isProductMetadata = (value: unknown): value is ProductMetadataSchema => {
     return Boolean(
       value &&
-      typeof (value as { product_name?: unknown }).product_name === 'string' &&
-      typeof (value as { product_details?: unknown }).product_details === 'string'
+      typeof (value as { product_name?: unknown }).product_name === 'string'
     );
   };
 
@@ -145,7 +139,6 @@ async function analyzeProductImage(imageUrl: string): Promise<{ productName: str
   }
 
   return {
-    productName: parsed.product_name.trim(),
-    productDetails: parsed.product_details.trim()
+    productName: parsed.product_name.trim()
   };
 }

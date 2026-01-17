@@ -331,11 +331,6 @@ export default function ProductCard({
               <h4 className="font-medium text-base text-gray-900 truncate mb-1">
                 {product.product_name}
               </h4>
-              {product.description && (
-                <p className="text-sm text-gray-600 line-clamp-2">
-                  {product.description}
-                </p>
-              )}
               {photos.length > 1 && (
                 <p className="text-xs text-gray-500 mt-1">
                   {photos.length} photos
@@ -432,11 +427,6 @@ export default function ProductCard({
                 >
                   {product.product_name}
                 </h3>
-              )}
-              {product.description && (
-                <p className="text-gray-600 text-sm line-clamp-2">
-                  {product.description}
-                </p>
               )}
             </div>
 

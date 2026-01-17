@@ -178,7 +178,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     };
     const characterPhotoUrls: string[] = [];
-    let brandContext: { brand_name: string; brand_slogan: string; brand_details: string } | undefined;
+    let brandContext: { brand_name: string } | undefined;
     let competitorFileType: 'video' | 'image' | null = null;
 
     const ensureCredits = async (amount: number, description: string) => {
@@ -211,17 +211,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const ensureBrandAndProductAssets = async () => {
       if (project.selected_brand_id) {
+        // Schema verified via Supabase MCP (2026-01-12): user_brands has brand_name, brand_logo_url
         const { data: brand } = await supabase
           .from('user_brands')
-          .select('brand_name,brand_slogan,brand_details,brand_logo_url')
+          .select('brand_name,brand_logo_url')
           .eq('id', project.selected_brand_id)
           .single();
         if (brand) {
           brandLogoUrl = brand.brand_logo_url || null;
           brandContext = {
-            brand_name: brand.brand_name || '',
-            brand_slogan: brand.brand_slogan || '',
-            brand_details: brand.brand_details || ''
+            brand_name: brand.brand_name || ''
           };
         }
       }

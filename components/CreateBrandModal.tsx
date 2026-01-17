@@ -19,8 +19,6 @@ export default function CreateBrandModal({
   onBrandCreated
 }: CreateBrandModalProps) {
   const [brandName, setBrandName] = useState('');
-  const [brandSlogan, setBrandSlogan] = useState('');
-  const [brandDetails, setBrandDetails] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -30,8 +28,6 @@ export default function CreateBrandModal({
   useEffect(() => {
     if (isOpen) {
       setBrandName('');
-      setBrandSlogan('');
-      setBrandDetails('');
       setLogoFile(null);
       setLogoPreview(null);
       setError(null);
@@ -112,12 +108,6 @@ export default function CreateBrandModal({
     try {
       const formData = new FormData();
       formData.append('brand_name', brandName.trim());
-      if (brandSlogan.trim()) {
-        formData.append('brand_slogan', brandSlogan.trim());
-      }
-      if (brandDetails.trim()) {
-        formData.append('brand_details', brandDetails.trim());
-      }
       if (logoFile) {
         formData.append('logo', logoFile);
       }
@@ -184,7 +174,7 @@ export default function CreateBrandModal({
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Create New Brand</h3>
-                  <p className="text-sm text-gray-600">Add a brand. Logo optional. Details help improve ad context.</p>
+                  <p className="text-sm text-gray-600">Add a brand. Logo optional.</p>
                 </div>
               </div>
               <button
@@ -213,40 +203,6 @@ export default function CreateBrandModal({
                   disabled={isCreating}
                   maxLength={100}
                 />
-              </div>
-
-              {/* Brand Slogan Input */}
-              <div>
-                <label htmlFor="brand-slogan-input" className="block text-sm font-medium text-gray-700 mb-2">
-                  Brand Slogan (Optional)
-                </label>
-                <input
-                  id="brand-slogan-input"
-                  type="text"
-                  value={brandSlogan}
-                  onChange={(e) => setBrandSlogan(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors"
-                  placeholder="Enter brand slogan"
-                  disabled={isCreating}
-                  maxLength={200}
-                />
-              </div>
-
-              {/* Brand Details Input */}
-              <div>
-                <label htmlFor="brand-details-input" className="block text-sm font-medium text-gray-700 mb-2">
-                  Brand Details (Optional)
-                </label>
-                <textarea
-                  id="brand-details-input"
-                  value={brandDetails}
-                  onChange={(e) => setBrandDetails(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors min-h-24"
-                  placeholder="Describe your brand, tone, audience, USPs, etc."
-                  disabled={isCreating}
-                  maxLength={2000}
-                />
-                <p className="mt-1 text-xs text-gray-500">Used to provide precise context when generating ads.</p>
               </div>
 
               {/* Logo Upload */}

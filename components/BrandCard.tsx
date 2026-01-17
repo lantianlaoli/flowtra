@@ -84,11 +84,6 @@ export default function BrandCard({
             <h3 className="font-semibold text-gray-900 text-lg truncate">
               {brand.brand_name}
             </h3>
-            {(brand.brand_slogan || brand.brand_details) && (
-              <p className="text-gray-600 text-sm line-clamp-2 mt-1">
-                {brand.brand_slogan || brand.brand_details}
-              </p>
-            )}
           </div>
 
           {!selectable && (

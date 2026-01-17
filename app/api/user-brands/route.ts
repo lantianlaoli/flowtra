@@ -63,8 +63,6 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const brandName = formData.get('brand_name') as string;
-    const brandSlogan = formData.get('brand_slogan') as string | null;
-    const brandDetails = formData.get('brand_details') as string | null;
     const logoFile = formData.get('logo') as File | null;
 
     // Validation
@@ -99,13 +97,12 @@ export async function POST(request: NextRequest) {
 
     // Create brand record in database
     const supabase = getSupabaseAdmin();
+    // Schema verified via Supabase MCP (2026-01-12): user_brands has brand_name, brand_logo_url
     const { data: brand, error: dbError } = await supabase
       .from('user_brands')
       .insert({
         user_id: userId,
         brand_name: brandName.trim(),
-        brand_slogan: brandSlogan?.trim() || null,
-        brand_details: brandDetails?.toString().trim() || null,
         brand_logo_url: logoUrl
       })
       .select()

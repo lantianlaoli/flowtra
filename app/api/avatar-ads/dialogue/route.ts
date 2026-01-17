@@ -5,7 +5,6 @@ import { clampDialogueToWordLimit, getAvatarAdsDialogueWordLimit } from '@/lib/a
 
 interface DialogueRequestPayload {
   productName?: string;
-  productDescription?: string;
   productImageUrls?: string[];
   language?: LanguageCode;
   videoDurationSeconds?: number;
@@ -23,7 +22,6 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as DialogueRequestPayload;
     const {
       productName,
-      productDescription,
       productImageUrls = [],
       language = 'en',
       videoDurationSeconds
@@ -34,7 +32,6 @@ export async function POST(request: NextRequest) {
       .slice(0, 3);
 
     const nameSnippet = productName?.trim() || 'the product';
-    const descriptionSnippet = productDescription?.trim() || 'A modern product that customers love.';
     const languageName = getLanguagePromptName(language);
 
     const dialogueWordLimit = getAvatarAdsDialogueWordLimit(
@@ -44,7 +41,7 @@ export async function POST(request: NextRequest) {
     const systemPrompt = `You are an advertising dialogue writer for user-generated content spokesperson videos.\n
 Requirements:\n- Return exactly one spoken line capped at ${dialogueWordLimit} words in ${languageName}.\n- Sound casual, enthusiastic, and authentic as if spoken on camera.\n- Blend a hook, the key benefit, and a friendly call-to-action.\n- Avoid hashtags, emojis, marketing buzzwords, or repeated punctuation.\n- Do not add quotes or surrounding characters.\n- Base the line on the product imagery and description provided.\n- The dialogue MUST be written in ${languageName}.`;
 
-    const userTextPrompt = `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\nLanguage: ${languageName}\nIf possible, reference standout visuals you observe. Respond with one spoken line in ${languageName} now.`;
+    const userTextPrompt = `Product Name: ${nameSnippet}\nLanguage: ${languageName}\nIf possible, reference standout visuals you observe. Respond with one spoken line in ${languageName} now.`;
 
     const userContent: Array<
       | { type: 'text'; text: string }

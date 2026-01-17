@@ -11,6 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const supabase = getSupabaseAdmin();
+    // Schema verified via Supabase MCP (2026-01-12): user_products has product_name, brand_id
     const { data, error } = await supabase
       .from('user_products')
       .select(`
@@ -55,7 +56,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
-    const { product_name, description, brand_id, product_details } = body;
+    const { product_name, brand_id } = body;
 
     // Build update object dynamically to handle partial updates
     const updateData: Record<string, string | null> = {};
@@ -65,14 +66,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
       }
       updateData.product_name = product_name;
-    }
-
-    if (description !== undefined) {
-      updateData.description = description || null;
-    }
-
-    if (product_details !== undefined) {
-      updateData.product_details = product_details || null;
     }
 
     if (brand_id !== undefined) {

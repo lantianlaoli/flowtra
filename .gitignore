@@ -63,3 +63,6 @@ openspec/
 AGENTS.md
 
 .codex/
+
+# Supabase local dev artifacts
+supabase/

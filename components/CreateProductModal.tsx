@@ -8,7 +8,6 @@ import { UserProduct } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 import { useImageCompression } from '@/hooks/useImageCompression';
-import { createClient } from '@/lib/supabase/client';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -17,33 +16,28 @@ interface CreateProductModalProps {
   preselectedBrandId?: string | null;
 }
 
-type AnalysisState = 'idle' | 'purifying' | 'analyzing' | 'completed' | 'failed';
+type AnalysisState = 'idle' | 'analyzing' | 'completed' | 'failed';
 
 const STATUS_COPY: Record<AnalysisState, { label: string; badge: string; helper: string }> = {
   idle: {
     label: 'Waiting for photo',
     badge: 'bg-gray-200 text-gray-700',
-    helper: 'Upload a clear product photo and Flowtra will purify and describe it automatically.'
-  },
-  purifying: {
-    label: 'Purifying photo…',
-    badge: 'bg-purple-100 text-purple-800',
-    helper: 'AI is removing background and centering your product.'
+    helper: ''
   },
   analyzing: {
     label: 'Analyzing photo…',
     badge: 'bg-blue-100 text-blue-800',
-    helper: 'Hang tight while we inspect the photo and write the product copy.'
+    helper: ''
   },
   completed: {
-    label: 'Metadata ready',
+    label: 'Name ready',
     badge: 'bg-emerald-100 text-emerald-800',
-    helper: 'Review or tweak the generated name and description before saving.'
+    helper: ''
   },
   failed: {
     label: 'Processing failed',
     badge: 'bg-red-100 text-red-800',
-    helper: 'Upload a new photo to retry the automatic processing.'
+    helper: ''
   }
 };
 
@@ -54,7 +48,6 @@ export default function CreateProductModal({
   preselectedBrandId = null
 }: CreateProductModalProps) {
   const [productName, setProductName] = useState('');
-  const [productDetails, setProductDetails] = useState('');
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisState>('idle');
@@ -64,22 +57,17 @@ export default function CreateProductModal({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Purification state tracking (webhook-based)
-  const [purifyingPhotoId, setPurifyingPhotoId] = useState<string | null>(null);
-
   // Image compression hook
   const { compressImage, isCompressing, compressionProgress } = useImageCompression();
 
   useEffect(() => {
     if (isOpen) {
       setProductName('');
-      setProductDetails('');
       setUploadedImage(null);
       setImagePreview(null);
       setAnalysisStatus('idle');
       setAnalysisError(null);
       setFormError(null);
-      setPurifyingPhotoId(null);
     }
   }, [isOpen]);
 
@@ -123,15 +111,15 @@ export default function CreateProductModal({
       setFormError(null);
       setAnalysisError(null);
       setUploadedImage(file);
-      setAnalysisStatus('purifying');
+      setAnalysisStatus('analyzing');
 
-      // Show original preview while purifying
+      // Show original preview while analyzing
       const reader = new FileReader();
       reader.onload = () => setImagePreview(reader.result as string);
       reader.readAsDataURL(file);
 
-      // Start purification workflow
-      purifyAndAnalyzePhoto(file);
+      // Start analysis workflow
+      analyzePhoto(file);
     };
 
     img.onerror = () => {
@@ -164,231 +152,19 @@ export default function CreateProductModal({
     );
   };
 
-  // NEW: Complete purification + analysis workflow (webhook-based)
-  const purifyAndAnalyzePhoto = async (file: File) => {
+  const analyzePhoto = async (file: File) => {
     try {
-      // STEP 0: Compress if file > 4MB (to avoid Vercel 4.5MB limit)
-      let fileToUpload = file;
+      let fileToAnalyze = file;
       const fileSizeMB = file.size / 1024 / 1024;
 
       if (fileSizeMB > 4) {
-        console.log(`[purify-workflow] File size ${fileSizeMB.toFixed(2)}MB exceeds 4MB, compressing...`);
+        console.log(`[product-analysis] File size ${fileSizeMB.toFixed(2)}MB exceeds 4MB, compressing...`);
         const compressionResult = await compressImage(file);
-        fileToUpload = compressionResult.compressedFile;
-        console.log('[purify-workflow] Compression complete');
+        fileToAnalyze = compressionResult.compressedFile;
       }
 
-      // STEP 1: Upload to temporary storage
-      setAnalysisStatus('purifying');
-      console.log('[purify-workflow] Starting temporary upload');
-
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', fileToUpload);
-
-      const tempUploadResponse = await fetch('/api/user-products/temp-upload', {
-        method: 'POST',
-        body: uploadFormData
-      });
-
-      if (!tempUploadResponse.ok) {
-        const uploadError = await tempUploadResponse.json().catch(() => ({}));
-        throw new Error(uploadError?.error || 'Failed to upload photo for purification');
-      }
-
-      const { publicUrl: originalImageUrl } = await tempUploadResponse.json();
-      console.log('[purify-workflow] Temporary upload complete:', originalImageUrl);
-
-      // STEP 2: Create temporary photo record for tracking
-      const createPhotoResponse = await fetch('/api/user-products/temp-photo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageUrl: originalImageUrl,
-          fileName: file.name
-        })
-      });
-
-      if (!createPhotoResponse.ok) {
-        const photoError = await createPhotoResponse.json().catch(() => ({}));
-        throw new Error(photoError?.error || 'Failed to create photo record');
-      }
-
-      const { photoId } = await createPhotoResponse.json();
-      setPurifyingPhotoId(photoId);
-      console.log('[purify-workflow] Temporary photo record created:', photoId);
-
-      // STEP 3: Start purification (webhook-based, no polling)
-      console.log('[purify-workflow] Starting purification');
-
-      const purifyResponse = await fetch('/api/user-products/purify-photo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageUrl: originalImageUrl,
-          photoId: photoId
-        })
-      });
-
-      if (!purifyResponse.ok) {
-        const purifyError = await purifyResponse.json().catch(() => ({}));
-        throw new Error(purifyError?.error || 'Failed to start photo purification');
-      }
-
-      const { taskId } = await purifyResponse.json();
-      console.log('[purify-workflow] Purification task created:', taskId);
-
-      // STEP 4: Realtime subscription will handle completion
-      // Webhook will update database → Supabase Realtime → Frontend updates UI
-
-    } catch (error) {
-      console.error('[purify-workflow] Workflow failed:', error);
-      setAnalysisStatus('failed');
-
-      const errorMessage = error instanceof Error ? error.message : 'Failed to purify product photo';
-      setAnalysisError(errorMessage);
-      setFormError(errorMessage);
-      setPurifyingPhotoId(null);
-    }
-  };
-
-  // NEW: Analyze photo by URL (for purified images)
-  const analyzePhotoByUrl = async (imageUrl: string) => {
-    try {
-      console.log('[purify-workflow] Starting analysis of purified photo');
-
-      const response = await fetch('/api/user-products/analyze-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl })
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.productName) {
-        const message = payload?.error || payload?.details || 'Failed to analyze product photo';
-        throw new Error(message);
-      }
-
-      setProductName(payload.productName.slice(0, 100));
-      setProductDetails(payload.productDetails || '');
-      setAnalysisStatus('completed');
-      setPurifyingPhotoId(null); // Clear purifying state
-      console.log('[purify-workflow] Analysis complete');
-    } catch (error) {
-      console.error('[purify-workflow] Analysis failed:', error);
-      setAnalysisStatus('failed');
-      setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze product photo');
-      setPurifyingPhotoId(null);
-    }
-  };
-
-  // NEW: Realtime subscription for purification status updates
-  useEffect(() => {
-    if (!purifyingPhotoId) {
-      console.log('[Purification Realtime] No active purification to monitor');
-      return;
-    }
-
-    console.log('[Purification Realtime] Setting up subscription for photo:', purifyingPhotoId);
-
-    const supabase = createClient();
-
-    // CRITICAL: Initial fetch to handle race conditions (webhook may complete before subscription)
-    const fetchInitialState = async () => {
-      const { data: photo, error } = await supabase
-        .from('user_product_photos')
-        .select('purification_status, photo_url, purification_error')
-        .eq('id', purifyingPhotoId)
-        .maybeSingle(); // Use maybeSingle() to handle 0 rows gracefully
-
-      if (error) {
-        console.error('[Purification Realtime] Failed to fetch initial state:', error);
-        return;
-      }
-
-      if (!photo) {
-        console.log('[Purification Realtime] Photo not found yet (race condition), waiting for Realtime update');
-        return;
-      }
-
-      console.log('[Purification Realtime] Initial state:', photo);
-
-      // If already completed when we subscribe, process immediately
-      if (photo.purification_status === 'completed' && photo.photo_url) {
-        console.log('[Purification Realtime] Already completed (race condition caught):', photo.photo_url);
-        setImagePreview(photo.photo_url);
-        setAnalysisStatus('analyzing');
-        await analyzePhotoByUrl(photo.photo_url);
-      } else if (photo.purification_status === 'failed') {
-        console.error('[Purification Realtime] Already failed (race condition caught):', photo.purification_error);
-        setAnalysisStatus('failed');
-        setAnalysisError(photo.purification_error || 'Photo purification failed');
-        setFormError(photo.purification_error || 'Photo purification failed');
-        setPurifyingPhotoId(null);
-      }
-    };
-
-    // Fetch initial state immediately
-    fetchInitialState();
-
-    // Then subscribe to future updates
-    const channel = supabase
-      .channel(`product-photo-purification-${purifyingPhotoId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'user_product_photos',
-          filter: `id=eq.${purifyingPhotoId}`,
-        },
-        async (payload) => {
-          console.log('[Purification Realtime] Photo updated:', payload.new);
-
-          const updatedPhoto = payload.new as {
-            purification_status: 'idle' | 'uploading' | 'purifying' | 'completed' | 'failed';
-            photo_url?: string;
-            purification_error?: string;
-          };
-
-          if (updatedPhoto.purification_status === 'completed' && updatedPhoto.photo_url) {
-            console.log('[Purification Realtime] Purification completed:', updatedPhoto.photo_url);
-
-            // Update preview with purified image
-            setImagePreview(updatedPhoto.photo_url);
-
-            // Start analysis
-            setAnalysisStatus('analyzing');
-            await analyzePhotoByUrl(updatedPhoto.photo_url);
-
-          } else if (updatedPhoto.purification_status === 'failed') {
-            console.error('[Purification Realtime] Purification failed:', updatedPhoto.purification_error);
-
-            setAnalysisStatus('failed');
-            setAnalysisError(updatedPhoto.purification_error || 'Photo purification failed');
-            setFormError(updatedPhoto.purification_error || 'Photo purification failed');
-            setPurifyingPhotoId(null);
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('[Purification Realtime] Subscribed to photo:', purifyingPhotoId);
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('[Purification Realtime] Failed to subscribe to photo:', purifyingPhotoId);
-        }
-      });
-
-    // Cleanup subscription when photo ID changes or component unmounts
-    return () => {
-      console.log('[Purification Realtime] Cleaning up subscription');
-      supabase.removeChannel(channel);
-    };
-  }, [purifyingPhotoId]);
-
-  const analyzePhoto = async (file: File) => {
-    try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', fileToAnalyze);
 
       const response = await fetch('/api/user-products/analyze', {
         method: 'POST',
@@ -402,7 +178,6 @@ export default function CreateProductModal({
       }
 
       setProductName(payload.productName.slice(0, 100));
-      setProductDetails(payload.productDetails || '');
       setAnalysisStatus('completed');
     } catch (error) {
       console.error('Product analysis failed:', error);
@@ -433,7 +208,6 @@ export default function CreateProductModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_name: productName.trim(),
-          product_details: productDetails.trim() || null,
           brand_id: preselectedBrandId
         })
       });
@@ -448,57 +222,26 @@ export default function CreateProductModal({
 
       setIsUploading(true);
       try {
-        // Use purified photo if available
-        if (purifyingPhotoId) {
-          console.log('[submit] Using purified photo from database');
+        console.log('[submit] Uploading original image file');
+        const uploadForm = new FormData();
+        uploadForm.append('file', uploadedImage);
+        uploadForm.append('is_primary', 'true');
 
-          // Fetch final purified photo URL from database
-          const supabase = createClient();
-          const { data: photo, error: photoError } = await supabase
-            .from('user_product_photos')
-            .select('photo_url, purification_status')
-            .eq('id', purifyingPhotoId)
-            .single();
+        const photoResponse = await fetch(`/api/user-products/${newProduct.id}/photos`, {
+          method: 'POST',
+          body: uploadForm
+        });
 
-          if (photoError || !photo || photo.purification_status !== 'completed') {
-            throw new Error('Purified photo not ready. Please wait for purification to complete.');
-          }
-
-          // Link purified photo to product
-          const linkResponse = await fetch(`/api/user-products/${newProduct.id}/photos/link`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ photoId: purifyingPhotoId })
+        const photoPayload = await photoResponse.json().catch(() => ({}));
+        if (!photoResponse.ok || !photoPayload?.photo) {
+          console.error('Product photo upload failed:', {
+            status: photoResponse.status,
+            payload: photoPayload
           });
-
-          const linkPayload = await linkResponse.json().catch(() => ({}));
-          if (!linkResponse.ok || !linkPayload?.photo) {
-            throw new Error(linkPayload?.error || 'Failed to link purified photo to product');
-          }
-
-          newProduct.user_product_photos = [linkPayload.photo];
-        } else {
-          console.log('[submit] Uploading original image file (fallback)');
-          const uploadForm = new FormData();
-          uploadForm.append('file', uploadedImage);
-          uploadForm.append('is_primary', 'true');
-
-          const photoResponse = await fetch(`/api/user-products/${newProduct.id}/photos`, {
-            method: 'POST',
-            body: uploadForm
-          });
-
-          const photoPayload = await photoResponse.json().catch(() => ({}));
-          if (!photoResponse.ok || !photoPayload?.photo) {
-            console.error('Product photo upload failed:', {
-              status: photoResponse.status,
-              payload: photoPayload
-            });
-            throw new Error(photoPayload?.error || photoPayload?.details || 'Failed to upload product photo');
-          }
-
-          newProduct.user_product_photos = [photoPayload.photo];
+          throw new Error(photoPayload?.error || photoPayload?.details || 'Failed to upload product photo');
         }
+
+        newProduct.user_product_photos = [photoPayload.photo];
       } catch (photoError) {
         await fetch(`/api/user-products/${newProduct.id}`, { method: 'DELETE' }).catch(() => null);
         throw photoError;
@@ -522,7 +265,9 @@ export default function CreateProductModal({
     }
   };
 
-  const canSubmit = Boolean(uploadedImage && analysisStatus === 'completed' && !isCreating && !isUploading);
+  const canSubmit = Boolean(
+    uploadedImage && analysisStatus === 'completed' && productName.trim() && !isCreating && !isUploading
+  );
   const statusMeta = STATUS_COPY[analysisStatus];
 
   return (
@@ -544,7 +289,7 @@ export default function CreateProductModal({
           />
 
           <motion.div
-            className="relative w-full max-w-4xl rounded-2xl border border-gray-200 bg-white shadow-2xl"
+            className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -578,8 +323,17 @@ export default function CreateProductModal({
                 </div>
               )}
 
-              <div className="flex flex-col gap-6 lg:flex-row">
-                <div className="space-y-3 lg:w-5/12">
+              <div className="space-y-4">
+                {analysisStatus === 'completed' && productName && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Product Name</p>
+                    <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900">
+                      {productName}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-3">
                   <div
                     role="button"
                     tabIndex={0}
@@ -591,7 +345,7 @@ export default function CreateProductModal({
                       }
                     }}
                     className={cn(
-                      "relative aspect-[3/4] w-full overflow-hidden rounded-2xl border-2 border-dashed transition",
+                      "relative aspect-[9/16] h-[60vh] max-h-[560px] w-auto max-w-full mx-auto overflow-hidden rounded-2xl border-2 border-dashed transition",
                       imagePreview
                         ? "border-gray-200 bg-gray-900/5"
                         : "border-gray-300 bg-gray-50 hover:border-gray-400"
@@ -615,7 +369,6 @@ export default function CreateProductModal({
                             setAnalysisStatus('idle');
                             setAnalysisError(null);
                             setProductName('');
-                            setProductDetails('');
                           }}
                           disabled={isCreating}
                         >
@@ -625,8 +378,14 @@ export default function CreateProductModal({
                     ) : (
                       <div className="flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-600">
                         <Upload className="mb-3 h-6 w-6 text-gray-400" />
-                        <p className="font-semibold text-gray-900">Drop a product photo or click to browse</p>
-                        <p className="mt-1 text-xs text-gray-500">PNG or JPG, up to 8MB. Auto-compressed for upload if needed.</p>
+                        <div className="w-full max-w-[280px]">
+                          <p className="font-semibold text-gray-900 leading-5">
+                            Drop a product photo or click to browse
+                          </p>
+                          <p className="mt-2 text-xs text-gray-500 leading-5">
+                            PNG or JPG, up to 8MB. Auto-compressed for upload if needed.
+                          </p>
+                        </div>
                       </div>
                     )}
 
@@ -639,58 +398,26 @@ export default function CreateProductModal({
                       disabled={isCreating}
                     />
 
-                    {(analysisStatus === 'purifying' || analysisStatus === 'analyzing') && (
+                    {(analysisStatus === 'analyzing' || isCompressing) && (
                       <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
                         <div className="text-center">
                           <Loader2 className="h-6 w-6 animate-spin text-gray-700 mx-auto mb-2" />
                           <p className="text-xs text-gray-600">
-                            {analysisStatus === 'purifying' ? 'Purifying photo...' : 'Analyzing...'}
+                            {isCompressing
+                              ? `Compressing${compressionProgress ? ` ${compressionProgress}%` : ''}...`
+                              : 'Analyzing...'}
                           </p>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <p className="text-xs text-gray-500">{statusMeta.helper}</p>
+                  {statusMeta.helper && (
+                    <p className="text-xs text-gray-500">{statusMeta.helper}</p>
+                  )}
                   {analysisError && (
                     <p className="text-xs text-red-600">{analysisError}</p>
                   )}
-                </div>
-
-                <div className="flex-1 space-y-5">
-                  <div>
-                    <label htmlFor="product-name" className="mb-2 block text-sm font-medium text-gray-700">
-                      Product Name
-                    </label>
-                    <input
-                      id="product-name"
-                      type="text"
-                      value={productName}
-                      onChange={(event) => setProductName(event.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                      placeholder="AI generated name"
-                      disabled={isCreating}
-                      maxLength={100}
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="product-details" className="mb-2 block text-sm font-medium text-gray-700">
-                      Product Details
-                    </label>
-                    <textarea
-                      id="product-details"
-                      value={productDetails}
-                      onChange={(event) => setProductDetails(event.target.value)}
-                      className="min-h-28 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                      placeholder="AI generated description"
-                      disabled={isCreating}
-                      maxLength={2000}
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Flowtra drafts 2-3 short sentences automatically. Refine them before saving if needed.
-                    </p>
-                  </div>
                 </div>
               </div>
 

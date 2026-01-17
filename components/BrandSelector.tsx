@@ -111,9 +111,6 @@ export default function BrandSelector({
             </div>
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">{brand.brand_name}</p>
-              {(brand.brand_slogan || brand.brand_details) && (
-                <p className="text-xs text-gray-600 truncate">{brand.brand_slogan || brand.brand_details}</p>
-              )}
             </div>
             {selectedBrand?.id === brand.id && (
               <div className="w-5 h-5 bg-gray-900 rounded-full flex items-center justify-center flex-shrink-0">

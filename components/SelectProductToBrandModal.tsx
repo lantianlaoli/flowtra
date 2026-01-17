@@ -70,8 +70,7 @@ export default function SelectProductToBrandModal({
   };
 
   const filteredProducts = availableProducts.filter(product =>
-    product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    product.product_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -211,11 +210,6 @@ export default function SelectProductToBrandModal({
                             <h4 className="font-medium text-gray-900 truncate">
                               {product.product_name}
                             </h4>
-                            {product.description && (
-                              <p className="text-gray-600 text-sm line-clamp-2 mt-0.5">
-                                {product.description}
-                              </p>
-                            )}
                           </div>
                         </div>
                       </div>

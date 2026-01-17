@@ -158,8 +158,6 @@ export interface UserBrand {
   user_id: string
   brand_name: string
   brand_logo_url?: string | null
-  brand_slogan?: string
-  brand_details?: string | null
   created_at: string
   updated_at: string
 }
@@ -169,8 +167,6 @@ export interface UserProduct {
   id: string
   user_id: string
   product_name: string
-  description?: string
-  product_details?: string | null
   brand_id?: string
   created_at: string
   updated_at: string
@@ -726,4 +722,3 @@ export const deleteBrandLogoFromStorage = async (logoUrl: string | null | undefi
 // NOTE: Competitor ad storage functions have been removed
 // Competitor ads now only store analysis data, not video files
 // Files are temporarily uploaded for analysis, then discarded immediately
-

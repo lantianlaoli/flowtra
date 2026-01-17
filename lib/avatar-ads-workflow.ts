@@ -40,10 +40,9 @@ interface AvatarAdsProject {
   webhook_received_at?: string; // NEW: Timestamp when webhook was received from KIE API
   last_webhook_check?: string; // NEW: Timestamp of last fallback polling check
   product_context?: {
-    product_details?: string;
+    product_name?: string;
     brand_name?: string;
-    brand_slogan?: string;
-    brand_details?: string;
+    talking_head_script?: string;
   } | null;
 }
 
@@ -58,9 +57,8 @@ async function analyzeProductImageOnly(imageUrl: string): Promise<string> {
   const systemText = `Analyze this product image and describe:
 1. Product type and category
 2. Key visual features (color, design, materials)
-3. Likely use case or target audience
 
-Provide a concise 2-3 sentence description.`;
+Provide a concise product name (max 80 characters).`;
 
   const messages = [
     {
@@ -70,7 +68,7 @@ Provide a concise 2-3 sentence description.`;
     {
       role: 'user',
       content: [
-        { type: 'text', text: 'Describe this product:' },
+        { type: 'text', text: 'Name this product:' },
         { type: 'image_url', image_url: { url: imageUrl } }
       ]
     }
@@ -99,16 +97,15 @@ Provide a concise 2-3 sentence description.`;
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || 'Product description unavailable';
+  return data.choices?.[0]?.message?.content || 'Product name unavailable';
 }
 
 // Generate prompts without retry logic
 async function generatePrompts(
   productContext: {
-    product_details: string;
+    product_name?: string;
     brand_name?: string;
-    brand_slogan?: string;
-    brand_details?: string;
+    talking_head_script?: string;
   } | null,
   personImageUrl: string,
   productImageUrl: string | null,
@@ -132,10 +129,9 @@ async function generatePrompts(
 // Generate prompts based on product context and character description (internal implementation)
 async function _generatePromptsInternal(
   productContext: {
-    product_details: string;
+    product_name?: string;
     brand_name?: string;
-    brand_slogan?: string;
-    brand_details?: string;
+    talking_head_script?: string;
   } | null,
   personImageUrl: string,
   productImageUrl: string | null,
@@ -159,9 +155,6 @@ async function _generatePromptsInternal(
   }
 
   if (!isTalkingHeadMode) {
-    if (!productContext || !productContext.product_details) {
-      throw new Error('Product context is required for product-based character ads');
-    }
     if (!productImageUrl) {
       throw new Error('Product image URL is required for product-based character ads');
     }
@@ -191,8 +184,8 @@ CRITICAL SCRIPT SPLITTING RULES:
 EXAMPLES OF CORRECT SPLITTING:
 - ✅ Scene 1 (18 words): "ChatGPT can't see my website? I'm invisible to AI? AI Bot Manager fixes this in ONE CLICK."
 - ❌ Scene 1 (12 words): "ChatGPT can't see my website? I'm invisible to AI?" [WRONG - incomplete thought]`
-    : productContext?.product_details
-      ? `Use this talking head context to guide the monologue: ${productContext.product_details}`
+    : productContext?.talking_head_script
+      ? `Use this talking head context to guide the monologue: ${productContext.talking_head_script}`
       : 'No script provided. Create an authentic, upbeat personal message where the talent shares a helpful insight or story directly to camera.';
 
   const productSystemPrompt = `
@@ -210,9 +203,9 @@ Your task:
 3. Generate ${videoScenes} video scene prompt(s) with CORRECT gender-specific voice
 4. Generate 1 cover image prompt
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `
+${productContext && (productContext.product_name || productContext.brand_name) ? `
 Product & Brand Context from Database:
-${productContext.product_details ? `Product: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Details: ${productContext.brand_details}\n` : ''}
+${productContext.product_name ? `Product: ${productContext.product_name}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}
 IMPORTANT: Use this authentic product and brand context to enhance the video prompts.
 ` : ''}
 
@@ -375,8 +368,8 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
         {
           type: 'text',
           text: isTalkingHeadMode
-            ? `Generate prompts for this character speaking directly to camera.\nPERSON IMAGE: Analyze for gender, age, and style.\n${productContext?.product_details ? `Talking Head Context: ${productContext.product_details}` : ''}`
-            : `Generate prompts for this character and product:\n\nPERSON IMAGE: Analyze for gender, age, style\nPRODUCT IMAGE: Identify the product\n\n${productContext?.product_details ? `Product Details: ${productContext.product_details}` : ''}`
+            ? `Generate prompts for this character speaking directly to camera.\nPERSON IMAGE: Analyze for gender, age, and style.\n${productContext?.talking_head_script ? `Talking Head Context: ${productContext.talking_head_script}` : ''}`
+            : `Generate prompts for this character and product:\n\nPERSON IMAGE: Analyze for gender, age, style\nPRODUCT IMAGE: Identify the product\n\n${productContext?.product_name ? `Product Name: ${productContext.product_name}` : ''}`
         },
         { type: 'image_url', image_url: { url: personImageUrl } },
         ...(!isTalkingHeadMode && productImageUrl ? [{ type: 'image_url', image_url: { url: productImageUrl } }] : [])
@@ -987,9 +980,9 @@ export async function processAvatarAdsProject(
 
         // Fallback: analyze temp product if no context
         if (!productContext && hasProductImages) {
-          const productAnalysis = await analyzeProductImageOnly(project.product_image_urls[0]);
+          const productName = await analyzeProductImageOnly(project.product_image_urls[0]);
           productContext = {
-            product_details: productAnalysis,
+            product_name: productName.trim(),
             brand_name: 'Unknown Brand'
           };
 
@@ -998,19 +991,13 @@ export async function processAvatarAdsProject(
             .eq('id', project.id);
         }
 
-        if ((!productContext || !productContext.product_details) && talkingHeadMode) {
+        if ((!productContext || !productContext.talking_head_script) && talkingHeadMode) {
           const fallbackScript = project.custom_dialogue?.trim();
           productContext = {
-            product_details: fallbackScript
+            talking_head_script: fallbackScript
               ? `Talking head delivery. Have the character speak directly to camera and read this script verbatim: ${fallbackScript}`
               : 'Talking head delivery. Have the character speak directly to camera about their expertise or story with no props.'
           };
-        } else if (!productContext || !productContext.product_details) {
-          throw new Error(`Product context validation failed: ${JSON.stringify({
-            hasContext: !!productContext,
-            hasProductDetails: !!productContext?.product_details,
-            productContext
-          })}`);
         }
 
         // Validate person image URLs
@@ -1037,7 +1024,7 @@ export async function processAvatarAdsProject(
 
         // ✅ Fix Bug 2: Direct Gemini analysis - no separate person analysis or gender detection
         const prompts = await generatePrompts(
-          productContext as { product_details: string; brand_name?: string; brand_slogan?: string; brand_details?: string } | null,
+          productContext as { product_name?: string; brand_name?: string; talking_head_script?: string } | null,
           personImageUrl,
           productImageUrl,
           project.video_duration_seconds,

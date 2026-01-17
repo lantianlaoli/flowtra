@@ -8,7 +8,6 @@ interface Brand {
   id: string;
   brand_name: string;
   brand_logo_url?: string;
-  brand_slogan?: string;
 }
 
 interface Product {
@@ -58,9 +57,6 @@ export default function BrandProductCard({
             <div className="flex flex-col gap-1 min-w-0">
               <div className="text-sm font-semibold text-gray-900 truncate">
                 {brand?.brand_name || 'No Brand Selected'}
-              </div>
-              <div className="text-xs text-gray-500 truncate">
-                {brand?.brand_slogan || 'No slogan'}
               </div>
             </div>
           </div>

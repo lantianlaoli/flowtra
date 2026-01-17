@@ -330,20 +330,17 @@ export default function AssetsManager() {
 
   // Search filtering
   const filteredBrands = assetsData.brands.filter(brand => {
-    const brandMatch = brand.brand_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (brand.brand_slogan?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    const brandMatch = brand.brand_name.toLowerCase().includes(searchTerm.toLowerCase());
 
     const productsMatch = brand.products?.some(product =>
-      product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+      product.product_name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return brandMatch || productsMatch;
   });
 
   const filteredUnbrandedProducts = assetsData.unbrandedProducts.filter(product =>
-    product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    product.product_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredAvatars = avatars.filter(avatar =>

@@ -122,11 +122,6 @@ export default function BrandSection({
             <h3 className="font-semibold text-gray-900 text-base md:text-lg truncate">
               {brand.brand_name}
             </h3>
-            {(brand.brand_slogan || brand.brand_details) && (
-              <p className="text-gray-600 text-xs md:text-sm line-clamp-1 mt-0.5">
-                {brand.brand_slogan || brand.brand_details}
-              </p>
-            )}
                           <div className="flex items-center gap-3 md:gap-4 mt-1">
                           <div className="flex items-center gap-1.5">
                             <Package className="w-3 h-3 md:w-3.5 md:h-3.5 text-gray-400" />

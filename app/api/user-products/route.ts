@@ -41,9 +41,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   type CreateProductRequest = {
     product_name?: string;
-    description?: string | null;
     brand_id?: string | null;
-    product_details?: string | null;
   };
 
   let requestBody: CreateProductRequest | null = null;
@@ -58,12 +56,11 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as CreateProductRequest;
     requestBody = body;
-    const { product_name, description, brand_id, product_details } = body;
+    const { product_name, brand_id } = body;
 
     console.log('[POST /api/user-products] Incoming request', {
       userId,
       hasName: Boolean(product_name),
-      hasDetails: Boolean(product_details),
       brandId: brand_id || null
     });
 
@@ -74,13 +71,12 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabaseAdmin();
     let data;
     try {
+      // Schema verified via Supabase MCP (2026-01-12): user_products has product_name, brand_id
       const response = await supabase
         .from('user_products')
         .insert({
           user_id: userId,
           product_name,
-          description: description || null,
-          product_details: product_details || null,
           brand_id: brand_id || null
         })
         .select()

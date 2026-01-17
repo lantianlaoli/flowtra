@@ -399,7 +399,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     let imageUrl = request.imageUrl;
     let brandLogoUrl: string | null = null;
-    let productContext = { product_details: '', brand_name: '', brand_slogan: '', brand_details: '' };
+    let productContext = { product_name: '', brand_name: '' };
 
     if (!request.selectedBrandId) {
       return {
@@ -420,9 +420,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       const shouldFetchBrand = !brandLogoUrl || !productContext.brand_name;
       if (shouldFetchBrand) {
         const fetchBrand = async () => {
+          // Schema verified via Supabase MCP (2026-01-12): user_brands has brand_name, brand_logo_url
           const { data: brand, error: brandError } = await supabase
             .from('user_brands')
-            .select('id,brand_name,brand_slogan,brand_details,brand_logo_url')
+            .select('id,brand_name,brand_logo_url')
             .eq('id', request.selectedBrandId)
             .eq('user_id', request.userId)
             .single();
@@ -434,9 +435,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         if (brand) {
           productContext = {
             ...productContext,
-            brand_name: brand.brand_name || productContext.brand_name,
-            brand_slogan: brand.brand_slogan || productContext.brand_slogan,
-            brand_details: brand.brand_details || productContext.brand_details
+            brand_name: brand.brand_name || productContext.brand_name
           };
           brandLogoUrl = brand.brand_logo_url || brandLogoUrl;
         } else {
@@ -885,7 +884,7 @@ async function startAIWorkflow(
     imageUrl?: string; // UPDATED: Now optional to support brand-only mode
     resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
   },
-  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
+  productContext?: { product_name?: string; brand_name?: string },
   competitorAdContext?: {
     id?: string;
     competitor_name: string;
@@ -1030,7 +1029,7 @@ async function startReplicaWorkflow(
     imageUrl: string | undefined;
     resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
   },
-  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
+  productContext?: { product_name?: string; brand_name?: string },
   competitorAdContext?: {
     id?: string;
     competitor_name: string;
@@ -1102,7 +1101,7 @@ function buildReplicaPrompt({
   language
 }: {
   competitorDescription?: Record<string, unknown>;
-  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string };
+  productContext?: { product_name?: string; brand_name?: string };
   language?: LanguageCode;
 }): string {
   // Validate brand name - fallback to generic if too short or invalid
@@ -1115,8 +1114,7 @@ function buildReplicaPrompt({
     console.warn(`⚠️  Invalid brand name "${rawBrandName}" detected, using fallback: "${brandName}"`);
   }
 
-  const productDetails = truncateText(productContext?.product_details, 800);
-  const brandSlogan = truncateText(productContext?.brand_slogan, 200);
+  const productName = truncateText(productContext?.product_name, 120);
   const subject = typeof competitorDescription?.subject === 'string' ? competitorDescription.subject : '';
   const action = typeof competitorDescription?.action === 'string' ? competitorDescription.action : '';
   const ambiance = typeof competitorDescription?.ambiance === 'string' ? competitorDescription.ambiance : '';
@@ -1143,8 +1141,7 @@ function buildReplicaPrompt({
     ambiance && `Ambiance & color palette: ${ambiance}`,
     firstFrame && `Spatial layout (match precisely): ${firstFrame}`,
     'Scene elements to reproduce verbatim:\n' + sceneGuide,
-    productDetails && `Brand/Product cues: ${productDetails}`,
-    brandSlogan && `Brand tone: ${brandSlogan}`,
+    productName && `Product name: ${productName}`,
     `Use only the supplied ${brandName} assets for replacement props. Preserve the same number of toys, type of flooring, wall textures, and negative space. If people or children are present, keep their poses, clothing vibes, and camera depth identical.`,
     `Language for any visible text: ${(language || 'en').toUpperCase()}.`
   ].filter(Boolean);
@@ -1635,7 +1632,7 @@ async function generateImageBasedPrompts(
   language?: string,
   videoDurationSeconds?: number,
   segmentCount = 1,
-  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string },
+  productContext?: { product_name?: string; brand_name?: string },
   competitorDescription?: Record<string, unknown> // Changed: Now receives analysis result, not raw context
 ): Promise<Record<string, unknown>> {
   console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${competitorDescription ? ' (competitor reference mode)' : ' (traditional mode)'}${!imageUrl ? ' (brand-only mode, no product image)' : ''}`);
@@ -1813,7 +1810,7 @@ Use the competitor analysis provided in the system message to recreate the same 
 - DO NOT simplify or shorten scene descriptions - maintain the same level of detail
 - Example transformation: "Woman applying Competitor Brand lotion..." → "Woman applying ${productContext?.brand_name || 'our product'} lotion..." (keep all other details unchanged)
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this to ensure accurate product replacement)\n` : ''}
+${productContext && (productContext.product_name || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_name ? `Product Name: ${productContext.product_name}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}(Use this to ensure accurate product replacement)\n` : ''}
 
 ${strictSegmentFormat}`
                   }
@@ -1829,7 +1826,7 @@ ${strictSegmentFormat}`
 - DO NOT simplify or shorten scene descriptions - maintain the same level of detail
 - Keep all environmental details, lighting descriptions, composition specifics unchanged
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this context when replacing subjects or props)\n` : ''}
+${productContext && (productContext.product_name || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_name ? `Product Name: ${productContext.product_name}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}(Use this context when replacing subjects or props)\n` : ''}
 
 ${strictSegmentFormat}`
                   }
@@ -1852,7 +1849,7 @@ ${strictSegmentFormat}`
 
 Analyze the product image and build a storyboard that feels like a premium advertisement. Keep all details consistent with the supplied product photo (colors, proportions, packaging, materials) while enhancing the production value.
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this context sparingly and only when it matches what you see in the photo)\n` : ''}
+${productContext && (productContext.product_name || productContext.brand_name) ? `Product & Brand Context:\n${productContext.product_name ? `Product Name: ${productContext.product_name}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}(Use this context sparingly and only when it matches what you see in the photo)\n` : ''}
 
 Focus on real visual cues from the image: product texture, use cases, target audience, and natural environments. Dialogue must describe the product or experience without adding slogans or pricing.
 
@@ -1866,7 +1863,7 @@ ${strictSegmentFormat}`
 
 Use ONLY the brand/product context to imagine what the product looks like in the real world, then output a storyboard following the exact competitor-style schema.
 
-${productContext && (productContext.product_details || productContext.brand_name) ? `Brand & Product Context:\n${productContext.product_details ? `Product Details: ${productContext.product_details}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}${productContext.brand_slogan ? `Brand Slogan: ${productContext.brand_slogan}\n` : ''}${productContext.brand_details ? `Brand Details: ${productContext.brand_details}\n` : ''}(Use this to inform the visuals you invent)\n` : ''}
+${productContext && (productContext.product_name || productContext.brand_name) ? `Brand & Product Context:\n${productContext.product_name ? `Product Name: ${productContext.product_name}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}(Use this to inform the visuals you invent)\n` : ''}
 
 Every segment must feel grounded, cinematic, and ready for production. Mention props, environments, and characters explicitly.
 
@@ -2011,7 +2008,7 @@ async function startSegmentedWorkflow(
   competitorShots?: CompetitorShot[],
   brandLogoUrl?: string | null, // NEW: Brand logo URL for brand shots
   productImageUrls?: string[] | null, // UPDATED: Multiple product image URLs for product shots
-  productContext?: { product_details: string; brand_name: string; brand_slogan: string; brand_details: string }, // NEW: For text fallback
+  productContext?: { product_name?: string; brand_name?: string }, // NEW: For text fallback
   competitorFileType?: 'video' | null // Competitor ads are now video-only (null means no competitor)
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
@@ -2452,7 +2449,7 @@ async function createFrameFromText(
   segmentIndex: number,
   frameType: 'first' | 'closing',
   aspectRatio: '16:9' | '9:16',
-  brandContext?: { brand_name: string; brand_slogan: string; brand_details: string }
+  brandContext?: { brand_name?: string }
 ): Promise<string> {
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
@@ -2460,7 +2457,7 @@ async function createFrameFromText(
 
   // Build prompt from shot description + brand context
   const brandInfo = brandContext && brandContext.brand_name
-    ? `\n\nBrand Context:\n- Brand: ${brandContext.brand_name}\n- Slogan: ${brandContext.brand_slogan}\n- Details: ${brandContext.brand_details}`
+    ? `\n\nBrand Context:\n- Brand: ${brandContext.brand_name}`
     : '';
 
   const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
@@ -2655,7 +2652,7 @@ export async function createSmartSegmentFrame(
   aspectRatio: '16:9' | '9:16',
   brandLogoUrl: string | null,
   productImageUrls: string[] | null,
-  brandContext?: { brand_name: string; brand_slogan: string; brand_details: string },
+  brandContext?: { brand_name?: string },
   competitorFileType?: 'video' | null, // Competitor ads are video-only (indicates competitor clone mode)
   overrides?: FrameGenerationOverrides,
   continuationReferenceUrl?: string | null

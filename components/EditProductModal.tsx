@@ -20,7 +20,6 @@ export default function EditProductModal({
   onProductUpdated
 }: EditProductModalProps) {
   const [productName, setProductName] = useState('');
-  const [productDetails, setProductDetails] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +27,6 @@ export default function EditProductModal({
   useEffect(() => {
     if (isOpen && product) {
       setProductName(product.product_name);
-      setProductDetails(product.product_details || '');
       setError(null);
       // Auto focus input after modal animation
       setTimeout(() => {
@@ -66,8 +64,7 @@ export default function EditProductModal({
     try {
       // Check if anything changed
       const hasChanges =
-        productName.trim() !== product.product_name ||
-        productDetails.trim() !== (product.product_details || '');
+        productName.trim() !== product.product_name;
 
       if (!hasChanges) {
         onClose();
@@ -79,8 +76,7 @@ export default function EditProductModal({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product_name: productName.trim(),
-          product_details: productDetails.trim()
+          product_name: productName.trim()
         })
       });
 
@@ -175,23 +171,6 @@ export default function EditProductModal({
                   disabled={isUpdating}
                   maxLength={100}
                 />
-              </div>
-
-              {/* Product Details Input */}
-              <div>
-                <label htmlFor="edit-product-details-input" className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Description (Optional)
-                </label>
-                <textarea
-                  id="edit-product-details-input"
-                  value={productDetails}
-                  onChange={(e) => setProductDetails(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors min-h-24"
-                  placeholder="Describe your product, key features, target audience, benefits, etc."
-                  disabled={isUpdating}
-                  maxLength={2000}
-                />
-                <p className="mt-1 text-xs text-gray-500">Used to provide context when generating ads.</p>
               </div>
 
               {/* Product Photo Preview (Read-only) */}

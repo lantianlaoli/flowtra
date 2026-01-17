@@ -65,7 +65,7 @@ export async function GET(
   }
 }
 
-// PUT - Update brand (name, slogan, or logo)
+// PUT - Update brand (name or logo)
 export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -105,26 +105,16 @@ export async function PUT(
     }
 
     const contentType = request.headers.get('content-type');
-    const updateData: { brand_name?: string; brand_slogan?: string | null; brand_details?: string | null; brand_logo_url?: string | null } = {};
+    const updateData: { brand_name?: string; brand_logo_url?: string | null } = {};
 
     // Handle multipart/form-data (when uploading new logo)
     if (contentType?.includes('multipart/form-data')) {
       const formData = await request.formData();
       const brandName = formData.get('brand_name') as string | null;
-      const brandSlogan = formData.get('brand_slogan') as string | null;
-      const brandDetails = formData.get('brand_details') as string | null;
       const newLogoFile = formData.get('logo') as File | null;
 
       if (brandName) {
         updateData.brand_name = brandName.trim();
-      }
-
-      if (brandSlogan !== null) {
-        updateData.brand_slogan = brandSlogan.trim() || null;
-      }
-
-      if (brandDetails !== null) {
-        updateData.brand_details = (brandDetails || '').toString().trim() || null;
       }
 
       // Handle logo replacement
@@ -158,23 +148,16 @@ export async function PUT(
         }
       }
     } else {
-      // Handle JSON request (when updating name/slogan only)
+      // Handle JSON request (when updating name only)
       const body = await request.json();
 
       if (body.brand_name !== undefined) {
         updateData.brand_name = body.brand_name.trim();
       }
-
-      if (body.brand_slogan !== undefined) {
-        updateData.brand_slogan = body.brand_slogan?.trim() || null;
-      }
-
-      if (body.brand_details !== undefined) {
-        updateData.brand_details = body.brand_details?.toString().trim() || null;
-      }
     }
 
     // Update database
+    // Schema verified via Supabase MCP (2026-01-12): user_brands has brand_name, brand_logo_url
     const { data: updatedBrand, error: updateError } = await supabase
       .from('user_brands')
       .update({

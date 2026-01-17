@@ -74,8 +74,7 @@ export default function ProductManager({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product_name: newName,
-          description: product.description
+          product_name: newName
         })
       });
 
@@ -140,8 +139,7 @@ export default function ProductManager({
   };
 
   const filteredProducts = products.filter(product =>
-    product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    product.product_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (isLoading) {

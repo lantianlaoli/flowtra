@@ -4,7 +4,6 @@ import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 
 interface AdCopyRequestPayload {
   productName?: string;
-  productDescription?: string;
   productImageUrls?: string[];
   language?: LanguageCode;
 }
@@ -22,21 +21,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as AdCopyRequestPayload;
-    const { productName, productDescription, productImageUrls = [], language = 'en' } = body;
+    const { productName, productImageUrls = [], language = 'en' } = body;
 
     const cleanedImageUrls = productImageUrls
       .filter((url) => typeof url === 'string' && /^https?:\/\//i.test(url))
       .slice(0, 3);
 
-    if (!productName && !productDescription && cleanedImageUrls.length === 0) {
+    if (!productName && cleanedImageUrls.length === 0) {
       return NextResponse.json(
-        { error: 'Provide at least a product name, description, or image.' },
+        { error: 'Provide at least a product name or image.' },
         { status: 400 }
       );
     }
 
-    const descriptionSnippet =
-      productDescription?.trim() || 'A modern product with strong customer appeal.';
     const nameSnippet = productName?.trim() || 'the product';
     const languageName = getLanguagePromptName(language);
 
@@ -46,7 +43,7 @@ export async function POST(request: NextRequest) {
     const userContent: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = [
       {
         type: 'text',
-        text: `Product Name: ${nameSnippet}\nProduct Description: ${descriptionSnippet}\n\nAnalyze the product ${cleanedImageUrls.length > 0 ? 'images' : ''} and create ONE compelling ad copy headline that highlights key features and benefits. The headline MUST be written in ${languageName}. Return ONLY the headline text in ${languageName}.`
+        text: `Product Name: ${nameSnippet}\n\nAnalyze the product ${cleanedImageUrls.length > 0 ? 'images' : ''} and create ONE compelling ad copy headline that highlights key features and benefits. The headline MUST be written in ${languageName}. Return ONLY the headline text in ${languageName}.`
       }
     ];
 

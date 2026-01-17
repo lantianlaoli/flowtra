@@ -436,7 +436,7 @@ export default function CompetitorUgcReplicationPage() {
   }, []);
 
   // Auto-derive brand info
-  const derivedAdCopy = selectedBrand?.brand_slogan || '';
+  const derivedAdCopy = '';
   const shouldGenerateVideo = !isCompetitorPhotoMode;
 
   const { startWorkflowWithSelectedProduct } = useCompetitorUgcReplicationWorkflow(

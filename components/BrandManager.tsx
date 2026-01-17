@@ -71,8 +71,7 @@ export default function BrandManager({
   };
 
   const filteredBrands = brands.filter(brand =>
-    brand.brand_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (brand.brand_slogan?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    brand.brand_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (isLoading) {
