@@ -110,12 +110,15 @@ export default function TikTokInputHero() {
             {/* Help Tooltip */}
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center group">
               <HelpCircle className="w-5 h-5 text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 leading-relaxed">
-                <p className="font-semibold mb-1">How to get the URL:</p>
+              <div className="absolute bottom-full right-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 leading-relaxed">
+                <p className="font-semibold mb-1">How to get a video URL:</p>
                 <ol className="list-decimal pl-4 space-y-1 text-gray-300">
                   <li>Find a video on TikTok web</li>
                   <li>Copy the URL from browser address bar</li>
                 </ol>
+                <p className="mt-2 text-gray-300">
+                  TikTok Shop product links are not supported (e.g. <span className="font-medium">vm.tiktok.com/...</span>).
+                </p>
                 <div className="absolute bottom-[-6px] right-4 w-3 h-3 bg-gray-900 rotate-45"></div>
               </div>
             </div>
