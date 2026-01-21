@@ -87,6 +87,25 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               </div>
             </div>
           </div>
+          <div className="relative group">
+            <button className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors flex items-center gap-1">
+              Tools
+              <ChevronDownIcon className="w-3.5 h-3.5" />
+            </button>
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-64 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <div className="py-2">
+                <Link
+                  href="/tools"
+                  className="block px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                >
+                  <div className="font-semibold text-black">Upload Assets to URL</div>
+                  <div className="text-[12px] opacity-70">
+                    Video and image upload tools
+                  </div>
+                </Link>
+              </div>
+            </div>
+          </div>
           <Link
             href="/#pricing"
             className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
@@ -165,6 +184,16 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
             onClick={() => setMobileMenuOpen(false)}
           >
             Competitor Replica
+          </Link>
+          <div className="text-[12px] font-medium text-[#666666] uppercase tracking-[0.2em]">
+            Tools
+          </div>
+          <Link
+            href="/tools"
+            className="text-[16px] font-medium text-black"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            Upload Assets to URL
           </Link>
           <Link
             href="/#pricing"

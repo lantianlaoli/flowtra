@@ -8,7 +8,7 @@ export default function Footer() {
   return (
     <footer className="bg-white border-t border-[#E5E5E5] py-20">
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-12">
           {/* Logo, Description, and Copyright */}
           <section aria-labelledby="footer-about">
             <h2 id="footer-about" className="sr-only">About Flowtra</h2>
@@ -54,6 +54,18 @@ export default function Footer() {
               <li>
                 <Link href="/blog" className="text-[14px] text-[#666666] hover:text-black transition-colors">
                   Blog
+                </Link>
+              </li>
+            </ul>
+          </nav>
+
+          {/* Tools Column */}
+          <nav aria-labelledby="footer-tools">
+            <h3 id="footer-tools" className="text-[14px] font-bold text-black mb-6 uppercase tracking-wider">Tools</h3>
+            <ul className="space-y-4">
+              <li>
+                <Link href="/tools" className="text-[14px] text-[#666666] hover:text-black transition-colors">
+                  Upload Assets to URL
                 </Link>
               </li>
             </ul>
