@@ -115,6 +115,8 @@ const DEFAULT_STEPS: EmptyStateStep[] = [
 interface GenerationProgressDisplayProps {
   generations: Generation[];
   onDownload?: (generation: Generation) => void;
+  primaryActionLabel?: string;
+  onPrimaryAction?: (generation: Generation) => void;
   emptyStateSteps?: EmptyStateStep[];
   emptyStateRightContent?: React.ReactNode;
   expandedGenerationId?: string | null;
@@ -136,6 +138,8 @@ interface GenerationProgressDisplayProps {
 export default function GenerationProgressDisplay({
   generations,
   onDownload,
+  primaryActionLabel,
+  onPrimaryAction,
   emptyStateSteps,
   emptyStateRightContent,
   expandedGenerationId,
@@ -229,6 +233,8 @@ export default function GenerationProgressDisplay({
           key={generation.id}
           generation={generation}
           onDownload={onDownload}
+          primaryActionLabel={primaryActionLabel}
+          onPrimaryAction={onPrimaryAction}
           expandedGenerationId={expandedGenerationId}
           onToggleSegments={onToggleSegments}
           onSegmentSelect={onSegmentSelect}
@@ -245,6 +251,8 @@ export default function GenerationProgressDisplay({
 interface GenerationCardProps {
   generation: Generation;
   onDownload?: (generation: Generation) => void;
+  primaryActionLabel?: string;
+  onPrimaryAction?: (generation: Generation) => void;
   expandedGenerationId?: string | null;
   onToggleSegments?: (generation: Generation) => void;
   onSegmentSelect?: (generation: Generation, segment: SegmentCardSummary) => void;
@@ -264,6 +272,8 @@ interface GenerationCardProps {
 function GenerationCard({
   generation,
   onDownload,
+  primaryActionLabel,
+  onPrimaryAction,
   expandedGenerationId,
   onToggleSegments,
   onSegmentSelect,
@@ -459,6 +469,15 @@ function GenerationCard({
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {primaryActionLabel && onPrimaryAction && (
+              <button
+                onClick={() => onPrimaryAction(generation)}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
+              >
+                <MousePointerClick className="w-3.5 h-3.5" />
+                <span>{primaryActionLabel}</span>
+              </button>
+            )}
             {hasSegments && generation.segments && generation.segments.length > 0 && !mergeComplete && (
               <div className="flex flex-col gap-1.5 items-end">
                 <button

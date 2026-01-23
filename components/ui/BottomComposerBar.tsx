@@ -88,7 +88,7 @@ export default function BottomComposerBar({
                   : generateButtonText
                 }
               </span>
-              {canAfford && !isGenerating && generationCost > 0 && (
+              {!isGenerating && generationCost > 0 && (
                 <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded-md text-xs ml-1">
                   <Coins className="w-3 h-3" />
                   {generationCost}

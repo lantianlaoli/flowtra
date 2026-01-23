@@ -45,8 +45,85 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       }, { status: 400 });
     }
 
-    // Get the history record
     const supabase = getSupabase();
+
+    // Schema verified via Supabase MCP (2026-01-23): motion_swap_projects columns include
+    // id, user_id, status, output_video_url, downloaded, updated_at
+    const { data: motionSwapRecord, error: motionSwapError } = await supabase
+      .from('motion_swap_projects')
+      .select('*')
+      .eq('id', historyId)
+      .eq('user_id', userId)
+      .single();
+
+    if (motionSwapRecord && !motionSwapError) {
+      if (motionSwapRecord.status !== 'completed' || !motionSwapRecord.output_video_url) {
+        return NextResponse.json({
+          success: false,
+          message: 'Video generation not completed yet'
+        }, { status: 400 });
+      }
+
+      const isFirstDownload = !motionSwapRecord.downloaded;
+
+      if (isFirstDownload) {
+        if (validateOnly) {
+          return NextResponse.json({
+            success: true,
+            message: 'Validation successful (download is free)',
+            downloadCost: 0
+          }, { status: 200 });
+        }
+
+        const { error: updateError } = await supabase
+          .from('motion_swap_projects')
+          .update({
+            downloaded: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', historyId);
+
+        if (updateError) {
+          console.error('Failed to update motion swap record:', updateError);
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to update download record'
+          }, { status: 500 });
+        }
+      } else if (validateOnly) {
+        return NextResponse.json({
+          success: true,
+          message: 'Validation successful (already downloaded)',
+          downloadCost: 0
+        }, { status: 200 });
+      }
+
+      try {
+        const videoResponse = await fetch(motionSwapRecord.output_video_url);
+        if (!videoResponse.ok) {
+          throw new Error(`Failed to fetch video: ${videoResponse.status}`);
+        }
+
+        return new NextResponse(videoResponse.body, {
+          status: 200,
+          headers: {
+            'Content-Type': 'video/mp4',
+            'Content-Disposition': `attachment; filename=\"flowtra-motion-swap-${historyId}.mp4\"`,
+            'Content-Length': videoResponse.headers.get('content-length') || '',
+            'x-flowtra-download-cost': '0',
+          },
+        });
+      } catch (downloadError) {
+        console.error('Failed to download motion swap video:', downloadError);
+        return NextResponse.json({
+          success: false,
+          message: 'Failed to download video file'
+        }, { status: 500 });
+      }
+    }
+
+    // Schema verified via Supabase MCP (2026-01-23): competitor_ugc_replication_projects columns include
+    // id, user_id, status, video_url, downloaded, download_credits_used, last_processed_at
     const { data: historyRecord, error: historyError } = await supabase
       .from('competitor_ugc_replication_projects')
       .select('*')
@@ -61,7 +138,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       }, { status: 404 });
     }
 
-    // Check if video generation is completed
     if (historyRecord.status !== 'completed' || !historyRecord.video_url) {
       return NextResponse.json({
         success: false,

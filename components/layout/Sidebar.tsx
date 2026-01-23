@@ -13,7 +13,8 @@ import {
   Boxes,
   User,
   HelpCircle,
-  Menu
+  Menu,
+  Shuffle
 } from 'lucide-react';
 import {
   Sidebar as ShadcnSidebar,
@@ -65,8 +66,13 @@ const navigation = [
     icon: Video
   },
   {
+    name: 'Motion Swap',
+    href: '/dashboard/motion-swap',
+    icon: Shuffle
+  },
+  {
     name: 'My Ads',
-    href: '/dashboard/videos',
+    href: '/dashboard/my-ads',
     icon: Play
   },
   {

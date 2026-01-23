@@ -69,7 +69,29 @@ interface AvatarAdsItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem;
+interface MotionSwapItem {
+  id: string;
+  coverImageUrl?: string;
+  videoUrl?: string;
+  coverAspectRatio?: string;
+  downloaded?: boolean;
+  downloadCreditsUsed?: number;
+  generationCreditsUsed?: number;
+  videoModel: VideoModel;
+  creditsUsed: number;
+  status: 'processing' | 'completed' | 'failed';
+  createdAt: string;
+  progress?: number;
+  currentStep?: string;
+  adType: 'motion-swap';
+  videoAspectRatio?: string;
+  videoDurationSeconds?: number;
+  photoPrompt?: string;
+  videoPrompt?: string;
+  errorMessage?: string;
+}
+
+type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem | MotionSwapItem;
 
 const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns (desktop) = 8 items per page
 
@@ -92,6 +114,12 @@ const AD_TYPE_OPTIONS = [
     icon: VideoIcon,
     description: 'Character-driven videos and image sets',
   },
+  {
+    value: 'motion-swap',
+    label: 'Motion Swap',
+    icon: VideoIcon,
+    description: 'Kling motion-controlled swaps from reference videos',
+  },
 ] as const;
 
 type AdTypeFilterValue = (typeof AD_TYPE_OPTIONS)[number]['value'];
@@ -108,6 +136,10 @@ const isCharacterAds = (item: HistoryItem): item is AvatarAdsItem => {
 
 const isCompetitorUgcReplication = (item: HistoryItem): item is CompetitorUgcReplicationItem => {
   return 'adType' in item && item.adType === 'competitor-ugc-replication';
+};
+
+const isMotionSwap = (item: HistoryItem): item is MotionSwapItem => {
+  return 'adType' in item && item.adType === 'motion-swap';
 };
 
 const getBaseDownloadCost = (model: VideoModel) => {
@@ -167,7 +199,8 @@ export default function HistoryPage() {
       return (
         adTypeFilter === 'all' ||
         (adTypeFilter === 'competitor-ugc-replication' && isCompetitorUgcReplication(item)) ||
-        (adTypeFilter === 'character' && isCharacterAds(item))
+        (adTypeFilter === 'character' && isCharacterAds(item)) ||
+        (adTypeFilter === 'motion-swap' && isMotionSwap(item))
       );
     });
   }, [history, adTypeFilter]);
@@ -563,6 +596,33 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     }
   };
 
+  const downloadMotionSwapCover = async (historyId: string) => {
+    if (!user?.id) return;
+
+    const item = history.find(h => h.id === historyId);
+    if (!item || !isMotionSwap(item) || !item.coverImageUrl) return;
+
+    try {
+      const res = await fetch(item.coverImageUrl, { mode: 'cors' });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const contentType = blob.type || 'image/jpeg';
+      const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `motion-swap-cover-${historyId}.${ext}`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Download failed');
+    }
+  };
+
   // Unified handler to show emotional phrase on Cover click then trigger download
   const handleCoverClick = async (item: HistoryItem) => {
     // only for ads content
@@ -574,6 +634,8 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
         await downloadCompetitorUgcReplicationCover(item.id);
       } else if (isCharacterAds(item)) {
         await downloadCharacterAdsCover(item.id);
+      } else if (isMotionSwap(item)) {
+        await downloadMotionSwapCover(item.id);
       }
       // Mark as done to show a pleasant finish message
       setCoverStates(prev => ({ ...prev, [id]: 'done' }));
@@ -590,7 +652,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     const id = item.id;
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (isCompetitorUgcReplication(item) || isCharacterAds(item)) {
+      if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionSwap(item)) {
         // Version 2.0: All downloads are free, handle legacy sora2 model
         const normalizedModel: VideoModel = (item.videoModel === 'sora2' ? 'veo3_fast' : item.videoModel) as VideoModel;
         await downloadVideo(item.id, normalizedModel);
@@ -778,7 +840,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
                         )}
                       </span>
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white text-black border border-[#E5E5E5]">
-                        {isCharacterAds(item) ? 'Character' : 'UGC Clone'}
+                        {isCharacterAds(item) ? 'Character' : isMotionSwap(item) ? 'Motion Swap' : 'UGC Clone'}
                       </span>
                     </div>
 

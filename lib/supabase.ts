@@ -192,6 +192,81 @@ export interface UserProductPhoto {
   original_photo_url?: string | null
 }
 
+// Creator Sources (TikTok, etc.)
+export interface CreatorSourcePlatform {
+  id: string
+  user_id: string
+  source_id: string
+  platform: string
+  handle: string
+  profile_url?: string | null
+  avatar_url?: string | null
+  display_name?: string | null
+  sec_uid?: string | null
+  unique_id?: string | null
+  stats?: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreatorSourceVideo {
+  id: string
+  user_id: string
+  source_id: string
+  platform: string
+  platform_video_id: string
+  video_url: string
+  video_cdn_url?: string | null
+  cover_url?: string | null
+  description?: string | null
+  stats?: Record<string, unknown> | null
+  duration_seconds?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreatorSource {
+  id: string
+  user_id: string
+  source_name: string
+  creator_source_platforms?: CreatorSourcePlatform[]
+  creator_source_videos?: CreatorSourceVideo[]
+  created_at: string
+  updated_at: string
+}
+
+// Motion Swap projects
+export interface MotionSwapProject {
+  id: string
+  user_id: string
+  creator_source_id?: string | null
+  creator_source_video_id?: string | null
+  avatar_id?: string | null
+  product_id?: string | null
+  product_photo_id?: string | null
+  reference_video_url?: string | null
+  reference_video_cdn_url?: string | null
+  reference_cover_url?: string | null
+  reference_duration_seconds?: number | null
+  photo_prompt?: string | null
+  video_prompt?: string | null
+  preview_task_id?: string | null
+  preview_image_url?: string | null
+  preview_webhook_received_at?: string | null
+  video_task_id?: string | null
+  output_video_url?: string | null
+  video_webhook_received_at?: string | null
+  status: 'pending' | 'generating_preview' | 'generating_video' | 'completed' | 'failed'
+  progress_percentage?: number | null
+  credits_cost: number
+  generation_credits_used: number
+  mode: '720p' | '1080p'
+  error_message?: string | null
+  downloaded?: boolean | null
+  created_at: string
+  updated_at: string
+}
+
 // Database types for competitor_ads table
 // Note: Competitor ads now store only analysis data (no video files or platform info)
 // Files are temporarily uploaded for analysis, then discarded

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Loader2, Package, Tag, BarChart3, ExternalLink, UserCircle } from 'lucide-react';
+import { Search, Loader2, Package, Tag, ExternalLink, UserCircle, Users } from 'lucide-react';
 import { UserBrand, UserProduct, UserAvatar } from '@/lib/supabase';
 import { useToast } from '@/contexts/ToastContext';
 import BrandSection from './BrandSection';
@@ -14,14 +14,46 @@ import SelectProductToBrandModal from './SelectProductToBrandModal';
 import CreateAvatarModal from './CreateAvatarModal';
 import EditAvatarModal from './EditAvatarModal';
 import AvatarCard from './AvatarCard';
+import CreateCreatorSourceModal from './CreateCreatorSourceModal';
+import EditCreatorSourceModal from './EditCreatorSourceModal';
+import CreatorSourceCard from './CreatorSourceCard';
+
+interface CreatorSourcePlatform {
+  id: string;
+  platform: string;
+  handle: string;
+  profile_url?: string | null;
+  avatar_url?: string | null;
+  display_name?: string | null;
+  stats?: Record<string, unknown> | null;
+}
+
+interface CreatorSourceVideo {
+  id: string;
+  platform: string;
+  video_url: string;
+  cover_url?: string | null;
+  description?: string | null;
+  duration_seconds?: number | null;
+}
+
+interface CreatorSource {
+  id: string;
+  source_name: string;
+  creator_source_platforms?: CreatorSourcePlatform[];
+  creator_source_videos?: CreatorSourceVideo[];
+}
 
 interface AssetsData {
   brands: (UserBrand & { products?: UserProduct[] })[];
   unbrandedProducts: UserProduct[];
+  creatorSources: CreatorSource[];
   stats: {
     totalBrands: number;
     totalProducts: number;
     unbrandedCount: number;
+    totalCreatorSources?: number;
+    totalCreatorVideos?: number;
   };
 }
 
@@ -30,17 +62,20 @@ export default function AssetsManager() {
   const [assetsData, setAssetsData] = useState<AssetsData>({
     brands: [],
     unbrandedProducts: [],
-    stats: { totalBrands: 0, totalProducts: 0, unbrandedCount: 0 }
+    creatorSources: [],
+    stats: { totalBrands: 0, totalProducts: 0, unbrandedCount: 0, totalCreatorSources: 0, totalCreatorVideos: 0 }
   });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [deletingBrandId, setDeletingBrandId] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [deletingAvatarId, setDeletingAvatarId] = useState<string | null>(null);
+  const [deletingCreatorSourceId, setDeletingCreatorSourceId] = useState<string | null>(null);
+  const [syncingCreatorSourceId, setSyncingCreatorSourceId] = useState<string | null>(null);
 
   // Avatar state
   const [avatars, setAvatars] = useState<UserAvatar[]>([]);
-  const [activeTab, setActiveTab] = useState<'brands' | 'avatars'>('brands');
+  const [activeTab, setActiveTab] = useState<'brands' | 'avatars' | 'creator_sources'>('brands');
 
   // Modal states
   const [showCreateBrandModal, setShowCreateBrandModal] = useState(false);
@@ -50,8 +85,10 @@ export default function AssetsManager() {
   const [editingBrand, setEditingBrand] = useState<UserBrand | null>(null);
   const [editingProduct, setEditingProduct] = useState<UserProduct | null>(null);
   const [editingAvatar, setEditingAvatar] = useState<UserAvatar | null>(null);
+  const [editingCreatorSource, setEditingCreatorSource] = useState<CreatorSource | null>(null);
   const [selectedBrandIdForProduct, setSelectedBrandIdForProduct] = useState<string | null>(null);
   const [selectedBrandForProductSelection, setSelectedBrandForProductSelection] = useState<UserBrand | null>(null);
+  const [showCreateCreatorSourceModal, setShowCreateCreatorSourceModal] = useState(false);
 
   useEffect(() => {
     loadAssets();
@@ -63,7 +100,17 @@ export default function AssetsManager() {
       const response = await fetch('/api/assets');
       if (response.ok) {
         const data = await response.json();
-        setAssetsData(data);
+        setAssetsData({
+          ...data,
+          creatorSources: data.creatorSources || [],
+          stats: {
+            totalBrands: data.stats?.totalBrands || 0,
+            totalProducts: data.stats?.totalProducts || 0,
+            unbrandedCount: data.stats?.unbrandedCount || 0,
+            totalCreatorSources: data.stats?.totalCreatorSources || 0,
+            totalCreatorVideos: data.stats?.totalCreatorVideos || 0
+          }
+        });
       }
     } catch (error) {
       console.error('Error loading assets:', error);
@@ -328,6 +375,88 @@ export default function AssetsManager() {
     }
   };
 
+  // Creator source handlers
+  const handleCreatorSourceCreated = (newSource: CreatorSource) => {
+    setAssetsData(prev => ({
+      ...prev,
+      creatorSources: [newSource, ...prev.creatorSources],
+      stats: {
+        ...prev.stats,
+        totalCreatorSources: (prev.stats.totalCreatorSources || 0) + 1,
+        totalCreatorVideos: (prev.stats.totalCreatorVideos || 0) + (newSource.creator_source_videos?.length || 0)
+      }
+    }));
+    showSuccess('Creator source created successfully');
+  };
+
+  const handleCreatorSourceUpdated = (updatedSource: CreatorSource) => {
+    setAssetsData(prev => ({
+      ...prev,
+      creatorSources: prev.creatorSources.map(source =>
+        source.id === updatedSource.id ? updatedSource : source
+      )
+    }));
+    showSuccess('Creator source updated successfully');
+  };
+
+  const handleEditCreatorSource = (source: CreatorSource) => {
+    setEditingCreatorSource(source);
+  };
+
+  const handleDeleteCreatorSource = async (sourceId: string) => {
+    if (deletingCreatorSourceId) return;
+
+    try {
+      setDeletingCreatorSourceId(sourceId);
+      const response = await fetch(`/api/creator-sources/${sourceId}`, { method: 'DELETE' });
+      if (response.ok) {
+        setAssetsData(prev => ({
+          ...prev,
+          creatorSources: prev.creatorSources.filter(source => source.id !== sourceId),
+          stats: {
+            ...prev.stats,
+            totalCreatorSources: Math.max((prev.stats.totalCreatorSources || 1) - 1, 0)
+          }
+        }));
+        showSuccess('Creator source deleted successfully');
+        return;
+      }
+
+      const data = await response.json();
+      showError(data.error || 'Failed to delete creator source');
+    } catch (error) {
+      console.error('Error deleting creator source:', error);
+      showError('An error occurred while deleting the creator source.');
+    } finally {
+      setDeletingCreatorSourceId(null);
+    }
+  };
+
+  const handleSyncCreatorSource = async (sourceId: string) => {
+    const source = assetsData.creatorSources.find(item => item.id === sourceId);
+    const handle = source?.source_name || '';
+    try {
+      setSyncingCreatorSourceId(sourceId);
+      const response = await fetch(`/api/creator-sources/${sourceId}/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle })
+      });
+      const data = await response.json();
+      if (response.ok && data.source) {
+        handleCreatorSourceUpdated(data.source);
+        showSuccess('Creator source synced successfully');
+        return;
+      }
+      showError(data.error || 'Failed to sync creator source');
+    } catch (error) {
+      console.error('Error syncing creator source:', error);
+      showError('An error occurred while syncing the creator source.');
+    } finally {
+      setSyncingCreatorSourceId(null);
+    }
+  };
+
   // Search filtering
   const filteredBrands = assetsData.brands.filter(brand => {
     const brandMatch = brand.brand_name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -345,6 +474,10 @@ export default function AssetsManager() {
 
   const filteredAvatars = avatars.filter(avatar =>
     avatar.avatar_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredCreatorSources = assetsData.creatorSources.filter(source =>
+    source.source_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (isLoading) {
@@ -385,6 +518,18 @@ export default function AssetsManager() {
           >
             <UserCircle className="w-4 h-4" />
             <span>Avatars</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('creator_sources')}
+            className={`
+              flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
+              ${activeTab === 'creator_sources'
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-700'}
+            `}
+          >
+            <Users className="w-4 h-4" />
+            <span>Creator Sources</span>
           </button>
         </div>
       </div>
@@ -493,7 +638,7 @@ export default function AssetsManager() {
               </>
             )}
           </>
-        ) : (
+        ) : activeTab === 'avatars' ? (
           <>
             {/* Actions & Search */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
@@ -557,6 +702,69 @@ export default function AssetsManager() {
               </div>
             )}
           </>
+        ) : (
+          <>
+            {/* Actions & Search */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+              <div className="relative w-full md:max-w-md">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search creator sources..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                />
+              </div>
+              <div className="w-full md:w-auto">
+                <button
+                  onClick={() => setShowCreateCreatorSourceModal(true)}
+                  className="w-full md:w-auto flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  <Users className="w-4 h-4" />
+                  Add Creator Source
+                </button>
+              </div>
+            </div>
+
+            {/* Creator Sources Tab */}
+            {filteredCreatorSources.length === 0 && searchTerm ? (
+              <div className="py-12 text-center">
+                <Search className="w-12 h-12 mx-auto mb-4 text-gray-200" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
+                <p className="text-gray-500">Try adjusting your search terms</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {filteredCreatorSources.length > 0 ? (
+                  filteredCreatorSources.map(source => (
+                    <CreatorSourceCard
+                      key={source.id}
+                      source={source}
+                      onEdit={handleEditCreatorSource}
+                      onDelete={handleDeleteCreatorSource}
+                      onSync={handleSyncCreatorSource}
+                      isDeleting={deletingCreatorSourceId === source.id}
+                      isSyncing={syncingCreatorSourceId === source.id}
+                    />
+                  ))
+                ) : (
+                  <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
+                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-200" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No creator sources yet</h3>
+                    <p className="text-gray-500 mb-6">Add a TikTok creator to reuse their videos.</p>
+                    <button
+                      onClick={() => setShowCreateCreatorSourceModal(true)}
+                      className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                    >
+                      <Users className="w-4 h-4" />
+                      Add Creator Source
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -613,6 +821,19 @@ export default function AssetsManager() {
         avatar={editingAvatar}
         onClose={() => setEditingAvatar(null)}
         onAvatarUpdated={handleAvatarUpdated}
+      />
+
+      <CreateCreatorSourceModal
+        isOpen={showCreateCreatorSourceModal}
+        onClose={() => setShowCreateCreatorSourceModal(false)}
+        onCreated={handleCreatorSourceCreated}
+      />
+
+      <EditCreatorSourceModal
+        isOpen={!!editingCreatorSource}
+        source={editingCreatorSource}
+        onClose={() => setEditingCreatorSource(null)}
+        onUpdated={handleCreatorSourceUpdated}
       />
     </div>
   );

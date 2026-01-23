@@ -53,7 +53,7 @@ export default function GenerationConfirmation({
       {/* Action buttons */}
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
         <button
-          onClick={() => router.push('/dashboard/videos')}
+          onClick={() => router.push('/dashboard/my-ads')}
           className="flex items-center justify-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
         >
           <History className="w-4 h-4" />

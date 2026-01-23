@@ -1,5 +1,5 @@
-import HistoryPage from '@/components/pages/HistoryPage';
+import { redirect } from 'next/navigation';
 
 export default function MyVideosPage() {
-  return <HistoryPage />;
+  redirect('/dashboard/my-ads');
 }

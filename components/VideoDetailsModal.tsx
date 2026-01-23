@@ -62,7 +62,29 @@ interface AvatarAdsItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem;
+interface MotionSwapItem {
+  id: string;
+  coverImageUrl?: string;
+  videoUrl?: string;
+  coverAspectRatio?: string;
+  downloaded?: boolean;
+  downloadCreditsUsed?: number;
+  generationCreditsUsed?: number;
+  videoModel: VideoModel;
+  creditsUsed: number;
+  status: 'processing' | 'completed' | 'failed';
+  createdAt: string;
+  progress?: number;
+  currentStep?: string;
+  adType: 'motion-swap';
+  videoAspectRatio?: string;
+  videoDurationSeconds?: number;
+  photoPrompt?: string;
+  videoPrompt?: string;
+  errorMessage?: string;
+}
+
+type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem | MotionSwapItem;
 
 interface VideoDetailsModalProps {
   isOpen: boolean;
@@ -79,6 +101,10 @@ const isCompetitorUgcReplication = (item: HistoryItem): item is CompetitorUgcRep
 
 const isCharacterAds = (item: HistoryItem): item is AvatarAdsItem => {
   return item.adType === 'character';
+};
+
+const isMotionSwap = (item: HistoryItem): item is MotionSwapItem => {
+  return item.adType === 'motion-swap';
 };
 
 const getModelDisplayName = (model: string): string => {
@@ -104,6 +130,9 @@ const formatDuration = (item: HistoryItem): string => {
       return `${totalSeconds}s`;
     }
     return `${item.videoDuration || '8'}s`;
+  }
+  if (isMotionSwap(item)) {
+    return `${item.videoDurationSeconds || 8}s`;
   }
   return 'N/A';
 };
@@ -165,7 +194,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
 
   const handleDownloadClick = async () => {
     if (!item.videoUrl || item.status !== 'completed') return;
-    if (isCompetitorUgcReplication(item) || isCharacterAds(item)) {
+    if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionSwap(item)) {
       // Normalize legacy models for download
       const normalizedModel: VideoModel = (item.videoModel === 'sora2' ? 'veo3_fast' : item.videoModel) as VideoModel;
       await onDownload(item.id, normalizedModel);
@@ -206,6 +235,17 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
           data: item.generatedPrompts
         };
       }
+    }
+
+    if (isMotionSwap(item)) {
+      return {
+        type: 'motion-swap-prompts',
+        title: 'Motion Swap Prompts',
+        data: {
+          photoPrompt: item.photoPrompt || '',
+          videoPrompt: item.videoPrompt || ''
+        }
+      };
     }
 
     return null;
@@ -329,6 +369,38 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
               </div>
             </div>
           ))}
+        </div>
+      );
+    }
+
+    if (promptsContent.type === 'motion-swap-prompts') {
+      const data = promptsContent.data as { photoPrompt?: string; videoPrompt?: string };
+
+      return (
+        <div className="space-y-4">
+          <div className="border border-[#E5E5E5] rounded-xl bg-white overflow-hidden shadow-sm">
+            <div className="bg-black px-5 py-3.5 border-b border-black flex items-center gap-2.5">
+              <Sparkles className="w-4 h-4 text-white/70" />
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider">First Frame Prompt</h4>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-black leading-relaxed whitespace-pre-wrap">
+                {data.photoPrompt || 'No prompt provided.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="border border-[#E5E5E5] rounded-xl bg-white overflow-hidden shadow-sm">
+            <div className="bg-black px-5 py-3.5 border-b border-black flex items-center gap-2.5">
+              <Video className="w-4 h-4 text-white/70" />
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider">Video Prompt</h4>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-black leading-relaxed whitespace-pre-wrap">
+                {data.videoPrompt || 'No prompt provided.'}
+              </p>
+            </div>
+          </div>
         </div>
       );
     }
@@ -474,7 +546,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                       <CompactParam 
                         icon={<Cpu className="w-3.5 h-3.5" />} 
                         label="AI Model" 
-                        value={getModelDisplayName(item.videoModel)} 
+                        value={isMotionSwap(item) ? 'Kling 2.6 Motion Control' : getModelDisplayName(item.videoModel)} 
                       />
                       <CompactParam 
                         icon={<Maximize className="w-3.5 h-3.5" />} 

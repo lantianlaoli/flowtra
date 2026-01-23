@@ -59,7 +59,29 @@ interface CharacterAdsItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem;
+interface MotionSwapItem {
+  id: string;
+  coverImageUrl?: string;
+  videoUrl?: string;
+  coverAspectRatio?: string;
+  downloaded?: boolean;
+  downloadCreditsUsed?: number;
+  generationCreditsUsed?: number;
+  videoModel: VideoModel;
+  creditsUsed: number;
+  status: 'processing' | 'completed' | 'failed';
+  createdAt: string;
+  progress?: number;
+  currentStep?: string;
+  adType: 'motion-swap';
+  videoAspectRatio?: string;
+  videoDurationSeconds?: number;
+  photoPrompt?: string;
+  videoPrompt?: string;
+  errorMessage?: string;
+}
+
+type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem | MotionSwapItem;
 
 type SupportedAspectRatio = '16:9' | '9:16' | '1:1';
 
@@ -136,6 +158,8 @@ export async function GET() {
         case 'in_progress':
         case 'pending':
         case 'processing':
+        case 'generating_preview':
+        case 'generating_video':
         case 'generating_videos':
         default:
           return 'processing';
@@ -162,6 +186,21 @@ export async function GET() {
 
     if (characterAdsError) {
       console.error('Failed to fetch Avatar Ads history:', characterAdsError);
+    }
+
+    // Fetch Motion Swap data
+    // Schema verified via Supabase MCP (2026-01-23): motion_swap_projects columns include
+    // id, user_id, status, preview_image_url, reference_cover_url, output_video_url,
+    // credits_cost, generation_credits_used, downloaded, progress_percentage,
+    // reference_duration_seconds, photo_prompt, video_prompt, error_message, created_at
+    const { data: motionSwapItems, error: motionSwapError } = await supabase
+      .from('motion_swap_projects')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (motionSwapError) {
+      console.error('Failed to fetch Motion Swap history:', motionSwapError);
     }
 
     // Transform Competitor UGC Replication data
@@ -257,10 +296,38 @@ export async function GET() {
         };
       });
 
+    const transformedMotionSwapHistory: MotionSwapItem[] = (motionSwapItems || []).map(item => {
+      const mappedStatus = mapWorkflowStatus(item.status);
+      const videoUrl = mappedStatus === 'completed' ? item.output_video_url : undefined;
+
+      return {
+        id: item.id,
+        coverImageUrl: item.preview_image_url || item.reference_cover_url || undefined,
+        coverAspectRatio: resolveCoverAspectRatio('9:16'),
+        videoUrl,
+        downloaded: item.downloaded || false,
+        downloadCreditsUsed: 0,
+        generationCreditsUsed: item.generation_credits_used || 0,
+        videoModel: 'veo3_fast',
+        creditsUsed: item.credits_cost || 0,
+        status: mappedStatus,
+        createdAt: item.created_at,
+        progress: item.progress_percentage,
+        currentStep: item.status,
+        adType: 'motion-swap',
+        videoAspectRatio: resolveVideoAspectRatio('9:16', '9:16'),
+        videoDurationSeconds: item.reference_duration_seconds || undefined,
+        photoPrompt: item.photo_prompt || undefined,
+        videoPrompt: item.video_prompt || undefined,
+        errorMessage: item.error_message || undefined
+      };
+    });
+
     // Combine and sort by creation date
     const combinedHistory: HistoryItem[] = [
       ...transformedCompetitorUgcReplicationHistory,
-      ...transformedCharacterAdsHistory
+      ...transformedCharacterAdsHistory,
+      ...transformedMotionSwapHistory
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return NextResponse.json({

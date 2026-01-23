@@ -1,8 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import NextImage from 'next/image';
 import clsx from 'clsx';
-import { Loader2, Image as ImageIcon, Video as VideoIcon, Eye } from 'lucide-react';
+import { Loader2, Image as ImageIcon, Video as VideoIcon, Eye, RefreshCw } from 'lucide-react';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import { MODEL_PROCESSING_TIMES, type VideoModel } from '@/lib/constants';
 
@@ -10,6 +11,10 @@ interface SegmentPreviewColumnProps {
   segment: SegmentCardSummary;
   videoAspectRatio?: '16:9' | '9:16' | string | null;
   videoModel?: string;
+  layout?: 'split' | 'stacked';
+  videoEtaLabel?: string;
+  onRefreshVideo?: () => Promise<void>;
+  isRefreshing?: boolean;
 }
 
 function getAspectRatioClass(ratio?: string | null) {
@@ -34,8 +39,13 @@ function getEstimatedTime(videoModel?: string): string {
 export default function SegmentPreviewColumn({
   segment,
   videoAspectRatio,
-  videoModel
+  videoModel,
+  layout = 'split',
+  videoEtaLabel,
+  onRefreshVideo,
+  isRefreshing = false
 }: SegmentPreviewColumnProps) {
+  const [videoError, setVideoError] = useState(false);
   const normalizedStatus = (segment?.status || '').toLowerCase();
   const isGeneratingFirstFrame = normalizedStatus === 'generating_first_frame';
   const isGeneratingVideo = normalizedStatus === 'generating_video';
@@ -62,7 +72,7 @@ export default function SegmentPreviewColumn({
 
       {/* Preview Content - Side by Side Layout */}
       <div className="flex-1 overflow-y-auto p-3">
-        <div className="grid grid-cols-2 gap-3 content-start">
+        <div className={clsx('grid gap-3', layout === 'stacked' ? 'grid-cols-1' : 'grid-cols-2')}>
           {/* First Frame Preview */}
           <div className="flex flex-col">
             <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-[#666666]">
@@ -79,7 +89,7 @@ export default function SegmentPreviewColumn({
                 <NextImage
                   src={segment.firstFrameUrl}
                   alt="Segment first frame"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                   fill
                   sizes="(max-width: 768px) 50vw, 300px"
                 />
@@ -102,15 +112,54 @@ export default function SegmentPreviewColumn({
                 <div className="flex h-full w-full flex-col items-center justify-center animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-sm text-[#666666]">
                   <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
                   <span className="mt-2">Rendering video{getEstimatedTime(videoModel)}…</span>
+                  {videoEtaLabel && (
+                    <span className="mt-1 text-xs text-[#777777]">{videoEtaLabel}</span>
+                  )}
                 </div>
               ) : segment?.videoUrl ? (
-                <video
-                  src={segment.videoUrl}
-                  controls
-                  controlsList="nodownload"
-                  playsInline
-                  className="h-full w-full rounded-lg bg-black object-contain"
-                />
+                <>
+                  <video
+                    key={segment.videoUrl}
+                    src={segment.videoUrl}
+                    poster={segment.firstFrameUrl || undefined}
+                    controls
+                    controlsList="nodownload"
+                    playsInline
+                    muted
+                    loop
+                    preload="auto"
+                    className="h-full w-full rounded-lg bg-black object-contain"
+                    onError={(e) => {
+                      const videoElement = e.currentTarget;
+                      setVideoError(true);
+                      console.error('[SegmentPreviewColumn] Video load error:', {
+                        url: segment.videoUrl,
+                        error: videoElement.error,
+                        networkState: videoElement.networkState,
+                        readyState: videoElement.readyState
+                      });
+                    }}
+                    onLoadedData={(e) => {
+                      setVideoError(false);
+                      console.log('[SegmentPreviewColumn] Video loaded successfully:', {
+                        url: segment.videoUrl,
+                        duration: e.currentTarget.duration
+                      });
+                    }}
+                  />
+                  {videoError && onRefreshVideo && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                      <button
+                        onClick={onRefreshVideo}
+                        disabled={isRefreshing}
+                        className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        {isRefreshing ? 'Refreshing...' : 'Refresh Video'}
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="text-center p-4">
                   <div className="text-sm text-[#666666] mb-2">Video not generated yet.</div>

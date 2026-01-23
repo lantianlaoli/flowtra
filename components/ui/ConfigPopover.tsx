@@ -13,16 +13,17 @@ import type { VideoDuration, VideoModel } from '@/lib/constants';
 
 interface ConfigPopoverProps {
   // Duration props
-  videoDuration: VideoDuration;
-  onDurationChange: (duration: VideoDuration) => void;
+  videoDuration?: VideoDuration;
+  onDurationChange?: (duration: VideoDuration) => void;
   disabledDurations?: VideoDuration[];
   durationOptions?: VideoDurationOption[];
   recommendedDuration?: VideoDuration | null;
+  hideDurationSelector?: boolean;
 
   // Model props
-  selectedModel: VideoModel;
-  onModelChange: (model: VideoModel) => void;
-  userCredits: number;
+  selectedModel?: VideoModel;
+  onModelChange?: (model: VideoModel) => void;
+  userCredits?: number;
   hideModelSelector?: boolean;
 
   // Language props
@@ -56,9 +57,10 @@ export default function ConfigPopover({
   disabledDurations = [],
   durationOptions,
   recommendedDuration,
+  hideDurationSelector = false,
   selectedModel,
   onModelChange,
-  userCredits,
+  userCredits = 0,
   hideModelSelector = false,
   selectedLanguage,
   onLanguageChange,
@@ -243,7 +245,7 @@ export default function ConfigPopover({
         <p className="text-xs text-gray-500">{formatHelperText}</p>
       )}
 
-      {!hideModelSelector && (
+      {!hideModelSelector && selectedModel && onModelChange && videoDuration && (
         <VideoModelSelector
           credits={userCredits}
           selectedModel={selectedModel}
@@ -254,16 +256,18 @@ export default function ConfigPopover({
         />
       )}
 
-      <VideoDurationSelector
-        selectedDuration={videoDuration}
-        onDurationChange={onDurationChange}
-        disabledDurations={disabledDurations}
-        recommendedDuration={recommendedDuration}
-        label="Duration"
-        showIcon
-        disabled={disabled}
-        options={durationOptions}
-      />
+      {!hideDurationSelector && videoDuration && onDurationChange && (
+        <VideoDurationSelector
+          selectedDuration={videoDuration}
+          onDurationChange={onDurationChange}
+          disabledDurations={disabledDurations}
+          recommendedDuration={recommendedDuration}
+          label="Duration"
+          showIcon
+          disabled={disabled}
+          options={durationOptions}
+        />
+      )}
     </div>
   );
 

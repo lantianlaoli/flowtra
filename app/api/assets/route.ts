@@ -94,13 +94,36 @@ export async function GET() {
 
     console.log('[Assets API] Final brands with products:', brandsWithProducts);
 
+    // Fetch creator sources (TikTok, etc.)
+    // Schema verified via Supabase MCP (2026-02-01): creator_sources, creator_source_platforms, creator_source_videos
+    const { data: creatorSources, error: creatorSourcesError } = await supabase
+      .from('creator_sources')
+      .select('*, creator_source_platforms(*), creator_source_videos(*)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (creatorSourcesError) {
+      console.error('Error fetching creator sources:', creatorSourcesError);
+      return NextResponse.json(
+        { error: 'Failed to fetch creator sources' },
+        { status: 500 }
+      );
+    }
+
+    const creatorSourceVideoCount = (creatorSources || []).reduce((total, source) => {
+      return total + (source.creator_source_videos?.length || 0);
+    }, 0);
+
     const response = {
       brands: brandsWithProducts,
       unbrandedProducts: unbrandedProducts || [],
+      creatorSources: creatorSources || [],
       stats: {
         totalBrands: brands?.length || 0,
         totalProducts: (allProducts?.length || 0),
-        unbrandedCount: unbrandedProducts?.length || 0
+        unbrandedCount: unbrandedProducts?.length || 0,
+        totalCreatorSources: creatorSources?.length || 0,
+        totalCreatorVideos: creatorSourceVideoCount
       }
     };
 
