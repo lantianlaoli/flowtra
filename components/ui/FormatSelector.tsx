@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Maximize2, Square, Smartphone, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -82,7 +83,9 @@ export default function FormatSelector({
 }: FormatSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
+  const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
 
   // Get format options based on output mode and image model
   const formatOptions = outputMode === 'image'
@@ -98,38 +101,32 @@ export default function FormatSelector({
     }
   }, [outputMode, imageModel, selectedFormat, formatOptions, onFormatChange]);
 
+  // Update button position when opening dropdown
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      setButtonRect(buttonRef.current.getBoundingClientRect());
+    }
+  }, [isOpen]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        optionsRef.current &&
+        !optionsRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Adjust dropdown position to prevent overflow
-  useEffect(() => {
-    if (isOpen && optionsRef.current) {
-      const options = optionsRef.current;
-      const rect = options.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-
-      options.style.top = '';
-      options.style.bottom = '';
-      options.style.marginTop = '';
-      options.style.marginBottom = '';
-
-      if (rect.bottom > viewportHeight && rect.top > rect.height) {
-        options.style.top = 'auto';
-        options.style.bottom = '100%';
-        options.style.marginTop = '0';
-        options.style.marginBottom = '0.25rem';
-      }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [isOpen]);
+
 
   const selectedOption = formatOptions.find(opt => opt.value === selectedFormat) || formatOptions[0];
 
@@ -147,6 +144,7 @@ export default function FormatSelector({
       <div className="relative">
         {/* Dropdown Button */}
         <button
+          ref={buttonRef}
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
           className={cn(
@@ -168,16 +166,22 @@ export default function FormatSelector({
           </div>
         </button>
 
-        {/* Dropdown Options */}
-        <AnimatePresence>
-          {isOpen && !disabled && (
+        {/* Dropdown Options - Portal to body */}
+        {isOpen && !disabled && buttonRect && typeof window !== 'undefined' && createPortal(
+          <AnimatePresence>
             <motion.div
               ref={optionsRef}
               initial={{ opacity: 0, y: -4, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-              className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] overflow-hidden"
+              style={{
+                position: 'fixed',
+                left: `${buttonRect.left}px`,
+                top: `${buttonRect.bottom + 4}px`,
+                width: `${buttonRect.width}px`,
+              }}
+              className="bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] overflow-hidden"
             >
               {formatOptions.map((option) => {
                 const IconComponent = option.icon;
@@ -208,8 +212,9 @@ export default function FormatSelector({
                 );
               })}
             </motion.div>
-          )}
-        </AnimatePresence>
+          </AnimatePresence>,
+          document.body
+        )}
       </div>
     </div>
   );
