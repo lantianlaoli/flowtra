@@ -44,6 +44,11 @@ export default function Footer() {
                   Competitor Replica
                 </Link>
               </li>
+              <li>
+                <Link href="/features/motion-swap" className="text-[14px] text-[#666666] hover:text-black transition-colors">
+                  Motion Swap
+                </Link>
+              </li>
             </ul>
           </nav>
 

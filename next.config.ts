@@ -45,7 +45,7 @@ const nextConfig: NextConfig = {
       'framer-motion',
       'react-markdown',
     ],
-    middlewareClientMaxBodySize: '500mb',
+    proxyClientMaxBodySize: '500mb',
   },
 
   // The old webpack config block has been removed/disabled.

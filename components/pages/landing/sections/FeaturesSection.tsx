@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UserPlus, Copy, ArrowRight, Check } from "lucide-react";
+import { UserPlus, Copy, ArrowRight, Check, RefreshCw } from "lucide-react";
 import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
 
 export default function FeaturesSection() {
@@ -186,6 +186,102 @@ export default function FeaturesSection() {
                   playsInline
                   loop
                 />
+              </div>
+            </div>
+          </article>
+
+          {/* Feature 3: Motion Swap */}
+
+          <article className="flex flex-col lg:flex-row items-center gap-16">
+            {/* Left (visually right): Content */}
+
+            <div className="flex-1 space-y-8">
+              <div className="flex items-start gap-4">
+                <div
+                  className="w-12 h-12 bg-[#F7F7F7] rounded-lg flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
+                  <RefreshCw className="w-6 h-6 text-black" />
+                </div>
+
+                <div>
+                  <h3 className="text-[24px] font-bold text-black mb-3">
+                    Motion Swap
+                  </h3>
+
+                  <p className="text-lg text-[#666666] leading-relaxed">
+                    Clone viral ads in seconds. Enter a creator&apos;s name and swap person and product while preserving the exact movements.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 pl-0 md:pl-12">
+                <ul className="space-y-4">
+                  {[
+                    "One-click creator search",
+
+                    "Motion preservation technology",
+
+                    "Smart first frame editing",
+
+                    "Higher success rate with visual preview",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-center gap-3 text-[#666666]"
+                    >
+                      <Check className="w-4 h-4 text-black flex-shrink-0" />
+
+                      <span className="font-medium">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <Link
+                  href="/features/motion-swap"
+                  className="inline-flex items-center gap-2 text-black font-semibold hover:gap-3 transition-all pt-2 border-b-2 border-transparent hover:border-black"
+                >
+                  Learn More
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Right (visually left): Videos */}
+
+            <div className="flex-1 w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-lg mx-auto">
+                <div className="space-y-4">
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#F7F7F7] border border-[#E5E5E5] rounded-full text-[12px] font-bold uppercase tracking-wider text-black">
+                    Original Creator
+                  </div>
+
+                  <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
+                    <LazyVideoPlayer
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/motion_swap_refer_1.mp4"
+                      wrapperClassName="h-full w-full"
+                      className="h-full w-full object-cover"
+                      playsInline
+                      loop
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[12px] font-bold uppercase tracking-wider">
+                    Motion Swap
+                  </div>
+
+                  <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
+                    <LazyVideoPlayer
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/motion_swap_result_1.mp4"
+                      wrapperClassName="h-full w-full"
+                      className="h-full w-full object-cover"
+                      playsInline
+                      loop
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </article>

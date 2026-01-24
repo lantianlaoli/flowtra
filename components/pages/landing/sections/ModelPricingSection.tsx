@@ -1,5 +1,5 @@
 import { Zap, Check } from 'lucide-react';
-import { SiGoogle, SiOpenai, SiX, SiBytedance } from 'react-icons/si';
+import { Google, ByteDance, Kling } from '@lobehub/icons';
 
 export default function ModelPricingSection() {
   // Credit to USD conversion rate
@@ -9,7 +9,7 @@ export default function ModelPricingSection() {
     {
       name: 'Veo3.1 fast',
       description: 'Fast generation with balanced quality and cost',
-      icon: SiGoogle,
+      icon: Google,
       badge: 'Popular',
       durationRange: '8-64s',
       billingType: 'generation' as const,
@@ -19,9 +19,21 @@ export default function ModelPricingSection() {
       quality: ['1080P'],
     },
     {
+      name: 'Kling 2.6 Motion Control',
+      description: 'Precise motion control for dynamic video generation',
+      icon: Kling,
+      badge: 'New',
+      durationRange: '5-10s',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { duration: '1 min', credits: 540, unit: 'per min' },
+      ],
+      quality: ['1080P'],
+    },
+    {
       name: 'Seedance 1.5 Pro',
       description: 'ByteDance model with built-in audio generation',
-      icon: SiBytedance,
+      icon: ByteDance,
       badge: 'New',
       durationRange: '8-64s',
       billingType: 'generation' as const,
@@ -33,7 +45,7 @@ export default function ModelPricingSection() {
     {
       name: 'Veo3.1',
       description: 'Premium quality generation',
-      icon: SiGoogle,
+      icon: Google,
       badge: 'Premium',
       durationRange: '8-64s',
       billingType: 'generation' as const,
