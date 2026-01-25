@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import Sidebar from '@/components/layout/Sidebar';
 import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send, ArrowRight } from 'lucide-react';
 import { getCreditCost, type HighResResolution, type VideoModel } from '@/lib/constants';
@@ -15,6 +16,7 @@ import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 import VideoDetailsModal from '@/components/VideoDetailsModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import { useToast } from '@/contexts/ToastContext';
+import { getSupabase } from '@/lib/supabase';
 
 interface CompetitorUgcReplicationItem {
   id: string;
@@ -330,6 +332,106 @@ export default function HistoryPage() {
       clearInterval(interval);
     };
   }, [user?.id, hasProcessing]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const supabase = getSupabase();
+    const channels: RealtimeChannel[] = [];
+
+    const updateHighResUrls = (
+      item: AvatarAdsItem | CompetitorUgcReplicationItem,
+      merged1080p?: string | null,
+      merged4k?: string | null
+    ) => {
+      let changed = false;
+      const next = { ...item };
+
+      if (merged1080p && item.videoUrl1080p !== merged1080p) {
+        next.videoUrl1080p = merged1080p;
+        changed = true;
+      }
+
+      if (merged4k && item.videoUrl4k !== merged4k) {
+        next.videoUrl4k = merged4k;
+        changed = true;
+      }
+
+      return changed ? next : item;
+    };
+
+    const handleAvatarUpdate = (payload: { new: Record<string, unknown> }) => {
+      const record = payload.new;
+      const projectId = record?.id as string | undefined;
+      if (!projectId) return;
+
+      setHistory((prev) =>
+        prev.map((item) => {
+          if (!isCharacterAds(item) || item.id !== projectId) return item;
+          return updateHighResUrls(
+            item,
+            record.merged_video_1080p_url as string | undefined,
+            record.merged_video_4k_url as string | undefined
+          );
+        })
+      );
+    };
+
+    const handleUgcUpdate = (payload: { new: Record<string, unknown> }) => {
+      const record = payload.new;
+      const projectId = record?.id as string | undefined;
+      if (!projectId) return;
+
+      setHistory((prev) =>
+        prev.map((item) => {
+          if (!isCompetitorUgcReplication(item) || item.id !== projectId) return item;
+          return updateHighResUrls(
+            item,
+            record.merged_video_1080p_url as string | undefined,
+            record.merged_video_4k_url as string | undefined
+          );
+        })
+      );
+    };
+
+    const avatarChannel = supabase
+      .channel(`my-ads-avatar-highres-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'avatar_ads_projects',
+          filter: `user_id=eq.${user.id}`
+        },
+        handleAvatarUpdate
+      )
+      .subscribe();
+
+    channels.push(avatarChannel);
+
+    const ugcChannel = supabase
+      .channel(`my-ads-ugc-highres-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'competitor_ugc_replication_projects',
+          filter: `user_id=eq.${user.id}`
+        },
+        handleUgcUpdate
+      )
+      .subscribe();
+
+    channels.push(ugcChannel);
+
+    return () => {
+      channels.forEach((channel) => {
+        supabase.removeChannel(channel);
+      });
+    };
+  }, [user?.id]);
 
   // Reset to first page when filter changes
   useEffect(() => {
