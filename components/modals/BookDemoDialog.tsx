@@ -11,7 +11,7 @@ interface BookDemoDialogProps {
   onClose: () => void;
 }
 
-type FeatureType = 'avatar-ads' | 'competitor-cloning';
+type FeatureType = 'avatar-ads' | 'competitor-cloning' | 'motion-swap';
 type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error';
 
 export function BookDemoDialog({ isOpen, onClose }: BookDemoDialogProps) {
@@ -66,13 +66,22 @@ export function BookDemoDialog({ isOpen, onClose }: BookDemoDialogProps) {
   const getPlaceholder = () => {
     const hasAvatar = selectedFeatures.has('avatar-ads');
     const hasClone = selectedFeatures.has('competitor-cloning');
+    const hasMotionSwap = selectedFeatures.has('motion-swap');
 
-    if (hasAvatar && hasClone) {
+    if (hasAvatar && hasClone && hasMotionSwap) {
       return 'Product image links, TikTok video links, or related information (optional)';
+    } else if (hasAvatar && hasClone) {
+      return 'Product image links, TikTok video links, or related information (optional)';
+    } else if (hasAvatar && hasMotionSwap) {
+      return 'Product image links, reference videos, or related information (optional)';
+    } else if (hasClone && hasMotionSwap) {
+      return 'TikTok video links or reference videos (optional)';
     } else if (hasAvatar) {
       return 'Product image links or related information (optional)';
     } else if (hasClone) {
       return 'TikTok link of video you want to clone or related information (optional)';
+    } else if (hasMotionSwap) {
+      return 'Reference video links or related information (optional)';
     }
     return 'Resource links or related information (optional)';
   };
@@ -218,6 +227,20 @@ export function BookDemoDialog({ isOpen, onClose }: BookDemoDialogProps) {
                         </span>
                         <p className="text-xs text-gray-600">
                           Recreate successful ads with your product
+                        </p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={selectedFeatures.has('motion-swap')}
+                        onChange={() => toggleFeature('motion-swap')}
+                        className="w-4 h-4 text-black border-gray-300 rounded"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">Motion Swap</span>
+                        <p className="text-xs text-gray-600">
+                          Apply motion from a reference video to your product
                         </p>
                       </div>
                     </label>

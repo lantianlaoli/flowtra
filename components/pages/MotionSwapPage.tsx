@@ -16,6 +16,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { Format } from '@/components/ui/FormatSelector';
+import { useSearchParams } from 'next/navigation';
 
 interface CreatorSourcePlatform {
   id: string;
@@ -70,6 +71,7 @@ const TUTORIAL_TIKTOK_ID = '7588829935922351378';
 const SESSION_STORAGE_KEY = 'motion_swap_session_state';
 
 export default function MotionSwapPage() {
+  const searchParams = useSearchParams();
   const { showError, showSuccess } = useToast();
   const { user } = useUser();
   const { credits: userCredits, creditsData } = useCredits();
@@ -186,6 +188,30 @@ export default function MotionSwapPage() {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     }
   }, []);
+
+  // Read URL parameters and set initial state
+  useEffect(() => {
+    if (isLoading) return; // Wait for assets to load first
+
+    const sourceId = searchParams.get('sourceId');
+    const videoId = searchParams.get('videoId');
+
+    if (sourceId && videoId) {
+      // Verify that the source and video exist
+      const source = creatorSources.find(s => s.id === sourceId);
+      if (source) {
+        const video = source.creator_source_videos?.find(v => v.id === videoId);
+        if (video) {
+          setSelectedSourceId(sourceId);
+          setSelectedVideoId(videoId);
+          // Clear URL parameters after setting state
+          if (typeof window !== 'undefined') {
+            window.history.replaceState({}, '', '/dashboard/motion-swap');
+          }
+        }
+      }
+    }
+  }, [isLoading, searchParams, creatorSources]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -331,6 +357,7 @@ export default function MotionSwapPage() {
   const editVideoUrl = project?.output_video_url || selectedVideo?.video_cdn_url || null;
   const effectiveSegmentStatus = useMemo(() => {
     if (project?.status === 'generating_preview') return 'generating_first_frame';
+    if (project?.status === 'preview_ready') return 'first_frame_ready';
     return project?.status || 'pending';
   }, [project?.status]);
   const editSegment = useMemo(() => ({
@@ -342,12 +369,14 @@ export default function MotionSwapPage() {
   }), [editFirstFrameUrl, editVideoUrl, effectiveSegmentStatus]);
   const isSubmittingEdit = editAction !== null;
   const hasSwapTarget = Boolean(editAvatarId || editProductId);
+  const isPreviewReady = project?.status === 'preview_ready';
   const canGenerateImage = Boolean(
     project?.id &&
     selectedVideoId &&
     editPhotoPrompt.trim().length > 0 &&
     hasSwapTarget &&
-    !isSubmittingEdit
+    !isSubmittingEdit &&
+    (project?.status === 'pending' || isPreviewReady)
   );
   const canGenerateVideo = Boolean(
     project?.id &&
@@ -355,7 +384,8 @@ export default function MotionSwapPage() {
     editPhotoPrompt.trim().length > 0 &&
     editVideoPrompt.trim().length > 0 &&
     hasSwapTarget &&
-    !isSubmittingEdit
+    !isSubmittingEdit &&
+    (project?.status === 'pending' || isPreviewReady)
   );
 
   const creatorDisplayName = useMemo(() => {
@@ -477,7 +507,8 @@ export default function MotionSwapPage() {
           avatar_id: editAvatarId,
           product_id: editProductId,
           photo_prompt: editPhotoPrompt,
-          video_prompt: editVideoPrompt
+          video_prompt: editVideoPrompt,
+          action: action
         })
       });
 
@@ -488,7 +519,10 @@ export default function MotionSwapPage() {
       }
 
       setProject(data.project);
-      showSuccess('Motion Swap preview started.');
+      const successMessage = action === 'image'
+        ? 'Generating preview image...'
+        : 'Generating preview and video...';
+      showSuccess(successMessage);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start Motion Swap';
       setEditError(message);

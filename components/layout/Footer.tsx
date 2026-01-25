@@ -69,7 +69,7 @@ export default function Footer() {
             <h3 id="footer-tools" className="text-[14px] font-bold text-black mb-6 uppercase tracking-wider">Tools</h3>
             <ul className="space-y-4">
               <li>
-                <Link href="/tools" className="text-[14px] text-[#666666] hover:text-black transition-colors">
+                <Link href="/tools/upload-assets" className="text-[14px] text-[#666666] hover:text-black transition-colors">
                   Upload Assets to URL
                 </Link>
               </li>

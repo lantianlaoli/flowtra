@@ -58,6 +58,25 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Missing base URL' }, { status: 200 });
       }
 
+      // Check if auto_generate_video is enabled
+      const shouldAutoGenerateVideo = project.auto_generate_video === true;
+
+      if (!shouldAutoGenerateVideo) {
+        // Image-only mode: mark preview as ready and wait for user to manually trigger video generation
+        await supabase
+          .from('motion_swap_projects')
+          .update({
+            preview_image_url: previewUrl,
+            preview_webhook_received_at: new Date().toISOString(),
+            status: 'preview_ready',
+            progress_percentage: 50
+          })
+          .eq('id', project.id);
+
+        return NextResponse.json({ success: true }, { status: 200 });
+      }
+
+      // Auto-generate video mode: proceed with video generation
       await supabase
         .from('motion_swap_projects')
         .update({

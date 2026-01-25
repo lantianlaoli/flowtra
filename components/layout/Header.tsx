@@ -120,7 +120,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
             <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-64 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
               <div className="py-2">
                 <Link
-                  href="/tools"
+                  href="/tools/upload-assets"
                   className="block px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
                 >
                   <div className="font-semibold text-black">Upload Assets to URL</div>
@@ -221,7 +221,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
             Tools
           </div>
           <Link
-            href="/tools"
+            href="/tools/upload-assets"
             className="text-[16px] font-medium text-black"
             onClick={() => setMobileMenuOpen(false)}
           >

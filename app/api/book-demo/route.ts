@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     const cloneChecked = selectedFeatures.includes('competitor-cloning')
       ? '☑'
       : '☐';
+    const motionSwapChecked = selectedFeatures.includes('motion-swap') ? '☑' : '☐';
 
     const emailSubject = `🎯 New Demo Request from ${userName}`;
     const emailHtml = `
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
       <ul>
         <li>${avatarChecked} Avatar Ads - talking character videos</li>
         <li>${cloneChecked} Competitor Cloning - recreate successful ads with product</li>
+        <li>${motionSwapChecked} Motion Swap - apply motion from a reference video to your product</li>
       </ul>
 
       <h3>Materials/Resources:</h3>
@@ -73,6 +75,7 @@ User ID: ${userId}
 Features of Interest:
 ${avatarChecked} Avatar Ads - talking character videos
 ${cloneChecked} Competitor Cloning - recreate successful ads with product
+${motionSwapChecked} Motion Swap - apply motion from a reference video to your product
 
 Materials/Resources:
 ${resourceLinks?.trim() || 'No materials provided'}

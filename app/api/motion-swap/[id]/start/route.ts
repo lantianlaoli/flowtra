@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createMotionSwapPreviewTask, buildMotionSwapPreviewPrompt, buildMotionSwapVideoPrompt, MOTION_SWAP_MODE } from '@/lib/motion-swap-workflow';
+import { createMotionSwapPreviewTask, createMotionSwapVideoTask, buildMotionSwapPreviewPrompt, buildMotionSwapVideoPrompt, MOTION_SWAP_MODE } from '@/lib/motion-swap-workflow';
 import { checkCredits, deductCredits, recordCreditTransaction, refundCredits } from '@/lib/credits';
 import { fetchTikTokVideoUrl } from '@/lib/fetch-tiktok-video';
 
@@ -26,6 +26,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const productId = typeof body?.product_id === 'string' ? body.product_id : null;
     const photoPrompt = typeof body?.photo_prompt === 'string' ? body.photo_prompt : null;
     const videoPrompt = typeof body?.video_prompt === 'string' ? body.video_prompt : null;
+    const action = body?.action === 'video' ? 'video' : 'image';
+    const autoGenerateVideo = action === 'video';
 
     const supabase = getSupabaseAdmin();
 
@@ -41,7 +43,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (project.status !== 'pending') {
+    // Allow editing from 'pending' or 'preview_ready' status
+    if (project.status !== 'pending' && project.status !== 'preview_ready') {
       return NextResponse.json({ error: 'Project is not ready for editing' }, { status: 409 });
     }
 
@@ -165,6 +168,56 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ error: 'NEXT_PUBLIC_SITE_URL is not configured' }, { status: 500 });
     }
 
+    // Special case: If project is in preview_ready status and action is 'video',
+    // skip preview generation and go directly to video generation
+    if (project.status === 'preview_ready' && action === 'video') {
+      try {
+        if (!project.preview_image_url) {
+          return NextResponse.json({ error: 'Preview image is missing' }, { status: 400 });
+        }
+
+        const callbackUrl = new URL('/api/motion-swap/webhooks/video', baseUrl).toString();
+        const videoTaskId = await createMotionSwapVideoTask({
+          previewImageUrl: project.preview_image_url,
+          referenceVideoUrl: videoCdnUrl,
+          mode: MOTION_SWAP_MODE,
+          prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct })
+        }, callbackUrl);
+
+        const { data: updatedProject, error: updateError } = await supabase
+          .from('motion_swap_projects')
+          .update({
+            video_task_id: videoTaskId,
+            video_prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct }),
+            auto_generate_video: true,
+            status: 'generating_video',
+            progress_percentage: 75
+          })
+          .eq('id', project.id)
+          .select('*')
+          .single();
+
+        if (updateError || !updatedProject) {
+          return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
+        }
+
+        return NextResponse.json({ project: updatedProject });
+      } catch (error) {
+        console.error('[Motion Swap Start] Video task error:', error);
+        await supabase
+          .from('motion_swap_projects')
+          .update({
+            status: 'failed',
+            error_message: error instanceof Error ? error.message : 'Failed to start video task',
+            progress_percentage: 0
+          })
+          .eq('id', project.id);
+
+        return NextResponse.json({ error: 'Failed to start video task' }, { status: 500 });
+      }
+    }
+
+    // Normal flow: Generate preview (and optionally video based on auto_generate_video)
     let creditsDeducted = false;
     try {
       const deduction = await deductCredits(userId, creditsCost);
@@ -208,6 +261,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           credits_cost: creditsCost,
           generation_credits_used: creditsCost,
           preview_task_id: previewTaskId,
+          auto_generate_video: autoGenerateVideo,
           status: 'generating_preview',
           progress_percentage: 40,
           mode: MOTION_SWAP_MODE

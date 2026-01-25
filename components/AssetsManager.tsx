@@ -741,7 +741,6 @@ export default function AssetsManager() {
                     <CreatorSourceCard
                       key={source.id}
                       source={source}
-                      onEdit={handleEditCreatorSource}
                       onDelete={handleDeleteCreatorSource}
                       onSync={handleSyncCreatorSource}
                       isDeleting={deletingCreatorSourceId === source.id}
@@ -827,6 +826,7 @@ export default function AssetsManager() {
         isOpen={showCreateCreatorSourceModal}
         onClose={() => setShowCreateCreatorSourceModal(false)}
         onCreated={handleCreatorSourceCreated}
+        onError={(error) => showError(error)}
       />
 
       <EditCreatorSourceModal

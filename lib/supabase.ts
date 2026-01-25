@@ -256,11 +256,12 @@ export interface MotionSwapProject {
   video_task_id?: string | null
   output_video_url?: string | null
   video_webhook_received_at?: string | null
-  status: 'pending' | 'generating_preview' | 'generating_video' | 'completed' | 'failed'
+  status: 'pending' | 'generating_preview' | 'preview_ready' | 'generating_video' | 'completed' | 'failed'
   progress_percentage?: number | null
   credits_cost: number
   generation_credits_used: number
   mode: '720p' | '1080p'
+  auto_generate_video: boolean
   error_message?: string | null
   downloaded?: boolean | null
   created_at: string

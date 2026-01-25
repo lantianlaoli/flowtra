@@ -56,6 +56,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const tiktokInput = typeof body.tiktok_handle === 'string' ? body.tiktok_handle.trim() : '';
+    const videoCount = typeof body.video_count === 'number'
+      ? Math.min(Math.max(body.video_count, 1), 10) // Clamp between 1-10
+      : 10; // Default to 10
 
     if (!tiktokInput) {
       return NextResponse.json({ error: 'TikTok username is required' }, { status: 400 });
@@ -92,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     let itemList: Array<Record<string, any>> = [];
     try {
-      const posts = await fetchTikTokUserPosts(profile.secUid, 12);
+      const posts = await fetchTikTokUserPosts(profile.secUid, videoCount);
       itemList = posts.data?.itemList || [];
     } catch (error) {
       console.error('[Creator Sources POST] Posts fetch error:', error);
