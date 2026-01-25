@@ -57,31 +57,6 @@ const buildCallbackUrl = (path: string) => {
   return new URL(path, baseUrl).toString();
 };
 
-const triggerHighResWebhook = async (path: string, taskId: string, resultUrl: string) => {
-  try {
-    await fetch(buildCallbackUrl(path), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        data: {
-          taskId,
-          resultUrl
-        }
-      })
-    });
-  } catch (error) {
-    console.error('[High Res Upgrade] Failed to trigger webhook:', error);
-  }
-};
-
-const poll1080pAndNotify = async (taskId: string, callbackPath: string) => {
-  const resultUrl = await pollKie1080pVideo(taskId);
-  if (!resultUrl) return;
-  await triggerHighResWebhook(callbackPath, taskId, resultUrl);
-};
-
 const resolutionLabel = (resolution: Resolution) => (resolution === '1080p' ? '1080p' : '4K');
 
 export async function POST(request: NextRequest) {
@@ -182,6 +157,7 @@ export async function POST(request: NextRequest) {
         : '/api/competitor-ugc-replication/webhooks/4k';
 
       let startedTasks = 0;
+      const pending1080pSegments: Array<{ id: string; taskId: string }> = [];
 
       try {
         for (const segment of segments) {
@@ -203,15 +179,11 @@ export async function POST(request: NextRequest) {
             [segmentFields.taskId]: taskId
           };
 
-          if (resolution === '1080p' && !resultUrl) {
-            const polledUrl = await pollKie1080pVideo(taskId, { attempts: 4, delayMs: 4000 });
-            if (polledUrl) {
-              updates[segmentFields.url] = polledUrl;
-              updates[segmentFields.webhook] = new Date().toISOString();
-            }
-          } else if (resultUrl) {
+          if (resultUrl) {
             updates[segmentFields.url] = resultUrl;
             updates[segmentFields.webhook] = new Date().toISOString();
+          } else if (resolution === '1080p') {
+            pending1080pSegments.push({ id: segment.id, taskId });
           }
 
           const { error: updateError } = await supabase
@@ -223,10 +195,6 @@ export async function POST(request: NextRequest) {
             throw new Error('Failed to update segment');
           }
 
-          if (resolution === '1080p' && !updates[segmentFields.url]) {
-            void poll1080pAndNotify(taskId, callbackPath);
-          }
-
           startedTasks += 1;
         }
       } catch (error) {
@@ -234,6 +202,26 @@ export async function POST(request: NextRequest) {
           await refundCredits(userId, creditsCharged, `${resolutionLabel(resolution)} download upgrade failed`, historyId);
         }
         throw error;
+      }
+
+      if (resolution === '1080p' && pending1080pSegments.length > 0) {
+        const pollResults = await Promise.all(
+          pending1080pSegments.map(async (segment) => ({
+            id: segment.id,
+            resultUrl: await pollKie1080pVideo(segment.taskId, { attempts: 6, delayMs: 5000 })
+          }))
+        );
+
+        for (const result of pollResults) {
+          if (!result.resultUrl) continue;
+          await supabase
+            .from('competitor_ugc_replication_segments')
+            .update({
+              [segmentFields.url]: result.resultUrl,
+              [segmentFields.webhook]: new Date().toISOString()
+            })
+            .eq('id', result.id);
+        }
       }
 
       const { data: refreshedSegments } = await supabase
@@ -363,6 +351,7 @@ export async function POST(request: NextRequest) {
       : '/api/avatar-ads/webhooks/4k';
 
     let startedTasks = 0;
+    const pending1080pScenes: Array<{ id: string; taskId: string }> = [];
 
     try {
       for (const scene of scenes) {
@@ -384,15 +373,11 @@ export async function POST(request: NextRequest) {
           [segmentFields.taskId]: taskId
         };
 
-        if (resolution === '1080p' && !resultUrl) {
-          const polledUrl = await pollKie1080pVideo(taskId, { attempts: 4, delayMs: 4000 });
-          if (polledUrl) {
-            updates[segmentFields.url] = polledUrl;
-            updates[segmentFields.webhook] = new Date().toISOString();
-          }
-        } else if (resultUrl) {
+        if (resultUrl) {
           updates[segmentFields.url] = resultUrl;
           updates[segmentFields.webhook] = new Date().toISOString();
+        } else if (resolution === '1080p') {
+          pending1080pScenes.push({ id: scene.id, taskId });
         }
 
         const { error: updateError } = await supabase
@@ -404,10 +389,6 @@ export async function POST(request: NextRequest) {
           throw new Error('Failed to update scene');
         }
 
-        if (resolution === '1080p' && !updates[segmentFields.url]) {
-          void poll1080pAndNotify(taskId, callbackPath);
-        }
-
         startedTasks += 1;
       }
     } catch (error) {
@@ -415,6 +396,26 @@ export async function POST(request: NextRequest) {
         await refundCredits(userId, creditsCharged, `${resolutionLabel(resolution)} download upgrade failed`, historyId);
       }
       throw error;
+    }
+
+    if (resolution === '1080p' && pending1080pScenes.length > 0) {
+      const pollResults = await Promise.all(
+        pending1080pScenes.map(async (scene) => ({
+          id: scene.id,
+          resultUrl: await pollKie1080pVideo(scene.taskId, { attempts: 6, delayMs: 5000 })
+        }))
+      );
+
+      for (const result of pollResults) {
+        if (!result.resultUrl) continue;
+        await supabase
+          .from('avatar_ads_scenes')
+          .update({
+            [segmentFields.url]: result.resultUrl,
+            [segmentFields.webhook]: new Date().toISOString()
+          })
+          .eq('id', result.id);
+      }
     }
 
     const { data: refreshedScenes } = await supabase
