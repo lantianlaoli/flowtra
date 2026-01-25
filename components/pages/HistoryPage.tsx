@@ -667,6 +667,20 @@ export default function HistoryPage() {
           resolution,
           adType: item.adType
         });
+        if (result.videoUrl) {
+          setHistory(prevHistory =>
+            prevHistory.map(current => {
+              if (current.id !== historyId) return current;
+              if (resolution === '1080p' && (isCharacterAds(current) || isCompetitorUgcReplication(current))) {
+                return { ...current, videoUrl1080p: result.videoUrl };
+              }
+              if (resolution === '4k' && (isCharacterAds(current) || isCompetitorUgcReplication(current))) {
+                return { ...current, videoUrl4k: result.videoUrl };
+              }
+              return current;
+            })
+          );
+        }
         setDownloadStates(prev => ({ ...prev, [historyId]: 'success' }));
         setTimeout(() => {
           setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));

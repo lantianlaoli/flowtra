@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
       if (mergedUrl) {
         return NextResponse.json({
           status: 'ready',
+          videoUrl: mergedUrl,
           downloadEndpoint: '/api/my-ads/high-res-download',
           message: `${resolutionLabel(resolution)} video is ready`
         });
@@ -249,6 +250,7 @@ export async function POST(request: NextRequest) {
           if (!updateProjectError) {
             return NextResponse.json({
               status: 'ready',
+              videoUrl: segmentUrls[0],
               downloadEndpoint: '/api/my-ads/high-res-download',
               message: `${resolutionLabel(resolution)} video is ready`
             });
@@ -312,6 +314,7 @@ export async function POST(request: NextRequest) {
     if (mergedUrl) {
       return NextResponse.json({
         status: 'ready',
+        videoUrl: mergedUrl,
         downloadEndpoint: '/api/my-ads/high-res-download',
         message: `${resolutionLabel(resolution)} video is ready`
       });
@@ -443,6 +446,7 @@ export async function POST(request: NextRequest) {
         if (!updateProjectError) {
           return NextResponse.json({
             status: 'ready',
+            videoUrl: sceneUrls[0],
             downloadEndpoint: '/api/my-ads/high-res-download',
             message: `${resolutionLabel(resolution)} video is ready`
           });
