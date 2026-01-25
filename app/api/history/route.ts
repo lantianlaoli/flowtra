@@ -9,6 +9,8 @@ interface CompetitorUgcReplicationItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  videoUrl1080p?: string;
+  videoUrl4k?: string;
   coverAspectRatio?: string;
   photoOnly?: boolean;
   downloaded?: boolean;
@@ -40,6 +42,8 @@ interface CharacterAdsItem {
   originalImageUrl?: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  videoUrl1080p?: string;
+  videoUrl4k?: string;
   coverAspectRatio?: string;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
@@ -220,6 +224,8 @@ export async function GET() {
         id: item.id,
         coverImageUrl: parsedSegmentStatus?.segments?.[0]?.firstFrameUrl || null,
         videoUrl: item.video_url,
+        videoUrl1080p: item.merged_video_1080p_url || undefined,
+        videoUrl4k: item.merged_video_4k_url || undefined,
         photoOnly: !!item.photo_only,
         downloaded: item.downloaded,
         downloadCreditsUsed: item.download_credits_used,
@@ -277,6 +283,8 @@ export async function GET() {
           coverImageUrl: item.generated_image_url, // Map generated image to cover for preview
           coverAspectRatio: resolveCoverAspectRatio(item.cover_image_aspect_ratio),
           videoUrl, // Show video only for completed items
+          videoUrl1080p: item.merged_video_1080p_url || undefined,
+          videoUrl4k: item.merged_video_4k_url || undefined,
           downloaded: item.downloaded || false,
           downloadCreditsUsed: item.download_credits_used || 0,
           generationCreditsUsed: 0, // Generation is free, credits only used on download

@@ -66,12 +66,14 @@ export async function POST(request: NextRequest) {
       error
     });
 
-    // Security validation: Check if request_id exists in database
+    // Schema verified via Supabase MCP (2026-01-25): avatar_ads_projects columns include
+    // id, status, fal_merge_task_id, fal_merge_1080p_task_id, fal_merge_4k_task_id,
+    // merged_video_1080p_url, merged_video_4k_url, merged_video_url, last_processed_at.
     const supabase = getSupabaseAdmin();
     const { data: project, error: projectError } = await supabase
       .from('avatar_ads_projects')
-      .select('id, status, fal_merge_task_id')
-      .eq('fal_merge_task_id', request_id)
+      .select('id, status, fal_merge_task_id, fal_merge_1080p_task_id, fal_merge_4k_task_id, merged_video_1080p_url, merged_video_4k_url')
+      .or(`fal_merge_task_id.eq.${request_id},fal_merge_1080p_task_id.eq.${request_id},fal_merge_4k_task_id.eq.${request_id}`)
       .single();
 
     if (projectError || !project) {
@@ -83,8 +85,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Idempotency check: Skip if project already completed or failed
-    if (project.status === 'completed' || project.status === 'failed') {
+    const isStandardMerge = project.fal_merge_task_id === request_id;
+    const is1080pMerge = project.fal_merge_1080p_task_id === request_id;
+    const is4kMerge = project.fal_merge_4k_task_id === request_id;
+
+    if (is1080pMerge && project.merged_video_1080p_url) {
+      return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 });
+    }
+
+    if (is4kMerge && project.merged_video_4k_url) {
+      return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 });
+    }
+
+    if (isStandardMerge && (project.status === 'completed' || project.status === 'failed')) {
       console.log('[Avatar Ads Merge Webhook] Project already finalized:', project.status);
       return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 });
     }
@@ -96,16 +109,25 @@ export async function POST(request: NextRequest) {
     if (status === 'OK' && videoUrl) {
       console.log('✅ [Avatar Ads Merge Webhook] Merge completed for project', project.id);
 
+      const updatePayload: Record<string, string | number | null> = {
+        last_processed_at: new Date().toISOString()
+      };
+
+      if (is1080pMerge) {
+        updatePayload.merged_video_1080p_url = videoUrl;
+      } else if (is4kMerge) {
+        updatePayload.merged_video_4k_url = videoUrl;
+      } else {
+        updatePayload.merged_video_url = videoUrl;
+        updatePayload.status = 'completed';
+        updatePayload.current_step = 'completed';
+        updatePayload.progress_percentage = 100;
+        updatePayload.error_message = null;
+      }
+
       const { error: updateError } = await supabase
         .from('avatar_ads_projects')
-        .update({
-          merged_video_url: videoUrl,
-          status: 'completed',
-          current_step: 'completed',
-          progress_percentage: 100,
-          error_message: null,
-          last_processed_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', project.id);
 
       if (updateError) {
@@ -128,13 +150,18 @@ export async function POST(request: NextRequest) {
 
       const errorMessage = typeof error === 'string' ? error : 'Video merging failed';
 
+      const updatePayload: Record<string, string> = {
+        error_message: `Video merging failed: ${errorMessage}`,
+        last_processed_at: new Date().toISOString()
+      };
+
+      if (!is1080pMerge && !is4kMerge) {
+        updatePayload.status = 'failed';
+      }
+
       const { error: updateError } = await supabase
         .from('avatar_ads_projects')
-        .update({
-          status: 'failed',
-          error_message: `Video merging failed: ${errorMessage}`,
-          last_processed_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', project.id);
 
       if (updateError) {

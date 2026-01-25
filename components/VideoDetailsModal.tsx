@@ -1,18 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Zap, Coins, Calendar, Film } from 'lucide-react';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
-import type { VideoModel } from '@/lib/constants';
+import { HIGH_RES_DOWNLOAD_COSTS, type HighResResolution, type VideoModel } from '@/lib/constants';
 
 // Type definitions matching HistoryPage
 interface CompetitorUgcReplicationItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  videoUrl1080p?: string;
+  videoUrl4k?: string;
   coverAspectRatio?: string;
   photoOnly?: boolean;
   downloaded?: boolean;
@@ -43,6 +45,8 @@ interface AvatarAdsItem {
   originalImageUrl?: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  videoUrl1080p?: string;
+  videoUrl4k?: string;
   coverAspectRatio?: string;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
@@ -90,21 +94,21 @@ interface VideoDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: HistoryItem | null;
-  onDownload: (id: string, videoModel: VideoModel) => Promise<void>;
+  onDownload: (item: HistoryItem, resolution: HighResResolution) => Promise<'ready' | 'processing' | 'error'>;
   isDownloading: boolean;
 }
 
 // Helper functions
-const isCompetitorUgcReplication = (item: HistoryItem): item is CompetitorUgcReplicationItem => {
-  return item.adType === 'competitor-ugc-replication';
+const isCompetitorUgcReplication = (item: HistoryItem | null): item is CompetitorUgcReplicationItem => {
+  return !!item && item.adType === 'competitor-ugc-replication';
 };
 
-const isCharacterAds = (item: HistoryItem): item is AvatarAdsItem => {
-  return item.adType === 'character';
+const isCharacterAds = (item: HistoryItem | null): item is AvatarAdsItem => {
+  return !!item && item.adType === 'character';
 };
 
-const isMotionSwap = (item: HistoryItem): item is MotionSwapItem => {
-  return item.adType === 'motion-swap';
+const isMotionSwap = (item: HistoryItem | null): item is MotionSwapItem => {
+  return !!item && item.adType === 'motion-swap';
 };
 
 const getModelDisplayName = (model: string): string => {
@@ -156,6 +160,9 @@ const formatDateTime = (dateString: string) => {
 
 export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, isDownloading }: VideoDetailsModalProps) {
   const [expandedShots, setExpandedShots] = useState<Set<string>>(new Set());
+  const [selectedResolution, setSelectedResolution] = useState<HighResResolution>('720p');
+  const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
 
   const toggleShot = (shotKey: string) => {
     setExpandedShots(prev => {
@@ -184,8 +191,6 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, isDownloading, onClose]);
 
-  if (!item) return null;
-
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && !isDownloading) {
       onClose();
@@ -193,13 +198,22 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   };
 
   const handleDownloadClick = async () => {
+    if (!item) return;
     if (!item.videoUrl || item.status !== 'completed') return;
     if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionSwap(item)) {
-      // Normalize legacy models for download
-      const normalizedModel: VideoModel = (item.videoModel === 'sora2' ? 'veo3_fast' : item.videoModel) as VideoModel;
-      await onDownload(item.id, normalizedModel);
+      setIsPreparing(true);
+      const status = await onDownload(item, selectedResolution);
+      if (status !== 'processing') {
+        setIsPreparing(false);
+      }
     }
   };
+
+  useEffect(() => {
+    if (!isOpen) {
+      setResolutionMenuOpen(false);
+    }
+  }, [isOpen]);
 
   // Get prompts content with better formatting
   const getPromptsContent = () => {
@@ -405,6 +419,38 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
       );
     }
 
+    const getPromptText = (prompt: unknown) => {
+      if (typeof prompt === 'string' && prompt.trim()) return prompt;
+      if (!prompt || typeof prompt !== 'object') return null;
+      const promptObj = prompt as Record<string, unknown>;
+      if (typeof promptObj.video_prompt === 'string' && promptObj.video_prompt.trim()) {
+        return promptObj.video_prompt;
+      }
+      const parts: string[] = [];
+      if (promptObj.subject) parts.push(`Subject: ${promptObj.subject}`);
+      if (promptObj.context_environment) parts.push(`Context: ${promptObj.context_environment}`);
+      if (promptObj.action) parts.push(`Action: ${promptObj.action}`);
+      if (promptObj.style) parts.push(`Style: ${promptObj.style}`);
+      if (promptObj.camera_motion_positioning) parts.push(`Camera: ${promptObj.camera_motion_positioning}`);
+      if (promptObj.composition) parts.push(`Composition: ${promptObj.composition}`);
+      if (promptObj.ambiance_color_lighting) parts.push(`Lighting: ${promptObj.ambiance_color_lighting}`);
+      if (promptObj.audio) parts.push(`Audio: ${promptObj.audio}`);
+      if (promptObj.dialog) parts.push(`Dialogue: ${promptObj.dialog}`);
+      if (promptObj.voice_type) parts.push(`Voice: ${promptObj.voice_type}`);
+      return parts.length > 0 ? parts.join('\n') : null;
+    };
+
+    const getDialogueText = (prompt: unknown) => {
+      if (!prompt || typeof prompt !== 'object') return null;
+      const promptObj = prompt as Record<string, unknown>;
+      const dialog = typeof promptObj.dialog === 'string' ? promptObj.dialog : null;
+      if (dialog && dialog.trim()) return dialog.replace(/^["']|["']$/g, '');
+      const legacy = typeof promptObj.video_prompt === 'string' ? promptObj.video_prompt : null;
+      if (!legacy) return null;
+      const cleaned = legacy.replace('dialogue, the character in the video says: ', '').replace(/^["']|["']$/g, '');
+      return cleaned.trim() ? cleaned : null;
+    };
+
     // Character Ads Prompts - Scene-based structure
     if (promptsContent.type === 'character-prompts') {
       const data = promptsContent.data;
@@ -414,16 +460,15 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
         <div className="space-y-4">
           {scenes.map((scene: any, idx: number) => {
             const prompt = scene.prompt || {};
-            const dialogue = prompt.video_prompt 
-              ? prompt.video_prompt.replace('dialogue, the character in the video says: ', '').replace(/^["']|["']$/g, '')
-              : null;
+            const dialogue = getDialogueText(prompt);
+            const promptText = getPromptText(prompt);
               
             return (
               <div key={idx} className="border border-[#E5E5E5] rounded-xl bg-white p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Film className="w-4 h-4 text-[#666666]" />
-                    <span className="text-sm font-bold text-black uppercase tracking-wider">Scene {scene.scene}</span>
+                    <span className="text-sm font-bold text-black uppercase tracking-wider">Scene {scene.scene ?? idx + 1}</span>
                   </div>
                 </div>
 
@@ -432,6 +477,18 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                     <MessageSquare className="w-4 h-4 text-[#666666] flex-shrink-0 mt-0.5" />
                     <p className="text-sm text-black leading-relaxed italic">
                       &ldquo;{dialogue}&rdquo;
+                    </p>
+                  </div>
+                )}
+
+                {promptText && (
+                  <div className="border border-[#E5E5E5] rounded-lg p-4 bg-white">
+                    <div className="flex items-center gap-2 mb-2 text-[#666666]">
+                      <Sparkles className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Prompt</span>
+                    </div>
+                    <p className="text-sm text-black leading-relaxed whitespace-pre-wrap">
+                      {promptText}
                     </p>
                   </div>
                 )}
@@ -444,7 +501,50 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
 
     return null;
   };
-  const canDownload = item.status === 'completed' && item.videoUrl;
+  const supportsHighRes = useMemo(() => {
+    if (!item) return false;
+    return (isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.videoModel !== 'sora2';
+  }, [item]);
+
+  const segmentCount = useMemo(() => {
+    if (!item) return 1;
+    if (isCompetitorUgcReplication(item)) return item.segmentCount || 1;
+    if (isCharacterAds(item)) return Math.max(1, Math.ceil((item.videoDurationSeconds || 8) / 8));
+    return 1;
+  }, [item]);
+
+  const selectedCost = useMemo(() => {
+    if (selectedResolution === '720p') return 0;
+    return HIGH_RES_DOWNLOAD_COSTS[selectedResolution] * segmentCount;
+  }, [selectedResolution, segmentCount]);
+
+  useEffect(() => {
+    if (!item || !supportsHighRes) {
+      setSelectedResolution('720p');
+    }
+  }, [item, supportsHighRes]);
+
+  const canDownload = !!item && item.status === 'completed' && item.videoUrl;
+  const isHighResReady = selectedResolution === '720p'
+    ? true
+    : isCompetitorUgcReplication(item) || isCharacterAds(item)
+      ? selectedResolution === '1080p'
+        ? !!item.videoUrl1080p
+        : !!item.videoUrl4k
+      : false;
+  const isButtonBusy = isDownloading || (isPreparing && !isHighResReady);
+  useEffect(() => {
+    if (isHighResReady) {
+      setIsPreparing(false);
+    }
+  }, [isHighResReady]);
+
+  if (!item) return null;
+  const resolutionOptions: Array<{ value: HighResResolution; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+    { value: '720p', label: '720p Original', icon: Film },
+    { value: '1080p', label: '1080p', icon: Maximize },
+    { value: '4k', label: '4K Ultra', icon: Sparkles }
+  ];
 
   // Aspect ratio class - ensure video fills container properly
   const getAspectRatioClass = () => {
@@ -584,7 +684,6 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                         icon={<Calendar className="w-3.5 h-3.5" />}
                         label="Created At"
                         value={formatDateTime(item.createdAt).split(',')[0]}
-                        className="col-span-1 md:col-span-2"
                       />
                     </div>
                   </div>
@@ -618,26 +717,86 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                 {/* Fixed Download Button at Bottom Right */}
                 {canDownload && (
                   <div className="border-t border-[#E5E5E5] bg-white px-8 py-4">
-                    <div className="flex justify-end">
+                    <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-end">
+                      {supportsHighRes && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setResolutionMenuOpen((prev) => !prev)}
+                            disabled={isDownloading}
+                            className={cn(
+                              'flex h-11 items-center gap-2 rounded-lg border border-[#E5E5E5] bg-white px-3 text-sm font-medium text-black shadow-sm transition',
+                              isDownloading ? 'cursor-not-allowed opacity-70' : 'hover:bg-[#F7F7F7]'
+                            )}
+                          >
+                            {(() => {
+                              const current = resolutionOptions.find((option) => option.value === selectedResolution) || resolutionOptions[0];
+                              const Icon = current.icon;
+                              return (
+                                <>
+                                  <Icon className="h-4 w-4 text-black" />
+                                  <span>{current.label}</span>
+                                </>
+                              );
+                            })()}
+                            <ChevronDown className="h-4 w-4 text-[#666666]" />
+                          </button>
+                          {resolutionMenuOpen && (
+                            <div className="absolute right-0 bottom-full mb-2 w-44 overflow-hidden rounded-lg border border-[#E5E5E5] bg-white shadow-lg">
+                              {resolutionOptions.map((option) => {
+                                const Icon = option.icon;
+                                const isSelected = option.value === selectedResolution;
+                                return (
+                                  <button
+                                    key={option.value}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedResolution(option.value);
+                                      setResolutionMenuOpen(false);
+                                    }}
+                                    className={cn(
+                                      'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
+                                      isSelected ? 'bg-black text-white' : 'text-black hover:bg-[#F7F7F7]'
+                                    )}
+                                  >
+                                    <Icon className={cn('h-4 w-4', isSelected ? 'text-white' : 'text-black')} />
+                                    <span>{option.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <button
                         onClick={handleDownloadClick}
-                        disabled={isDownloading}
+                        disabled={isButtonBusy}
                         className={cn(
                           'flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all shadow-sm',
-                          !isDownloading
+                          !isButtonBusy
                             ? 'bg-black text-white hover:bg-black/90 hover:shadow-md'
                             : 'bg-[#E5E5E5] text-[#666666] cursor-not-allowed'
                         )}
                       >
-                        {isDownloading ? (
+                        {isButtonBusy ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            Downloading...
+                            {isPreparing && !isHighResReady ? 'Preparing...' : 'Downloading...'}
                           </>
                         ) : (
                           <>
                             <Download className="w-4 h-4" />
-                            Download Video
+                            <span>{selectedResolution === '4k' && !isHighResReady ? 'Prepare' : 'Download'}</span>
+                            {selectedResolution === '720p' ? (
+                              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-white">
+                                Free
+                              </span>
+                            ) : !isHighResReady ? (
+                              <span className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-white">
+                                <Coins className="h-3 w-3" />
+                                {selectedCost}
+                              </span>
+                            ) : null}
                           </>
                         )}
                       </button>

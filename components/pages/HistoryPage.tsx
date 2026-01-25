@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send, ArrowRight } from 'lucide-react';
-import { getCreditCost, type VideoModel } from '@/lib/constants';
+import { getCreditCost, type HighResResolution, type VideoModel } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
@@ -14,11 +14,14 @@ import { motion } from 'framer-motion';
 import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 import VideoDetailsModal from '@/components/VideoDetailsModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
+import { useToast } from '@/contexts/ToastContext';
 
 interface CompetitorUgcReplicationItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  videoUrl1080p?: string;
+  videoUrl4k?: string;
   coverAspectRatio?: string;
   photoOnly?: boolean;
   downloaded?: boolean;
@@ -50,6 +53,8 @@ interface AvatarAdsItem {
   originalImageUrl?: string;
   coverImageUrl?: string;
   videoUrl?: string;
+  videoUrl1080p?: string;
+  videoUrl4k?: string;
   coverAspectRatio?: string;
   downloaded?: boolean;
   downloadCreditsUsed?: number;
@@ -155,6 +160,7 @@ export default function HistoryPage() {
   const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set());
   const [adTypeFilter, setAdTypeFilter] = useState<AdTypeFilterValue>('all');
   const { credits: userCredits, creditsData, refetchCredits } = useCredits();
+  const { showSuccess, showError } = useToast();
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [, setDownloadStates] = useState<Record<string, 'idle' | 'processing' | 'success'>>({});
@@ -412,125 +418,168 @@ export default function HistoryPage() {
 
   // Removed unused getStepMessage helper to satisfy lint
 
-  // Download function for videos (supports V1, V2, and Character Ads)
-const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
-    if (!user?.id || !userCredits) return;
-
-    const item = history.find(h => h.id === historyId);
-    const isFirstDownload = item && 'downloaded' in item ? !item.downloaded : false;
-
-    if (!item) return;
-
-    // Check if VEO3 prepaid (credits already deducted at generation)
-    const isPrepaid = item && 'generationCreditsUsed' in item ? (item.generationCreditsUsed || 0) > 0 : false;
-
-    // Version 2.0: ALL downloads are FREE (credits charged at generation time)
-    const downloadCost = 0;
-
-    // For prepaid VEO3, no credit check needed
-    if (!isPrepaid && isFirstDownload && userCredits < downloadCost) {
-      alert(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
-      return;
+  const startDownloadForm = (action: string, fields: Record<string, string>) => {
+    let iframe = document.getElementById('download-iframe') as HTMLIFrameElement;
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'download-iframe';
+      iframe.name = 'download-iframe';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
     }
 
-    // Start download animation
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = action;
+    form.target = 'download-iframe';
+    form.style.display = 'none';
+
+    Object.entries(fields).forEach(([name, value]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  };
+
+  const downloadVideo = async (item: HistoryItem, resolution: HighResResolution): Promise<'ready' | 'processing' | 'error'> => {
+    if (!user?.id || !userCredits) return 'error';
+
+    const historyId = item.id;
+    const isFirstDownload = item && 'downloaded' in item ? !item.downloaded : false;
+
+    const isPrepaid = item && 'generationCreditsUsed' in item ? (item.generationCreditsUsed || 0) > 0 : false;
+    const downloadCost = 0;
+
+    if (resolution === '720p') {
+      if (!isPrepaid && isFirstDownload && userCredits < downloadCost) {
+        showError(`Insufficient credits. Need ${downloadCost}, have ${userCredits}`);
+        return 'error';
+      }
+
+      setDownloadStates(prev => ({ ...prev, [historyId]: 'processing' }));
+
+      try {
+        const apiEndpoint = isCharacterAds(item) ? '/api/avatar-ads/download' : '/api/download-video';
+        const validationResponse = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            historyId,
+            userId: user.id,
+            validateOnly: true,
+            ...(isCharacterAds(item) && { videoDurationSeconds: item.videoDurationSeconds })
+          }),
+        });
+
+        if (!validationResponse.ok) {
+          const result = await validationResponse.json();
+          showError(result.message || 'Failed to authorize download');
+          setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
+          return 'error';
+        }
+
+        const fields: Record<string, string> = {
+          historyId,
+          userId: user.id,
+        };
+
+        if (isCharacterAds(item)) {
+          fields.videoDurationSeconds = String(item.videoDurationSeconds || 8);
+        }
+
+        startDownloadForm(apiEndpoint, fields);
+
+        setDownloadStates(prev => ({ ...prev, [historyId]: 'success' }));
+
+        setHistory(prevHistory =>
+          prevHistory.map(item =>
+            item.id === historyId
+              ? {
+                    ...item,
+                    downloaded: true,
+                    downloadCreditsUsed: isFirstDownload ? downloadCost : ('downloadCreditsUsed' in item ? item.downloadCreditsUsed : 0),
+                  }
+                : item
+          )
+        );
+
+        if (isFirstDownload) {
+          await refetchCredits();
+        }
+
+        setTimeout(() => {
+          setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
+        }, 3000);
+        return 'ready';
+      } catch (error) {
+        console.error('Error downloading video:', error);
+        showError('An error occurred while downloading the video');
+        setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
+        return 'error';
+      }
+      return 'error';
+    }
+
+    if (!isCompetitorUgcReplication(item) && !isCharacterAds(item)) {
+      showError('High-resolution downloads are only available for Avatar Ads and Clone Video.');
+      return 'error';
+    }
+
     setDownloadStates(prev => ({ ...prev, [historyId]: 'processing' }));
 
     try {
-      // Use different API endpoint for Character Ads
-      const apiEndpoint = isCharacterAds(item) ? '/api/avatar-ads/download' : '/api/download-video';
-
-      // ✅ STEP 1: Fast validation (check auth + credits) without downloading
-      const validationResponse = await fetch(apiEndpoint, {
+      const response = await fetch('/api/my-ads/high-res', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           historyId,
-          userId: user.id,
-          validateOnly: true, // Only validate, don't download yet
-          ...(isCharacterAds(item) && { videoDurationSeconds: item.videoDurationSeconds })
-        }),
+          resolution,
+          adType: item.adType
+        })
       });
 
-      if (!validationResponse.ok) {
-        const result = await validationResponse.json();
-        alert(result.message || 'Failed to authorize download');
+      const result = await response.json();
+      if (!response.ok) {
+        showError(result.error || 'Failed to start high-res download');
         setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
-        return;
+        return 'error';
       }
 
-      // ✅ STEP 2: Validation passed - trigger instant streaming download via hidden iframe
-      // This allows browser to handle download natively without navigating away from current page
-
-      // Create or reuse hidden iframe for downloads
-      let iframe = document.getElementById('download-iframe') as HTMLIFrameElement;
-      if (!iframe) {
-        iframe = document.createElement('iframe');
-        iframe.id = 'download-iframe';
-        iframe.name = 'download-iframe';
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-      }
-
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = apiEndpoint;
-      form.target = 'download-iframe'; // Submit to hidden iframe
-      form.style.display = 'none';
-
-      // Add form fields
-      const fields: Record<string, string> = {
-        historyId,
-        userId: user.id,
-      };
-
-      if (isCharacterAds(item)) {
-        fields.videoDurationSeconds = String(item.videoDurationSeconds || 8);
-      }
-
-      Object.entries(fields).forEach(([name, value]) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        input.value = value;
-        form.appendChild(input);
-      });
-
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
-
-      // Show success state immediately (download started)
-      setDownloadStates(prev => ({ ...prev, [historyId]: 'success' }));
-
-      // Update history
-      setHistory(prevHistory =>
-        prevHistory.map(item =>
-          item.id === historyId
-            ? {
-                  ...item,
-                  downloaded: true,
-                  downloadCreditsUsed: isFirstDownload ? downloadCost : ('downloadCreditsUsed' in item ? item.downloadCreditsUsed : 0),
-                }
-              : item
-        )
-      );
-
-      if (isFirstDownload) {
+      if (result.creditsCharged && result.creditsCharged > 0) {
         await refetchCredits();
       }
 
-      // Reset to idle after 3 seconds
-      setTimeout(() => {
-        setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
-      }, 3000);
+      if (result.status === 'ready') {
+        startDownloadForm('/api/my-ads/high-res-download', {
+          historyId,
+          resolution,
+          adType: item.adType
+        });
+        setDownloadStates(prev => ({ ...prev, [historyId]: 'success' }));
+        setTimeout(() => {
+          setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
+        }, 3000);
+        return 'ready';
+      }
 
+      showSuccess(result.message || `${resolution.toUpperCase()} is warming up. This takes a few minutes. Come back to download.`);
+      setDownloadStates(prev => ({ ...prev, [historyId]: 'processing' }));
+      return 'processing';
     } catch (error) {
-      console.error('Error downloading video:', error);
-      alert('An error occurred while downloading the video');
+      console.error('Error downloading high-res video:', error);
+      showError('An error occurred while starting the high-res download');
       setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
+      return 'error';
     }
   };
 
@@ -653,9 +702,7 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
       if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionSwap(item)) {
-        // Version 2.0: All downloads are free, handle legacy sora2 model
-        const normalizedModel: VideoModel = (item.videoModel === 'sora2' ? 'veo3_fast' : item.videoModel) as VideoModel;
-        await downloadVideo(item.id, normalizedModel);
+        await downloadVideo(item, '720p');
       }
       setVideoStates(prev => ({ ...prev, [id]: 'done' }));
     } finally {
@@ -680,10 +727,10 @@ const downloadVideo = async (historyId: string, videoModel: VideoModel) => {
   };
 
   // Handler for downloading video from modal
-  const handleModalDownload = async (historyId: string, videoModel: VideoModel) => {
+  const handleModalDownload = async (item: HistoryItem, resolution: HighResResolution) => {
     setIsModalDownloading(true);
     try {
-      await downloadVideo(historyId, videoModel);
+      return await downloadVideo(item, resolution);
     } finally {
       setIsModalDownloading(false);
     }

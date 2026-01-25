@@ -96,6 +96,10 @@ export interface SingleVideoProject {
   segment_status?: Record<string, unknown> | null // Aggregated per-segment status payload
   merged_video_url?: string | null // Final merged video URL for segmented workflows
   fal_merge_task_id?: string | null // fal.ai merge task identifier
+  merged_video_1080p_url?: string | null
+  merged_video_4k_url?: string | null
+  fal_merge_1080p_task_id?: string | null
+  fal_merge_4k_task_id?: string | null
   retry_count?: number // Number of automatic retries for server errors (failCode: 500)
   created_at: string
   updated_at: string
@@ -115,6 +119,12 @@ export interface CompetitorUgcReplicationSegment {
   closing_frame_url?: string | null
   video_task_id?: string | null
   video_url?: string | null
+  video_1080p_task_id?: string | null
+  video_1080p_url?: string | null
+  video_1080p_webhook_received_at?: string | null
+  video_4k_task_id?: string | null
+  video_4k_url?: string | null
+  video_4k_webhook_received_at?: string | null
   error_message?: string | null
   retry_count?: number // Number of automatic retries for server errors (failCode: 500)
   video_generation_approved?: boolean // Tracks whether user has approved this segment for video generation
@@ -131,6 +141,12 @@ export interface AvatarAdsScene {
   status: 'pending' | 'generating' | 'completed' | 'failed'
   kie_video_task_id?: string | null
   video_url?: string | null
+  video_1080p_task_id?: string | null
+  video_1080p_url?: string | null
+  video_1080p_webhook_received_at?: string | null
+  video_4k_task_id?: string | null
+  video_4k_url?: string | null
+  video_4k_webhook_received_at?: string | null
   retry_count?: number // Number of automatic retries for server errors (failCode: 500, successFlag: 3). Max 3 retries.
   last_retry_at?: string | null // Timestamp of last retry attempt for exponential backoff calculation
   error_code?: string | null // KIE API error code (e.g., '500') for debugging

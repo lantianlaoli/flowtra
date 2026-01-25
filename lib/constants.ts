@@ -15,6 +15,13 @@ export const CREDIT_COSTS = {
   'veo3': 150
 } as const;
 
+export const HIGH_RES_DOWNLOAD_COSTS = {
+  '1080p': 5,
+  '4k': 40
+} as const;
+
+export type HighResResolution = '720p' | keyof typeof HIGH_RES_DOWNLOAD_COSTS;
+
 // NOTE: Platform presets have been removed
 // Platform selection is no longer a feature of the system
 

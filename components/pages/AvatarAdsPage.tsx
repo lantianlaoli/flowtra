@@ -692,7 +692,6 @@ const formatDurationLabel = (seconds: number) => {
             : payload.isCompleted || rawStatus === 'completed'
               ? 'completed'
               : STATUS_MAP[rawStatus] || 'processing';
-        notifyProjectStatus(projectId, computedStatus);
         const progressValue = computedStatus === 'completed'
           ? 100
           : typeof project.progress_percentage === 'number'
@@ -724,6 +723,15 @@ const formatDurationLabel = (seconds: number) => {
       return sortGenerations(next);
     });
   }, [notifyProjectStatus]);
+
+  useEffect(() => {
+    generations.forEach((gen) => {
+      const projectId = gen.projectId || gen.id;
+      if (projectId) {
+        notifyProjectStatus(projectId, gen.status);
+      }
+    });
+  }, [generations, notifyProjectStatus]);
 
   // ✅ fetchStatusForProject REMOVED - replaced by Realtime subscriptions (line 730-787)
 
