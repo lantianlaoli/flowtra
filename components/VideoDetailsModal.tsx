@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Zap, Coins, Calendar, Film } from 'lucide-react';
+import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Zap, Coins, Calendar, Film, ThumbsUp, ThumbsDown } from 'lucide-react';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -717,7 +717,23 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                 {/* Fixed Download Button at Bottom Right */}
                 {canDownload && (
                   <div className="border-t border-[#E5E5E5] bg-white px-8 py-4">
-                    <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-end">
+                    <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      {/* Feedback Buttons */}
+                      <div className="flex items-center gap-2">
+                        <FeedbackButtons
+                          projectId={item.id}
+                          projectType={
+                            item.adType === 'character'
+                              ? 'avatar-ads'
+                              : item.adType === 'competitor-ugc-replication'
+                              ? 'competitor-ugc-replication'
+                              : 'motion-swap'
+                          }
+                        />
+                      </div>
+
+                      {/* Download Controls */}
+                      <div className="flex items-center gap-3">
                       {supportsHighRes && (
                         <div className="relative">
                           <button
@@ -800,6 +816,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                           </>
                         )}
                       </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -858,5 +875,74 @@ function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: strin
         <p className="text-sm text-black leading-relaxed">{value}</p>
       </div>
     </div>
+  );
+}
+
+// Feedback buttons component for video rating
+function FeedbackButtons({
+  projectId,
+  projectType
+}: {
+  projectId: string;
+  projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
+}) {
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState<'positive' | 'negative' | null>(null);
+
+  const handleFeedback = async (feedbackType: 'positive' | 'negative') => {
+    setSubmitting(feedbackType);
+
+    try {
+      const response = await fetch('/api/projects/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, projectType, feedbackType })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit feedback');
+      }
+
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Feedback error:', err);
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <span className="text-[12px] text-gray-500">Thanks!</span>
+    );
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => handleFeedback('positive')}
+        disabled={submitting !== null}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[13px] font-medium hover:border-gray-900 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {submitting === 'positive' ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <ThumbsUp className="w-3.5 h-3.5" />
+        )}
+        <span>Good</span>
+      </button>
+      <button
+        onClick={() => handleFeedback('negative')}
+        disabled={submitting !== null}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[13px] font-medium hover:border-gray-900 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {submitting === 'negative' ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <ThumbsDown className="w-3.5 h-3.5" />
+        )}
+        <span>Bad</span>
+      </button>
+    </>
   );
 }

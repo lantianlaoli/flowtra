@@ -32,7 +32,9 @@ import {
   Layers,
   MousePointerClick,
   CirclePause,
-  ArrowRight
+  ArrowRight,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel, getVideoModelDisplayName } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
@@ -133,6 +135,7 @@ interface GenerationProgressDisplayProps {
     productIds?: string[];
     characterIds?: string[];
   }) => Promise<void> | void;
+  projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
 }
 
 export default function GenerationProgressDisplay({
@@ -148,7 +151,8 @@ export default function GenerationProgressDisplay({
   onMerge,
   onReview,
   reviewCtaLabel = 'Review & Generate',
-  onSegmentRegenerate
+  onSegmentRegenerate,
+  projectType
 }: GenerationProgressDisplayProps) {
   // Load TikTok script when in empty state
   useEffect(() => {
@@ -242,6 +246,7 @@ export default function GenerationProgressDisplay({
           onReview={onReview}
           reviewCtaLabel={reviewCtaLabel}
           onSegmentRegenerate={onSegmentRegenerate}
+          projectType={projectType}
         />
       ))}
     </div>
@@ -267,6 +272,7 @@ interface GenerationCardProps {
     productIds?: string[];
     characterIds?: string[];
   }) => Promise<void> | void;
+  projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
 }
 
 function GenerationCard({
@@ -280,7 +286,8 @@ function GenerationCard({
   onMerge,
   onReview,
   reviewCtaLabel,
-  onSegmentRegenerate
+  onSegmentRegenerate,
+  projectType
 }: GenerationCardProps) {
   const {
     status,
@@ -505,20 +512,28 @@ function GenerationCard({
               </button>
             )}
             {status === 'completed' && videoUrl && (
-              <button
-                onClick={() => !isDownloading && !downloaded && onDownload?.(generation)}
-                disabled={isDownloading || downloaded}
-                className={`inline-flex items-center gap-2 px-4 py-2 border rounded-xl text-[13px] font-semibold transition-all ${
-                  downloaded
-                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-default'
-                    : isDownloading
-                    ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-wait'
-                    : 'border-gray-200 bg-white text-gray-900 hover:border-gray-900 hover:bg-gray-50 cursor-pointer'
-                }`}
-              >
-                <Download className={`w-3.5 h-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
-                <span>{downloadActionLabel}</span>
-              </button>
+              <>
+                <button
+                  onClick={() => !isDownloading && !downloaded && onDownload?.(generation)}
+                  disabled={isDownloading || downloaded}
+                  className={`inline-flex items-center gap-2 px-4 py-2 border rounded-xl text-[13px] font-semibold transition-all ${
+                    downloaded
+                      ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-default'
+                      : isDownloading
+                      ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-wait'
+                      : 'border-gray-200 bg-white text-gray-900 hover:border-gray-900 hover:bg-gray-50 cursor-pointer'
+                  }`}
+                >
+                  <Download className={`w-3.5 h-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
+                  <span>{downloadActionLabel}</span>
+                </button>
+                {projectType && (
+                  <FeedbackButtons
+                    projectId={generation.id}
+                    projectType={projectType}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
@@ -566,9 +581,9 @@ function GenerationCard({
               {showPreviewAction && (
                 <button
                   onClick={() => onReview?.(generation)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[12px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-[13px] font-semibold hover:bg-gray-800 transition-all shadow-sm"
                 >
-                  <Eye className="w-3.5 h-3.5" />
+                  <Eye className="w-4 h-4" />
                   {reviewCtaLabel}
                 </button>
               )}
@@ -909,6 +924,77 @@ function SegmentSummaryCard({
         </span>
       </div>
     </div>
+  );
+}
+
+function FeedbackButtons({
+  projectId,
+  projectType
+}: {
+  projectId: string;
+  projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
+}) {
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState<'positive' | 'negative' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFeedback = async (feedbackType: 'positive' | 'negative') => {
+    setSubmitting(feedbackType);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/projects/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, projectType, feedbackType })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit feedback');
+      }
+
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Feedback error:', err);
+      setError('Failed to submit feedback. Please try again.');
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <span className="text-[12px] text-gray-500">Thanks!</span>
+    );
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => handleFeedback('positive')}
+        disabled={submitting !== null}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[13px] font-medium hover:border-gray-900 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {submitting === 'positive' ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <ThumbsUp className="w-3.5 h-3.5" />
+        )}
+        <span>Good</span>
+      </button>
+      <button
+        onClick={() => handleFeedback('negative')}
+        disabled={submitting !== null}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[13px] font-medium hover:border-gray-900 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {submitting === 'negative' ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <ThumbsDown className="w-3.5 h-3.5" />
+        )}
+        <span>Bad</span>
+      </button>
+    </>
   );
 }
 

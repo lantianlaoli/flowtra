@@ -1126,6 +1126,7 @@ const formatDurationLabel = (seconds: number) => {
                         }
                         onReview={(generation) => setInspectorProjectId((generation as AvatarGeneration).projectId!)}
                         reviewCtaLabel="Preview"
+                        projectType="avatar-ads"
                       />
                     </div>
                   </div>

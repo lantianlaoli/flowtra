@@ -606,6 +606,7 @@ export default function MotionSwapPage() {
                     }
                     primaryActionLabel={canEditProject ? 'Edit' : undefined}
                     onPrimaryAction={canEditProject ? () => openEditModal() : undefined}
+                    projectType="motion-swap"
                   />
                 </div>
               </div>

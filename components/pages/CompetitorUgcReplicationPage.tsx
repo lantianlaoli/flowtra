@@ -1578,6 +1578,7 @@ export default function CompetitorUgcReplicationPage() {
                       }
                       handleMergeProject(projectId);
                     }}
+                    projectType="competitor-ugc-replication"
                   />
                 </div>
               </div>
