@@ -25,6 +25,74 @@ export default function ToolsPage() {
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [imageCopied, setImageCopied] = useState(false);
 
+  const uploadToSupabase = async (file: File) => {
+    const response = await fetch("/api/tools/upload-url", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        filename: file.name,
+        fileType: file.type,
+        kind: "video"
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "Failed to get upload URL");
+    }
+
+    const uploadResponse = await fetch(data.signedUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type
+      },
+      body: file
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(errorText || "Supabase upload failed");
+    }
+
+    return { path: data.path as string, fileName: data.fileName as string };
+  };
+
+  const uploadImageToSupabase = async (file: File) => {
+    const response = await fetch("/api/tools/upload-url", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        filename: file.name,
+        fileType: file.type,
+        kind: "image"
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || "Failed to get upload URL");
+    }
+
+    const uploadResponse = await fetch(data.signedUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type
+      },
+      body: file
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(errorText || "Supabase upload failed");
+    }
+
+    return { path: data.path as string, fileName: data.fileName as string };
+  };
+
   const handleUpload = async (file: File) => {
     setIsUploading(true);
     setError(null);
@@ -32,12 +100,13 @@ export default function ToolsPage() {
     setSelectedFileName(file.name);
 
     try {
-      const body = new FormData();
-      body.append("file", file);
-
-      const response = await fetch("/api/tools/upload-video", {
+      const { path, fileName } = await uploadToSupabase(file);
+      const response = await fetch("/api/tools/upload-from-url", {
         method: "POST",
-        body,
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ path, fileName, fileType: file.type })
       });
 
       const data = await response.json();
@@ -74,14 +143,6 @@ export default function ToolsPage() {
     setTimeout(() => setVideoCopied(false), 1200);
   };
 
-  const readAsDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error("Failed to read file"));
-      reader.readAsDataURL(file);
-    });
-
   const handleImageUpload = async (file: File) => {
     setIsImageUploading(true);
     setImageError(null);
@@ -89,14 +150,13 @@ export default function ToolsPage() {
     setSelectedImageName(file.name);
 
     try {
-      const base64Data = await readAsDataUrl(file);
-
-      const response = await fetch("/api/tools/upload-image-base64", {
+      const { path, fileName } = await uploadImageToSupabase(file);
+      const response = await fetch("/api/tools/upload-from-url", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ base64Data, fileName: file.name }),
+        body: JSON.stringify({ path, fileName, fileType: file.type }),
       });
 
       const data = await response.json();
