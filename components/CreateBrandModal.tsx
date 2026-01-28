@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Tag, Upload, Loader2 } from 'lucide-react';
+import { X, Tag, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
 import { UserBrand } from '@/lib/supabase';
-import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 interface CreateBrandModalProps {
   isOpen: boolean;
@@ -19,8 +17,6 @@ export default function CreateBrandModal({
   onBrandCreated
 }: CreateBrandModalProps) {
   const [brandName, setBrandName] = useState('');
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,8 +24,6 @@ export default function CreateBrandModal({
   useEffect(() => {
     if (isOpen) {
       setBrandName('');
-      setLogoFile(null);
-      setLogoPreview(null);
       setError(null);
       // Auto focus input after modal animation
       setTimeout(() => {
@@ -51,49 +45,6 @@ export default function CreateBrandModal({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, isCreating, onClose]);
 
-  const renderErrorMessage = (message: string) => {
-    if (!message.includes(IMAGE_CONVERSION_LINK)) {
-      return message;
-    }
-    const [before, after] = message.split(IMAGE_CONVERSION_LINK);
-    return (
-      <>
-        {before}
-        <a
-          href={IMAGE_CONVERSION_LINK}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-red-800"
-        >
-          {IMAGE_CONVERSION_LINK}
-        </a>
-        {after}
-      </>
-    );
-  };
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const validationResult = validateImageFormat(file);
-      if (!validationResult.isValid) {
-        setError(validationResult.error);
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Logo file size must be less than 5MB');
-        return;
-      }
-      setLogoFile(file);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      setError(null);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -108,9 +59,6 @@ export default function CreateBrandModal({
     try {
       const formData = new FormData();
       formData.append('brand_name', brandName.trim());
-      if (logoFile) {
-        formData.append('logo', logoFile);
-      }
 
       const response = await fetch('/api/user-brands', {
         method: 'POST',
@@ -174,7 +122,7 @@ export default function CreateBrandModal({
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Create New Brand</h3>
-                  <p className="text-sm text-gray-600">Add a brand. Logo optional.</p>
+                  <p className="text-sm text-gray-600">Add a brand.</p>
                 </div>
               </div>
               <button
@@ -205,57 +153,9 @@ export default function CreateBrandModal({
                 />
               </div>
 
-              {/* Logo Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Brand Logo (Optional)
-                </label>
-                <div className="space-y-3">
-                  {logoPreview ? (
-                    <div className="relative">
-                      <div className="w-full h-32 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center p-4">
-                        <Image
-                          src={logoPreview}
-                          alt="Brand logo preview"
-                          width={200}
-                          height={200}
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLogoFile(null);
-                          setLogoPreview(null);
-                        }}
-                        className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                        disabled={isCreating}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="block">
-                      <input
-                        type="file"
-                        accept={getAcceptedImageFormats()}
-                        onChange={handleLogoUpload}
-                        className="hidden"
-                        disabled={isCreating}
-                      />
-                      <div className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-gray-400 cursor-pointer transition-colors">
-                        <Upload className="w-6 h-6 text-gray-400 mb-2" />
-                        <p className="text-sm text-gray-600">Click to upload logo</p>
-                        <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
-                      </div>
-                    </label>
-                  )}
-                </div>
-              </div>
-
               {/* Error Message */}
               {error && (
-                <p className="text-sm text-red-600">{renderErrorMessage(error)}</p>
+                <p className="text-sm text-red-600">{error}</p>
               )}
 
               {/* Action Buttons */}

@@ -64,6 +64,7 @@ export interface StartWorkflowRequest {
   imageUrl?: string;
   selectedBrandId?: string; // NEW: Brand selection for ending frame
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
+  creatorSourceVideoId?: string; // Asset video reference
   userId: string;
   videoModel: 'veo3' | 'veo3_fast';
   imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
@@ -401,13 +402,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     let brandLogoUrl: string | null = null;
     let productContext = { product_name: '', brand_name: '' };
 
-    if (!request.selectedBrandId) {
-      return {
-        success: false,
-        error: 'Brand selection required',
-        details: 'Please select one of your brands before starting a generation.'
-      };
-    }
     if (!request.competitorAdId) {
       return {
         success: false,
@@ -499,6 +493,39 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       } catch (competitorError) {
         console.warn(`⚠️ Competitor ad not found or access denied: ${request.competitorAdId}`, competitorError);
         // Don't fail the workflow if competitor ad is not found, just proceed without it
+      }
+    }
+
+    if (!competitorAdContext && request.creatorSourceVideoId) {
+      console.log(`🎯 Loading reference video analysis: ${request.creatorSourceVideoId}`);
+      const fetchReferenceVideo = async () => {
+        // Schema verified via Supabase MCP (2026-01-28): creator_source_videos includes analysis_result, analysis_language, duration_seconds
+        const { data: referenceVideo, error: referenceError } = await supabase
+          .from('creator_source_videos')
+          .select('description, analysis_result, analysis_status, analysis_language, duration_seconds')
+          .eq('id', request.creatorSourceVideoId)
+          .eq('user_id', request.userId)
+          .single();
+        if (referenceError) throw referenceError;
+        return referenceVideo;
+      };
+
+      try {
+        const referenceVideo = await retryAsync(fetchReferenceVideo, { maxAttempts: 3, baseDelayMs: 500, label: 'Reference video fetch' });
+        competitorAdContext = {
+          id: request.creatorSourceVideoId,
+          competitor_name: referenceVideo.description || 'Reference video',
+          existing_analysis: referenceVideo.analysis_result,
+          analysis_status: referenceVideo.analysis_status as 'pending' | 'analyzing' | 'completed' | 'failed' | undefined,
+          language: referenceVideo.analysis_language,
+          video_duration_seconds: referenceVideo.duration_seconds
+        };
+        console.log(`✅ Reference video analysis loaded`);
+        console.log(`📊 Analysis status: ${competitorAdContext.analysis_status || 'unknown'}`);
+        console.log(`🔍 Has existing analysis: ${!!competitorAdContext.existing_analysis}`);
+        console.log(`🌍 Detected language: ${competitorAdContext.language || 'none'}`);
+      } catch (referenceError) {
+        console.warn(`⚠️ Reference video not found or access denied: ${request.creatorSourceVideoId}`, referenceError);
       }
     }
 
@@ -1255,27 +1282,21 @@ export async function analyzeCompetitorAdWithLanguage(
   console.log('[analyzeCompetitorAdWithLanguage] File type: video (video-only mode)');
   console.log('[analyzeCompetitorAdWithLanguage] File URL:', competitorAdContext.file_url);
 
-  const isDirectVideoUrl = competitorAdContext.file_url.includes('tiktokcdn.com');
   let processedFileUrl: string;
 
   try {
-    if (isDirectVideoUrl) {
-      processedFileUrl = competitorAdContext.file_url;
-      console.log('[analyzeCompetitorAdWithLanguage] Using direct video URL (TikTok CDN)');
-    } else {
-      processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
-      console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
+    processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
+    console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
 
-      const base64SizeInMB = processedFileUrl.length / (1024 * 1024);
-      const maxBase64SizeMB = MAX_BASE64_VIDEO_SIZE_BYTES / (1024 * 1024);
+    const base64SizeInMB = processedFileUrl.length / (1024 * 1024);
+    const maxBase64SizeMB = MAX_BASE64_VIDEO_SIZE_BYTES / (1024 * 1024);
 
-      if (base64SizeInMB > maxBase64SizeMB) {
-        console.error(`[analyzeCompetitorAdWithLanguage] Base64 size too large: ${base64SizeInMB.toFixed(2)}MB (max: ${maxBase64SizeMB}MB)`);
-        throw new Error(
-          `Video file too large for AI analysis (${base64SizeInMB.toFixed(1)} MB after encoding). ` +
-          `Please trim or compress your video and try again.`
-        );
-      }
+    if (base64SizeInMB > maxBase64SizeMB) {
+      console.error(`[analyzeCompetitorAdWithLanguage] Base64 size too large: ${base64SizeInMB.toFixed(2)}MB (max: ${maxBase64SizeMB}MB)`);
+      throw new Error(
+        `Video file too large for AI analysis (${base64SizeInMB.toFixed(1)} MB after encoding). ` +
+        `Please trim or compress your video and try again.`
+      );
     }
   } catch (error) {
     console.error('[analyzeCompetitorAdWithLanguage] Video processing failed:', error);

@@ -18,16 +18,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import type { Format } from '@/components/ui/FormatSelector';
 import { useSearchParams } from 'next/navigation';
 
-interface CreatorSourcePlatform {
-  id: string;
-  platform: string;
-  handle: string;
-  profile_url?: string | null;
-  avatar_url?: string | null;
-  display_name?: string | null;
-}
-
-interface CreatorSourceVideo {
+interface MotionSwapVideo {
   id: string;
   platform: string;
   platform_video_id?: string | null;
@@ -37,13 +28,7 @@ interface CreatorSourceVideo {
   description?: string | null;
   duration_seconds?: number | null;
   stats?: Record<string, unknown> | null;
-}
-
-interface CreatorSource {
-  id: string;
-  source_name: string;
-  creator_source_platforms?: CreatorSourcePlatform[];
-  creator_source_videos?: CreatorSourceVideo[];
+  source_id?: string | null;
 }
 
 interface MotionSwapProject {
@@ -76,13 +61,13 @@ export default function MotionSwapPage() {
   const { user } = useUser();
   const { credits: userCredits, creditsData } = useCredits();
   const [isLoading, setIsLoading] = useState(true);
-  const [creatorSources, setCreatorSources] = useState<CreatorSource[]>([]);
+  const [videos, setVideos] = useState<MotionSwapVideo[]>([]);
   const [avatars, setAvatars] = useState<UserAvatar[]>([]);
   const [products, setProducts] = useState<UserProduct[]>([]);
-  const [selectedSourceId, setSelectedSourceId] = useState<string>('');
   const [selectedVideoId, setSelectedVideoId] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [project, setProject] = useState<MotionSwapProject | null>(null);
+  const [projects, setProjects] = useState<MotionSwapProject[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<Format>('9:16');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editAction, setEditAction] = useState<'image' | 'video' | null>(null);
@@ -90,15 +75,18 @@ export default function MotionSwapPage() {
   const [editVideoPrompt, setEditVideoPrompt] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
 
-  const selectedSource = useMemo(
-    () => creatorSources.find(source => source.id === selectedSourceId),
-    [creatorSources, selectedSourceId]
-  );
-
   const selectedVideo = useMemo(
-    () => selectedSource?.creator_source_videos?.find(video => video.id === selectedVideoId),
-    [selectedSource, selectedVideoId]
+    () => videos.find(video => video.id === selectedVideoId),
+    [videos, selectedVideoId]
   );
+  const activeProject = useMemo(() => {
+    if (activeProjectId) {
+      return projects.find(item => item.id === activeProjectId) || null;
+    }
+    return projects[0] || null;
+  }, [projects, activeProjectId]);
+  const videoById = useMemo(() => new Map(videos.map(video => [video.id, video])), [videos]);
+  const productById = useMemo(() => new Map(products.map(product => [product.id, product])), [products]);
   const getMentionedIds = (text: string) => {
     const characterIds = new Set<string>();
     const productIds = new Set<string>();
@@ -139,11 +127,10 @@ export default function MotionSwapPage() {
 
       if (assetsResponse.ok) {
         const data = await assetsResponse.json();
-        setCreatorSources(data.creatorSources || []);
-
-        const brandedProducts = (data.brands || []).flatMap((brand: any) => brand.products || []);
-        const unbrandedProducts = data.unbrandedProducts || [];
-        setProducts([...brandedProducts, ...unbrandedProducts]);
+        const allVideos = data.videos || [];
+        const motionSwapVideos = allVideos.filter((video: { source_type?: string }) => video.source_type !== 'competitor_ad');
+        setVideos(motionSwapVideos);
+        setProducts(data.products || []);
       }
 
       if (avatarsResponse.ok) {
@@ -157,9 +144,22 @@ export default function MotionSwapPage() {
     }
   }, []);
 
+  const loadProjects = useCallback(async () => {
+    try {
+      const response = await fetch('/api/motion-swap/list', { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data.projects || []);
+      }
+    } catch (error) {
+      console.error('[Motion Swap] Failed to load projects:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadAssets();
-  }, [loadAssets]);
+    loadProjects();
+  }, [loadAssets, loadProjects]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -167,16 +167,12 @@ export default function MotionSwapPage() {
     if (!saved) return;
     try {
       const parsed = JSON.parse(saved) as {
-        project?: MotionSwapProject | null;
-        selectedSourceId?: string;
+        activeProjectId?: string | null;
         selectedVideoId?: string;
         selectedSize?: Format;
       };
-      if (parsed.project) {
-        setProject(parsed.project);
-      }
-      if (parsed.selectedSourceId) {
-        setSelectedSourceId(parsed.selectedSourceId);
+      if (parsed.activeProjectId) {
+        setActiveProjectId(parsed.activeProjectId);
       }
       if (parsed.selectedVideoId) {
         setSelectedVideoId(parsed.selectedVideoId);
@@ -193,35 +189,34 @@ export default function MotionSwapPage() {
   useEffect(() => {
     if (isLoading) return; // Wait for assets to load first
 
-    const sourceId = searchParams.get('sourceId');
     const videoId = searchParams.get('videoId');
 
-    if (sourceId && videoId) {
-      // Verify that the source and video exist
-      const source = creatorSources.find(s => s.id === sourceId);
-      if (source) {
-        const video = source.creator_source_videos?.find(v => v.id === videoId);
-        if (video) {
-          setSelectedSourceId(sourceId);
-          setSelectedVideoId(videoId);
-          // Clear URL parameters after setting state
-          if (typeof window !== 'undefined') {
-            window.history.replaceState({}, '', '/dashboard/motion-swap');
-          }
+    if (videoId) {
+      const video = videos.find(item => item.id === videoId);
+      if (video) {
+        setSelectedVideoId(videoId);
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, '', '/dashboard/motion-swap');
         }
       }
     }
-  }, [isLoading, searchParams, creatorSources]);
+  }, [isLoading, searchParams, videos]);
+
+  useEffect(() => {
+    if (!projects.length) return;
+    if (!activeProjectId || !projects.some(item => item.id === activeProjectId)) {
+      setActiveProjectId(projects[0].id);
+    }
+  }, [projects, activeProjectId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!project) {
+    if (!activeProject) {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       return;
     }
     const payload = {
-      project,
-      selectedSourceId,
+      activeProjectId: activeProject.id,
       selectedVideoId,
       selectedSize
     };
@@ -230,25 +225,17 @@ export default function MotionSwapPage() {
     } catch (error) {
       console.error('Failed to persist Motion Swap session state:', error);
     }
-  }, [project, selectedSourceId, selectedVideoId, selectedSize]);
+  }, [activeProject, selectedVideoId, selectedSize]);
 
   useEffect(() => {
-    if (!selectedSource || selectedVideoId) return;
-    const firstVideo = selectedSource.creator_source_videos?.[0];
-    if (firstVideo) {
-      setSelectedVideoId(firstVideo.id);
-    }
-  }, [selectedSource, selectedVideoId]);
-
-  useEffect(() => {
-    if (!project?.id) return;
+    if (!activeProject?.id) return;
 
     const supabase = getSupabase();
     let channel: RealtimeChannel | null = null;
     let isMounted = true;
 
     const fetchStatus = async () => {
-      const response = await fetch(`/api/motion-swap/${project.id}/status`);
+      const response = await fetch(`/api/motion-swap/${activeProject.id}/status`);
       if (!response.ok) return null;
       return response.json();
     };
@@ -256,26 +243,26 @@ export default function MotionSwapPage() {
     const init = async () => {
       const payload = await fetchStatus();
       if (payload?.project && isMounted) {
-        setProject(payload.project);
+        setProjects(prev => prev.map(item => item.id === payload.project.id ? payload.project : item));
       }
     };
 
     init();
 
     channel = supabase
-      .channel(`motion-swap-${project.id}`)
+      .channel(`motion-swap-${activeProject.id}`)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'motion_swap_projects',
-          filter: `id=eq.${project.id}`
+          filter: `id=eq.${activeProject.id}`
         },
         async () => {
           const payload = await fetchStatus();
           if (payload?.project && isMounted) {
-            setProject(payload.project);
+            setProjects(prev => prev.map(item => item.id === payload.project.id ? payload.project : item));
           }
         }
       )
@@ -287,12 +274,12 @@ export default function MotionSwapPage() {
         supabase.removeChannel(channel);
       }
     };
-  }, [project?.id]);
+  }, [activeProject?.id]);
 
   useEffect(() => {
     setEditPhotoPrompt('');
     setEditVideoPrompt('');
-  }, [project?.id]);
+  }, [activeProject?.id]);
 
   const buildDefaultPrompt = (avatarName?: string | null, productName?: string | null) => {
     const tokens = [];
@@ -302,24 +289,28 @@ export default function MotionSwapPage() {
     return `Swap ${tokens.join(' and ')} in the reference video.`;
   };
 
-  const openEditModal = () => {
-    if (project?.creator_source_id) {
-      setSelectedSourceId(project.creator_source_id);
+  const openEditModal = (projectToEdit?: MotionSwapProject | null) => {
+    const targetProject = projectToEdit || activeProject;
+    if (!targetProject) return;
+    if (targetProject.id !== activeProject?.id) {
+      setEditPhotoPrompt('');
+      setEditVideoPrompt('');
     }
-    if (project?.creator_source_video_id) {
-      setSelectedVideoId(project.creator_source_video_id);
+    setActiveProjectId(targetProject.id);
+    if (targetProject.creator_source_video_id) {
+      setSelectedVideoId(targetProject.creator_source_video_id);
     }
     if (!editPhotoPrompt) {
-      const avatarName = avatars.find(avatar => avatar.id === project?.avatar_id)?.avatar_name || null;
-      const productName = products.find(product => product.id === project?.product_id)?.product_name || null;
+      const avatarName = avatars.find(avatar => avatar.id === targetProject.avatar_id)?.avatar_name || null;
+      const productName = products.find(product => product.id === targetProject.product_id)?.product_name || null;
       const defaultPrompt = buildDefaultPrompt(avatarName, productName);
-      const nextPrompt = project?.photo_prompt || defaultPrompt;
+      const nextPrompt = targetProject.photo_prompt || defaultPrompt;
       if (nextPrompt) {
         setEditPhotoPrompt(nextPrompt);
       }
     }
     if (!editVideoPrompt) {
-      setEditVideoPrompt(project?.video_prompt || 'Keep all elements the same as the reference video. Only swap the person and product.');
+      setEditVideoPrompt(targetProject.video_prompt || 'Keep all elements the same as the reference video. Only swap the person and product.');
     }
     setEditError(null);
     setEditDialogOpen(true);
@@ -340,7 +331,8 @@ export default function MotionSwapPage() {
         throw new Error(data.error || 'Failed to start Motion Swap');
       }
 
-      setProject(data.project);
+      setProjects(prev => [data.project, ...prev]);
+      setActiveProjectId(data.project?.id || null);
       showSuccess('Motion Swap started. You will see updates here as it completes.');
     } catch (error) {
       console.error('[Motion Swap] Create failed:', error);
@@ -351,15 +343,18 @@ export default function MotionSwapPage() {
   };
 
   const canGenerate = !isGenerating;
-  const canEditProject = Boolean(project?.id);
+  const canEditProject = projects.length > 0;
 
-  const editFirstFrameUrl = project?.preview_image_url || project?.reference_cover_url || selectedVideo?.cover_url || null;
-  const editVideoUrl = project?.output_video_url || selectedVideo?.video_cdn_url || null;
+  const editFirstFrameUrl = activeProject?.preview_image_url
+    || activeProject?.reference_cover_url
+    || selectedVideo?.cover_url
+    || null;
+  const editVideoUrl = activeProject?.output_video_url || selectedVideo?.video_cdn_url || null;
   const effectiveSegmentStatus = useMemo(() => {
-    if (project?.status === 'generating_preview') return 'generating_first_frame';
-    if (project?.status === 'preview_ready') return 'first_frame_ready';
-    return project?.status || 'pending';
-  }, [project?.status]);
+    if (activeProject?.status === 'generating_preview') return 'generating_first_frame';
+    if (activeProject?.status === 'preview_ready') return 'first_frame_ready';
+    return activeProject?.status || 'pending';
+  }, [activeProject?.status]);
   const editSegment = useMemo(() => ({
     index: 0,
     status: effectiveSegmentStatus,
@@ -369,102 +364,99 @@ export default function MotionSwapPage() {
   }), [editFirstFrameUrl, editVideoUrl, effectiveSegmentStatus]);
   const isSubmittingEdit = editAction !== null;
   const hasSwapTarget = Boolean(editAvatarId || editProductId);
-  const isPreviewReady = project?.status === 'preview_ready';
+  const isPreviewReady = activeProject?.status === 'preview_ready';
   const canGenerateImage = Boolean(
-    project?.id &&
+    activeProject?.id &&
     selectedVideoId &&
     editPhotoPrompt.trim().length > 0 &&
     hasSwapTarget &&
     !isSubmittingEdit &&
-    (project?.status === 'pending' || isPreviewReady)
+    (activeProject?.status === 'pending' || isPreviewReady)
   );
   const canGenerateVideo = Boolean(
-    project?.id &&
+    activeProject?.id &&
     selectedVideoId &&
     editPhotoPrompt.trim().length > 0 &&
     editVideoPrompt.trim().length > 0 &&
     hasSwapTarget &&
     !isSubmittingEdit &&
-    (project?.status === 'pending' || isPreviewReady)
+    (activeProject?.status === 'pending' || isPreviewReady)
   );
 
-  const creatorDisplayName = useMemo(() => {
-    if (!project?.creator_source_id) return null;
-    const source = creatorSources.find(item => item.id === project.creator_source_id);
-    const platform = source?.creator_source_platforms?.[0];
-    return platform?.display_name || source?.source_name || null;
-  }, [creatorSources, project?.creator_source_id]);
-
   const productDisplayName = useMemo(() => {
-    if (!project?.product_id) return null;
-    const product = products.find(item => item.id === project.product_id);
+    if (!activeProject?.product_id) return null;
+    const product = productById.get(activeProject.product_id);
     return product?.product_name || null;
-  }, [products, project?.product_id]);
+  }, [productById, activeProject?.product_id]);
 
   const projectVideo = useMemo(() => {
-    if (!project?.creator_source_id || !project?.creator_source_video_id) return null;
-    const source = creatorSources.find(item => item.id === project.creator_source_id);
-    return source?.creator_source_videos?.find(video => video.id === project.creator_source_video_id) || null;
-  }, [creatorSources, project?.creator_source_id, project?.creator_source_video_id]);
+    if (!activeProject?.creator_source_video_id) return null;
+    return videos.find(video => video.id === activeProject.creator_source_video_id) || null;
+  }, [videos, activeProject?.creator_source_video_id]);
 
-  const displayDurationSeconds = project?.reference_duration_seconds
+  const displayDurationSeconds = activeProject?.reference_duration_seconds
     ?? projectVideo?.duration_seconds
     ?? selectedVideo?.duration_seconds
     ?? null;
 
-  const displayCreditsCost = typeof project?.credits_cost === 'number' && project.credits_cost > 0
-    ? project.credits_cost
+  const displayCreditsCost = typeof activeProject?.credits_cost === 'number' && activeProject.credits_cost > 0
+    ? activeProject.credits_cost
     : (displayDurationSeconds ? displayDurationSeconds * CREDIT_RATE_PER_SECOND : null);
 
   const displayedGenerations = useMemo<Generation[]>(() => {
-    if (!project) return [];
-    const status: Generation['status'] = project.status === 'failed'
-      ? 'failed'
-      : project.status === 'completed'
-        ? 'completed'
-        : project.status === 'pending'
-          ? 'pending'
-          : 'processing';
-    const stage = project.status === 'pending'
-      ? 'Initializing'
-      : project.status === 'generating_preview'
-        ? 'Generating Preview'
-        : project.status === 'generating_video'
-          ? 'Generating Video'
-          : undefined;
+    return projects.map(item => {
+      const status: Generation['status'] = item.status === 'failed'
+        ? 'failed'
+        : item.status === 'completed'
+          ? 'completed'
+          : item.status === 'pending'
+            ? 'pending'
+            : 'processing';
+      const stage = item.status === 'pending'
+        ? 'Initializing'
+        : item.status === 'generating_preview'
+          ? 'Generating Preview'
+          : item.status === 'generating_video'
+            ? 'Generating Video'
+            : undefined;
+      const fallbackVideo = item.creator_source_video_id ? videoById.get(item.creator_source_video_id) : null;
+      const durationSeconds = item.reference_duration_seconds
+        ?? fallbackVideo?.duration_seconds
+        ?? (item.id === activeProject?.id ? selectedVideo?.duration_seconds : null)
+        ?? null;
+      const creditsCost = typeof item.credits_cost === 'number' && item.credits_cost > 0
+        ? item.credits_cost
+        : (durationSeconds ? durationSeconds * CREDIT_RATE_PER_SECOND : undefined);
 
-    return [{
-      id: project.id,
-      timestamp: project.created_at ? new Date(project.created_at) : new Date(),
-      status,
-      progress: project.progress_percentage || 0,
-      stage,
-      videoUrl: project.output_video_url || undefined,
-      coverUrl: project.reference_cover_url || undefined,
-      brand: creatorDisplayName || undefined,
-      product: productDisplayName || undefined,
-      videoAspectRatio: selectedSize,
-      videoDuration: displayDurationSeconds ? String(displayDurationSeconds) : null,
-      creditsCost: typeof displayCreditsCost === 'number' ? displayCreditsCost : undefined
-    }];
-  }, [
-    project,
-    creatorDisplayName,
-    productDisplayName,
-    selectedSize,
-    displayDurationSeconds,
-    displayCreditsCost
-  ]);
+      return {
+        id: item.id,
+        timestamp: item.created_at ? new Date(item.created_at) : new Date(),
+        status,
+        progress: item.progress_percentage || 0,
+        stage,
+        videoUrl: item.output_video_url || undefined,
+        coverUrl: (item.preview_image_url
+          || item.reference_cover_url
+          || fallbackVideo?.cover_url
+          || (item.id === activeProject?.id ? selectedVideo?.cover_url : undefined)) || undefined,
+        brand: undefined,
+        product: item.product_id ? (productById.get(item.product_id)?.product_name || undefined) : undefined,
+        videoAspectRatio: selectedSize,
+        videoDuration: durationSeconds ? String(durationSeconds) : null,
+        creditsCost
+      };
+    });
+  }, [projects, videoById, productById, activeProject?.id, selectedVideo?.duration_seconds, selectedVideo?.cover_url, selectedSize]);
 
   const emptyStateSteps = useMemo(() => ([
     {
       number: 1,
-      description: 'Connect a TikTok creator in',
+      description: 'Import a TikTok video in',
       link: { text: 'Assets', href: '/dashboard/assets' }
     },
     {
       number: 2,
-      description: 'Open Edit to choose creator + reference video'
+      description: 'Open Edit to choose a reference video'
     },
     {
       number: 3,
@@ -477,7 +469,7 @@ export default function MotionSwapPage() {
   ]), []);
 
   const handleStartEditPreview = async (action: 'image' | 'video') => {
-    if (!project?.id) return;
+    if (!activeProject?.id) return;
     if (!editPhotoPrompt.trim()) {
       setEditError('Enter a first frame prompt to continue.');
       return;
@@ -499,7 +491,7 @@ export default function MotionSwapPage() {
     setEditError(null);
 
     try {
-      const response = await fetch(`/api/motion-swap/${project.id}/start`, {
+      const response = await fetch(`/api/motion-swap/${activeProject.id}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -518,7 +510,8 @@ export default function MotionSwapPage() {
         throw new Error(data.error || 'Failed to start Motion Swap');
       }
 
-      setProject(data.project);
+      setProjects(prev => prev.map(item => item.id === data.project.id ? data.project : item));
+      setActiveProjectId(data.project.id);
       const successMessage = action === 'image'
         ? 'Generating preview image...'
         : 'Generating preview and video...';
@@ -605,7 +598,10 @@ export default function MotionSwapPage() {
                       </blockquote>
                     }
                     primaryActionLabel={canEditProject ? 'Edit' : undefined}
-                    onPrimaryAction={canEditProject ? () => openEditModal() : undefined}
+                    onPrimaryAction={canEditProject ? (generation) => {
+                      const projectForEdit = projects.find(item => item.id === generation.id) || null;
+                      openEditModal(projectForEdit);
+                    } : undefined}
                     projectType="motion-swap"
                   />
                 </div>
@@ -618,9 +614,7 @@ export default function MotionSwapPage() {
           compact={true}
           leftControls={
             <MotionSwapReferenceControls
-              creatorSources={creatorSources}
-              selectedSourceId={selectedSourceId}
-              onSelectSourceId={setSelectedSourceId}
+              videos={videos}
               selectedVideoId={selectedVideoId}
               onSelectVideoId={setSelectedVideoId}
               variant="inline"

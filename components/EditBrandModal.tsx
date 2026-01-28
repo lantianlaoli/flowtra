@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Tag, Upload, Loader2 } from 'lucide-react';
+import { X, Tag, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
 import { UserBrand } from '@/lib/supabase';
-import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 interface EditBrandModalProps {
   isOpen: boolean;
@@ -21,8 +19,6 @@ export default function EditBrandModal({
   onBrandUpdated
 }: EditBrandModalProps) {
   const [brandName, setBrandName] = useState('');
-  const [newLogoFile, setNewLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,8 +26,6 @@ export default function EditBrandModal({
   useEffect(() => {
     if (isOpen && brand) {
       setBrandName(brand.brand_name);
-      setLogoPreview(brand.brand_logo_url ?? null);
-      setNewLogoFile(null);
       setError(null);
       // Auto focus input after modal animation
       setTimeout(() => {
@@ -53,49 +47,6 @@ export default function EditBrandModal({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, isUpdating, onClose]);
 
-  const renderErrorMessage = (message: string) => {
-    if (!message.includes(IMAGE_CONVERSION_LINK)) {
-      return message;
-    }
-    const [before, after] = message.split(IMAGE_CONVERSION_LINK);
-    return (
-      <>
-        {before}
-        <a
-          href={IMAGE_CONVERSION_LINK}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-red-800"
-        >
-          {IMAGE_CONVERSION_LINK}
-        </a>
-        {after}
-      </>
-    );
-  };
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const validationResult = validateImageFormat(file);
-      if (!validationResult.isValid) {
-        setError(validationResult.error);
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Logo file size must be less than 5MB');
-        return;
-      }
-      setNewLogoFile(file);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      setError(null);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -111,37 +62,20 @@ export default function EditBrandModal({
 
     try {
       // Check if anything changed
-      const hasChanges =
-        brandName.trim() !== brand.brand_name ||
-        newLogoFile !== null;
+    const hasChanges = brandName.trim() !== brand.brand_name;
 
       if (!hasChanges) {
         onClose();
         return;
       }
 
-      let response;
-
-      if (newLogoFile) {
-        // If new logo, use multipart/form-data
-        const formData = new FormData();
-        formData.append('brand_name', brandName.trim());
-        formData.append('logo', newLogoFile);
-
-        response = await fetch(`/api/user-brands/${brand.id}`, {
-          method: 'PUT',
-          body: formData
-        });
-      } else {
-        // If no new logo, use JSON
-        response = await fetch(`/api/user-brands/${brand.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            brand_name: brandName.trim()
-          })
-        });
-      }
+    const response = await fetch(`/api/user-brands/${brand.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        brand_name: brandName.trim()
+      })
+    });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -202,7 +136,7 @@ export default function EditBrandModal({
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Edit Brand</h3>
-                  <p className="text-sm text-gray-600">Update brand information</p>
+                  <p className="text-sm text-gray-600">Update brand name.</p>
                 </div>
               </div>
               <button
@@ -233,51 +167,9 @@ export default function EditBrandModal({
                 />
               </div>
 
-              {/* Logo Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Brand Logo {newLogoFile ? '(New)' : '(Click to replace)'}
-                </label>
-                <div className="space-y-3">
-                  <label className="block relative group cursor-pointer">
-                    <input
-                      type="file"
-                      accept={getAcceptedImageFormats()}
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                      disabled={isUpdating}
-                    />
-                    <div className="w-full h-32 bg-gray-50 rounded-lg border-2 border-gray-200 group-hover:border-gray-400 flex items-center justify-center p-4 transition-colors overflow-hidden">
-                      {logoPreview ? (
-                        <Image
-                          src={logoPreview}
-                          alt="Brand logo preview"
-                          width={200}
-                          height={200}
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center">
-                          <Upload className="w-6 h-6 text-gray-400 mb-2" />
-                          <p className="text-sm text-gray-600">Click to upload new logo</p>
-                        </div>
-                      )}
-                    </div>
-                    {logoPreview && (
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg transition-colors flex items-center justify-center">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Upload className="w-6 h-6 text-gray-600" />
-                        </div>
-                      </div>
-                    )}
-                  </label>
-                  <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
-                </div>
-              </div>
-
               {/* Error Message */}
               {error && (
-                <p className="text-sm text-red-600">{renderErrorMessage(error)}</p>
+                <p className="text-sm text-red-600">{error}</p>
               )}
 
               {/* Action Buttons */}

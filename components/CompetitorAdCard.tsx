@@ -1,7 +1,7 @@
 'use client';
 
 import { CompetitorAd } from '@/lib/supabase';
-import { PlayCircle, Edit2, Trash2, Loader2, BadgeCheck, AlertTriangle, Languages, Clock3 } from 'lucide-react';
+import { Edit2, Trash2, Loader2, BadgeCheck, AlertTriangle, Languages, Clock3, Video } from 'lucide-react';
 import Image from 'next/image';
 import { useState } from 'react';
 import { getLanguageDisplayInfo } from '@/lib/language';
@@ -26,9 +26,25 @@ export default function CompetitorAdCard({
   mode = 'manage'
 }: CompetitorAdCardProps) {
   const [showActions, setShowActions] = useState(false);
-  const [videoError, setVideoError] = useState(false);
   const languageDisplay = getLanguageDisplayInfo(competitorAd.language);
   const analysisStatus = competitorAd.analysis_status || 'pending';
+  const analysis = (competitorAd.analysis_result || null) as Record<string, unknown> | null;
+  const previewVideoUrl = typeof analysis?.video_url === 'string'
+    ? analysis.video_url
+    : typeof analysis?.videoUrl === 'string'
+      ? analysis.videoUrl
+      : null;
+  const previewCoverUrl = typeof analysis?.cover_url === 'string'
+    ? analysis.cover_url
+    : typeof analysis?.coverUrl === 'string'
+      ? analysis.coverUrl
+      : typeof analysis?.coverImageUrl === 'string'
+        ? analysis.coverImageUrl
+        : typeof analysis?.thumbnail_url === 'string'
+          ? analysis.thumbnail_url
+          : typeof analysis?.thumbnailUrl === 'string'
+            ? analysis.thumbnailUrl
+            : null;
 
   const renderAnalysisBadge = () => {
     const configMap = {
@@ -72,11 +88,72 @@ export default function CompetitorAdCard({
     }
   };
 
+  if (mode === 'select') {
+    return (
+      <div
+        className={`
+          group relative bg-white rounded-xl border transition-all
+          cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]
+          ${isSelected ? 'border-black ring-2 ring-black/20' : 'border-[#E5E5E5] hover:border-black/20'}
+        `}
+        onClick={handleClick}
+      >
+        {isSelected && (
+          <div className="absolute top-2 right-2 bg-black text-white rounded-lg p-1 shadow-sm z-10">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+        )}
+        <div className="p-3">
+          <div className="flex gap-3">
+            <div className="h-20 w-14 rounded-md bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+              {previewVideoUrl ? (
+                <video
+                  src={previewVideoUrl}
+                  poster={previewCoverUrl || undefined}
+                  className="h-full w-full object-cover"
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : previewCoverUrl ? (
+                <Image
+                  src={previewCoverUrl}
+                  alt={competitorAd.competitor_name}
+                  width={56}
+                  height={80}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <Video className="w-4 h-4 text-gray-400" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-black truncate">
+                {competitorAd.competitor_name}
+              </p>
+              <div className="flex flex-wrap gap-3 text-[11px] text-gray-500 mt-2">
+                <span className="inline-flex items-center gap-1">
+                  <Clock3 className="w-3 h-3" />
+                  {competitorAd.video_duration_seconds ? `${competitorAd.video_duration_seconds}s` : '--'}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Languages className="w-3 h-3" />
+                  {languageDisplay?.label || '--'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`
         group relative bg-white rounded-xl border transition-all
-        ${mode === 'select' ? 'cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]' : ''}
         ${isSelected ? 'border-black ring-2 ring-black/20' : 'border-[#E5E5E5] hover:border-black/20'}
       `}
       onMouseEnter={() => setShowActions(true)}

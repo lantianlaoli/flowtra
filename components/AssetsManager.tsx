@@ -1,57 +1,56 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Search, Loader2, Package, Tag, ExternalLink, UserCircle, Users } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
+import { Search, Loader2, Package, ExternalLink, UserCircle, Video } from 'lucide-react';
 import { UserBrand, UserProduct, UserAvatar } from '@/lib/supabase';
 import { useToast } from '@/contexts/ToastContext';
-import BrandSection from './BrandSection';
 import ProductCard from './ProductCard';
-import CreateBrandModal from './CreateBrandModal';
-import EditBrandModal from './EditBrandModal';
 import EditProductModal from './EditProductModal';
 import CreateProductModal from './CreateProductModal';
-import SelectProductToBrandModal from './SelectProductToBrandModal';
 import CreateAvatarModal from './CreateAvatarModal';
 import EditAvatarModal from './EditAvatarModal';
 import AvatarCard from './AvatarCard';
-import CreateCreatorSourceModal from './CreateCreatorSourceModal';
-import EditCreatorSourceModal from './EditCreatorSourceModal';
-import CreatorSourceCard from './CreatorSourceCard';
-
-interface CreatorSourcePlatform {
-  id: string;
-  platform: string;
-  handle: string;
-  profile_url?: string | null;
-  avatar_url?: string | null;
-  display_name?: string | null;
-  stats?: Record<string, unknown> | null;
-}
+import VideoImportModal from './VideoImportModal';
+import VideoAssetCard from './VideoAssetCard';
+import VideoAssetDetailsModal from './VideoAssetDetailsModal';
 
 interface CreatorSourceVideo {
   id: string;
-  platform: string;
-  video_url: string;
+  platform?: string;
+  video_url?: string | null;
   cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
+  video_cdn_url?: string | null;
+  analysis_status?: string | null;
+  analysis_result?: Record<string, unknown> | null;
+  analysis_error?: string | null;
+  analysis_language?: string | null;
+  stats?: Record<string, unknown> | null;
+  platform_video_id?: string;
+  source_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface CreatorSource {
   id: string;
   source_name: string;
-  creator_source_platforms?: CreatorSourcePlatform[];
   creator_source_videos?: CreatorSourceVideo[];
 }
 
+interface VideoAsset extends CreatorSourceVideo {
+  source_name?: string | null;
+}
+
 interface AssetsData {
-  brands: (UserBrand & { products?: UserProduct[] })[];
-  unbrandedProducts: UserProduct[];
+  brands: UserBrand[];
+  products: (UserProduct & { brand?: UserBrand | null })[];
   creatorSources: CreatorSource[];
+  videos: VideoAsset[];
   stats: {
     totalBrands: number;
     totalProducts: number;
-    unbrandedCount: number;
     totalCreatorSources?: number;
     totalCreatorVideos?: number;
   };
@@ -61,34 +60,28 @@ export default function AssetsManager() {
   const { showSuccess, showError } = useToast();
   const [assetsData, setAssetsData] = useState<AssetsData>({
     brands: [],
-    unbrandedProducts: [],
     creatorSources: [],
-    stats: { totalBrands: 0, totalProducts: 0, unbrandedCount: 0, totalCreatorSources: 0, totalCreatorVideos: 0 }
+    products: [],
+    videos: [],
+    stats: { totalBrands: 0, totalProducts: 0, totalCreatorSources: 0, totalCreatorVideos: 0 }
   });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [deletingBrandId, setDeletingBrandId] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [deletingAvatarId, setDeletingAvatarId] = useState<string | null>(null);
-  const [deletingCreatorSourceId, setDeletingCreatorSourceId] = useState<string | null>(null);
-  const [syncingCreatorSourceId, setSyncingCreatorSourceId] = useState<string | null>(null);
 
   // Avatar state
   const [avatars, setAvatars] = useState<UserAvatar[]>([]);
-  const [activeTab, setActiveTab] = useState<'brands' | 'avatars' | 'creator_sources'>('brands');
+  const [activeTab, setActiveTab] = useState<'products' | 'avatars' | 'videos'>('products');
 
   // Modal states
-  const [showCreateBrandModal, setShowCreateBrandModal] = useState(false);
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
-  const [showSelectProductModal, setShowSelectProductModal] = useState(false);
   const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
-  const [editingBrand, setEditingBrand] = useState<UserBrand | null>(null);
   const [editingProduct, setEditingProduct] = useState<UserProduct | null>(null);
   const [editingAvatar, setEditingAvatar] = useState<UserAvatar | null>(null);
-  const [editingCreatorSource, setEditingCreatorSource] = useState<CreatorSource | null>(null);
-  const [selectedBrandIdForProduct, setSelectedBrandIdForProduct] = useState<string | null>(null);
-  const [selectedBrandForProductSelection, setSelectedBrandForProductSelection] = useState<UserBrand | null>(null);
-  const [showCreateCreatorSourceModal, setShowCreateCreatorSourceModal] = useState(false);
+  const [showVideoImportModal, setShowVideoImportModal] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<VideoAsset | null>(null);
+  const [showVideoDetails, setShowVideoDetails] = useState(false);
 
   useEffect(() => {
     loadAssets();
@@ -97,16 +90,17 @@ export default function AssetsManager() {
 
   const loadAssets = async () => {
     try {
-      const response = await fetch('/api/assets');
+      const response = await fetch('/api/assets', { cache: 'no-store' });
       if (response.ok) {
         const data = await response.json();
         setAssetsData({
           ...data,
           creatorSources: data.creatorSources || [],
+          products: data.products || [],
+          videos: data.videos || [],
           stats: {
             totalBrands: data.stats?.totalBrands || 0,
             totalProducts: data.stats?.totalProducts || 0,
-            unbrandedCount: data.stats?.unbrandedCount || 0,
             totalCreatorSources: data.stats?.totalCreatorSources || 0,
             totalCreatorVideos: data.stats?.totalCreatorVideos || 0
           }
@@ -121,7 +115,7 @@ export default function AssetsManager() {
 
   const loadAvatars = async () => {
     try {
-      const response = await fetch('/api/user-avatars');
+      const response = await fetch('/api/user-avatars', { cache: 'no-store' });
       if (response.ok) {
         const data = await response.json();
         setAvatars(data.avatars || []);
@@ -131,91 +125,17 @@ export default function AssetsManager() {
     }
   };
 
-  // Brand handlers
-  const handleBrandCreated = (newBrand: UserBrand) => {
-    setAssetsData(prev => ({
-      ...prev,
-      brands: [{ ...newBrand, products: [] }, ...prev.brands],
-      stats: {
-        ...prev.stats,
-        totalBrands: prev.stats.totalBrands + 1
-      }
-    }));
-  };
-
-  const handleBrandUpdated = (updatedBrand: UserBrand) => {
-    setAssetsData(prev => ({
-      ...prev,
-      brands: prev.brands.map(b =>
-        b.id === updatedBrand.id ? { ...updatedBrand, products: b.products } : b
-      )
-    }));
-  };
-
-  const handleEditBrand = (brand: UserBrand) => {
-    setEditingBrand(brand);
-  };
-
-  const handleDeleteBrand = async (brandId: string) => {
-    if (deletingBrandId) {
-      return; // Prevent multiple simultaneous deletes
-    }
-
-    try {
-      setDeletingBrandId(brandId);
-      const response = await fetch(`/api/user-brands/${brandId}`, {
-        method: 'DELETE'
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        await loadAssets();
-        showSuccess(data.message || 'Brand deleted successfully', 4000);
-        return;
-      }
-
-      const errorMessage = data.message || data.error || 'Failed to delete brand';
-      console.error('Error deleting brand:', data);
-      showError(errorMessage, 5000);
-    } catch (error) {
-      console.error('Error deleting brand:', error);
-      showError('An error occurred while deleting the brand. Please try again.', 5000);
-    } finally {
-      setDeletingBrandId(null);
-    }
-  };
-
   // Product handlers
   const handleProductCreated = (newProduct: UserProduct) => {
-    // If product has a brand_id, add it to that brand's products
-    if (newProduct.brand_id) {
-      setAssetsData(prev => ({
-        ...prev,
-        brands: prev.brands.map(b =>
-          b.id === newProduct.brand_id
-            ? { ...b, products: [newProduct, ...(b.products || [])] }
-            : b
-        ),
-        stats: {
-          ...prev.stats,
-          totalProducts: prev.stats.totalProducts + 1
-        }
-      }));
-    } else {
-      // Add to unbranded products
-      setAssetsData(prev => ({
-        ...prev,
-        unbrandedProducts: [newProduct, ...prev.unbrandedProducts],
-        stats: {
-          ...prev.stats,
-          totalProducts: prev.stats.totalProducts + 1,
-          unbrandedCount: prev.stats.unbrandedCount + 1
-        }
-      }));
-    }
+    setAssetsData(prev => ({
+      ...prev,
+      products: [newProduct, ...prev.products],
+      stats: {
+        ...prev.stats,
+        totalProducts: prev.stats.totalProducts + 1
+      }
+    }));
 
-    // Refresh from the server to ensure photos show up immediately
     void loadAssets();
   };
 
@@ -226,11 +146,7 @@ export default function AssetsManager() {
   const handleProductUpdated = (updatedProduct: UserProduct) => {
     setAssetsData(prev => ({
       ...prev,
-      brands: prev.brands.map(b => ({
-        ...b,
-        products: b.products?.map(p => p.id === updatedProduct.id ? updatedProduct : p)
-      })),
-      unbrandedProducts: prev.unbrandedProducts.map(p =>
+      products: prev.products.map(p =>
         p.id === updatedProduct.id ? updatedProduct : p
       )
     }));
@@ -255,17 +171,10 @@ export default function AssetsManager() {
         // Update local state
         setAssetsData(prev => ({
           ...prev,
-          brands: prev.brands.map(b => ({
-            ...b,
-            products: b.products?.filter(p => p.id !== productId)
-          })),
-          unbrandedProducts: prev.unbrandedProducts.filter(p => p.id !== productId),
+          products: prev.products.filter(p => p.id !== productId),
           stats: {
             ...prev.stats,
-            totalProducts: prev.stats.totalProducts - 1,
-            unbrandedCount: prev.unbrandedProducts.some(p => p.id === productId)
-              ? prev.stats.unbrandedCount - 1
-              : prev.stats.unbrandedCount
+            totalProducts: Math.max(prev.stats.totalProducts - 1, 0)
           }
         }));
 
@@ -296,40 +205,6 @@ export default function AssetsManager() {
     }
   };
 
-  const handleAddProductToBrand = (brandId: string, mode: 'create' | 'select') => {
-    const brand = assetsData.brands.find(b => b.id === brandId);
-    if (!brand) return;
-
-    if (mode === 'create') {
-      setSelectedBrandIdForProduct(brandId);
-      setShowCreateProductModal(true);
-    } else {
-      setSelectedBrandForProductSelection(brand);
-      setShowSelectProductModal(true);
-    }
-  };
-
-  const handleProductsSelectedForBrand = async (productIds: string[]) => {
-    if (!selectedBrandForProductSelection) return;
-
-    try {
-      // Update each product's brand_id
-      await Promise.all(
-        productIds.map(productId =>
-          fetch(`/api/user-products/${productId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ brand_id: selectedBrandForProductSelection.id })
-          })
-        )
-      );
-
-      // Refresh data
-      await loadAssets();
-    } catch (error) {
-      console.error('Error assigning products to brand:', error);
-    }
-  };
 
   // Avatar handlers
   const handleAvatarCreated = (newAvatar: UserAvatar) => {
@@ -375,110 +250,58 @@ export default function AssetsManager() {
     }
   };
 
-  // Creator source handlers
-  const handleCreatorSourceCreated = (newSource: CreatorSource) => {
-    setAssetsData(prev => ({
-      ...prev,
-      creatorSources: [newSource, ...prev.creatorSources],
-      stats: {
-        ...prev.stats,
-        totalCreatorSources: (prev.stats.totalCreatorSources || 0) + 1,
-        totalCreatorVideos: (prev.stats.totalCreatorVideos || 0) + (newSource.creator_source_videos?.length || 0)
-      }
-    }));
-    showSuccess('Creator source created successfully');
-  };
-
-  const handleCreatorSourceUpdated = (updatedSource: CreatorSource) => {
-    setAssetsData(prev => ({
-      ...prev,
-      creatorSources: prev.creatorSources.map(source =>
-        source.id === updatedSource.id ? updatedSource : source
-      )
-    }));
-    showSuccess('Creator source updated successfully');
-  };
-
-  const handleEditCreatorSource = (source: CreatorSource) => {
-    setEditingCreatorSource(source);
-  };
-
-  const handleDeleteCreatorSource = async (sourceId: string) => {
-    if (deletingCreatorSourceId) return;
-
-    try {
-      setDeletingCreatorSourceId(sourceId);
-      const response = await fetch(`/api/creator-sources/${sourceId}`, { method: 'DELETE' });
-      if (response.ok) {
-        setAssetsData(prev => ({
-          ...prev,
-          creatorSources: prev.creatorSources.filter(source => source.id !== sourceId),
-          stats: {
-            ...prev.stats,
-            totalCreatorSources: Math.max((prev.stats.totalCreatorSources || 1) - 1, 0)
-          }
-        }));
-        showSuccess('Creator source deleted successfully');
-        return;
-      }
-
-      const data = await response.json();
-      showError(data.error || 'Failed to delete creator source');
-    } catch (error) {
-      console.error('Error deleting creator source:', error);
-      showError('An error occurred while deleting the creator source.');
-    } finally {
-      setDeletingCreatorSourceId(null);
+  const handleVideosImported = (
+    newVideos: VideoAsset[],
+    options?: { message?: string; skipRefresh?: boolean }
+  ) => {
+    if (newVideos.length > 0) {
+      setAssetsData(prev => ({
+        ...prev,
+        videos: [...newVideos, ...prev.videos],
+        stats: {
+          ...prev.stats,
+          totalCreatorVideos: (prev.stats.totalCreatorVideos || 0) + newVideos.length
+        }
+      }));
+    }
+    showSuccess(options?.message || 'Videos imported successfully');
+    if (!options?.skipRefresh) {
+      void loadAssets();
     }
   };
 
-  const handleSyncCreatorSource = async (sourceId: string) => {
-    const source = assetsData.creatorSources.find(item => item.id === sourceId);
-    const handle = source?.source_name || '';
-    try {
-      setSyncingCreatorSourceId(sourceId);
-      const response = await fetch(`/api/creator-sources/${sourceId}/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ handle })
-      });
-      const data = await response.json();
-      if (response.ok && data.source) {
-        handleCreatorSourceUpdated(data.source);
-        showSuccess('Creator source synced successfully');
-        return;
-      }
-      showError(data.error || 'Failed to sync creator source');
-    } catch (error) {
-      console.error('Error syncing creator source:', error);
-      showError('An error occurred while syncing the creator source.');
-    } finally {
-      setSyncingCreatorSourceId(null);
-    }
-  };
+  const normalizedSearch = useMemo(() => searchTerm.trim().toLowerCase(), [searchTerm]);
 
-  // Search filtering
-  const filteredBrands = assetsData.brands.filter(brand => {
-    const brandMatch = brand.brand_name.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredProducts = useMemo(() => {
+    return assetsData.products.filter(product => {
+      const matchesSearch = !normalizedSearch
+        || product.product_name.toLowerCase().includes(normalizedSearch);
 
-    const productsMatch = brand.products?.some(product =>
-      product.product_name.toLowerCase().includes(searchTerm.toLowerCase())
+      return matchesSearch;
+    });
+  }, [assetsData.products, normalizedSearch]);
+
+  const filteredAvatars = useMemo(() => {
+    return avatars.filter(avatar =>
+      avatar.avatar_name.toLowerCase().includes(normalizedSearch)
     );
+  }, [avatars, normalizedSearch]);
 
-    return brandMatch || productsMatch;
-  });
+  const filteredVideos = useMemo(() => {
+    const filtered = assetsData.videos.filter(video => {
+      const matchesSearch = !normalizedSearch
+        || video.description?.toLowerCase().includes(normalizedSearch)
+        || video.source_name?.toLowerCase().includes(normalizedSearch);
 
-  const filteredUnbrandedProducts = assetsData.unbrandedProducts.filter(product =>
-    product.product_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      return matchesSearch;
+    });
 
-  const filteredAvatars = avatars.filter(avatar =>
-    avatar.avatar_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredCreatorSources = assetsData.creatorSources.filter(source =>
-    source.source_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    return filtered.sort((a, b) => {
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [assetsData.videos, normalizedSearch]);
 
   if (isLoading) {
     return (
@@ -496,16 +319,16 @@ export default function AssetsManager() {
       <div className="border-b border-gray-200">
         <div className="flex gap-8">
           <button
-            onClick={() => setActiveTab('brands')}
+            onClick={() => setActiveTab('products')}
             className={`
               flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
-              ${activeTab === 'brands'
+              ${activeTab === 'products'
                 ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'}
             `}
           >
             <Package className="w-4 h-4" />
-            <span>Brands & Products</span>
+            <span>Products</span>
           </button>
           <button
             onClick={() => setActiveTab('avatars')}
@@ -520,122 +343,83 @@ export default function AssetsManager() {
             <span>Avatars</span>
           </button>
           <button
-            onClick={() => setActiveTab('creator_sources')}
+            onClick={() => setActiveTab('videos')}
             className={`
               flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
-              ${activeTab === 'creator_sources'
+              ${activeTab === 'videos'
                 ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'}
             `}
           >
-            <Users className="w-4 h-4" />
-            <span>Creator Sources</span>
+            <Video className="w-4 h-4" />
+            <span>Videos</span>
           </button>
         </div>
       </div>
 
       {/* Content */}
       <div className="space-y-6">
-        {activeTab === 'brands' ? (
+        {activeTab === 'products' ? (
           <>
             {/* Actions & Search */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-              <div className="relative w-full md:max-w-md">
+            <div className="flex flex-col lg:flex-row gap-4 justify-between items-center">
+              <div className="relative w-full lg:max-w-md">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search brands and products..."
+                  placeholder="Search products..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                 />
               </div>
-              <div className="flex gap-3 w-full md:w-auto">
-                <a
-                  href="https://www.flowtra.store/blog/free-ugc-download-methods-2025"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium whitespace-nowrap"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span className="hidden sm:inline">Download Viral Videos</span>
-                  <span className="sm:hidden">Videos</span>
-                </a>
+              <div className="flex gap-3 w-full lg:w-auto">
                 <button
-                  onClick={() => setShowCreateBrandModal(true)}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
+                  onClick={() => setShowCreateProductModal(true)}
+                  className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
                 >
-                  <Tag className="w-4 h-4" />
-                  New Brand
+                  <Package className="w-4 h-4" />
+                  New Product
                 </button>
               </div>
             </div>
 
-            {/* Brands & Products Tab */}
-            {filteredBrands.length === 0 && filteredUnbrandedProducts.length === 0 && searchTerm ? (
+            {/* Products Grid */}
+            {filteredProducts.length === 0 && normalizedSearch ? (
               <div className="py-12 text-center">
                 <Search className="w-12 h-12 mx-auto mb-4 text-gray-200" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
                 <p className="text-gray-500">Try adjusting your search terms</p>
               </div>
-            ) : (
-              <>
-                {/* Brands with Products */}
-                {filteredBrands.map((brand) => (
-                  <BrandSection
-                    key={brand.id}
-                    brand={brand}
-                    onEditBrand={handleEditBrand}
-                    onDeleteBrand={handleDeleteBrand}
-                    onViewProduct={() => {}}
-                    onEditProduct={handleEditProduct}
-                    onDeleteProduct={handleDeleteProduct}
-                    onAddProductToBrand={handleAddProductToBrand}
-                    defaultExpanded={!!searchTerm}
-                    deletingProductId={deletingProductId}
+            ) : filteredProducts.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {filteredProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onEditClick={handleEditProduct}
+                    onDelete={handleDeleteProduct}
+                    isDeleting={deletingProductId === product.id}
+                    mode="compact"
+                    brandLabel={undefined}
                   />
                 ))}
-
-                {/* Unbranded Products Section */}
-                {filteredUnbrandedProducts.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Package className="w-4 h-4 text-gray-400" />
-                      <h3 className="text-base font-semibold text-gray-900">
-                        Unbranded Products
-                      </h3>
-                    </div>
-                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                      {filteredUnbrandedProducts.map((product) => (
-                        <ProductCard
-                          key={product.id}
-                          product={product}
-                          onEditClick={handleEditProduct}
-                          onDelete={handleDeleteProduct}
-                          isDeleting={deletingProductId === product.id}
-                          mode="compact"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Empty State */}
-                {assetsData.brands.length === 0 && assetsData.unbrandedProducts.length === 0 && !searchTerm && (
-                  <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
-                    <Tag className="w-12 h-12 mx-auto mb-4 text-gray-200" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No brands yet</h3>
-                    <p className="text-gray-500 mb-6">Start by creating your first brand.</p>
-                    <button
-                      onClick={() => setShowCreateBrandModal(true)}
-                      className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
-                    >
-                      <Tag className="w-4 h-4" />
-                      Create Brand
-                    </button>
-                  </div>
-                )}
-              </>
+              </div>
+            ) : (
+              <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
+                <Package className="w-12 h-12 mx-auto mb-4 text-gray-200" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No products yet</h3>
+                <p className="text-gray-500 mb-6">
+                  Create your first product to start generating videos faster.
+                </p>
+                <button
+                  onClick={() => setShowCreateProductModal(true)}
+                  className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                >
+                  <Package className="w-4 h-4" />
+                  Add Product
+                </button>
+              </div>
             )}
           </>
         ) : activeTab === 'avatars' ? (
@@ -671,15 +455,9 @@ export default function AssetsManager() {
                 <p className="text-gray-500">Try adjusting your search terms</p>
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <UserCircle className="w-4 h-4 text-gray-400" />
-                  <h3 className="text-base font-semibold text-gray-900">
-                    Avatars
-                  </h3>
-                </div>
+              <>
                 {filteredAvatars.length > 0 ? (
-                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {filteredAvatars.map((avatar) => (
                       <AvatarCard
                         key={avatar.id}
@@ -692,75 +470,83 @@ export default function AssetsManager() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
+                  <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
                     <UserCircle className="w-12 h-12 mx-auto mb-4 text-gray-200" />
                     <p className="text-gray-500">
                       {searchTerm ? 'No avatars match your search' : 'No avatars yet. Add your first avatar to use in video generation.'}
                     </p>
                   </div>
                 )}
-              </div>
+              </>
             )}
           </>
         ) : (
           <>
             {/* Actions & Search */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-              <div className="relative w-full md:max-w-md">
+            <div className="flex flex-col lg:flex-row gap-4 justify-between items-center">
+              <div className="relative w-full lg:max-w-md">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search creator sources..."
+                  placeholder="Search videos..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                 />
               </div>
-              <div className="w-full md:w-auto">
-                <button
-                  onClick={() => setShowCreateCreatorSourceModal(true)}
-                  className="w-full md:w-auto flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
+              <div className="flex gap-3 w-full lg:w-auto">
+                <a
+                  href="https://www.flowtra.store/blog/free-ugc-download-methods-2025"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium whitespace-nowrap"
                 >
-                  <Users className="w-4 h-4" />
-                  Add Creator Source
+                  <ExternalLink className="w-4 h-4" />
+                  <span className="hidden sm:inline">Download Viral Videos</span>
+                  <span className="sm:hidden">Videos</span>
+                </a>
+                <button
+                  onClick={() => setShowVideoImportModal(true)}
+                  className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  <Video className="w-4 h-4" />
+                  Import Videos
                 </button>
               </div>
             </div>
 
-            {/* Creator Sources Tab */}
-            {filteredCreatorSources.length === 0 && searchTerm ? (
+            {/* Videos Grid */}
+            {filteredVideos.length === 0 && normalizedSearch ? (
               <div className="py-12 text-center">
                 <Search className="w-12 h-12 mx-auto mb-4 text-gray-200" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
                 <p className="text-gray-500">Try adjusting your search terms</p>
               </div>
+            ) : filteredVideos.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {filteredVideos.map((video) => (
+                  <VideoAssetCard
+                    key={video.id}
+                    video={video}
+                    onViewDetails={(asset) => {
+                      setSelectedVideo(asset);
+                      setShowVideoDetails(true);
+                    }}
+                  />
+                ))}
+              </div>
             ) : (
-              <div className="space-y-6">
-                {filteredCreatorSources.length > 0 ? (
-                  filteredCreatorSources.map(source => (
-                    <CreatorSourceCard
-                      key={source.id}
-                      source={source}
-                      onDelete={handleDeleteCreatorSource}
-                      onSync={handleSyncCreatorSource}
-                      isDeleting={deletingCreatorSourceId === source.id}
-                      isSyncing={syncingCreatorSourceId === source.id}
-                    />
-                  ))
-                ) : (
-                  <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
-                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-200" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No creator sources yet</h3>
-                    <p className="text-gray-500 mb-6">Add a TikTok creator to reuse their videos.</p>
-                    <button
-                      onClick={() => setShowCreateCreatorSourceModal(true)}
-                      className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
-                    >
-                      <Users className="w-4 h-4" />
-                      Add Creator Source
-                    </button>
-                  </div>
-                )}
+              <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
+                <Video className="w-12 h-12 mx-auto mb-4 text-gray-200" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No videos yet</h3>
+                <p className="text-gray-500 mb-6">Import TikTok videos to reuse them across projects.</p>
+                <button
+                  onClick={() => setShowVideoImportModal(true)}
+                  className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                >
+                  <Video className="w-4 h-4" />
+                  Import Videos
+                </button>
               </div>
             )}
           </>
@@ -768,19 +554,6 @@ export default function AssetsManager() {
       </div>
 
       {/* Modals */}
-      <CreateBrandModal
-        isOpen={showCreateBrandModal}
-        onClose={() => setShowCreateBrandModal(false)}
-        onBrandCreated={handleBrandCreated}
-      />
-
-      <EditBrandModal
-        isOpen={!!editingBrand}
-        brand={editingBrand}
-        onClose={() => setEditingBrand(null)}
-        onBrandUpdated={handleBrandUpdated}
-      />
-
       <EditProductModal
         isOpen={!!editingProduct}
         product={editingProduct}
@@ -792,21 +565,9 @@ export default function AssetsManager() {
         isOpen={showCreateProductModal}
         onClose={() => {
           setShowCreateProductModal(false);
-          setSelectedBrandIdForProduct(null);
         }}
         onProductCreated={handleProductCreated}
-        preselectedBrandId={selectedBrandIdForProduct}
-      />
-
-      <SelectProductToBrandModal
-        isOpen={showSelectProductModal}
-        onClose={() => {
-          setShowSelectProductModal(false);
-          setSelectedBrandForProductSelection(null);
-        }}
-        brandName={selectedBrandForProductSelection?.brand_name || ''}
-        availableProducts={assetsData.unbrandedProducts}
-        onProductsSelected={handleProductsSelectedForBrand}
+        preselectedBrandId={null}
       />
 
       <CreateAvatarModal
@@ -821,19 +582,16 @@ export default function AssetsManager() {
         onClose={() => setEditingAvatar(null)}
         onAvatarUpdated={handleAvatarUpdated}
       />
-
-      <CreateCreatorSourceModal
-        isOpen={showCreateCreatorSourceModal}
-        onClose={() => setShowCreateCreatorSourceModal(false)}
-        onCreated={handleCreatorSourceCreated}
+      <VideoImportModal
+        isOpen={showVideoImportModal}
+        onClose={() => setShowVideoImportModal(false)}
+        onImported={handleVideosImported}
         onError={(error) => showError(error)}
       />
-
-      <EditCreatorSourceModal
-        isOpen={!!editingCreatorSource}
-        source={editingCreatorSource}
-        onClose={() => setEditingCreatorSource(null)}
-        onUpdated={handleCreatorSourceUpdated}
+      <VideoAssetDetailsModal
+        isOpen={showVideoDetails}
+        onClose={() => setShowVideoDetails(false)}
+        video={selectedVideo}
       />
     </div>
   );

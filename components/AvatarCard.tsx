@@ -26,7 +26,6 @@ export default function AvatarCard({
   onSelect,
   isSelected = false
 }: AvatarCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const isSelectableMode = mode === 'selectable';
@@ -63,8 +62,6 @@ export default function AvatarCard({
           ${isDeleting ? 'opacity-50 pointer-events-none' : ''}
         `}
         onClick={handleCardClick}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         layout
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -80,31 +77,6 @@ export default function AvatarCard({
             className="object-cover"
             sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
-
-          {/* Overlay with actions on hover (full mode only) */}
-          {isFullMode && isHovered && !isDeleting && (
-            <motion.div
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center gap-2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <button
-                onClick={handleEditClick}
-                className="w-9 h-9 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors shadow-sm"
-                title="Edit avatar"
-              >
-                <Edit2 className="w-4 h-4 text-gray-700" />
-              </button>
-              <button
-                onClick={handleDeleteClick}
-                className="w-9 h-9 bg-white rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors shadow-sm"
-                title="Delete avatar"
-              >
-                <Trash2 className="w-4 h-4 text-red-600" />
-              </button>
-            </motion.div>
-          )}
 
           {/* Deleting indicator */}
           {isDeleting && (
@@ -128,9 +100,33 @@ export default function AvatarCard({
           <p className="text-sm font-medium text-gray-900 truncate" title={avatar.avatar_name}>
             {avatar.avatar_name}
           </p>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {new Date(avatar.created_at).toLocaleDateString()}
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-gray-500">
+              {new Date(avatar.created_at).toLocaleDateString()}
+            </p>
+            {isFullMode && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleEditClick}
+                  className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Edit avatar"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleDeleteClick}
+                  className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                  title={isDeleting ? 'Deleting...' : 'Delete avatar'}
+                >
+                  {isDeleting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
 

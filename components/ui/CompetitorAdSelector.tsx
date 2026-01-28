@@ -8,8 +8,6 @@ import CompetitorAdCard from '../CompetitorAdCard';
 import { cn } from '@/lib/utils';
 
 interface CompetitorAdSelectorProps {
-  brandId: string | null;
-  brandName?: string;
   selectedCompetitorAd: CompetitorAd | null;
   onSelect: (competitorAd: CompetitorAd | null) => void;
   variant?: 'default' | 'compact';
@@ -17,7 +15,6 @@ interface CompetitorAdSelectorProps {
 }
 
 export default function CompetitorAdSelector({
-  brandId,
   selectedCompetitorAd,
   onSelect,
   variant = 'default',
@@ -44,14 +41,9 @@ export default function CompetitorAdSelector({
   }, []);
 
   useEffect(() => {
-    if (brandId) {
-      loadCompetitorAds();
-    } else {
-      setCompetitorAds([]);
-      onSelect(null);
-    }
+    loadCompetitorAds();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brandId]);
+  }, []);
 
   // Close when clicking outside
   useEffect(() => {
@@ -94,11 +86,9 @@ export default function CompetitorAdSelector({
   }, [isExpanded]);
 
   const loadCompetitorAds = async () => {
-    if (!brandId) return;
-
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/competitor-ads?brandId=${brandId}`);
+      const response = await fetch('/api/competitor-ads');
       if (response.ok) {
         const data = await response.json();
         setCompetitorAds(data.competitorAds || []);
@@ -130,7 +120,7 @@ export default function CompetitorAdSelector({
 
   const compact = variant === 'compact';
 
-  if (competitorAds.length === 0 && !compact && brandId) {
+  if (competitorAds.length === 0 && !compact) {
     return (
       <div className={cn('bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl p-6', className)}>
         <div className="flex items-start gap-4">
@@ -186,22 +176,18 @@ export default function CompetitorAdSelector({
                   ? 'Loading...'
                   : selectedCompetitorAd 
                     ? selectedCompetitorAd.competitor_name
-                    : !brandId 
-                      ? 'Select Brand' 
-                      : competitorAds.length === 0 
-                        ? 'No videos' 
-                        : 'Select video'
+                    : competitorAds.length === 0 
+                      ? 'No videos' 
+                      : 'Select video'
               ) : 'Reference Viral Video'}
             </h3>
             {!compact && (
               <p className="text-sm text-[#666666] mt-0.5 truncate">
                 {isLoading
                   ? 'Loading viral videos...'
-                  : !brandId 
-                    ? 'Select a brand to view videos' 
-                    : selectedCompetitorAd
-                      ? `Selected: ${selectedCompetitorAd.competitor_name}`
-                      : `${competitorAds.length} viral ${competitorAds.length === 1 ? 'video' : 'videos'} available`
+                  : selectedCompetitorAd
+                    ? `Selected: ${selectedCompetitorAd.competitor_name}`
+                    : `${competitorAds.length} viral ${competitorAds.length === 1 ? 'video' : 'videos'} available`
                 }
               </p>
             )}
@@ -233,15 +219,7 @@ export default function CompetitorAdSelector({
           className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.12)] overflow-hidden"
         >
           <div className="p-4 space-y-4 max-h-[50vh] overflow-y-auto">
-            {!brandId ? (
-               <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-                  <Info className="w-8 h-8 text-gray-300 mb-2" />
-                  <p className="text-sm font-semibold text-gray-900">No Brand Selected</p>
-                  <p className="text-xs text-gray-500 mt-1 max-w-[200px]">
-                    Please select a brand first to see available viral videos.
-                  </p>
-               </div>
-            ) : competitorAds.length === 0 ? (
+            {competitorAds.length === 0 ? (
                <div className="flex flex-col items-center justify-center py-8 text-center px-4">
                   <Info className="w-8 h-8 text-gray-300 mb-2" />
                   <p className="text-sm font-semibold text-gray-900">No viral videos yet</p>

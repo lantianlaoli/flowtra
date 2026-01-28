@@ -237,6 +237,11 @@ export interface CreatorSourceVideo {
   description?: string | null
   stats?: Record<string, unknown> | null
   duration_seconds?: number | null
+  analysis_status?: string | null
+  analysis_result?: Record<string, unknown> | null
+  analysis_error?: string | null
+  analysis_language?: string | null
+  analyzed_at?: string | null
   created_at: string
   updated_at: string
 }

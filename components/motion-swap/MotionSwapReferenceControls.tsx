@@ -2,19 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
-import { Bookmark, Clapperboard, Heart, MessageCircle, Music2, Play, Share2, Users, Video as VideoIcon } from 'lucide-react';
+import { Bookmark, Clapperboard, Heart, MessageCircle, Share2, Video as VideoIcon, Clock3, Languages } from 'lucide-react';
 import BottomBarDropdown from '@/components/ui/BottomBarDropdown';
 import { cn } from '@/lib/utils';
+import { getLanguageDisplayInfo } from '@/lib/language';
 
-interface CreatorSourcePlatform {
-  id: string;
-  platform: string;
-  handle: string;
-  avatar_url?: string | null;
-  display_name?: string | null;
-}
-
-interface CreatorSourceVideo {
+interface MotionSwapVideo {
   id: string;
   platform: string;
   platform_video_id?: string | null;
@@ -23,20 +16,12 @@ interface CreatorSourceVideo {
   cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
+  analysis_language?: string | null;
   stats?: Record<string, unknown> | null;
 }
 
-interface CreatorSource {
-  id: string;
-  source_name: string;
-  creator_source_platforms?: CreatorSourcePlatform[];
-  creator_source_videos?: CreatorSourceVideo[];
-}
-
 interface MotionSwapReferenceControlsProps {
-  creatorSources: CreatorSource[];
-  selectedSourceId: string;
-  onSelectSourceId: (id: string) => void;
+  videos: MotionSwapVideo[];
   selectedVideoId: string;
   onSelectVideoId: (id: string) => void;
   variant?: 'inline' | 'stacked';
@@ -51,28 +36,19 @@ const getStatCount = (stats: Record<string, unknown> | null | undefined, key: st
 };
 
 export default function MotionSwapReferenceControls({
-  creatorSources,
-  selectedSourceId,
-  onSelectSourceId,
+  videos,
   selectedVideoId,
   onSelectVideoId,
   variant = 'stacked',
   showLabel = true,
   className
 }: MotionSwapReferenceControlsProps) {
-  const [platformOpen, setPlatformOpen] = useState(false);
-  const [creatorOpen, setCreatorOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
 
-  const selectedSource = useMemo(
-    () => creatorSources.find(source => source.id === selectedSourceId),
-    [creatorSources, selectedSourceId]
-  );
   const selectedVideo = useMemo(
-    () => selectedSource?.creator_source_videos?.find(video => video.id === selectedVideoId),
-    [selectedSource, selectedVideoId]
+    () => videos.find(video => video.id === selectedVideoId),
+    [videos, selectedVideoId]
   );
-  const selectedPlatform = selectedSource?.creator_source_platforms?.[0];
   const isInline = variant === 'inline';
 
   return (
@@ -82,110 +58,11 @@ export default function MotionSwapReferenceControls({
       )}
       <div className={cn('flex flex-wrap gap-2', isInline ? 'items-center' : '')}>
         <BottomBarDropdown
-          open={platformOpen}
-          onOpenChange={setPlatformOpen}
-          triggerClassName="min-w-[120px]"
-          trigger={
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center">
-                <Music2 className="w-4 h-4 text-gray-700" />
-              </div>
-              <p className="text-sm font-medium text-gray-900">TikTok</p>
-            </div>
-          }
-        >
-          <button
-            type="button"
-            onClick={() => setPlatformOpen(false)}
-            className="w-full flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-left hover:border-black transition-colors"
-          >
-            <div className="h-8 w-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center">
-              <Music2 className="w-4 h-4 text-gray-700" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">TikTok</p>
-            </div>
-          </button>
-        </BottomBarDropdown>
-
-        <BottomBarDropdown
-          open={creatorOpen}
-          onOpenChange={setCreatorOpen}
-          triggerClassName="min-w-[140px]"
-          trigger={
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
-                {selectedPlatform?.avatar_url ? (
-                  <Image
-                    src={selectedPlatform.avatar_url}
-                    alt={selectedPlatform.display_name || selectedPlatform.handle}
-                    width={32}
-                    height={32}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <Users className="w-4 h-4 text-gray-500" />
-                )}
-              </div>
-              <p className="text-sm font-medium text-gray-900">
-                {selectedPlatform?.display_name || selectedSource?.source_name || 'Creator'}
-              </p>
-            </div>
-          }
-        >
-          {creatorSources.length === 0 ? (
-            <div className="text-sm text-gray-500 px-3 py-2">No creators yet.</div>
-          ) : (
-            <div className="space-y-2">
-              {creatorSources.map(source => {
-                const platformInfo = source.creator_source_platforms?.[0];
-                const displayName = platformInfo?.display_name || source.source_name;
-                const handle = platformInfo?.handle || source.source_name;
-                return (
-                  <button
-                    key={source.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectSourceId(source.id);
-                      onSelectVideoId('');
-                      setCreatorOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
-                      selectedSourceId === source.id
-                        ? 'border-black bg-gray-50'
-                        : 'border-gray-200 hover:border-black'
-                    }`}
-                  >
-                    <div className="h-9 w-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
-                      {platformInfo?.avatar_url ? (
-                        <Image
-                          src={platformInfo.avatar_url}
-                          alt={displayName}
-                          width={36}
-                          height={36}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <Users className="w-4 h-4 text-gray-500" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{displayName}</p>
-                      <p className="text-xs text-gray-500">@{handle}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </BottomBarDropdown>
-
-        <BottomBarDropdown
           open={videoOpen}
           onOpenChange={setVideoOpen}
           triggerClassName="min-w-[140px]"
           panelWidthClassName="w-[360px]"
-          disabled={!selectedSource?.creator_source_videos?.length}
+          disabled={videos.length === 0}
           trigger={
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
@@ -202,19 +79,22 @@ export default function MotionSwapReferenceControls({
                 )}
               </div>
               <p className="text-sm font-medium text-gray-900">
-                {selectedVideo?.description?.slice(0, 28) || 'Video'}
+                {selectedVideo?.description?.slice(0, 28) || 'Select video'}
               </p>
             </div>
           }
         >
-          {selectedSource?.creator_source_videos?.length ? (
+          {videos.length > 0 ? (
             <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-              {selectedSource.creator_source_videos.map(video => {
-                const playCount = getStatCount(video.stats, 'playCount');
+              {videos.map(video => {
                 const likeCount = getStatCount(video.stats, 'diggCount');
                 const commentCount = getStatCount(video.stats, 'commentCount');
                 const shareCount = getStatCount(video.stats, 'shareCount');
                 const collectCount = getStatCount(video.stats, 'collectCount');
+                const languageDisplay = getLanguageDisplayInfo(video.analysis_language);
+                const durationLabel = video.duration_seconds ? `${video.duration_seconds}s` : '--';
+                const languageLabel = languageDisplay?.label || '--';
+                const showStats = likeCount + commentCount + shareCount + collectCount > 0;
                 return (
                   <button
                     key={video.id}
@@ -230,13 +110,22 @@ export default function MotionSwapReferenceControls({
                     }`}
                   >
                     <div className="flex gap-3">
-                      <div className="h-16 w-12 rounded-md bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
-                        {video.cover_url ? (
+                      <div className="h-20 w-14 rounded-md bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                        {video.video_cdn_url ? (
+                          <video
+                            src={video.video_cdn_url}
+                            poster={video.cover_url || undefined}
+                            className="h-full w-full object-cover"
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
+                        ) : video.cover_url ? (
                           <Image
                             src={video.cover_url}
                             alt={video.description || 'Video cover'}
-                            width={48}
-                            height={64}
+                            width={56}
+                            height={80}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -249,26 +138,34 @@ export default function MotionSwapReferenceControls({
                         </p>
                         <div className="flex flex-wrap gap-3 text-[11px] text-gray-500 mt-2">
                           <span className="inline-flex items-center gap-1">
-                            <Play className="w-3 h-3" />
-                            {playCount.toLocaleString()}
+                            <Clock3 className="w-3 h-3" />
+                            {durationLabel}
                           </span>
                           <span className="inline-flex items-center gap-1">
-                            <Heart className="w-3 h-3" />
-                            {likeCount.toLocaleString()}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <MessageCircle className="w-3 h-3" />
-                            {commentCount.toLocaleString()}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Share2 className="w-3 h-3" />
-                            {shareCount.toLocaleString()}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Bookmark className="w-3 h-3" />
-                            {collectCount.toLocaleString()}
+                            <Languages className="w-3 h-3" />
+                            {languageLabel}
                           </span>
                         </div>
+                        {showStats && (
+                          <div className="flex flex-wrap gap-3 text-[11px] text-gray-500 mt-2">
+                            <span className="inline-flex items-center gap-1">
+                              <Heart className="w-3 h-3" />
+                              {likeCount.toLocaleString()}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Bookmark className="w-3 h-3" />
+                              {collectCount.toLocaleString()}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Share2 className="w-3 h-3" />
+                              {shareCount.toLocaleString()}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <MessageCircle className="w-3 h-3" />
+                              {commentCount.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -276,7 +173,7 @@ export default function MotionSwapReferenceControls({
               })}
             </div>
           ) : (
-            <div className="text-sm text-gray-500 px-3 py-2">Select a creator first.</div>
+            <div className="text-sm text-gray-500 px-3 py-2">No videos yet.</div>
           )}
         </BottomBarDropdown>
       </div>

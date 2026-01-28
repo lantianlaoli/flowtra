@@ -4,6 +4,8 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { createMotionSwapPreviewTask, createMotionSwapVideoTask, buildMotionSwapPreviewPrompt, buildMotionSwapVideoPrompt, MOTION_SWAP_MODE } from '@/lib/motion-swap-workflow';
 import { checkCredits, deductCredits, recordCreditTransaction, refundCredits } from '@/lib/credits';
 import { fetchTikTokVideoUrl } from '@/lib/fetch-tiktok-video';
+import { downloadVideoBuffer, uploadCreatorVideoCoverToStorage } from '@/lib/creator-videos-storage';
+import { fetchTikTokCoverByUrl } from '@/lib/tiktok-creator-source';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -143,7 +145,28 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ error: 'Failed to resolve reference video URL' }, { status: 400 });
     }
 
-    const coverUrl = coverUrlOverride || project.reference_cover_url || referenceVideo.cover_url;
+    let coverUrl = coverUrlOverride || project.reference_cover_url || referenceVideo.cover_url;
+    if (!coverUrl && referenceVideo.video_url) {
+      try {
+        const fallbackCover = await fetchTikTokCoverByUrl(referenceVideo.video_url as string);
+        if (fallbackCover) {
+          const coverFile = await downloadVideoBuffer(fallbackCover);
+          const coverUpload = await uploadCreatorVideoCoverToStorage({
+            userId,
+            fileName: `${referenceVideo.id}.png`,
+            buffer: coverFile.buffer,
+            contentType: coverFile.contentType
+          });
+          coverUrl = coverUpload.publicUrl;
+          await supabase
+            .from('creator_source_videos')
+            .update({ cover_url: coverUrl })
+            .eq('id', referenceVideo.id);
+        }
+      } catch (fallbackError) {
+        console.warn('[Motion Swap Start] Cover download failed:', fallbackError);
+      }
+    }
     if (!coverUrl) {
       return NextResponse.json({ error: 'Cover image is missing' }, { status: 400 });
     }

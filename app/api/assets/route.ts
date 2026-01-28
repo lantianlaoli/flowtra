@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin, UserProduct } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -16,20 +19,13 @@ export async function GET() {
     // Use admin client to bypass RLS (we're already checking Clerk auth)
     const supabase = getSupabaseAdmin();
 
-    console.log('[Assets API] User ID:', userId);
-
+    // Schema verified via Supabase MCP (2026-01-28): user_brands
     // Fetch all brands
     const { data: brands, error: brandsError } = await supabase
       .from('user_brands')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-
-    console.log('[Assets API] Brands query result:', {
-      count: brands?.length,
-      error: brandsError,
-      brands: brands
-    });
 
     if (brandsError) {
       console.error('Error fetching brands:', brandsError);
@@ -39,21 +35,17 @@ export async function GET() {
       );
     }
 
-    // Fetch all products with photos
+    // Schema verified via Supabase MCP (2026-01-28): user_products, user_product_photos, user_brands
+    // Fetch all products with photos + brand
     const { data: allProducts, error: productsError } = await supabase
       .from('user_products')
       .select(`
         *,
-        user_product_photos(*)
+        user_product_photos(*),
+        brand:user_brands(*)
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-
-    console.log('[Assets API] Products query result:', {
-      count: allProducts?.length,
-      error: productsError,
-      products: allProducts
-    });
 
     if (productsError) {
       console.error('Error fetching products:', productsError);
@@ -63,44 +55,16 @@ export async function GET() {
       );
     }
 
-    // Separate branded and unbranded products
-    const brandedProducts = (allProducts || []).filter(p => p.brand_id);
-    const unbrandedProducts = (allProducts || []).filter(p => !p.brand_id);
-
-    console.log('[Assets API] Product separation:', {
-      total: allProducts?.length,
-      branded: brandedProducts.length,
-      unbranded: unbrandedProducts.length
-    });
-
-    // Group products by brand_id
-    const productsByBrand: Record<string, UserProduct[]> = {};
-    brandedProducts.forEach(product => {
-      if (product.brand_id) {
-        if (!productsByBrand[product.brand_id]) {
-          productsByBrand[product.brand_id] = [];
-        }
-        productsByBrand[product.brand_id].push(product);
-      }
-    });
-
-    console.log('[Assets API] Products grouped by brand:', productsByBrand);
-
-    // Attach products to their brands
-    const brandsWithProducts = (brands || []).map(brand => ({
-      ...brand,
-      products: productsByBrand[brand.id] || []
-    }));
-
-    console.log('[Assets API] Final brands with products:', brandsWithProducts);
+    const products = (allProducts || []) as UserProduct[];
 
     // Fetch creator sources (TikTok, etc.)
-    // Schema verified via Supabase MCP (2026-02-01): creator_sources, creator_source_platforms, creator_source_videos
+    // Schema verified via Supabase MCP (2026-01-28): creator_sources, creator_source_platforms, creator_source_videos
     const { data: creatorSources, error: creatorSourcesError } = await supabase
       .from('creator_sources')
       .select('*, creator_source_platforms(*), creator_source_videos(*)')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false, foreignTable: 'creator_source_videos' });
 
     if (creatorSourcesError) {
       console.error('Error fetching creator sources:', creatorSourcesError);
@@ -114,22 +78,76 @@ export async function GET() {
       return total + (source.creator_source_videos?.length || 0);
     }, 0);
 
+    const videos = (creatorSources || []).flatMap((source: {
+      id: string;
+      source_name: string;
+      creator_source_videos?: Array<Record<string, any>>;
+    }) => (
+      (source.creator_source_videos || []).map((video: Record<string, any>) => ({
+        ...video,
+        source_id: source.id,
+        source_name: source.source_name,
+        source_type: 'creator'
+      }))
+    ));
+
+    // Schema verified via Supabase MCP (2026-01-28): competitor_ads has analysis_result, language, video_duration_seconds
+    const { data: competitorAds, error: competitorAdsError } = await supabase
+      .from('competitor_ads')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (competitorAdsError) {
+      console.error('Error fetching competitor ads:', competitorAdsError);
+      return NextResponse.json(
+        { error: 'Failed to fetch competitor ads' },
+        { status: 500 }
+      );
+    }
+
+    const competitorVideos = (competitorAds || []).map(ad => ({
+      id: ad.id,
+      user_id: ad.user_id,
+      source_id: ad.brand_id,
+      platform: 'tiktok',
+      platform_video_id: ad.id,
+      video_url: '',
+      video_cdn_url: null,
+      cover_url: null,
+      description: ad.competitor_name,
+      stats: null,
+      duration_seconds: ad.video_duration_seconds,
+      analysis_status: ad.analysis_status,
+      analysis_result: ad.analysis_result,
+      analysis_error: ad.analysis_error,
+      analysis_language: ad.language,
+      analyzed_at: ad.analyzed_at,
+      created_at: ad.created_at,
+      updated_at: ad.updated_at,
+      source_name: 'Legacy',
+      source_type: 'competitor_ad',
+      competitor_ad_id: ad.id
+    }));
+
     const response = {
-      brands: brandsWithProducts,
-      unbrandedProducts: unbrandedProducts || [],
+      brands: brands || [],
+      products,
       creatorSources: creatorSources || [],
+      videos: [...competitorVideos, ...videos],
       stats: {
         totalBrands: brands?.length || 0,
         totalProducts: (allProducts?.length || 0),
-        unbrandedCount: unbrandedProducts?.length || 0,
         totalCreatorSources: creatorSources?.length || 0,
-        totalCreatorVideos: creatorSourceVideoCount
+        totalCreatorVideos: creatorSourceVideoCount + competitorVideos.length
       }
     };
 
-    console.log('[Assets API] Final response:', JSON.stringify(response, null, 2));
-
-    return NextResponse.json(response);
+    return NextResponse.json(response, {
+      headers: {
+        'Cache-Control': 'no-store'
+      }
+    });
 
   } catch (error) {
     console.error('Error in /api/assets:', error);

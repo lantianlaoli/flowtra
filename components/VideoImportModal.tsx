@@ -1,0 +1,726 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Play, Wand2 } from 'lucide-react';
+import { SiTiktok } from 'react-icons/si';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import VideoPlayer from '@/components/ui/VideoPlayer';
+import CompetitorShotsEditor from '@/components/CompetitorShotsEditor';
+import { parseShotsFromAnalysis } from '@/lib/competitor-shot-form';
+
+interface PreviewVideo {
+  platform_video_id: string;
+  video_url: string;
+  play_url?: string | null;
+  cover_url?: string | null;
+  description?: string | null;
+  duration_seconds?: number | null;
+}
+
+interface ImportedVideo {
+  id: string;
+  source_id?: string | null;
+  source_name?: string | null;
+  video_url?: string | null;
+  video_cdn_url?: string | null;
+  cover_url?: string | null;
+  description?: string | null;
+  duration_seconds?: number | null;
+  analysis_status?: string | null;
+  analysis_result?: Record<string, unknown> | null;
+  analysis_error?: string | null;
+  analysis_language?: string | null;
+}
+
+interface VideoImportModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onImported: (videos: ImportedVideo[], options?: { message?: string; skipRefresh?: boolean }) => void;
+  onError?: (error: string) => void;
+}
+
+type ImportStep = 'choose' | 'link' | 'upload' | 'creator' | 'creator-preview' | 'processing' | 'processing-batch';
+
+export default function VideoImportModal({
+  isOpen,
+  onClose,
+  onImported,
+  onError
+}: VideoImportModalProps) {
+  const [step, setStep] = useState<ImportStep>('choose');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [linkUrl, setLinkUrl] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+
+  const [creatorHandle, setCreatorHandle] = useState('');
+  const [previewVideos, setPreviewVideos] = useState<PreviewVideo[]>([]);
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  const [processingVideo, setProcessingVideo] = useState<ImportedVideo | null>(null);
+  const [processingMessage, setProcessingMessage] = useState('');
+  const [processingCount, setProcessingCount] = useState(0);
+  const closeTimerRef = useRef<number | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setStep('choose');
+    setError(null);
+    setIsSubmitting(false);
+    setLinkUrl('');
+    setUploadFile(null);
+    setCreatorHandle('');
+    setPreviewVideos([]);
+    setSelectedVideoIds(new Set());
+    setProcessingVideo(null);
+    setProcessingMessage('');
+    setProcessingCount(0);
+  }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const selectedVideos = useMemo(() => {
+    return previewVideos.filter(video => selectedVideoIds.has(video.platform_video_id));
+  }, [previewVideos, selectedVideoIds]);
+
+  const processingShots = useMemo(() => {
+    const raw = processingVideo?.analysis_result && typeof processingVideo.analysis_result === 'object'
+      ? (processingVideo.analysis_result as any).shots
+      : null;
+    return parseShotsFromAnalysis(Array.isArray(raw) ? raw : []);
+  }, [processingVideo?.analysis_result]);
+
+  const canUseForClone = Boolean(processingVideo?.analysis_result);
+  const canUseForMotionSwap = Boolean(processingVideo?.source_id && processingVideo?.id);
+
+  const handleBackToChoose = () => {
+    setStep('choose');
+    setError(null);
+  };
+
+  const scheduleAutoClose = () => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      onClose();
+    }, 700);
+  };
+
+  const handleImportLink = async () => {
+    if (!linkUrl.trim()) {
+      setError('TikTok link is required.');
+      return;
+    }
+
+    setStep('processing');
+    setIsSubmitting(true);
+    setError(null);
+    setProcessingMessage('Importing video and running analysis...');
+    setProcessingVideo(null);
+
+    try {
+      const response = await fetch('/api/creator-videos/import-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: linkUrl.trim() })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to import video.');
+      }
+
+      const imported = data.videos || (data.video ? [data.video] : []);
+      const nextVideo = imported[0] || null;
+      setProcessingVideo(nextVideo);
+      if (nextVideo?.analysis_status === 'failed') {
+        setProcessingMessage('Video added. Analysis failed.');
+      } else if (nextVideo?.analysis_status === 'completed') {
+        setProcessingMessage('Video added. Analysis completed.');
+      } else {
+        setProcessingMessage('Video added. Analysis is running.');
+      }
+
+      onImported(imported, {
+        message: nextVideo?.analysis_status === 'failed'
+          ? 'Video imported. Analysis failed. Refresh to see the latest updates.'
+          : nextVideo?.analysis_status === 'completed'
+            ? 'Video imported. Analysis completed. Refresh to see the latest updates.'
+            : 'Video imported. Analysis is running. Refresh to see the latest updates.',
+      });
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : 'Failed to import video.';
+      setError(message);
+      onError?.(message);
+      setStep('link');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpload = async (fileOverride?: File | null) => {
+    const fileToUpload = fileOverride ?? uploadFile;
+    if (!fileToUpload) {
+      setError('Please select a video file to upload.');
+      return;
+    }
+
+    setStep('processing');
+    setIsSubmitting(true);
+    setError(null);
+    setProcessingMessage('Uploading video and running analysis...');
+    setProcessingVideo(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', fileToUpload);
+      const response = await fetch('/api/creator-videos/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload video.');
+      }
+
+      const imported = data.videos || (data.video ? [data.video] : []);
+      const nextVideo = imported[0] || null;
+      setProcessingVideo(nextVideo);
+      if (nextVideo?.analysis_status === 'failed') {
+        setProcessingMessage('Video added. Analysis failed.');
+      } else if (nextVideo?.analysis_status === 'completed') {
+        setProcessingMessage('Video added. Analysis completed.');
+      } else {
+        setProcessingMessage('Video added. Analysis is running.');
+      }
+
+      onImported(imported, {
+        message: nextVideo?.analysis_status === 'failed'
+          ? 'Video uploaded. Analysis failed. Refresh to see the latest updates.'
+          : nextVideo?.analysis_status === 'completed'
+            ? 'Video uploaded. Analysis completed. Refresh to see the latest updates.'
+            : 'Video uploaded. Analysis is running. Refresh to see the latest updates.',
+      });
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : 'Failed to upload video.';
+      setError(message);
+      onError?.(message);
+      setStep('upload');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePreviewCreator = async () => {
+    if (!creatorHandle.trim()) {
+      setError('TikTok username is required.');
+      return;
+    }
+
+    setIsPreviewLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/creator-videos/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: creatorHandle.trim() })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch creator videos.');
+      }
+
+      setPreviewVideos(data.videos || []);
+      setSelectedVideoIds(new Set());
+      setStep('creator-preview');
+    } catch (previewError) {
+      const message = previewError instanceof Error ? previewError.message : 'Failed to fetch creator videos.';
+      setError(message);
+      onError?.(message);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const handleImportCreatorVideos = async () => {
+    if (selectedVideos.length === 0) {
+      setError('Select at least one video to import.');
+      return;
+    }
+
+    setStep('processing-batch');
+    setIsSubmitting(true);
+    setError(null);
+    setProcessingMessage('Processing selected videos. This may take a few minutes.');
+    setProcessingCount(selectedVideos.length);
+
+    try {
+      const response = await fetch('/api/creator-videos/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handle: creatorHandle.trim(),
+          videos: selectedVideos
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to import creator videos.');
+      }
+
+      onImported([], {
+        message: `Processing ${selectedVideos.length} videos in the background. Refresh in a few minutes to see them.`
+      });
+      scheduleAutoClose();
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : 'Failed to import creator videos.';
+      setError(message);
+      onError?.(message);
+      setStep('creator-preview');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const toggleSelected = (videoId: string) => {
+    setSelectedVideoIds(prev => {
+      const next = new Set(prev);
+      if (next.has(videoId)) {
+        next.delete(videoId);
+      } else {
+        next.add(videoId);
+      }
+      return next;
+    });
+  };
+
+  const handleUseForClone = () => {
+    if (!processingVideo?.analysis_result) {
+      setError('Analysis is still running. Please wait a moment.');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('showcase_tiktok_analysis', JSON.stringify({
+        analysis: processingVideo.analysis_result,
+        language: processingVideo.analysis_language || 'en',
+        videoUrl: processingVideo.video_cdn_url || null,
+        tiktokUrl: processingVideo.video_url || null
+      }));
+    }
+
+    onClose();
+    router.push('/dashboard/competitor-ugc-replication');
+  };
+
+  const handleUseInMotionSwap = () => {
+    onClose();
+    router.push(`/dashboard/motion-swap?videoId=${processingVideo?.id}`);
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+
+          <motion.div
+            className="relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-5xl mx-auto overflow-hidden"
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center">
+                  <SiTiktok className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Import Videos</h3>
+                  <p className="text-sm text-gray-600">TikTok only. Videos are stored in your library.</p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+                disabled={isSubmitting}
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            {step === 'choose' && (
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button
+                    onClick={() => setStep('link')}
+                    className="group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
+                      <Link className="w-4 h-4" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900 mb-1">Paste Link</h4>
+                    <p className="text-xs text-gray-500">Copy a TikTok video URL and import it instantly.</p>
+                  </button>
+                  <button
+                    onClick={() => setStep('upload')}
+                    className="group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900 mb-1">Upload File</h4>
+                    <p className="text-xs text-gray-500">Upload a downloaded TikTok MP4 from your device.</p>
+                  </button>
+                  <button
+                    onClick={() => setStep('creator')}
+                    className="group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900 mb-1">Creator Name</h4>
+                    <p className="text-xs text-gray-500">Fetch the latest videos and import selected ones.</p>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {(step === 'link' || step === 'upload') && (
+              <div className="p-6 space-y-6">
+                <button
+                  onClick={handleBackToChoose}
+                  className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to options
+                </button>
+
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] gap-6">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <Info className="w-4 h-4" />
+                      {step === 'link' ? 'How to get the TikTok link' : 'How to prepare the file'}
+                    </div>
+                    <ol className="space-y-2 text-sm text-gray-600">
+                      {step === 'link' ? (
+                        <>
+                          <li className="flex items-start gap-2">
+                            <span className="font-semibold text-gray-900">1.</span>
+                            Open the TikTok video you want to import.
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="font-semibold text-gray-900">2.</span>
+                            Tap the Share button on the right panel.
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="font-semibold text-gray-900">3.</span>
+                            Choose Copy Link and paste it here.
+                          </li>
+                        </>
+                      ) : (
+                        <>
+                          <li className="flex items-start gap-2">
+                            <span className="font-semibold text-gray-900">1.</span>
+                            Download the TikTok video to your device.
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="font-semibold text-gray-900">2.</span>
+                            Save the file as MP4 or MOV.
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="font-semibold text-gray-900">3.</span>
+                            Upload the file here to import.
+                          </li>
+                        </>
+                      )}
+                    </ol>
+                  </div>
+
+                  <div className="space-y-4">
+                    {step === 'link' ? (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700">TikTok Video Link</label>
+                        <div className="flex flex-col gap-3">
+                          <div className="relative">
+                            <Link className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                              type="text"
+                              value={linkUrl}
+                              onChange={(event) => setLinkUrl(event.target.value)}
+                              placeholder="https://www.tiktok.com/@creator/video/123"
+                              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                            />
+                          </div>
+                          <button
+                            onClick={handleImportLink}
+                            disabled={isSubmitting}
+                            className="w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {isSubmitting ? 'Importing...' : 'Import & Analyze'}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700">Upload Video File</label>
+                        <div className="flex flex-col gap-3">
+                          <label className="w-full aspect-square flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl px-6 text-sm text-gray-500 cursor-pointer hover:border-gray-400 transition-colors">
+                            <Upload className="w-5 h-5" />
+                            <span className="text-sm">{uploadFile ? uploadFile.name : 'Choose a video file'}</span>
+                            <span className="text-xs text-gray-400">MP4 or MOV</span>
+                            <input
+                              type="file"
+                              accept="video/*"
+                              className="hidden"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0] || null;
+                                setUploadFile(file);
+                                if (file) {
+                                  void handleUpload(file);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 'creator' && (
+              <div className="p-6 space-y-6">
+                <button
+                  onClick={handleBackToChoose}
+                  className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to options
+                </button>
+
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-gray-700">TikTok Username</label>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">@</span>
+                      <input
+                        type="text"
+                        value={creatorHandle}
+                        onChange={(event) => setCreatorHandle(event.target.value)}
+                        placeholder="creator"
+                        className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                      />
+                    </div>
+                    <button
+                      onClick={handlePreviewCreator}
+                      disabled={isPreviewLoading}
+                      className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                    >
+                      {isPreviewLoading ? 'Loading...' : 'Fetch Videos'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">We will show the latest 10 videos for selection.</p>
+                </div>
+              </div>
+            )}
+
+            {step === 'creator-preview' && (
+              <div className="p-6 space-y-6">
+                <button
+                  onClick={() => setStep('creator')}
+                  className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to search
+                </button>
+
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">
+                    Select videos to import ({selectedVideos.length} selected)
+                  </p>
+                  <button
+                    onClick={handleImportCreatorVideos}
+                    disabled={isSubmitting || selectedVideos.length === 0}
+                    className="px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60"
+                  >
+                    {isSubmitting ? 'Importing...' : 'Import Selected'}
+                  </button>
+                </div>
+
+                <div className="max-h-[62vh] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {previewVideos.map(video => (
+                      <button
+                        key={video.platform_video_id}
+                        onClick={() => toggleSelected(video.platform_video_id)}
+                        className={`group text-left border rounded-lg overflow-hidden transition-colors ${selectedVideoIds.has(video.platform_video_id) ? 'border-black ring-1 ring-black' : 'border-gray-200 hover:border-gray-400'}`}
+                      >
+                        <div className="relative aspect-[9/16] bg-gray-100">
+                          {video.cover_url ? (
+                            <img
+                              src={video.cover_url}
+                              alt={video.description || 'TikTok preview'}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center h-full text-gray-300">
+                              <Users className="w-5 h-5" />
+                            </div>
+                          )}
+                          {selectedVideoIds.has(video.platform_video_id) && (
+                            <div className="absolute inset-0 bg-black/30" />
+                          )}
+                        </div>
+                        <div className="p-2">
+                          <p className="text-xs text-gray-600 line-clamp-2 min-h-[2rem]">
+                            {video.description || 'TikTok video'}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 'processing' && (
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6 min-h-[600px]">
+                <div className="bg-black/95 rounded-xl overflow-hidden flex items-center justify-center min-h-[520px] aspect-[9/16]">
+                  {processingVideo?.video_cdn_url ? (
+                    <VideoPlayer
+                      src={processingVideo.video_cdn_url}
+                      className="w-full h-full"
+                      showControls
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Preparing video preview...
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-4 min-h-[520px]">
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Overview</p>
+                    <div className="flex items-center justify-between text-sm text-gray-700">
+                      <span>Language</span>
+                      <span>{processingVideo?.analysis_language || '—'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-gray-700">
+                      <span>Duration</span>
+                      <span>{processingVideo?.duration_seconds ? `${processingVideo.duration_seconds}s` : '—'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 flex flex-col gap-3 min-h-0">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Structure Analysis</p>
+                    {processingVideo?.analysis_status === 'failed' ? (
+                      <div className="rounded-lg border border-dashed border-red-200 bg-red-50 p-4 text-sm text-red-600 space-y-2">
+                        <p>Analysis failed. Please refresh and try again later.</p>
+                        {processingVideo.analysis_error && (
+                          <p className="text-xs text-red-500">{processingVideo.analysis_error}</p>
+                        )}
+                      </div>
+                    ) : processingVideo?.analysis_result ? (
+                      <>
+                        <div className="flex items-center justify-between text-sm text-gray-700">
+                          <span className="font-semibold text-gray-900">Shot List</span>
+                          <span className="text-xs text-gray-500">{processingShots.length} shots</span>
+                        </div>
+                        <div className="flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 min-h-[180px]">
+                          <CompetitorShotsEditor
+                            shots={processingShots}
+                            onShotsChange={() => {}}
+                            showSummary={false}
+                            readOnly
+                            hideHeader
+                            expandedMaxHeightClass="max-h-[260px] overflow-y-auto"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 space-y-2">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Analysis running automatically in the background.</span>
+                        </div>
+                        <p className="text-xs text-gray-500">This may take a few minutes. Refresh the page to see the results.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-auto flex flex-col gap-2">
+                    <button
+                      onClick={handleUseForClone}
+                      disabled={!canUseForClone}
+                      className="w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-4 h-4" />
+                      Go to Clone Video
+                    </button>
+                    <button
+                      onClick={handleUseInMotionSwap}
+                      disabled={!canUseForMotionSwap}
+                      className="w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Wand2 className="w-4 h-4" />
+                      Go to Motion Swap
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 'processing-batch' && (
+              <div className="p-10 flex flex-col items-center justify-center text-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
+                </div>
+                <h4 className="text-lg font-semibold text-gray-900">Processing {processingCount} videos</h4>
+                <p className="text-sm text-gray-500 max-w-md">
+                  {processingMessage || 'This may take a few minutes. You can close this window and refresh to see new videos.'}
+                </p>
+              </div>
+            )}
+
+            {error && (
+              <div className="px-6 pb-6">
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+                  {error}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

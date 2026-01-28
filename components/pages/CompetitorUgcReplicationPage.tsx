@@ -12,8 +12,7 @@ import { Sparkles, Coins, TrendingUp, AlertCircle, Boxes } from 'lucide-react';
 import BottomComposerBar from '@/components/ui/BottomComposerBar';
 
 // New components for redesigned UX
-import BrandDropdownSelector from '@/components/ui/BrandDropdownSelector';
-import CompetitorAdSelector from '@/components/ui/CompetitorAdSelector';
+import MotionSwapReferenceControls from '@/components/motion-swap/MotionSwapReferenceControls';
 import ConfigPopover from '@/components/ui/ConfigPopover';
 import GenerationProgressDisplay, { type Generation, type SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import SegmentInspector, { type SegmentPromptPayload } from '@/components/competitor-ugc-replication/SegmentInspector';
@@ -35,7 +34,7 @@ import {
 import { Format } from '@/components/ui/FormatSelector';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { SegmentStatusPayload, SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
-import type { UserBrand, CompetitorAd } from '@/lib/supabase';
+import type { CreatorSourceVideo } from '@/lib/supabase';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -234,9 +233,17 @@ export default function CompetitorUgcReplicationPage() {
     loading: true
   });
   const elementsCount = 1;
-  const [selectedBrand, setSelectedBrand] = useState<UserBrand | null>(null);
-  const [selectedCompetitorAd, setSelectedCompetitorAd] = useState<CompetitorAd | null>(null);
-  const hasCompetitorReference = Boolean(selectedCompetitorAd);
+  type ReferenceVideo = CreatorSourceVideo & {
+    source_type?: 'creator' | 'competitor_ad';
+    competitor_ad_id?: string;
+  };
+  const [assetVideos, setAssetVideos] = useState<ReferenceVideo[]>([]);
+  const [selectedReferenceVideoId, setSelectedReferenceVideoId] = useState('');
+  const selectedReferenceVideo = useMemo(
+    () => assetVideos.find(video => video.id === selectedReferenceVideoId) || null,
+    [assetVideos, selectedReferenceVideoId]
+  );
+  const hasCompetitorReference = Boolean(selectedReferenceVideo);
   // Competitor ads are now video-only, so photo mode is never active from competitor selection
   const isCompetitorPhotoMode = false;
   const competitorImageUrl = null;
@@ -256,64 +263,79 @@ export default function CompetitorUgcReplicationPage() {
   });
   const effectiveImageModel = hasCompetitorReference ? 'nano_banana_pro' : selectedImageModel;
 
+  useEffect(() => {
+    const loadAssetVideos = async () => {
+      try {
+        const response = await fetch('/api/assets', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json();
+        setAssetVideos(data.videos || []);
+      } catch (error) {
+        console.error('[CompetitorUgcReplicationPage] Failed to load asset videos:', error);
+      }
+    };
+
+    loadAssetVideos();
+  }, []);
+
   // Modal states for user guidance
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
 
-  // Auto-switch language when competitor ad with language is selected (only on first selection)
+  // Auto-switch language when reference video with language is selected (only on first selection)
   useEffect(() => {
-    // Reset tracking when competitor ad is cleared
-    if (!selectedCompetitorAd) {
+    // Reset tracking when reference is cleared
+    if (!selectedReferenceVideo) {
       lastAutoLanguageRef.current = { competitorId: null, appliedLanguage: null };
       return;
     }
 
     // Only auto-switch if:
-    // 1. Competitor ad has a language
-    // 2. This is the first time we're seeing this competitor ad (not already auto-switched)
+    // 1. Reference video has a language
+    // 2. This is the first time we're seeing this video (not already auto-switched)
     if (
-      selectedCompetitorAd.language &&
-      lastAutoLanguageRef.current.competitorId !== selectedCompetitorAd.id
+      selectedReferenceVideo.analysis_language &&
+      lastAutoLanguageRef.current.competitorId !== selectedReferenceVideo.id
     ) {
-      console.log(`🌍 Auto-switching language to ${selectedCompetitorAd.language} (from competitor ad)`);
-      setSelectedLanguage(selectedCompetitorAd.language as LanguageCode);
-      // Mark that we've auto-switched for this competitor ad
+      console.log(`🌍 Auto-switching language to ${selectedReferenceVideo.analysis_language} (from reference video)`);
+      setSelectedLanguage(selectedReferenceVideo.analysis_language as LanguageCode);
+      // Mark that we've auto-switched for this reference video
       lastAutoLanguageRef.current = {
-        competitorId: selectedCompetitorAd.id,
-        appliedLanguage: selectedCompetitorAd.language
+        competitorId: selectedReferenceVideo.id,
+        appliedLanguage: selectedReferenceVideo.analysis_language
       };
     }
-  }, [selectedCompetitorAd]);
+  }, [selectedReferenceVideo]);
 
   useEffect(() => {
-    // Competitor ads are now video-only
-    if (!selectedCompetitorAd) {
+    // Reference videos are used for clone mode
+    if (!selectedReferenceVideo) {
       lastAutoDurationRef.current = { competitorId: null, model: null, duration: null };
       return;
     }
 
     // Use actual video duration for direct time matching
-    const targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
+    const targetDurationSeconds = selectedReferenceVideo.duration_seconds || 0;
 
     if (!targetDurationSeconds) return;
 
     const snapped = snapDurationToModel(selectedModel, targetDurationSeconds);
     if (
       snapped &&
-      (lastAutoDurationRef.current.competitorId !== selectedCompetitorAd.id ||
+      (lastAutoDurationRef.current.competitorId !== selectedReferenceVideo.id ||
         lastAutoDurationRef.current.model !== selectedModel ||
         lastAutoDurationRef.current.duration !== snapped)
     ) {
       console.log(
-        `⏱️ Auto-selecting ${snapped}s duration based on ${targetDurationSeconds}s video to mirror ${selectedCompetitorAd.competitor_name} (${selectedModel})`
+        `⏱️ Auto-selecting ${snapped}s duration based on ${targetDurationSeconds}s reference video (${selectedModel})`
       );
       setVideoDuration(snapped);
-      lastAutoDurationRef.current = { competitorId: selectedCompetitorAd.id, model: selectedModel, duration: snapped };
+      lastAutoDurationRef.current = { competitorId: selectedReferenceVideo.id, model: selectedModel, duration: snapped };
     }
-  }, [selectedCompetitorAd, selectedModel]);
+  }, [selectedReferenceVideo, selectedModel]);
 
 
-  // Check for showcase TikTok analysis and auto-create competitor ad
+  // Check for showcase TikTok analysis and preselect matching asset video
   useEffect(() => {
     const handleShowcaseAnalysis = async () => {
       if (typeof window === 'undefined') return;
@@ -322,55 +344,62 @@ export default function CompetitorUgcReplicationPage() {
       if (!showcaseData) return;
 
       try {
-        const { analysis, language, videoUrl, tiktokUrl } = JSON.parse(showcaseData);
+        const { videoUrl, tiktokUrl } = JSON.parse(showcaseData);
 
         // Clear from storage immediately (one-time use)
         window.sessionStorage.removeItem('showcase_tiktok_analysis');
 
-        console.log('[CompetitorUgcReplicationPage] Found showcase analysis, creating competitor ad...');
+        const match = assetVideos.find(video =>
+          (tiktokUrl && video.video_url === tiktokUrl) ||
+          (videoUrl && (video.video_url === videoUrl || video.video_cdn_url === videoUrl))
+        );
 
-        // Only create if user has selected a brand
-        if (!selectedBrand) {
-          showError('Please select a brand first before using your TikTok analysis.');
-          return;
+        if (match) {
+          setSelectedReferenceVideoId(match.id);
+          showSuccess('Your TikTok video is ready. You can start cloning.');
+        } else {
+          showError('Import the analyzed video in Assets to use it here.');
         }
-
-        // Create competitor ad via API
-        const response = await fetch('/api/competitor-ads/create-with-analysis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            brand_id: selectedBrand.id,
-            competitor_name: analysis.name || 'TikTok Video',
-            analysis_result: analysis,
-            language: language,
-            video_duration_seconds: analysis.video_duration_seconds
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to create competitor ad from showcase analysis');
-        }
-
-        const data = await response.json();
-        const createdAd: CompetitorAd = data.competitorAd;
-
-        console.log('[CompetitorUgcReplicationPage] ✅ Created competitor ad:', createdAd.id);
-
-        // Auto-select the created competitor ad
-        setSelectedCompetitorAd(createdAd);
-
-        showSuccess('Your TikTok analysis has been loaded! Ready to generate.');
       } catch (error) {
         console.error('[CompetitorUgcReplicationPage] Failed to process showcase analysis:', error);
         showError('Failed to load your TikTok analysis. Please try again.');
       }
     };
 
-    // Delay to ensure selectedBrand is loaded first
+    // Delay to ensure assets are ready
     const timer = setTimeout(handleShowcaseAnalysis, 500);
     return () => clearTimeout(timer);
-  }, [selectedBrand, showSuccess, showError]);
+  }, [assetVideos, showSuccess, showError]);
+
+  useEffect(() => {
+    const handlePreselectCompetitorAd = async () => {
+      if (typeof window === 'undefined') return;
+      const stored = window.sessionStorage.getItem('preselect_competitor_ad');
+      if (!stored) return;
+
+      window.sessionStorage.removeItem('preselect_competitor_ad');
+
+      try {
+        const parsed = JSON.parse(stored) as { creatorSourceVideoId?: string; videoId?: string };
+        const targetId = parsed.creatorSourceVideoId || parsed.videoId;
+        if (!targetId) return;
+
+        const match = assetVideos.find(video => video.id === targetId);
+        if (match) {
+          setSelectedReferenceVideoId(match.id);
+          showSuccess('Video ready. You can start cloning.');
+        } else {
+          showError('Selected video not found in Assets.');
+        }
+      } catch (error) {
+        console.error('[CompetitorUgcReplicationPage] Failed to preselect competitor ad:', error);
+        showError('Failed to load competitor ad. Please select it manually.');
+      }
+    };
+
+    const timer = setTimeout(handlePreselectCompetitorAd, 300);
+    return () => clearTimeout(timer);
+  }, [assetVideos, showSuccess, showError]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1227,16 +1256,16 @@ export default function CompetitorUgcReplicationPage() {
   // Calculate recommended duration based on competitor ad
   const recommendedDuration = useMemo(() => {
     // Competitor ads are now video-only
-    if (selectedCompetitorAd) {
+    if (selectedReferenceVideo) {
       // Use actual video duration for direct time matching
-      const targetDurationSeconds = selectedCompetitorAd.video_duration_seconds || 0;
+      const targetDurationSeconds = selectedReferenceVideo.duration_seconds || 0;
 
       if (targetDurationSeconds > 0) {
         return snapDurationToModel(selectedModel, targetDurationSeconds);
       }
     }
     return null;
-  }, [selectedCompetitorAd, selectedModel]);
+  }, [selectedReferenceVideo, selectedModel]);
 
   // Filter duration options to only show supported durations for current model
   // and dynamically add 'recommended' based on competitor ad analysis
@@ -1307,15 +1336,14 @@ export default function CompetitorUgcReplicationPage() {
 
   // Generate button handler
   const handleStartWorkflow = async () => {
-    // Validation: Check if brand is selected
-    if (!selectedBrand) {
-      setValidationMessage('Please select a brand before generating. Go to Assets page to create one if needed.');
+    if (!selectedReferenceVideo) {
+      setValidationMessage('Select a viral video or photo to clone before generating.');
       setShowValidationModal(true);
       return;
     }
 
-    if (!selectedCompetitorAd) {
-      setValidationMessage('Select a viral video or photo to clone before generating.');
+    if (!selectedReferenceVideo.analysis_result) {
+      setValidationMessage('Video analysis is still running. Please wait for it to finish.');
       setShowValidationModal(true);
       return;
     }
@@ -1363,8 +1391,8 @@ export default function CompetitorUgcReplicationPage() {
       status: 'pending',
       progress: 5,
       stage: isCompetitorPhotoMode ? 'Preparing replica photo…' : 'Initializing…',
-      brand: selectedBrand.brand_name,
-      brandId: selectedBrand.id,
+      brand: undefined,
+      brandId: null,
       videoModel: shouldGenerateVideo ? selectedModel : undefined,
       videoAspectRatio: shouldGenerateVideo ? selectedVideoAspectRatio : null,
       downloaded: false,
@@ -1398,8 +1426,11 @@ export default function CompetitorUgcReplicationPage() {
         elementsCountOverride: elementsCount,
         imageSizeOverride: format,
         generateVideo: shouldGenerateVideo,
-        selectedBrandId: selectedBrand.id,
-        competitorAdId: selectedCompetitorAd.id,
+        selectedBrandId: null,
+        creatorSourceVideoId: selectedReferenceVideo.source_type === 'competitor_ad' ? undefined : selectedReferenceVideo.id,
+        competitorAdId: selectedReferenceVideo.source_type === 'competitor_ad'
+          ? (selectedReferenceVideo.competitor_ad_id || selectedReferenceVideo.id)
+          : undefined,
         replicaOptions: replicaPayload
       });
 
@@ -1474,7 +1505,7 @@ export default function CompetitorUgcReplicationPage() {
     ? (userCredits || 0) >= generationCost
     : canAffordModel(userCredits || 0, selectedModel);
   const replicaSelectionValid = !isCompetitorPhotoMode || Boolean(competitorImageUrl);
-  const canGenerate = !isGenerating && Boolean(selectedBrand && selectedCompetitorAd) && replicaSelectionValid && canAfford;
+  const canGenerate = !isGenerating && Boolean(selectedReferenceVideo) && replicaSelectionValid && canAfford;
 
   // Render insufficient credits or maintenance message
   if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
@@ -1592,21 +1623,12 @@ export default function CompetitorUgcReplicationPage() {
           <BottomComposerBar      compact={true}
       leftControls={
         <>
-          <BrandDropdownSelector
-            selectedBrand={selectedBrand}
-            onSelect={(brand) => {
-              setSelectedBrand(brand);
-              setSelectedCompetitorAd(null);
-            }}
-            disabled={isGenerating}
-            className="flex-shrink-0"
-          />
-          <CompetitorAdSelector
-            brandId={selectedBrand?.id || null}
-            brandName={selectedBrand?.brand_name}
-            selectedCompetitorAd={selectedCompetitorAd}
-            onSelect={setSelectedCompetitorAd}
-            variant="compact"
+          <MotionSwapReferenceControls
+            videos={assetVideos}
+            selectedVideoId={selectedReferenceVideoId}
+            onSelectVideoId={setSelectedReferenceVideoId}
+            variant="inline"
+            showLabel={false}
             className="flex-shrink-0"
           />
         </>
@@ -1666,9 +1688,7 @@ export default function CompetitorUgcReplicationPage() {
       />
     )}
 
-    {/* Competitor Ad Selector - Shows above composer when brand is selected - REMOVED (Moved to BottomComposerBar) */}
-
-    {/* Validation Modal - Missing brand/product selection */}
+    {/* Validation Modal - Missing selection */}
     {showValidationModal && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">

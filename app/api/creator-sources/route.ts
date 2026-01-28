@@ -12,6 +12,7 @@ import {
   extractTikTokPlayUrl
 } from '@/lib/tiktok-creator-source';
 import { fetchTikTokVideoUrl } from '@/lib/fetch-tiktok-video';
+import { downloadVideoBuffer, uploadCreatorVideoCoverToStorage, uploadCreatorVideoToStorage } from '@/lib/creator-videos-storage';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -26,8 +27,8 @@ export async function GET() {
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): creator_sources, creator_source_platforms, creator_source_videos
-    // Schema verified via Supabase MCP (2026-02-01): creator_sources, creator_source_platforms, creator_source_videos
+    // Schema verified via Supabase MCP (2026-01-28): creator_sources, creator_source_platforms, creator_source_videos
+    // Schema verified via Supabase MCP (2026-01-28): creator_sources, creator_source_platforms, creator_source_videos
     const { data: sources, error } = await supabase
       .from('creator_sources')
       .select('*, creator_source_platforms(*), creator_source_videos(*)')
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): creator_sources
+    // Schema verified via Supabase MCP (2026-01-28): creator_sources
     const handle = parseTikTokHandle(tiktokInput);
     if (!handle) {
       return NextResponse.json({ error: 'Invalid TikTok handle or URL' }, { status: 400 });
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
       stats: userInfo.userInfo?.stats || userInfo.userInfo?.statsV2 || null
     };
 
-    // Schema verified via Supabase MCP (2026-02-01): creator_source_platforms
+    // Schema verified via Supabase MCP (2026-01-28): creator_source_platforms
     const { error: platformError } = await supabase
       .from('creator_source_platforms')
       .upsert(platformPayload, { onConflict: 'source_id,platform' });
@@ -139,14 +140,50 @@ export async function POST(request: NextRequest) {
         console.warn('[Creator Sources POST] Failed to fetch Rapid video URL, using fallback:', error);
       }
 
+      if (!cdnUrl) {
+        console.warn('[Creator Sources POST] Missing CDN url, skipping video:', videoId);
+        return null;
+      }
+
+      let storedUrl: string | null = null;
+      let coverUrl: string | null = null;
+      try {
+        const { buffer, contentType } = await downloadVideoBuffer(cdnUrl);
+        const uploadResult = await uploadCreatorVideoToStorage({
+          userId,
+          fileName: `${videoId}.mp4`,
+          buffer,
+          contentType
+        });
+        storedUrl = uploadResult.publicUrl;
+      } catch (error) {
+        console.warn('[Creator Sources POST] Storage upload failed, skipping video:', error);
+        return null;
+      }
+      const fallbackCover = extractTikTokCoverUrl(video);
+      if (fallbackCover) {
+        try {
+          const coverFile = await downloadVideoBuffer(fallbackCover);
+          const coverUpload = await uploadCreatorVideoCoverToStorage({
+            userId,
+            fileName: `${videoId}.png`,
+            buffer: coverFile.buffer,
+            contentType: coverFile.contentType
+          });
+          coverUrl = coverUpload.publicUrl;
+        } catch (coverError) {
+          console.warn('[Creator Sources POST] Cover upload failed:', coverError);
+        }
+      }
+
       return {
         user_id: userId,
         source_id: source.id,
         platform: 'tiktok',
         platform_video_id: videoId,
         video_url: videoUrl,
-        video_cdn_url: cdnUrl,
-        cover_url: extractTikTokCoverUrl(video),
+        video_cdn_url: storedUrl,
+        cover_url: coverUrl,
         description: item.desc || null,
         stats,
         duration_seconds: durationSeconds
@@ -154,7 +191,7 @@ export async function POST(request: NextRequest) {
     }))).filter((row): row is NonNullable<typeof row> => Boolean(row?.platform_video_id));
 
     if (videoRows.length > 0) {
-      // Schema verified via Supabase MCP (2026-02-01): creator_source_videos
+      // Schema verified via Supabase MCP (2026-01-28): creator_source_videos
       const { error: videoError } = await supabase
         .from('creator_source_videos')
         .upsert(videoRows, { onConflict: 'source_id,platform,platform_video_id' });
@@ -164,7 +201,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Schema verified via Supabase MCP (2026-02-01): creator_sources has id, user_id, source_name
+    // Schema verified via Supabase MCP (2026-01-28): creator_sources has id, user_id, source_name
     const { data: sourceRow, error: hydrateSourceError } = await supabase
       .from('creator_sources')
       .select('*')
@@ -177,14 +214,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ source });
     }
 
-    // Schema verified via Supabase MCP (2026-02-01): creator_source_platforms columns include source_id
+    // Schema verified via Supabase MCP (2026-01-28): creator_source_platforms columns include source_id
     const { data: platforms } = await supabase
       .from('creator_source_platforms')
       .select('*')
       .eq('source_id', source.id)
       .eq('user_id', userId);
 
-    // Schema verified via Supabase MCP (2026-02-01): creator_source_videos columns include source_id
+    // Schema verified via Supabase MCP (2026-01-28): creator_source_videos columns include source_id
     const { data: videos } = await supabase
       .from('creator_source_videos')
       .select('*')

@@ -14,22 +14,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const brandId = searchParams.get('brandId');
-
-    if (!brandId) {
-      return NextResponse.json({ error: 'Brand ID is required' }, { status: 400 });
-    }
-
     const supabase = getSupabaseAdmin();
 
-    // Fetch competitor ads for the specified brand
-    const { data: competitorAds, error } = await supabase
+    // Fetch competitor ads (optionally filtered by brand)
+    // Schema verified via Supabase MCP (2026-01-28): competitor_ads
+    let query = supabase
       .from('competitor_ads')
       .select('*')
-      .eq('user_id', userId)
-      .eq('brand_id', brandId)
-      .order('created_at', { ascending: false });
+      .eq('user_id', userId);
+
+    const { searchParams } = new URL(request.url);
+    const brandId = searchParams.get('brandId');
+    if (brandId) {
+      query = query.eq('brand_id', brandId);
+    }
+
+    const { data: competitorAds, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching competitor ads:', error);

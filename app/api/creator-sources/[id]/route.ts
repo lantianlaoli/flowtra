@@ -23,7 +23,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): creator_sources
+    // Schema verified via Supabase MCP (2026-01-28): creator_sources
     const { data: source, error } = await supabase
       .from('creator_sources')
       .update({ source_name: sourceName })
@@ -55,7 +55,7 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
     const { id } = await context.params;
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): creator_sources
+    // Schema verified via Supabase MCP (2026-01-28): creator_sources
     const { error } = await supabase
       .from('creator_sources')
       .delete()

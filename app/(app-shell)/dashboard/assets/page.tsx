@@ -30,7 +30,7 @@ export default function AssetsPage() {
               Assets
             </h1>
             <p className="text-base text-[#666666]">
-              Manage your brands and products in one unified place
+              Manage your products, avatars, and videos in one unified place
             </p>
           </div>
 

@@ -216,7 +216,7 @@ function CreatorSourceVideoTile({ video, sourceId }: { video: CreatorSourceVideo
   const handleUseInMotionSwap = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    router.push(`/dashboard/motion-swap?sourceId=${sourceId}&videoId=${video.id}`);
+    router.push(`/dashboard/motion-swap?videoId=${video.id}`);
   };
 
   return (

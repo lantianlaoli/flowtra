@@ -216,13 +216,15 @@ export const useCompetitorUgcReplicationWorkflow = (
     generateVideo = true,
     selectedBrandId,
     competitorAdId,
+    creatorSourceVideoId,
     replicaOptions
   }: {
     elementsCountOverride?: number;
     imageSizeOverride?: string;
     generateVideo?: boolean;
-    selectedBrandId: string;
-    competitorAdId: string;
+    selectedBrandId?: string | null;
+    competitorAdId?: string;
+    creatorSourceVideoId?: string;
     replicaOptions?: {
       photoOnly?: boolean;
       replicaMode?: boolean;
@@ -262,8 +264,9 @@ export const useCompetitorUgcReplicationWorkflow = (
         photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
         videoDuration: resolvedDuration,
-        selectedBrandId: selectedBrandId,
-        competitorAdId: competitorAdId || undefined, // Add competitor ad ID
+        selectedBrandId: selectedBrandId || undefined,
+        competitorAdId: competitorAdId || undefined,
+        creatorSourceVideoId: creatorSourceVideoId || undefined,
         language: selectedLanguage,
         useCustomScript: useCustomScript,
         customScript: customScript?.trim() ? customScript.trim() : undefined,

@@ -93,12 +93,12 @@ interface EmptyStateStep {
 const DEFAULT_STEPS: EmptyStateStep[] = [
   {
     number: 1,
-    description: 'Configure brands, products, and upload viral videos in',
+    description: 'Add products and upload viral videos in',
     link: { text: 'Assets', href: '/dashboard/assets' }
   },
   {
     number: 2,
-    description: 'Select brand and viral video'
+    description: 'Select a viral video'
   },
   {
     number: 3,

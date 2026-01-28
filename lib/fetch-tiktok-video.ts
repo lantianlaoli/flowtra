@@ -102,7 +102,6 @@ export async function fetchTikTokVideoUrl(tiktokUrl: string): Promise<string> {
   // 3. Build API URL
   const apiUrl = `${RAPIDAPI_CONFIG.baseUrl}?url=${encodeURIComponent(tiktokUrl.trim())}`;
 
-  console.log('[fetchTikTokVideoUrl] Fetching TikTok video:', tiktokUrl);
 
   try {
     // 4. Call RapidAPI with timeout and retries (including response validation)
@@ -216,8 +215,6 @@ export async function fetchTikTokVideoUrl(tiktokUrl: string): Promise<string> {
         }
 
         // 4f. Success! Return video URL
-        console.log('[fetchTikTokVideoUrl] ✅ Successfully fetched video URL');
-        console.log('[fetchTikTokVideoUrl] CDN URL:', data.play.substring(0, 80) + '...');
         return data.play;
 
       } catch (reqError) {

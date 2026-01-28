@@ -5,6 +5,7 @@ export const maxDuration = 300; // 5 minutes max for complex AI prompt generatio
 import { startWorkflowProcess, StartWorkflowRequest } from '@/lib/competitor-ugc-replication-workflow';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import type { VideoModel } from '@/lib/constants';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 /**
  * Validates that the video model is one of the supported models
@@ -88,18 +89,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!requestData.selectedBrandId) {
+    if (!requestData.competitorAdId && !requestData.creatorSourceVideoId) {
       return NextResponse.json(
-        { error: 'Brand is required' },
+        { error: 'Reference video is required' },
         { status: 400 }
       );
     }
 
-    if (!requestData.competitorAdId) {
-      return NextResponse.json(
-        { error: 'Competitor reference is required' },
-        { status: 400 }
-      );
+    if (requestData.creatorSourceVideoId) {
+      const supabase = getSupabaseAdmin();
+      // Schema verified via Supabase MCP (2026-01-28): creator_source_videos includes analysis_result
+      const { data: referenceVideo, error: referenceError } = await supabase
+        .from('creator_source_videos')
+        .select('id, analysis_result, analysis_status')
+        .eq('id', requestData.creatorSourceVideoId)
+        .eq('user_id', requestData.userId)
+        .single();
+
+      if (referenceError || !referenceVideo) {
+        return NextResponse.json(
+          { error: 'Reference video not found' },
+          { status: 404 }
+        );
+      }
+
+      if (!referenceVideo.analysis_result) {
+        return NextResponse.json(
+          { error: 'Reference video analysis is not ready yet' },
+          { status: 409 }
+        );
+      }
+    }
+
+    if (!requestData.selectedBrandId && requestData.competitorAdId) {
+      const supabase = getSupabaseAdmin();
+      // Schema verified via Supabase MCP (2026-01-28): competitor_ads has brand_id
+      const { data: competitorAd, error: competitorError } = await supabase
+        .from('competitor_ads')
+        .select('brand_id')
+        .eq('id', requestData.competitorAdId)
+        .eq('user_id', requestData.userId)
+        .single();
+
+      if (competitorError || !competitorAd?.brand_id) {
+        return NextResponse.json(
+          { error: 'Brand could not be resolved from the selected video' },
+          { status: 400 }
+        );
+      }
+
+      requestData.selectedBrandId = competitorAd.brand_id;
     }
 
     console.log('📋 Calling startWorkflowProcess...');

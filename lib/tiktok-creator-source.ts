@@ -119,3 +119,34 @@ export const extractTikTokPlayUrl = (video: Record<string, any>) => {
   if (!video || typeof video !== 'object') return null;
   return video.playAddr || video.downloadAddr || video.play || null;
 };
+
+const parseTikTokVideoId = (url: string) => {
+  const match = url.match(/\/video\/(\d+)/i);
+  return match?.[1] ? match[1].trim() : null;
+};
+
+export const fetchTikTokCoverByUrl = async (url: string) => {
+  const handle = parseTikTokHandle(url);
+  const videoId = parseTikTokVideoId(url);
+  if (!handle || !videoId) return null;
+
+  const userInfo = await fetchTikTokUserInfo(handle);
+  const secUid = userInfo.userInfo?.user?.secUid;
+  if (!secUid) return null;
+
+  let cursor = '0';
+  for (let page = 0; page < 2; page += 1) {
+    const posts = await fetchTikTokUserPosts(secUid, 12, cursor);
+    const itemList = posts.data?.itemList || [];
+    const match = itemList.find(item => String(item?.id || '') === videoId);
+    if (match?.video) {
+      return extractTikTokCoverUrl(match.video);
+    }
+    if (!posts.data?.hasMore || !posts.data?.cursor) {
+      break;
+    }
+    cursor = String(posts.data.cursor);
+  }
+
+  return null;
+};

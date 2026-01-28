@@ -46,11 +46,6 @@ export async function POST(request: NextRequest) {
       userId
     });
 
-    // Validation
-    if (!brandId || (typeof brandId === 'string' && brandId.trim().length === 0)) {
-      return NextResponse.json({ error: 'Brand ID is required' }, { status: 400 });
-    }
-
     if (!competitorName || (typeof competitorName === 'string' && competitorName.trim().length === 0)) {
       return NextResponse.json({ error: 'Competitor name is required' }, { status: 400 });
     }
@@ -59,17 +54,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Analysis result is required' }, { status: 400 });
     }
 
-    // Verify brand ownership
     const supabase = getSupabaseAdmin();
-    const { data: brand, error: brandError } = await supabase
-      .from('user_brands')
-      .select('id')
-      .eq('id', brandId)
-      .eq('user_id', userId)
-      .single();
+    let resolvedBrandId = typeof brandId === 'string' ? brandId.trim() : '';
 
-    if (brandError || !brand) {
-      return NextResponse.json({ error: 'Brand not found or access denied' }, { status: 404 });
+    if (!resolvedBrandId) {
+      // Schema verified via Supabase MCP (2026-01-28): user_brands has id, user_id, brand_name
+      const { data: latestBrand, error: latestBrandError } = await supabase
+        .from('user_brands')
+        .select('id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestBrandError) {
+        console.error('[POST /api/competitor-ads/create-with-analysis] Brand lookup error:', latestBrandError);
+      }
+
+      if (latestBrand?.id) {
+        resolvedBrandId = latestBrand.id;
+      } else {
+        const { data: createdBrand, error: createBrandError } = await supabase
+          .from('user_brands')
+          .insert({
+            user_id: userId,
+            brand_name: 'Default'
+          })
+          .select('id')
+          .single();
+
+        if (createBrandError || !createdBrand) {
+          console.error('[POST /api/competitor-ads/create-with-analysis] Default brand create error:', createBrandError);
+          return NextResponse.json({ error: 'Failed to create default brand' }, { status: 500 });
+        }
+        resolvedBrandId = createdBrand.id;
+      }
+    } else {
+      // Schema verified via Supabase MCP (2026-01-28): user_brands
+      const { data: brand, error: brandError } = await supabase
+        .from('user_brands')
+        .select('id')
+        .eq('id', resolvedBrandId)
+        .eq('user_id', userId)
+        .single();
+
+      if (brandError || !brand) {
+        return NextResponse.json({ error: 'Brand not found or access denied' }, { status: 404 });
+      }
     }
 
     console.log(`[POST /api/competitor-ads/create-with-analysis] Creating competitor ad with pre-analyzed results: ${competitorName}`);
@@ -86,7 +117,7 @@ export async function POST(request: NextRequest) {
       .from('competitor_ads')
       .insert({
         user_id: userId,
-        brand_id: brandId,
+        brand_id: resolvedBrandId,
         competitor_name: competitorName.trim(),
         analysis_status: analysisStatus || 'completed',
         analysis_result: analysisResult,

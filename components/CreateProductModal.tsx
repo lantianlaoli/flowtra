@@ -7,7 +7,6 @@ import { AlertCircle, Loader2, Package, Upload, X } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
-import { useImageCompression } from '@/hooks/useImageCompression';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -15,31 +14,6 @@ interface CreateProductModalProps {
   onProductCreated: (product: UserProduct) => void;
   preselectedBrandId?: string | null;
 }
-
-type AnalysisState = 'idle' | 'analyzing' | 'completed' | 'failed';
-
-const STATUS_COPY: Record<AnalysisState, { label: string; badge: string; helper: string }> = {
-  idle: {
-    label: 'Waiting for photo',
-    badge: 'bg-gray-200 text-gray-700',
-    helper: ''
-  },
-  analyzing: {
-    label: 'Analyzing photo…',
-    badge: 'bg-blue-100 text-blue-800',
-    helper: ''
-  },
-  completed: {
-    label: 'Name ready',
-    badge: 'bg-emerald-100 text-emerald-800',
-    helper: ''
-  },
-  failed: {
-    label: 'Processing failed',
-    badge: 'bg-red-100 text-red-800',
-    helper: ''
-  }
-};
 
 export default function CreateProductModal({
   isOpen,
@@ -50,23 +24,16 @@ export default function CreateProductModal({
   const [productName, setProductName] = useState('');
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [analysisStatus, setAnalysisStatus] = useState<AnalysisState>('idle');
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Image compression hook
-  const { compressImage, isCompressing, compressionProgress } = useImageCompression();
 
   useEffect(() => {
     if (isOpen) {
       setProductName('');
       setUploadedImage(null);
       setImagePreview(null);
-      setAnalysisStatus('idle');
-      setAnalysisError(null);
       setFormError(null);
     }
   }, [isOpen]);
@@ -109,17 +76,12 @@ export default function CreateProductModal({
 
       // Image passes all validations - proceed with upload
       setFormError(null);
-      setAnalysisError(null);
       setUploadedImage(file);
-      setAnalysisStatus('analyzing');
 
-      // Show original preview while analyzing
+      // Show original preview
       const reader = new FileReader();
       reader.onload = () => setImagePreview(reader.result as string);
       reader.readAsDataURL(file);
-
-      // Start analysis workflow
-      analyzePhoto(file);
     };
 
     img.onerror = () => {
@@ -152,40 +114,6 @@ export default function CreateProductModal({
     );
   };
 
-  const analyzePhoto = async (file: File) => {
-    try {
-      let fileToAnalyze = file;
-      const fileSizeMB = file.size / 1024 / 1024;
-
-      if (fileSizeMB > 4) {
-        console.log(`[product-analysis] File size ${fileSizeMB.toFixed(2)}MB exceeds 4MB, compressing...`);
-        const compressionResult = await compressImage(file);
-        fileToAnalyze = compressionResult.compressedFile;
-      }
-
-      const formData = new FormData();
-      formData.append('file', fileToAnalyze);
-
-      const response = await fetch('/api/user-products/analyze', {
-        method: 'POST',
-        body: formData
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.productName) {
-        const message = payload?.error || payload?.details || 'Failed to analyze product photo';
-        throw new Error(message);
-      }
-
-      setProductName(payload.productName.slice(0, 100));
-      setAnalysisStatus('completed');
-    } catch (error) {
-      console.error('Product analysis failed:', error);
-      setAnalysisStatus('failed');
-      setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze product photo');
-    }
-  };
-
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -194,8 +122,8 @@ export default function CreateProductModal({
       return;
     }
 
-    if (analysisStatus !== 'completed') {
-      setFormError('Wait for the AI analysis to finish before saving.');
+    if (!productName.trim()) {
+      setFormError('Product name is required.');
       return;
     }
 
@@ -266,9 +194,8 @@ export default function CreateProductModal({
   };
 
   const canSubmit = Boolean(
-    uploadedImage && analysisStatus === 'completed' && productName.trim() && !isCreating && !isUploading
+    uploadedImage && productName.trim() && !isCreating && !isUploading
   );
-  const statusMeta = STATUS_COPY[analysisStatus];
 
   return (
     <AnimatePresence>
@@ -302,7 +229,7 @@ export default function CreateProductModal({
                 </div>
                 <div>
                   <p className="text-xl font-semibold text-gray-900">Create New Product</p>
-                  <p className="text-sm text-gray-600">Upload a product photo and Flowtra will write the listing for you.</p>
+                  <p className="text-sm text-gray-600">Upload a product photo and enter a product name.</p>
                 </div>
               </div>
               <button
@@ -324,14 +251,20 @@ export default function CreateProductModal({
               )}
 
               <div className="space-y-4">
-                {analysisStatus === 'completed' && productName && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Product Name</p>
-                    <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900">
-                      {productName}
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <label htmlFor="product-name-input" className="text-sm font-medium text-gray-700">
+                    Product Name
+                  </label>
+                  <input
+                    id="product-name-input"
+                    type="text"
+                    value={productName}
+                    onChange={(event) => setProductName(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                    placeholder="Enter product name"
+                    maxLength={100}
+                  />
+                </div>
 
                 <div className="space-y-3">
                   <div
@@ -352,8 +285,8 @@ export default function CreateProductModal({
                     )}
                   >
                     <div className="absolute left-3 top-3">
-                      <span className={cn("text-xs font-semibold px-3 py-1 rounded-full", statusMeta.badge)}>
-                        {statusMeta.label}
+                      <span className="text-xs font-semibold px-3 py-1 rounded-full bg-gray-200 text-gray-700">
+                        Waiting for photo
                       </span>
                     </div>
 
@@ -366,8 +299,6 @@ export default function CreateProductModal({
                           onClick={() => {
                             setUploadedImage(null);
                             setImagePreview(null);
-                            setAnalysisStatus('idle');
-                            setAnalysisError(null);
                             setProductName('');
                           }}
                           disabled={isCreating}
@@ -385,6 +316,9 @@ export default function CreateProductModal({
                           <p className="mt-2 text-xs text-gray-500 leading-5">
                             PNG or JPG, up to 8MB. Auto-compressed for upload if needed.
                           </p>
+                          <p className="mt-2 text-xs text-gray-500 leading-5">
+                            Keep the background clean with no extra items.
+                          </p>
                         </div>
                       </div>
                     )}
@@ -398,26 +332,19 @@ export default function CreateProductModal({
                       disabled={isCreating}
                     />
 
-                    {(analysisStatus === 'analyzing' || isCompressing) && (
+                    {isCreating && (
                       <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
                         <div className="text-center">
                           <Loader2 className="h-6 w-6 animate-spin text-gray-700 mx-auto mb-2" />
-                          <p className="text-xs text-gray-600">
-                            {isCompressing
-                              ? `Compressing${compressionProgress ? ` ${compressionProgress}%` : ''}...`
-                              : 'Analyzing...'}
-                          </p>
+                          <p className="text-xs text-gray-600">Uploading...</p>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {statusMeta.helper && (
-                    <p className="text-xs text-gray-500">{statusMeta.helper}</p>
-                  )}
-                  {analysisError && (
-                    <p className="text-xs text-red-600">{analysisError}</p>
-                  )}
+                  <p className="text-xs text-gray-500">
+                    Tip: Keep the product centered and the background clean.
+                  </p>
                 </div>
               </div>
 

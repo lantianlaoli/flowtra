@@ -34,6 +34,9 @@ interface CompetitorShotsEditorProps {
   title?: string;
   description?: string;
   showSummary?: boolean;
+  readOnly?: boolean;
+  hideHeader?: boolean;
+  expandedMaxHeightClass?: string;
 }
 
 export default function CompetitorShotsEditor({
@@ -41,7 +44,10 @@ export default function CompetitorShotsEditor({
   onShotsChange,
   title,
   description,
-  showSummary = true
+  showSummary = true,
+  readOnly = false,
+  hideHeader = false,
+  expandedMaxHeightClass
 }: CompetitorShotsEditorProps) {
   const [expandedShots, setExpandedShots] = useState<Set<number>>(new Set());
 
@@ -60,6 +66,7 @@ export default function CompetitorShotsEditor({
   };
 
   const handleAddShot = () => {
+    if (readOnly) return;
     const nextId = shots.length + 1;
     const nextShots = [...shots, createEmptyShot(nextId)];
     onShotsChange(nextShots);
@@ -67,6 +74,7 @@ export default function CompetitorShotsEditor({
   };
 
   const handleRemoveShot = (shotId: number) => {
+    if (readOnly) return;
     const nextShots = reindexShots(shots.filter(shot => shot.shot_id !== shotId));
     onShotsChange(nextShots);
     setExpandedShots(prev => {
@@ -77,6 +85,7 @@ export default function CompetitorShotsEditor({
   };
 
   const updateShot = <K extends keyof CompetitorShotForm>(shotId: number, key: K, value: CompetitorShotForm[K]) => {
+    if (readOnly) return;
     const nextShots = shots.map(shot => (shot.shot_id === shotId ? { ...shot, [key]: value } : shot));
     onShotsChange(nextShots);
   };
@@ -84,43 +93,51 @@ export default function CompetitorShotsEditor({
   return (
     <div className="space-y-6">
       {/* Header with Add Button */}
-      <div className="flex items-end justify-between border-b border-[#E5E5E5] pb-4">
-        <div className="space-y-1">
-          <h3 className="text-xl font-semibold text-black tracking-tight flex items-center gap-2">
-            {title || "Shot List"}
-            {showSummary && (
-              <span className="inline-flex items-center rounded-full bg-[#F7F7F7] border border-[#E5E5E5] px-2.5 py-0.5 text-xs font-medium text-[#666666]">
-                {shots.length} shots • {totalDuration}s total
-              </span>
-            )}
-          </h3>
-          {description && <p className="text-sm text-[#666666]">{description}</p>}
+      {!hideHeader && (
+        <div className="flex items-end justify-between border-b border-[#E5E5E5] pb-4">
+          <div className="space-y-1">
+            <h3 className="text-xl font-semibold text-black tracking-tight flex items-center gap-2">
+              {title || "Shot List"}
+              {showSummary && (
+                <span className="inline-flex items-center rounded-full bg-[#F7F7F7] border border-[#E5E5E5] px-2.5 py-0.5 text-xs font-medium text-[#666666]">
+                  {shots.length} shots • {totalDuration}s total
+                </span>
+              )}
+            </h3>
+            {description && <p className="text-sm text-[#666666]">{description}</p>}
+          </div>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={handleAddShot}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E5E5] rounded-lg text-sm font-medium text-black hover:bg-[#F7F7F7] transition-all shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Add Shot
+            </button>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={handleAddShot}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E5E5] rounded-lg text-sm font-medium text-black hover:bg-[#F7F7F7] transition-all shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Shot
-        </button>
-      </div>
+      )}
 
       {shots.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[#E5E5E5] bg-[#FAFAFA] p-12 text-center flex flex-col items-center justify-center">
           <div className="w-12 h-12 rounded-full bg-[#F0F0F0] flex items-center justify-center mb-4 text-[#666666]">
             <Film className="w-6 h-6" />
           </div>
-          <h4 className="text-base font-semibold text-black mb-1">No shots yet</h4>
-          <p className="text-sm text-[#666666] mb-6 max-w-xs mx-auto">Start building your video by adding shots to the storyboard.</p>
-          <button
-            type="button"
-            onClick={handleAddShot}
-            className="inline-flex items-center gap-2 rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white hover:bg-black/90 transition-colors shadow-lg shadow-black/10"
-          >
-            <Plus className="w-4 h-4" />
-            Add First Shot
-          </button>
+          <h4 className="text-base font-semibold text-black mb-1">No shots available</h4>
+          <p className="text-sm text-[#666666] max-w-xs mx-auto">
+            {readOnly ? 'Run analysis to generate structured shots for this video.' : 'Start building your video by adding shots to the storyboard.'}
+          </p>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={handleAddShot}
+              className="inline-flex items-center gap-2 rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white hover:bg-black/90 transition-colors shadow-lg shadow-black/10 mt-6"
+            >
+              <Plus className="w-4 h-4" />
+              Add First Shot
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
@@ -166,17 +183,19 @@ export default function CompetitorShotsEditor({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveShot(shot.shot_id);
-                      }}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                      title="Delete shot"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveShot(shot.shot_id);
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete shot"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                     <div className={cn(
                       "p-1 rounded-md transition-transform duration-200",
                       isExpanded ? "bg-gray-100 rotate-180" : "bg-transparent"
@@ -195,7 +214,10 @@ export default function CompetitorShotsEditor({
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.2, ease: "easeInOut" }}
                     >
-                      <div className="border-t border-[#E5E5E5] bg-[#FAFAFA]/50 p-5 space-y-6">
+                      <div className={cn(
+                        "border-t border-[#E5E5E5] bg-[#FAFAFA]/50 p-5 space-y-6",
+                        expandedMaxHeightClass
+                      )}>
                         
                         {/* Section: Timing */}
                         <div className="space-y-3">
@@ -207,6 +229,7 @@ export default function CompetitorShotsEditor({
                               onChange={(value) => updateShot(shot.shot_id, 'start_time', value)}
                               placeholder="00:00"
                               mono
+                              readOnly={readOnly}
                             />
                             <ShotInput
                               label="End Time"
@@ -214,6 +237,7 @@ export default function CompetitorShotsEditor({
                               onChange={(value) => updateShot(shot.shot_id, 'end_time', value)}
                               placeholder="00:08"
                               mono
+                              readOnly={readOnly}
                             />
                             <ShotInput
                               label="Duration (s)"
@@ -221,6 +245,7 @@ export default function CompetitorShotsEditor({
                               value={String(shot.duration_seconds)}
                               onChange={(value) => updateShot(shot.shot_id, 'duration_seconds', Number(value))}
                               mono
+                              readOnly={readOnly}
                             />
                           </div>
                         </div>
@@ -234,6 +259,7 @@ export default function CompetitorShotsEditor({
                             onChange={(value) => updateShot(shot.shot_id, 'first_frame_description', value)}
                             placeholder="Describe what happens in this shot in detail..."
                             minHeight="min-h-[100px]"
+                            readOnly={readOnly}
                           />
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <ShotTextarea
@@ -241,12 +267,14 @@ export default function CompetitorShotsEditor({
                               value={shot.subject}
                               onChange={(value) => updateShot(shot.shot_id, 'subject', value)}
                               placeholder="e.g. A woman in a red dress"
+                              readOnly={readOnly}
                             />
                             <ShotTextarea
                               label="Environment"
                               value={shot.context_environment}
                               onChange={(value) => updateShot(shot.shot_id, 'context_environment', value)}
                               placeholder="e.g. Sunny park, afternoon"
+                              readOnly={readOnly}
                             />
                           </div>
                         </div>
@@ -260,24 +288,28 @@ export default function CompetitorShotsEditor({
                               value={shot.camera_motion_positioning}
                               onChange={(value) => updateShot(shot.shot_id, 'camera_motion_positioning', value)}
                               placeholder="e.g. Slow pan right, close up"
+                              readOnly={readOnly}
                             />
                             <ShotTextarea
                               label="Composition"
                               value={shot.composition}
                               onChange={(value) => updateShot(shot.shot_id, 'composition', value)}
                               placeholder="e.g. Rule of thirds, center framed"
+                              readOnly={readOnly}
                             />
                             <ShotTextarea
                               label="Lighting"
                               value={shot.ambiance_colour_lighting}
                               onChange={(value) => updateShot(shot.shot_id, 'ambiance_colour_lighting', value)}
                               placeholder="e.g. Soft natural lighting, warm tones"
+                              readOnly={readOnly}
                             />
                             <ShotTextarea
                               label="Art Style"
                               value={shot.style}
                               onChange={(value) => updateShot(shot.shot_id, 'style', value)}
                               placeholder="e.g. Cinematic, photorealistic, film grain"
+                              readOnly={readOnly}
                             />
                           </div>
                         </div>
@@ -291,12 +323,14 @@ export default function CompetitorShotsEditor({
                               value={shot.action}
                               onChange={(value) => updateShot(shot.shot_id, 'action', value)}
                               placeholder="Describe the movement..."
+                              readOnly={readOnly}
                             />
                             <ShotTextarea
                               label="Audio / Dialogue"
                               value={shot.audio}
                               onChange={(value) => updateShot(shot.shot_id, 'audio', value)}
                               placeholder="Sound effects, music mood, or dialogue"
+                              readOnly={readOnly}
                             />
                           </div>
                         </div>
@@ -307,11 +341,13 @@ export default function CompetitorShotsEditor({
                             label="Contains Brand Asset" 
                             checked={Boolean(shot.contains_brand)} 
                             onChange={(checked) => updateShot(shot.shot_id, 'contains_brand', checked)}
+                            readOnly={readOnly}
                           />
                           <Toggle 
                             label="Contains Product" 
                             checked={Boolean(shot.contains_product)} 
                             onChange={(checked) => updateShot(shot.shot_id, 'contains_product', checked)}
+                            readOnly={readOnly}
                           />
                         </div>
 
@@ -346,9 +382,10 @@ interface ShotInputProps {
   placeholder?: string;
   type?: 'text' | 'number';
   mono?: boolean;
+  readOnly?: boolean;
 }
 
-function ShotInput({ label, value, onChange, placeholder, type = 'text', mono }: ShotInputProps) {
+function ShotInput({ label, value, onChange, placeholder, type = 'text', mono, readOnly }: ShotInputProps) {
   return (
     <div className="space-y-1.5">
       <label className="text-[11px] font-medium text-[#666666]">
@@ -359,9 +396,13 @@ function ShotInput({ label, value, onChange, placeholder, type = 'text', mono }:
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        readOnly={readOnly}
+        disabled={readOnly}
         className={cn(
-          "w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-sm text-black placeholder:text-gray-300",
-          "focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all",
+          "w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black placeholder:text-gray-300",
+          readOnly ? "bg-gray-50 text-gray-600" : "bg-white",
+          readOnly ? "focus:outline-none focus:ring-0" : "focus:border-black focus:outline-none focus:ring-1 focus:ring-black",
+          "transition-all disabled:cursor-not-allowed",
           mono && "font-mono"
         )}
       />
@@ -375,9 +416,10 @@ interface ShotTextareaProps {
   onChange: (value: string) => void;
   placeholder?: string;
   minHeight?: string;
+  readOnly?: boolean;
 }
 
-function ShotTextarea({ label, value, onChange, placeholder, minHeight = "min-h-[80px]" }: ShotTextareaProps) {
+function ShotTextarea({ label, value, onChange, placeholder, minHeight = "min-h-[80px]", readOnly }: ShotTextareaProps) {
   return (
     <div className="space-y-1.5">
       <label className="text-[11px] font-medium text-[#666666]">
@@ -387,9 +429,13 @@ function ShotTextarea({ label, value, onChange, placeholder, minHeight = "min-h-
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        readOnly={readOnly}
+        disabled={readOnly}
         className={cn(
-          "w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-sm text-black placeholder:text-gray-300",
-          "focus:border-black focus:outline-none focus:ring-1 focus:ring-black transition-all resize-y",
+          "w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black placeholder:text-gray-300 resize-y",
+          readOnly ? "bg-gray-50 text-gray-600" : "bg-white",
+          readOnly ? "focus:outline-none focus:ring-0" : "focus:border-black focus:outline-none focus:ring-1 focus:ring-black",
+          "transition-all disabled:cursor-not-allowed",
           minHeight
         )}
       />
@@ -397,19 +443,21 @@ function ShotTextarea({ label, value, onChange, placeholder, minHeight = "min-h-
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (c: boolean) => void }) {
+function Toggle({ label, checked, onChange, readOnly }: { label: string; checked: boolean; onChange: (c: boolean) => void; readOnly?: boolean }) {
   return (
-    <label className="flex items-center gap-2.5 cursor-pointer group">
+    <label className={cn("flex items-center gap-2.5 group", readOnly ? "cursor-default" : "cursor-pointer")}>
       <div className={cn(
         "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-        checked ? "bg-black border-black" : "bg-white border-[#E5E5E5] group-hover:border-gray-400"
+        checked ? "bg-black border-black" : "bg-white border-[#E5E5E5]",
+        !readOnly && "group-hover:border-gray-400"
       )}>
         {checked && <div className="w-2 h-2 bg-white rounded-[1px]" />}
         <input 
           type="checkbox" 
           className="hidden" 
-          checked={checked} 
-          onChange={(e) => onChange(e.target.checked)} 
+          checked={checked}
+          disabled={readOnly}
+          onChange={(e) => onChange(e.target.checked)}
         />
       </div>
       <span className="text-xs font-medium text-black">{label}</span>

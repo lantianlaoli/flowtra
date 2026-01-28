@@ -10,6 +10,7 @@ import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } f
 
 interface ProductCardProps {
   product: UserProduct;
+  brandLabel?: string;
   // Quick edit mode (inline name editing)
   onEdit?: (productId: string, newName: string) => void;
   // Full edit mode (open modal with product object)
@@ -28,6 +29,7 @@ interface ProductCardProps {
 
 export default function ProductCard({
   product,
+  brandLabel,
   onEdit,
   onEditClick,
   onDelete,
@@ -188,8 +190,6 @@ export default function ProductCard({
       <>
         <motion.div
           className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group"
-          onHoverStart={() => setIsHovered(true)}
-          onHoverEnd={() => setIsHovered(false)}
           onClick={handleCardClick}
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -223,55 +223,39 @@ export default function ProductCard({
           {/* Product Info and Actions */}
           <div className="p-3">
             {/* Product Name */}
-            <h4 className="font-medium text-sm text-gray-900 line-clamp-2 mb-2 min-h-[2.5rem]">
+            <h4 className="font-medium text-sm text-gray-900 line-clamp-2 min-h-[2.5rem]">
               {product.product_name}
             </h4>
-
-            {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-1">
-              <button
-                onClick={handleEditClick}
-                className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
-                title="Edit product"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-
-              {/* Desktop: Show on hover */}
-              <AnimatePresence>
-                {(isHovered || isDeleting) && (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ duration: 0.15 }}
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors hidden sm:flex disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={isDeleting ? "Deleting..." : "Delete product"}
-                  >
-                    {isDeleting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                  </motion.button>
-                )}
-              </AnimatePresence>
-
-              {/* Mobile: Always show */}
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors sm:hidden disabled:opacity-50 disabled:cursor-not-allowed"
-                title={isDeleting ? "Deleting..." : "Delete product"}
-              >
-                {isDeleting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-              </button>
+            {brandLabel && (
+              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 text-gray-600 mb-2">
+                {brandLabel}
+              </span>
+            )}
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">
+                {new Date(product.created_at).toLocaleDateString()}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleEditClick}
+                  className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Edit product"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={isDeleting ? 'Deleting...' : 'Delete product'}
+                >
+                  {isDeleting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>
