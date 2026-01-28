@@ -33,11 +33,15 @@ function decryptToken(encrypted: string): string {
 interface PublishRequest {
   historyId: string;
   title: string;
-  privacyLevel: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY';
+  privacyLevel: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY' | 'FOLLOWER_OF_CREATOR';
   disableDuet?: boolean;
   disableComment?: boolean;
   disableStitch?: boolean;
   videoCoverTimestampMs?: number;
+  commercialContentEnabled?: boolean;
+  commercialYourBrand?: boolean;
+  commercialBrandedContent?: boolean;
+  expressConsent?: boolean;
 }
 
 /**
@@ -71,21 +75,41 @@ export async function POST(request: NextRequest) {
       disableDuet = false,
       disableComment = false,
       disableStitch = false,
-      videoCoverTimestampMs = 1000
+      videoCoverTimestampMs = 1000,
+      commercialContentEnabled = false,
+      commercialYourBrand = false,
+      commercialBrandedContent = false,
+      expressConsent = false
     } = body;
 
     // Validate required fields
-    if (!historyId || !title) {
+    if (!historyId || !title || !privacyLevel) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Force SELF_ONLY privacy level due to unaudited app restriction
-    // TikTok apps in development mode can only post private videos
-    const forcedPrivacyLevel = 'SELF_ONLY';
-    console.log(`[TikTok Publish] Privacy level: ${privacyLevel || 'not specified'} → forced to ${forcedPrivacyLevel} (unaudited app restriction)`);
+    if (!expressConsent) {
+      return NextResponse.json(
+        { success: false, error: 'User consent required before publishing' },
+        { status: 400 }
+      );
+    }
+
+    if (commercialContentEnabled && !commercialYourBrand && !commercialBrandedContent) {
+      return NextResponse.json(
+        { success: false, error: 'Commercial content selection required' },
+        { status: 400 }
+      );
+    }
+
+    if (commercialBrandedContent && privacyLevel === 'SELF_ONLY') {
+      return NextResponse.json(
+        { success: false, error: 'Branded content cannot be posted with private visibility' },
+        { status: 400 }
+      );
+    }
 
     // 1. Check TikTok connection
     const { data: connection, error: connectionError } = await supabase
@@ -203,7 +227,7 @@ export async function POST(request: NextRequest) {
     const initPayload = {
       post_info: {
         title,
-        privacy_level: forcedPrivacyLevel,  // Always SELF_ONLY for unaudited apps
+        privacy_level: privacyLevel,
         disable_duet: disableDuet,
         disable_comment: disableComment,
         disable_stitch: disableStitch,

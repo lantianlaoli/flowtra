@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 import VideoDetailsModal from '@/components/VideoDetailsModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import { useToast } from '@/contexts/ToastContext';
@@ -154,6 +153,7 @@ const getBaseDownloadCost = (model: VideoModel) => {
   return 0;
 };
 
+
 export default function HistoryPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
@@ -171,9 +171,6 @@ export default function HistoryPage() {
   // Video UI transient state: 'packing' -> 'done' -> cleared
   const [videoStates, setVideoStates] = useState<Record<string, 'packing' | 'done' | null>>({});
 
-  // TikTok publish dialog state
-  const [tiktokDialogOpen, setTiktokDialogOpen] = useState(false);
-  const [selectedItemForTikTok, setSelectedItemForTikTok] = useState<HistoryItem | null>(null);
 
   // Video details modal state
   const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
@@ -830,12 +827,6 @@ export default function HistoryPage() {
 
   // Note: Cover button is always free and uses static icon in the UI.
 
-  // Handler for opening TikTok publish dialog
-  const handleTikTokPublish = (item: HistoryItem) => {
-    setSelectedItemForTikTok(item);
-    setTiktokDialogOpen(true);
-  };
-
   // Handler for opening video details modal
   const handleViewDetails = (item: HistoryItem) => {
     setSelectedItem(item);
@@ -1207,23 +1198,6 @@ export default function HistoryPage() {
           )}
         </div>
       </div>
-
-      {/* TikTok Publish Dialog */}
-      {false && (
-      <TikTokPublishDialog
-        isOpen={tiktokDialogOpen}
-        onClose={() => {
-          setTiktokDialogOpen(false);
-          setSelectedItemForTikTok(null);
-        }}
-        historyId={selectedItemForTikTok?.id || ''}
-        coverImageUrl={
-          (selectedItemForTikTok && 'coverImageUrl' in (selectedItemForTikTok || {}))
-            ? (selectedItemForTikTok as CompetitorUgcReplicationItem | AvatarAdsItem).coverImageUrl
-            : undefined
-        }
-      />
-      )}
 
       {/* Video Details Modal */}
       <VideoDetailsModal
