@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Search, Loader2, Package, ExternalLink, UserCircle, Video } from 'lucide-react';
 import { UserBrand, UserProduct, UserAvatar } from '@/lib/supabase';
+import type { SystemAvatar } from '@/lib/default-avatars';
 import { useToast } from '@/contexts/ToastContext';
 import ProductCard from './ProductCard';
 import EditProductModal from './EditProductModal';
@@ -71,7 +72,8 @@ export default function AssetsManager() {
   const [deletingAvatarId, setDeletingAvatarId] = useState<string | null>(null);
 
   // Avatar state
-  const [avatars, setAvatars] = useState<UserAvatar[]>([]);
+  type AvatarItem = UserAvatar | SystemAvatar;
+  const [avatars, setAvatars] = useState<AvatarItem[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'avatars' | 'videos'>('products');
 
   // Modal states
@@ -217,7 +219,8 @@ export default function AssetsManager() {
     showSuccess('Avatar updated successfully');
   };
 
-  const handleEditAvatar = (avatar: UserAvatar) => {
+  const handleEditAvatar = (avatar: AvatarItem) => {
+    if (!('user_id' in avatar)) return;
     setEditingAvatar(avatar);
   };
 

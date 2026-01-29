@@ -62,7 +62,6 @@ const VIDEO_WEBHOOK_URL = `${WEBHOOK_BASE_URL}/api/competitor-ugc-replication/we
 
 export interface StartWorkflowRequest {
   imageUrl?: string;
-  selectedBrandId?: string; // NEW: Brand selection for ending frame
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
   creatorSourceVideoId?: string; // Asset video reference
   userId: string;
@@ -128,8 +127,6 @@ export type SegmentPrompt = {
   dialogue: string;
   language: string;
   index: number;
-  contains_brand?: boolean; // Whether this segment/shot contains brand elements
-  contains_product?: boolean; // Whether this segment/shot contains product
   description?: string;
   first_frame_image_size?: string;
   is_continuation_from_prev?: boolean;
@@ -399,52 +396,15 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     const supabase = getSupabaseAdmin();
 
     let imageUrl = request.imageUrl;
-    let brandLogoUrl: string | null = null;
-    let productContext = { product_name: '', brand_name: '' };
+    const brandLogoUrl: string | null = null;
+    const productContext = { product_name: '', brand_name: '' };
 
-    if (!request.competitorAdId) {
+    if (!request.competitorAdId && !request.creatorSourceVideoId) {
       return {
         success: false,
         error: 'Competitor reference required',
         details: 'Select a competitor video or photo to clone before generating.'
       };
-    }
-
-    if (request.selectedBrandId) {
-      const shouldFetchBrand = !brandLogoUrl || !productContext.brand_name;
-      if (shouldFetchBrand) {
-        const fetchBrand = async () => {
-          // Schema verified via Supabase MCP (2026-01-12): user_brands has brand_name, brand_logo_url
-          const { data: brand, error: brandError } = await supabase
-            .from('user_brands')
-            .select('id,brand_name,brand_logo_url')
-            .eq('id', request.selectedBrandId)
-            .eq('user_id', request.userId)
-            .single();
-          if (brandError) throw brandError;
-          return brand;
-        };
-
-        const brand = await retryAsync(fetchBrand, { maxAttempts: 3, baseDelayMs: 500, label: 'Brand fetch' });
-        if (brand) {
-          productContext = {
-            ...productContext,
-            brand_name: brand.brand_name || productContext.brand_name
-          };
-          brandLogoUrl = brand.brand_logo_url || brandLogoUrl;
-        } else {
-          console.error('Brand query failed after retries');
-          return {
-            success: false,
-            error: 'Brand not found',
-            details: 'Selected brand does not exist or does not belong to this user'
-          };
-        }
-      }
-    }
-
-    if (!imageUrl && brandLogoUrl) {
-      imageUrl = brandLogoUrl;
     }
 
     // imageUrl is now optional when using competitor reference mode
@@ -746,7 +706,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       .from('competitor_ugc_replication_projects')
       .insert({
         user_id: request.userId,
-        selected_brand_id: request.selectedBrandId, // NEW: Brand selection
+        selected_brand_id: null,
         competitor_ad_id: request.competitorAdId || null, // NEW: Competitor ad reference
         video_model: actualVideoModel,
         video_aspect_ratio: request.videoAspectRatio || '16:9',
@@ -825,7 +785,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           { ...request, imageUrl, videoModel: actualVideoModel, resolvedVideoModel: actualVideoModel },
           productContext,
           competitorAdContext, // Pass competitor ad context for reference
-          brandLogoUrl, // NEW: Pass brand logo URL for brand-only shots
+          brandLogoUrl, // Optional logo reference if available
           shotPlanForSegments
         );
       }
@@ -908,7 +868,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 async function startAIWorkflow(
   projectId: string,
   request: StartWorkflowRequest & {
-    imageUrl?: string; // UPDATED: Now optional to support brand-only mode
+    imageUrl?: string; // Optional when no product image is provided
     resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
   },
   productContext?: { product_name?: string; brand_name?: string },
@@ -920,7 +880,7 @@ async function startAIWorkflow(
     language?: string | null;
     video_duration_seconds?: number | null;
   },
-  brandLogoUrl?: string | null, // NEW: Brand logo URL for brand-only shots
+  brandLogoUrl?: string | null, // Optional logo reference if available
   initialShotPlan?: CompetitorShot[]
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
@@ -1382,14 +1342,7 @@ export async function analyzeCompetitorAdWithLanguage(
                   type: "string",
                   description: "Voiceover, dialogue, SFX, or music cues"
                 },
-                contains_brand: {
-                  type: "boolean",
-                  description: "Whether this shot contains brand elements (logo, packaging, brand name, brand signage)"
-                },
-                contains_product: {
-                  type: "boolean",
-                  description: "Whether this shot contains physical product(s) that should be replaced with user's product"
-                }
+                
               },
               required: [
                 "shot_id",
@@ -1404,9 +1357,7 @@ export async function analyzeCompetitorAdWithLanguage(
                 "camera_motion_positioning",
                 "composition",
                 "ambiance_colour_lighting",
-                "audio",
-                "contains_brand",
-                "contains_product"
+                "audio"
               ],
               additionalProperties: false
             }
@@ -1483,27 +1434,12 @@ OUTPUT REQUIREMENTS:
    - \`composition\` - Shot type/framing (close-up, medium, wide, etc.)
    - \`ambiance_colour_lighting\` - Lighting scheme, palette, and atmosphere
    - \`audio\` - Voiceover, dialogue, SFX, or music cues
-   - \`contains_brand\` - Boolean: Does this shot show brand logo, packaging, brand name, or brand signage?
-   - \`contains_product\` - Boolean: Does this shot show physical product(s) that would need to be replaced?
 
    Shot requirements:
    - Timestamps must be strictly increasing (no gaps, no overlaps)
    - Durations must sum to total video duration
    - Be extremely detailed and specific
    - Think like you're creating a storyboard for recreation
-
-   **BRAND/PRODUCT DETECTION RULES:**
-   - \`contains_brand: true\` if the shot shows:
-     * Brand logo or wordmark
-     * Product packaging with brand name
-     * Brand signage or storefront
-     * Any visual brand identifier
-   - \`contains_product: true\` if the shot shows:
-     * Physical product(s) that are the focus or subject
-     * Product being used, demonstrated, or displayed
-     * Product in hand, on table, or in scene
-   - Both can be true simultaneously (e.g., branded product packaging)
-   - Both can be false (e.g., pure lifestyle/environment shots)
 
 4. **detected_language** (检测语言): Detect the PRIMARY language
    - Check text overlays, subtitles, captions
@@ -1530,9 +1466,7 @@ EXAMPLE OUTPUT STRUCTURE:
       "camera_motion_positioning": "Static wide shot",
       "composition": "Full body shot",
       "ambiance_colour_lighting": "Natural daylight, soft shadows",
-      "audio": "Upbeat acoustic music starts",
-      "contains_brand": true,
-      "contains_product": true
+      "audio": "Upbeat acoustic music starts"
     }
   ],
   "detected_language": "en"
@@ -1656,7 +1590,7 @@ async function generateImageBasedPrompts(
   productContext?: { product_name?: string; brand_name?: string },
   competitorDescription?: Record<string, unknown> // Changed: Now receives analysis result, not raw context
 ): Promise<Record<string, unknown>> {
-  console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${competitorDescription ? ' (competitor reference mode)' : ' (traditional mode)'}${!imageUrl ? ' (brand-only mode, no product image)' : ''}`);
+  console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${competitorDescription ? ' (competitor reference mode)' : ' (traditional mode)'}${!imageUrl ? ' (no product image provided)' : ''}`);
 
 
   const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
@@ -2022,7 +1956,7 @@ ${strictSegmentFormat}`
 
 async function startSegmentedWorkflow(
   projectId: string,
-  request: StartWorkflowRequest & { imageUrl?: string }, // UPDATED: Optional to support brand-only mode
+  request: StartWorkflowRequest & { imageUrl?: string }, // Optional when no product image is provided
   prompts: Record<string, unknown>,
   segmentCount: number,
   competitorDescription?: Record<string, unknown>, // Competitor analysis
@@ -2055,13 +1989,13 @@ async function startSegmentedWorkflow(
     throw new Error('Failed to reset previous segments');
   }
 
+  // Schema verified via Supabase MCP (2026-01-29): competitor_ugc_replication_segments columns include
+  // project_id, segment_index, status, prompt.
   const segmentRows = normalizedSegments.map((segmentPrompt, index) => ({
     project_id: projectId,
     segment_index: index,
     status: 'pending_first_frame',
-    prompt: serializeSegmentPrompt(segmentPrompt),
-    contains_brand: segmentPrompt.contains_brand === true,
-    contains_product: segmentPrompt.contains_product === true
+    prompt: serializeSegmentPrompt(segmentPrompt)
   }));
 
   const { data: insertedSegments, error } = await supabase
@@ -2207,12 +2141,6 @@ export function normalizeSegmentPrompts(
           : typeof shotOverrides?.index === 'number'
             ? shotOverrides.index
             : index + 1,
-      contains_brand: typeof source.contains_brand === 'boolean'
-        ? source.contains_brand
-        : shotOverrides?.contains_brand,
-      contains_product: typeof source.contains_product === 'boolean'
-        ? source.contains_product
-        : shotOverrides?.contains_product,
       first_frame_image_size: source.first_frame_image_size,
       is_continuation_from_prev: index === 0
         ? false
@@ -2289,9 +2217,7 @@ export function serializeSegmentPrompt(segment: SegmentPrompt): SerializedSegmen
 export function hydrateSerializedSegmentPrompt(
   planSegment: SerializedSegmentPlanSegment | Record<string, unknown> | null | undefined,
   segmentIndex: number,
-  segmentDurationSeconds?: number,
-  containsBrand?: boolean,
-  containsProduct?: boolean
+  segmentDurationSeconds?: number
 ): SegmentPrompt {
   const hydrated = hydrateSegmentPlan(
     { segments: [planSegment || {}] },
@@ -2302,8 +2228,6 @@ export function hydrateSerializedSegmentPrompt(
   if (planSegment && typeof (planSegment as Record<string, unknown>).is_continuation_from_prev === 'boolean') {
     hydrated.is_continuation_from_prev = Boolean((planSegment as Record<string, unknown>).is_continuation_from_prev);
   }
-  hydrated.contains_brand = containsBrand;
-  hydrated.contains_product = containsProduct;
   return hydrated;
 }
 
@@ -2394,9 +2318,7 @@ function mergeShotGroup(shots: CompetitorShot[], segmentIndex: number): Competit
     ambianceColourLighting: joinText(shots.map(shot => shot.ambianceColourLighting)),
     audio: joinText(shots.map(shot => shot.audio)),
     startTimeSeconds: first.startTimeSeconds,
-    endTimeSeconds: last.endTimeSeconds,
-    containsBrand: shots.some(shot => shot.containsBrand),
-    containsProduct: shots.some(shot => shot.containsProduct)
+    endTimeSeconds: last.endTimeSeconds
   };
 }
 
@@ -2411,8 +2333,6 @@ function resolveFrameDescription(segmentPrompt: SegmentPrompt, frameType: 'first
 function buildSegmentOverridesFromShot(shot: CompetitorShot): Partial<SegmentPrompt> {
   return {
     index: shot.id,
-    contains_brand: shot.containsBrand,
-    contains_product: shot.containsProduct,
     first_frame_description: shot.firstFrameDescription || ''
   };
 }
@@ -2463,7 +2383,7 @@ export function buildSegmentStatusPayload(
 
 /**
  * Generate frame from text prompt only (Text-to-Image)
- * Used for shots that don't contain brand or product (pure scene/lifestyle shots)
+ * Used when no reference assets are available
  */
 async function createFrameFromText(
   segmentPrompt: SegmentPrompt,
@@ -2533,7 +2453,7 @@ Technical Requirements:
 
 /**
  * Generate frame from reference image (Image-to-Image)
- * Used for shots that contain brand logo or product
+ * Used when reference images are available (brand, product, character, or continuation)
  */
 type FrameGenerationOverrides = {
   imageModelOverride?: 'nano_banana' | 'seedream' | 'nano_banana_pro';
@@ -2664,7 +2584,7 @@ async function createSegmentFrameTask(
 /**
  * Smart segment frame generation with automatic routing
  * Decides between Text-to-Image, Brand Image-to-Image, or Product Image-to-Image
- * based on shot analysis flags (contains_brand, contains_product)
+ * based on available reference assets and continuation context
  */
 export async function createSmartSegmentFrame(
   segmentPrompt: SegmentPrompt,
@@ -2758,12 +2678,14 @@ export async function createSmartSegmentFrame(
     return data.data.taskId;
   }
 
-  // 传统模式继续执行现有逻辑
-  const containsBrand = segmentPrompt.contains_brand === true;
-  const containsProduct = segmentPrompt.contains_product === true;
+  // 传统模式继续执行现有逻辑（不再依赖 contains_brand / contains_product）
   const normalizedProductImages = Array.isArray(productImageUrls)
     ? productImageUrls.filter(url => typeof url === 'string' && url.length > 0)
     : [];
+  const hasProductImages = normalizedProductImages.length > 0;
+  const hasBrandLogo = Boolean(brandLogoUrl);
+  const isBrandShot = !hasProductImages && hasBrandLogo;
+
   const shouldUseContinuationReference = Boolean(
     continuationReferenceUrl && frameType === 'first' && segmentPrompt.is_continuation_from_prev
   );
@@ -2777,8 +2699,8 @@ export async function createSmartSegmentFrame(
   const hasCharacterPhotos = characterPhotos.length > 0;
 
   console.log(`🎬 Segment ${segmentIndex + 1} ${frameType} frame generation:`);
-  console.log(`   - contains_brand: ${containsBrand}, brandLogoUrl: ${brandLogoUrl ? 'available' : 'missing'}`);
-  console.log(`   - contains_product: ${containsProduct}, productImageRefs: ${normalizedProductImages.length}`);
+  console.log(`   - brandLogoUrl: ${hasBrandLogo ? 'available' : 'missing'}`);
+  console.log(`   - productImageRefs: ${normalizedProductImages.length}`);
   console.log(`   - character references: ${hasCharacterPhotos ? `${characterPhotos.length} photo(s)` : 'none'}`);
   if (shouldUseContinuationReference) {
     console.log(`   - continuation_from_prev: using previous first frame as reference`);
@@ -2788,82 +2710,26 @@ export async function createSmartSegmentFrame(
     new Set([
       ...continuationReferences,
       ...(hasCharacterPhotos ? characterPhotos : []),
-      ...(containsBrand && brandLogoUrl ? [brandLogoUrl] : []),
-      ...(containsProduct ? normalizedProductImages : [])
+      ...(hasBrandLogo ? [brandLogoUrl as string] : []),
+      ...normalizedProductImages
     ])
   );
 
-  // Priority 1: Brand shots use brand logo (if available)
-  if (containsBrand && brandLogoUrl) {
-    console.log(`   ✅ Using Image-to-Image with brand logo`);
-    return createFrameFromImage(
-      combinedReferenceImages.length ? combinedReferenceImages : [brandLogoUrl],
-      segmentPrompt,
-      segmentIndex,
-      frameType,
-      aspectRatio,
-      true, // isBrandShot
-      competitorFileType,
-      overrides
-    );
-  }
-
-  // Priority 2: Product shots use product image (if available)
-  if (containsProduct && normalizedProductImages.length > 0) {
-    console.log(`   ✅ Using Image-to-Image with product image`);
-    return createFrameFromImage(
-      combinedReferenceImages.length ? combinedReferenceImages : normalizedProductImages,
-      segmentPrompt,
-      segmentIndex,
-      frameType,
-      aspectRatio,
-      false, // isProductShot
-      competitorFileType,
-      overrides
-    );
-  }
-
-  // Priority 3: Continuation shots without brand/product references should still reuse previous frame
-  if (shouldUseContinuationReference && combinedReferenceImages.length) {
-    console.log(`   ✅ Using Image-to-Image with continuation reference`);
+  if (combinedReferenceImages.length > 0) {
+    console.log(`   ✅ Using Image-to-Image with ${combinedReferenceImages.length} reference(s)`);
     return createFrameFromImage(
       combinedReferenceImages,
       segmentPrompt,
       segmentIndex,
       frameType,
       aspectRatio,
-      false,
+      isBrandShot,
       competitorFileType,
       overrides
     );
   }
 
-  // Priority 4: Use Image-to-Image if we have character photos or continuation references
-  // Even for pure scene shots, character photos should be used as visual references
-  if (hasCharacterPhotos || shouldUseContinuationReference) {
-    console.log(`   ✅ Using Image-to-Image with character/continuation references (pure scene shot)`);
-    return createFrameFromImage(
-      combinedReferenceImages,
-      segmentPrompt,
-      segmentIndex,
-      frameType,
-      aspectRatio,
-      false,
-      competitorFileType,
-      overrides
-    );
-  }
-
-  // Priority 5: Final fallback to Text-to-Image for pure scene shots without any references
-  // OR when brand/product is flagged but no image available
-  if (!containsBrand && !containsProduct) {
-    console.log(`   ✅ Using Text-to-Image (pure scene shot without references)`);
-  } else if (containsBrand && !brandLogoUrl) {
-    console.warn(`   ⚠️  Brand shot detected but no logo available, falling back to Text-to-Image`);
-  } else if (containsProduct && normalizedProductImages.length === 0) {
-    console.warn(`   ⚠️  Product shot detected but no product image available, falling back to Text-to-Image`);
-  }
-
+  console.log(`   ✅ Using Text-to-Image (no references available)`);
   return createFrameFromText(
     segmentPrompt,
     segmentIndex,

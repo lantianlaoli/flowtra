@@ -4,43 +4,27 @@ import { useState, useEffect } from 'react';
 import { X, Loader2, Plus } from 'lucide-react';
 import Image from 'next/image';
 import { UserAvatar } from '@/lib/supabase';
+import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 
 interface UserPhotoGalleryProps {
   onPhotoSelect: (photoUrl: string, avatarId?: string, isNewUpload?: boolean) => void;
   selectedPhotoUrl?: string;
+  mode?: 'select' | 'manage';
 }
 
-interface DefaultPhoto {
-  id: string;
-  photo_url: string;
-  avatar_name: string;
-}
+const DEFAULT_PHOTOS = SYSTEM_AVATARS;
 
-// Default photos that are always available
-const DEFAULT_PHOTOS: DefaultPhoto[] = [
-  {
-    id: 'default-male',
-    photo_url: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/user_default_male.png',
-    avatar_name: 'Default Male'
-  },
-  {
-    id: 'default-female',
-    photo_url: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/user_default_female.png',
-    avatar_name: 'Default Female'
-  },
-  {
-    id: 'default-founder',
-    photo_url: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/user_default_founder.png',
-    avatar_name: 'Default Founder'
-  }
-];
-
-export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: UserPhotoGalleryProps) {
+export default function UserPhotoGallery({
+  onPhotoSelect,
+  selectedPhotoUrl,
+  mode = 'manage'
+}: UserPhotoGalleryProps) {
   const [avatars, setAvatars] = useState<UserAvatar[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [avatarName, setAvatarName] = useState('');
+  const isSelectOnly = mode === 'select';
 
   // Load user avatars on component mount
   useEffect(() => {
@@ -53,7 +37,8 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
       const response = await fetch('/api/user-avatars');
       if (response.ok) {
         const data = await response.json();
-        setAvatars(data.avatars || []);
+        const loaded = Array.isArray(data.avatars) ? data.avatars : [];
+        setAvatars(loaded.filter((avatar: UserAvatar & { isSystem?: boolean }) => !avatar.isSystem));
       } else {
         console.error('Failed to load user avatars');
       }
@@ -213,21 +198,22 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
         </div>
       )}
 
-      {/* Avatar Name Input (for upload) */}
-      <div>
-        <label htmlFor="avatar-name-quick" className="block text-sm font-medium text-gray-700 mb-1">
-          Avatar Name (optional)
-        </label>
-        <input
-          id="avatar-name-quick"
-          type="text"
-          value={avatarName}
-          onChange={(e) => setAvatarName(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors text-sm"
-          placeholder="e.g., Founder, Model, Demo Character"
-          maxLength={255}
-        />
-      </div>
+      {!isSelectOnly && (
+        <div>
+          <label htmlFor="avatar-name-quick" className="block text-sm font-medium text-gray-700 mb-1">
+            Avatar Name (optional)
+          </label>
+          <input
+            id="avatar-name-quick"
+            type="text"
+            value={avatarName}
+            onChange={(e) => setAvatarName(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors text-sm"
+            placeholder="e.g., Founder, Model, Demo Character"
+            maxLength={255}
+          />
+        </div>
+      )}
 
       {/* Photo Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -279,53 +265,55 @@ export default function UserPhotoGallery({ onPhotoSelect, selectedPhotoUrl }: Us
                 />
               </div>
 
-              {/* Delete Button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteAvatar(avatar.id);
-                }}
-                className="
-                  absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full
-                  flex items-center justify-center opacity-0 group-hover:opacity-100
-                  transition-opacity duration-200 hover:bg-red-600
-                "
-              >
-                <X className="w-4 h-4" />
-              </button>
+              {!isSelectOnly && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteAvatar(avatar.id);
+                  }}
+                  className="
+                    absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full
+                    flex items-center justify-center opacity-0 group-hover:opacity-100
+                    transition-opacity duration-200 hover:bg-red-600
+                  "
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
           ))}
 
-          {/* Upload New Photo Card */}
-          <div className="relative">
-            <label
-              className={`
-                block w-full aspect-square border-2 border-dashed border-gray-300 rounded-lg
-                hover:border-gray-400 transition-colors cursor-pointer
-                ${isUploading ? 'opacity-50 pointer-events-none' : ''}
-              `}
-            >
-              <div className="flex flex-col items-center justify-center h-full p-4">
-                {isUploading ? (
-                  <Loader2 className="w-8 h-8 text-gray-400 animate-spin mb-2" />
-                ) : (
-                  <Plus className="w-8 h-8 text-gray-400 mb-2" />
-                )}
-                {isUploading && (
-                  <span className="text-sm text-gray-500 text-center">
-                    Uploading...
-                  </span>
-                )}
-              </div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="hidden"
-                disabled={isUploading}
-              />
-            </label>
-          </div>
+          {!isSelectOnly && (
+            <div className="relative">
+              <label
+                className={`
+                  block w-full aspect-square border-2 border-dashed border-gray-300 rounded-lg
+                  hover:border-gray-400 transition-colors cursor-pointer
+                  ${isUploading ? 'opacity-50 pointer-events-none' : ''}
+                `}
+              >
+                <div className="flex flex-col items-center justify-center h-full p-4">
+                  {isUploading ? (
+                    <Loader2 className="w-8 h-8 text-gray-400 animate-spin mb-2" />
+                  ) : (
+                    <Plus className="w-8 h-8 text-gray-400 mb-2" />
+                  )}
+                  {isUploading && (
+                    <span className="text-sm text-gray-500 text-center">
+                      Uploading...
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  disabled={isUploading}
+                />
+              </label>
+            </div>
+          )}
         </div>
       </div>
   );

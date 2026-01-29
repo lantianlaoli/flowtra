@@ -119,16 +119,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const existingPrompt = hydrateSerializedSegmentPrompt(
       segmentRow.prompt as SerializedSegmentPlanSegment,
       index,
-      segmentDurationSeconds,
-      segmentRow.contains_brand,
-      segmentRow.contains_product
+      segmentDurationSeconds
     );
     const mergedPrompt = {
       ...existingPrompt,
       ...(payload.prompt || {})
     } as SegmentPrompt;
-    mergedPrompt.contains_brand = existingPrompt.contains_brand;
-    mergedPrompt.contains_product = existingPrompt.contains_product;
     const defaultFrameImageSize = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
     const previousFrameSize = typeof existingPrompt.first_frame_image_size === 'string'
       ? existingPrompt.first_frame_image_size
@@ -159,11 +155,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // The cleanup at lines 322-325 will clear task_id and reset retry_count to 0
     }
 
+    // Schema verified via Supabase MCP (2026-01-29): competitor_ugc_replication_segments includes prompt, updated_at.
     const now = new Date().toISOString();
     const segmentUpdates: Record<string, unknown> = {
       prompt: serializeSegmentPrompt(mergedPrompt),
-      contains_brand: mergedPrompt.contains_brand === true,
-      contains_product: mergedPrompt.contains_product === true,
       updated_at: now
     };
 

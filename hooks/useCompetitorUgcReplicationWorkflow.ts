@@ -214,7 +214,6 @@ export const useCompetitorUgcReplicationWorkflow = (
     elementsCountOverride,
     imageSizeOverride,
     generateVideo = true,
-    selectedBrandId,
     competitorAdId,
     creatorSourceVideoId,
     replicaOptions
@@ -222,7 +221,6 @@ export const useCompetitorUgcReplicationWorkflow = (
     elementsCountOverride?: number;
     imageSizeOverride?: string;
     generateVideo?: boolean;
-    selectedBrandId?: string | null;
     competitorAdId?: string;
     creatorSourceVideoId?: string;
     replicaOptions?: {
@@ -264,7 +262,6 @@ export const useCompetitorUgcReplicationWorkflow = (
         photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
         videoDuration: resolvedDuration,
-        selectedBrandId: selectedBrandId || undefined,
         competitorAdId: competitorAdId || undefined,
         creatorSourceVideoId: creatorSourceVideoId || undefined,
         language: selectedLanguage,

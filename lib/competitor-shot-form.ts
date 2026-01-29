@@ -12,8 +12,6 @@ export interface CompetitorShotForm {
   composition: string;
   ambiance_colour_lighting: string;
   audio: string;
-  contains_brand?: boolean;
-  contains_product?: boolean;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -29,8 +27,6 @@ const toNumberValue = (value: unknown, fallback = 0): number => {
   if (!Number.isFinite(num)) return fallback;
   return num;
 };
-
-const toBooleanValue = (value: unknown): boolean => Boolean(value);
 
 const clampDuration = (value: number, fallback = 6): number => {
   if (!Number.isFinite(value) || value <= 0) return fallback;
@@ -54,9 +50,7 @@ export const parseShotsFromAnalysis = (analysisShots: unknown): CompetitorShotFo
       camera_motion_positioning: toStringValue(record.camera_motion_positioning),
       composition: toStringValue(record.composition),
       ambiance_colour_lighting: toStringValue(record.ambiance_colour_lighting),
-      audio: toStringValue(record.audio),
-      contains_brand: toBooleanValue(record.contains_brand),
-      contains_product: toBooleanValue(record.contains_product)
+      audio: toStringValue(record.audio)
     };
   });
 };
@@ -76,9 +70,7 @@ export const sanitizeShotsForSave = (shots: CompetitorShotForm[]): CompetitorSho
     camera_motion_positioning: shot.camera_motion_positioning?.trim() || '',
     composition: shot.composition?.trim() || '',
     ambiance_colour_lighting: shot.ambiance_colour_lighting?.trim() || '',
-    audio: shot.audio?.trim() || '',
-    contains_brand: Boolean(shot.contains_brand),
-    contains_product: Boolean(shot.contains_product)
+    audio: shot.audio?.trim() || ''
   }));
 };
 
@@ -95,9 +87,7 @@ export const createEmptyShot = (id: number): CompetitorShotForm => ({
   camera_motion_positioning: '',
   composition: '',
   ambiance_colour_lighting: '',
-  audio: '',
-  contains_brand: false,
-  contains_product: false
+  audio: ''
 });
 
 export const reindexShots = (shots: CompetitorShotForm[]): CompetitorShotForm[] =>

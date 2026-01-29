@@ -97,9 +97,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const segmentPrompt = hydrateSerializedSegmentPrompt(
       segment.prompt as SerializedSegmentPlanSegment,
       index,
-      segmentDurationSeconds,
-      segment.contains_brand,
-      segment.contains_product
+      segmentDurationSeconds
     );
 
     console.log(`[Manual Video Trigger] Segment ${index}: Prompt hydrated successfully`);

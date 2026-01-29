@@ -7,16 +7,15 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
-import UserPhotoGallery from '@/components/UserPhotoGallery';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
-import ProductSelector, { TemporaryProduct } from '@/components/ProductSelector';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
-import { Video, Package, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { Video, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import BottomComposerBar from '@/components/ui/BottomComposerBar';
 import ConfigPopover from '@/components/ui/ConfigPopover';
+import BottomBarDropdown from '@/components/ui/BottomBarDropdown';
 import { type VideoDurationOption } from '@/components/ui/VideoDurationSelector';
-import { UserProduct } from '@/lib/supabase';
+import { UserProduct, UserAvatar } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getGenerationCost, type VideoDuration } from '@/lib/constants';
 import { AvatarAdsDuration, AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
@@ -40,7 +39,6 @@ interface KieCreditsStatus {
 
 const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
 const DEFAULT_IMAGE_MODEL = 'nano_banana_pro' as const;
-const BLURRY_IMAGE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/competitor_videos/user-photos/character_ad_bad.png';
 const IMAGE_SIZE_BY_ASPECT: Record<'16:9' | '9:16', 'landscape_16_9' | 'portrait_16_9'> = {
   '16:9': 'landscape_16_9',
   '9:16': 'portrait_16_9'
@@ -168,13 +166,15 @@ export default function AvatarAdsPage() {
 
   // Form state
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
+  const [avatarOptions, setAvatarOptions] = useState<Array<UserAvatar & { isSystem?: boolean }>>([]);
+  const [productOptions, setProductOptions] = useState<UserProduct[]>([]);
   const [videoDuration, setVideoDuration] = useState<VideoDuration>('8');
   const [format, setFormat] = useState<Format>('9:16');
   const [customDialogue, setCustomDialogue] = useState<string>('');
-  const [selectedProduct, setSelectedProduct] = useState<UserProduct | TemporaryProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
-  const [isPersonPickerOpen, setIsPersonPickerOpen] = useState(false);
-  const [isProductPickerOpen, setIsProductPickerOpen] = useState(false);
+  const [personDropdownOpen, setPersonDropdownOpen] = useState(false);
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [isGeneratingDialogue, setIsGeneratingDialogue] = useState(false);
   const [dialogueError, setDialogueError] = useState<string | null>(null);
   const [hasAIGeneratedDialogue, setHasAIGeneratedDialogue] = useState(false);
@@ -183,6 +183,36 @@ export default function AvatarAdsPage() {
   const userHasManuallyCollapsed = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [showExpandCollapseIcon, setShowExpandCollapseIcon] = useState(false);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(true);
+
+  useEffect(() => {
+    const loadAssets = async () => {
+      try {
+        const [avatarsRes, productsRes] = await Promise.all([
+          fetch('/api/user-avatars', { cache: 'no-store' }),
+          fetch('/api/user-products', { cache: 'no-store' })
+        ]);
+
+        if (avatarsRes.ok) {
+          const data = await avatarsRes.json();
+          const loaded = Array.isArray(data.avatars) ? data.avatars : [];
+          setAvatarOptions(loaded);
+        }
+
+        if (productsRes.ok) {
+          const data = await productsRes.json();
+          const loaded = Array.isArray(data.products) ? data.products : [];
+          setProductOptions(loaded);
+        }
+      } catch (error) {
+        console.error('[AvatarAds] Failed to load assets:', error);
+      } finally {
+        setIsLoadingAssets(false);
+      }
+    };
+
+    loadAssets();
+  }, []);
 
   // Inspector state
   const [inspectorProjectId, setInspectorProjectId] = useState<string | null>(null);
@@ -223,6 +253,17 @@ const formatDurationLabel = (seconds: number) => {
       .slice(0, 3);
   }, [selectedProduct]);
   const primaryProductPhoto = useMemo(() => productPhotoUrls[0] || '', [productPhotoUrls]);
+  const selectedAvatar = useMemo(
+    () => avatarOptions.find(avatar => avatar.photo_url === selectedPersonPhotoUrl) || null,
+    [avatarOptions, selectedPersonPhotoUrl]
+  );
+
+  const getProductCover = useCallback((product: UserProduct | null) => {
+    if (!product?.user_product_photos?.length) return '';
+    const primary = product.user_product_photos.find(photo => photo.is_primary && photo.photo_url);
+    const fallback = product.user_product_photos.find(photo => photo.photo_url);
+    return primary?.photo_url || fallback?.photo_url || '';
+  }, []);
 
   const notifyProjectStatus = useCallback((projectId: string, status: Generation['status']) => {
     if (status !== 'completed' && status !== 'failed') {
@@ -301,38 +342,11 @@ const formatDurationLabel = (seconds: number) => {
   }, [customDialogue]); // Re-run when customDialogue changes
 
   // Show toast notification when generation starts
-  const isTemporaryProduct = (product: UserProduct | TemporaryProduct | null): product is TemporaryProduct => {
-    return product !== null && 'isTemporary' in product && product.isTemporary === true;
-  };
-
   const handleStartGeneration = async () => {
     if (!canStartGeneration || !user?.id) return;
 
     try {
-      // Upload temporary product images to Supabase first if needed
-      let productId = selectedProduct?.id;
-
-      if (selectedProduct && isTemporaryProduct(selectedProduct)) {
-        // Upload temporary images first (must wait for this)
-        const uploadFormData = new FormData();
-        selectedProduct.uploadedFiles.forEach((file, index) => {
-          uploadFormData.append(`file_${index}`, file);
-        });
-
-        const uploadResponse = await fetch('/api/upload-temp-images', {
-          method: 'POST',
-          body: uploadFormData,
-        });
-
-        const uploadResult = await uploadResponse.json();
-        if (!uploadResult.success) {
-          throw new Error(uploadResult.error || 'Failed to upload product images');
-        }
-
-        // For character ads, we'll pass the first image URL directly
-        // Instead of using product_id, we'll use a temporary product URL
-        productId = `temp:${uploadResult.imageUrls[0]}`;
-      }
+      const productId = selectedProduct?.id;
 
       // Create optimistic generation immediately with a client-side project ID
       const clientProjectId = generateClientProjectId();
@@ -343,7 +357,6 @@ const formatDurationLabel = (seconds: number) => {
         status: 'pending',
         progress: 5,
         stage: 'Queued',
-        brand: selectedBrandName || undefined,
         product: selectedProductName || undefined,
         videoModel: DEFAULT_VIDEO_MODEL,
         videoDuration: `${videoDuration}`,
@@ -421,7 +434,6 @@ const formatDurationLabel = (seconds: number) => {
     }
   };
 
-  const selectedBrandName = selectedProduct?.brand?.brand_name;
   const selectedProductName = selectedProduct?.product_name;
   const hasPersonPhoto = Boolean(selectedPersonPhotoUrl);
   const showMaintenance = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
@@ -429,144 +441,6 @@ const formatDurationLabel = (seconds: number) => {
   const composerDisabled = !canStartGeneration;
 
   const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
-
-  // Optimization State
-  const [optimizationStage, setOptimizationStage] = useState<'upload' | 'optimize'>('upload');
-  const [tempSelectedPhotoUrl, setTempSelectedPhotoUrl] = useState<string>('');
-  const [tempSelectedPhotoId, setTempSelectedPhotoId] = useState<string | undefined>(undefined);
-  const [optimizationPrompt, setOptimizationPrompt] = useState<string>('Generate a clear portrait photo of this person, chest up only, head and shoulders, no hands visible, high quality, photorealistic, 8k resolution, natural lighting.');
-  const [optimizedPhotoUrl, setOptimizedPhotoUrl] = useState<string | null>(null);
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const resetOptimizationState = useCallback(() => {
-    setOptimizationStage('upload');
-    setTempSelectedPhotoUrl('');
-    setTempSelectedPhotoId(undefined);
-    setOptimizedPhotoUrl(null);
-    setIsOptimizing(false);
-    setIsSaving(false);
-    setOptimizationPrompt('Generate a clear portrait photo of this person, chest up only, head and shoulders, no hands visible, high quality, photorealistic, 8k resolution, natural lighting.');
-  }, []);
-
-  const handlePersonPickerSelect = (photoUrl: string, photoId?: string, isNewUpload?: boolean) => {
-    setTempSelectedPhotoUrl(photoUrl);
-    setTempSelectedPhotoId(photoId);
-
-    if (isNewUpload) { // Only proceed to optimize stage for new uploads
-      setOptimizationStage('optimize');
-    } else { // For existing photos, directly select and close
-      setSelectedPersonPhotoUrl(photoUrl);
-      setIsPersonPickerOpen(false);
-      resetOptimizationState(); // Reset optimization state for next time
-    }
-  };
-
-  const handleUseOriginal = () => {
-    setSelectedPersonPhotoUrl(tempSelectedPhotoUrl);
-    setIsPersonPickerOpen(false);
-    resetOptimizationState();
-  };
-
-  const handleUseOptimized = async () => {
-    if (!optimizedPhotoUrl) return;
-    
-    setIsSaving(true);
-
-    try {
-      // Call API to save photo from URL (backend handles download/upload to avoid CORS)
-      const uploadRes = await fetch('/api/user-photos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: optimizedPhotoUrl })
-      });
-
-      if (!uploadRes.ok) throw new Error('Failed to save optimized photo');
-      
-      const data = await uploadRes.json();
-      
-      // Use the new Supabase URL
-      setSelectedPersonPhotoUrl(data.imageUrl);
-      
-      // Delete original if needed
-      if (tempSelectedPhotoId && !tempSelectedPhotoId.startsWith('default-')) {
-        try {
-          await fetch(`/api/user-photos?photoId=${tempSelectedPhotoId}`, { method: 'DELETE' });
-        } catch (err) {
-          console.error('Failed to delete discarded photo:', err);
-        }
-      }
-
-      setIsPersonPickerOpen(false);
-      resetOptimizationState();
-      showSuccess('Optimized photo saved and selected!');
-
-    } catch (error) {
-      console.error('Error saving optimized photo:', error);
-      showError('Failed to save optimized photo');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleOptimize = async () => {
-    if (!tempSelectedPhotoUrl) return;
-    setIsOptimizing(true);
-    setOptimizedPhotoUrl(null);
-
-    try {
-      const response = await fetch('/api/avatar-ads/optimize-portrait', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: tempSelectedPhotoUrl, prompt: optimizationPrompt })
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to start optimization');
-
-      const taskId = data.taskId;
-      
-      // Poll for status
-      const pollInterval = setInterval(async () => {
-        try {
-          const statusRes = await fetch(`/api/avatar-ads/optimize-portrait?taskId=${taskId}`);
-          const statusData = await statusRes.json();
-          
-          if (statusData.status === 'success' && statusData.imageUrl) {
-            clearInterval(pollInterval);
-            setOptimizedPhotoUrl(statusData.imageUrl);
-            setIsOptimizing(false);
-            showSuccess('Portrait optimized successfully!');
-          } else if (statusData.status === 'failed' || statusData.status === 'fail') {
-            clearInterval(pollInterval);
-            setIsOptimizing(false);
-            showError('Optimization failed. Please try again.');
-          }
-        } catch (e) {
-          console.error('Polling error:', e);
-        }
-      }, 3000);
-
-      // Timeout after 60s
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        if (isOptimizing) {
-           // Just stop the spinner, user can try again
-           setIsOptimizing(false);
-        }
-      }, 60000);
-
-    } catch (error) {
-      console.error('Optimization error:', error);
-      showError('Failed to start optimization');
-      setIsOptimizing(false);
-    }
-  };
-
-  const handleProductPickerSelect = (product: UserProduct | null) => {
-    setSelectedProduct(product);
-    setIsProductPickerOpen(false);
-  };
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -1141,29 +1015,167 @@ const formatDurationLabel = (seconds: number) => {
         <BottomComposerBar
           leftControls={
             <>
-              <button
-                onClick={() => setIsPersonPickerOpen(true)}
-                className={`flex-shrink-0 w-12 h-12 rounded-lg border transition flex items-center justify-center text-sm font-medium ${hasPersonPhoto ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
-                title={hasPersonPhoto ? 'Change character photo' : 'Select character'}
+              <BottomBarDropdown
+                open={personDropdownOpen}
+                onOpenChange={setPersonDropdownOpen}
+                triggerClassName="w-[180px]"
+                panelWidthClassName="w-[320px]"
+                disabled={isLoadingAssets || avatarOptions.length === 0}
+                trigger={
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+                      {selectedAvatar?.photo_url ? (
+                        <Image
+                          src={selectedAvatar.photo_url}
+                          alt={selectedAvatar.avatar_name}
+                          width={32}
+                          height={32}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Video className="w-4 h-4 text-gray-500" />
+                      )}
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 truncate max-w-[110px]">
+                      {selectedAvatar?.avatar_name || 'Select character'}
+                    </p>
+                  </div>
+                }
               >
-                {hasPersonPhoto ? (
-                  <Image src={selectedPersonPhotoUrl} alt="Character" width={48} height={48} className="object-cover w-full h-full rounded-lg" />
+                {avatarOptions.length > 0 ? (
+                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                    {avatarOptions.map((avatar) => (
+                      <button
+                        key={avatar.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPersonPhotoUrl(avatar.photo_url);
+                          setPersonDropdownOpen(false);
+                        }}
+                        className={`w-full rounded-lg border p-2 text-left transition-colors ${
+                          selectedPersonPhotoUrl === avatar.photo_url
+                            ? 'border-black bg-gray-50'
+                            : 'border-gray-200 hover:border-black'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-md bg-gray-100 border border-gray-200 overflow-hidden">
+                            <Image
+                              src={avatar.photo_url}
+                              alt={avatar.avatar_name}
+                              width={48}
+                              height={48}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{avatar.avatar_name}</p>
+                            {avatar.isSystem && (
+                              <p className="text-xs text-gray-500">System avatar</p>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 ) : (
-                  <Video className="w-5 h-5 text-gray-500" />
+                  <div className="text-sm text-gray-500 px-3 py-2">No avatars yet.</div>
                 )}
-              </button>
+              </BottomBarDropdown>
 
-              <button
-                onClick={() => setIsProductPickerOpen(true)}
-                className={`flex-shrink-0 w-12 h-12 rounded-lg border transition flex items-center justify-center ${selectedProduct ? 'border-gray-300 bg-white' : 'border-dashed border-gray-400 bg-gray-50'}`}
-                title={selectedProduct ? 'Change product' : 'Optional: select brand & product'}
+              <BottomBarDropdown
+                open={productDropdownOpen}
+                onOpenChange={setProductDropdownOpen}
+                triggerClassName="w-[320px]"
+                panelWidthClassName="w-[320px]"
+                disabled={isLoadingAssets || productOptions.length === 0}
+                trigger={
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+                      {primaryProductPhoto ? (
+                        <Image
+                          src={primaryProductPhoto}
+                          alt={selectedProductName || 'Product'}
+                          width={32}
+                          height={32}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Package className="w-4 h-4 text-gray-500" />
+                      )}
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 truncate max-w-[240px]">
+                      {selectedProductName || 'Select product'}
+                    </p>
+                  </div>
+                }
               >
-                {primaryProductPhoto ? (
-                  <Image src={primaryProductPhoto} alt="Product" width={48} height={48} className="object-cover w-full h-full rounded-lg" />
+                {productOptions.length > 0 ? (
+                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProduct(null);
+                        setProductDropdownOpen(false);
+                      }}
+                      className={`w-full rounded-lg border p-2 text-left transition-colors ${
+                        !selectedProduct
+                          ? 'border-black bg-gray-50'
+                          : 'border-gray-200 hover:border-black'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center">
+                          <Package className="w-4 h-4 text-gray-500" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">No product (talking head)</p>
+                          <p className="text-xs text-gray-500">Skip product context</p>
+                        </div>
+                      </div>
+                    </button>
+                    {productOptions.map((product) => {
+                      const cover = getProductCover(product);
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedProduct(product);
+                            setProductDropdownOpen(false);
+                          }}
+                          className={`w-full rounded-lg border p-2 text-left transition-colors ${
+                            selectedProduct?.id === product.id
+                              ? 'border-black bg-gray-50'
+                              : 'border-gray-200 hover:border-black'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-12 w-16 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+                              {cover ? (
+                                <Image
+                                  src={cover}
+                                  alt={product.product_name || 'Product'}
+                                  width={64}
+                                  height={48}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <Package className="w-4 h-4 text-gray-500" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{product.product_name || 'Untitled product'}</p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <Package className="w-5 h-5 text-gray-500" />
+                  <div className="text-sm text-gray-500 px-3 py-2">No products yet.</div>
                 )}
-              </button>
+              </BottomBarDropdown>
             </>
           }
                               centerInput={
@@ -1244,192 +1256,6 @@ const formatDurationLabel = (seconds: number) => {
           userCredits={userCredits || 0}
           generateButtonText="Generate"
         />
-      )}
-
-      {isPersonPickerOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {optimizationStage === 'upload' ? 'Select Character Photo' : 'AI Optimize Portrait'}
-                </h3>
-                <p className="text-xs text-gray-500">
-                  {optimizationStage === 'upload'
-                    ? 'Pick an existing shot or upload a new one.'
-                    : 'Improve your portrait quality with AI.'}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setIsPersonPickerOpen(false);
-                  resetOptimizationState();
-                }}
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Close
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-              {optimizationStage === 'upload' ? (
-                <>
-                  <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Portrait Photo Examples:</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-green-500 shadow-md mb-2">
-                          <Image
-                            src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/character_ad_example.png"
-                            alt="Good Example"
-                            width={112}
-                            height={112}
-                            className="object-cover w-full h-full"
-                          />
-                        </div>
-                        <span className="text-xs font-medium text-green-700">Good Example</span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-red-500 shadow-md mb-2">
-                          <Image
-                            src={BLURRY_IMAGE_URL}
-                            alt="Bad Example (Blurry)"
-                            width={112}
-                            height={112}
-                            className="object-cover w-full h-full"
-                          />
-                        </div>
-                        <span className="text-xs font-medium text-red-700">Bad Example (Blurry)</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-4">For best results, use a clear, well-lit, front-facing portrait of a single person. Avoid blurry or low-resolution images.</p>
-                  </div>
-                  <UserPhotoGallery
-                    onPhotoSelect={handlePersonPickerSelect}
-                    selectedPhotoUrl={selectedPersonPhotoUrl}
-                  />
-                </>
-              ) : (
-                <div className="h-full flex flex-col min-h-0">
-                  <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
-                    {/* Left Side: Images (Original + Optimized) */}
-                    <div className="lg:col-span-8 grid grid-cols-2 gap-4 h-full min-h-0">
-                      {/* Original */}
-                      <div className="flex flex-col gap-2 h-full min-h-0">
-                        <label className="text-sm font-medium text-gray-700">Original Photo</label>
-                        <div className="relative flex-1 bg-gray-100 rounded-xl overflow-hidden border border-gray-200">
-                          {tempSelectedPhotoUrl && (
-                            <Image src={tempSelectedPhotoUrl} alt="Original" fill className="object-cover" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Optimized */}
-                      <div className="flex flex-col gap-2 h-full min-h-0">
-                        <label className="text-sm font-medium text-gray-700">AI Result</label>
-                        <div className="relative flex-1 bg-gray-100 rounded-xl overflow-hidden border border-gray-200 flex items-center justify-center">
-                          {isOptimizing ? (
-                            <div className="flex flex-col items-center gap-2 text-gray-500">
-                              <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
-                              <span className="text-sm">Optimizing...</span>
-                            </div>
-                          ) : optimizedPhotoUrl ? (
-                            <Image src={optimizedPhotoUrl} alt="Optimized" fill className="object-cover" />
-                          ) : (
-                            <div className="text-center p-4 text-gray-400">
-                              <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                              <p className="text-xs">AI optimized version will appear here.</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Side: Controls */}
-                    <div className="lg:col-span-4 flex flex-col h-full overflow-y-auto">
-                      <div className="flex-1">
-                         <label className="text-sm font-medium text-gray-700 mb-2 block">Optimization Prompt</label>
-                         <textarea
-                            value={optimizationPrompt}
-                            onChange={(e) => setOptimizationPrompt(e.target.value)}
-                            className="w-full rounded-lg border-gray-300 text-sm focus:ring-gray-900 focus:border-gray-900 min-h-[120px]"
-                            placeholder="Describe how you want to improve the photo..."
-                          />
-                          <p className="text-xs text-gray-500 mt-2">
-                            Refine the prompt to adjust lighting, background, or style.
-                          </p>
-                      </div>
-
-                      <div className="mt-6 space-y-3">
-                        <button
-                          onClick={handleOptimize}
-                          disabled={isOptimizing}
-                          className="w-full py-3 rounded-xl bg-gray-900 text-white font-semibold hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
-                        >
-                          <Sparkles className="w-4 h-4" />
-                          {isOptimizing ? 'Optimizing...' : 'Generate AI Portrait'}
-                        </button>
-
-                        <div className="grid grid-cols-1 gap-2">
-                      {optimizedPhotoUrl && (
-                        <button
-                          onClick={handleUseOptimized}
-                          disabled={isSaving}
-                          className="w-full py-2.5 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isSaving ? 'Saving...' : 'Use Optimized Photo'}
-                        </button>
-                      )}
-                           <button
-                             onClick={handleUseOriginal}
-                             className="w-full py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition"
-                           >
-                             Use Original
-                           </button>
-                        </div>
-
-                        <button
-                          onClick={() => setOptimizationStage('upload')}
-                          className="w-full py-2 text-sm text-gray-500 hover:text-gray-900 transition"
-                        >
-                          Back to Upload
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isProductPickerOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Select Brand & Product</h3>
-                <p className="text-xs text-gray-500">
-                  Pick a product to unlock AI-scripted dialogue, or close this panel to create a simple talking head video.
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setIsProductPickerOpen(false)}
-                  className="px-3 py-1 rounded-full border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-100 transition"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-              <ProductSelector
-                selectedProduct={selectedProduct as UserProduct | null}
-                onProductSelect={handleProductPickerSelect}
-              />
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Character Ad Inspector */}

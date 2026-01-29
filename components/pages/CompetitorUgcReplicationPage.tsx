@@ -116,7 +116,6 @@ interface CompetitorUgcReplicationStatusPayload {
     segments?: SegmentCardSummary[] | null;
     awaitingMerge?: boolean;
     mergeTaskId?: string | null;
-    selectedBrandId?: string | null;
     photoOnly?: boolean | null;
     videoGenerationRequested?: boolean | null;
     credits_cost?: number | null;
@@ -637,7 +636,6 @@ export default function CompetitorUgcReplicationPage() {
         videoUrl: payload.data?.videoUrl || gen.videoUrl,
         coverUrl: payload.data?.coverImageUrl || gen.coverUrl,
         videoModel: (payload.data?.videoModel as VideoModel) || (payload.data?.video_model as VideoModel) || gen.videoModel,
-        brandId: typeof payload.data?.selectedBrandId === 'string' ? payload.data.selectedBrandId : gen.brandId,
         downloaded: typeof payload.data?.downloaded === 'boolean' ? payload.data.downloaded : gen.downloaded,
         videoDuration: payload.data?.videoDuration || gen.videoDuration,
         videoAspectRatio: typeof payload.data?.videoAspectRatio === 'string'
@@ -1426,7 +1424,6 @@ export default function CompetitorUgcReplicationPage() {
         elementsCountOverride: elementsCount,
         imageSizeOverride: format,
         generateVideo: shouldGenerateVideo,
-        selectedBrandId: null,
         creatorSourceVideoId: selectedReferenceVideo.source_type === 'competitor_ad' ? undefined : selectedReferenceVideo.id,
         competitorAdId: selectedReferenceVideo.source_type === 'competitor_ad'
           ? (selectedReferenceVideo.competitor_ad_id || selectedReferenceVideo.id)

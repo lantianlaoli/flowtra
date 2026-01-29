@@ -64,7 +64,6 @@ export async function POST(request: NextRequest) {
 
     console.log('🚀 Competitor UGC Replication workflow request received:', {
       imageUrl: requestData.imageUrl,
-      selectedBrandId: requestData.selectedBrandId,
       competitorAdId: requestData.competitorAdId,
       userId: requestData.userId,
       videoModel: requestData.videoModel,
@@ -119,26 +118,6 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
-    }
-
-    if (!requestData.selectedBrandId && requestData.competitorAdId) {
-      const supabase = getSupabaseAdmin();
-      // Schema verified via Supabase MCP (2026-01-28): competitor_ads has brand_id
-      const { data: competitorAd, error: competitorError } = await supabase
-        .from('competitor_ads')
-        .select('brand_id')
-        .eq('id', requestData.competitorAdId)
-        .eq('user_id', requestData.userId)
-        .single();
-
-      if (competitorError || !competitorAd?.brand_id) {
-        return NextResponse.json(
-          { error: 'Brand could not be resolved from the selected video' },
-          { status: 400 }
-        );
-      }
-
-      requestData.selectedBrandId = competitorAd.brand_id;
     }
 
     console.log('📋 Calling startWorkflowProcess...');

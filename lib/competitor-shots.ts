@@ -14,8 +14,6 @@ export interface CompetitorShot {
   audio: string;
   startTimeSeconds: number;
   endTimeSeconds: number;
-  containsBrand: boolean; // NEW: Whether this shot contains brand elements
-  containsProduct: boolean; // NEW: Whether this shot contains product
 }
 
 export interface CompetitorTimeline {
@@ -97,10 +95,6 @@ export function parseCompetitorTimeline(
 
     const endSeconds = startSeconds + durationSeconds;
 
-    // Extract brand/product flags (default to false if not present)
-    const containsBrand = Boolean(shotRecord.contains_brand);
-    const containsProduct = Boolean(shotRecord.contains_product);
-
     shots.push({
       id,
       startTime: formatTimecode(startSeconds),
@@ -116,9 +110,7 @@ export function parseCompetitorTimeline(
       ambianceColourLighting: toString(shotRecord.ambiance_colour_lighting),
       audio: toString(shotRecord.audio),
       startTimeSeconds: startSeconds,
-      endTimeSeconds: endSeconds,
-      containsBrand, // NEW
-      containsProduct // NEW
+      endTimeSeconds: endSeconds
     });
 
     rollingStartSeconds = endSeconds;

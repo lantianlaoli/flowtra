@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@clerk/nextjs/server';
 import { uploadAvatarToStorage, getUserAvatars, deleteAvatar, uploadAvatarFromUrl, updateAvatarName } from '@/lib/supabase';
+import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 
 // GET: Fetch all user avatars
 export async function GET(request: NextRequest) {
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      avatars
+      avatars: [...SYSTEM_AVATARS, ...avatars]
     });
 
   } catch (error) {
@@ -199,6 +200,9 @@ export async function PUT(request: NextRequest) {
     if (!avatarId) {
       return NextResponse.json({ error: 'Avatar ID is required' }, { status: 400 });
     }
+    if (SYSTEM_AVATARS.some(avatar => avatar.id === avatarId)) {
+      return NextResponse.json({ error: 'System avatars cannot be edited' }, { status: 400 });
+    }
 
     const body = await request.json();
     const { avatarName } = body;
@@ -248,6 +252,9 @@ export async function DELETE(request: NextRequest) {
     if (!avatarId) {
       return NextResponse.json({ error: 'Avatar ID is required' }, { status: 400 });
     }
+    if (SYSTEM_AVATARS.some(avatar => avatar.id === avatarId)) {
+      return NextResponse.json({ error: 'System avatars cannot be deleted' }, { status: 400 });
+    }
 
     await deleteAvatar(avatarId, userId);
 
@@ -269,4 +276,3 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-

@@ -335,22 +335,6 @@ export default function CompetitorShotsEditor({
                           </div>
                         </div>
 
-                        {/* Footer Toggles */}
-                        <div className="flex items-center gap-6 pt-4 border-t border-[#E5E5E5]">
-                          <Toggle 
-                            label="Contains Brand Asset" 
-                            checked={Boolean(shot.contains_brand)} 
-                            onChange={(checked) => updateShot(shot.shot_id, 'contains_brand', checked)}
-                            readOnly={readOnly}
-                          />
-                          <Toggle 
-                            label="Contains Product" 
-                            checked={Boolean(shot.contains_product)} 
-                            onChange={(checked) => updateShot(shot.shot_id, 'contains_product', checked)}
-                            readOnly={readOnly}
-                          />
-                        </div>
-
                       </div>
                     </motion.div>
                   )}
@@ -440,27 +424,5 @@ function ShotTextarea({ label, value, onChange, placeholder, minHeight = "min-h-
         )}
       />
     </div>
-  );
-}
-
-function Toggle({ label, checked, onChange, readOnly }: { label: string; checked: boolean; onChange: (c: boolean) => void; readOnly?: boolean }) {
-  return (
-    <label className={cn("flex items-center gap-2.5 group", readOnly ? "cursor-default" : "cursor-pointer")}>
-      <div className={cn(
-        "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-        checked ? "bg-black border-black" : "bg-white border-[#E5E5E5]",
-        !readOnly && "group-hover:border-gray-400"
-      )}>
-        {checked && <div className="w-2 h-2 bg-white rounded-[1px]" />}
-        <input 
-          type="checkbox" 
-          className="hidden" 
-          checked={checked}
-          disabled={readOnly}
-          onChange={(e) => onChange(e.target.checked)}
-        />
-      </div>
-      <span className="text-xs font-medium text-black">{label}</span>
-    </label>
   );
 }

@@ -7,6 +7,9 @@ import Image from 'next/image';
 import { UserAvatar } from '@/lib/supabase';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
+const GOOD_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/character_ad_example.png';
+const BLURRY_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/competitor_videos/user-photos/character_ad_bad.png';
+
 interface CreateAvatarModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -191,6 +194,40 @@ export default function CreateAvatarModal({
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              {/* Portrait Examples */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">Portrait Photo Examples</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col items-center">
+                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-green-500 shadow-sm mb-2">
+                      <Image
+                        src={GOOD_EXAMPLE_URL}
+                        alt="Good example"
+                        width={96}
+                        height={96}
+                        className="object-cover w-full h-full"
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-green-700">Good Example</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-red-500 shadow-sm mb-2">
+                      <Image
+                        src={BLURRY_EXAMPLE_URL}
+                        alt="Bad example (blurry)"
+                        width={96}
+                        height={96}
+                        className="object-cover w-full h-full"
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-red-700">Bad Example (Blurry)</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-3">
+                  Use a clear, well-lit, front-facing portrait of a single person. Avoid blurry or low-resolution images.
+                </p>
+              </div>
+
               {/* Avatar Name Input */}
               <div>
                 <label htmlFor="avatar-name-input" className="block text-sm font-medium text-gray-700 mb-2">

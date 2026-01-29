@@ -58,9 +58,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const perSegmentDuration = record.segment_duration_seconds || getSegmentDurationForModel(recordModel);
 
     if (record.is_segmented) {
+      // Schema verified via Supabase MCP (2026-01-29): competitor_ugc_replication_segments columns include
+      // segment_index, status, first_frame_url, closing_frame_url, video_url, prompt, updated_at, error_message.
       const { data: segmentRows, error: segmentError } = await supabase
         .from('competitor_ugc_replication_segments')
-        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,prompt,updated_at,error_message,contains_brand,contains_product')
+        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,prompt,updated_at,error_message')
         .eq('project_id', record.id)
         .order('segment_index', { ascending: true });
 
@@ -77,9 +79,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           prompt: hydrateSerializedSegmentPrompt(
             row.prompt as SerializedSegmentPlanSegment,
             row.segment_index,
-            perSegmentDuration,
-            row.contains_brand,
-            row.contains_product
+            perSegmentDuration
           ),
           updatedAt: row.updated_at
         }));
@@ -131,7 +131,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         awaitingMerge: record.current_step === 'awaiting_merge',
         mergeTaskId: record.fal_merge_task_id || null,
         videoQuality: record.video_quality || null,
-        selectedBrandId: record.selected_brand_id || null,
         photoOnly: record.photo_only || false,
         videoGenerationRequested: record.video_generation_requested || false,
         downloaded: record.downloaded || false,

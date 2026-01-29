@@ -4,16 +4,19 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Edit2, Trash2, Loader2 } from 'lucide-react';
 import { UserAvatar } from '@/lib/supabase';
+import type { SystemAvatar } from '@/lib/default-avatars';
 import { motion } from 'framer-motion';
 import ConfirmDialog from './ConfirmDialog';
 
+type AvatarCardItem = UserAvatar | SystemAvatar;
+
 interface AvatarCardProps {
-  avatar: UserAvatar;
-  onEdit: (avatar: UserAvatar) => void;
+  avatar: AvatarCardItem;
+  onEdit: (avatar: AvatarCardItem) => void;
   onDelete: (avatarId: string) => void;
   isDeleting?: boolean;
   mode?: 'full' | 'compact' | 'selectable';
-  onSelect?: (avatar: UserAvatar) => void;
+  onSelect?: (avatar: AvatarCardItem) => void;
   isSelected?: boolean;
 }
 
@@ -27,6 +30,7 @@ export default function AvatarCard({
   isSelected = false
 }: AvatarCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const isSystemAvatar = Boolean((avatar as SystemAvatar).isSystem);
 
   const isSelectableMode = mode === 'selectable';
   const isFullMode = mode === 'full';
@@ -39,12 +43,13 @@ export default function AvatarCard({
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isSystemAvatar) return;
     onEdit(avatar);
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isDeleting) return;
+    if (isDeleting || isSystemAvatar) return;
     setShowDeleteDialog(true);
   };
 
@@ -108,15 +113,17 @@ export default function AvatarCard({
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleEditClick}
-                  className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Edit avatar"
+                  className={`p-1.5 rounded-lg transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
+                  title={isSystemAvatar ? 'System avatar' : 'Edit avatar'}
+                  disabled={isSystemAvatar}
                 >
                   <Edit2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleDeleteClick}
-                  className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
-                  title={isDeleting ? 'Deleting...' : 'Delete avatar'}
+                  className={`p-1.5 rounded-lg transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
+                  title={isSystemAvatar ? 'System avatar' : (isDeleting ? 'Deleting...' : 'Delete avatar')}
+                  disabled={isSystemAvatar}
                 >
                   {isDeleting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
