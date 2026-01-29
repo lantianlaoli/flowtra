@@ -61,7 +61,6 @@ export default function TikTokPublishDialog({
   const [commercialToggle, setCommercialToggle] = useState(false);
   const [commercialYourBrand, setCommercialYourBrand] = useState(false);
   const [commercialBrandedContent, setCommercialBrandedContent] = useState(false);
-  const [consentChecked, setConsentChecked] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Reset state when dialog opens
@@ -81,7 +80,6 @@ export default function TikTokPublishDialog({
       setCommercialToggle(false);
       setCommercialYourBrand(false);
       setCommercialBrandedContent(false);
-      setConsentChecked(false);
       setFormError(null);
     }
   }, [isOpen]);
@@ -211,23 +209,12 @@ export default function TikTokPublishDialog({
     setPrivacyLevel(nextPrivacy);
   }, [brandedContentSelected, privacyLevel, privacyOptions]);
 
-  const publishDeclaration = useMemo(() => {
-    if (!commercialToggle) {
-      return "By posting, you agree to TikTok's Music Usage Confirmation.";
-    }
-    if (commercialYourBrand && commercialBrandedContent) {
-      return "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation.";
-    }
-    if (commercialBrandedContent) {
-      return "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation.";
-    }
-    return "By posting, you agree to TikTok's Music Usage Confirmation.";
-  }, [commercialToggle, commercialYourBrand, commercialBrandedContent]);
+  const confirmationIncludesBrandedPolicy = commercialToggle && commercialBrandedContent;
 
   const privacyLabelMap: Record<PrivacyLevel, string> = {
     PUBLIC_TO_EVERYONE: 'Public',
     MUTUAL_FOLLOW_FRIENDS: 'Friends',
-    SELF_ONLY: 'Only me',
+    SELF_ONLY: 'Private',
     FOLLOWER_OF_CREATOR: 'Followers'
   };
 
@@ -243,8 +230,7 @@ export default function TikTokPublishDialog({
     || !!creatorInfoError
     || durationTooLong
     || requiresCommercialSelection
-    || (brandedContentSelected && !privacyAllowsBrandedContent)
-    || !consentChecked;
+    || (brandedContentSelected && !privacyAllowsBrandedContent);
 
   const handleSubmit = async () => {
     setFormError(null);
@@ -284,11 +270,6 @@ export default function TikTokPublishDialog({
       return;
     }
 
-    if (!consentChecked) {
-      setFormError('Please confirm the declaration before publishing.');
-      return;
-    }
-
     setStatus('uploading');
     setErrorMessage(null);
 
@@ -309,7 +290,7 @@ export default function TikTokPublishDialog({
             commercialContentEnabled: commercialToggle,
             commercialYourBrand,
             commercialBrandedContent,
-            expressConsent: consentChecked
+            expressConsent: true
           })
         });
 
@@ -446,6 +427,11 @@ export default function TikTokPublishDialog({
                     )}>
                       {getStatusText()}
                     </p>
+                    {(status === 'uploading' || status === 'processing' || status === 'success') && (
+                      <p className="text-sm text-gray-700 mt-1.5 leading-relaxed">
+                        After publishing, TikTok may take a few minutes to process and show your post on the profile.
+                      </p>
+                    )}
                     {errorMessage && (
                       <p className="text-sm text-red-700 mt-1.5 leading-relaxed">
                         {errorMessage}
@@ -502,6 +488,11 @@ export default function TikTokPublishDialog({
                     </div>
                   ) : (
                     <>
+                      {status === 'success' && (
+                        <p className="text-xs text-gray-600 mt-2 leading-relaxed">
+                          After publishing, TikTok may take a few minutes to process and show your post on the profile.
+                        </p>
+                      )}
                       {errorMessage && (
                         <p className="text-sm text-red-700 mt-2 leading-relaxed">
                           {errorMessage}
@@ -643,13 +634,20 @@ export default function TikTokPublishDialog({
                       id="privacy"
                       value={privacyLevel || ''}
                       onChange={(e) => setPrivacyLevel(e.target.value as PrivacyLevel)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-black transition-all text-sm bg-white"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-black transition-all text-sm bg-white text-gray-900"
                     >
                       <option value="" disabled>
                         Select privacy
                       </option>
                       {privacyOptions.map((option) => (
-                        <option key={option} value={option} disabled={disabledPrivacyOptions.has(option)}>
+                        <option
+                          key={option}
+                          value={option}
+                          disabled={disabledPrivacyOptions.has(option)}
+                          title={disabledPrivacyOptions.has(option) && option === 'SELF_ONLY'
+                            ? 'Branded content visibility cannot be set to private.'
+                            : undefined}
+                        >
                           {privacyLabelMap[option] || option}
                         </option>
                       ))}
@@ -666,7 +664,7 @@ export default function TikTokPublishDialog({
                     <label className="block text-sm font-semibold text-gray-900 mb-3">
                       Interaction Settings
                     </label>
-                    <div className="space-y-2.5">
+                    <div className="grid gap-2.5 sm:grid-cols-3">
                       <label className={cn(
                         "flex items-center gap-3 p-2.5 rounded-lg transition-colors",
                         (creatorInfo?.commentDisabled ?? false) ? "opacity-60 cursor-not-allowed bg-gray-50" : "hover:bg-gray-50 cursor-pointer"
@@ -781,30 +779,42 @@ export default function TikTokPublishDialog({
                     )}
                   </div>
 
-                  {/* Declaration & Consent */}
-                  <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                    <p className="text-xs text-gray-700 leading-relaxed">
-                      {publishDeclaration}
-                    </p>
-                    <label className="mt-3 flex items-start gap-3 text-sm text-gray-800">
-                      <input
-                        type="checkbox"
-                        checked={consentChecked}
-                        onChange={(e) => setConsentChecked(e.target.checked)}
-                        className="mt-0.5 w-4 h-4 text-black border-gray-300 rounded"
-                      />
-                      <span>I confirm the preview above and consent to upload this content to TikTok.</span>
-                    </label>
-                  </div>
-
                   <p className="text-xs text-gray-500">
                     After publishing, TikTok may take a few minutes to process and show your post on the profile.
                   </p>
                 </div>
               )}
 
+              {status === 'idle' && (
+                <p className="mt-6 text-xs text-gray-600">
+                  By posting, you agree to TikTok&apos;s{' '}
+                  {confirmationIncludesBrandedPolicy && (
+                    <>
+                      <a
+                        href="https://www.tiktok.com/legal/page/global/bc-policy/en"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-500"
+                      >
+                        Branded Content Policy
+                      </a>{' '}
+                      and{' '}
+                    </>
+                  )}
+                  <a
+                    href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-500"
+                  >
+                    Music Usage Confirmation
+                  </a>
+                  .
+                </p>
+              )}
+
               {/* Actions */}
-              <div className={cn("mt-8 flex flex-col-reverse sm:flex-row gap-3", inline && "pb-2")}>
+              <div className={cn("mt-3 flex flex-col-reverse sm:flex-row gap-3", inline && "pb-2")}>
                 {status === 'idle' ? (
                   <>
                     <button
