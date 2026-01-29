@@ -987,8 +987,8 @@ const formatDurationLabel = (seconds: number) => {
                           <>
                             <blockquote
                               className="tiktok-embed"
-                              cite="https://www.tiktok.com/@laolilantian/video/7588829313886162184"
-                              data-video-id="7588829313886162184"
+                              cite="https://www.tiktok.com/@laolilantian/video/7600701595625688327?lang=en"
+                              data-video-id="7600701595625688327"
                               style={{ maxWidth: '605px', minWidth: '325px' }}
                             >
                               <section>
@@ -1086,7 +1086,7 @@ const formatDurationLabel = (seconds: number) => {
               <BottomBarDropdown
                 open={productDropdownOpen}
                 onOpenChange={setProductDropdownOpen}
-                triggerClassName="w-[320px]"
+                triggerClassName="min-w-[180px]"
                 panelWidthClassName="w-[320px]"
                 disabled={isLoadingAssets || productOptions.length === 0}
                 trigger={

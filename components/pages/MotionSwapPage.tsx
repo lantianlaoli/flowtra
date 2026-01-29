@@ -51,8 +51,8 @@ interface MotionSwapProject {
 }
 
 const CREDIT_RATE_PER_SECOND = 9;
-const TUTORIAL_TIKTOK_URL = 'https://www.tiktok.com/@laolilantian/video/7588829935922351378';
-const TUTORIAL_TIKTOK_ID = '7588829935922351378';
+const TUTORIAL_TIKTOK_URL = 'https://www.tiktok.com/@laolilantian/video/7600705503555095816?lang=en';
+const TUTORIAL_TIKTOK_ID = '7600705503555095816';
 const SESSION_STORAGE_KEY = 'motion_swap_session_state';
 
 export default function MotionSwapPage() {

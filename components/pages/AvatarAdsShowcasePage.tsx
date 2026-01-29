@@ -145,8 +145,8 @@ export default function AvatarAdsShowcasePage() {
               <div className="flex justify-center lg:justify-end w-full">
                 <blockquote
                   className="tiktok-embed"
-                  cite="https://www.tiktok.com/@laolilantian/video/7588829313886162184"
-                  data-video-id="7588829313886162184"
+                  cite="https://www.tiktok.com/@laolilantian/video/7600701595625688327?lang=en"
+                  data-video-id="7600701595625688327"
                   style={{ maxWidth: '605px', minWidth: '325px' }}
                 >
                   <section>

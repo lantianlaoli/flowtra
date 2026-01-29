@@ -16,8 +16,6 @@ interface SegmentEditorSplitPaneProps {
   videoModel?: string;
   videoDuration?: string | null;
   videoAspectRatio?: '16:9' | '9:16' | string | null;
-  brandId?: string | null;
-  brandName?: string | null;
   onRegenerate?: (options: {
     segmentIndex: number;
     type: 'photo' | 'video';
@@ -39,8 +37,6 @@ export default function SegmentEditorSplitPane({
   videoModel,
   videoDuration,
   videoAspectRatio,
-  brandId,
-  brandName,
   onRegenerate,
   onMerge,
   onDownload,
@@ -233,8 +229,6 @@ export default function SegmentEditorSplitPane({
               segmentPlanEntry={selectedSegmentPlan}
               videoModel={videoModel}
               videoDuration={videoDuration}
-              brandId={brandId}
-              brandName={brandName}
               onRegenerate={handleRegenerate}
               isSubmitting={submittingSegments[selectedSegmentIndex] || { photo: false, video: false }}
               readOnly={readOnly}

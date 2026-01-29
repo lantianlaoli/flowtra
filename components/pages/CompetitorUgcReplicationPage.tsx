@@ -1390,7 +1390,6 @@ export default function CompetitorUgcReplicationPage() {
       progress: 5,
       stage: isCompetitorPhotoMode ? 'Preparing replica photo…' : 'Initializing…',
       brand: undefined,
-      brandId: null,
       videoModel: shouldGenerateVideo ? selectedModel : undefined,
       videoAspectRatio: shouldGenerateVideo ? selectedVideoAspectRatio : null,
       downloaded: false,
@@ -1542,8 +1541,8 @@ export default function CompetitorUgcReplicationPage() {
                     emptyStateRightContent={
                       <blockquote
                         className="tiktok-embed"
-                        cite="https://www.tiktok.com/@laolilantian/video/7588829935922351378"
-                        data-video-id="7588829935922351378"
+                        cite="https://www.tiktok.com/@laolilantian/video/7600702812682587400?lang=en"
+                        data-video-id="7600702812682587400"
                         style={{ maxWidth: '605px', minWidth: '280px' }}
                       >
                         <section>
@@ -1675,8 +1674,6 @@ export default function CompetitorUgcReplicationPage() {
         segmentIndex={segmentInspector.segmentIndex}
         segment={inspectorContext.segment}
         segmentPlanEntry={inspectorContext.planEntry}
-        brandId={inspectorContext.generation.brandId || null}
-        brandName={inspectorContext.generation.brand || null}
         videoModel={inspectorContext.generation.videoModel}
         videoDuration={inspectorContext.generation.videoDuration}
         videoAspectRatio={inspectorContext.generation.videoAspectRatio}

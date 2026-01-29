@@ -67,8 +67,6 @@ interface SegmentFormColumnProps {
   segmentPlanEntry?: SegmentPrompt;
   videoModel?: string;
   videoDuration?: string | null;
-  brandId?: string | null;
-  brandName?: string | null;
   onRegenerate?: (options: {
     type: 'photo' | 'video';
     prompt: SegmentPromptPayload;
@@ -155,8 +153,6 @@ export default function SegmentFormColumn({
   segmentPlanEntry,
   videoModel,
   videoDuration,
-  brandId,
-  brandName,
   onRegenerate,
   isSubmitting,
   readOnly = false
@@ -287,16 +283,12 @@ export default function SegmentFormColumn({
   }, [shots]);
 
   useEffect(() => {
-    if (!brandId) {
-      setProductOptions([]);
-      return;
-    }
-
     let cancelled = false;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let activeController: AbortController | null = null;
 
-    const cached = productCacheRef.current[brandId];
+    const cacheKey = 'all';
+    const cached = productCacheRef.current[cacheKey];
     if (cached) {
       setProductOptions(cached.items);
       return () => {
@@ -314,7 +306,7 @@ export default function SegmentFormColumn({
       activeController = controller;
 
       try {
-        const response = await fetch(`/api/brands/${brandId}/products`, { signal: controller.signal });
+        const response = await fetch('/api/user-products', { signal: controller.signal });
         if (!response.ok) {
           throw new Error('Failed to load products');
         }
@@ -322,7 +314,7 @@ export default function SegmentFormColumn({
         if (cancelled) return;
 
         const items: BrandProduct[] = Array.isArray(data?.products) ? data.products : [];
-        productCacheRef.current[brandId] = { items };
+        productCacheRef.current[cacheKey] = { items };
         setProductOptions(items);
       } catch (error) {
         if (cancelled || controller.signal.aborted) {
@@ -336,7 +328,7 @@ export default function SegmentFormColumn({
           }, delay);
         } else {
           const message = 'Unable to load products for this brand. Please refresh and try again.';
-          productCacheRef.current[brandId] = { items: [], error: message };
+          productCacheRef.current[cacheKey] = { items: [], error: message };
           setProductOptions([]);
         }
       }
@@ -353,7 +345,7 @@ export default function SegmentFormColumn({
         activeController.abort();
       }
     };
-  }, [brandId]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

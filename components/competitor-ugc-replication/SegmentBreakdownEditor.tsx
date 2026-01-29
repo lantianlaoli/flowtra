@@ -13,8 +13,6 @@ type SegmentBreakdownEditorProps = {
   videoModel?: string;
   videoDuration?: string | null;
   videoAspectRatio?: '16:9' | '9:16' | string | null;
-  brandId?: string | null;
-  brandName?: string | null;
   onSegmentClick?: (segmentIndex: number) => void;
 };
 

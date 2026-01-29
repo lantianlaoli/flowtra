@@ -51,7 +51,6 @@ export interface Generation {
   coverUrl?: string;
   platform?: string;
   brand?: string;
-  brandId?: string | null;
   product?: string;
   error?: string;
   videoModel?: VideoModel;
@@ -476,6 +475,15 @@ function GenerationCard({
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {showPreviewAction && (
+              <button
+                onClick={() => onReview?.(generation)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-[13px] font-semibold hover:bg-gray-800 transition-all shadow-sm"
+              >
+                <Eye className="w-4 h-4" />
+                {reviewCtaLabel}
+              </button>
+            )}
             {primaryActionLabel && onPrimaryAction && (
               <button
                 onClick={() => onPrimaryAction(generation)}
@@ -578,15 +586,6 @@ function GenerationCard({
                   )}
                 </div>
               </div>
-              {showPreviewAction && (
-                <button
-                  onClick={() => onReview?.(generation)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-[13px] font-semibold hover:bg-gray-800 transition-all shadow-sm"
-                >
-                  <Eye className="w-4 h-4" />
-                  {reviewCtaLabel}
-                </button>
-              )}
             </div>
             <div className="relative h-2 w-full bg-gray-100 rounded-full overflow-hidden">
               <motion.div
@@ -765,8 +764,6 @@ function GenerationCard({
                 videoModel={generation.videoModel}
                 videoDuration={generation.videoDuration}
                 videoAspectRatio={generation.videoAspectRatio}
-                brandId={generation.brandId}
-                brandName={generation.brand}
                 onRegenerate={editorReadOnly ? undefined : (onSegmentRegenerate ? (options) => {
                   const projectId = (generation as any).projectId || generation.id;
                   if (!projectId) return;

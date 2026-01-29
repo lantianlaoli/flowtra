@@ -47,11 +47,13 @@ export default function BottomBarDropdown({
         onClick={() => onOpenChange(!open)}
         disabled={disabled}
         className={cn(
-          'flex items-center gap-3 h-12 px-3 border border-gray-200 rounded-lg bg-white text-gray-700 transition-colors hover:border-black disabled:cursor-not-allowed disabled:opacity-60',
+          'flex items-center justify-between gap-3 h-12 px-3 border border-gray-200 rounded-lg bg-white text-gray-700 transition-colors hover:border-black disabled:cursor-not-allowed disabled:opacity-60',
           triggerClassName
         )}
       >
-        {trigger}
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {trigger}
+        </div>
         <ChevronDown className={cn('w-4 h-4 text-gray-400 transition-transform', open && 'rotate-180')} />
       </button>
       {open && (

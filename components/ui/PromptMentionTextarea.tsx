@@ -48,6 +48,7 @@ export default function PromptMentionTextarea({
   productMentions = [],
   className,
 }: PromptMentionTextareaProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const suppressSelectionUpdateRef = useRef(false);
@@ -355,8 +356,24 @@ export default function PromptMentionTextarea({
     syncHistoryFromExternalValue(value);
   }, [value]);
 
+  useEffect(() => {
+    if (!mentionOpen) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(event.target as Node)) {
+        closeMention();
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [mentionOpen]);
+
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative">
       <div
         ref={overlayRef}
         className={clsx(
@@ -393,7 +410,6 @@ export default function PromptMentionTextarea({
         onKeyUp={handleSelectionUpdate}
         onClick={handleSelectionUpdate}
         onScroll={handleScroll}
-        onBlur={closeMention}
         rows={rows}
         disabled={disabled}
         readOnly={readOnly}

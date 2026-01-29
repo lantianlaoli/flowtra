@@ -321,8 +321,8 @@ export default function CompetitorReplicaShowcasePage() {
               <div className="flex justify-center lg:justify-end w-full">
                 <blockquote
                   className="tiktok-embed"
-                  cite="https://www.tiktok.com/@laolilantian/video/7588829935922351378"
-                  data-video-id="7588829935922351378"
+                  cite="https://www.tiktok.com/@laolilantian/video/7600702812682587400?lang=en"
+                  data-video-id="7600702812682587400"
                   style={{ maxWidth: '605px', minWidth: '325px' }}
                 >
                   <section>
