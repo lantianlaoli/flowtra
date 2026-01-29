@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Zap, Coins, Calendar, Film, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Zap, Coins, Calendar, Film, ThumbsUp, ThumbsDown, Send, ArrowLeft } from 'lucide-react';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { HIGH_RES_DOWNLOAD_COSTS, type HighResResolution, type VideoModel } from '@/lib/constants';
+import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 
 // Type definitions matching HistoryPage
 interface CompetitorUgcReplicationItem {
@@ -158,11 +159,37 @@ const formatDateTime = (dateString: string) => {
   });
 };
 
+const parseDurationSeconds = (value?: string): number | null => {
+  if (!value) return null;
+  const match = value.match(/[\d.]+/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getVideoDurationSeconds = (item: HistoryItem | null): number | null => {
+  if (!item) return null;
+  if (isCharacterAds(item)) {
+    return item.videoDurationSeconds ?? 8;
+  }
+  if (isCompetitorUgcReplication(item)) {
+    if (item.isSegmented && item.segmentCount) {
+      return item.segmentCount * 8;
+    }
+    return parseDurationSeconds(item.videoDuration) ?? 8;
+  }
+  if (isMotionSwap(item)) {
+    return item.videoDurationSeconds ?? 8;
+  }
+  return null;
+};
+
 export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, isDownloading }: VideoDetailsModalProps) {
   const [expandedShots, setExpandedShots] = useState<Set<string>>(new Set());
   const [selectedResolution, setSelectedResolution] = useState<HighResResolution>('720p');
   const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
+  const [showTikTokPanel, setShowTikTokPanel] = useState(false);
 
   const toggleShot = (shotKey: string) => {
     setExpandedShots(prev => {
@@ -212,6 +239,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   useEffect(() => {
     if (!isOpen) {
       setResolutionMenuOpen(false);
+      setShowTikTokPanel(false);
     }
   }, [isOpen]);
 
@@ -525,6 +553,10 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   }, [item, supportsHighRes]);
 
   const canDownload = !!item && item.status === 'completed' && item.videoUrl;
+  const canPublishToTikTok = useMemo(() => {
+    if (!item) return false;
+    return (isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.status === 'completed' && !!item.videoUrl;
+  }, [item]);
   const isHighResReady = selectedResolution === '720p'
     ? true
     : isCompetitorUgcReplication(item) || isCharacterAds(item)
@@ -616,106 +648,144 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                 </div>
               </div>
 
-              {/* RIGHT: Prompts-First Layout */}
+              {/* RIGHT: Prompts / TikTok Publish */}
               <div className="flex-1 flex flex-col overflow-hidden bg-white">
-                {/* Scrollable Content Area */}
-                <div className="flex-1 overflow-y-auto p-8 space-y-5">
+                <AnimatePresence mode="wait">
+                  {!showTikTokPanel ? (
+                    <motion.div
+                      key="details"
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex-1 overflow-y-auto p-8 space-y-5"
+                    >
 
-                  {/* Compact Parameters Card */}
-                  <div className="border border-[#E5E5E5] rounded-xl p-5 bg-[#FAFAFA] shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-xs font-bold text-black uppercase tracking-wider">Project Info</h3>
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-tight',
-                          item.status === 'completed' && 'bg-black text-white',
-                          item.status === 'processing' && 'bg-white text-black border border-[#E5E5E5]',
-                          item.status === 'failed' && 'bg-white text-black border border-black'
+                    {/* Compact Parameters Card */}
+                    <div className="border border-[#E5E5E5] rounded-xl p-5 bg-[#FAFAFA] shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xs font-bold text-black uppercase tracking-wider">Project Info</h3>
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-tight',
+                            item.status === 'completed' && 'bg-black text-white',
+                            item.status === 'processing' && 'bg-white text-black border border-[#E5E5E5]',
+                            item.status === 'failed' && 'bg-white text-black border border-black'
+                          )}
+                        >
+                          {item.status === 'completed' && <Check className="w-3 h-3" />}
+                          {item.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
+                          {item.status === 'completed' && 'Completed'}
+                          {item.status === 'processing' && `${item.progress || 0}%`}
+                          {item.status === 'failed' && 'Failed'}
+                        </span>
+                      </div>
+
+                      {/* Compact Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                        <CompactParam 
+                          icon={<Cpu className="w-3.5 h-3.5" />} 
+                          label="AI Model" 
+                          value={isMotionSwap(item) ? 'Kling 2.6 Motion Control' : getModelDisplayName(item.videoModel)} 
+                        />
+                        <CompactParam 
+                          icon={<Maximize className="w-3.5 h-3.5" />} 
+                          label="Ratio" 
+                          value={formatAspectRatio(item)} 
+                        />
+                        <CompactParam 
+                          icon={<Clock className="w-3.5 h-3.5" />} 
+                          label="Duration" 
+                          value={formatDuration(item)} 
+                        />
+
+                        {(isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.language && (
+                          <CompactParam 
+                            icon={<Languages className="w-3.5 h-3.5" />} 
+                            label="Language" 
+                            value={item.language.toUpperCase()} 
+                          />
                         )}
-                      >
-                        {item.status === 'completed' && <Check className="w-3 h-3" />}
-                        {item.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
-                        {item.status === 'completed' && 'Completed'}
-                        {item.status === 'processing' && `${item.progress || 0}%`}
-                        {item.status === 'failed' && 'Failed'}
-                      </span>
+                        {isCompetitorUgcReplication(item) && item.videoQuality && (
+                          <CompactParam 
+                            icon={<Zap className="w-3.5 h-3.5" />} 
+                            label="Quality" 
+                            value={item.videoQuality} 
+                            capitalize 
+                          />
+                        )}
+
+                        <CompactParam 
+                          icon={<Coins className="w-3.5 h-3.5" />} 
+                          label="Credits" 
+                          value={`${item.creditsUsed}`} 
+                        />
+                        <CompactParam
+                          icon={<Calendar className="w-3.5 h-3.5" />}
+                          label="Created At"
+                          value={formatDateTime(item.createdAt).split(',')[0]}
+                        />
+                      </div>
                     </div>
 
-                    {/* Compact Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
-                      <CompactParam 
-                        icon={<Cpu className="w-3.5 h-3.5" />} 
-                        label="AI Model" 
-                        value={isMotionSwap(item) ? 'Kling 2.6 Motion Control' : getModelDisplayName(item.videoModel)} 
-                      />
-                      <CompactParam 
-                        icon={<Maximize className="w-3.5 h-3.5" />} 
-                        label="Ratio" 
-                        value={formatAspectRatio(item)} 
-                      />
-                      <CompactParam 
-                        icon={<Clock className="w-3.5 h-3.5" />} 
-                        label="Duration" 
-                        value={formatDuration(item)} 
-                      />
+                    {/* Main Content: AI Prompts - Takes Most Space */}
+                    {promptsContent && (
+                      <section className="space-y-3">
+                        <h3 className="text-base font-semibold text-black tracking-tight">
+                          {promptsContent.title}
+                        </h3>
 
-                      {(isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.language && (
-                        <CompactParam 
-                          icon={<Languages className="w-3.5 h-3.5" />} 
-                          label="Language" 
-                          value={item.language.toUpperCase()} 
-                        />
-                      )}
-                      {isCompetitorUgcReplication(item) && item.videoQuality && (
-                        <CompactParam 
-                          icon={<Zap className="w-3.5 h-3.5" />} 
-                          label="Quality" 
-                          value={item.videoQuality} 
-                          capitalize 
-                        />
-                      )}
+                        {/* Render formatted content */}
+                        <div>
+                          {renderPromptContent()}
+                        </div>
+                      </section>
+                    )}
 
-                      <CompactParam 
-                        icon={<Coins className="w-3.5 h-3.5" />} 
-                        label="Credits" 
-                        value={`${item.creditsUsed}`} 
-                      />
-                      <CompactParam
-                        icon={<Calendar className="w-3.5 h-3.5" />}
-                        label="Created At"
-                        value={formatDateTime(item.createdAt).split(',')[0]}
-                      />
-                    </div>
-                  </div>
+                    {/* Error Details - Only if Failed */}
+                    {item.status === 'failed' && 'errorMessage' in item && item.errorMessage && (
+                      <section className="space-y-3">
+                        <h3 className="text-sm font-semibold text-black tracking-tight">Error Details</h3>
+                        <div className="border border-red-200 rounded-lg p-4 bg-red-50">
+                          <p className="text-xs text-red-800 leading-relaxed">{item.errorMessage}</p>
+                        </div>
+                      </section>
+                    )}
 
-                  {/* Main Content: AI Prompts - Takes Most Space */}
-                  {promptsContent && (
-                    <section className="space-y-3">
-                      <h3 className="text-base font-semibold text-black tracking-tight">
-                        {promptsContent.title}
-                      </h3>
-
-                      {/* Render formatted content */}
-                      <div>
-                        {renderPromptContent()}
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="tiktok"
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex-1 overflow-y-auto p-8"
+                    >
+                      <div className="mb-4 flex items-center gap-2">
+                        <button
+                          onClick={() => setShowTikTokPanel(false)}
+                          className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-black transition-colors"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          Back to details
+                        </button>
                       </div>
-                    </section>
+                      <TikTokPublishDialog
+                        isOpen={true}
+                        onClose={() => setShowTikTokPanel(false)}
+                        historyId={item.id}
+                        coverImageUrl={'coverImageUrl' in item ? item.coverImageUrl : undefined}
+                        videoDurationSeconds={getVideoDurationSeconds(item)}
+                        isPhotoPost={isCompetitorUgcReplication(item) && !!item.photoOnly}
+                        inline
+                      />
+                    </motion.div>
                   )}
-
-                  {/* Error Details - Only if Failed */}
-                  {item.status === 'failed' && 'errorMessage' in item && item.errorMessage && (
-                    <section className="space-y-3">
-                      <h3 className="text-sm font-semibold text-black tracking-tight">Error Details</h3>
-                      <div className="border border-red-200 rounded-lg p-4 bg-red-50">
-                        <p className="text-xs text-red-800 leading-relaxed">{item.errorMessage}</p>
-                      </div>
-                    </section>
-                  )}
-
-                </div>
+                </AnimatePresence>
 
                 {/* Fixed Download Button at Bottom Right */}
-                {canDownload && (
+                {canDownload && !showTikTokPanel && (
                   <div className="border-t border-[#E5E5E5] bg-white px-8 py-4">
                     <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-between">
                       {/* Feedback Buttons */}
@@ -734,6 +804,15 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
 
                       {/* Download Controls */}
                       <div className="flex items-center gap-3">
+                      {canPublishToTikTok && (
+                        <button
+                          onClick={() => setShowTikTokPanel(true)}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#E5E5E5] text-sm font-medium text-black bg-white hover:bg-[#F7F7F7] transition-all"
+                        >
+                          <Send className="w-4 h-4" />
+                          <span>Share to TikTok</span>
+                        </button>
+                      )}
                       {supportsHighRes && (
                         <div className="relative">
                           <button

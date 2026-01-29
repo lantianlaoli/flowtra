@@ -665,9 +665,8 @@ export default function CreditsPage() {
             </div>
           )}
 
-          {/* Connected Accounts Section - Temporarily hidden */}
-          {false && (
-            <div className="mb-8">
+          {/* Connected Accounts Section */}
+          <div className="mb-8">
               <h2 className="text-2xl font-semibold text-[#000000] mb-6">Connected Accounts</h2>
 
               {/* TikTok Connection Card */}
@@ -740,7 +739,6 @@ export default function CreditsPage() {
                 </div>
               </div>
             </div>
-          )}
 
           {/* Transaction History */}
           <div>
