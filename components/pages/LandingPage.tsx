@@ -20,7 +20,7 @@ export default async function LandingPage() {
   const activatedUserCount = await getActivatedUserCount();
 
   return (
-    <div className="min-h-screen bg-white text-black dark:bg-[#0b0f16] dark:text-[#f8fafc]">
+    <div className="min-h-screen bg-white">
       {/* SEO Schema for demo videos */}
       {demoVideos.map((video) => (
         <DemoVideoSchema
