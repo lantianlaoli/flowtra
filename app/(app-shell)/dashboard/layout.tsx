@@ -13,6 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    document.documentElement.classList.remove('dark')
     const stored = window.localStorage.getItem('flowtra-dashboard-dark')
     const enabled = stored === null ? true : stored === 'true'
     setIsDarkMode(enabled)
