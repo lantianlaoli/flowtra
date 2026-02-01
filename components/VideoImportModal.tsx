@@ -335,14 +335,14 @@ export default function VideoImportModal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="assets-modal assets-video-import fixed inset-0 z-50 flex items-center justify-center p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
           <motion.div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={onClose}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -350,25 +350,25 @@ export default function VideoImportModal({
           />
 
           <motion.div
-            className="relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-5xl mx-auto overflow-hidden"
+            className="assets-modal-panel assets-video-import-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-5xl mx-auto overflow-hidden"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="assets-modal-header flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center">
+                <div className="assets-modal-icon w-9 h-9 bg-black rounded-lg flex items-center justify-center">
                   <SiTiktok className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Import Videos</h3>
-                  <p className="text-sm text-gray-600">TikTok only. Videos are stored in your library.</p>
+                  <h3 className="assets-modal-title text-lg font-semibold text-gray-900">Import Videos</h3>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">TikTok only. Videos are stored in your library.</p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+                className="assets-modal-close w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
                 disabled={isSubmitting}
               >
                 <X className="w-4 h-4 text-gray-500" />
@@ -376,86 +376,86 @@ export default function VideoImportModal({
             </div>
 
             {step === 'choose' && (
-              <div className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="assets-modal-body p-6 space-y-6">
+                <div className="assets-video-import-options grid grid-cols-1 md:grid-cols-3 gap-4">
                   <button
                     onClick={() => setStep('link')}
-                    className="group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
+                    className="assets-video-import-option group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
+                    <div className="assets-video-import-option-icon w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
                       <Link className="w-4 h-4" />
                     </div>
-                    <h4 className="text-sm font-semibold text-gray-900 mb-1">Paste Link</h4>
-                    <p className="text-xs text-gray-500">Copy a TikTok video URL and import it instantly.</p>
+                    <h4 className="assets-video-import-option-title text-sm font-semibold text-gray-900 mb-1">Paste Link</h4>
+                    <p className="assets-video-import-option-copy text-xs text-gray-500">Copy a TikTok video URL and import it instantly.</p>
                   </button>
                   <button
                     onClick={() => setStep('upload')}
-                    className="group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
+                    className="assets-video-import-option group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
+                    <div className="assets-video-import-option-icon w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
                       <Upload className="w-4 h-4" />
                     </div>
-                    <h4 className="text-sm font-semibold text-gray-900 mb-1">Upload File</h4>
-                    <p className="text-xs text-gray-500">Upload a downloaded TikTok MP4 from your device.</p>
+                    <h4 className="assets-video-import-option-title text-sm font-semibold text-gray-900 mb-1">Upload File</h4>
+                    <p className="assets-video-import-option-copy text-xs text-gray-500">Upload a downloaded TikTok MP4 from your device.</p>
                   </button>
                   <button
                     onClick={() => setStep('creator')}
-                    className="group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
+                    className="assets-video-import-option group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
+                    <div className="assets-video-import-option-icon w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
                       <Users className="w-4 h-4" />
                     </div>
-                    <h4 className="text-sm font-semibold text-gray-900 mb-1">Creator Name</h4>
-                    <p className="text-xs text-gray-500">Fetch the latest videos and import selected ones.</p>
+                    <h4 className="assets-video-import-option-title text-sm font-semibold text-gray-900 mb-1">Creator Name</h4>
+                    <p className="assets-video-import-option-copy text-xs text-gray-500">Fetch the latest videos and import selected ones.</p>
                   </button>
                 </div>
               </div>
             )}
 
             {(step === 'link' || step === 'upload') && (
-              <div className="p-6 space-y-6">
+              <div className="assets-modal-body p-6 space-y-6">
                 <button
                   onClick={handleBackToChoose}
-                  className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                  className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to options
                 </button>
 
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] gap-6">
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <div className="assets-video-import-help rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+                    <div className="assets-video-import-help-title flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                       <Info className="w-4 h-4" />
                       {step === 'link' ? 'How to get the TikTok link' : 'How to prepare the file'}
                     </div>
-                    <ol className="space-y-2 text-sm text-gray-600">
+                    <ol className="assets-video-import-help-list space-y-2 text-sm text-gray-600">
                       {step === 'link' ? (
                         <>
                           <li className="flex items-start gap-2">
-                            <span className="font-semibold text-gray-900">1.</span>
+                            <span className="assets-video-import-help-index font-semibold text-gray-900">1.</span>
                             Open the TikTok video you want to import.
                           </li>
                           <li className="flex items-start gap-2">
-                            <span className="font-semibold text-gray-900">2.</span>
+                            <span className="assets-video-import-help-index font-semibold text-gray-900">2.</span>
                             Tap the Share button on the right panel.
                           </li>
                           <li className="flex items-start gap-2">
-                            <span className="font-semibold text-gray-900">3.</span>
+                            <span className="assets-video-import-help-index font-semibold text-gray-900">3.</span>
                             Choose Copy Link and paste it here.
                           </li>
                         </>
                       ) : (
                         <>
                           <li className="flex items-start gap-2">
-                            <span className="font-semibold text-gray-900">1.</span>
+                            <span className="assets-video-import-help-index font-semibold text-gray-900">1.</span>
                             Download the TikTok video to your device.
                           </li>
                           <li className="flex items-start gap-2">
-                            <span className="font-semibold text-gray-900">2.</span>
+                            <span className="assets-video-import-help-index font-semibold text-gray-900">2.</span>
                             Save the file as MP4 or MOV.
                           </li>
                           <li className="flex items-start gap-2">
-                            <span className="font-semibold text-gray-900">3.</span>
+                            <span className="assets-video-import-help-index font-semibold text-gray-900">3.</span>
                             Upload the file here to import.
                           </li>
                         </>
@@ -463,10 +463,10 @@ export default function VideoImportModal({
                     </ol>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="assets-video-import-form space-y-4">
                     {step === 'link' ? (
                       <>
-                        <label className="block text-sm font-medium text-gray-700">TikTok Video Link</label>
+                        <label className="assets-modal-label block text-sm font-medium text-gray-700">TikTok Video Link</label>
                         <div className="flex flex-col gap-3">
                           <div className="relative">
                             <Link className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -475,13 +475,13 @@ export default function VideoImportModal({
                               value={linkUrl}
                               onChange={(event) => setLinkUrl(event.target.value)}
                               placeholder="https://www.tiktok.com/@creator/video/123"
-                              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                              className="assets-modal-input w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                             />
                           </div>
                           <button
                             onClick={handleImportLink}
                             disabled={isSubmitting}
-                            className="w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                           >
                             {isSubmitting ? 'Importing...' : 'Import & Analyze'}
                           </button>
@@ -489,12 +489,12 @@ export default function VideoImportModal({
                       </>
                     ) : (
                       <>
-                        <label className="block text-sm font-medium text-gray-700">Upload Video File</label>
+                        <label className="assets-modal-label block text-sm font-medium text-gray-700">Upload Video File</label>
                         <div className="flex flex-col gap-3">
-                          <label className="w-full aspect-square flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl px-6 text-sm text-gray-500 cursor-pointer hover:border-gray-400 transition-colors">
+                          <label className="assets-modal-upload w-full aspect-square flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl px-6 text-sm text-gray-500 cursor-pointer hover:border-gray-400 transition-colors">
                             <Upload className="w-5 h-5" />
                             <span className="text-sm">{uploadFile ? uploadFile.name : 'Choose a video file'}</span>
-                            <span className="text-xs text-gray-400">MP4 or MOV</span>
+                            <span className="assets-modal-helper text-xs text-gray-400">MP4 or MOV</span>
                             <input
                               type="file"
                               accept="video/*"
@@ -517,17 +517,17 @@ export default function VideoImportModal({
             )}
 
             {step === 'creator' && (
-              <div className="p-6 space-y-6">
+              <div className="assets-modal-body p-6 space-y-6">
                 <button
                   onClick={handleBackToChoose}
-                  className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                  className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to options
                 </button>
 
-                <div className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700">TikTok Username</label>
+                <div className="assets-video-import-form space-y-4">
+                  <label className="assets-modal-label block text-sm font-medium text-gray-700">TikTok Username</label>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">@</span>
@@ -536,54 +536,54 @@ export default function VideoImportModal({
                         value={creatorHandle}
                         onChange={(event) => setCreatorHandle(event.target.value)}
                         placeholder="creator"
-                        className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                        className="assets-modal-input w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                       />
                     </div>
                     <button
                       onClick={handlePreviewCreator}
                       disabled={isPreviewLoading}
-                      className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                      className="assets-modal-secondary px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
                     >
                       {isPreviewLoading ? 'Loading...' : 'Fetch Videos'}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500">We will show the latest 10 videos for selection.</p>
+                  <p className="assets-modal-helper text-xs text-gray-500">We will show the latest 10 videos for selection.</p>
                 </div>
               </div>
             )}
 
             {step === 'creator-preview' && (
-              <div className="p-6 space-y-6">
+              <div className="assets-modal-body p-6 space-y-6">
                 <button
                   onClick={() => setStep('creator')}
-                  className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                  className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to search
                 </button>
 
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
+                  <p className="assets-video-import-meta text-sm text-gray-600">
                     Select videos to import ({selectedVideos.length} selected)
                   </p>
                   <button
                     onClick={handleImportCreatorVideos}
                     disabled={isSubmitting || selectedVideos.length === 0}
-                    className="px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60"
+                    className="assets-modal-primary px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60"
                   >
                     {isSubmitting ? 'Importing...' : 'Import Selected'}
                   </button>
                 </div>
 
                 <div className="max-h-[62vh] overflow-y-auto pr-1">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <div className="assets-video-import-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                     {previewVideos.map(video => (
                       <button
                         key={video.platform_video_id}
                         onClick={() => toggleSelected(video.platform_video_id)}
-                        className={`group text-left border rounded-lg overflow-hidden transition-colors ${selectedVideoIds.has(video.platform_video_id) ? 'border-black ring-1 ring-black' : 'border-gray-200 hover:border-gray-400'}`}
+                        className={`assets-video-import-tile group text-left border rounded-lg overflow-hidden transition-colors ${selectedVideoIds.has(video.platform_video_id) ? 'border-black ring-1 ring-black' : 'border-gray-200 hover:border-gray-400'}`}
                       >
-                        <div className="relative aspect-[9/16] bg-gray-100">
+                        <div className="assets-video-import-thumb relative aspect-[9/16] bg-gray-100">
                           {video.cover_url ? (
                             <img
                               src={video.cover_url}
@@ -596,11 +596,11 @@ export default function VideoImportModal({
                             </div>
                           )}
                           {selectedVideoIds.has(video.platform_video_id) && (
-                            <div className="absolute inset-0 bg-black/30" />
+                            <div className="assets-video-import-thumb-overlay absolute inset-0 bg-black/30" />
                           )}
                         </div>
-                        <div className="p-2">
-                          <p className="text-xs text-gray-600 line-clamp-2 min-h-[2rem]">
+                        <div className="assets-video-import-tile-body p-2">
+                          <p className="assets-video-import-tile-copy text-xs text-gray-600 line-clamp-2 min-h-[2rem]">
                             {video.description || 'TikTok video'}
                           </p>
                         </div>
@@ -612,8 +612,8 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing' && (
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6 min-h-[600px]">
-                <div className="bg-black/95 rounded-xl overflow-hidden flex items-center justify-center min-h-[520px] aspect-[9/16]">
+              <div className="assets-modal-body grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6 min-h-[600px]">
+                <div className="assets-video-import-preview bg-black/95 rounded-xl overflow-hidden flex items-center justify-center min-h-[520px] aspect-[9/16]">
                   {processingVideo?.video_cdn_url ? (
                     <VideoPlayer
                       src={processingVideo.video_cdn_url}
@@ -621,15 +621,15 @@ export default function VideoImportModal({
                       showControls
                     />
                   ) : (
-                    <div className="flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
+                    <div className="assets-video-import-preview-empty flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
                       <Loader2 className="w-5 h-5 animate-spin" />
                       Preparing video preview...
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col gap-4 min-h-[520px]">
+                <div className="assets-video-import-panel flex flex-col gap-4 min-h-[520px]">
                   <div className="space-y-2">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Overview</p>
+                    <p className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">Overview</p>
                     <div className="flex items-center justify-between text-sm text-gray-700">
                       <span>Language</span>
                       <span>{processingVideo?.analysis_language || '—'}</span>
@@ -641,9 +641,9 @@ export default function VideoImportModal({
                   </div>
 
                   <div className="flex-1 flex flex-col gap-3 min-h-0">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Structure Analysis</p>
+                    <p className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">Structure Analysis</p>
                     {processingVideo?.analysis_status === 'failed' ? (
-                      <div className="rounded-lg border border-dashed border-red-200 bg-red-50 p-4 text-sm text-red-600 space-y-2">
+                      <div className="assets-video-import-alert rounded-lg border border-dashed border-red-200 bg-red-50 p-4 text-sm text-red-600 space-y-2">
                         <p>Analysis failed. Please refresh and try again later.</p>
                         {processingVideo.analysis_error && (
                           <p className="text-xs text-red-500">{processingVideo.analysis_error}</p>
@@ -653,9 +653,9 @@ export default function VideoImportModal({
                       <>
                         <div className="flex items-center justify-between text-sm text-gray-700">
                           <span className="font-semibold text-gray-900">Shot List</span>
-                          <span className="text-xs text-gray-500">{processingShots.length} shots</span>
+                          <span className="assets-video-import-meta text-xs text-gray-500">{processingShots.length} shots</span>
                         </div>
-                        <div className="flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 min-h-[180px]">
+                        <div className="assets-video-import-shots flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 min-h-[180px]">
                           <CompetitorShotsEditor
                             shots={processingShots}
                             onShotsChange={() => {}}
@@ -667,21 +667,21 @@ export default function VideoImportModal({
                         </div>
                       </>
                     ) : (
-                      <div className="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 space-y-2">
+                      <div className="assets-video-import-alert rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 space-y-2">
                         <div className="flex items-center gap-2 text-gray-600">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           <span>Analysis running automatically in the background.</span>
                         </div>
-                        <p className="text-xs text-gray-500">This may take a few minutes. Refresh the page to see the results.</p>
+                        <p className="assets-video-import-meta text-xs text-gray-500">This may take a few minutes. Refresh the page to see the results.</p>
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-auto flex flex-col gap-2">
+                  <div className="assets-video-import-actions mt-auto flex flex-col gap-2">
                     <button
                       onClick={handleUseForClone}
                       disabled={!canUseForClone}
-                      className="w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <Play className="w-4 h-4" />
                       Go to Clone Video
@@ -689,7 +689,7 @@ export default function VideoImportModal({
                     <button
                       onClick={handleUseInMotionSwap}
                       disabled={!canUseForMotionSwap}
-                      className="w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <Wand2 className="w-4 h-4" />
                       Go to Motion Swap
@@ -700,20 +700,20 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing-batch' && (
-              <div className="p-10 flex flex-col items-center justify-center text-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+              <div className="assets-modal-body p-10 flex flex-col items-center justify-center text-center gap-4">
+                <div className="assets-video-import-loader w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                   <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
                 </div>
-                <h4 className="text-lg font-semibold text-gray-900">Processing {processingCount} videos</h4>
-                <p className="text-sm text-gray-500 max-w-md">
+                <h4 className="assets-video-import-title text-lg font-semibold text-gray-900">Processing {processingCount} videos</h4>
+                <p className="assets-video-import-meta text-sm text-gray-500 max-w-md">
                   {processingMessage || 'This may take a few minutes. You can close this window and refresh to see new videos.'}
                 </p>
               </div>
             )}
 
             {error && (
-              <div className="px-6 pb-6">
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+              <div className="assets-modal-body px-6 pb-6">
+                <div className="assets-modal-error bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
                   {error}
                 </div>
               </div>

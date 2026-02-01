@@ -107,14 +107,14 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
     <AnimatePresence>
       {isOpen && video && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="assets-modal assets-video-details fixed inset-0 z-50 flex items-center justify-center p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
           <motion.div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={onClose}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -122,27 +122,27 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
           />
 
           <motion.div
-            className="relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-5xl mx-auto overflow-hidden"
+            className="assets-modal-panel assets-video-details-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-5xl mx-auto overflow-hidden"
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="assets-modal-header flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Video Details</h3>
-                <p className="text-sm text-gray-500">{displayName}</p>
+                <h3 className="assets-modal-title text-lg font-semibold text-gray-900">Video Details</h3>
+                <p className="assets-modal-subtitle text-sm text-gray-500">{displayName}</p>
               </div>
               <button
                 onClick={onClose}
-                className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+                className="assets-modal-close w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6">
-              <div className="bg-black/95 rounded-xl overflow-hidden">
+            <div className="assets-modal-body grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6">
+              <div className="assets-video-details-preview bg-black/95 rounded-xl overflow-hidden">
                 {video.video_cdn_url ? (
                   <VideoPlayer
                     src={video.video_cdn_url}
@@ -150,15 +150,15 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
                     showControls
                   />
                 ) : (
-                  <div className="flex items-center justify-center aspect-[9/16] text-gray-400">
+                  <div className="assets-video-details-preview-empty flex items-center justify-center aspect-[9/16] text-gray-400">
                     Video unavailable
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col gap-6">
+              <div className="assets-video-details-panel flex flex-col gap-6">
                 <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Overview</p>
+                  <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">Overview</p>
                   <div className="space-y-2 text-sm text-gray-700">
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-2">
@@ -186,16 +186,16 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
                         <Tag className="w-4 h-4 text-gray-400" />
                         Name
                       </span>
-                      <span className="truncate max-w-[160px]">{analysisName || '—'}</span>
+                      <span className="assets-video-details-meta truncate max-w-[160px]">{analysisName || '—'}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex-1 space-y-3">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Structure Analysis</p>
+                  <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">Structure Analysis</p>
                   {hasAnalysis ? (
                     <div className="space-y-3">
-                      <div className="max-h-[420px] overflow-y-auto">
+                      <div className="assets-video-details-shots max-h-[420px] overflow-y-auto">
                         <CompetitorShotsEditor
                           shots={parsedShots}
                           onShotsChange={() => {}}
@@ -207,7 +207,7 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 space-y-3">
+                    <div className="assets-video-details-alert rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 space-y-3">
                       {video?.analysis_status === 'failed' ? (
                         <>
                           <p className="text-red-600">Analysis failed. Please retry by re-importing the video.</p>
@@ -221,18 +221,18 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <span>Analysis is running automatically in the background.</span>
                           </div>
-                          <p className="text-xs text-gray-500">This may take a few minutes. Refresh the page to see the results.</p>
+                          <p className="assets-video-details-meta text-xs text-gray-500">This may take a few minutes. Refresh the page to see the results.</p>
                         </>
                       )}
                     </div>
                   )}
                 </div>
 
-                <div className="mt-auto flex flex-col gap-2 pt-2">
+                <div className="assets-video-details-actions mt-auto flex flex-col gap-2 pt-2">
                   <button
                     onClick={handleUseForClone}
                     disabled={!hasAnalysis || isCreatingClone}
-                    className="w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {isCreatingClone ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                     Use for Clone
@@ -240,7 +240,7 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
                   <button
                     onClick={handleUseInMotionSwap}
                     disabled={!video.source_id}
-                    className="w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     <Wand2 className="w-4 h-4" />
                     Use in Motion Swap

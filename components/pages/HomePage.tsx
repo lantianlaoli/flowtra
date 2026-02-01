@@ -65,7 +65,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Sidebar
         credits={credits}
         creditsData={creditsData}
@@ -73,62 +73,62 @@ export default function HomePage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-white min-h-screen">
+      <div className="md:ml-72 ml-0 bg-background min-h-screen">
         <div className="px-8 md:px-12 lg:px-16 pb-12 max-w-[1280px] mx-auto pt-16 md:pt-12">
           {/* Header Section - Minimalist with generous spacing */}
           <div className="mb-16">
-            <h1 className="text-5xl md:text-6xl font-bold text-black tracking-tight mb-3">
+            <h1 className="text-5xl md:text-6xl font-bold text-foreground tracking-tight mb-3">
               Hello, {getUserName()}
             </h1>
-            <p className="text-base text-[#666666]">Your creative dashboard at a glance</p>
+            <p className="text-base text-muted-foreground">Your creative dashboard at a glance</p>
           </div>
 
           {/* Stats Cards - Geometric precision with minimal shadows */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-            <Card className="bg-[#F7F7F7] border-[#E5E5E5] border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-300">
+            <Card className="bg-card border-border border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.35)] transition-shadow duration-300">
               <div className="flex flex-col gap-4">
-                <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-white" />
+                <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-primary-foreground" />
                 </div>
                 <div>
-                  <div className="text-4xl font-bold text-black mb-1">{stats.totalVideos}</div>
-                  <div className="text-sm font-medium text-[#666666] uppercase tracking-wide">Total Videos</div>
+                  <div className="text-4xl font-bold text-foreground mb-1">{stats.totalVideos}</div>
+                  <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Videos</div>
                 </div>
               </div>
             </Card>
 
-            <Card className="bg-[#F7F7F7] border-[#E5E5E5] border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-300">
+            <Card className="bg-card border-border border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.35)] transition-shadow duration-300">
               <div className="flex flex-col gap-4">
-                <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-white" />
+                <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-primary-foreground" />
                 </div>
                 <div>
-                  <div className="text-4xl font-bold text-black mb-1">{stats.thisMonth}</div>
-                  <div className="text-sm font-medium text-[#666666] uppercase tracking-wide">This Month</div>
+                  <div className="text-4xl font-bold text-foreground mb-1">{stats.thisMonth}</div>
+                  <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide">This Month</div>
                 </div>
               </div>
             </Card>
 
-            <Card className="bg-[#F7F7F7] border-[#E5E5E5] border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-300">
+            <Card className="bg-card border-border border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.35)] transition-shadow duration-300">
               <div className="flex flex-col gap-4">
-                <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-white" />
+                <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-primary-foreground" />
                 </div>
                 <div>
-                  <div className="text-4xl font-bold text-black mb-1">{stats.creditsUsed}</div>
-                  <div className="text-sm font-medium text-[#666666] uppercase tracking-wide">Credits Used</div>
+                  <div className="text-4xl font-bold text-foreground mb-1">{stats.creditsUsed}</div>
+                  <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Credits Used</div>
                 </div>
               </div>
             </Card>
 
-            <Card className="bg-[#F7F7F7] border-[#E5E5E5] border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-300">
+            <Card className="bg-card border-border border rounded-xl p-6 hover:shadow-[0_20px_40px_rgba(0,0,0,0.35)] transition-shadow duration-300">
               <div className="flex flex-col gap-4">
-                <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-white" />
+                <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-primary-foreground" />
                 </div>
                 <div>
-                  <div className="text-4xl font-bold text-black mb-1">{stats.hoursSaved}</div>
-                  <div className="text-sm font-medium text-[#666666] uppercase tracking-wide">Hours Saved</div>
+                  <div className="text-4xl font-bold text-foreground mb-1">{stats.hoursSaved}</div>
+                  <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Hours Saved</div>
                 </div>
               </div>
             </Card>
@@ -297,22 +297,22 @@ function DiscoverSection() {
   };
 
   return (
-    <Card className="bg-white border-[#E5E5E5] border rounded-xl overflow-hidden">
+    <Card className="bg-card border-border border rounded-xl overflow-hidden">
       {/* Minimalist type filter with Tabs */}
-      <div className="px-8 py-6 border-b border-[#E5E5E5]">
-        <h2 className="text-3xl font-semibold text-black mb-6">Discover</h2>
+      <div className="px-8 py-6 border-b border-border">
+        <h2 className="text-3xl font-semibold text-foreground mb-6">Discover</h2>
         <Tabs value={filter} onValueChange={(v) => setFilter(v as DiscoverType)} className="w-full">
-          <TabsList className="bg-[#F7F7F7] border border-[#E5E5E5] rounded-lg p-1">
-            <TabsTrigger value="all" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
+          <TabsList className="bg-muted border border-border rounded-lg p-1">
+            <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-4 py-2 text-sm font-medium transition-all">
               All
             </TabsTrigger>
-            <TabsTrigger value="competitor-ugc-replication" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
+            <TabsTrigger value="competitor-ugc-replication" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-4 py-2 text-sm font-medium transition-all">
               Viral Clone
             </TabsTrigger>
-            <TabsTrigger value="character" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
+            <TabsTrigger value="character" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-4 py-2 text-sm font-medium transition-all">
               Character
             </TabsTrigger>
-            <TabsTrigger value="motion-swap" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
+            <TabsTrigger value="motion-swap" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-4 py-2 text-sm font-medium transition-all">
               Motion Swap
             </TabsTrigger>
           </TabsList>
@@ -324,18 +324,18 @@ function DiscoverSection() {
         {loading && (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-64 bg-[#F7F7F7] rounded-xl animate-pulse border border-[#E5E5E5]" />
+              <div key={i} className="h-64 bg-muted rounded-xl animate-pulse border border-border" />
             ))}
           </div>
         )}
         {!loading && error && (
-          <div className="text-center text-sm text-[#666666] py-12">Failed to load content</div>
+          <div className="text-center text-sm text-muted-foreground py-12">Failed to load content</div>
         )}
         <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6">
           {filtered.map((item) => (
             <div key={item.id} className="mb-6 break-inside-avoid">
               <div
-                className="group relative w-full rounded-xl overflow-hidden border border-[#E5E5E5] bg-[#F7F7F7] hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-all duration-300"
+                className="group relative w-full rounded-xl overflow-hidden border border-border bg-muted hover:shadow-[0_20px_40px_rgba(0,0,0,0.35)] transition-all duration-300"
                 onMouseEnter={() => item.videoUrl && handleMouseEnter(item.id)}
                 onMouseLeave={() => item.videoUrl && handleMouseLeave(item.id)}
               >
@@ -368,7 +368,7 @@ function DiscoverSection() {
                   <button
                     aria-label="toggle-sound"
                     onClick={(e) => { e.stopPropagation(); toggleVolumeClick(item.id); }}
-                    className="absolute top-3 right-3 p-2.5 rounded-lg bg-black/70 text-white opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 hover:bg-black"
+                    className="absolute top-3 right-3 p-2.5 rounded-lg bg-background/80 text-foreground border border-border opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 hover:bg-background"
                   >
                     {(() => {
                       const el = videoRefs.current[item.id];

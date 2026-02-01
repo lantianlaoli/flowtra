@@ -109,7 +109,7 @@ export default function EditAvatarModal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="assets-modal assets-edit-avatar fixed inset-0 z-50 flex items-center justify-center p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -117,7 +117,7 @@ export default function EditAvatarModal({
         >
           {/* Backdrop */}
           <motion.div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={handleBackdropClick}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -126,26 +126,26 @@ export default function EditAvatarModal({
 
           {/* Modal Card */}
           <motion.div
-            className="relative bg-white rounded-xl shadow-lg border border-gray-200 w-full max-w-md mx-auto"
+            className="assets-modal-panel assets-edit-avatar-panel relative bg-white rounded-xl shadow-lg border border-gray-200 w-full max-w-md mx-auto"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="assets-modal-header flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
+                <div className="assets-modal-icon w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
                   <UserCircle className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Edit Avatar</h3>
-                  <p className="text-sm text-gray-600">Update avatar name</p>
+                  <h3 className="assets-modal-title text-lg font-semibold text-gray-900">Edit Avatar</h3>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">Update avatar name</p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+                className="assets-modal-close w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
                 disabled={isUpdating}
               >
                 <X className="w-4 h-4 text-gray-500" />
@@ -153,13 +153,13 @@ export default function EditAvatarModal({
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="assets-modal-body p-6 space-y-6">
               {/* Avatar Photo Display (Read-only) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="assets-modal-label block text-sm font-medium text-gray-700 mb-2">
                   Avatar Photo
                 </label>
-                <div className="w-full h-48 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center p-4">
+                <div className="assets-modal-preview w-full h-48 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center p-4">
                   <Image
                     src={avatar.photo_url}
                     alt={avatar.avatar_name}
@@ -168,12 +168,12 @@ export default function EditAvatarModal({
                     className="max-h-full max-w-full object-contain rounded-lg"
                   />
                 </div>
-                <p className="mt-1 text-xs text-gray-500">Photo cannot be changed. Create a new avatar to use a different photo.</p>
+                <p className="assets-modal-helper mt-1 text-xs text-gray-500">Photo cannot be changed. Create a new avatar to use a different photo.</p>
               </div>
 
               {/* Avatar Name Input */}
               <div>
-                <label htmlFor="edit-avatar-name-input" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="edit-avatar-name-input" className="assets-modal-label block text-sm font-medium text-gray-700 mb-2">
                   Avatar Name *
                 </label>
                 <input
@@ -181,7 +181,7 @@ export default function EditAvatarModal({
                   type="text"
                   value={avatarName}
                   onChange={(e) => setAvatarName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors"
+                  className="assets-modal-input w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors"
                   placeholder="Enter avatar name"
                   disabled={isUpdating}
                   maxLength={255}
@@ -190,15 +190,15 @@ export default function EditAvatarModal({
 
               {/* Error Message */}
               {error && (
-                <p className="text-sm text-red-600">{error}</p>
+                <p className="assets-modal-error text-sm text-red-600">{error}</p>
               )}
 
               {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
+              <div className="assets-modal-actions flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="assets-modal-secondary flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                   disabled={isUpdating}
                 >
                   Cancel
@@ -206,7 +206,7 @@ export default function EditAvatarModal({
                 <button
                   type="submit"
                   disabled={isUpdating || !avatarName.trim()}
-                  className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  className="assets-modal-primary flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {isUpdating && (
                     <Loader2 className="w-4 h-4 animate-spin" />

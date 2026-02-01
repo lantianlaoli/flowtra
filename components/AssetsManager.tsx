@@ -317,14 +317,14 @@ export default function AssetsManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="assets-manager space-y-6">
       {/* Tab Switcher */}
-      <div className="border-b border-gray-200">
-        <div className="flex gap-8">
+      <div className="assets-tabs border-b border-gray-200">
+        <div className="assets-tabs-list flex gap-8">
           <button
             onClick={() => setActiveTab('products')}
             className={`
-              flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
+              assets-tab flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
               ${activeTab === 'products'
                 ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'}
@@ -336,7 +336,7 @@ export default function AssetsManager() {
           <button
             onClick={() => setActiveTab('avatars')}
             className={`
-              flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
+              assets-tab flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
               ${activeTab === 'avatars'
                 ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'}
@@ -348,7 +348,7 @@ export default function AssetsManager() {
           <button
             onClick={() => setActiveTab('videos')}
             className={`
-              flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
+              assets-tab flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
               ${activeTab === 'videos'
                 ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'}
@@ -361,25 +361,25 @@ export default function AssetsManager() {
       </div>
 
       {/* Content */}
-      <div className="space-y-6">
+      <div className="assets-content space-y-6">
         {activeTab === 'products' ? (
           <>
             {/* Actions & Search */}
-            <div className="flex flex-col lg:flex-row gap-4 justify-between items-center">
-              <div className="relative w-full lg:max-w-md">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <div className="assets-actions flex flex-col lg:flex-row gap-4 justify-between items-center">
+              <div className="assets-search relative w-full lg:max-w-md">
+                <Search className="assets-search-icon w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search products..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                  className="assets-search-input w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                 />
               </div>
-              <div className="flex gap-3 w-full lg:w-auto">
+              <div className="assets-actions-buttons flex gap-3 w-full lg:w-auto">
                 <button
                   onClick={() => setShowCreateProductModal(true)}
-                  className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
+                  className="assets-primary-button flex-1 lg:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
                 >
                   <Package className="w-4 h-4" />
                   New Product
@@ -389,13 +389,13 @@ export default function AssetsManager() {
 
             {/* Products Grid */}
             {filteredProducts.length === 0 && normalizedSearch ? (
-              <div className="py-12 text-center">
-                <Search className="w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                <p className="text-gray-500">Try adjusting your search terms</p>
+              <div className="assets-empty py-12 text-center">
+                <Search className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
+                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No results found</h3>
+                <p className="assets-empty-copy text-gray-500">Try adjusting your search terms</p>
               </div>
             ) : filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {filteredProducts.map((product) => (
                   <ProductCard
                     key={product.id}
@@ -409,15 +409,15 @@ export default function AssetsManager() {
                 ))}
               </div>
             ) : (
-              <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
-                <Package className="w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No products yet</h3>
-                <p className="text-gray-500 mb-6">
+              <div className="assets-empty py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
+                <Package className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
+                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No products yet</h3>
+                <p className="assets-empty-copy text-gray-500 mb-6">
                   Create your first product to start generating videos faster.
                 </p>
                 <button
                   onClick={() => setShowCreateProductModal(true)}
-                  className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                  className="assets-primary-button inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
                 >
                   <Package className="w-4 h-4" />
                   Add Product
@@ -428,21 +428,21 @@ export default function AssetsManager() {
         ) : activeTab === 'avatars' ? (
           <>
             {/* Actions & Search */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-              <div className="relative w-full md:max-w-md">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <div className="assets-actions flex flex-col md:flex-row gap-4 justify-between items-center">
+              <div className="assets-search relative w-full md:max-w-md">
+                <Search className="assets-search-icon w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search avatars..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                  className="assets-search-input w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                 />
               </div>
-              <div className="w-full md:w-auto">
+              <div className="assets-actions-buttons w-full md:w-auto">
                 <button
                   onClick={() => setShowCreateAvatarModal(true)}
-                  className="w-full md:w-auto flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
+                  className="assets-primary-button w-full md:w-auto flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
                 >
                   <UserCircle className="w-4 h-4" />
                   Add Avatar
@@ -452,15 +452,15 @@ export default function AssetsManager() {
 
             {/* Avatars Tab */}
             {filteredAvatars.length === 0 && searchTerm ? (
-              <div className="py-12 text-center">
-                <Search className="w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                <p className="text-gray-500">Try adjusting your search terms</p>
+              <div className="assets-empty py-12 text-center">
+                <Search className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
+                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No results found</h3>
+                <p className="assets-empty-copy text-gray-500">Try adjusting your search terms</p>
               </div>
             ) : (
               <>
                 {filteredAvatars.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {filteredAvatars.map((avatar) => (
                       <AvatarCard
                         key={avatar.id}
@@ -473,9 +473,9 @@ export default function AssetsManager() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
-                    <UserCircle className="w-12 h-12 mx-auto mb-4 text-gray-200" />
-                    <p className="text-gray-500">
+                  <div className="assets-empty text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
+                    <UserCircle className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
+                    <p className="assets-empty-copy text-gray-500">
                       {searchTerm ? 'No avatars match your search' : 'No avatars yet. Add your first avatar to use in video generation.'}
                     </p>
                   </div>
@@ -486,23 +486,23 @@ export default function AssetsManager() {
         ) : (
           <>
             {/* Actions & Search */}
-            <div className="flex flex-col lg:flex-row gap-4 justify-between items-center">
-              <div className="relative w-full lg:max-w-md">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <div className="assets-actions flex flex-col lg:flex-row gap-4 justify-between items-center">
+              <div className="assets-search relative w-full lg:max-w-md">
+                <Search className="assets-search-icon w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search videos..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                  className="assets-search-input w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                 />
               </div>
-              <div className="flex gap-3 w-full lg:w-auto">
+              <div className="assets-actions-buttons flex gap-3 w-full lg:w-auto">
                 <a
                   href="https://www.flowtra.store/blog/free-ugc-download-methods-2025"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium whitespace-nowrap"
+                  className="assets-secondary-button flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium whitespace-nowrap"
                 >
                   <ExternalLink className="w-4 h-4" />
                   <span className="hidden sm:inline">Download Viral Videos</span>
@@ -510,7 +510,7 @@ export default function AssetsManager() {
                 </a>
                 <button
                   onClick={() => setShowVideoImportModal(true)}
-                  className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
+                  className="assets-primary-button flex-1 lg:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
                 >
                   <Video className="w-4 h-4" />
                   Import Videos
@@ -520,13 +520,13 @@ export default function AssetsManager() {
 
             {/* Videos Grid */}
             {filteredVideos.length === 0 && normalizedSearch ? (
-              <div className="py-12 text-center">
-                <Search className="w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                <p className="text-gray-500">Try adjusting your search terms</p>
+              <div className="assets-empty py-12 text-center">
+                <Search className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
+                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No results found</h3>
+                <p className="assets-empty-copy text-gray-500">Try adjusting your search terms</p>
               </div>
             ) : filteredVideos.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {filteredVideos.map((video) => (
                   <VideoAssetCard
                     key={video.id}
@@ -539,13 +539,13 @@ export default function AssetsManager() {
                 ))}
               </div>
             ) : (
-              <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
-                <Video className="w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No videos yet</h3>
-                <p className="text-gray-500 mb-6">Import TikTok videos to reuse them across projects.</p>
+              <div className="assets-empty py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
+                <Video className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
+                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No videos yet</h3>
+                <p className="assets-empty-copy text-gray-500 mb-6">Import TikTok videos to reuse them across projects.</p>
                 <button
                   onClick={() => setShowVideoImportModal(true)}
-                  className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                  className="assets-primary-button inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
                 >
                   <Video className="w-4 h-4" />
                   Import Videos

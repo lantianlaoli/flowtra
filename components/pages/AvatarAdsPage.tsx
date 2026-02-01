@@ -945,7 +945,7 @@ const formatDurationLabel = (seconds: number) => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Sidebar
         credits={userCredits}
         creditsData={creditsData}
@@ -953,7 +953,7 @@ const formatDurationLabel = (seconds: number) => {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+      <div className="md:ml-72 ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
           <AnimatePresence mode="wait">
             {showMaintenance ? (
@@ -977,7 +977,7 @@ const formatDurationLabel = (seconds: number) => {
                 className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-48 min-h-0"
               >
                 <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
-                  <div className="bg-white border border-gray-200 rounded-3xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
+                  <div className="bg-background border border-border rounded-3xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
                     <div className="flex-1 overflow-hidden min-h-0">
                         <GenerationProgressDisplay
                         generations={displayedGenerations}
@@ -1023,7 +1023,7 @@ const formatDurationLabel = (seconds: number) => {
                 disabled={isLoadingAssets || avatarOptions.length === 0}
                 trigger={
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+                    <div className="h-8 w-8 rounded-lg bg-muted border border-border flex items-center justify-center overflow-hidden">
                       {selectedAvatar?.photo_url ? (
                         <Image
                           src={selectedAvatar.photo_url}
@@ -1033,10 +1033,10 @@ const formatDurationLabel = (seconds: number) => {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <Video className="w-4 h-4 text-gray-500" />
+                        <Video className="w-4 h-4 text-muted-foreground" />
                       )}
                     </div>
-                    <p className="text-sm font-medium text-gray-900 truncate max-w-[110px]">
+                    <p className="text-sm font-medium text-foreground truncate max-w-[110px]">
                       {selectedAvatar?.avatar_name || 'Select character'}
                     </p>
                   </div>
@@ -1054,12 +1054,12 @@ const formatDurationLabel = (seconds: number) => {
                         }}
                         className={`w-full rounded-lg border p-2 text-left transition-colors ${
                           selectedPersonPhotoUrl === avatar.photo_url
-                            ? 'border-black bg-gray-50'
-                            : 'border-gray-200 hover:border-black'
+                            ? 'border-foreground bg-muted'
+                            : 'border-border hover:border-foreground'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-md bg-gray-100 border border-gray-200 overflow-hidden">
+                          <div className="h-12 w-12 rounded-md bg-muted border border-border overflow-hidden">
                             <Image
                               src={avatar.photo_url}
                               alt={avatar.avatar_name}
@@ -1069,9 +1069,9 @@ const formatDurationLabel = (seconds: number) => {
                             />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">{avatar.avatar_name}</p>
+                            <p className="text-sm font-medium text-foreground">{avatar.avatar_name}</p>
                             {avatar.isSystem && (
-                              <p className="text-xs text-gray-500">System avatar</p>
+                              <p className="text-xs text-muted-foreground">System avatar</p>
                             )}
                           </div>
                         </div>
@@ -1079,7 +1079,7 @@ const formatDurationLabel = (seconds: number) => {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-500 px-3 py-2">No avatars yet.</div>
+                  <div className="text-sm text-muted-foreground px-3 py-2">No avatars yet.</div>
                 )}
               </BottomBarDropdown>
 
@@ -1091,7 +1091,7 @@ const formatDurationLabel = (seconds: number) => {
                 disabled={isLoadingAssets || productOptions.length === 0}
                 trigger={
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+                    <div className="h-8 w-8 rounded-lg bg-muted border border-border flex items-center justify-center overflow-hidden">
                       {primaryProductPhoto ? (
                         <Image
                           src={primaryProductPhoto}
@@ -1101,10 +1101,10 @@ const formatDurationLabel = (seconds: number) => {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <Package className="w-4 h-4 text-gray-500" />
+                        <Package className="w-4 h-4 text-muted-foreground" />
                       )}
                     </div>
-                    <p className="text-sm font-medium text-gray-900 truncate max-w-[240px]">
+                    <p className="text-sm font-medium text-foreground truncate max-w-[240px]">
                       {selectedProductName || 'Select product'}
                     </p>
                   </div>
@@ -1120,17 +1120,17 @@ const formatDurationLabel = (seconds: number) => {
                       }}
                       className={`w-full rounded-lg border p-2 text-left transition-colors ${
                         !selectedProduct
-                          ? 'border-black bg-gray-50'
-                          : 'border-gray-200 hover:border-black'
+                          ? 'border-foreground bg-muted'
+                          : 'border-border hover:border-foreground'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center">
-                          <Package className="w-4 h-4 text-gray-500" />
+                        <div className="h-12 w-12 rounded-md bg-muted border border-border flex items-center justify-center">
+                          <Package className="w-4 h-4 text-muted-foreground" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-900">No product (talking head)</p>
-                          <p className="text-xs text-gray-500">Skip product context</p>
+                          <p className="text-sm font-medium text-foreground">No product (talking head)</p>
+                          <p className="text-xs text-muted-foreground">Skip product context</p>
                         </div>
                       </div>
                     </button>
@@ -1146,12 +1146,12 @@ const formatDurationLabel = (seconds: number) => {
                           }}
                           className={`w-full rounded-lg border p-2 text-left transition-colors ${
                             selectedProduct?.id === product.id
-                              ? 'border-black bg-gray-50'
-                              : 'border-gray-200 hover:border-black'
+                              ? 'border-foreground bg-muted'
+                              : 'border-border hover:border-foreground'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="h-12 w-16 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+                            <div className="h-12 w-16 rounded-md bg-muted border border-border flex items-center justify-center overflow-hidden">
                               {cover ? (
                                 <Image
                                   src={cover}
@@ -1161,11 +1161,11 @@ const formatDurationLabel = (seconds: number) => {
                                   className="h-full w-full object-cover"
                                 />
                               ) : (
-                                <Package className="w-4 h-4 text-gray-500" />
+                                <Package className="w-4 h-4 text-muted-foreground" />
                               )}
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-gray-900">{product.product_name || 'Untitled product'}</p>
+                              <p className="text-sm font-medium text-foreground">{product.product_name || 'Untitled product'}</p>
                             </div>
                           </div>
                         </button>
@@ -1173,7 +1173,7 @@ const formatDurationLabel = (seconds: number) => {
                     })}
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-500 px-3 py-2">No products yet.</div>
+                  <div className="text-sm text-muted-foreground px-3 py-2">No products yet.</div>
                 )}
               </BottomBarDropdown>
             </>
@@ -1186,13 +1186,13 @@ const formatDurationLabel = (seconds: number) => {
                                     <div 
                                       ref={containerRef}
                                       className={`
-                                        absolute bottom-0 left-0 right-0 bg-white border rounded-lg px-4 py-3 flex flex-col justify-center
+                                        absolute bottom-0 left-0 right-0 bg-background border rounded-lg px-4 py-3 flex flex-col justify-center
                                         transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] origin-bottom overflow-hidden
                                         ${isTextareaExpanded 
-                                          ? 'max-h-[240px] shadow-xl border-black/20 z-50' 
-                                          : 'max-h-[48px] shadow-sm border-gray-200 z-0'
+                                          ? 'max-h-[240px] shadow-xl border-foreground/20 z-50' 
+                                          : 'max-h-[48px] shadow-sm border-border z-0'
                                         }
-                                        focus-within:border-black focus-within:ring-1 focus-within:ring-black/5
+                                        focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/30
                                       `}
                                     >
                                       <textarea
@@ -1205,10 +1205,10 @@ const formatDurationLabel = (seconds: number) => {
                                         }}
                                         placeholder="Type your custom script here (AI will generate if left blank)"
                                         rows={1}
-                                        className={`w-full bg-transparent border-none !outline-none !ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-sm text-gray-900 placeholder:text-gray-400 pr-8 resize-none overflow-y-auto leading-relaxed`}
+                                        className={`w-full bg-transparent border-none !outline-none !ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-sm text-foreground placeholder:text-muted-foreground pr-8 resize-none overflow-y-auto leading-relaxed`}
                                         style={{ height: 'auto', minHeight: '24px' }}
                                       />
-                                      <div className="absolute bottom-2.5 right-2 flex items-center bg-white/80 backdrop-blur-sm rounded-md">
+                                      <div className="absolute bottom-2.5 right-2 flex items-center bg-background/80 backdrop-blur-sm rounded-md">
                                         {showExpandCollapseIcon && (
                                           <button
                                             type="button"
@@ -1221,7 +1221,7 @@ const formatDurationLabel = (seconds: number) => {
                                                 userHasManuallyCollapsed.current = false; // User expanded (reset flag)
                                               }
                                             }}
-                                            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-black hover:bg-gray-100 transition-all"
+                                            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                                             title={isTextareaExpanded ? 'Collapse' : 'Expand'}
                                           >
                                             {isTextareaExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}

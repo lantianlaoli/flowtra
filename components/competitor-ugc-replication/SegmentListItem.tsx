@@ -52,9 +52,9 @@ export default function SegmentListItem({
       type="button"
       onClick={onClick}
       className={clsx(
-        'w-full rounded-lg p-3 text-left transition-all',
+        'clone-editor-list-item w-full rounded-lg p-3 text-left transition-all',
         isSelected
-          ? 'border-2 border-black bg-white shadow-sm'
+          ? 'clone-editor-list-item-selected border-2 border-black bg-white shadow-sm'
           : 'border border-gray-200 bg-gray-100 hover:border-gray-300 hover:bg-gray-50'
       )}
     >
@@ -64,7 +64,7 @@ export default function SegmentListItem({
         </span>
         <span
           className={clsx(
-            'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+            'clone-editor-list-status inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
             getStatusColor(segment.status)
           )}
         >

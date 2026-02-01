@@ -598,18 +598,18 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="relative w-full max-w-[1400px] h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden"
+            className="my-ads-details-modal relative w-full max-w-[1400px] h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-8 py-5 border-b border-[#E5E5E5]">
-              <h2 className="text-xl font-semibold text-black tracking-tight">
+            <div className="my-ads-details-header flex items-center justify-between px-8 py-5 border-b border-[#E5E5E5]">
+              <h2 className="my-ads-details-title text-xl font-semibold text-black tracking-tight">
                 {isCharacterAds(item) ? 'Character Ad' : 'UGC Clone'} Details
               </h2>
               <button
                 onClick={onClose}
                 disabled={isDownloading}
-                className="p-2 rounded-lg hover:bg-[#F7F7F7] transition-colors disabled:opacity-50"
+                className="my-ads-details-close p-2 rounded-lg hover:bg-[#F7F7F7] transition-colors disabled:opacity-50"
               >
                 <X className="w-5 h-5 text-black" />
               </button>
@@ -618,9 +618,9 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
             {/* Content - Split Layout */}
             <div className="flex-1 flex overflow-hidden">
               {/* LEFT: Video Preview Only - No Download Button */}
-              <div className="w-[40%] bg-[#F7F7F7] flex items-center justify-center p-8 border-r border-[#E5E5E5]">
+              <div className="my-ads-details-preview w-[40%] bg-[#F7F7F7] flex items-center justify-center p-8 border-r border-[#E5E5E5]">
                 <div className={cn(
-                  "relative rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.15)] bg-black ring-1 ring-black/5",
+                  "my-ads-details-preview-frame relative rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.15)] bg-black ring-1 ring-black/5",
                   "w-full max-w-full max-h-full",
                   getAspectRatioClass()
                 )}>
@@ -642,14 +642,14 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/5">
-                      <p className="text-[#666666] text-sm font-medium">No preview</p>
+                      <p className="my-ads-details-muted text-[#666666] text-sm font-medium">No preview</p>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* RIGHT: Prompts / TikTok Publish */}
-              <div className="flex-1 flex flex-col overflow-hidden bg-white">
+              <div className="my-ads-details-content flex-1 flex flex-col overflow-hidden bg-white">
                 <AnimatePresence mode="wait">
                   {!showTikTokPanel ? (
                     <motion.div
@@ -662,17 +662,17 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                     >
 
                     {/* Compact Parameters Card */}
-                    <div className="border border-[#E5E5E5] rounded-xl p-5 bg-[#FAFAFA] shadow-sm">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xs font-bold text-black uppercase tracking-wider">Project Info</h3>
-                        <span
-                          className={cn(
-                            'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-tight',
-                            item.status === 'completed' && 'bg-black text-white',
-                            item.status === 'processing' && 'bg-white text-black border border-[#E5E5E5]',
-                            item.status === 'failed' && 'bg-white text-black border border-black'
-                          )}
-                        >
+                      <div className="my-ads-details-card border border-[#E5E5E5] rounded-xl p-5 bg-[#FAFAFA] shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="my-ads-details-section-title text-xs font-bold text-black uppercase tracking-wider">Project Info</h3>
+                          <span
+                            className={cn(
+                              'my-ads-details-status inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-tight',
+                              item.status === 'completed' && 'bg-black text-white',
+                              item.status === 'processing' && 'bg-white text-black border border-[#E5E5E5]',
+                              item.status === 'failed' && 'bg-white text-black border border-black'
+                            )}
+                          >
                           {item.status === 'completed' && <Check className="w-3 h-3" />}
                           {item.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
                           {item.status === 'completed' && 'Completed'}
@@ -685,7 +685,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
                         <CompactParam 
                           icon={<Cpu className="w-3.5 h-3.5" />} 
-                          label="AI Model" 
+                          label="Video Model" 
                           value={isMotionSwap(item) ? 'Kling 2.6 Motion Control' : getModelDisplayName(item.videoModel)} 
                         />
                         <CompactParam 
@@ -731,7 +731,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                     {/* Main Content: AI Prompts - Takes Most Space */}
                     {promptsContent && (
                       <section className="space-y-3">
-                        <h3 className="text-base font-semibold text-black tracking-tight">
+                        <h3 className="my-ads-details-subtitle text-base font-semibold text-black tracking-tight">
                           {promptsContent.title}
                         </h3>
 
@@ -745,9 +745,9 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                     {/* Error Details - Only if Failed */}
                     {item.status === 'failed' && 'errorMessage' in item && item.errorMessage && (
                       <section className="space-y-3">
-                        <h3 className="text-sm font-semibold text-black tracking-tight">Error Details</h3>
-                        <div className="border border-red-200 rounded-lg p-4 bg-red-50">
-                          <p className="text-xs text-red-800 leading-relaxed">{item.errorMessage}</p>
+                        <h3 className="my-ads-details-subtitle text-sm font-semibold text-black tracking-tight">Error Details</h3>
+                        <div className="my-ads-details-error border border-red-200 rounded-lg p-4 bg-red-50">
+                          <p className="my-ads-details-error-text text-xs text-red-800 leading-relaxed">{item.errorMessage}</p>
                         </div>
                       </section>
                     )}
@@ -765,7 +765,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                       <div className="mb-4 flex items-center gap-2">
                         <button
                           onClick={() => setShowTikTokPanel(false)}
-                          className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-black transition-colors"
+                          className="my-ads-details-back inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-black transition-colors"
                         >
                           <ArrowLeft className="w-4 h-4" />
                           Back to details
@@ -786,7 +786,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
 
                 {/* Fixed Download Button at Bottom Right */}
                 {canDownload && !showTikTokPanel && (
-                  <div className="border-t border-[#E5E5E5] bg-white px-8 py-4">
+                  <div className="my-ads-details-footer border-t border-[#E5E5E5] bg-white px-8 py-4">
                     <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-between">
                       {/* Feedback Buttons */}
                       <div className="flex items-center gap-2">
@@ -807,7 +807,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                       {canPublishToTikTok && (
                         <button
                           onClick={() => setShowTikTokPanel(true)}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#E5E5E5] text-sm font-medium text-black bg-white hover:bg-[#F7F7F7] transition-all"
+                          className="my-ads-details-secondary flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#E5E5E5] text-sm font-medium text-black bg-white hover:bg-[#F7F7F7] transition-all"
                         >
                           <Send className="w-4 h-4" />
                           <span>Share to TikTok</span>
@@ -820,7 +820,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                             onClick={() => setResolutionMenuOpen((prev) => !prev)}
                             disabled={isDownloading}
                             className={cn(
-                              'flex h-11 items-center gap-2 rounded-lg border border-[#E5E5E5] bg-white px-3 text-sm font-medium text-black shadow-sm transition',
+                              'my-ads-details-secondary flex h-11 items-center gap-2 rounded-lg border border-[#E5E5E5] bg-white px-3 text-sm font-medium text-black shadow-sm transition',
                               isDownloading ? 'cursor-not-allowed opacity-70' : 'hover:bg-[#F7F7F7]'
                             )}
                           >
@@ -837,7 +837,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                             <ChevronDown className="h-4 w-4 text-[#666666]" />
                           </button>
                           {resolutionMenuOpen && (
-                            <div className="absolute right-0 bottom-full mb-2 w-44 overflow-hidden rounded-lg border border-[#E5E5E5] bg-white shadow-lg">
+                            <div className="my-ads-details-menu absolute right-0 bottom-full mb-2 w-44 overflow-hidden rounded-lg border border-[#E5E5E5] bg-white shadow-lg">
                               {resolutionOptions.map((option) => {
                                 const Icon = option.icon;
                                 const isSelected = option.value === selectedResolution;
@@ -850,7 +850,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                                       setResolutionMenuOpen(false);
                                     }}
                                     className={cn(
-                                      'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
+                                      'my-ads-details-menu-item flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
                                       isSelected ? 'bg-black text-white' : 'text-black hover:bg-[#F7F7F7]'
                                     )}
                                   >
@@ -867,7 +867,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                         onClick={handleDownloadClick}
                         disabled={isButtonBusy}
                         className={cn(
-                          'flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all shadow-sm',
+                          'my-ads-details-primary flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all shadow-sm',
                           !isButtonBusy
                             ? 'bg-black text-white hover:bg-black/90 hover:shadow-md'
                             : 'bg-[#E5E5E5] text-[#666666] cursor-not-allowed'

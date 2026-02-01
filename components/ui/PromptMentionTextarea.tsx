@@ -373,11 +373,11 @@ export default function PromptMentionTextarea({
   }, [mentionOpen]);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="prompt-mention-root relative">
       <div
         ref={overlayRef}
         className={clsx(
-          'pointer-events-none absolute inset-0 whitespace-pre-wrap break-words px-3 py-2 text-sm',
+          'prompt-mention-overlay pointer-events-none absolute inset-0 whitespace-pre-wrap break-words px-3 py-2 text-sm',
           readOnly ? 'text-gray-500' : 'text-gray-900'
         )}
         aria-hidden="true"
@@ -388,11 +388,12 @@ export default function PromptMentionTextarea({
                 <span
                   key={`${segment.text}-${index}`}
                   className={clsx(
-                    'rounded-md ring-1 ring-inset',
+                    'prompt-mention-token rounded-md ring-1 ring-inset',
                     segment.text.startsWith('@character(')
                       ? 'bg-blue-100 text-blue-900 ring-blue-200'
                       : 'bg-amber-100 text-amber-900 ring-amber-200'
                   )}
+                  data-token-type={segment.text.startsWith('@character(') ? 'character' : 'product'}
                 >
                   {segment.text}
                 </span>
@@ -414,7 +415,7 @@ export default function PromptMentionTextarea({
         disabled={disabled}
         readOnly={readOnly}
         className={clsx(
-          'relative w-full rounded-2xl border bg-transparent px-3 py-2 text-sm text-transparent caret-black focus:outline-none focus:ring-2',
+          'prompt-mention-textarea relative w-full rounded-2xl border bg-transparent px-3 py-2 text-sm text-transparent caret-black focus:outline-none focus:ring-2',
           hasError
             ? 'border-red-500 focus:ring-red-500'
             : 'border-gray-200 focus:ring-gray-900 focus:border-gray-900',
@@ -427,7 +428,7 @@ export default function PromptMentionTextarea({
       {mentionOpen && (
         <div
           role="listbox"
-          className="absolute z-20 mt-2 w-full rounded-2xl border border-gray-200 bg-white shadow-lg"
+          className="prompt-mention-menu absolute z-20 mt-2 w-full rounded-2xl border border-gray-200 bg-white shadow-lg"
         >
           <div className="max-h-64 overflow-y-auto p-2 space-y-2">
             <div>
@@ -448,12 +449,13 @@ export default function PromptMentionTextarea({
                         type="button"
                         role="option"
                         aria-selected={isActive}
+                        data-active={isActive}
                         onMouseDown={event => {
                           event.preventDefault();
                           insertMention({ id: item.id, label: item.label, type: 'character', imageUrl: item.imageUrl });
                         }}
                         className={clsx(
-                          'w-full rounded-xl px-3 py-2 text-left text-sm transition flex items-center gap-3',
+                          'prompt-mention-option w-full rounded-xl px-3 py-2 text-left text-sm transition flex items-center gap-3',
                           isActive ? 'bg-gray-900 text-white' : 'text-gray-900 hover:bg-gray-100'
                         )}
                       >
@@ -491,12 +493,13 @@ export default function PromptMentionTextarea({
                         type="button"
                         role="option"
                         aria-selected={isActive}
+                        data-active={isActive}
                         onMouseDown={event => {
                           event.preventDefault();
                           insertMention({ id: item.id, label: item.label, type: 'product', imageUrl: item.imageUrl });
                         }}
                         className={clsx(
-                          'w-full rounded-xl px-3 py-2 text-left text-sm transition flex items-center gap-3',
+                          'prompt-mention-option w-full rounded-xl px-3 py-2 text-left text-sm transition flex items-center gap-3',
                           isActive ? 'bg-gray-900 text-white' : 'text-gray-900 hover:bg-gray-100'
                         )}
                       >

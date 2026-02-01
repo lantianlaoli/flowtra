@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Lock, Coins, Video, Zap, AlertCircle } from 'lucide-react';
+import { Google, ByteDance } from '@lobehub/icons';
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
@@ -83,6 +84,7 @@ export default function VideoModelSelector({
         value: 'veo3_fast' as const,
         label: getVideoModelDisplayName('veo3_fast'),
         description: 'Fast generation, balanced quality',
+        icon: Google,
         cost: calculateDurationCost('veo3_fast'),
         processingTime: getProcessingTime('veo3_fast'),
         affordable: canAffordModel(credits, 'veo3_fast'),
@@ -94,6 +96,7 @@ export default function VideoModelSelector({
         value: 'seedance_1_5_pro' as const,
         label: getVideoModelDisplayName('seedance_1_5_pro'),
         description: 'ByteDance model with audio',
+        icon: ByteDance,
         cost: calculateDurationCost('seedance_1_5_pro'),
         processingTime: getProcessingTime('seedance_1_5_pro'),
         affordable: canAffordModel(credits, 'seedance_1_5_pro'),
@@ -105,6 +108,7 @@ export default function VideoModelSelector({
         value: 'veo3' as const,
         label: getVideoModelDisplayName('veo3'),
         description: 'Premium quality generation',
+        icon: Google,
         cost: calculateDurationCost('veo3'),
         processingTime: getProcessingTime('veo3'),
         affordable: canAffordModel(credits, 'veo3'),
@@ -181,7 +185,7 @@ export default function VideoModelSelector({
   return (
     <>
       <div className={cn("space-y-3", className)} ref={dropdownRef}>
-        <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+        <label className="config-field-label flex items-center gap-2 text-base font-medium text-gray-900">
           {showIcon && <Video className="w-4 h-4" />}
           {label}
         </label>
@@ -189,15 +193,16 @@ export default function VideoModelSelector({
         {/* Dropdown Button */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-lg transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
+          className="config-select-trigger w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-lg transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
-          <div className="min-w-0">
-            <span className="font-medium truncate">
-              {selectedOption?.label}
+          <div className="min-w-0 flex items-center gap-2">
+            <span className="config-model-icon flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-gray-50">
+              <selectedOption.icon className="h-4 w-4 text-gray-700" />
             </span>
+            <span className="font-medium truncate">{selectedOption?.label}</span>
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
-            <ChevronDown className="h-3 w-3 text-gray-600" />
+            <ChevronDown className="config-select-icon h-3 w-3 text-gray-600" />
           </div>
         </button>
 
@@ -210,7 +215,7 @@ export default function VideoModelSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] max-h-[280px] overflow-y-auto"
+            className="config-select-panel absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] max-h-[280px] overflow-y-auto"
           >
             {visibleOptions.map((option) => {
               const disabledByConstraint = disabledModels.includes(option.value);
@@ -222,7 +227,7 @@ export default function VideoModelSelector({
                 onClick={() => handleOptionSelect(option.value, !isDisabled)}
                 disabled={isDisabled}
                 className={cn(
-                  "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between",
+                  "config-select-option w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between",
                   isDisabled
                     ? "cursor-not-allowed opacity-50 bg-gray-50"
                     : "hover:bg-gray-100 cursor-pointer",
@@ -232,15 +237,16 @@ export default function VideoModelSelector({
                 )}
               >
                 <div className="flex flex-1 items-center gap-2">
-                  <span className="font-medium">
-                    {option.label}
+                  <span className="config-model-icon flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-gray-50">
+                    <option.icon className="h-4 w-4 text-gray-700" />
                   </span>
+                  <span className="font-medium">{option.label}</span>
                   {isDisabled && (
-                    <Lock className="w-3 h-3 text-gray-400" />
+                    <Lock className="config-select-icon w-3 h-3 text-gray-400" />
                   )}
                 </div>
                 {selectedModel === option.value && !isDisabled && (
-                  <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
+                  <div className="config-select-check w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
                     <Check className="h-2.5 w-2.5 text-white" />
                   </div>
                 )}
@@ -252,13 +258,13 @@ export default function VideoModelSelector({
       </div>
       
       {/* Kids Category Warning */}
-      <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2.5">
-        <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+      <div className="config-kids-warning mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2.5">
+        <AlertCircle className="config-kids-icon w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
         <div className="space-y-1">
-          <p className="text-[11px] font-semibold text-blue-900 leading-tight">
+          <p className="config-kids-title text-[11px] font-semibold text-blue-900 leading-tight">
             Kids/Children Category Guidance
           </p>
-          <p className="text-[10px] text-blue-700 leading-relaxed">
+          <p className="config-kids-copy text-[10px] text-blue-700 leading-relaxed">
             Due to Google safety restrictions, please select the <strong>Seedance</strong> model for children&apos;s products. Avoid using <strong>Veo</strong> series models for this category.
           </p>
         </div>

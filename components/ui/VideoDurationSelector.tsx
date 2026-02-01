@@ -171,7 +171,7 @@ export default function VideoDurationSelector({
 
   return (
     <div className={cn("space-y-3", className)} ref={dropdownRef}>
-      <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+      <label className="config-field-label flex items-center gap-2 text-base font-medium text-gray-900">
         {showIcon && <Clock className="w-4 h-4" />}
         {label}
       </label>
@@ -182,7 +182,7 @@ export default function VideoDurationSelector({
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
           className={cn(
-            "w-full px-3 py-2 text-sm bg-white border rounded-lg transition-colors duration-150 text-gray-900 text-left flex items-center justify-between",
+            "config-select-trigger w-full px-3 py-2 text-sm bg-white border rounded-lg transition-colors duration-150 text-gray-900 text-left flex items-center justify-between",
             disabled
               ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
               : "border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 cursor-pointer"
@@ -193,14 +193,14 @@ export default function VideoDurationSelector({
               {selectedOption?.label}
             </span>
             {selectedOption?.recommended || (recommendedDuration && selectedOption?.value === recommendedDuration) ? (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+              <span className="config-select-recommend inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
                 <Sparkles className="w-3 h-3" />
                 Recommended
               </span>
             ) : null}
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
-            <ChevronDown className="h-3 w-3 text-gray-600" />
+            <ChevronDown className="config-select-icon h-3 w-3 text-gray-600" />
           </div>
         </button>
 
@@ -217,7 +217,7 @@ export default function VideoDurationSelector({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.98 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                className="fixed bg-white border border-gray-300 rounded-lg shadow-2xl z-[9999] overflow-hidden"
+                className="config-select-panel fixed bg-white border border-gray-300 rounded-lg shadow-2xl z-[9999] overflow-hidden"
                 style={{
                   top: dropdownPosition.top,
                   left: dropdownPosition.left,
@@ -236,7 +236,7 @@ export default function VideoDurationSelector({
                       onMouseDown={(event) => event.stopPropagation()}
                       disabled={isDisabled}
                       className={cn(
-                        "w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between border-b border-gray-100 last:border-b-0",
+                        "config-select-option w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between border-b border-gray-100 last:border-b-0",
                         isDisabled
                           ? "cursor-not-allowed opacity-50 bg-gray-50"
                           : "hover:bg-gray-100 cursor-pointer",
@@ -247,19 +247,19 @@ export default function VideoDurationSelector({
                     >
                       <div className="flex flex-1 items-center gap-2">
                         <Clock className={cn(
-                          "w-4 h-4",
+                          "config-select-icon w-4 h-4",
                           isDisabled ? "text-gray-400" : "text-gray-500"
                         )} />
                         <span className="font-medium">{option.label}</span>
                         {(isRecommended || option.recommended) && (
-                          <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                          <span className="config-select-recommend flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
                             <Sparkles className="w-3 h-3" />
                             Recommended
                           </span>
                         )}
                       </div>
                       {selectedDuration === option.value && !isDisabled && (
-                        <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
+                        <div className="config-select-check w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
                           <Check className="h-2.5 w-2.5 text-white" />
                         </div>
                       )}

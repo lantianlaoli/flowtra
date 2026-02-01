@@ -154,7 +154,7 @@ export default function SegmentEditorSplitPane({
 
   // Desktop: 3-column resizable layout
   return (
-    <div className="h-full w-full">
+    <div className="clone-editor-root h-full w-full">
       <Group orientation="horizontal" className="h-full">
         {/* Left Panel: Segment List */}
         <Panel
@@ -177,8 +177,8 @@ export default function SegmentEditorSplitPane({
         </Panel>
 
         {/* Divider 1 - Improved Hit Area */}
-        <Separator className="group relative z-10 w-2 cursor-col-resize bg-transparent outline-none flex justify-center items-center hover:bg-gray-50 transition-colors">
-          <div className="h-full w-[1px] bg-[#E5E5E5] group-hover:bg-black group-active:bg-black transition-colors" />
+        <Separator className="clone-editor-separator group relative z-10 w-2 cursor-col-resize bg-transparent outline-none flex justify-center items-center hover:bg-gray-50 transition-colors">
+          <div className="clone-editor-separator-line h-full w-[1px] bg-[#E5E5E5] group-hover:bg-black group-active:bg-black transition-colors" />
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
             <div className="h-8 w-4 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 transition-opacity">
               <GripVertical className="h-4 w-4 text-black" />
@@ -204,8 +204,8 @@ export default function SegmentEditorSplitPane({
         </Panel>
 
         {/* Divider 2 - Improved Hit Area */}
-        <Separator className="group relative z-10 w-2 cursor-col-resize bg-transparent outline-none flex justify-center items-center hover:bg-gray-50 transition-colors">
-          <div className="h-full w-[1px] bg-[#E5E5E5] group-hover:bg-black group-active:bg-black transition-colors" />
+        <Separator className="clone-editor-separator group relative z-10 w-2 cursor-col-resize bg-transparent outline-none flex justify-center items-center hover:bg-gray-50 transition-colors">
+          <div className="clone-editor-separator-line h-full w-[1px] bg-[#E5E5E5] group-hover:bg-black group-active:bg-black transition-colors" />
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
             <div className="h-8 w-4 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 transition-opacity">
               <GripVertical className="h-4 w-4 text-black" />

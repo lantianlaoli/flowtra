@@ -201,14 +201,14 @@ export default function CreateProductModal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="assets-modal assets-create-product fixed inset-0 z-50 flex items-center justify-center p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
           <motion.div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={handleBackdropClick}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -216,35 +216,35 @@ export default function CreateProductModal({
           />
 
           <motion.div
-            className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
+            className="assets-modal-panel assets-create-product-panel relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-5">
+            <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-white">
+                <div className="assets-modal-icon flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-white">
                   <Package className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-xl font-semibold text-gray-900">Create New Product</p>
-                  <p className="text-sm text-gray-600">Upload a product photo and enter a product name.</p>
+                  <p className="assets-modal-title text-xl font-semibold text-gray-900">Create New Product</p>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">Upload a product photo and enter a product name.</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100"
+                className="assets-modal-close flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100"
                 disabled={isCreating}
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6 px-6 py-6">
+            <form onSubmit={handleSubmit} className="assets-modal-body space-y-6 px-6 py-6">
               {formError && (
-                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className="assets-modal-error flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   <AlertCircle className="h-4 w-4" />
                   <span>{renderErrorMessage(formError)}</span>
                 </div>
@@ -252,7 +252,7 @@ export default function CreateProductModal({
 
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="product-name-input" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="product-name-input" className="assets-modal-label text-sm font-medium text-gray-700">
                     Product Name
                   </label>
                   <input
@@ -260,7 +260,7 @@ export default function CreateProductModal({
                     type="text"
                     value={productName}
                     onChange={(event) => setProductName(event.target.value)}
-                    className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                    className="assets-modal-input mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                     placeholder="Enter product name"
                     maxLength={100}
                   />
@@ -278,14 +278,14 @@ export default function CreateProductModal({
                       }
                     }}
                     className={cn(
-                      "relative aspect-[9/16] h-[60vh] max-h-[560px] w-auto max-w-full mx-auto overflow-hidden rounded-2xl border-2 border-dashed transition",
+                      "assets-modal-upload relative aspect-[9/16] h-[60vh] max-h-[560px] w-auto max-w-full mx-auto overflow-hidden rounded-2xl border-2 border-dashed transition",
                       imagePreview
                         ? "border-gray-200 bg-gray-900/5"
                         : "border-gray-300 bg-gray-50 hover:border-gray-400"
                     )}
                   >
                     <div className="absolute left-3 top-3">
-                      <span className="text-xs font-semibold px-3 py-1 rounded-full bg-gray-200 text-gray-700">
+                      <span className="assets-modal-chip text-xs font-semibold px-3 py-1 rounded-full bg-gray-200 text-gray-700">
                         Waiting for photo
                       </span>
                     </div>
@@ -295,7 +295,7 @@ export default function CreateProductModal({
                         <Image src={imagePreview} alt="Product preview" fill className="object-cover" />
                         <button
                           type="button"
-                          className="absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
+                          className="assets-modal-chip-close absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
                           onClick={() => {
                             setUploadedImage(null);
                             setImagePreview(null);
@@ -307,16 +307,16 @@ export default function CreateProductModal({
                         </button>
                       </>
                     ) : (
-                      <div className="flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-600">
+                      <div className="assets-modal-upload-empty flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-600">
                         <Upload className="mb-3 h-6 w-6 text-gray-400" />
                         <div className="w-full max-w-[280px]">
-                          <p className="font-semibold text-gray-900 leading-5">
+                          <p className="assets-modal-upload-title font-semibold text-gray-900 leading-5">
                             Drop a product photo or click to browse
                           </p>
-                          <p className="mt-2 text-xs text-gray-500 leading-5">
+                          <p className="assets-modal-helper mt-2 text-xs text-gray-500 leading-5">
                             PNG or JPG, up to 8MB. Auto-compressed for upload if needed.
                           </p>
-                          <p className="mt-2 text-xs text-gray-500 leading-5">
+                          <p className="assets-modal-helper mt-2 text-xs text-gray-500 leading-5">
                             Keep the background clean with no extra items.
                           </p>
                         </div>
@@ -333,26 +333,26 @@ export default function CreateProductModal({
                     />
 
                     {isCreating && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+                      <div className="assets-modal-loading absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
                         <div className="text-center">
                           <Loader2 className="h-6 w-6 animate-spin text-gray-700 mx-auto mb-2" />
-                          <p className="text-xs text-gray-600">Uploading...</p>
+                          <p className="assets-modal-helper text-xs text-gray-600">Uploading...</p>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <p className="text-xs text-gray-500">
+                  <p className="assets-modal-helper text-xs text-gray-500">
                     Tip: Keep the product centered and the background clean.
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+              <div className="assets-modal-actions flex flex-col gap-3 pt-2 sm:flex-row">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                  className="assets-modal-secondary flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
                   disabled={isCreating}
                 >
                   Cancel
@@ -360,7 +360,7 @@ export default function CreateProductModal({
                 <button
                   type="submit"
                   disabled={!canSubmit}
-                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-40"
+                  className="assets-modal-primary flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-40"
                 >
                   {(isCreating || isUploading) && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isCreating ? (isUploading ? 'Uploading photo…' : 'Creating…') : 'Save Product'}

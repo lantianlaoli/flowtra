@@ -111,6 +111,10 @@ export default function ConfigPopover({
   // Close popover when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && target.closest('.config-select-panel')) {
+        return;
+      }
       if (
         popoverRef.current &&
         !popoverRef.current.contains(event.target as Node) &&
@@ -251,7 +255,7 @@ export default function ConfigPopover({
           selectedModel={selectedModel}
           onModelChange={onModelChange}
           videoDuration={videoDuration}
-          label="AI Model"
+          label="Video Model"
           showIcon
         />
       )}
@@ -279,7 +283,7 @@ export default function ConfigPopover({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          'h-12 px-4 rounded-lg border flex items-center gap-2 transition-all duration-200 bg-white outline-none',
+          'config-popover-button h-12 px-4 rounded-lg border flex items-center gap-2 transition-all duration-200 bg-white outline-none',
           disabled
             ? 'bg-[#F7F7F7] border-[#E5E5E5] text-[#999999] cursor-not-allowed'
             : 'border-[#E5E5E5] hover:border-[#CCCCCC] text-black shadow-sm',
@@ -320,21 +324,21 @@ export default function ConfigPopover({
                 bottom: `${window.innerHeight - buttonRect.top + 8}px`,
               }}
               className={cn(
-                'bg-white rounded-lg shadow-2xl border border-gray-200 z-[110] overflow-visible',
+                'config-popover-panel bg-white rounded-lg shadow-2xl border border-gray-200 z-[110] overflow-visible',
                 isMobile
                   ? 'fixed inset-x-4 bottom-4 max-h-[80vh] overflow-y-auto origin-bottom'
                   : 'w-96 origin-bottom-right'
               )}
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+              <div className="config-popover-header flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-gray-700" />
                 <h3 className="font-semibold text-gray-900">{headerTitle}</h3>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 hover:bg-gray-200 rounded-md transition-colors"
+                className="config-popover-close p-1 hover:bg-gray-200 rounded-md transition-colors"
                 aria-label="Close"
               >
                 <X className="w-4 h-4 text-gray-600" />
@@ -342,7 +346,7 @@ export default function ConfigPopover({
             </div>
 
             {/* Content */}
-            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="config-popover-content p-4 space-y-4 max-h-[70vh] overflow-y-auto">
               {isPhotoMode ? renderPhotoOptions() : renderVideoOptions()}
 
               {!hideLanguageSelector && selectedLanguage && onLanguageChange && (

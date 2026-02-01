@@ -189,7 +189,7 @@ export default function ProductCard({
     return (
       <>
         <motion.div
-          className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group"
+          className="assets-product-card assets-product-card--compact bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group"
           onClick={handleCardClick}
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -197,7 +197,7 @@ export default function ProductCard({
           whileHover={{ y: -4 }}
         >
           {/* Product Photo */}
-          <div className="relative w-full aspect-square bg-gray-100">
+          <div className="assets-product-card-media relative w-full aspect-square bg-gray-100">
             {photos.length > 0 ? (
               <>
                 <Image
@@ -208,37 +208,37 @@ export default function ProductCard({
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 />
                 {photos.length > 1 && (
-                  <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                  <div className="assets-product-card-count absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
                     +{photos.length - 1}
                   </div>
                 )}
               </>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400">
+              <div className="assets-product-card-empty w-full h-full flex items-center justify-center text-gray-400">
                 <span className="text-sm">No photo</span>
               </div>
             )}
           </div>
 
           {/* Product Info and Actions */}
-          <div className="p-3">
+          <div className="assets-product-card-body p-3">
             {/* Product Name */}
-            <h4 className="font-medium text-sm text-gray-900 line-clamp-2 min-h-[2.5rem]">
+            <h4 className="assets-product-card-title font-medium text-sm text-gray-900 line-clamp-2 min-h-[2.5rem]">
               {product.product_name}
             </h4>
             {brandLabel && (
-              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 text-gray-600 mb-2">
+              <span className="assets-product-card-chip inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 text-gray-600 mb-2">
                 {brandLabel}
               </span>
             )}
             <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-500">
+              <p className="assets-product-card-meta text-xs text-gray-500">
                 {new Date(product.created_at).toLocaleDateString()}
               </p>
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleEditClick}
-                  className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                  className="assets-product-card-action p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
                   title="Edit product"
                 >
                   <Edit2 className="w-4 h-4" />
@@ -246,7 +246,7 @@ export default function ProductCard({
                 <button
                   onClick={handleDelete}
                   disabled={isDeleting}
-                  className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="assets-product-card-action p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title={isDeleting ? 'Deleting...' : 'Delete product'}
                 >
                   {isDeleting ? (
@@ -279,15 +279,15 @@ export default function ProductCard({
     return (
       <>
         <motion.div
-          className="bg-white rounded-lg border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer group"
+          className="assets-product-card assets-product-card--list bg-white rounded-lg border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer group"
           onHoverStart={() => setIsHovered(true)}
           onHoverEnd={() => setIsHovered(false)}
           onClick={handleCardClick}
           whileHover={{ y: -1 }}
         >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4">
+          <div className="assets-product-card-row flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4">
             {/* Product Photo (left side on desktop, top on mobile) */}
-            <div className="relative w-full sm:w-20 aspect-square sm:aspect-square flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+            <div className="assets-product-card-media relative w-full sm:w-20 aspect-square sm:aspect-square flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
               {photos.length > 0 ? (
                 <>
                   <Image
@@ -298,25 +298,25 @@ export default function ProductCard({
                     sizes="(max-width: 640px) 100vw, 80px"
                   />
                   {photos.length > 1 && (
-                    <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
-                      +{photos.length - 1}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                  <span className="text-xs">No photo</span>
-                </div>
-              )}
-            </div>
+                  <div className="assets-product-card-count absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                    +{photos.length - 1}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="assets-product-card-empty w-full h-full flex items-center justify-center text-gray-400">
+                <span className="text-xs">No photo</span>
+              </div>
+            )}
+          </div>
 
             {/* Product Info (center, takes remaining space) */}
             <div className="flex-1 min-w-0 w-full sm:w-auto">
-              <h4 className="font-medium text-base text-gray-900 truncate mb-1">
+              <h4 className="assets-product-card-title font-medium text-base text-gray-900 truncate mb-1">
                 {product.product_name}
               </h4>
               {photos.length > 1 && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="assets-product-card-meta text-xs text-gray-500 mt-1">
                   {photos.length} photos
                 </p>
               )}
@@ -326,7 +326,7 @@ export default function ProductCard({
             <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-end">
               <button
                 onClick={handleEditClick}
-                className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                className="assets-product-card-action p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
                 title="Edit product"
               >
                 <Edit2 className="w-4 h-4" />
@@ -340,7 +340,7 @@ export default function ProductCard({
                     exit={{ opacity: 0, scale: 0.8 }}
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                    className="assets-product-card-action p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
                     title={isDeleting ? "Deleting..." : "Delete product"}
                   >
                     {isDeleting ? (
@@ -374,7 +374,7 @@ export default function ProductCard({
     <>
       <motion.div
         className={`
-          bg-white rounded-xl border-2 transition-all duration-200 cursor-pointer
+          assets-product-card assets-product-card--full bg-white rounded-xl border-2 transition-all duration-200 cursor-pointer
           ${isSelectableMode
             ? isSelected
               ? 'border-gray-900 shadow-lg ring-2 ring-gray-200'
@@ -389,7 +389,7 @@ export default function ProductCard({
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
         {/* Header */}
-        <div className="p-4 border-b border-gray-100">
+        <div className="assets-product-card-header p-4 border-b border-gray-100">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               {isEditing ? (
@@ -399,14 +399,14 @@ export default function ProductCard({
                   onChange={(e) => setEditingName(e.target.value)}
                   onBlur={handleSaveEdit}
                   onKeyDown={handleKeyDown}
-                  className="font-semibold text-gray-900 text-lg mb-1 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full"
+                  className="assets-product-card-input font-semibold text-gray-900 text-lg mb-1 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full"
                   autoFocus
                   onFocus={(e) => e.target.select()}
                   maxLength={100}
                 />
               ) : (
                 <h3
-                  className="font-semibold text-gray-900 text-lg mb-1 cursor-pointer hover:text-gray-700 transition-colors"
+                  className="assets-product-card-title font-semibold text-gray-900 text-lg mb-1 cursor-pointer hover:text-gray-700 transition-colors"
                   onClick={isFullMode ? handleEditClick : undefined}
                 >
                   {product.product_name}
@@ -418,7 +418,7 @@ export default function ProductCard({
               <div className="flex gap-2 ml-3">
                 <button
                   onClick={handleEditClick}
-                  className="flex items-center gap-1 px-3 py-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                  className="assets-product-card-action flex items-center gap-1 px-3 py-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors text-sm"
                 >
                   <Edit2 className="w-4 h-4" />
                   <span>Edit Name</span>
@@ -434,7 +434,7 @@ export default function ProductCard({
                       <button
                         onClick={handleDelete}
                         disabled={isDeleting}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="assets-product-card-action assets-product-card-danger p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isDeleting ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -451,10 +451,10 @@ export default function ProductCard({
         </div>
 
         {/* Photos Grid */}
-        <div className="p-4">
-          <div className="grid grid-cols-3 gap-2">
+        <div className="assets-product-card-body p-4">
+          <div className="assets-product-card-grid grid grid-cols-3 gap-2">
             {photos.slice(0, 5).map((photo) => (
-              <div key={photo.id} className="relative group aspect-square">
+              <div key={photo.id} className="assets-product-card-thumb relative group aspect-square">
                 <Image
                   src={photo.photo_url}
                   alt={photo.file_name}
@@ -465,7 +465,7 @@ export default function ProductCard({
                 {!isSelectableMode && onDeletePhoto && (
                   <button
                     onClick={(e) => handlePhotoDelete(photo, e)}
-                    className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="assets-product-card-thumb-remove absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -475,7 +475,7 @@ export default function ProductCard({
 
             {/* Add Photo Button */}
             {!isSelectableMode && onPhotoUpload && photos.length < 6 && (
-              <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
+              <label className="assets-product-card-add aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
                 <input
                   type="file"
                   accept={getAcceptedImageFormats()}
@@ -489,7 +489,7 @@ export default function ProductCard({
 
             {/* Show more indicator */}
             {photos.length > 5 && (
-              <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+              <div className="assets-product-card-more aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
                 <span className="text-sm font-medium text-gray-600">
                   +{photos.length - 5}
                 </span>
@@ -498,8 +498,8 @@ export default function ProductCard({
           </div>
 
           {photos.length === 0 && !isSelectableMode && onPhotoUpload && (
-            <div className="grid grid-cols-3 gap-2">
-              <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
+            <div className="assets-product-card-grid grid grid-cols-3 gap-2">
+              <label className="assets-product-card-add aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
                 <input
                   type="file"
                   accept={getAcceptedImageFormats()}
@@ -513,13 +513,13 @@ export default function ProductCard({
           )}
 
           {photoError && (
-            <p className="mt-2 text-sm text-red-600">
+            <p className="assets-product-card-error mt-2 text-sm text-red-600">
               {renderErrorMessage(photoError)}
             </p>
           )}
 
           {photos.length === 0 && isSelectableMode && (
-            <div className="text-center py-6 text-gray-400">
+            <div className="assets-product-card-empty text-center py-6 text-gray-400">
               <div className="w-10 h-10 mx-auto mb-2 bg-gray-100 rounded-lg flex items-center justify-center">
                 <Plus className="w-5 h-5 text-gray-400" />
               </div>

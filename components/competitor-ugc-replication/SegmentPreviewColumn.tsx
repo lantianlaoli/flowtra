@@ -61,12 +61,12 @@ export default function SegmentPreviewColumn({
     );
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="motion-swap-editor-preview flex h-full flex-col bg-white">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-gray-50 px-3 py-2.5">
+      <div className="motion-swap-editor-preview-header flex-shrink-0 border-b border-[#E5E5E5] bg-gray-50 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <Eye className="h-4 w-4 text-black" />
-          <h2 className="text-sm font-semibold text-black">Preview</h2>
+          <Eye className="motion-swap-editor-preview-icon h-4 w-4 text-black" />
+          <h2 className="motion-swap-editor-preview-title text-sm font-semibold text-black">Preview</h2>
         </div>
       </div>
 
@@ -75,14 +75,14 @@ export default function SegmentPreviewColumn({
         <div className={clsx('grid gap-3', layout === 'stacked' ? 'grid-cols-1' : 'grid-cols-2')}>
           {/* First Frame Preview */}
           <div className="flex flex-col">
-            <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-[#666666]">
+            <div className="motion-swap-editor-preview-label mb-1.5 flex items-center gap-2 text-xs font-semibold text-[#666666]">
               <ImageIcon className="h-3.5 w-3.5" />
               First Frame
             </div>
-            <div className={previewMediaClass()}>
+            <div className={clsx('motion-swap-editor-preview-media', previewMediaClass())}>
               {showPhotoSkeleton ? (
-                <div className="flex h-full w-full flex-col items-center justify-center animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-sm text-[#666666]">
-                  <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
+                <div className="motion-swap-editor-preview-skeleton flex h-full w-full flex-col items-center justify-center animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-sm text-[#666666]">
+                  <Loader2 className="motion-swap-editor-preview-skeleton-icon h-6 w-6 animate-spin text-gray-600" />
                   <span className="mt-2">Rendering first frame… (~1-2 min)</span>
                 </div>
               ) : segment?.firstFrameUrl ? (
@@ -94,7 +94,7 @@ export default function SegmentPreviewColumn({
                   sizes="(max-width: 768px) 50vw, 300px"
                 />
               ) : (
-                <div className="text-center text-sm text-[#666666]">
+                <div className="motion-swap-editor-preview-empty text-center text-sm text-[#666666]">
                   First frame not generated yet.
                 </div>
               )}
@@ -103,17 +103,17 @@ export default function SegmentPreviewColumn({
 
           {/* Video Preview */}
           <div className="flex flex-col">
-            <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-[#666666]">
+            <div className="motion-swap-editor-preview-label mb-1.5 flex items-center gap-2 text-xs font-semibold text-[#666666]">
               <VideoIcon className="h-3.5 w-3.5" />
               Video Clip
             </div>
-            <div className={previewMediaClass(true)}>
+            <div className={clsx('motion-swap-editor-preview-media', previewMediaClass(true))}>
               {showVideoSkeleton ? (
-                <div className="flex h-full w-full flex-col items-center justify-center animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-sm text-[#666666]">
-                  <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
+                <div className="motion-swap-editor-preview-skeleton flex h-full w-full flex-col items-center justify-center animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-sm text-[#666666]">
+                  <Loader2 className="motion-swap-editor-preview-skeleton-icon h-6 w-6 animate-spin text-gray-600" />
                   <span className="mt-2">Rendering video{getEstimatedTime(videoModel)}…</span>
                   {videoEtaLabel && (
-                    <span className="mt-1 text-xs text-[#777777]">{videoEtaLabel}</span>
+                    <span className="motion-swap-editor-preview-eta mt-1 text-xs text-[#777777]">{videoEtaLabel}</span>
                   )}
                 </div>
               ) : segment?.videoUrl ? (
@@ -162,7 +162,7 @@ export default function SegmentPreviewColumn({
                 </>
               ) : (
                 <div className="text-center p-4">
-                  <div className="text-sm text-[#666666] mb-2">Video not generated yet.</div>
+                  <div className="motion-swap-editor-preview-empty text-sm text-[#666666] mb-2">Video not generated yet.</div>
                 </div>
               )}
             </div>

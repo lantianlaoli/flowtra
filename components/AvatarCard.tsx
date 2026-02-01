@@ -61,7 +61,7 @@ export default function AvatarCard({
     <>
       <motion.div
         className={`
-          relative group bg-white rounded-lg border overflow-hidden transition-all duration-200
+          assets-avatar-card relative group bg-white rounded-lg border overflow-hidden transition-all duration-200
           ${isSelectableMode ? 'cursor-pointer hover:border-gray-400' : ''}
           ${isSelected ? 'border-gray-900 ring-2 ring-gray-900' : 'border-gray-200'}
           ${isDeleting ? 'opacity-50 pointer-events-none' : ''}
@@ -74,7 +74,7 @@ export default function AvatarCard({
         transition={{ duration: 0.2 }}
       >
         {/* Avatar Image */}
-        <div className="relative w-full aspect-square">
+        <div className="assets-avatar-card-media relative w-full aspect-square">
           <Image
             src={avatar.photo_url}
             alt={avatar.avatar_name}
@@ -85,14 +85,14 @@ export default function AvatarCard({
 
           {/* Deleting indicator */}
           {isDeleting && (
-            <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+            <div className="assets-avatar-card-loading absolute inset-0 bg-white/80 flex items-center justify-center">
               <Loader2 className="w-6 h-6 text-gray-900 animate-spin" />
             </div>
           )}
 
           {/* Selected indicator */}
           {isSelected && isSelectableMode && (
-            <div className="absolute top-2 right-2 w-6 h-6 bg-gray-900 rounded-full flex items-center justify-center">
+            <div className="assets-avatar-card-selected absolute top-2 right-2 w-6 h-6 bg-gray-900 rounded-full flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
@@ -101,19 +101,19 @@ export default function AvatarCard({
         </div>
 
         {/* Avatar Name */}
-        <div className="p-3 bg-white border-t border-gray-100">
-          <p className="text-sm font-medium text-gray-900 truncate" title={avatar.avatar_name}>
+        <div className="assets-avatar-card-body p-3 bg-white border-t border-gray-100">
+          <p className="assets-avatar-card-title text-sm font-medium text-gray-900 truncate" title={avatar.avatar_name}>
             {avatar.avatar_name}
           </p>
           <div className="flex items-center justify-between mt-1">
-            <p className="text-xs text-gray-500">
+            <p className="assets-avatar-card-meta text-xs text-gray-500">
               {new Date(avatar.created_at).toLocaleDateString()}
             </p>
             {isFullMode && (
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleEditClick}
-                  className={`p-1.5 rounded-lg transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
+                  className={`assets-avatar-card-action p-1.5 rounded-lg transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
                   title={isSystemAvatar ? 'System avatar' : 'Edit avatar'}
                   disabled={isSystemAvatar}
                 >
@@ -121,7 +121,7 @@ export default function AvatarCard({
                 </button>
                 <button
                   onClick={handleDeleteClick}
-                  className={`p-1.5 rounded-lg transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
+                  className={`assets-avatar-card-action assets-avatar-card-danger p-1.5 rounded-lg transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
                   title={isSystemAvatar ? 'System avatar' : (isDeleting ? 'Deleting...' : 'Delete avatar')}
                   disabled={isSystemAvatar}
                 >

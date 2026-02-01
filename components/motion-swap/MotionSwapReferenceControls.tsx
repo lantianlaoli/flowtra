@@ -64,8 +64,8 @@ export default function MotionSwapReferenceControls({
           panelWidthClassName="w-[360px]"
           disabled={videos.length === 0}
           trigger={
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+            <div className="bottom-bar-video-trigger flex items-center gap-3">
+              <div className="bottom-bar-video-thumb h-8 w-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
                 {selectedVideo?.cover_url ? (
                   <Image
                     src={selectedVideo.cover_url}
@@ -78,7 +78,7 @@ export default function MotionSwapReferenceControls({
                   <Clapperboard className="w-4 h-4 text-gray-500" />
                 )}
               </div>
-              <p className="text-sm font-medium text-gray-900">
+              <p className="bottom-bar-video-title text-sm font-medium text-gray-900">
                 {selectedVideo?.description?.slice(0, 28) || 'Select video'}
               </p>
             </div>
@@ -103,14 +103,14 @@ export default function MotionSwapReferenceControls({
                       onSelectVideoId(video.id);
                       setVideoOpen(false);
                     }}
-                    className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                    className={`bottom-bar-video-option w-full rounded-lg border p-3 text-left transition-colors ${
                       selectedVideoId === video.id
                         ? 'border-black bg-gray-50'
                         : 'border-gray-200 hover:border-black'
                     }`}
                   >
                     <div className="flex gap-3">
-                      <div className="h-20 w-14 rounded-md bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                      <div className="bottom-bar-video-preview h-20 w-14 rounded-md bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
                         {video.video_cdn_url ? (
                           <video
                             src={video.video_cdn_url}
@@ -133,10 +133,10 @@ export default function MotionSwapReferenceControls({
                         )}
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                        <p className="bottom-bar-video-option-title text-sm font-medium text-gray-900 line-clamp-2">
                           {video.description || 'TikTok video'}
                         </p>
-                        <div className="flex flex-wrap gap-3 text-[11px] text-gray-500 mt-2">
+                        <div className="bottom-bar-video-option-meta flex flex-wrap gap-3 text-[11px] text-gray-500 mt-2">
                           <span className="inline-flex items-center gap-1">
                             <Clock3 className="w-3 h-3" />
                             {durationLabel}
@@ -147,7 +147,7 @@ export default function MotionSwapReferenceControls({
                           </span>
                         </div>
                         {showStats && (
-                          <div className="flex flex-wrap gap-3 text-[11px] text-gray-500 mt-2">
+                          <div className="bottom-bar-video-option-meta flex flex-wrap gap-3 text-[11px] text-gray-500 mt-2">
                             <span className="inline-flex items-center gap-1">
                               <Heart className="w-3 h-3" />
                               {likeCount.toLocaleString()}

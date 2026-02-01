@@ -46,8 +46,9 @@ export default function BottomBarDropdown({
         type="button"
         onClick={() => onOpenChange(!open)}
         disabled={disabled}
+        data-open={open}
         className={cn(
-          'flex items-center justify-between gap-3 h-12 px-3 border border-gray-200 rounded-lg bg-white text-gray-700 transition-colors hover:border-black disabled:cursor-not-allowed disabled:opacity-60',
+          'bottom-bar-dropdown-trigger flex items-center justify-between gap-3 h-12 px-3 border border-gray-200 rounded-lg bg-white text-gray-700 transition-colors hover:border-black disabled:cursor-not-allowed disabled:opacity-60',
           triggerClassName
         )}
       >
@@ -59,7 +60,7 @@ export default function BottomBarDropdown({
       {open && (
         <div
           className={cn(
-            'absolute bottom-14 left-0 bg-white border border-gray-200 rounded-xl shadow-lg p-3',
+            'bottom-bar-dropdown-panel absolute bottom-14 left-0 bg-white border border-gray-200 rounded-xl shadow-lg p-3',
             panelWidthClassName,
             panelClassName
           )}

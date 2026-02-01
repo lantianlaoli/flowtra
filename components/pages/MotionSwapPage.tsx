@@ -526,20 +526,20 @@ export default function MotionSwapPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-background">
         <Sidebar
           credits={userCredits}
           creditsData={creditsData}
           userEmail={user?.primaryEmailAddress?.emailAddress}
           userImageUrl={user?.imageUrl}
         />
-        <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+        <div className="md:ml-72 ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
           <div className="flex-1 flex flex-col min-h-0">
             <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
               <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
-                <div className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
+                <div className="bg-background border border-border rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                   <div className="flex-1 overflow-hidden min-h-0 flex items-center justify-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                   </div>
                 </div>
               </div>
@@ -551,18 +551,18 @@ export default function MotionSwapPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Sidebar
         credits={userCredits}
         creditsData={creditsData}
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
-      <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+      <div className="md:ml-72 ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
           <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
             <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
-              <div className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
+              <div className="bg-background border border-border rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                 <div className="flex-1 overflow-hidden min-h-0">
                   <GenerationProgressDisplay
                     generations={displayedGenerations}
@@ -647,26 +647,26 @@ export default function MotionSwapPage() {
         <Dialog.Root open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-            <Dialog.Content className="fixed left-[50%] top-[50%] z-50 h-[62vh] w-[calc(100%-2rem)] max-w-7xl translate-x-[-50%] translate-y-[-50%] bg-white shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] overflow-hidden rounded-2xl">
-              <div className="flex items-center justify-between border-b border-[#E5E5E5] px-6 py-3">
+            <Dialog.Content className="motion-swap-editor-dialog fixed left-[50%] top-[50%] z-50 h-[62vh] w-[calc(100%-2rem)] max-w-7xl translate-x-[-50%] translate-y-[-50%] bg-background shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] overflow-hidden rounded-2xl">
+              <div className="motion-swap-editor-header flex items-center justify-between border-b border-border px-6 py-3">
                 <div className="flex items-center gap-4">
-                  <Dialog.Title className="text-lg font-semibold text-black">Edit Motion Swap</Dialog.Title>
-                  <div className="flex items-center gap-4">
+                  <Dialog.Title className="motion-swap-editor-title text-lg font-semibold text-foreground">Edit Motion Swap</Dialog.Title>
+                  <div className="motion-swap-editor-steps flex items-center gap-4">
                   {/* Step 1: Edit First Frame */}
                   <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-black text-white text-[10px] font-bold">1</span>
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+                    <span className="motion-swap-editor-step-badge flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">1</span>
+                    <div className="motion-swap-editor-step-text flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                       <ImageIcon className="w-3.5 h-3.5" />
                       <span>Edit first frame</span>
                     </div>
                   </div>
 
-                  <ArrowRight className="w-3 h-3 text-gray-300" />
+                  <ArrowRight className="motion-swap-editor-step-divider w-3 h-3 text-gray-300" />
 
                   {/* Step 2: Generate Video */}
                   <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-black text-white text-[10px] font-bold">2</span>
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+                    <span className="motion-swap-editor-step-badge flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">2</span>
+                    <div className="motion-swap-editor-step-text flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                       <VideoIcon className="w-3.5 h-3.5" />
                       <span>Generate video</span>
                     </div>
@@ -676,7 +676,7 @@ export default function MotionSwapPage() {
                 <Dialog.Close asChild>
                   <button
                     type="button"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E5E5E5] text-gray-500 transition-colors hover:border-black hover:text-black"
+                    className="motion-swap-editor-close inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
                     aria-label="Close"
                   >
                     ✕

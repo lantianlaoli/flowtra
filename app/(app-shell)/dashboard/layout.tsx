@@ -9,6 +9,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, isLoaded } = useUser()
   const router = useRouter()
   const [isCheckingPurchase, setIsCheckingPurchase] = useState(true)
+  const [isDarkMode, setIsDarkMode] = useState(true)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem('flowtra-dashboard-dark')
+    const enabled = stored === null ? true : stored === 'true'
+    setIsDarkMode(enabled)
+    document.documentElement.classList.toggle('dashboard-theme', enabled)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    document.documentElement.classList.toggle('dashboard-theme', isDarkMode)
+  }, [isDarkMode])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<boolean>).detail
+      if (typeof detail === 'boolean') {
+        setIsDarkMode(detail)
+      }
+    }
+    window.addEventListener('flowtra-dashboard-theme-change', handler as EventListener)
+    return () => window.removeEventListener('flowtra-dashboard-theme-change', handler as EventListener)
+  }, [])
 
   useEffect(() => {
     const checkPurchaseStatus = async () => {
@@ -48,5 +74,5 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return <FlowtraLoading />
   }
 
-  return <>{children}</>
+  return <div className="min-h-screen bg-background text-foreground">{children}</div>
 }

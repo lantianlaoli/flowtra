@@ -99,7 +99,7 @@ export default function LanguageSelector({
 
   return (
     <div className={cn("space-y-3", className)} ref={dropdownRef}>
-      <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+      <label className="config-field-label flex items-center gap-2 text-base font-medium text-gray-900">
         {showIcon && <Globe className="w-4 h-4" />}
         {label}
       </label>
@@ -107,7 +107,7 @@ export default function LanguageSelector({
         {/* Dropdown Button */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-lg transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
+          className="config-select-trigger w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-lg transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
           <div className="min-w-0 flex items-center gap-2">
             <span
@@ -119,12 +119,12 @@ export default function LanguageSelector({
             <span className="font-medium truncate">
               {selectedOption?.label}
             </span>
-            <span className="text-xs text-gray-500 truncate">
+            <span className="config-select-meta text-xs text-gray-500 truncate">
               {selectedOption?.nativeName}
             </span>
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
-            <ChevronDown className="h-3 w-3 text-gray-600" />
+            <ChevronDown className="config-select-icon h-3 w-3 text-gray-600" />
           </div>
         </button>
 
@@ -137,14 +137,14 @@ export default function LanguageSelector({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-              className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] max-h-[300px] overflow-y-auto"
+              className="config-select-panel absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] max-h-[300px] overflow-y-auto"
             >
               {LANGUAGE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => handleOptionSelect(option.value)}
                   className={cn(
-                    "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 cursor-pointer",
+                    "config-select-option w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 cursor-pointer",
                     selectedLanguage === option.value
                       ? "bg-gray-100 text-gray-900"
                       : "text-gray-700"
@@ -160,12 +160,12 @@ export default function LanguageSelector({
                     <span className="font-medium">
                       {option.label}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="config-select-meta text-xs text-gray-500">
                       {option.nativeName}
                     </span>
                   </div>
                   {selectedLanguage === option.value && (
-                    <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
+                    <div className="config-select-check w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
                       <Check className="h-2.5 w-2.5 text-white" />
                     </div>
                   )}

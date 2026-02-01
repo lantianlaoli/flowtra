@@ -19,7 +19,7 @@ export default function MotionSwapEditorSplitPane({
   form
 }: MotionSwapEditorSplitPaneProps) {
   return (
-    <div className="h-full w-full">
+    <div className="motion-swap-editor-split h-full w-full">
       <Group orientation="horizontal" className="h-full">
         <Panel id="preview" defaultSize={52} minSize={40} maxSize={70} className="h-full">
           <SegmentPreviewColumn
@@ -31,8 +31,8 @@ export default function MotionSwapEditorSplitPane({
           />
         </Panel>
 
-        <Separator className="group relative z-10 w-2 cursor-col-resize bg-transparent outline-none flex justify-center items-center hover:bg-gray-50 transition-colors">
-          <div className="h-full w-[1px] bg-[#E5E5E5] group-hover:bg-black group-active:bg-black transition-colors" />
+        <Separator className="motion-swap-editor-separator group relative z-10 w-2 cursor-col-resize bg-transparent outline-none flex justify-center items-center hover:bg-gray-50 transition-colors">
+          <div className="motion-swap-editor-separator-line h-full w-[1px] bg-[#E5E5E5] group-hover:bg-black group-active:bg-black transition-colors" />
         </Separator>
 
         <Panel id="form" defaultSize={48} minSize={30} maxSize={60} className="h-full">

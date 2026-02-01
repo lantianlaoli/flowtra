@@ -1506,13 +1506,13 @@ export default function CompetitorUgcReplicationPage() {
   // Render insufficient credits or maintenance message
   if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
     return (
-      <div className="flex h-screen bg-gray-50">
+      <div className="flex h-screen bg-muted">
         <Sidebar {...sidebarProps} />
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-6xl mx-auto px-4 py-8">
-            <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">System Maintenance</h2>
-              <p className="text-gray-600">
+            <div className="bg-background rounded-lg shadow-lg p-8 text-center">
+              <h2 className="text-2xl font-bold text-foreground mb-4">System Maintenance</h2>
+              <p className="text-muted-foreground">
                 Our system is currently under maintenance. Please try again later.
               </p>
             </div>
@@ -1525,14 +1525,14 @@ export default function CompetitorUgcReplicationPage() {
 
   return (
     <>
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Sidebar {...sidebarProps} />
-      <div className="md:ml-72 ml-0 bg-white min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+      <div className="md:ml-72 ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
           {/* Main Content Area - Progress Display */}
           <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
             <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
-              <div className="bg-white border border-[#E5E5E5] rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
+              <div className="bg-background border border-border rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                 <div className="flex-1 overflow-hidden min-h-0">
                   <GenerationProgressDisplay
                     generations={displayedGenerations}
@@ -1685,18 +1685,18 @@ export default function CompetitorUgcReplicationPage() {
     {/* Validation Modal - Missing selection */}
     {showValidationModal && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <div className="bg-background rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
               <AlertCircle className="w-6 h-6 text-yellow-600" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900">Configuration Required</h3>
+            <h3 className="text-xl font-bold text-foreground">Configuration Required</h3>
           </div>
-          <p className="text-gray-600 mb-6">{validationMessage}</p>
+          <p className="text-muted-foreground mb-6">{validationMessage}</p>
           <div className="flex gap-3">
             <button
               onClick={() => setShowValidationModal(false)}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 px-4 py-2 border border-gray-300 text-muted-foreground rounded-lg hover:bg-muted transition-colors"
             >
               Got it
             </button>

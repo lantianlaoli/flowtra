@@ -461,13 +461,13 @@ export default function HistoryPage() {
   const getStatusBadgeClasses = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-black text-white border border-black';
+        return 'bg-primary text-primary-foreground border border-primary';
       case 'processing':
-        return 'bg-white text-black border border-[#E5E5E5]';
+        return 'bg-muted text-foreground border border-border';
       case 'failed':
-        return 'bg-white text-black border border-black';
+        return 'bg-red-950/40 text-red-200 border border-red-900/40';
       default:
-        return 'bg-white text-[#666666] border border-[#E5E5E5]';
+        return 'bg-muted text-muted-foreground border border-border';
     }
   };
 
@@ -844,7 +844,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Sidebar
         credits={userCredits}
         creditsData={creditsData}
@@ -852,30 +852,30 @@ export default function HistoryPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-white min-h-screen ">
+      <div className="md:ml-72 ml-0 bg-background min-h-screen ">
         <div className="px-6 md:px-8 pb-6 md:pb-8 max-w-[1280px] mx-auto pt-14 md:pt-8">
           {/* Header Section */}
           <div className="mb-12">
             <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
               {/* Title */}
               <div>
-                <h1 className="text-4xl md:text-5xl font-bold text-black tracking-tight mb-3">
+                <h1 className="text-4xl md:text-5xl font-bold text-foreground tracking-tight mb-3">
                   My Ads
                 </h1>
-                <p className="text-base text-[#666666] leading-relaxed">
+                <p className="text-base text-muted-foreground leading-relaxed">
                   Your complete library of generated advertisements
                 </p>
               </div>
 
               {/* Warning Notice */}
               <div className="md:max-w-md">
-                <div className="flex items-start gap-4 rounded-lg border border-[#E5E5E5] bg-white px-5 py-4">
-                  <CalendarClock className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
+                <div className="flex items-start gap-4 rounded-lg border border-border bg-background px-5 py-4">
+                  <CalendarClock className="w-5 h-5 text-foreground flex-shrink-0 mt-0.5" />
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-black tracking-wide uppercase">
+                    <p className="text-sm font-semibold text-foreground tracking-wide uppercase">
                       15-Day Retention
                     </p>
-                    <p className="text-xs text-[#666666] leading-relaxed">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
                       All assets expire after 15 days. Download important files before automatic deletion.
                     </p>
                   </div>
@@ -886,7 +886,7 @@ export default function HistoryPage() {
 
           {/* Filter Controls */}
           <div className="mb-8">
-            <div className="inline-flex flex-wrap items-center gap-3 rounded-lg border border-[#E5E5E5] bg-white p-2">
+            <div className="inline-flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background p-2">
               {AD_TYPE_OPTIONS.map((option) => {
                 const isActive = adTypeFilter === option.value;
                 return (
@@ -899,8 +899,8 @@ export default function HistoryPage() {
                     className={cn(
                       'inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20',
                       isActive
-                        ? 'bg-black text-white border-black'
-                        : 'bg-white text-black border-[#E5E5E5] hover:border-black'
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-foreground border-border hover:border-foreground'
                     )}
                   >
                     <option.icon className="h-4 w-4" />
@@ -915,14 +915,14 @@ export default function HistoryPage() {
           {isLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {Array.from({ length: 8 }).map((_, index) => (
-                <div key={index} className="bg-[#F7F7F7] rounded-lg border border-[#E5E5E5] overflow-hidden animate-pulse">
-                  <div className="aspect-[3/4] bg-[#E5E5E5]"></div>
+                <div key={index} className="bg-muted rounded-lg border border-border overflow-hidden animate-pulse">
+                  <div className="aspect-[3/4] bg-border"></div>
                   <div className="p-4">
-                    <div className="h-4 bg-[#E5E5E5] rounded mb-2"></div>
-                    <div className="h-3 bg-[#E5E5E5] rounded w-3/4 mb-3"></div>
+                    <div className="h-4 bg-border rounded mb-2"></div>
+                    <div className="h-3 bg-border rounded w-3/4 mb-3"></div>
                     <div className="flex items-center justify-between">
-                      <div className="h-6 bg-[#E5E5E5] rounded w-16"></div>
-                      <div className="h-8 bg-[#E5E5E5] rounded w-20"></div>
+                      <div className="h-6 bg-border rounded w-16"></div>
+                      <div className="h-8 bg-border rounded w-20"></div>
                     </div>
                   </div>
                 </div>
@@ -930,14 +930,14 @@ export default function HistoryPage() {
             </div>
           ) : filteredHistory.length === 0 ? (
             <div className="text-center py-20">
-              <div className="w-16 h-16 bg-[#F7F7F7] rounded-lg flex items-center justify-center mx-auto mb-6 border border-[#E5E5E5]">
-                <FileVideo className="w-8 h-8 text-[#666666]" />
+              <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center mx-auto mb-6 border border-border">
+                <FileVideo className="w-8 h-8 text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-semibold text-black mb-3">No projects yet</h3>
-              <p className="text-[#666666] mb-8 max-w-md mx-auto">Start creating your first AI-powered advertisement</p>
+              <h3 className="text-xl font-semibold text-foreground mb-3">No projects yet</h3>
+              <p className="text-muted-foreground mb-8 max-w-md mx-auto">Start creating your first AI-powered advertisement</p>
               <button
                 onClick={() => window.location.href = '/dashboard'}
-                className="bg-black text-white px-6 py-3 rounded-lg hover:bg-black/90 transition-colors font-medium inline-flex items-center gap-2"
+                className="bg-primary text-primary-foreground px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium inline-flex items-center gap-2"
               >
                 <FileVideo className="w-4 h-4" />
                 Create Project
@@ -955,7 +955,7 @@ export default function HistoryPage() {
                       y: visibleItems.has(item.id) ? 0 : 20
                     }}
                     transition={{ duration: 0.4, ease: "easeOut" }}
-                    className="relative bg-[#F7F7F7] border border-[#E5E5E5] rounded-lg overflow-hidden hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-200 flex flex-col"
+                    className="relative bg-muted border border-border rounded-lg overflow-hidden hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-200 flex flex-col"
                     style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
                   >
                     {/* Status Badges */}
@@ -970,7 +970,7 @@ export default function HistoryPage() {
                         {item.status === 'failed' && (
                           <div className="group">
                             <HelpCircle className="w-3.5 h-3.5" aria-label="Failed generation details" />
-                            <div className="absolute left-0 top-full mt-2 w-64 rounded-lg bg-black text-white text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto z-50">
+                            <div className="absolute left-0 top-full mt-2 w-64 rounded-lg bg-foreground text-background text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto z-50">
                               <div className="font-semibold mb-2">Generation Failed</div>
                               <p className="mb-3">
                                 {('coverImageUrl' in item && item.coverImageUrl)
@@ -983,7 +983,7 @@ export default function HistoryPage() {
                                   router.push('/dashboard/support');
                                 }}
                                 className={cn(
-                                  'w-full text-xs bg-white/20 hover:bg-white/30 px-2 py-1.5 rounded transition-colors',
+                                  'w-full text-xs bg-background/20 hover:bg-background/30 px-2 py-1.5 rounded transition-colors',
                                   interactiveCardActionClasses
                                 )}
                               >
@@ -993,7 +993,7 @@ export default function HistoryPage() {
                           </div>
                         )}
                       </span>
-                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white text-black border border-[#E5E5E5]">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-background text-foreground border border-border">
                         {isCharacterAds(item) ? 'Character' : isMotionSwap(item) ? 'Motion Swap' : 'UGC Clone'}
                       </span>
                     </div>
@@ -1042,7 +1042,7 @@ export default function HistoryPage() {
                             className="w-full h-full object-contain"
                           />
                         ) : (
-                          <div className="w-full h-full bg-[#E5E5E5]" />
+                          <div className="w-full h-full bg-border" />
                         )}
 
                         {/* Video Hover Indicator */}
@@ -1050,7 +1050,7 @@ export default function HistoryPage() {
                           item.status === 'completed' &&
                           'videoUrl' in item && item.videoUrl &&
                           (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) && (
-                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/80 px-3 py-1.5 text-xs font-medium text-white pointer-events-none">
+                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-foreground/80 px-3 py-1.5 text-xs font-medium text-background pointer-events-none">
                               <Volume2 className="w-3.5 h-3.5" />
                               <span>Click for sound</span>
                             </div>
@@ -1059,18 +1059,18 @@ export default function HistoryPage() {
                         {/* Processing Overlay */}
                         {item.status === 'processing' && (
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="absolute inset-0 bg-white/50" />
+                            <div className="absolute inset-0 bg-background/50" />
                             {(() => {
                               const pct = Math.round(Math.max(0, Math.min(100, item.progress ?? 0)));
                               return (
                                 <div className="relative w-20 h-20">
                                   <div
                                     className="absolute inset-0 rounded-full"
-                                    style={{ background: `conic-gradient(#000 ${pct}%, #E5E5E5 0)` }}
+                                    style={{ background: `conic-gradient(var(--foreground) ${pct}%, var(--border) 0)` }}
                                   />
-                                  <div className="absolute inset-1 rounded-full bg-white" />
+                                  <div className="absolute inset-1 rounded-full bg-background" />
                                   <div className="absolute inset-0 flex items-center justify-center">
-                                    <span className="text-sm font-bold text-black">{pct}%</span>
+                                    <span className="text-sm font-bold text-foreground">{pct}%</span>
                                   </div>
                                 </div>
                               );
@@ -1081,24 +1081,24 @@ export default function HistoryPage() {
                     </div>
 
                     {/* Card Content */}
-                    <div className="p-4 flex-1 flex flex-col bg-[#F7F7F7]">
+                    <div className="p-4 flex-1 flex flex-col bg-muted">
                       {/* Metadata */}
                       <div className="space-y-1 mb-3">
-                        <div className="flex items-center text-xs text-[#666666] gap-2">
+                        <div className="flex items-center text-xs text-muted-foreground gap-2">
                           <Clock className="w-3.5 h-3.5" />
                           <span className="font-medium">{formatDate(item.createdAt)}</span>
-                          <span className="text-[#E5E5E5]">•</span>
+                          <span className="text-border">•</span>
                           <span>{formatTime(item.createdAt)}</span>
                         </div>
                       </div>
 
                       {/* Action Button */}
                       <div className="mt-auto">
-                        <div className="border-t border-[#E5E5E5] -mx-4 -mb-4 px-4 py-3 bg-white">
+                        <div className="border-t border-border -mx-4 -mb-4 px-4 py-3 bg-background">
                           <button
                             onClick={() => handleViewDetails(item)}
                             className={cn(
-                              'w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-black rounded-lg border border-[#E5E5E5] hover:border-black transition-all',
+                              'w-full flex items-center justify-between px-3 py-2.5 text-sm bg-background text-foreground rounded-lg border border-border hover:border-foreground transition-all',
                               interactiveCardActionClasses
                             )}
                           >
@@ -1120,7 +1120,7 @@ export default function HistoryPage() {
                       onClick={() => goToPage(currentPage - 1)}
                       disabled={currentPage === 1}
                       className={cn(
-                        'px-3 py-2 text-sm font-medium text-black bg-white border border-[#E5E5E5] rounded-lg hover:border-black disabled:opacity-30 disabled:cursor-not-allowed transition-all',
+                        'px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:border-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all',
                         paginationButtonClasses
                       )}
                     >
@@ -1162,15 +1162,15 @@ export default function HistoryPage() {
                       return pages.map((page, index) => (
                         <div key={index}>
                           {page === '...' ? (
-                            <span className="px-3 py-2 text-sm text-[#666666]">...</span>
+                            <span className="px-3 py-2 text-sm text-muted-foreground">...</span>
                           ) : (
                             <button
                               onClick={() => goToPage(page as number)}
                               className={cn(
                                 'px-3 py-2 text-sm font-medium rounded-lg transition-all',
                                 currentPage === page
-                                  ? 'bg-black text-white'
-                                  : 'text-black bg-white border border-[#E5E5E5] hover:border-black',
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-foreground bg-background border border-border hover:border-foreground',
                                 paginationButtonClasses
                               )}
                             >
@@ -1185,7 +1185,7 @@ export default function HistoryPage() {
                       onClick={() => goToPage(currentPage + 1)}
                       disabled={currentPage === totalPages}
                       className={cn(
-                        'px-3 py-2 text-sm font-medium text-black bg-white border border-[#E5E5E5] rounded-lg hover:border-black disabled:opacity-30 disabled:cursor-not-allowed transition-all',
+                        'px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:border-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all',
                         paginationButtonClasses
                       )}
                     >

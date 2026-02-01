@@ -40,9 +40,9 @@ export default function VideoAssetCard({ video, onViewDetails }: VideoAssetCardP
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 group">
+    <div className="assets-video-card bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 group">
       <div
-        className="relative w-full aspect-[9/16] bg-gray-100"
+        className="assets-video-card-media relative w-full aspect-[9/16] bg-gray-100"
         onMouseEnter={handleHoverPlay}
         onMouseLeave={handleHoverPause}
         onFocus={handleHoverPlay}
@@ -63,13 +63,13 @@ export default function VideoAssetCard({ video, onViewDetails }: VideoAssetCardP
             <Video className="w-8 h-8" />
           </div>
         )}
-        <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+        <div className="assets-video-card-overlay absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
 
-      <div className="p-2.5">
+      <div className="assets-video-card-footer p-2.5">
         <button
           onClick={handleViewDetails}
-          className="w-full px-3 py-2 text-xs font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+          className="assets-video-card-action w-full px-3 py-2 text-xs font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
         >
           <Play className="w-3 h-3" />
           View Details

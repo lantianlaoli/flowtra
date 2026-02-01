@@ -137,7 +137,7 @@ export default function FormatSelector({
 
   return (
     <div className={cn("space-y-3", className)} ref={dropdownRef}>
-      <label className="flex items-center gap-2 text-base font-medium text-gray-900">
+      <label className="config-field-label flex items-center gap-2 text-base font-medium text-gray-900">
         <Maximize2 className="w-4 h-4" />
         {label}
       </label>
@@ -148,21 +148,21 @@ export default function FormatSelector({
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
           className={cn(
-            "w-full px-3 py-2 text-sm border rounded-lg transition-colors duration-150 text-gray-900 text-left flex items-center justify-between",
+            "config-select-trigger w-full px-3 py-2 text-sm border rounded-lg transition-colors duration-150 text-gray-900 text-left flex items-center justify-between",
             disabled
               ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
               : 'bg-white border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 cursor-pointer'
           )}
         >
           <div className="flex items-center gap-2">
-            <selectedOption.icon className="w-4 h-4 text-gray-600" />
+            <selectedOption.icon className="config-select-icon w-4 h-4 text-gray-600" />
             <div className="flex flex-col">
               <span className="font-medium">{selectedOption.label}</span>
-              <span className="text-xs text-gray-500">{selectedOption.description}</span>
+              <span className="config-select-meta text-xs text-gray-500">{selectedOption.description}</span>
             </div>
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
-            <ChevronDown className="h-3 w-3 text-gray-600" />
+            <ChevronDown className="config-select-icon h-3 w-3 text-gray-600" />
           </div>
         </button>
 
@@ -181,7 +181,7 @@ export default function FormatSelector({
                 top: `${buttonRect.bottom + 4}px`,
                 width: `${buttonRect.width}px`,
               }}
-              className="bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] overflow-hidden"
+              className="config-select-panel bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] overflow-hidden"
             >
               {formatOptions.map((option) => {
                 const IconComponent = option.icon;
@@ -190,21 +190,21 @@ export default function FormatSelector({
                     key={option.value}
                     onClick={() => handleOptionSelect(option.value)}
                     className={cn(
-                      "w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 cursor-pointer",
+                      "config-select-option w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 cursor-pointer",
                       selectedFormat === option.value
                         ? "bg-gray-100 text-gray-900"
                         : "text-gray-700"
                     )}
                   >
                     <div className="flex items-center gap-2">
-                      <IconComponent className="w-4 h-4 text-gray-600" />
+                      <IconComponent className="config-select-icon w-4 h-4 text-gray-600" />
                       <div className="flex flex-col">
                         <span className="font-medium">{option.label}</span>
-                        <span className="text-xs text-gray-500">{option.description}</span>
+                        <span className="config-select-meta text-xs text-gray-500">{option.description}</span>
                       </div>
                     </div>
                     {selectedFormat === option.value && (
-                      <div className="w-4 h-4 bg-black rounded-sm flex items-center justify-center">
+                      <div className="config-select-check w-4 h-4 bg-black rounded-sm flex items-center justify-center">
                         <Check className="h-2.5 w-2.5 text-white" />
                       </div>
                     )}

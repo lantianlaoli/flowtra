@@ -57,22 +57,22 @@ export default function MotionSwapEditorFormColumn({
   ), [products]);
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="motion-swap-editor-form flex h-full flex-col bg-white">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-[#E5E5E5] bg-gray-50 px-4 py-3">
-        <Sparkles className="h-4 w-4 text-black" />
-        <h2 className="text-sm font-semibold text-black">Prompts</h2>
+      <div className="motion-swap-editor-form-header flex items-center gap-2 border-b border-[#E5E5E5] bg-gray-50 px-4 py-3">
+        <Sparkles className="motion-swap-editor-form-icon h-4 w-4 text-black" />
+        <h2 className="motion-swap-editor-form-title text-sm font-semibold text-black">Prompts</h2>
       </div>
 
       {/* Scrollable Content Area */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
-        <div className="rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3 shrink-0">
+        <div className="motion-swap-editor-card rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3 shrink-0">
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-2">
-              <ImageIcon className="w-4 h-4 text-black" />
-              <p className="text-sm font-semibold text-black">First Frame Prompt</p>
+              <ImageIcon className="motion-swap-editor-label-icon w-4 h-4 text-black" />
+              <p className="motion-swap-editor-label text-sm font-semibold text-black">First Frame Prompt</p>
             </div>
-            <span className="text-xs text-[#666666]">Type @ to insert a character or product</span>
+            <span className="motion-swap-editor-helper text-xs text-[#666666]">Type @ to insert a character or product</span>
           </div>
           <PromptMentionTextarea
             value={photoPrompt}
@@ -84,11 +84,11 @@ export default function MotionSwapEditorFormColumn({
           />
         </div>
 
-        <div className="rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3 flex flex-col flex-1 min-h-[220px]">
+        <div className="motion-swap-editor-card rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3 flex flex-col flex-1 min-h-[220px]">
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-2">
-              <VideoIcon className="w-4 h-4 text-black" />
-              <p className="text-sm font-semibold text-black">Video Prompt</p>
+              <VideoIcon className="motion-swap-editor-label-icon w-4 h-4 text-black" />
+              <p className="motion-swap-editor-label text-sm font-semibold text-black">Video Prompt</p>
             </div>
           </div>
           <PromptMentionTextarea
@@ -103,18 +103,18 @@ export default function MotionSwapEditorFormColumn({
         </div>
 
         {errorMessage && (
-          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <div className="motion-swap-editor-error text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
             {errorMessage}
           </div>
         )}
       </div>
 
       {/* Fixed Footer with Buttons */}
-      <div className="border-t border-[#E5E5E5] bg-white p-4">
+      <div className="motion-swap-editor-footer border-t border-[#E5E5E5] bg-white p-4">
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed"
+            className="motion-swap-editor-primary inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={!canGenerateImage || isGeneratingImage}
             onClick={onGenerateImage}
           >
@@ -126,7 +126,7 @@ export default function MotionSwapEditorFormColumn({
           </button>
           <button
             type="button"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="motion-swap-editor-secondary inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={!canGenerateVideo || isGeneratingVideo}
             onClick={onGenerateVideo}
           >

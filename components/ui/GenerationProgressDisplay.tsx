@@ -443,7 +443,7 @@ function GenerationCard({
   const showPreviewAction = displayStatus === 'awaiting_review' && Boolean(coverUrl) && Boolean(onReview);
 
   const MetaTag = ({ icon: Icon, text }: { icon?: React.ElementType; text: string }) => (
-    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 border border-gray-100 rounded-lg text-[11px] font-medium text-gray-600">
+    <div className="generation-progress-meta inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 border border-gray-100 rounded-lg text-[11px] font-medium text-gray-600">
       {Icon && <Icon className="w-3 h-3 opacity-70" />}
       <span>{text}</span>
     </div>
@@ -453,21 +453,21 @@ function GenerationCard({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-2xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden"
+      className="generation-progress-card bg-white rounded-2xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden"
     >
       <div className="p-5 space-y-4">
         {/* Header: Status and Actions */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-xl bg-gray-50">
+            <div className="generation-progress-icon p-2 rounded-xl bg-gray-50">
               {getStatusIcon()}
             </div>
             <div className="min-w-0 flex items-center gap-2">
               <div>
-                <h4 className="text-[15px] font-semibold text-gray-900 leading-tight truncate">
+                <h4 className="generation-progress-title text-[15px] font-semibold text-gray-900 leading-tight truncate">
                   {getStatusText()}
                 </h4>
-                <p className="text-[12px] text-gray-500 mt-0.5 font-medium">
+                <p className="generation-progress-time text-[12px] text-gray-500 mt-0.5 font-medium">
                   {new Date(generation.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
@@ -478,7 +478,7 @@ function GenerationCard({
             {showPreviewAction && (
               <button
                 onClick={() => onReview?.(generation)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-[13px] font-semibold hover:bg-gray-800 transition-all shadow-sm"
+                className="generation-progress-action inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-[13px] font-semibold hover:bg-gray-800 transition-all shadow-sm"
               >
                 <Eye className="w-4 h-4" />
                 {reviewCtaLabel}
@@ -487,7 +487,7 @@ function GenerationCard({
             {primaryActionLabel && onPrimaryAction && (
               <button
                 onClick={() => onPrimaryAction(generation)}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
+                className="generation-progress-action inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
               >
                 <MousePointerClick className="w-3.5 h-3.5" />
                 <span>{primaryActionLabel}</span>
@@ -500,7 +500,7 @@ function GenerationCard({
                     setEditorReadOnly(false);
                     setShowSegmentEditor(true);
                   }}
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-transparent rounded-xl text-[13px] font-medium transition-all bg-black text-white hover:bg-gray-800 shadow-sm"
+                  className="generation-progress-edit inline-flex items-center gap-2 px-4 py-2 border border-transparent rounded-xl text-[13px] font-medium transition-all bg-black text-white hover:bg-gray-800 shadow-sm"
                 >
                   <MousePointerClick className="w-3.5 h-3.5" />
                   <span>Edit & Generate</span>
@@ -513,7 +513,7 @@ function GenerationCard({
                   setEditorReadOnly(true);
                   setShowSegmentEditor(true);
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
+                className="generation-progress-action inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>Review Segments</span>
@@ -564,22 +564,22 @@ function GenerationCard({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {displayStatus === 'attention' ? (
-                  <div className="w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
+                  <div className="generation-progress-dot w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
                     <CirclePause className="w-2.5 h-2.5 text-white" />
                   </div>
                 ) : (displayStatus === 'processing' || displayStatus === 'pending') ? (
-                  <div className="w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
+                  <div className="generation-progress-dot w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
                     <Loader2 className="w-2.5 h-2.5 text-white animate-spin" />
                   </div>
                 ) : (
-                  <div className="w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
+                  <div className="generation-progress-dot w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center">
                     <CheckCircle className="w-2.5 h-2.5 text-white" />
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-bold text-gray-900">{progress}%</span>
+                  <span className="generation-progress-percent text-[13px] font-bold text-gray-900">{progress}%</span>
                   {hasSegments && generation.segments && generation.segments.length > 0 && !mergeComplete && (
-                    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded-full text-[10px] font-medium text-gray-900 whitespace-nowrap">
+                    <div className="generation-progress-badge inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded-full text-[10px] font-medium text-gray-900 whitespace-nowrap">
                       <AlertCircle className="w-2.5 h-2.5 flex-shrink-0" />
                       <span>Review Needed</span>
                     </div>
@@ -587,9 +587,9 @@ function GenerationCard({
                 </div>
               </div>
             </div>
-            <div className="relative h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+            <div className="generation-progress-track relative h-2 w-full bg-gray-100 rounded-full overflow-hidden">
               <motion.div
-                className="absolute inset-y-0 left-0 bg-gray-900 overflow-hidden"
+                className="generation-progress-fill absolute inset-y-0 left-0 bg-gray-900 overflow-hidden"
                 initial={{ width: '0%' }}
                 animate={{ width: `${progress}%` }}
                 transition={{ duration: 0.8, ease: "easeOut" }}

@@ -569,13 +569,13 @@ export default function SegmentFormColumn({
   };
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="clone-editor-form flex h-full flex-col bg-white">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-[#E5E5E5] bg-gray-50 px-4 py-3">
+      <div className="clone-editor-form-header flex-shrink-0 border-b border-[#E5E5E5] bg-gray-50 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-black" />
-            <h2 className="text-sm font-semibold text-black">
+            <Sparkles className="clone-editor-form-icon w-4 h-4 text-black" />
+            <h2 className="clone-editor-form-title text-sm font-semibold text-black">
               Visual Prompt
             </h2>
           </div>
@@ -583,16 +583,16 @@ export default function SegmentFormColumn({
       </div>
 
       {/* Form Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="clone-editor-form-body flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
           {/* Photo Prompt Section */}
-          <div className="rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3">
+          <div className="clone-editor-card rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3">
             <div className="flex items-center gap-2 justify-between">
               <div className="flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-black" />
-                <p className="text-sm font-semibold text-black">Photo Prompt</p>
+                <p className="clone-editor-label text-sm font-semibold text-black">Photo Prompt</p>
               </div>
-              <span className="text-xs text-[#666666]">Type @ to insert a character or product</span>
+              <span className="clone-editor-helper text-xs text-[#666666]">Type @ to insert a character or product</span>
             </div>
             <PromptMentionTextarea
               value={photoPrompt}
@@ -602,7 +602,7 @@ export default function SegmentFormColumn({
               readOnly={readOnly}
               hasError={photoPromptTooLong}
               className={clsx(
-                'rounded-lg',
+                'clone-editor-textarea rounded-lg',
                 photoPromptTooLong ? 'border-red-500' : 'border-[#E5E5E5]',
                 readOnly ? 'bg-gray-50' : ''
               )}
@@ -628,7 +628,7 @@ export default function SegmentFormColumn({
                 onClick={() => !readOnly && setIsContinuation(prev => !prev)}
                 disabled={readOnly}
                 className={clsx(
-                  'w-full text-left rounded-lg border px-4 py-3 flex items-center gap-3 transition',
+                  'clone-editor-continuation w-full text-left rounded-lg border px-4 py-3 flex items-center gap-3 transition',
                   isContinuation
                     ? 'border-black bg-gray-50 text-black'
                     : 'border-[#E5E5E5] text-[#666666] hover:border-black hover:text-black',
@@ -637,15 +637,15 @@ export default function SegmentFormColumn({
               >
                 <span
                   className={clsx(
-                    'inline-flex items-center justify-center rounded-full border w-9 h-9 flex-shrink-0',
+                    'clone-editor-continuation-icon inline-flex items-center justify-center rounded-full border w-9 h-9 flex-shrink-0',
                     isContinuation ? 'border-black bg-black text-white' : 'border-gray-300'
                   )}
                 >
                   <Link2 className="w-4 h-4" />
                 </span>
                 <span className="flex-1">
-                  <span className="block text-sm font-semibold">Link to previous frame</span>
-                  <span className="block text-xs text-[#666666]">
+                  <span className="clone-editor-label block text-sm font-semibold">Link to previous frame</span>
+                  <span className="clone-editor-helper block text-xs text-[#666666]">
                     Use the prior segment&apos;s first frame as a reference to keep characters consistent.
                   </span>
                 </span>
@@ -661,23 +661,23 @@ export default function SegmentFormColumn({
           </div>
 
           {/* Shots Editor */}
-          <div className="rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-4">
+          <div className="clone-editor-card rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Clapperboard className="w-4 h-4 text-black" />
-                <p className="text-sm font-semibold text-black">Shots</p>
+                <p className="clone-editor-label text-sm font-semibold text-black">Shots</p>
               </div>
               {!readOnly && (
               <div className="flex items-center gap-2">
                 {shots.length >= 4 && (
-                  <span className="text-[11px] text-[#666666]">Max 4 shots</span>
+                  <span className="clone-editor-helper text-[11px] text-[#666666]">Max 4 shots</span>
                 )}
                 <button
                   type="button"
                   onClick={handleAddShot}
                   disabled={shots.length >= 4}
                   className={clsx(
-                    'inline-flex items-center justify-center rounded-full border text-xs font-semibold transition w-9 h-9',
+                    'clone-editor-secondary inline-flex items-center justify-center rounded-full border text-xs font-semibold transition w-9 h-9',
                     shots.length >= 4
                       ? 'border-[#E5E5E5] text-gray-400 cursor-not-allowed'
                       : 'border-black text-black hover:bg-black hover:text-white'
@@ -696,7 +696,7 @@ export default function SegmentFormColumn({
                 const summaryText = shot.subject?.trim() || shot.action?.trim() || shot.dialogue?.trim() || 'Add more shot detail.';
                 const toggleCard = () => toggleShotExpansion(shot.id);
                 return (
-                  <div key={shot.id} className="rounded-lg border border-[#E5E5E5] p-3 space-y-3 bg-white">
+                  <div key={shot.id} className="clone-editor-shot-card rounded-lg border border-[#E5E5E5] p-3 space-y-3 bg-white">
                     <div className="flex items-start justify-between gap-3">
                       <div
                         className="flex-1 cursor-pointer select-none"
@@ -710,12 +710,12 @@ export default function SegmentFormColumn({
                           }
                         }}
                       >
-                        <div className="flex items-center gap-2">
-                          <div className="text-sm font-semibold text-black">Shot {shot.id}</div>
-                          <span className="text-[11px] font-medium text-[#666666]">{shot.time_range || '00:00 - 00:02'}</span>
+                          <div className="flex items-center gap-2">
+                          <div className="clone-editor-label text-sm font-semibold text-black">Shot {shot.id}</div>
+                          <span className="clone-editor-helper text-[11px] font-medium text-[#666666]">{shot.time_range || '00:00 - 00:02'}</span>
                         </div>
                         {!expanded && (
-                          <p className="mt-1 text-xs text-[#666666] line-clamp-2">{summaryText}</p>
+                          <p className="clone-editor-helper mt-1 text-xs text-[#666666] line-clamp-2">{summaryText}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -726,7 +726,7 @@ export default function SegmentFormColumn({
                           onClick={() => handleRemoveShot(shot.id)}
                           disabled={shots.length <= 1}
                           className={clsx(
-                            'inline-flex items-center justify-center rounded-full border w-8 h-8',
+                            'clone-editor-danger inline-flex items-center justify-center rounded-full border w-8 h-8',
                             shots.length <= 1
                               ? 'border-[#E5E5E5] text-gray-300 cursor-not-allowed'
                               : 'border-red-200 text-red-500 hover:bg-red-50'
@@ -741,7 +741,7 @@ export default function SegmentFormColumn({
                           type="button"
                           data-shot-control="true"
                           onClick={() => toggleShotExpansion(shot.id)}
-                          className="inline-flex items-center justify-center rounded-full border border-[#E5E5E5] p-1 text-[#666666] hover:bg-gray-50"
+                          className="clone-editor-secondary inline-flex items-center justify-center rounded-full border border-[#E5E5E5] p-1 text-[#666666] hover:bg-gray-50"
                         >
                           <ChevronDown className={clsx('w-4 h-4 transition-transform', expanded ? 'rotate-180' : '')} />
                           <span className="sr-only">Toggle shot</span>
@@ -757,7 +757,7 @@ export default function SegmentFormColumn({
                       <div className="space-y-4 pt-1">
                         {/* Time Range */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <Clock className="w-3.5 h-3.5" />
                             <span>Time range (relative)</span>
                           </div>
@@ -767,7 +767,7 @@ export default function SegmentFormColumn({
                             onChange={e => handleShotChange(shot.id, 'time_range', e.target.value)}
                             disabled={readOnly}
                             readOnly={readOnly}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                             placeholder="00:00 - 00:02"
@@ -776,7 +776,7 @@ export default function SegmentFormColumn({
 
                         {/* Subject */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <User className="w-3.5 h-3.5" />
                             <span>Subject</span>
                           </div>
@@ -801,7 +801,7 @@ export default function SegmentFormColumn({
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'subject', target.value);
                             }}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                           />
@@ -809,7 +809,7 @@ export default function SegmentFormColumn({
 
                         {/* Action */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <Clapperboard className="w-3.5 h-3.5" />
                             <span>Action</span>
                           </div>
@@ -834,7 +834,7 @@ export default function SegmentFormColumn({
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'action', target.value);
                             }}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                           />
@@ -842,7 +842,7 @@ export default function SegmentFormColumn({
 
                         {/* Style */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <Palette className="w-3.5 h-3.5" />
                             <span>Style</span>
                           </div>
@@ -867,7 +867,7 @@ export default function SegmentFormColumn({
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'style', target.value);
                             }}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                           />
@@ -875,7 +875,7 @@ export default function SegmentFormColumn({
 
                         {/* Audio */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <Music className="w-3.5 h-3.5" />
                             <span>Audio / Music</span>
                           </div>
@@ -900,7 +900,7 @@ export default function SegmentFormColumn({
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'audio', target.value);
                             }}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                           />
@@ -908,7 +908,7 @@ export default function SegmentFormColumn({
 
                         {/* Dialogue */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <MessageSquare className="w-3.5 h-3.5" />
                             <span>Dialogue / VO</span>
                           </div>
@@ -933,7 +933,7 @@ export default function SegmentFormColumn({
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'dialogue', target.value);
                             }}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                           />
@@ -941,7 +941,7 @@ export default function SegmentFormColumn({
 
                         {/* Language */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <Globe className="w-3.5 h-3.5" />
                             <span>Language</span>
                           </div>
@@ -950,7 +950,7 @@ export default function SegmentFormColumn({
                               type="button"
                               onClick={() => !readOnly && setOpenLanguageDropdownId(openLanguageDropdownId === shot.id ? null : shot.id)}
                               disabled={readOnly}
-                              className={`w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 pr-8 text-left text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 ${
+                              className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 pr-8 text-left text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 ${
                                 readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                               }`}
                             >
@@ -968,7 +968,7 @@ export default function SegmentFormColumn({
                             </button>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                             {openLanguageDropdownId === shot.id && (
-                              <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-100 bg-white shadow-lg max-h-60 overflow-y-auto py-1 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+                              <div className="clone-editor-dropdown absolute z-50 mt-1 w-full rounded-lg border border-gray-100 bg-white shadow-lg max-h-60 overflow-y-auto py-1 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
                                 {LANGUAGE_OPTIONS.map(option => (
                                   <button
                                     key={option.value}
@@ -978,7 +978,7 @@ export default function SegmentFormColumn({
                                       setOpenLanguageDropdownId(null);
                                     }}
                                     className={clsx(
-                                      "w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between transition-colors",
+                                      "clone-editor-dropdown-option w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between transition-colors",
                                       shot.language === option.value ? "bg-gray-50 font-medium text-black" : "text-[#666666]"
                                     )}
                                   >
@@ -1001,7 +1001,7 @@ export default function SegmentFormColumn({
 
                         {/* Composition */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <Camera className="w-3.5 h-3.5" />
                             <span>Composition / Camera</span>
                           </div>
@@ -1026,7 +1026,7 @@ export default function SegmentFormColumn({
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'composition', target.value);
                             }}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                           />
@@ -1034,7 +1034,7 @@ export default function SegmentFormColumn({
 
                         {/* Camera Motion */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <Move className="w-3.5 h-3.5" />
                             <span>Camera Motion</span>
                           </div>
@@ -1059,7 +1059,7 @@ export default function SegmentFormColumn({
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'camera_motion_positioning', target.value);
                             }}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                           />
@@ -1067,7 +1067,7 @@ export default function SegmentFormColumn({
 
                         {/* Environment */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <MapPin className="w-3.5 h-3.5" />
                             <span>Environment</span>
                           </div>
@@ -1092,7 +1092,7 @@ export default function SegmentFormColumn({
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'context_environment', target.value);
                             }}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                           />
@@ -1100,7 +1100,7 @@ export default function SegmentFormColumn({
 
                         {/* Ambiance / Lighting */}
                         <div className="group">
-                          <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
                             <Sun className="w-3.5 h-3.5" />
                             <span>Ambiance / Lighting</span>
                           </div>
@@ -1125,7 +1125,7 @@ export default function SegmentFormColumn({
                               target.style.height = `${target.scrollHeight}px`;
                               handleShotChange(shot.id, 'ambiance_colour_lighting', target.value);
                             }}
-                            className={`w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
                           />
@@ -1140,11 +1140,11 @@ export default function SegmentFormColumn({
 
           {/* Regenerate Buttons - Hidden in read-only mode */}
           {!readOnly && (
-          <div className="rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3">
+          <div className="clone-editor-card rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-black text-white py-2.5 text-sm font-semibold cursor-pointer hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-black"
+                className="clone-editor-primary inline-flex items-center justify-center gap-2 rounded-lg bg-black text-white py-2.5 text-sm font-semibold cursor-pointer hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-black"
                 disabled={!regenEnabled || submittingPhoto || photoPromptTooLong}
                 onClick={() => handleRegenerate('photo')}
               >
@@ -1156,7 +1156,7 @@ export default function SegmentFormColumn({
               </button>
               <button
                 type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#E5E5E5] bg-white py-2.5 text-sm font-semibold text-black cursor-pointer hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+                className="clone-editor-secondary inline-flex items-center justify-center gap-2 rounded-lg border border-[#E5E5E5] bg-white py-2.5 text-sm font-semibold text-black cursor-pointer hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
                 disabled={!regenEnabled || submittingVideo}
                 onClick={() => handleRegenerate('video')}
               >
@@ -1167,7 +1167,7 @@ export default function SegmentFormColumn({
                 </span>
               </button>
               {!regenEnabled && (
-                <p className="text-xs text-[#666666] text-center">
+                <p className="clone-editor-helper text-xs text-[#666666] text-center">
                   Backend endpoint not wired yet. Edits will stay local until regeneration is enabled.
                 </p>
               )}

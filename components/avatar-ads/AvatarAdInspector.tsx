@@ -393,10 +393,10 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   return (
     <AnimatePresence>
       {open && (
-        <div className="relative z-50">
+        <div className="avatar-ads-editor relative z-50">
           {/* Backdrop */}
           <motion.div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+            className="avatar-ads-editor-backdrop fixed inset-0 bg-black/40 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -406,43 +406,43 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
           {/* Modal Panel */}
           <div className="fixed inset-0 overflow-hidden flex items-center justify-center p-4 sm:p-6">
             <motion.div
-              className="w-full max-w-6xl h-[90vh] bg-white shadow-2xl rounded-xl flex flex-col overflow-hidden border border-gray-200"
+              className="avatar-ads-editor-panel w-full max-w-6xl h-[90vh] bg-white shadow-2xl rounded-xl flex flex-col overflow-hidden border border-gray-200"
               initial={{ opacity: 0, scale: 0.98, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: 20 }}
               transition={{ duration: 0.2 }}
             >
               {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+              <div className="avatar-ads-editor-header px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
                 <div className="flex items-center gap-4">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <h3 className="avatar-ads-editor-title text-lg font-semibold text-gray-900 flex items-center gap-2">
                     Review & Edit Ad
-                    <p className="text-xs font-normal text-gray-500 ml-2">Please check image, adjust photos, and confirm video elements before generating.</p>
+                    <p className="avatar-ads-editor-subtitle text-xs font-normal text-gray-500 ml-2">Please check image, adjust photos, and confirm video elements before generating.</p>
                   </h3>
                   {/* Auto-save status indicator */}
                   {autoSaveStatus !== 'idle' && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="avatar-ads-editor-status flex items-center gap-1.5">
                       {autoSaveStatus === 'saving' && (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                          <span className="text-xs text-blue-600 font-medium">Saving...</span>
+                          <Loader2 className="avatar-ads-editor-status-icon w-3.5 h-3.5 animate-spin text-blue-600" />
+                          <span className="avatar-ads-editor-status-text text-xs text-blue-600 font-medium">Saving...</span>
                         </>
                       )}
                       {autoSaveStatus === 'saved' && (
                         <>
-                          <Award className="w-3.5 h-3.5 text-green-600" />
-                          <span className="text-xs text-green-600 font-medium">Saved</span>
+                          <Award className="avatar-ads-editor-status-icon w-3.5 h-3.5 text-green-600" />
+                          <span className="avatar-ads-editor-status-text text-xs text-green-600 font-medium">Saved</span>
                         </>
                       )}
                       {autoSaveStatus === 'error' && (
-                        <span className="text-xs text-red-600 font-medium">Save failed</span>
+                        <span className="avatar-ads-editor-status-text text-xs text-red-600 font-medium">Save failed</span>
                       )}
                     </div>
                   )}
                 </div>
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-900 transition-colors"
+                  className="avatar-ads-editor-close text-gray-400 hover:text-gray-900 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -451,26 +451,26 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
               {/* Content - Split View */}
               <div className="flex-1 flex overflow-hidden">
                 {loading ? (
-                  <div className="w-full flex flex-col items-center justify-center text-gray-500 gap-3">
+                  <div className="avatar-ads-editor-loading w-full flex flex-col items-center justify-center text-gray-500 gap-3">
                     <Loader2 className="w-8 h-8 animate-spin text-black" />
                     <p className="text-sm font-medium">Loading project details...</p>
                   </div>
                 ) : !project ? (
-                  <div className="w-full flex flex-col items-center justify-center text-red-500">
+                  <div className="avatar-ads-editor-error w-full flex flex-col items-center justify-center text-red-500">
                     <p>Failed to load project details.</p>
                   </div>
                 ) : (
                   <>
                     {/* LEFT: Image Preview (Fixed / Minimal Scroll) */}
-                    <div className="w-[400px] shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
+                    <div className="avatar-ads-editor-preview w-[400px] shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
                       <div className="p-6 space-y-6">
                          {/* Image Container */}
                         <div className="space-y-3">
-                           <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                           <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-medium text-gray-900">
                               <ImageIcon className="w-4 h-4" />
                               Video First Frame
                            </div>
-                           <div className="relative aspect-[9/16] w-full bg-white rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                           <div className="avatar-ads-editor-media relative aspect-[9/16] w-full bg-white rounded-lg overflow-hidden border border-gray-200 shadow-sm">
                               {project.generated_image_url ? (
                                 <Image
                                   src={project.generated_image_url}
@@ -486,7 +486,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                                 )
                               )}
                               {isRegeneratingImage && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm text-gray-900 p-4 z-10">
+                                <div className="avatar-ads-editor-media-overlay absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm text-gray-900 p-4 z-10">
                                   <Loader2 className="w-6 h-6 animate-spin mb-2" />
                                   <p className="text-xs font-medium">Regenerating...</p>
                                 </div>
@@ -497,22 +497,22 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                     </div>
 
                     {/* RIGHT: Editors (Scrollable) */}
-                    <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
+                    <div className="avatar-ads-editor-form flex-1 overflow-y-auto bg-white custom-scrollbar">
                       <div className="max-w-3xl mx-auto p-6 space-y-8">
 
                         {/* Image Prompt Edit Section */}
-                        <div className="space-y-3">
+                        <div className="avatar-ads-editor-card space-y-3">
                           <div className="flex items-start justify-between">
                             <div className="space-y-0.5">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                              <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-semibold text-gray-900">
                                 <ImageIcon className="w-4 h-4" />
                                 Image Prompt
                               </div>
-                              <p className="text-[11px] text-gray-500 pl-6">
+                              <p className="avatar-ads-editor-helper text-[11px] text-gray-500 pl-6">
                                 Adjust prompt to match expectations.
                               </p>
                             </div>
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-yellow-50 border border-yellow-100 shadow-sm">
+                            <div className="avatar-ads-editor-chip flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-yellow-50 border border-yellow-100 shadow-sm">
                               <GiBanana className="w-3.5 h-3.5 text-yellow-600" />
                               <span className="text-[10px] font-medium text-yellow-700 tracking-wide">
                                 Nano banana Pro: Unlimited Free
@@ -521,7 +521,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                           </div>
                           <textarea
                             rows={3}
-                            className={`block w-full rounded-md border-gray-200 shadow-sm focus:border-black focus:ring-black text-sm resize-none p-3 transition-all duration-200 ${
+                            className={`avatar-ads-editor-textarea block w-full rounded-md border-gray-200 shadow-sm focus:border-black focus:ring-black text-sm resize-none p-3 transition-all duration-200 ${
                               focusedField === 'image_prompt' ? 'h-32 bg-gray-50' : 'bg-white'
                             }`}
                             value={editedImagePrompt}
@@ -532,17 +532,17 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                           />
                         </div>
 
-                        <hr className="border-gray-100" />
+                        <hr className="avatar-ads-editor-divider border-gray-100" />
 
                         {/* Video Scenes Section */}
-                        <div className="space-y-4">
+                        <div className="avatar-ads-editor-card space-y-4">
                            <div className="flex items-start justify-between mb-1">
                              <div className="space-y-0.5">
-                               <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                               <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-semibold text-gray-900">
                                  <Film className="w-4 h-4" />
                                  Video Prompts
                                </div>
-                               <p className="text-[11px] text-gray-500 pl-6">
+                               <p className="avatar-ads-editor-helper text-[11px] text-gray-500 pl-6">
                                  Please check and modify to meet expectations.
                                </p>
                              </div>
@@ -550,12 +550,12 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
 
                            {/* Scene Tabs */}
                            {totalScenes > 0 && (
-                             <div className="flex flex-wrap gap-1 border-b border-gray-100 pb-1">
+                             <div className="avatar-ads-editor-tabs flex flex-wrap gap-1 border-b border-gray-100 pb-1">
                                {scenes.map((_, index) => (
                                  <button
                                    key={`scene-tab-${index}`}
                                    onClick={() => setActiveSceneIndex(index)}
-                                   className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                                   className={`avatar-ads-editor-tab px-4 py-2 text-sm font-medium transition-colors relative ${
                                      activeSceneIndex === index
                                        ? 'text-black'
                                        : 'text-gray-500 hover:text-gray-800'
@@ -565,7 +565,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                                    {activeSceneIndex === index && (
                                      <motion.div
                                        layoutId="activeTab"
-                                       className="absolute bottom-0 left-0 right-0 h-0.5 bg-black"
+                                       className="avatar-ads-editor-tab-indicator absolute bottom-0 left-0 right-0 h-0.5 bg-black"
                                      />
                                    )}
                                  </button>
@@ -576,13 +576,13 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                            {/* Scene Fields */}
                            <div className="pt-2 space-y-4">
                              {totalScenes === 0 ? (
-                               <p className="text-sm text-gray-400 italic">No scenes to edit.</p>
-                             ) : (
-                               <div className="grid grid-cols-1 gap-4">
-                                 {FIELD_ORDER.map((field) => {
-                                    const Icon = FIELD_ICONS[field];
-                                    const isFocused = focusedField === field;
-                                    const fieldValue = activeScenePrompt?.[field] || '';
+                             <p className="avatar-ads-editor-helper text-sm text-gray-400 italic">No scenes to edit.</p>
+                           ) : (
+                             <div className="grid grid-cols-1 gap-4">
+                               {FIELD_ORDER.map((field) => {
+                                  const Icon = FIELD_ICONS[field];
+                                  const isFocused = focusedField === field;
+                                  const fieldValue = activeScenePrompt?.[field] || '';
 
                                     // Dialogue validation
                                     const isDialogField = field === 'dialog';
@@ -592,17 +592,17 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                                       : null;
 
                                     return (
-                                      <div key={field} className="group space-y-1.5">
+                                      <div key={field} className="avatar-ads-editor-field group space-y-1.5">
                                         <label
                                           htmlFor={`field_${field}`}
-                                          className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider group-focus-within:text-black transition-colors"
+                                          className="avatar-ads-editor-label flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider group-focus-within:text-black transition-colors"
                                         >
                                           <Icon className="w-3.5 h-3.5" />
                                           {FIELD_LABELS[field]}
                                         </label>
                                         <textarea
                                           id={`field_${field}`}
-                                          className={`block w-full rounded-md border-gray-200 shadow-sm focus:border-black focus:ring-black text-sm resize-none p-3 transition-all duration-200 ${
+                                          className={`avatar-ads-editor-textarea block w-full rounded-md border-gray-200 shadow-sm focus:border-black focus:ring-black text-sm resize-none p-3 transition-all duration-200 ${
                                             isFocused ? 'h-32 bg-gray-50' : 'h-10 bg-white overflow-hidden'
                                           }`}
                                           value={fieldValue}
@@ -611,15 +611,15 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                                           onBlur={() => setFocusedField(null)}
                                         />
                                         {dialogueWarning && (
-                                          <p className="text-[11px] text-amber-600 mt-1">
+                                          <p className="avatar-ads-editor-warning text-[11px] text-amber-600 mt-1">
                                             {dialogueWarning}
                                           </p>
                                         )}
                                       </div>
                                     );
                                  })}
-                               </div>
-                             )}
+                              </div>
+                            )}
                            </div>
                         </div>
                       </div>
@@ -629,10 +629,10 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
               </div>
 
               {/* Footer */}
-              <div className="px-6 py-4 border-t border-gray-100 bg-white flex items-center justify-end gap-3 shrink-0">
+              <div className="avatar-ads-editor-footer px-6 py-4 border-t border-gray-100 bg-white flex items-center justify-end gap-3 shrink-0">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+                  className="avatar-ads-editor-secondary px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
                   disabled={submitting}
                 >
                   Cancel
@@ -642,7 +642,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                 <button
                    onClick={handleRegenerateImageClick}
                    disabled={submitting || isRegeneratingImage}
-                   className="px-4 py-2 rounded-md border border-gray-200 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                   className="avatar-ads-editor-secondary px-4 py-2 rounded-md border border-gray-200 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors flex items-center gap-2"
                 >
                    <RefreshCw className={`w-4 h-4 ${isRegeneratingImage ? 'animate-spin' : ''}`} />
                    Regenerate Image
@@ -651,7 +651,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                 <button
                   onClick={handleConfirm}
                   disabled={submitting || loading || !project}
-                  className="px-6 py-2 rounded-md bg-black text-sm font-medium text-white hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="avatar-ads-editor-primary px-6 py-2 rounded-md bg-black text-sm font-medium text-white hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
                   {submitting ? (
                     <>
