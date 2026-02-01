@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type DiscoverType = 'all' | 'competitor-ugc-replication' | 'character';
+type DiscoverType = 'all' | 'competitor-ugc-replication' | 'character' | 'motion-swap';
 
 interface DiscoverItem {
   id: string;
@@ -26,21 +26,30 @@ export async function GET(request: NextRequest) {
 
     // Competitor UGC Replication
     if (type === 'all' || type === 'competitor-ugc-replication') {
+      // Schema verified via Supabase MCP (2026-02-01):
+      // competitor_ugc_replication_projects has: video_url, merged_video_url,
+      // merged_video_1080p_url, merged_video_4k_url, status, created_at
       const { data, error } = await supabase
         .from('competitor_ugc_replication_projects')
-        .select('id, cover_image_url, video_url, status, created_at')
+        .select('id, video_url, merged_video_url, merged_video_1080p_url, merged_video_4k_url, status, created_at')
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
         .limit(limit);
 
       if (!error && data) {
         for (const r of data) {
-          if (!r.cover_image_url && !r.video_url) continue;
+          const videoUrl =
+            r.merged_video_4k_url ||
+            r.merged_video_1080p_url ||
+            r.merged_video_url ||
+            r.video_url ||
+            undefined;
+          if (!videoUrl) continue;
           items.push({
             id: r.id,
             type: 'competitor-ugc-replication',
-            coverImageUrl: r.cover_image_url || r.video_url,
-            videoUrl: r.video_url || undefined,
+            coverImageUrl: videoUrl,
+            videoUrl,
             createdAt: r.created_at,
           });
         }
@@ -49,6 +58,9 @@ export async function GET(request: NextRequest) {
 
     // Avatar Ads
     if (type === 'all' || type === 'character') {
+      // Schema verified via Supabase MCP (2026-02-01):
+      // avatar_ads_projects has: generated_image_url, merged_video_url,
+      // generated_video_urls, status, created_at
       const { data, error } = await supabase
         .from('avatar_ads_projects')
         .select('id, generated_image_url, merged_video_url, generated_video_urls, status, created_at')
@@ -64,6 +76,33 @@ export async function GET(request: NextRequest) {
             id: r.id,
             type: 'character',
             coverImageUrl: r.generated_image_url || videoUrl,
+            videoUrl,
+            createdAt: r.created_at,
+          });
+        }
+      }
+    }
+
+    // Motion Swap
+    if (type === 'all' || type === 'motion-swap') {
+      // Schema verified via Supabase MCP (2026-02-01):
+      // motion_swap_projects has: preview_image_url, output_video_url, status, created_at
+      const { data, error } = await supabase
+        .from('motion_swap_projects')
+        .select('id, preview_image_url, output_video_url, status, created_at')
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!error && data) {
+        for (const r of data) {
+          const videoUrl = r.output_video_url || undefined;
+          const coverImageUrl = r.preview_image_url || videoUrl;
+          if (!coverImageUrl) continue;
+          items.push({
+            id: r.id,
+            type: 'motion-swap',
+            coverImageUrl,
             videoUrl,
             createdAt: r.created_at,
           });

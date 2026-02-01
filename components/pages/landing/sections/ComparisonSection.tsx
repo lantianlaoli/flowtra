@@ -14,14 +14,14 @@ export default function ComparisonSection() {
           <table className="w-full text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-[28%]" />
-              <col className="w-[20%]" />
-              <col className="w-[52%]" />
+              <col className="w-[18%]" />
+              <col className="w-[54%]" />
             </colgroup>
             <thead>
               <tr className="bg-[#F7F7F7] border-b border-[#E5E5E5] text-[12px] font-bold text-black uppercase tracking-wider">
                 <th className="px-5 py-5">Platform</th>
                 <th className="px-5 py-5">Cost</th>
-                <th className="px-5 py-5">Included</th>
+                <th className="px-5 py-5 pl-10">Included</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E5E5]">
@@ -33,7 +33,7 @@ export default function ComparisonSection() {
                 <td className="px-5 py-8 align-top font-bold text-black text-[18px]">
                   Basic $59/mo
                 </td>
-                <td className="px-5 py-8 align-top text-[#666666] text-[14px]">
+                <td className="px-5 py-8 align-top text-[#666666] text-[14px] pl-10">
                   <ul className="space-y-2">
                     {[
                       "3,930 credits",
@@ -61,7 +61,7 @@ export default function ComparisonSection() {
                 <td className="px-5 py-8 align-top font-semibold text-black text-[16px]">
                   Creator $220/mo
                 </td>
-                <td className="px-5 py-8 align-top text-[#666666] text-[14px]">
+                <td className="px-5 py-8 align-top text-[#666666] text-[14px] pl-10">
                   <ul className="space-y-2">
                     {[
                       "20 credits per month",

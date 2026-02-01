@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send, ArrowRight, Shuffle } from 'lucide-react';
 import { getCreditCost, type HighResResolution, type VideoModel } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -123,7 +123,7 @@ const AD_TYPE_OPTIONS = [
   {
     value: 'motion-swap',
     label: 'Motion Swap',
-    icon: VideoIcon,
+    icon: Shuffle,
     description: 'Kling motion-controlled swaps from reference videos',
   },
 ] as const;

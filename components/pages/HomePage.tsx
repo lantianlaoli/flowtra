@@ -152,7 +152,7 @@ export default function HomePage() {
 }
 
 // --- Discover Section --- //
-type DiscoverType = 'all' | 'competitor-ugc-replication' | 'character';
+type DiscoverType = 'all' | 'competitor-ugc-replication' | 'character' | 'motion-swap';
 
 interface DiscoverItem {
   id: string;
@@ -311,6 +311,9 @@ function DiscoverSection() {
             </TabsTrigger>
             <TabsTrigger value="character" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
               Character
+            </TabsTrigger>
+            <TabsTrigger value="motion-swap" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
+              Motion Swap
             </TabsTrigger>
           </TabsList>
         </Tabs>
