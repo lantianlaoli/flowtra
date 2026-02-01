@@ -13,7 +13,7 @@
   --accent: #000000;
   --accent-foreground: #ffffff;
   --radius: 0.5rem; /* 8px as per guide */
-  
+
   --card: #ffffff;
   --card-foreground: #000000;
   --popover: #ffffff;
@@ -94,6 +94,192 @@
 
 .dashboard-theme .text-\[\#000000\] {
   color: var(--foreground);
+}
+
+/* Landing page dark mode overrides */
+.dashboard-theme .text-black {
+  color: var(--foreground);
+}
+
+.dashboard-theme .text-\[\#666666\] {
+  color: var(--muted-foreground);
+}
+
+.dashboard-theme .bg-white {
+  background-color: var(--background);
+}
+
+.dashboard-theme .bg-\[\#F7F7F7\] {
+  background-color: var(--muted);
+}
+
+.dashboard-theme .bg-\[\#E5E5E5\] {
+  background-color: var(--border);
+}
+
+.dashboard-theme .border-\[\#E5E5E5\] {
+  border-color: var(--border);
+}
+
+.dashboard-theme .border-black {
+  border-color: var(--foreground);
+}
+
+.dashboard-theme .bg-black {
+  background-color: var(--foreground);
+  color: var(--background);
+}
+
+.dashboard-theme .text-white {
+  color: var(--background);
+}
+
+.dashboard-theme .hover\:text-black:hover {
+  color: var(--foreground) !important;
+}
+
+.dashboard-theme .hover\:bg-\[\#333333\]:hover {
+  background-color: var(--muted) !important;
+}
+
+/* Landing page theme toggle button */
+.dashboard-theme .text-\[\#666666\] {
+  color: var(--muted-foreground);
+}
+
+.dashboard-theme .text-\[\#666666\]:hover {
+  color: var(--foreground);
+}
+
+/* Landing page hover states */
+.dashboard-theme .hover\:bg-\[\#F7F7F7\]:hover {
+  background-color: var(--muted) !important;
+}
+
+.dashboard-theme article:hover .bg-\[\#F7F7F7\] {
+  background-color: var(--muted) !important;
+}
+
+.dashboard-theme article:hover .text-black {
+  color: var(--foreground) !important;
+}
+
+.dashboard-theme article:hover .text-\[\#666666\] {
+  color: var(--muted-foreground) !important;
+}
+
+.dashboard-theme .group:hover .bg-\[\#F7F7F7\] {
+  background-color: var(--muted) !important;
+}
+
+.dashboard-theme .group:hover .text-black {
+  color: var(--foreground) !important;
+}
+
+.dashboard-theme .group:hover .text-\[\#666666\] {
+  color: var(--muted-foreground) !important;
+}
+
+.dashboard-theme .bg-\[\#F7F7F7\]:hover {
+  background-color: var(--muted) !important;
+}
+
+.dashboard-theme .hover\:bg-\[\#f1f1f1\]:hover {
+  background-color: var(--muted) !important;
+}
+
+.dashboard-theme .bg-\[\#f1f1f1\]:hover {
+  background-color: var(--muted) !important;
+}
+
+/* Feature section icons and content */
+.dashboard-theme .w-12.h-12.bg-\[\#F7F7F7\] {
+  background-color: var(--muted) !important;
+}
+
+.dashboard-theme .w-12.h-12.bg-\[\#F7F7F7\]:hover {
+  background-color: var(--border) !important;
+}
+
+.dashboard-theme .text-lg.text-\[\#666666\] {
+  color: var(--muted-foreground) !important;
+}
+
+/* Blog Preview dark mode overrides */
+.dashboard-theme .text-gray-900 {
+  color: var(--foreground) !important;
+}
+
+.dashboard-theme .text-gray-600 {
+  color: var(--muted-foreground) !important;
+}
+
+.dashboard-theme .text-gray-500 {
+  color: var(--muted-foreground) !important;
+}
+
+.dashboard-theme .text-gray-400 {
+  color: var(--muted-foreground) !important;
+}
+
+.dashboard-theme .text-gray-700 {
+  color: var(--foreground) !important;
+}
+
+.dashboard-theme .bg-gray-50 {
+  background-color: var(--muted) !important;
+}
+
+.dashboard-theme .bg-gray-100 {
+  background-color: var(--muted) !important;
+}
+
+.dashboard-theme .bg-gray-200 {
+  background-color: var(--border) !important;
+}
+
+.dashboard-theme .border-gray-200 {
+  border-color: var(--border) !important;
+}
+
+.dashboard-theme .border-gray-300 {
+  border-color: var(--border) !important;
+}
+
+.dashboard-theme .hover\:shadow-\[0_20px_40px_rgba\(0\,0\,0\,0\.1\)\]:hover {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dashboard-theme .shadow-\[0_20px_40px_rgba\(0\,0\,0\,0\.1\)\] {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dashboard-theme .shadow-\[0_10px_20px_rgba\(0\,0\,0\,0\.05\)\] {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dashboard-theme .border-2\.border-black {
+  border-color: var(--foreground) !important;
+}
+
+.dashboard-theme .border-\[\#000000\] {
+  border-color: var(--border);
+}
+
+.dashboard-theme .border-b-\[\#E5E5E5\] {
+  border-color: var(--border);
+}
+
+.dashboard-theme .border-t-\[\#E5E5E5\] {
+  border-color: var(--border);
+}
+
+.dashboard-theme .hover\:border-black:hover {
+  border-color: var(--foreground) !important;
+}
+
+.dashboard-theme .bg-\[\#F1F1F1\] {
+  background-color: var(--muted);
 }
 
 /* Logo color handling: black in light mode, white in dark/dashboard mode */
@@ -1567,20 +1753,23 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo,
+    monospace;
 
   /* Minimalist design guide: Override gray palette */
   --color-gray-50: #fafafa;
-  --color-gray-100: #f7f7f7;      /* Subtle background */
-  --color-gray-200: #e5e5e5;      /* Borders */
+  --color-gray-100: #f7f7f7; /* Subtle background */
+  --color-gray-200: #e5e5e5; /* Borders */
   --color-gray-300: #d4d4d4;
   --color-gray-400: #a3a3a3;
   --color-gray-500: #737373;
-  --color-gray-600: #666666;      /* Secondary text */
+  --color-gray-600: #666666; /* Secondary text */
   --color-gray-700: #404040;
   --color-gray-800: #262626;
-  --color-gray-900: #000000;      /* Pure black for primary text and accents */
+  --color-gray-900: #000000; /* Pure black for primary text and accents */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -1616,7 +1805,9 @@
 
 html {
   scroll-behavior: smooth;
-  font-feature-settings: "rlig" 1, "calt" 1;
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1;
 }
 
 body {
@@ -1670,7 +1861,8 @@ body {
 }
 
 @keyframes gradient-x {
-  0%, 100% {
+  0%,
+  100% {
     background-position: 0% 50%;
   }
   50% {
@@ -1688,7 +1880,8 @@ body {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px);
   }
   50% {
@@ -1697,11 +1890,14 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
   }
   50% {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.6);
+    box-shadow:
+      0 0 20px rgba(59, 130, 246, 0.8),
+      0 0 30px rgba(59, 130, 246, 0.6);
   }
 }
 
@@ -1711,21 +1907,29 @@ body {
   overflow: hidden;
   background-color: #0a0a0a;
   color: #ffffff;
-  transition: background-color 400ms cubic-bezier(.2,.8,.2,1), color 400ms cubic-bezier(.2,.8,.2,1);
+  transition:
+    background-color 400ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .silk-button:hover {
   background-color: #111111;
 }
 .silk-button::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -1px;
   background:
-    radial-gradient(120% 60% at -10% 50%, rgba(255,255,255,0.08), transparent 55%),
-    linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+    radial-gradient(
+      120% 60% at -10% 50%,
+      rgba(255, 255, 255, 0.08),
+      transparent 55%
+    ),
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
   transform: translateX(-120%);
   opacity: 0;
-  transition: transform 800ms cubic-bezier(.2,.8,.2,1), opacity 800ms cubic-bezier(.2,.8,.2,1);
+  transition:
+    transform 800ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 800ms cubic-bezier(0.2, 0.8, 0.2, 1);
   pointer-events: none;
 }
 .silk-button:hover::after {
@@ -1740,7 +1944,9 @@ body {
   min-width: 10ch;
 }
 @media (min-width: 640px) {
-  .silk-content { display: inline-flex; }
+  .silk-content {
+    display: inline-flex;
+  }
 }
 .silk-default,
 .silk-hover {
@@ -1755,12 +1961,16 @@ body {
 .silk-default {
   opacity: 1;
   transform: translate(-50%, 0);
-  transition: opacity 220ms ease, transform 220ms ease;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
 }
 .silk-hover {
   opacity: 0;
   transform: translate(-50%, 8px);
-  transition: opacity 220ms ease, transform 220ms ease;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
 }
 .silk-button:hover .silk-default {
   opacity: 0;
@@ -1935,13 +2145,15 @@ body {
   padding: 1.5rem;
   border-radius: 0.75rem;
   overflow-x: auto;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
   font-size: 0.875rem;
   line-height: 1.5;
 }
 
 .markdown-rendered code {
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
 }
 
 .markdown-rendered :not(pre) > code {
@@ -2107,12 +2319,14 @@ body {
 
 /* Discord button styles */
 .discord-button {
-  background-color: #5865F2;
-  transition: background-color 200ms ease, transform 200ms ease;
+  background-color: #5865f2;
+  transition:
+    background-color 200ms ease,
+    transform 200ms ease;
 }
 
 .discord-button:hover {
-  background-color: #4752C4;
+  background-color: #4752c4;
   transform: translateY(-1px);
 }
 

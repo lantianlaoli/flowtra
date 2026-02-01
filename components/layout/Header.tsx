@@ -9,16 +9,29 @@ import {
   XMarkIcon,
   ChevronDownIcon,
 } from "@heroicons/react/24/outline";
-import { UserCircle, Copy, RefreshCw, Upload } from "lucide-react";
+import {
+  UserCircle,
+  Copy,
+  RefreshCw,
+  Upload,
+  LayoutDashboard,
+  Moon,
+  Sun,
+} from "lucide-react";
 
 interface HeaderProps {
   showAuthButtons?: boolean;
+  showThemeToggle?: boolean;
 }
 
-export default function Header({ showAuthButtons = true }: HeaderProps) {
+export default function Header({
+  showAuthButtons = true,
+  showThemeToggle = true,
+}: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compact, setCompact] = useState(false);
   const [featuresOpen, setFeaturesOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
     const onScroll = () => {
@@ -29,6 +42,26 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("flowtra-dashboard-dark");
+    const enabled = stored === null ? true : stored === "true";
+    setIsDarkMode(enabled);
+    document.documentElement.classList.toggle("dashboard-theme", enabled);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    document.documentElement.classList.toggle("dashboard-theme", isDarkMode);
+    window.localStorage.setItem(
+      "flowtra-dashboard-dark",
+      isDarkMode.toString(),
+    );
+    window.dispatchEvent(
+      new CustomEvent("flowtra-dashboard-theme-change", { detail: isDarkMode }),
+    );
+  }, [isDarkMode]);
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#E5E5E5] h-[72px] sm:h-[80px] flex items-center">
@@ -84,9 +117,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                     <Copy className="w-5 h-5 text-black" />
                   </div>
                   <div className="flex-1">
-                    <div className="font-semibold text-black">
-                      Viral Clone
-                    </div>
+                    <div className="font-semibold text-black">Viral Clone</div>
                     <div className="text-[12px] opacity-70">
                       Clone viral videos
                     </div>
@@ -124,7 +155,9 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                     <Upload className="w-5 h-5 text-black" />
                   </div>
                   <div className="flex-1">
-                    <div className="font-semibold text-black">Upload Assets to URL</div>
+                    <div className="font-semibold text-black">
+                      Upload Assets to URL
+                    </div>
                     <div className="text-[12px] opacity-70">
                       Video and image upload tools
                     </div>
@@ -153,8 +186,17 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
           </Link>
         </nav>
 
-        {/* Auth Buttons - Right */}
-        <div className="flex items-center gap-4">
+        {/* Right Section */}
+        <div className="flex items-center gap-4 ml-auto">
+          <SignedIn>
+            <Link
+              href="/dashboard"
+              className="border border-[#E5E5E5] bg-white text-[#666666] hover:text-black hover:border-black px-4 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
+            </Link>
+          </SignedIn>
           {showAuthButtons && (
             <>
               <SignedOut>
@@ -165,12 +207,6 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                 </SignInButton>
               </SignedOut>
               <SignedIn>
-                <Link
-                  href="/dashboard"
-                  className="bg-black text-white text-[14px] font-medium px-6 py-2.5 rounded-lg hover:bg-[#333333] transition-all"
-                >
-                  Dashboard
-                </Link>
                 <UserButton afterSignOutUrl="/" />
               </SignedIn>
             </>
@@ -188,6 +224,22 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               <Bars3Icon className="w-6 h-6" />
             )}
           </button>
+
+          {showThemeToggle && (
+            <button
+              type="button"
+              onClick={() => setIsDarkMode((prev) => !prev)}
+              aria-label="Toggle light and dark mode"
+              className="border border-[#E5E5E5] bg-white text-[#666666] hover:text-black hover:border-black px-4 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
+            >
+              {isDarkMode ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+              <span>{isDarkMode ? "Light" : "Dark"}</span>
+            </button>
+          )}
         </div>
       </div>
 

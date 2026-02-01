@@ -1,10 +1,18 @@
-import Image from 'next/image';
-import { GiftIcon, Check, Heart, MessageCircle, Share2, Eye, Sparkles } from 'lucide-react';
-import { SiDiscord } from 'react-icons/si';
-import TikTokInputHero from '@/components/pages/landing/TikTokInputHero';
-import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
-import BlackFridayBadge from '@/components/landing/BlackFridayBadge';
-import FounderCard from '@/components/ui/FounderCard';
+import Image from "next/image";
+import {
+  GiftIcon,
+  Check,
+  Heart,
+  MessageCircle,
+  Share2,
+  Eye,
+  Sparkles,
+} from "lucide-react";
+import { SiDiscord } from "react-icons/si";
+import TikTokInputHero from "@/components/pages/landing/TikTokInputHero";
+import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
+import BlackFridayBadge from "@/components/landing/BlackFridayBadge";
+import FounderCard from "@/components/ui/FounderCard";
 
 interface HeroSectionProps {
   activatedUserCount: number;
@@ -12,17 +20,28 @@ interface HeroSectionProps {
 
 export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
   return (
-    <section id="hero" className="grid lg:grid-cols-5 items-center py-10 sm:py-12 lg:py-16 gap-6 sm:gap-8 lg:gap-12 scroll-mt-24">
+    <section
+      id="hero"
+      className="grid lg:grid-cols-5 items-center py-8 sm:py-10 lg:py-12 gap-6 sm:gap-8 lg:gap-12"
+    >
       {/* Left Content */}
       <div className="lg:col-span-3 space-y-5 sm:space-y-6 lg:space-y-8">
         {/* Black Friday Promotion Badge + Founder Card */}
         <div className="flex flex-wrap items-center gap-3">
           <BlackFridayBadge />
-          <FounderCard variant="hero" showGreeting={false} className="hidden lg:inline-flex" />
+          <FounderCard
+            variant="hero"
+            showGreeting={false}
+            className="hidden lg:inline-flex"
+          />
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-black leading-tight tracking-[-0.02em]">
-          Turn <span className="underline decoration-[#E5E5E5] underline-offset-8">Viral Videos</span> Into Your Own
+          Turn{" "}
+          <span className="underline decoration-[#E5E5E5] underline-offset-8">
+            Viral Videos
+          </span>{" "}
+          Into Your Own
         </h1>
 
         <p className="text-xl text-[#666666] leading-relaxed max-w-lg">
@@ -43,7 +62,10 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
 
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-black" />
-            <span>Videos from $2.25 per minute (150x cheaper than hiring UGC creators)</span>
+            <span>
+              Videos from $2.25 per minute (150x cheaper than hiring UGC
+              creators)
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -51,10 +73,6 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
             <span>Supports English, Spanish, and over 10 other languages</span>
           </div>
         </div>
-
-
-
-
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3 w-full">
@@ -82,9 +100,12 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
               {/* Avatars group */}
               <div className="flex -space-x-2">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="inline-block w-7 h-7 rounded-full ring-2 ring-white overflow-hidden">
+                  <div
+                    key={i}
+                    className="inline-block w-7 h-7 rounded-full ring-2 ring-white overflow-hidden"
+                  >
                     <Image
-                      src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_${i}.${i === 1 ? 'jpg' : 'png'}`}
+                      src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_${i}.${i === 1 ? "jpg" : "png"}`}
                       alt={`User avatar ${i}`}
                       width={28}
                       height={28}
@@ -98,11 +119,11 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
               {/* Single-line copy for harmony with avatars */}
               <span
                 className="text-sm font-semibold text-black whitespace-nowrap"
-                title={`${activatedUserCount.toLocaleString('en-US')} small business owners trust Flowtra`}
+                title={`${activatedUserCount.toLocaleString("en-US")} small business owners trust Flowtra`}
               >
                 {`Trusted by `}
                 <span className="font-bold tabular-nums">
-                  {activatedUserCount.toLocaleString('en-US')}
+                  {activatedUserCount.toLocaleString("en-US")}
                 </span>
                 {` small business owners`}
               </span>
@@ -139,25 +160,33 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
                   <div className="bg-white/20 backdrop-blur-md p-1.5 rounded-full">
                     <Heart className="w-4 h-4 fill-red-500 text-red-500" />
                   </div>
-                  <span className="text-[10px] font-bold drop-shadow-md">59.8K</span>
+                  <span className="text-[10px] font-bold drop-shadow-md">
+                    59.8K
+                  </span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="bg-white/20 backdrop-blur-md p-1.5 rounded-full">
                     <MessageCircle className="w-4 h-4 fill-white text-white" />
                   </div>
-                  <span className="text-[10px] font-bold drop-shadow-md">1077</span>
+                  <span className="text-[10px] font-bold drop-shadow-md">
+                    1077
+                  </span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="bg-white/20 backdrop-blur-md p-1.5 rounded-full">
                     <Share2 className="w-4 h-4 fill-white text-white" />
                   </div>
-                  <span className="text-[10px] font-bold drop-shadow-md">12.5K</span>
+                  <span className="text-[10px] font-bold drop-shadow-md">
+                    12.5K
+                  </span>
                 </div>
               </div>
-              
+
               <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white">
                 <Eye className="w-3 h-3 drop-shadow-md" />
-                <span className="text-[10px] font-bold drop-shadow-md">8.5M Views</span>
+                <span className="text-[10px] font-bold drop-shadow-md">
+                  8.5M Views
+                </span>
               </div>
             </div>
           </div>
