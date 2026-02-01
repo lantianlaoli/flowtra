@@ -40,8 +40,8 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/features/competitor-replica" className="text-[14px] text-[#666666] hover:text-black transition-colors">
-                  Competitor Replica
+                <Link href="/features/viral-clone" className="text-[14px] text-[#666666] hover:text-black transition-colors">
+                  Viral Clone
                 </Link>
               </li>
               <li>

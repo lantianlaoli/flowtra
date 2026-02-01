@@ -133,11 +133,15 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Competitor UGC Replication</span>
+                  <span className="text-gray-600">Viral Clone</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
                   <span className="text-gray-600">Avatar Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">TikTok publishing support</span>
                 </li>
                 <li className="flex items-start gap-3 pt-2 border-t border-gray-200">
                   <div className="w-2 h-2 bg-gray-900 rounded-full mt-1.5"></div>
@@ -189,11 +193,15 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Competitor UGC Replication</span>
+                  <span className="text-gray-600">Viral Clone</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
                   <span className="text-gray-600">Avatar Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                  <span className="text-gray-600">TikTok publishing support</span>
                 </li>
               </ul>
               <PricingButton packageName="basic" />
@@ -223,11 +231,15 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Competitor UGC Replication</span>
+                  <span className="text-gray-600">Viral Clone</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
                   <span className="text-gray-600">Avatar Ads</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  <span className="text-gray-600">TikTok publishing support</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>

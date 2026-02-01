@@ -52,7 +52,7 @@ export function VideoAnalysisModal({ isOpen, onClose, initialFile }: VideoAnalys
                   Analyze Your Video
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  Upload your competitor video and see AI break it down shot-by-shot
+                  Upload your viral video and see AI break it down shot-by-shot
                 </p>
               </div>
               <button

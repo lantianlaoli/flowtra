@@ -34,7 +34,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.3,
     },
     {
-      url: `${baseUrl}/features/competitor-replica`,
+      url: `${baseUrl}/features/viral-clone`,
       lastModified: new Date(),
       changeFrequency: "weekly" as const,
       priority: 0.8,

@@ -364,7 +364,7 @@ export default function CompetitorUgcReplicationShowcasePage() {
               Perfect For
             </h2>
             <p className="text-lg text-gray-600">
-              Competitor UGC Replication work great for various businesses and platforms
+              Viral Clone works great for various businesses and platforms
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

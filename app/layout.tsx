@@ -9,27 +9,27 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Turn Viral Videos Into Your Own with AI - Flowtra | Clone TikTok & Instagram Ads",
-  description: "Turn your competitors' viral TikTok ads and Instagram Reels into your own with AI. Clone proven UGC videos for your products. From $0.30/8s. No editing skills needed.",
+  description: "Turn viral TikTok ads and Instagram Reels into your own with AI. Clone proven UGC videos for your products. From $0.30/8s. No editing skills needed.",
   keywords: [
     // Primary viral + cloning keywords
     "turn viral videos into your own",
     "clone viral TikTok ads",
     "clone viral UGC videos",
     "replicate viral Instagram Reels",
-    "copy viral competitor videos",
+    "copy viral videos",
     // Core cloning keywords
-    "clone competitor videos",
+    "clone viral videos",
     "clone TikTok ads",
     "replicate Instagram Reels",
-    "competitor video replication",
+    "viral video replication",
     "clone YouTube Shorts",
     // Viral-focused long-tail
-    "how to turn competitor videos into your own",
+    "how to turn viral videos into your own",
     "clone viral marketing videos",
     "replicate viral TikTok ads",
     "copy viral UGC content",
     // Long-tail keywords
-    "how to clone competitor ads",
+    "how to clone viral ads",
     "AI video cloning tool",
     "replicate viral marketing videos",
     "TikTok ad replication software",
@@ -75,7 +75,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Turn Viral Videos Into Your Own with AI - Flowtra",
-    description: "Clone your competitors' viral TikTok ads, Instagram Reels, and YouTube Shorts with AI. Built for Shopify sellers and small businesses. From $0.30 per 8 seconds.",
+  description: "Clone viral TikTok ads, Instagram Reels, and YouTube Shorts with AI. Built for Shopify sellers and small businesses. From $0.30 per 8 seconds.",
     url: 'https://www.flowtra.store',
     siteName: 'Flowtra',
     images: [
@@ -83,7 +83,7 @@ export const metadata: Metadata = {
         url: '/opengraph-image.png',
         width: 1200,
         height: 630,
-        alt: 'Turn Viral Videos Into Your Own - Flowtra AI Clone Competitor UGC',
+        alt: 'Turn Viral Videos Into Your Own - Flowtra AI Clone Viral UGC',
       }
     ],
     locale: 'en_US',
@@ -92,7 +92,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Turn Viral Videos Into Your Own - Flowtra AI',
-    description: 'Clone competitors\' viral TikTok & Instagram ads with AI. Proven creative for your products. From $0.30/8s.',
+    description: 'Clone viral TikTok & Instagram ads with AI. Proven creative for your products. From $0.30/8s.',
     images: ['/twitter-image.png'],
     creator: '@flowtra',
   },
@@ -148,8 +148,8 @@ export default function RootLayout({
               __html: JSON.stringify({
                 '@context': 'https://schema.org',
                 '@type': 'SoftwareApplication',
-                name: 'Flowtra AI - Turn Viral Videos Into Your Own | Clone Competitor UGC',
-                description: 'AI-powered video cloning platform that transforms competitors\' viral UGC videos into your own. Clone TikTok ads, Instagram Reels, and YouTube Shorts with your products. Built for Shopify, dropshipping, and small businesses.',
+                name: 'Flowtra AI - Turn Viral Videos Into Your Own | Clone Viral UGC',
+                description: 'AI-powered video cloning platform that transforms viral UGC videos into your own. Clone TikTok ads, Instagram Reels, and YouTube Shorts with your products. Built for Shopify, dropshipping, and small businesses.',
                 url: 'https://www.flowtra.store',
                 applicationCategory: 'BusinessApplication',
                 operatingSystem: 'Web',

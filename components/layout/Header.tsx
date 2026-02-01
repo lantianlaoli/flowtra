@@ -80,7 +80,7 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                   </div>
                 </Link>
                 <Link
-                  href="/features/competitor-replica"
+                  href="/features/viral-clone"
                   className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
                 >
                   <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
@@ -88,10 +88,10 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
                   </div>
                   <div className="flex-1">
                     <div className="font-semibold text-black">
-                      Competitor Replica
+                      Viral Clone
                     </div>
                     <div className="text-[12px] opacity-70">
-                      Clone competitor videos
+                      Clone viral videos
                     </div>
                   </div>
                 </Link>
@@ -209,11 +209,11 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
             Avatar Ads
           </Link>
           <Link
-            href="/features/competitor-replica"
+            href="/features/viral-clone"
             className="text-[16px] font-medium text-black"
             onClick={() => setMobileMenuOpen(false)}
           >
-            Competitor Replica
+            Viral Clone
           </Link>
           <Link
             href="/features/motion-swap"

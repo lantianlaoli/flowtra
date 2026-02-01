@@ -1,3 +1,5 @@
+import { Check } from "lucide-react";
+
 export default function ComparisonSection() {
   return (
     <section className="py-20 lg:py-24 bg-white">
@@ -6,49 +8,74 @@ export default function ComparisonSection() {
         <p className="text-lg text-[#666666]">Discover a superior alternative for your video generation needs</p>
       </div>
 
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Desktop Table View */}
         <div className="hidden lg:block overflow-x-auto rounded-xl border border-[#E5E5E5] shadow-[0_20px_40px_rgba(0,0,0,0.05)]">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-fixed">
+            <colgroup>
+              <col className="w-[28%]" />
+              <col className="w-[20%]" />
+              <col className="w-[52%]" />
+            </colgroup>
             <thead>
               <tr className="bg-[#F7F7F7] border-b border-[#E5E5E5] text-[12px] font-bold text-black uppercase tracking-wider">
-                <th className="px-6 py-5 w-48">Platform</th>
-                <th className="px-6 py-5 w-32">Cost</th>
-                <th className="px-6 py-5">Included</th>
+                <th className="px-5 py-5">Platform</th>
+                <th className="px-5 py-5">Cost</th>
+                <th className="px-5 py-5">Included</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E5E5]">
               {/* Flowtra AI */}
               <tr className="bg-white hover:bg-[#F7F7F7] transition-colors">
-                <td className="px-6 py-8 align-top">
-                  <div className="font-bold text-[18px] text-black">Flowtra</div>
+                <td className="px-5 py-8 align-top">
+                  <div className="font-semibold text-[16px] text-black">Flowtra</div>
                 </td>
-                <td className="px-6 py-8 align-top font-bold text-black text-[18px]">
+                <td className="px-5 py-8 align-top font-bold text-black text-[18px]">
                   Basic $59/mo
                 </td>
-                <td className="px-6 py-8 align-top text-[#666666] space-y-2 text-[14px]">
-                  <p>1. <span className="font-bold text-black">3,930 credits</span></p>
-                  <p>2. Character UGC & Competitor Replica</p>
-                  <p>3. Free Veo3.1 Fast generation</p>
-                  <p>4. 26.2 mins UGC video quota</p>
-                  <p>5. Unlimited photo cloning</p>
+                <td className="px-5 py-8 align-top text-[#666666] text-[14px]">
+                  <ul className="space-y-2">
+                    {[
+                      "3,930 credits",
+                      "Avatar Ads",
+                      "Clone viral videos",
+                      "Motion Swap",
+                      "26.2 minutes of video",
+                      "10+ languages",
+                      "Latest video models",
+                    ].map((item) => (
+                      <li key={item} className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-black flex-shrink-0" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </td>
               </tr>
 
               {/* Arcads */}
               <tr className="bg-white hover:bg-[#F7F7F7] transition-colors">
-                <td className="px-6 py-8 align-top">
+                <td className="px-5 py-8 align-top">
                   <div className="font-semibold text-[16px] text-black">Arcads</div>
                 </td>
-                <td className="px-6 py-8 align-top font-semibold text-black text-[16px]">
+                <td className="px-5 py-8 align-top font-semibold text-black text-[16px]">
                   Creator $220/mo
                 </td>
-                <td className="px-6 py-8 align-top text-[#666666] space-y-2 text-[14px]">
-                  <p>✓ 20 credits per month</p>
-                  <p>✓ 300 Natural AI Actors</p>
-                  <p>✓ Use 35 languages</p>
-                  <p>✓ Delivered in 2 minutes</p>
-                  <p>✓ Play videos up to 120 sec</p>
+                <td className="px-5 py-8 align-top text-[#666666] text-[14px]">
+                  <ul className="space-y-2">
+                    {[
+                      "20 credits per month",
+                      "300 Natural AI Actors",
+                      "Use 35 languages",
+                      "Delivered in 2 minutes",
+                      "Play videos up to 120 sec",
+                    ].map((item) => (
+                      <li key={item} className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-black flex-shrink-0" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </td>
               </tr>
             </tbody>
@@ -75,10 +102,20 @@ export default function ComparisonSection() {
               <div>
                 <h4 className="text-[12px] font-bold text-black uppercase tracking-wider mb-3">Included</h4>
                 <ul className="text-[14px] text-[#666666] space-y-2">
-                  <li>• <span className="font-bold text-black">3,930 credits</span></li>
-                  <li>• Free Veo3.1 Fast generation</li>
-                  <li>• 26.2 mins video quota</li>
-                  <li>• Unlimited photo cloning</li>
+                  {[
+                    "3,930 credits",
+                    "Avatar Ads",
+                    "Clone viral videos",
+                    "Motion Swap",
+                    "26.2 minutes of video",
+                    "10+ languages",
+                    "Latest video models",
+                  ].map((item) => (
+                    <li key={item} className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-black flex-shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -99,11 +136,18 @@ export default function ComparisonSection() {
               <div>
                 <h4 className="text-sm text-gray-600 mb-2">Included</h4>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• 20 credits per month</li>
-                  <li>• 300 Natural AI Actors</li>
-                  <li>• Use 35 languages</li>
-                  <li>• Delivered in 2 minutes</li>
-                  <li>• Play videos up to 120 sec</li>
+                  {[
+                    "20 credits per month",
+                    "300 Natural AI Actors",
+                    "Use 35 languages",
+                    "Delivered in 2 minutes",
+                    "Play videos up to 120 sec",
+                  ].map((item) => (
+                    <li key={item} className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-gray-900 flex-shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             </div>

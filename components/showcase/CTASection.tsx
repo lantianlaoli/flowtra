@@ -67,7 +67,7 @@ export function CTASection({ result }: CTASectionProps) {
         <div className="flex flex-wrap justify-center gap-3 mt-6">
           {/* Email */}
           <a
-            href={`mailto:${contactEmail}?subject=Help with Competitor Replica&body=Hi, I just analyzed a video and would like to learn more about cloning it.`}
+            href={`mailto:${contactEmail}?subject=Help with Viral Clone&body=Hi, I just analyzed a video and would like to learn more about cloning it.`}
             className="inline-flex items-center gap-2 px-4 py-3 bg-white border-2 border-gray-200 rounded-lg font-medium text-gray-700 hover:border-black hover:bg-gray-50 transition-all"
           >
             <Mail className="w-4 h-4" />

@@ -11,29 +11,29 @@ interface FAQItem {
 
 const faqData: FAQItem[] = [
   {
-    question: 'What is Flowtra, and how can it help my business?',
+    question: 'What is Flowtra, and how does it help TikTok dropshippers?',
     answer:
-      'Flowtra is an AI-powered tool that helps small business owners and creators make marketing videos and product images in minutes. Upload a product photo or type a short description and Flowtra instantly generates ready-to-use ad visuals for Etsy, Shopify, Gumroad, or Stan.'
+      'Flowtra helps TikTok dropshippers turn product photos and viral references into scroll‑stopping UGC ads in minutes. Use Viral Clone, Avatar Ads, or Motion Swap to ship new creatives fast without a full production team.'
   },
   {
-    question: 'I’m not a designer or video editor. Can I still use Flowtra?',
+    question: 'I’m not a video editor. Can I still use Flowtra?',
     answer:
-      'Absolutely. Flowtra is built for beginners with zero editing skills. Each template comes with pre-set scripts, scenes, and music—you just customize the text or images and click “Generate.”'
+      'Yes. Flowtra is built for non‑editors. Upload your product image or a viral reference, pick a style, and click “Generate.”'
   },
   {
-    question: 'Can I use Flowtra for free?',
+    question: 'How does pricing work?',
     answer:
-    'Yes. Free users get unlimited image generation and video creation, so you can test different prompts, styles, and templates without worrying about usage limits.'
+      'Flowtra uses monthly subscriptions with credits. Credits are deducted when you generate videos. Image generation is free, so you can test looks before spending credits.'
   },
   {
-    question: 'How does Flowtra pricing work?',
+    question: 'Can I clone viral TikTok ads for my products?',
     answer:
-      'Flowtra runs on one-time plans starting at $29—no subscriptions or recurring fees. Pay once, keep your credits forever, and unlock premium templates or tutorials whenever you\'re ready.'
+      'Yes. Viral Clone lets you upload a viral TikTok video and recreate the structure with your product, so you can launch new ads fast.'
   },
   {
-    question: 'Can I use the images and videos commercially?',
+    question: 'Can I use the videos commercially?',
     answer:
-      'Yes. Everything you create with Flowtra is yours to use across ads, social media, product pages, or paid campaigns. There are no watermarks or extra licensing fees.'
+      'Yes. Everything you generate is yours to use for ads, product pages, and paid campaigns. No watermarks or extra licensing fees.'
   }
 ];
 
@@ -53,7 +53,7 @@ export default function FAQ() {
             Frequently Asked Questions
           </h2>
           <p className="text-lg text-[#666666] max-w-2xl mx-auto">
-            Answers for Etsy, Shopify, Gumroad, and Stan sellers using Flowtra to launch scroll-stopping marketing assets
+            Answers for TikTok dropshippers using Flowtra to launch viral UGC ads fast
           </p>
         </div>
 

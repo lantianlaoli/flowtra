@@ -18,7 +18,7 @@ export default function StructuredData() {
       width: 250,
       height: 60
     },
-    description: 'AI-powered video cloning platform that replicates competitors\' best-performing UGC videos for small businesses. Transform any TikTok ad, Instagram Reel, or YouTube Short into your own branded content.',
+    description: 'AI-powered video cloning platform that replicates viral UGC videos for small businesses. Transform any TikTok ad, Instagram Reel, or YouTube Short into your own branded content.',
     sameAs: [
       'https://twitter.com/flowtra',
       'https://www.linkedin.com/company/flowtra'
@@ -60,7 +60,7 @@ export default function StructuredData() {
     name: 'Flowtra - Turn Viral Videos Into Your Own | AI Video Cloning',
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web Browser',
-    description: 'Turn your competitors\' viral UGC videos into your own with AI. Clone TikTok ads, Instagram Reels, and YouTube Shorts with your products. Features dual-mode workflow: competitor video cloning and avatar-based video generation. Built for Shopify sellers, dropshippers, and small businesses.',
+    description: 'Turn viral UGC videos into your own with AI. Clone TikTok ads, Instagram Reels, and YouTube Shorts with your products. Features dual-mode workflow: viral video cloning and avatar-based video generation. Built for Shopify sellers, dropshippers, and small businesses.',
     offers: {
       '@type': 'AggregateOffer',
       '@id': 'https://www.flowtra.store/#offers',
@@ -74,7 +74,7 @@ export default function StructuredData() {
           name: 'Lite Package',
           price: '29',
           priceCurrency: 'USD',
-          description: '1,930 credits. Approximately 96 Veo3 Fast videos or 321 Sora2 videos. Includes Competitor UGC Replication and Avatar Ads. Generation-time billing.',
+          description: '1,930 credits. Approximately 96 Veo3 Fast videos or 321 Sora2 videos. Includes Viral Clone and Avatar Ads. Generation-time billing.',
           availability: 'https://schema.org/InStock',
           url: 'https://www.flowtra.store/#pricing',
           priceValidUntil: '2025-12-31',
@@ -89,7 +89,7 @@ export default function StructuredData() {
           name: 'Basic Package',
           price: '59',
           priceCurrency: 'USD',
-          description: '3,930 credits. Approximately 196 Veo3 Fast videos or 655 Sora2 videos. Image generation included. Includes all features: Competitor UGC Replication and Avatar Ads.',
+          description: '3,930 credits. Approximately 196 Veo3 Fast videos or 655 Sora2 videos. Image generation included. Includes all features: Viral Clone and Avatar Ads.',
           availability: 'https://schema.org/InStock',
           url: 'https://www.flowtra.store/#pricing',
           priceValidUntil: '2025-12-31',
@@ -104,7 +104,7 @@ export default function StructuredData() {
           name: 'Pro Package',
           price: '99',
           priceCurrency: 'USD',
-          description: '6,600 credits. Approximately 330 Veo3 Fast videos or 1100 Sora2 videos. Priority processing, generation-time billing. Includes Competitor UGC Replication and Avatar Ads.',
+          description: '6,600 credits. Approximately 330 Veo3 Fast videos or 1100 Sora2 videos. Priority processing, generation-time billing. Includes Viral Clone and Avatar Ads.',
           availability: 'https://schema.org/InStock',
           url: 'https://www.flowtra.store/#pricing',
           priceValidUntil: '2025-12-31',
@@ -125,11 +125,11 @@ export default function StructuredData() {
       worstRating: '1'
     },
     featureList: [
-      'Competitor Video Cloning: Replicate TikTok, Instagram, and YouTube UGC ads',
+      'Viral Video Cloning: Clone TikTok, Instagram, and YouTube UGC ads',
       'AI-Powered Creative Structure Analysis: Extract and clone proven video formats',
-      'Automatic Product Replacement: Replace competitor products with yours',
+      'Automatic Product Replacement: Replace products in viral videos with yours',
       'Avatar Ads: Character-based advertisement generation',
-      'Dual-Mode Workflow: Competitor cloning + original video generation',
+      'Dual-Mode Workflow: Viral cloning + original video generation',
       'Multi-Platform Support: TikTok, Instagram Reels, YouTube Shorts',
       'Multiple AI Models: Veo3, Veo3 Fast, Sora2, Sora2 Pro',
       'Multi-Language Support: English, Chinese, Spanish, and 10+ languages',

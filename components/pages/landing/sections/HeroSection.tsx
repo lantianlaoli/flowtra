@@ -22,7 +22,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-black leading-tight tracking-[-0.02em]">
-          Turn Your Competitors&apos; <span className="underline decoration-[#E5E5E5] underline-offset-8">Viral Videos</span> Into Your Own
+          Turn <span className="underline decoration-[#E5E5E5] underline-offset-8">Viral Videos</span> Into Your Own
         </h1>
 
         <p className="text-xl text-[#666666] leading-relaxed max-w-lg">
@@ -33,7 +33,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         <div className="mt-4 space-y-3 text-[#666666] text-[16px]">
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-black" />
-            <span>Clone viral TikTok, Instagram, and YouTube UGC in minutes</span>
+            <span>Clone viral TikTok UGC in minutes</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -48,7 +48,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
 
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-black" />
-            <span>Supports English, Chinese, and over 10 other languages</span>
+            <span>Supports English, Spanish, and over 10 other languages</span>
           </div>
         </div>
 

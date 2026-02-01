@@ -110,9 +110,9 @@ const AD_TYPE_OPTIONS = [
   },
   {
     value: 'competitor-ugc-replication',
-    label: 'Competitor UGC Replication',
+    label: 'Viral Clone',
     icon: ImageIcon,
-    description: 'Segmented UGC workflows cloned from real competitors',
+    description: 'Segmented UGC workflows cloned from viral videos',
   },
   {
     value: 'character',

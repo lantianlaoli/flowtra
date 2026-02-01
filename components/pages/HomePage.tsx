@@ -307,7 +307,7 @@ function DiscoverSection() {
               All
             </TabsTrigger>
             <TabsTrigger value="competitor-ugc-replication" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
-              Competitor UGC
+              Viral Clone
             </TabsTrigger>
             <TabsTrigger value="character" className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md px-4 py-2 text-sm font-medium transition-all">
               Character

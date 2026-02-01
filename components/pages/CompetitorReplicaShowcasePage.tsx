@@ -96,22 +96,22 @@ export default function CompetitorReplicaShowcasePage() {
     {
       icon: Copy,
       title: 'Clone Creative Structure',
-      description: 'AI analyzes competitor videos to extract the complete narrative structure, camera movements, and visual style.',
+      description: 'AI analyzes viral videos to extract the complete narrative structure, camera movements, and visual style.',
     },
     {
       icon: Sparkles,
       title: 'Smart Product Replacement',
-      description: 'Seamlessly replace competitor products with yours while maintaining the proven creative framework.',
+      description: 'Seamlessly replace viral products with yours while maintaining the proven creative framework.',
     },
     {
       icon: Zap,
       title: 'Minutes, Not Days',
-      description: 'Launch competitive creatives in minutes instead of weeks of production time and creative brainstorming.',
+      description: 'Launch viral creatives in minutes instead of weeks of production time and creative brainstorming.',
     },
     {
       icon: Target,
       title: 'Proven Performance',
-      description: 'Build on top-performing competitor ads that have already proven to resonate with your target audience.',
+      description: 'Build on top-performing viral ads that have already proven to resonate with your target audience.',
     },
     {
       icon: Users,
@@ -189,13 +189,13 @@ export default function CompetitorReplicaShowcasePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <div className="inline-block px-4 py-2 bg-black text-white rounded-full mb-6">
-                <span className="text-sm font-semibold">Replica UGC Demo</span>
+                <span className="text-sm font-semibold">Viral Clone Demo</span>
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-6 leading-tight">
-                Clone a Top Competitor Video
+                Clone a Viral Video
               </h1>
               <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-                Flowtra mapped this entire competitor ad beat-for-beat, swapped the product, and delivered a launch-ready clone in minutes. Same structure. Same energy. Your brand.
+                Flowtra mapped this entire viral ad beat-for-beat, swapped the product, and delivered a launch-ready clone in minutes. Same structure. Same energy. Your brand.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
@@ -220,7 +220,7 @@ export default function CompetitorReplicaShowcasePage() {
                 <div className="space-y-3">
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-300 rounded-full text-sm font-semibold text-gray-700">
                     <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    Competitor Video
+                    Viral Video
                   </div>
                   <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
                     <LazyVideoPlayer
@@ -236,7 +236,7 @@ export default function CompetitorReplicaShowcasePage() {
                 <div className="space-y-3">
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-sm font-semibold">
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    Flowtra Clone
+                    Clone
                   </div>
                   <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
                     <LazyVideoPlayer
@@ -278,7 +278,7 @@ export default function CompetitorReplicaShowcasePage() {
                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">2</div>
                        <div>
                           <h3 className="text-xl font-semibold text-black">Upload & Analyze</h3>
-                          <p className="text-gray-600 mt-1">Upload a competitor UGC video. AI automatically analyzes the shot content.</p>
+                          <p className="text-gray-600 mt-1">Upload a viral UGC video. AI automatically analyzes the shot content.</p>
                        </div>
                     </div>
                     {/* Step 3 */}
@@ -286,7 +286,7 @@ export default function CompetitorReplicaShowcasePage() {
                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">3</div>
                        <div>
                           <h3 className="text-xl font-semibold text-black">Select Video to Clone</h3>
-                          <p className="text-gray-600 mt-1">Choose the specific video you want to replicate.</p>
+                          <p className="text-gray-600 mt-1">Choose the specific video you want to clone.</p>
                        </div>
                     </div>
                     {/* Step 4 */}
@@ -589,7 +589,7 @@ export default function CompetitorReplicaShowcasePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
-              Why Choose Competitor Replica?
+              Why Choose Viral Clone?
             </h2>
             <p className="text-lg text-gray-600">
               Leverage proven creative strategies without the guesswork
@@ -627,7 +627,7 @@ export default function CompetitorReplicaShowcasePage() {
               Perfect For
             </h2>
             <p className="text-lg text-gray-600">
-              Use cases where competitor replica excels
+              Use cases where viral clone excels
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -649,8 +649,8 @@ export default function CompetitorReplicaShowcasePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <BookDemoCTA
           variant="compact"
-          title="Ready to Clone Competitors?"
-          description="Book a demo to explore our AI-powered competitor video cloning feature."
+          title="Ready to Clone Viral Videos?"
+          description="Book a demo to explore our AI-powered viral video cloning feature."
         />
       </section>
 

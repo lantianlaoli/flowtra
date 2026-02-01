@@ -82,17 +82,19 @@ export default function PricingSection({ showTitle = true }: { showTitle?: boole
 
               { label: "1,930 Credits", bold: true },
 
-              { label: "Character UGC Video Generation" },
+              { label: "Avatar Ads" },
 
-              { label: "Competitor UGC Cloning" },
+              { label: "Clone viral videos" },
 
-              { label: "12.8 minutes of UGC video", bold: true },
+              { label: "Motion Swap" },
 
-              { label: "Unlimited Brands" },
+              { label: "12.8 minutes of video", bold: true },
 
-              { label: "Supports 10+ Languages" },
+              { label: "10+ languages" },
 
-              { label: "Latest AI Models" }
+              { label: "Latest video models" },
+
+              { label: "TikTok publishing support" }
 
             ].map((item, idx) => (
 
@@ -176,17 +178,19 @@ export default function PricingSection({ showTitle = true }: { showTitle?: boole
 
               { label: "3,930 Credits", bold: true },
 
-              { label: "Character UGC Video Generation" },
+              { label: "Avatar Ads" },
 
-              { label: "Competitor UGC Cloning" },
+              { label: "Clone viral videos" },
 
-              { label: "26.2 minutes of UGC video", bold: true },
+              { label: "Motion Swap" },
 
-              { label: "Unlimited Brands" },
+              { label: "26.2 minutes of video", bold: true },
 
-              { label: "Supports 10+ Languages" },
+              { label: "10+ languages" },
 
-              { label: "Latest AI Models" }
+              { label: "Latest video models" },
+
+              { label: "TikTok publishing support" }
 
             ].map((item, idx) => (
 
@@ -239,17 +243,19 @@ export default function PricingSection({ showTitle = true }: { showTitle?: boole
 
               { label: "6,600 Credits", bold: true },
 
-              { label: "Character UGC Video Generation" },
+              { label: "Avatar Ads" },
 
-              { label: "Competitor UGC Cloning" },
+              { label: "Clone viral videos" },
 
-              { label: "44.0 minutes of UGC video", bold: true },
+              { label: "Motion Swap" },
 
-              { label: "Unlimited Brands" },
+              { label: "44.0 minutes of video", bold: true },
 
-              { label: "Supports 10+ Languages" },
+              { label: "10+ languages" },
 
-              { label: "Latest AI Models" }
+              { label: "Latest video models" },
+
+              { label: "TikTok publishing support" }
 
             ].map((item, idx) => (
 

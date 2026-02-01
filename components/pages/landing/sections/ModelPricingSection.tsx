@@ -73,7 +73,7 @@ export default function ModelPricingSection() {
       <div className="text-center mb-16 px-4">
         <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">Price details</h2>
         <p className="text-lg text-[#666666] max-w-2xl mx-auto">
-          Transparent pricing for all video models. Choose the right model for your needs.
+          Transparent pricing for all models. Choose the right model for your needs.
         </p>
       </div>
 

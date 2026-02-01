@@ -77,7 +77,7 @@ function UploadZoneRefined({ onFileSelect, disabled = false }: { onFileSelect: (
 
           {/* Subtitle */}
           <p className="text-gray-600 mb-8 text-base max-w-sm leading-relaxed">
-            Click to browse or drag and drop your competitor video
+            Click to browse or drag and drop your viral video
           </p>
 
           {/* Specs */}
@@ -300,7 +300,7 @@ Thanks!`);
               Free Analysis Used
             </h3>
             <p className="text-gray-600 mb-8">
-              Want to analyze more videos? Sign up for unlimited analyses and start cloning competitor ads.
+              Want to analyze more videos? Sign up for unlimited analyses and start cloning viral ads.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
