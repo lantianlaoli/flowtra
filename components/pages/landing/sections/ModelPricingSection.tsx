@@ -1,4 +1,4 @@
-import { Zap, Check } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { Google, ByteDance, Kling } from '@lobehub/icons';
 
 export default function ModelPricingSection() {
@@ -16,7 +16,7 @@ export default function ModelPricingSection() {
       pricingOptions: [
         { duration: '1 min', credits: 150, unit: 'per min' },
       ],
-      quality: ['1080P'],
+      quality: ['1080p', '4K'],
     },
     {
       name: 'Kling 2.6 Motion Control',
@@ -28,7 +28,7 @@ export default function ModelPricingSection() {
       pricingOptions: [
         { duration: '1 min', credits: 540, unit: 'per min' },
       ],
-      quality: ['1080P'],
+      quality: ['1080p'],
     },
     {
       name: 'Seedance 1.5 Pro',
@@ -40,7 +40,7 @@ export default function ModelPricingSection() {
       pricingOptions: [
         { duration: '1 min', credits: 420, unit: 'per min' },
       ],
-      quality: ['720P'],
+      quality: ['1080p'],
     },
     {
       name: 'Veo3.1',
@@ -52,7 +52,19 @@ export default function ModelPricingSection() {
       pricingOptions: [
         { duration: '1 min', credits: 1125, unit: 'per min' },
       ],
-      quality: ['1080P'],
+      quality: ['1080p', '4K'],
+    },
+    {
+      name: 'Nano Banana Pro',
+      description: 'High-resolution generation with zero cost',
+      icon: Google,
+      badge: 'Free',
+      durationRange: '8-64s',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { duration: '1 min', credits: 0, unit: 'per min' },
+      ],
+      quality: ['1K', '2K', '4K'],
     },
   ];
 
@@ -74,6 +86,9 @@ export default function ModelPricingSection() {
                 Model
               </th>
               <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
+                Resolution
+              </th>
+              <th className="px-6 py-5 text-left text-[12px] font-bold text-black uppercase tracking-wider">
                 Generation Cost
               </th>
             </tr>
@@ -86,6 +101,7 @@ export default function ModelPricingSection() {
               return model.pricingOptions.map((option, optionIndex) => {
                 const isFirstRow = optionIndex === 0;
                 const rowSpan = isMultiRow ? model.pricingOptions.length : 1;
+                const isFree = option.credits === 0;
                 const usdCost = (option.credits * CREDIT_TO_USD).toFixed(2);
 
                 return (
@@ -116,14 +132,32 @@ export default function ModelPricingSection() {
                       </td>
                     )}
 
+                    {/* Resolution */}
+                    {isFirstRow && (
+                      <td className="px-6 py-6" rowSpan={rowSpan}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {model.quality.map((item) => (
+                            <span
+                              key={item}
+                              className="text-[11px] font-semibold text-black uppercase tracking-wide border border-[#E5E5E5] bg-[#F7F7F7] px-2 py-1 rounded-full"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    )}
+
                     {/* Generation Cost */}
                     <td className="px-6 py-6">
                       <div className="text-[16px] font-bold text-black">
-                        ${usdCost}
+                        {isFree ? 'Free' : `$${usdCost}`}
                       </div>
-                      <p className="text-[12px] text-[#666666] mt-0.5">
-                        {option.unit}
-                      </p>
+                      {!isFree && (
+                        <p className="text-[12px] text-[#666666] mt-0.5">
+                          {option.unit}
+                        </p>
+                      )}
                     </td>
                   </tr>
                 );
@@ -174,11 +208,28 @@ export default function ModelPricingSection() {
                       </span>
                       <div className="text-right">
                         <span className="text-sm font-bold text-gray-900 block">
-                          ${(option.credits * CREDIT_TO_USD).toFixed(2)}
+                          {option.credits === 0
+                            ? 'Free'
+                            : `$${(option.credits * CREDIT_TO_USD).toFixed(2)}`}
                         </span>
-                        <span className="text-xs text-gray-500">
-                          {option.unit}
-                        </span>
+                        {option.credits !== 0 && (
+                          <span className="text-xs text-gray-500">
+                            {option.unit}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Resolution</span>
+                      <div className="flex flex-wrap justify-end gap-1">
+                        {model.quality.map((item) => (
+                          <span
+                            key={item}
+                            className="text-[10px] font-semibold text-gray-800 uppercase tracking-wide border border-gray-200 bg-white px-2 py-0.5 rounded-full"
+                          >
+                            {item}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   </div>

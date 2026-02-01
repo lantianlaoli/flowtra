@@ -9,7 +9,7 @@ import {
   XMarkIcon,
   ChevronDownIcon,
 } from "@heroicons/react/24/outline";
-import { UserCircle, Copy, RefreshCw } from "lucide-react";
+import { UserCircle, Copy, RefreshCw, Upload } from "lucide-react";
 
 interface HeaderProps {
   showAuthButtons?: boolean;
@@ -121,11 +121,16 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
               <div className="py-2">
                 <Link
                   href="/tools/upload-assets"
-                  className="block px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                  className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
                 >
-                  <div className="font-semibold text-black">Upload Assets to URL</div>
-                  <div className="text-[12px] opacity-70">
-                    Video and image upload tools
+                  <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                    <Upload className="w-5 h-5 text-black" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-black">Upload Assets to URL</div>
+                    <div className="text-[12px] opacity-70">
+                      Video and image upload tools
+                    </div>
                   </div>
                 </Link>
               </div>
