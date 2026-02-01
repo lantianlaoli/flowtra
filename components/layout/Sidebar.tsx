@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -14,7 +14,9 @@ import {
   User,
   HelpCircle,
   Menu,
-  Shuffle
+  Shuffle,
+  Moon,
+  Sun
 } from 'lucide-react';
 import {
   Sidebar as ShadcnSidebar,
@@ -90,11 +92,29 @@ const navigation = [
 export default function Sidebar({ credits = 0, creditsData, userEmail, userImageUrl, onTriggerOnboarding }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   // Use creditsData if available, otherwise fall back to legacy credits prop
   const displayCredits = creditsData?.credits_remaining ?? credits;
   const subscriptionCredits = creditsData?.subscription_credits ?? 0;
   const purchasedCredits = creditsData?.purchased_credits ?? 0;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('flowtra-dashboard-dark');
+    const enabled = stored === null ? true : stored === 'true';
+    setIsDarkMode(enabled);
+  }, []);
+
+  const toggleDarkMode = () => {
+    const nextValue = !isDarkMode;
+    setIsDarkMode(nextValue);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('flowtra-dashboard-dark', String(nextValue));
+      document.documentElement.classList.toggle('dashboard-theme', nextValue);
+      window.dispatchEvent(new CustomEvent('flowtra-dashboard-theme-change', { detail: nextValue }));
+    }
+  };
 
   // Desktop sidebar content (uses shadcn Sidebar components with SidebarProvider)
   const DesktopSidebarContent = () => (
@@ -102,15 +122,12 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
       <SidebarHeader className="p-6">
         <Link href="/dashboard" className="flex items-center gap-3 group">
           <Image
-            src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png"
+            src="/logo.svg"
             alt="Flowtra Logo"
-            width={32}
-            height={32}
-            className="w-8 h-8 transition-transform group-hover:scale-105 duration-200"
+            width={95}
+            height={95}
+            className="w-[95px] h-[95px] transition-transform group-hover:scale-105 duration-200 logo-theme"
           />
-          <span className="text-lg font-semibold text-black group-hover:text-[#666666] transition-colors duration-200">
-            Flowtra
-          </span>
         </Link>
       </SidebarHeader>
 
@@ -134,7 +151,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
           </div>
         )}
 
-        <Separator className="mb-6 bg-[#E5E5E5]" />
+        <Separator className="mb-6 bg-border" />
 
         {/* Navigation */}
         <SidebarGroup>
@@ -151,8 +168,12 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                         className={cn(
                           "relative h-10 px-3 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden",
                           isActive
-                            ? "text-white bg-black hover:bg-black/90"
-                            : "text-[#666666] hover:text-black hover:bg-[#F7F7F7]"
+                            ? (isDarkMode
+                              ? "text-sidebar-foreground bg-sidebar-accent border border-sidebar-border shadow-[0_6px_16px_rgba(0,0,0,0.25)]"
+                              : "text-accent-foreground bg-accent hover:bg-accent/90 border border-accent/30")
+                            : (isDarkMode
+                              ? "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted")
                         )}
                       >
                         <Link
@@ -162,7 +183,10 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                           {isActive && (
                             <motion.span
                               layoutId="sidebar-active-indicator"
-                              className="absolute inset-0 rounded-lg bg-black -z-10"
+                              className={cn(
+                                "absolute inset-0 rounded-lg -z-10",
+                                isDarkMode ? "bg-sidebar-accent" : "bg-accent"
+                              )}
                               transition={{
                                 type: 'spring',
                                 stiffness: 500,
@@ -174,10 +198,19 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                           <item.icon
                             className={cn(
                               "relative z-10 w-4 h-4 mr-3 transition-transform duration-200",
-                              isActive ? "text-white" : "text-[#666666]"
+                              isActive
+                                ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground")
+                                : (isDarkMode ? "text-sidebar-foreground/70" : "text-muted-foreground")
                             )}
                           />
-                          <span className={cn("relative z-10", isActive && "text-white")}>{item.name}</span>
+                          <span
+                            className={cn(
+                              "relative z-10",
+                              isActive ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground") : ""
+                            )}
+                          >
+                            {item.name}
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -189,18 +222,29 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-6 border-t border-[#E5E5E5]">
+      <SidebarFooter className="p-6 border-t border-sidebar-border">
         <div className="space-y-2">
           {/* Product Tour */}
           {onTriggerOnboarding && (
             <button
               onClick={onTriggerOnboarding}
-              className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-[#666666] hover:text-black hover:bg-[#F7F7F7] rounded-lg transition-colors duration-200"
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
             >
               <HelpCircle className="w-5 h-5" />
               <span>Product Tour</span>
             </button>
           )}
+
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleDarkMode}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
+            aria-label="Toggle dark mode"
+            type="button"
+          >
+            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
 
           {/* Feedback Widget */}
           <FeedbackWidget />
@@ -208,7 +252,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
           {/* Back to Landing */}
           <Link
             href="/"
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-[#666666] hover:text-black hover:bg-[#F7F7F7] rounded-lg transition-colors duration-200"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
             onClick={() => setMobileOpen(false)}
           >
             <Home className="w-5 h-5" />
@@ -226,15 +270,12 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
       <div className="p-6">
         <Link href="/dashboard" className="flex items-center gap-3 group" onClick={() => setMobileOpen(false)}>
           <Image
-            src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/logo.png"
+            src="/logo.svg"
             alt="Flowtra Logo"
-            width={32}
-            height={32}
-            className="w-8 h-8 transition-transform group-hover:scale-105 duration-200"
+            width={95}
+            height={95}
+            className="w-[95px] h-[95px] transition-transform group-hover:scale-105 duration-200 logo-theme"
           />
-          <span className="text-lg font-semibold text-black group-hover:text-[#666666] transition-colors duration-200">
-            Flowtra
-          </span>
         </Link>
       </div>
 
@@ -259,7 +300,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
           </div>
         )}
 
-        <Separator className="mb-6 bg-[#E5E5E5]" />
+        <Separator className="mb-6 bg-border" />
 
         {/* Navigation */}
         <nav className="space-y-1">
@@ -274,14 +315,21 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                   className={cn(
                     "relative flex items-center h-10 px-3 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden",
                     isActive
-                      ? "text-white bg-black"
-                      : "text-[#666666] hover:text-black hover:bg-[#F7F7F7]"
+                      ? (isDarkMode
+                        ? "text-sidebar-foreground bg-sidebar-accent border border-sidebar-border shadow-[0_6px_16px_rgba(0,0,0,0.25)]"
+                        : "text-accent-foreground bg-accent border border-accent/30")
+                      : (isDarkMode
+                        ? "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted")
                   )}
                 >
                   {isActive && (
                     <motion.span
                       layoutId="sidebar-active-indicator-mobile"
-                      className="absolute inset-0 rounded-lg bg-black -z-10"
+                      className={cn(
+                        "absolute inset-0 rounded-lg -z-10",
+                        isDarkMode ? "bg-sidebar-accent" : "bg-accent"
+                      )}
                       transition={{
                         type: 'spring',
                         stiffness: 500,
@@ -293,10 +341,19 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                   <item.icon
                     className={cn(
                       "relative z-10 w-4 h-4 mr-3 transition-transform duration-200",
-                      isActive ? "text-white" : "text-[#666666]"
+                      isActive
+                        ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground")
+                        : (isDarkMode ? "text-sidebar-foreground/70" : "text-muted-foreground")
                     )}
                   />
-                  <span className={cn("relative z-10", isActive && "text-white")}>{item.name}</span>
+                  <span
+                    className={cn(
+                      "relative z-10",
+                      isActive ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground") : ""
+                    )}
+                  >
+                    {item.name}
+                  </span>
                 </Link>
               );
             })}
@@ -305,7 +362,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
       </div>
 
       {/* Footer */}
-      <div className="p-6 border-t border-[#E5E5E5]">
+      <div className="p-6 border-t border-sidebar-border">
         <div className="space-y-2">
           {/* Product Tour */}
           {onTriggerOnboarding && (
@@ -314,12 +371,26 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                 onTriggerOnboarding();
                 setMobileOpen(false);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-[#666666] hover:text-black hover:bg-[#F7F7F7] rounded-lg transition-colors duration-200"
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
             >
               <HelpCircle className="w-5 h-5" />
               <span>Product Tour</span>
             </button>
           )}
+
+          {/* Theme Toggle */}
+          <button
+            onClick={() => {
+              toggleDarkMode();
+              setMobileOpen(false);
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
+            aria-label="Toggle dark mode"
+            type="button"
+          >
+            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
 
           {/* Feedback Widget */}
           <FeedbackWidget />
@@ -327,7 +398,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
           {/* Back to Landing */}
           <Link
             href="/"
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-[#666666] hover:text-black hover:bg-[#F7F7F7] rounded-lg transition-colors duration-200"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
             onClick={() => setMobileOpen(false)}
           >
             <Home className="w-5 h-5" />
@@ -343,7 +414,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
       {/* Desktop Sidebar */}
       <div className="hidden md:block fixed md:top-0 md:left-0 md:h-screen md:w-72 md:z-20">
         <SidebarProvider>
-          <ShadcnSidebar className="w-72 h-full border-r border-[#E5E5E5] bg-white">
+          <ShadcnSidebar className="w-72 h-full border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
             <DesktopSidebarContent />
           </ShadcnSidebar>
         </SidebarProvider>
@@ -352,7 +423,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
       {/* Mobile Menu Button */}
       <button
         type="button"
-        className="fixed md:hidden top-4 left-4 z-40 bg-black text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm font-medium hover:scale-105 active:scale-95 transition-transform duration-200"
+        className="fixed md:hidden top-4 left-4 z-40 bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm font-medium hover:scale-105 active:scale-95 transition-transform duration-200"
         onClick={() => setMobileOpen(true)}
         aria-label="Open menu"
       >
@@ -364,7 +435,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent
           side="left"
-          className="w-72 p-0 bg-white border-r border-[#E5E5E5]"
+          className="w-72 p-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border"
         >
           <MobileSidebarContent />
         </SheetContent>

@@ -14,13 +14,12 @@ export default function Footer() {
             <h2 id="footer-about" className="sr-only">About Flowtra</h2>
             <Link href="/" className="flex items-center gap-2 mb-4">
               <Image
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/flowtra-logo.png"
+                src="/logo.svg"
                 alt="Flowtra Logo"
-                width={32}
-                height={32}
-                className="invert"
+                width={95}
+                height={95}
+                className="logo-theme w-[95px] h-[95px]"
               />
-              <span className="text-xl font-bold text-black tracking-tight">Flowtra</span>
             </Link>
             <p className="text-[14px] text-[#666666] mb-8 max-w-xs leading-relaxed">
               AI ads for Shopify, dropshipping, content creator, and local stores.

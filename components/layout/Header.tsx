@@ -40,15 +40,12 @@ export default function Header({ showAuthButtons = true }: HeaderProps) {
             className="flex items-center gap-2 cursor-pointer transition-opacity hover:opacity-80"
           >
             <Image
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/flowtra-logo.png"
+              src="/logo.svg"
               alt="Flowtra AI Logo"
-              width={32}
-              height={32}
-              className="invert"
+              width={95}
+              height={95}
+              className="logo-theme w-[95px] h-[95px]"
             />
-            <span className="text-xl font-bold text-black tracking-tight">
-              Flowtra
-            </span>
           </Link>
         </div>
 
