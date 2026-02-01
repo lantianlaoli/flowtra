@@ -112,6 +112,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('flowtra-dashboard-dark', String(nextValue));
       document.documentElement.classList.toggle('dashboard-theme', nextValue);
+      document.body.classList.toggle('dashboard-theme', nextValue);
       window.dispatchEvent(new CustomEvent('flowtra-dashboard-theme-change', { detail: nextValue }));
     }
   };
