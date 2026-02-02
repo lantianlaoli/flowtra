@@ -1,13 +1,22 @@
-'use client';
+"use client";
 
-import { useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Loader2, Play, Wand2, Clock, Languages, Film, Tag } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useToast } from '@/contexts/ToastContext';
-import VideoPlayer from '@/components/ui/VideoPlayer';
-import CompetitorShotsEditor from '@/components/CompetitorShotsEditor';
-import { parseShotsFromAnalysis } from '@/lib/competitor-shot-form';
+import { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  X,
+  Loader2,
+  Sparkles,
+  Shuffle,
+  Clock,
+  Languages,
+  Film,
+  Tag,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/contexts/ToastContext";
+import VideoPlayer from "@/components/ui/VideoPlayer";
+import CompetitorShotsEditor from "@/components/CompetitorShotsEditor";
+import { parseShotsFromAnalysis } from "@/lib/competitor-shot-form";
 
 interface VideoAsset {
   id: string;
@@ -30,36 +39,43 @@ interface VideoAssetDetailsModalProps {
   video: VideoAsset | null;
 }
 
-export default function VideoAssetDetailsModal({ isOpen, onClose, video }: VideoAssetDetailsModalProps) {
+export default function VideoAssetDetailsModal({
+  isOpen,
+  onClose,
+  video,
+}: VideoAssetDetailsModalProps) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [isCreatingClone, setIsCreatingClone] = useState(false);
 
   const shots = useMemo(() => {
-    const raw = video?.analysis_result && typeof video.analysis_result === 'object'
-      ? (video.analysis_result as any).shots
-      : null;
+    const raw =
+      video?.analysis_result && typeof video.analysis_result === "object"
+        ? (video.analysis_result as any).shots
+        : null;
     return Array.isArray(raw) ? raw : [];
   }, [video?.analysis_result]);
 
   const parsedShots = useMemo(() => parseShotsFromAnalysis(shots), [shots]);
 
   const analysisName = useMemo(() => {
-    if (!video?.analysis_result || typeof video.analysis_result !== 'object') return null;
+    if (!video?.analysis_result || typeof video.analysis_result !== "object")
+      return null;
     const name = (video.analysis_result as any).name;
-    return typeof name === 'string' ? name : null;
+    return typeof name === "string" ? name : null;
   }, [video?.analysis_result]);
 
   const analysisDuration = useMemo(() => {
-    if (!video?.analysis_result || typeof video.analysis_result !== 'object') return null;
+    if (!video?.analysis_result || typeof video.analysis_result !== "object")
+      return null;
     const duration = (video.analysis_result as any).video_duration_seconds;
-    return typeof duration === 'number' ? duration : null;
+    return typeof duration === "number" ? duration : null;
   }, [video?.analysis_result]);
 
   const detectedLanguage = useMemo(() => {
-    if (video?.analysis_result && typeof video.analysis_result === 'object') {
+    if (video?.analysis_result && typeof video.analysis_result === "object") {
       const detected = (video.analysis_result as any).detected_language;
-      if (typeof detected === 'string') return detected;
+      if (typeof detected === "string") return detected;
     }
     return video?.analysis_language || null;
   }, [video?.analysis_result, video?.analysis_language]);
@@ -67,32 +83,37 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
   const hasAnalysis = Boolean(video?.analysis_result);
 
   const displayName = useMemo(() => {
-    if (!video) return 'TikTok Video';
-    return video.source_name || 'TikTok Video';
+    if (!video) return "TikTok Video";
+    return video.source_name || "TikTok Video";
   }, [video]);
 
   const handleUseForClone = async () => {
     if (!video?.analysis_result || !video) {
-      showError('Video analysis is still running. Please try again shortly.');
+      showError("Video analysis is still running. Please try again shortly.");
       return;
     }
 
     setIsCreatingClone(true);
     try {
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem('showcase_tiktok_analysis', JSON.stringify({
-          analysis: video.analysis_result,
-          language: video.analysis_language || 'en',
-          videoUrl: video.video_cdn_url || null,
-          tiktokUrl: video.video_url || null
-        }));
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(
+          "preselect_competitor_ad",
+          JSON.stringify({
+            videoId: video.id,
+            analysis: video.analysis_result,
+            language: video.analysis_language || "en",
+            videoUrl: video.video_cdn_url || null,
+            tiktokUrl: video.video_url || null,
+          }),
+        );
       }
 
-      showSuccess('Analysis ready. Continue to clone setup.');
+      showSuccess("Analysis ready. Continue to clone setup.");
       onClose();
-      router.push('/dashboard/competitor-ugc-replication');
+      router.push("/dashboard/competitor-ugc-replication");
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to start clone flow';
+      const message =
+        error instanceof Error ? error.message : "Failed to start clone flow";
       showError(message);
     } finally {
       setIsCreatingClone(false);
@@ -100,7 +121,20 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
   };
 
   const handleUseInMotionSwap = () => {
-    router.push(`/dashboard/motion-swap?videoId=${video?.id}`);
+    if (!video) return;
+
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(
+        "preselect_motion_swap_video",
+        JSON.stringify({
+          videoId: video.id,
+        }),
+      );
+    }
+
+    showSuccess("Video selected for Motion Swap.");
+    onClose();
+    router.push("/dashboard/motion-swap");
   };
 
   return (
@@ -130,8 +164,12 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
           >
             <div className="assets-modal-header flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
-                <h3 className="assets-modal-title text-lg font-semibold text-gray-900">Video Details</h3>
-                <p className="assets-modal-subtitle text-sm text-gray-500">{displayName}</p>
+                <h3 className="assets-modal-title text-lg font-semibold text-gray-900">
+                  Video Details
+                </h3>
+                <p className="assets-modal-subtitle text-sm text-gray-500">
+                  {displayName}
+                </p>
               </div>
               <button
                 onClick={onClose}
@@ -158,41 +196,51 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
 
               <div className="assets-video-details-panel flex flex-col gap-6">
                 <div className="space-y-2">
-                  <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">Overview</p>
+                  <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
+                    Overview
+                  </p>
                   <div className="space-y-2 text-sm text-gray-700">
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-gray-400" />
                         Duration
                       </span>
-                      <span>{video.duration_seconds ? `${video.duration_seconds}s` : '—'}</span>
+                      <span>
+                        {video.duration_seconds
+                          ? `${video.duration_seconds}s`
+                          : "—"}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <Languages className="w-4 h-4 text-gray-400" />
                         Language
                       </span>
-                      <span>{detectedLanguage || '—'}</span>
+                      <span>{detectedLanguage || "—"}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <Film className="w-4 h-4 text-gray-400" />
                         Shots
                       </span>
-                      <span>{parsedShots.length || '—'}</span>
+                      <span>{parsedShots.length || "—"}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <Tag className="w-4 h-4 text-gray-400" />
                         Name
                       </span>
-                      <span className="assets-video-details-meta truncate max-w-[160px]">{analysisName || '—'}</span>
+                      <span className="assets-video-details-meta truncate max-w-[160px]">
+                        {analysisName || "—"}
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex-1 space-y-3">
-                  <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">Structure Analysis</p>
+                  <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
+                    Structure Analysis
+                  </p>
                   {hasAnalysis ? (
                     <div className="space-y-3">
                       <div className="assets-video-details-shots max-h-[420px] overflow-y-auto">
@@ -208,20 +256,31 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
                     </div>
                   ) : (
                     <div className="assets-video-details-alert rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 space-y-3">
-                      {video?.analysis_status === 'failed' ? (
+                      {video?.analysis_status === "failed" ? (
                         <>
-                          <p className="text-red-600">Analysis failed. Please retry by re-importing the video.</p>
+                          <p className="text-red-600">
+                            Analysis failed. Please retry by re-importing the
+                            video.
+                          </p>
                           {video.analysis_error && (
-                            <p className="text-xs text-red-500">{video.analysis_error}</p>
+                            <p className="text-xs text-red-500">
+                              {video.analysis_error}
+                            </p>
                           )}
                         </>
                       ) : (
                         <>
                           <div className="flex items-center gap-2 text-gray-600">
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            <span>Analysis is running automatically in the background.</span>
+                            <span>
+                              Analysis is running automatically in the
+                              background.
+                            </span>
                           </div>
-                          <p className="assets-video-details-meta text-xs text-gray-500">This may take a few minutes. Refresh the page to see the results.</p>
+                          <p className="assets-video-details-meta text-xs text-gray-500">
+                            This may take a few minutes. Refresh the page to see
+                            the results.
+                          </p>
                         </>
                       )}
                     </div>
@@ -232,18 +291,26 @@ export default function VideoAssetDetailsModal({ isOpen, onClose, video }: Video
                   <button
                     onClick={handleUseForClone}
                     disabled={!hasAnalysis || isCreatingClone}
-                    className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="assets-video-details-action w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200"
                   >
-                    {isCreatingClone ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                    Use for Clone
+                    <span className="font-medium flex items-center gap-2">
+                      {isCreatingClone ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
+                      )}
+                      Use for Clone
+                    </span>
                   </button>
                   <button
                     onClick={handleUseInMotionSwap}
                     disabled={!video.source_id}
-                    className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="assets-video-details-action w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200"
                   >
-                    <Wand2 className="w-4 h-4" />
-                    Use in Motion Swap
+                    <span className="font-medium flex items-center gap-2">
+                      <Shuffle className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
+                      Use in Motion Swap
+                    </span>
                   </button>
                 </div>
               </div>

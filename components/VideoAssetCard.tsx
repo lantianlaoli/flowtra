@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useRef } from 'react';
-import { Play, Video } from 'lucide-react';
+import { useRef } from "react";
+import { Eye, Video } from "lucide-react";
 
 interface VideoAsset {
   id: string;
@@ -19,7 +19,10 @@ interface VideoAssetCardProps {
   onViewDetails: (video: VideoAsset) => void;
 }
 
-export default function VideoAssetCard({ video, onViewDetails }: VideoAssetCardProps) {
+export default function VideoAssetCard({
+  video,
+  onViewDetails,
+}: VideoAssetCardProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const handleViewDetails = (event: React.MouseEvent) => {
@@ -66,13 +69,13 @@ export default function VideoAssetCard({ video, onViewDetails }: VideoAssetCardP
         <div className="assets-video-card-overlay absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
 
-      <div className="assets-video-card-footer p-2.5">
+      <div className="assets-video-card-footer p-3 bg-white">
         <button
           onClick={handleViewDetails}
-          className="assets-video-card-action w-full px-3 py-2 text-xs font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+          className="assets-video-card-action w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn"
         >
-          <Play className="w-3 h-3" />
-          View Details
+          <span className="font-medium">View Details</span>
+          <Eye className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
         </button>
       </div>
     </div>

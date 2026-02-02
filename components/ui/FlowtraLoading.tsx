@@ -1,30 +1,48 @@
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
+import { motion } from "framer-motion";
+import Image from "next/image";
 
 export default function FlowtraLoading() {
-  const text = "Flowtra AI";
-  
   return (
     <div className="flex items-center justify-center min-h-screen bg-white">
-      <div className="flex items-center justify-center space-x-[2px]">
-        {text.split("").map((char, i) => (
-          <motion.span
-            key={i}
-            initial={{ opacity: 0.2 }}
-            animate={{ opacity: [0.2, 1, 0.2] }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              repeatType: "loop",
-              delay: i * 0.15,
-              ease: "easeInOut",
-            }}
-            className="text-2xl font-bold text-black tracking-tight"
-          >
-            {char === " " ? "\u00A0" : char}
-          </motion.span>
-        ))}
+      <div className="flex items-center gap-8">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0.2, 1, 0.2] }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            repeatType: "loop",
+            ease: "easeInOut",
+          }}
+        >
+          <Image
+            src="/logo.svg"
+            alt="Flowtra"
+            width={160}
+            height={160}
+            className="w-40 h-40"
+          />
+        </motion.div>
+
+        <div className="w-[2px] h-32 bg-gray-200" />
+
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: [0.2, 1, 0.2] }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            repeatType: "loop",
+            ease: "easeInOut",
+            delay: 0.1,
+          }}
+        >
+          <span className="text-6xl font-bold text-black tracking-tight whitespace-nowrap">
+            Turn Viral Videos Into Your Own
+          </span>
+        </motion.div>
       </div>
     </div>
   );
