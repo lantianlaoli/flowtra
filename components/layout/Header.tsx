@@ -82,164 +82,173 @@ export default function Header({
           </Link>
         </div>
 
-        {/* Links - Center */}
-        <nav
-          className="hidden md:flex items-center gap-6 ml-auto mr-6"
-          aria-label="Main navigation"
-        >
-          {/* Features Dropdown */}
-          <div className="relative group">
-            <button className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors flex items-center gap-1">
-              Features
-              <ChevronDownIcon className="w-3.5 h-3.5" />
-            </button>
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-64 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <div className="py-2">
-                <Link
-                  href="/features/avatar-ads"
-                  className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
-                >
-                  <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
-                    <UserCircle className="w-5 h-5 text-black" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-black">Avatar Ads</div>
-                    <div className="text-[12px] opacity-70">
-                      AI character-driven videos
+        {/* Right Section - Nav + Actions */}
+        <div className="flex items-center gap-6 ml-auto">
+          {/* Links - Now positioned right before Dashboard */}
+          <nav
+            className="hidden md:flex items-center gap-6"
+            aria-label="Main navigation"
+          >
+            {/* Features Dropdown */}
+            <div className="relative group">
+              <button className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors flex items-center gap-1">
+                Features
+                <ChevronDownIcon className="w-3.5 h-3.5" />
+              </button>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-64 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                <div className="py-2">
+                  <Link
+                    href="/features/avatar-ads"
+                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                      <UserCircle className="w-5 h-5 text-black" />
                     </div>
-                  </div>
-                </Link>
-                <Link
-                  href="/features/viral-clone"
-                  className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
-                >
-                  <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
-                    <Copy className="w-5 h-5 text-black" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-black">Viral Clone</div>
-                    <div className="text-[12px] opacity-70">
-                      Clone viral videos
+                    <div className="flex-1">
+                      <div className="font-semibold text-black">Avatar Ads</div>
+                      <div className="text-[12px] opacity-70">
+                        AI character-driven videos
+                      </div>
                     </div>
-                  </div>
-                </Link>
-                <Link
-                  href="/features/motion-swap"
-                  className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
-                >
-                  <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
-                    <RefreshCw className="w-5 h-5 text-black" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-black">Motion Swap</div>
-                    <div className="text-[12px] opacity-70">
-                      Clone viral ad movements
+                  </Link>
+                  <Link
+                    href="/features/viral-clone"
+                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                      <Copy className="w-5 h-5 text-black" />
                     </div>
-                  </div>
-                </Link>
+                    <div className="flex-1">
+                      <div className="font-semibold text-black">
+                        Viral Clone
+                      </div>
+                      <div className="text-[12px] opacity-70">
+                        Clone viral videos
+                      </div>
+                    </div>
+                  </Link>
+                  <Link
+                    href="/features/motion-swap"
+                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                      <RefreshCw className="w-5 h-5 text-black" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-black">
+                        Motion Swap
+                      </div>
+                      <div className="text-[12px] opacity-70">
+                        Clone viral ad movements
+                      </div>
+                    </div>
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="relative group">
-            <button className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors flex items-center gap-1">
-              Tools
-              <ChevronDownIcon className="w-3.5 h-3.5" />
-            </button>
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-64 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <div className="py-2">
-                <Link
-                  href="/tools/upload-assets"
-                  className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
-                >
-                  <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
-                    <Upload className="w-5 h-5 text-black" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-black">
-                      Upload Assets to URL
+            <div className="relative group">
+              <button className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors flex items-center gap-1">
+                Tools
+                <ChevronDownIcon className="w-3.5 h-3.5" />
+              </button>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-64 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                <div className="py-2">
+                  <Link
+                    href="/tools/upload-assets"
+                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                      <Upload className="w-5 h-5 text-black" />
                     </div>
-                    <div className="text-[12px] opacity-70">
-                      Video and image upload tools
+                    <div className="flex-1">
+                      <div className="font-semibold text-black">
+                        Upload Assets to URL
+                      </div>
+                      <div className="text-[12px] opacity-70">
+                        Video and image upload tools
+                      </div>
                     </div>
-                  </div>
-                </Link>
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
-          <Link
-            href="/#pricing"
-            className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/#blog"
-            className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
-          >
-            Blog
-          </Link>
-          <Link
-            href="/#faq"
-            className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
-          >
-            FAQ
-          </Link>
-        </nav>
-
-        {/* Right Section */}
-        <div className="flex items-center gap-4 ml-auto">
-          <SignedIn>
             <Link
-              href="/dashboard"
-              className="border border-[#E5E5E5] bg-white text-[#666666] hover:text-black hover:border-black px-4 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
+              href="/#pricing"
+              className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
             >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
+              Pricing
             </Link>
-          </SignedIn>
-          {showAuthButtons && (
-            <>
-              <SignedOut>
-                <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                  <button className="bg-black text-white text-[14px] font-medium px-6 py-2.5 rounded-lg hover:bg-[#333333] transition-all cursor-pointer">
-                    Get Started
-                  </button>
-                </SignInButton>
-              </SignedOut>
-              <SignedIn>
-                <UserButton afterSignOutUrl="/" />
-              </SignedIn>
-            </>
-          )}
+            <Link
+              href="/#blog"
+              className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
+            >
+              Blog
+            </Link>
+            <Link
+              href="/#faq"
+              className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
+            >
+              FAQ
+            </Link>
+          </nav>
 
-          {/* Mobile menu button */}
-          <button
-            type="button"
-            className="md:hidden p-2 text-black"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? (
-              <XMarkIcon className="w-6 h-6" />
-            ) : (
-              <Bars3Icon className="w-6 h-6" />
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3">
+            <SignedIn>
+              <Link
+                href="/dashboard"
+                className="bg-black text-white hover:bg-[#2a2a2a] px-4 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2 shadow-none"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Dashboard
+              </Link>
+            </SignedIn>
+            {showAuthButtons && (
+              <>
+                <SignedOut>
+                  <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+                    <button className="bg-black text-white text-[14px] font-medium px-6 py-2.5 rounded-lg hover:bg-[#2a2a2a] transition-all cursor-pointer">
+                      Get Started
+                    </button>
+                  </SignInButton>
+                </SignedOut>
+                <SignedIn>
+                  <UserButton afterSignOutUrl="/" />
+                </SignedIn>
+              </>
             )}
-          </button>
 
-          {showThemeToggle && (
+            {/* Mobile menu button */}
             <button
               type="button"
-              onClick={() => setIsDarkMode((prev) => !prev)}
-              aria-label="Toggle light and dark mode"
-              className="border border-[#E5E5E5] bg-white text-[#666666] hover:text-black hover:border-black px-4 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
+              className="md:hidden p-2 text-black"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              {isDarkMode ? (
-                <Sun className="w-4 h-4" />
+              {mobileMenuOpen ? (
+                <XMarkIcon className="w-6 h-6" />
               ) : (
-                <Moon className="w-4 h-4" />
+                <Bars3Icon className="w-6 h-6" />
               )}
-              <span>{isDarkMode ? "Light" : "Dark"}</span>
             </button>
-          )}
+
+            {showThemeToggle && (
+              <button
+                type="button"
+                onClick={() => setIsDarkMode((prev) => !prev)}
+                aria-label="Toggle light and dark mode"
+                className="bg-[#F5F5F5] text-[#333333] hover:bg-[#EBEBEB] hover:text-black px-3 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
+              >
+                {isDarkMode ? (
+                  <Sun className="w-4 h-4" />
+                ) : (
+                  <Moon className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">
+                  {isDarkMode ? "Light" : "Dark"}
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
