@@ -216,7 +216,7 @@ export default function CreateProductModal({
           />
 
           <motion.div
-            className="assets-modal-panel assets-create-product-panel relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
+            className="assets-modal-panel assets-create-product-panel relative w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -224,7 +224,7 @@ export default function CreateProductModal({
           >
             <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
               <div className="flex items-center gap-3">
-                <div className="assets-modal-icon flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-white">
+                <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
                   <Package className="h-5 w-5" />
                 </div>
                 <div>
@@ -242,7 +242,7 @@ export default function CreateProductModal({
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="assets-modal-body space-y-6 px-6 py-6">
+            <form onSubmit={handleSubmit} className="assets-modal-body space-y-5 px-6 py-6">
               {formError && (
                 <div className="assets-modal-error flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   <AlertCircle className="h-4 w-4" />
@@ -260,7 +260,7 @@ export default function CreateProductModal({
                     type="text"
                     value={productName}
                     onChange={(event) => setProductName(event.target.value)}
-                    className="assets-modal-input mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                    className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
                     placeholder="Enter product name"
                     maxLength={100}
                   />
@@ -278,14 +278,14 @@ export default function CreateProductModal({
                       }
                     }}
                     className={cn(
-                      "assets-modal-upload relative aspect-[9/16] h-[60vh] max-h-[560px] w-auto max-w-full mx-auto overflow-hidden rounded-2xl border-2 border-dashed transition",
+                      "assets-modal-upload relative mx-auto w-full max-w-[520px] aspect-[4/5] max-h-[520px] overflow-hidden rounded-2xl border-2 border-dashed transition",
                       imagePreview
-                        ? "border-gray-200 bg-gray-900/5"
-                        : "border-gray-300 bg-gray-50 hover:border-gray-400"
+                        ? "border-gray-300 bg-[#F8F8F8]"
+                        : "border-gray-300 bg-[#FAFAFA] hover:border-gray-400"
                     )}
                   >
                     <div className="absolute left-3 top-3">
-                      <span className="assets-modal-chip text-xs font-semibold px-3 py-1 rounded-full bg-gray-200 text-gray-700">
+                      <span className="assets-modal-chip rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
                         Waiting for photo
                       </span>
                     </div>
@@ -308,9 +308,9 @@ export default function CreateProductModal({
                       </>
                     ) : (
                       <div className="assets-modal-upload-empty flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-600">
-                        <Upload className="mb-3 h-6 w-6 text-gray-400" />
+                        <Upload className="mb-3 h-7 w-7 text-gray-400" />
                         <div className="w-full max-w-[280px]">
-                          <p className="assets-modal-upload-title font-semibold text-gray-900 leading-5">
+                          <p className="assets-modal-upload-title text-base font-semibold text-gray-900 leading-6">
                             Drop a product photo or click to browse
                           </p>
                           <p className="assets-modal-helper mt-2 text-xs text-gray-500 leading-5">
@@ -352,7 +352,7 @@ export default function CreateProductModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="assets-modal-secondary flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                  className="assets-modal-secondary flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-50"
                   disabled={isCreating}
                 >
                   Cancel
@@ -360,7 +360,7 @@ export default function CreateProductModal({
                 <button
                   type="submit"
                   disabled={!canSubmit}
-                  className="assets-modal-primary flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-40"
+                  className="assets-modal-primary flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40"
                 >
                   {(isCreating || isUploading) && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isCreating ? (isUploading ? 'Uploading photo…' : 'Creating…') : 'Save Product'}

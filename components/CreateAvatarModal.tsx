@@ -166,7 +166,7 @@ export default function CreateAvatarModal({
 
           {/* Modal Card */}
           <motion.div
-            className="assets-modal-panel assets-create-avatar-panel relative bg-white rounded-xl shadow-lg border border-gray-200 w-full max-w-md mx-auto"
+            className="assets-modal-panel assets-create-avatar-panel relative mx-auto w-full max-w-xl rounded-2xl border border-gray-200 bg-white shadow-2xl"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -175,11 +175,11 @@ export default function CreateAvatarModal({
             {/* Header */}
             <div className="assets-modal-header flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="assets-modal-icon w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-                  <UserCircle className="w-4 h-4 text-white" />
+                <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black">
+                  <UserCircle className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="assets-modal-title text-lg font-semibold text-gray-900">Add New Avatar</h3>
+                  <h3 className="assets-modal-title text-xl font-semibold text-gray-900">Add New Avatar</h3>
                   <p className="assets-modal-subtitle text-sm text-gray-600">Upload character photo with a name</p>
                 </div>
               </div>
@@ -193,13 +193,13 @@ export default function CreateAvatarModal({
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="assets-modal-body p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="assets-modal-body space-y-5 p-6">
               {/* Portrait Examples */}
-              <div className="assets-modal-card rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div className="assets-modal-card rounded-xl border border-gray-200 bg-[#FAFAFA] p-4">
                 <h4 className="assets-modal-card-title text-sm font-semibold text-gray-800 mb-3">Portrait Photo Examples</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col items-center">
-                    <div className="assets-modal-example-good w-24 h-24 rounded-full overflow-hidden border-2 border-green-500 shadow-sm mb-2">
+                    <div className="assets-modal-example-good mb-2 h-24 w-24 overflow-hidden rounded-full border-2 border-gray-300 shadow-sm">
                       <Image
                         src={GOOD_EXAMPLE_URL}
                         alt="Good example"
@@ -208,10 +208,10 @@ export default function CreateAvatarModal({
                         className="object-cover w-full h-full"
                       />
                     </div>
-                    <span className="assets-modal-example-label text-xs font-medium text-green-700">Good Example</span>
+                    <span className="assets-modal-example-label text-xs font-medium text-gray-700">Good Example</span>
                   </div>
                   <div className="flex flex-col items-center">
-                    <div className="assets-modal-example-bad w-24 h-24 rounded-full overflow-hidden border-2 border-red-500 shadow-sm mb-2">
+                    <div className="assets-modal-example-bad mb-2 h-24 w-24 overflow-hidden rounded-full border-2 border-gray-300 shadow-sm">
                       <Image
                         src={BLURRY_EXAMPLE_URL}
                         alt="Bad example (blurry)"
@@ -220,7 +220,7 @@ export default function CreateAvatarModal({
                         className="object-cover w-full h-full"
                       />
                     </div>
-                    <span className="assets-modal-example-label text-xs font-medium text-red-700">Bad Example (Blurry)</span>
+                    <span className="assets-modal-example-label text-xs font-medium text-gray-700">Bad Example (Blurry)</span>
                   </div>
                 </div>
                 <p className="assets-modal-helper text-xs text-gray-500 mt-3">
@@ -238,7 +238,7 @@ export default function CreateAvatarModal({
                   type="text"
                   value={avatarName}
                   onChange={(e) => setAvatarName(e.target.value)}
-                  className="assets-modal-input w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-colors"
+                  className="assets-modal-input w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
                   placeholder="e.g., Founder, Model, Demo Character"
                   disabled={isCreating}
                   maxLength={255}
@@ -253,7 +253,7 @@ export default function CreateAvatarModal({
                 <div className="space-y-3">
                   {avatarPreview ? (
                     <div className="relative">
-                      <div className="assets-modal-preview w-full h-48 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center p-4">
+                      <div className="assets-modal-preview flex h-56 w-full items-center justify-center rounded-xl border border-gray-200 bg-[#FAFAFA] p-4">
                         <Image
                           src={avatarPreview}
                           alt="Avatar preview"
@@ -268,7 +268,7 @@ export default function CreateAvatarModal({
                           setAvatarFile(null);
                           setAvatarPreview(null);
                         }}
-                        className="assets-modal-thumb-remove absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                        className="assets-modal-thumb-remove absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-black"
                         disabled={isCreating}
                       >
                         <X className="w-3 h-3" />
@@ -283,9 +283,9 @@ export default function CreateAvatarModal({
                         className="hidden"
                         disabled={isCreating}
                       />
-                      <div className="assets-modal-upload w-full h-48 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-gray-400 cursor-pointer transition-colors">
-                        <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                        <p className="text-sm text-gray-600">Click to upload avatar photo</p>
+                      <div className="assets-modal-upload flex h-56 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-[#FAFAFA] transition-colors hover:border-gray-400">
+                        <Upload className="mb-2 h-8 w-8 text-gray-400" />
+                        <p className="text-sm font-medium text-gray-900">Click to upload avatar photo</p>
                         <p className="assets-modal-helper text-xs text-gray-500">PNG, JPG up to 8MB</p>
                       </div>
                     </label>
@@ -299,11 +299,11 @@ export default function CreateAvatarModal({
               )}
 
               {/* Action Buttons */}
-              <div className="assets-modal-actions flex gap-3 pt-4">
+              <div className="assets-modal-actions flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="assets-modal-secondary flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="assets-modal-secondary flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
                   disabled={isCreating}
                 >
                   Cancel
@@ -311,7 +311,7 @@ export default function CreateAvatarModal({
                 <button
                   type="submit"
                   disabled={isCreating || !avatarName.trim() || !avatarFile}
-                  className="assets-modal-primary flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  className="assets-modal-primary flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isCreating && (
                     <Loader2 className="w-4 h-4 animate-spin" />

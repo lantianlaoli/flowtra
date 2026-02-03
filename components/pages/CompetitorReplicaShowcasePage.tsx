@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import Script from 'next/script';
 import {
   SparklesIcon,
@@ -507,19 +506,31 @@ export default function CompetitorReplicaShowcasePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
               
-              {/* Image Side */}
+              {/* Video Side */}
               <div className="w-full lg:w-3/5">
-                 <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
-                    <Image
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/clone_competitor_segment_edit.png"
-                      alt="Flowtra Segment Editor Interface"
-                      width={1200}
-                      height={800}
-                      className="w-full h-auto"
-                      loading="lazy"
-                    />
-                    {/* Optional subtle gradient overlay for depth */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent pointer-events-none" />
+                 <div className="grid gap-4">
+                    <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
+                      <LazyVideoPlayer
+                        src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone-video-image-prompt.mp4"
+                        wrapperClassName="w-full"
+                        className="w-full h-auto"
+                        showControls
+                        playsInline
+                        loop
+                        autoPlay
+                      />
+                    </div>
+                    <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
+                      <LazyVideoPlayer
+                        src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone-video-video-promp.mp4"
+                        wrapperClassName="w-full"
+                        className="w-full h-auto"
+                        showControls
+                        playsInline
+                        loop
+                        autoPlay
+                      />
+                    </div>
                  </div>
               </div>
 
@@ -530,10 +541,10 @@ export default function CompetitorReplicaShowcasePage() {
                       Granular Control
                     </div>
                     <h2 className="text-3xl md:text-4xl font-bold text-black mb-4 leading-tight">
-                       Fine-Tune Every Shot
+                       Prompt Control for Viral Clone
                     </h2>
                     <p className="text-gray-600 text-lg leading-relaxed">
-                       Don&apos;t just clone—perfect it. Our advanced Segment Editor gives you complete control over each shot in the sequence.
+                      Keep the same proven structure, then customize each prompt detail for your product and audience.
                     </p>
                  </div>
                  
@@ -543,8 +554,8 @@ export default function CompetitorReplicaShowcasePage() {
                           <Target className="w-5 h-5 text-purple-600" />
                        </div>
                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">Custom First Frames</h3>
-                          <p className="text-gray-600 mt-1">Upload or generate specific starting images for each segment to guide the AI&apos;s visual consistency.</p>
+                          <h3 className="text-lg font-semibold text-gray-900">@ Mentions in Image Prompt</h3>
+                          <p className="text-gray-600 mt-1">Type <span className="font-semibold text-black">@</span> to quickly insert people, products, or pets into the image prompt without manual rewriting.</p>
                        </div>
                     </div>
                     
@@ -553,9 +564,9 @@ export default function CompetitorReplicaShowcasePage() {
                           <Copy className="w-5 h-5 text-blue-600" />
                        </div>
                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">Prompt Engineering</h3>
-                          <p className="text-gray-600 mt-1">Edit the AI-generated prompts directly. Tweak character details, lighting, and action descriptions.</p>
-                       </div>
+                          <h3 className="text-lg font-semibold text-gray-900">Fully Custom Video Prompt</h3>
+                          <p className="text-gray-600 mt-1">Write your own video prompt end-to-end, including background, language, camera movement, and shot-level motion style.</p>
+                        </div>
                     </div>
 
                     <div className="flex gap-4 items-start">
@@ -563,9 +574,9 @@ export default function CompetitorReplicaShowcasePage() {
                           <Sparkles className="w-5 h-5 text-green-600" />
                        </div>
                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">Motion & Camera</h3>
-                          <p className="text-gray-600 mt-1">Refine camera movements and subject motion to ensure smooth transitions between shots.</p>
-                       </div>
+                          <h3 className="text-lg font-semibold text-gray-900">Scene-Level Flexibility</h3>
+                          <p className="text-gray-600 mt-1">Adjust each segment independently so your final ad fits platform style, pacing, and conversion goals.</p>
+                        </div>
                     </div>
                  </div>
 
