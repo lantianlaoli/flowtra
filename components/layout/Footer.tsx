@@ -72,6 +72,11 @@ export default function Footer() {
                   Upload Assets to URL
                 </Link>
               </li>
+              <li>
+                <Link href="/tools/roas-calculator" className="text-[14px] text-[#666666] hover:text-black transition-colors">
+                  ROAS Calculator
+                </Link>
+              </li>
             </ul>
           </nav>
 
