@@ -1144,26 +1144,26 @@ export default function SegmentFormColumn({
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                className="clone-editor-primary inline-flex items-center justify-center gap-2 rounded-lg bg-black text-white py-2.5 text-sm font-semibold cursor-pointer hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-black"
+                className="clone-editor-primary inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-black px-5 text-base font-semibold text-white cursor-pointer hover:bg-gray-900 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-black"
                 disabled={!regenEnabled || submittingPhoto || photoPromptTooLong}
                 onClick={() => handleRegenerate('photo')}
               >
                 {submittingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
                 Generate Image
-                <span className="rounded-full border border-white/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                  Free
+                <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                  FREE
                 </span>
               </button>
               <button
                 type="button"
-                className="clone-editor-secondary inline-flex items-center justify-center gap-2 rounded-lg border border-[#E5E5E5] bg-white py-2.5 text-sm font-semibold text-black cursor-pointer hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+                className="clone-editor-secondary inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-5 text-base font-semibold text-black cursor-pointer hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
                 disabled={!regenEnabled || submittingVideo}
                 onClick={() => handleRegenerate('video')}
               >
                 {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <VideoIcon className="w-4 h-4" />}
                 Generate Video
-                <span className="rounded-full border border-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
-                  Free
+                <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                  FREE
                 </span>
               </button>
               {!regenEnabled && (

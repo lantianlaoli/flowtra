@@ -30,7 +30,6 @@ import {
   PencilLine,
   Clapperboard,
   Layers,
-  MousePointerClick,
   CirclePause,
   ArrowRight,
   ThumbsUp,
@@ -149,7 +148,7 @@ export default function GenerationProgressDisplay({
   onSegmentSelect,
   onMerge,
   onReview,
-  reviewCtaLabel = 'Review & Generate',
+  reviewCtaLabel = 'Edit',
   onSegmentRegenerate,
   projectType
 }: GenerationProgressDisplayProps) {
@@ -478,18 +477,18 @@ function GenerationCard({
             {showPreviewAction && (
               <button
                 onClick={() => onReview?.(generation)}
-                className="generation-progress-action inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-[13px] font-semibold hover:bg-gray-800 transition-all shadow-sm"
+                className="generation-progress-action inline-flex h-11 items-center gap-2 rounded-xl bg-black px-5 text-base font-bold text-white hover:bg-gray-800 transition-all shadow-sm"
               >
-                <Eye className="w-4 h-4" />
+                <PencilLine className="w-4 h-4" />
                 {reviewCtaLabel}
               </button>
             )}
             {primaryActionLabel && onPrimaryAction && (
               <button
                 onClick={() => onPrimaryAction(generation)}
-                className="generation-progress-action inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
+                className="generation-progress-action inline-flex h-11 items-center gap-2 rounded-xl bg-black px-5 text-base font-bold text-white hover:bg-gray-800 transition-all shadow-sm"
               >
-                <MousePointerClick className="w-3.5 h-3.5" />
+                <PencilLine className="w-4 h-4" />
                 <span>{primaryActionLabel}</span>
               </button>
             )}
@@ -500,10 +499,10 @@ function GenerationCard({
                     setEditorReadOnly(false);
                     setShowSegmentEditor(true);
                   }}
-                  className="generation-progress-edit inline-flex items-center gap-2 px-4 py-2 border border-transparent rounded-xl text-[13px] font-medium transition-all bg-black text-white hover:bg-gray-800 shadow-sm"
+                  className="generation-progress-edit inline-flex h-11 items-center gap-2 rounded-xl bg-black px-5 text-base font-bold text-white transition-all hover:bg-gray-800 shadow-sm"
                 >
-                  <MousePointerClick className="w-3.5 h-3.5" />
-                  <span>Edit & Generate</span>
+                  <PencilLine className="w-4 h-4" />
+                  <span>Edit</span>
                 </button>
               </div>
             )}

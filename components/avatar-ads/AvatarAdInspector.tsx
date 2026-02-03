@@ -6,9 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, X, Loader2,
   Image as ImageIcon, Film, User, MapPin, Zap, Palette,
-  Camera, Layout, Sun, Music, MessageSquare, Mic, RefreshCw, Award
+  Camera, Layout, Sun, Music, MessageSquare, Mic, RefreshCw, CheckCircle
 } from 'lucide-react';
-import { GiBanana } from 'react-icons/gi';
 import { useToast } from '@/contexts/ToastContext';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { countDialogueWords } from '@/lib/avatar-ads-dialogue';
@@ -430,7 +429,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                       )}
                       {autoSaveStatus === 'saved' && (
                         <>
-                          <Award className="avatar-ads-editor-status-icon w-3.5 h-3.5 text-green-600" />
+                          <CheckCircle className="avatar-ads-editor-status-icon w-3.5 h-3.5 text-green-600" />
                           <span className="avatar-ads-editor-status-text text-xs text-green-600 font-medium">Saved</span>
                         </>
                       )}
@@ -511,12 +510,6 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                               <p className="avatar-ads-editor-helper text-[11px] text-gray-500 pl-6">
                                 Adjust prompt to match expectations.
                               </p>
-                            </div>
-                            <div className="avatar-ads-editor-chip flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-yellow-50 border border-yellow-100 shadow-sm">
-                              <GiBanana className="w-3.5 h-3.5 text-yellow-600" />
-                              <span className="text-[10px] font-medium text-yellow-700 tracking-wide">
-                                Nano banana Pro: Unlimited Free
-                              </span>
                             </div>
                           </div>
                           <textarea
@@ -630,28 +623,23 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
 
               {/* Footer */}
               <div className="avatar-ads-editor-footer px-6 py-4 border-t border-gray-100 bg-white flex items-center justify-end gap-3 shrink-0">
-                <button
-                  onClick={onClose}
-                  className="avatar-ads-editor-secondary px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
-                  disabled={submitting}
-                >
-                  Cancel
-                </button>
-
                 {/* Regenerate Image Button - Moved Here */}
                 <button
                    onClick={handleRegenerateImageClick}
                    disabled={submitting || isRegeneratingImage}
-                   className="avatar-ads-editor-secondary px-4 py-2 rounded-md border border-gray-200 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                   className="avatar-ads-editor-secondary h-12 px-5 rounded-lg border border-gray-300 text-base font-semibold text-gray-900 hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm"
                 >
                    <RefreshCw className={`w-4 h-4 ${isRegeneratingImage ? 'animate-spin' : ''}`} />
                    Regenerate Image
+                   <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                     FREE
+                   </span>
                 </button>
 
                 <button
                   onClick={handleConfirm}
                   disabled={submitting || loading || !project}
-                  className="avatar-ads-editor-primary px-6 py-2 rounded-md bg-black text-sm font-medium text-white hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="avatar-ads-editor-primary h-12 px-6 rounded-lg bg-black text-base font-semibold text-white hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
                   {submitting ? (
                     <>
@@ -660,7 +648,11 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                     </>
                   ) : (
                     <>
+                      <Film className="w-4 h-4" />
                       Generate Video
+                      <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                        FREE
+                      </span>
                     </>
                   )}
                 </button>

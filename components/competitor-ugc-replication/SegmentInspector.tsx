@@ -1029,26 +1029,26 @@ export default function SegmentInspector({
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 text-base font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={!regenEnabled || !hasPhotoUpdates || submittingPhoto || photoPromptTooLong}
                   onClick={() => handleRegenerate('photo')}
                 >
                   {submittingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
                   Generate Image
-                  <span className="rounded-full border border-white/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                    Free
+                  <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                    FREE
                   </span>
                 </button>
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-5 text-base font-semibold text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={!regenEnabled || !hasVideoUpdates || submittingVideo}
                   onClick={() => handleRegenerate('video')}
                 >
                   {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <VideoIcon className="w-4 h-4" />}
                   Generate Video
-                  <span className="rounded-full border border-gray-900/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-900">
-                    Free
+                  <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                    FREE
                   </span>
                 </button>
                 {!regenEnabled && (

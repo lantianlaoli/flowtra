@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   ArrowRightIcon
@@ -143,50 +142,52 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* Tutorial Section */}
-      <section className="py-16 lg:py-24 bg-gray-50">
+      <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left: Steps */}
             <div className="space-y-8">
               <h2 className="text-3xl md:text-4xl font-bold text-black mb-6">
-                Create in 3 Simple Steps
+                Import Videos in 3 Ways
               </h2>
               <div className="space-y-6">
                 {/* Step 1 */}
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">1</div>
                   <div>
-                    <h3 className="text-xl font-semibold text-black">Enter Creator Name</h3>
-                    <p className="text-gray-600 mt-1">Simply type a creator&apos;s name or paste their TikTok URL. AI finds their viral content instantly.</p>
+                    <h3 className="text-xl font-semibold text-black">Paste TikTok URL</h3>
+                    <p className="text-gray-600 mt-1">Drop in any TikTok video link to import a reference clip in seconds.</p>
                   </div>
                 </div>
                 {/* Step 2 */}
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">2</div>
                   <div>
-                    <h3 className="text-xl font-semibold text-black">Edit First Frame</h3>
-                    <p className="text-gray-600 mt-1">Preview and adjust character position, product placement, and scene details. No more guessing - see exactly what you&apos;ll get.</p>
+                    <h3 className="text-xl font-semibold text-black">Upload Local Video</h3>
+                    <p className="text-gray-600 mt-1">Import MP4 files directly from your device when you already have reference material.</p>
                   </div>
                 </div>
                 {/* Step 3 */}
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">3</div>
                   <div>
-                    <h3 className="text-xl font-semibold text-black">Generate Video</h3>
-                    <p className="text-gray-600 mt-1">AI swaps the person and product while preserving the exact movements and actions that made it viral.</p>
+                    <h3 className="text-xl font-semibold text-black">Import from Creator Sources</h3>
+                    <p className="text-gray-600 mt-1">Pick saved clips from your creator library and start motion swap without re-uploading.</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Right: Screenshot */}
+            {/* Right: Video */}
             <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-200">
-              <Image
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/motion_swap_creator.png"
-                alt="Creator Name Input Interface"
-                width={800}
-                height={600}
+              <LazyVideoPlayer
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/import-paths.mp4"
+                wrapperClassName="w-full"
                 className="w-full h-auto"
+                showControls={false}
+                playsInline
+                loop
+                autoPlay
               />
             </div>
           </div>
@@ -197,20 +198,22 @@ export default function MotionSwapShowcasePage() {
       <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left: Screenshot */}
+            {/* Left: Video */}
             <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-200 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
-              <Image
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/motion_swap_creator.png"
-                alt="Creator Name Input"
-                width={800}
-                height={600}
+              <LazyVideoPlayer
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/import-tiktok-name.mp4"
+                wrapperClassName="w-full"
                 className="w-full h-auto"
+                showControls={false}
+                playsInline
+                loop
+                autoPlay
               />
             </div>
             {/* Right: Text */}
             <div className="space-y-6">
               <h2 className="text-3xl md:text-4xl font-bold text-black mb-6">
-                Clone Viral Ads Instantly
+                Import Viral Videos by Creator Name
               </h2>
               <ul className="space-y-4">
                 <li className="flex items-start gap-3">
@@ -218,8 +221,8 @@ export default function MotionSwapShowcasePage() {
                     <Check className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-xl text-black">Creator Name Search</h3>
-                    <p className="text-gray-600">Just enter a creator&apos;s name. No need to manually find or download their videos.</p>
+                    <h3 className="font-semibold text-xl text-black">Search by Creator Name</h3>
+                    <p className="text-gray-600">Type a creator name and instantly pull their viral reference videos without manual hunting.</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -227,8 +230,8 @@ export default function MotionSwapShowcasePage() {
                     <Check className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-xl text-black">Instant Analysis</h3>
-                    <p className="text-gray-600">AI automatically identifies viral patterns, movements, and key elements worth replicating.</p>
+                    <h3 className="font-semibold text-xl text-black">Start Cloning in Seconds</h3>
+                    <p className="text-gray-600">In just a few seconds, begin cloning the ad or swap in a different actor and product to launch a new variant.</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -236,8 +239,8 @@ export default function MotionSwapShowcasePage() {
                     <Check className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-xl text-black">Motion Preservation</h3>
-                    <p className="text-gray-600">Keep the exact actions, gestures, and timing that made the original content successful.</p>
+                    <h3 className="font-semibold text-xl text-black">Keep Viral Motion DNA</h3>
+                    <p className="text-gray-600">Preserve the original motion, pacing, and camera behavior that made the reference clip perform.</p>
                   </div>
                 </li>
               </ul>
@@ -256,7 +259,7 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* Feature 2: Frame Editing */}
-      <section className="py-16 lg:py-24 bg-gray-50">
+      <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left: Text */}
@@ -303,14 +306,16 @@ export default function MotionSwapShowcasePage() {
                 </Link>
               </div>
             </div>
-            {/* Right: Screenshot */}
+            {/* Right: Video */}
             <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-200 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
-              <Image
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/motion_swap_edit.png"
-                alt="Frame Editing Interface"
-                width={800}
-                height={600}
+              <LazyVideoPlayer
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/motion-swap.mp4"
+                wrapperClassName="w-full"
                 className="w-full h-auto"
+                showControls={false}
+                playsInline
+                loop
+                autoPlay
               />
             </div>
           </div>
@@ -340,7 +345,7 @@ export default function MotionSwapShowcasePage() {
                       src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/${comparison.refer}`}
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
-                      showControls
+                      showControls={false}
                       playsInline
                       loop
                     />
@@ -358,7 +363,7 @@ export default function MotionSwapShowcasePage() {
                       src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/${comparison.result}`}
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
-                      showControls
+                      showControls={false}
                       playsInline
                       loop
                     />
@@ -371,7 +376,7 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* Key Features Section */}
-      <section className="py-16 lg:py-24 bg-gray-50">
+      <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">

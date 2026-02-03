@@ -346,7 +346,12 @@ export default function ConfigPopover({
             </div>
 
             {/* Content */}
-            <div className="config-popover-content p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div
+              className={cn(
+                'config-popover-content p-4 space-y-4',
+                isMobile ? 'max-h-[70vh] overflow-y-auto' : 'overflow-visible'
+              )}
+            >
               {isPhotoMode ? renderPhotoOptions() : renderVideoOptions()}
 
               {!hideLanguageSelector && selectedLanguage && onLanguageChange && (

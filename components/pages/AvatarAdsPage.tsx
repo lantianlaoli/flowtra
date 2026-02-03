@@ -330,16 +330,20 @@ const formatDurationLabel = (seconds: number) => {
     checkKieCredits();
   }, []);
 
-  useEffect(() => {
-    const checkOverflow = () => {
-      if (textareaRef.current) {
-        setShowExpandCollapseIcon(textareaRef.current.scrollHeight > textareaRef.current.clientHeight);
-      }
-    };
-    checkOverflow(); // Initial check
-    window.addEventListener('resize', checkOverflow); // Check on window resize
-    return () => window.removeEventListener('resize', checkOverflow);
-  }, [customDialogue]); // Re-run when customDialogue changes
+  const adjustDialogueTextareaHeight = useCallback(() => {
+    const target = textareaRef.current;
+    if (!target) return;
+    target.style.height = 'auto';
+    const maxHeight = isTextareaExpanded ? 180 : 24;
+    target.style.height = `${Math.min(target.scrollHeight, maxHeight)}px`;
+  }, [isTextareaExpanded]);
+
+  const hasMultiLineDialogue = useCallback(() => {
+    const target = textareaRef.current;
+    if (!target) return false;
+    const lineHeight = Number.parseFloat(window.getComputedStyle(target).lineHeight) || 20;
+    return target.scrollHeight > lineHeight * 1.45;
+  }, []);
 
   // Show toast notification when generation starts
   const handleStartGeneration = async () => {
@@ -451,11 +455,10 @@ const formatDurationLabel = (seconds: number) => {
 
   useEffect(() => {
     const checkState = () => {
-      if (!textareaRef.current) return;
+      const target = textareaRef.current;
+      if (!target) return;
 
-      const scrollHeight = textareaRef.current.scrollHeight;
-      // Base height is approx 48px. If content exceeds ~54px, it's multi-line.
-      const isContentLong = scrollHeight > 54;
+      const isContentLong = hasMultiLineDialogue();
 
       // 1. Icon Visibility: Always show if content is long enough to warrant collapsing/expanding
       setShowExpandCollapseIcon(isContentLong);
@@ -471,6 +474,8 @@ const formatDurationLabel = (seconds: number) => {
         if (isTextareaExpanded) setIsTextareaExpanded(false);
         userHasManuallyCollapsed.current = false;
       }
+
+      adjustDialogueTextareaHeight();
     };
 
     checkState(); // Initial check
@@ -489,7 +494,11 @@ const formatDurationLabel = (seconds: number) => {
       }
       window.removeEventListener('resize', checkState);
     };
-  }, [customDialogue, isTextareaExpanded]); // Re-run when customDialogue changes
+  }, [customDialogue, isTextareaExpanded, adjustDialogueTextareaHeight, hasMultiLineDialogue]); // Re-run when dialogue or expansion changes
+
+  useEffect(() => {
+    adjustDialogueTextareaHeight();
+  }, [adjustDialogueTextareaHeight, customDialogue]);
 
   // Click outside to collapse
   useEffect(() => {
@@ -999,7 +1008,6 @@ const formatDurationLabel = (seconds: number) => {
                           </>
                         }
                         onReview={(generation) => setInspectorProjectId((generation as AvatarGeneration).projectId!)}
-                        reviewCtaLabel="Preview"
                         projectType="avatar-ads"
                       />
                     </div>
@@ -1187,26 +1195,40 @@ const formatDurationLabel = (seconds: number) => {
                                       ref={containerRef}
                                       className={`
                                         absolute bottom-0 left-0 right-0 bg-background border rounded-lg px-4 py-3 flex flex-col justify-center
-                                        transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] origin-bottom overflow-hidden
+                                        transition-[max-height,box-shadow,border-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] origin-bottom overflow-hidden will-change-[max-height]
                                         ${isTextareaExpanded 
                                           ? 'max-h-[240px] shadow-xl border-foreground/20 z-50' 
                                           : 'max-h-[48px] shadow-sm border-border z-0'
                                         }
                                         focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground/30
                                       `}
+                                      onMouseDown={(event) => {
+                                        if ((event.target as HTMLElement).closest('button')) return;
+                                        if (!textareaRef.current) return;
+                                        textareaRef.current.focus();
+                                        if (hasMultiLineDialogue()) {
+                                          setIsTextareaExpanded(true);
+                                          userHasManuallyCollapsed.current = false;
+                                        }
+                                      }}
                                     >
                                       <textarea
                                         ref={textareaRef}
                                         value={customDialogue}
                                         onChange={(e) => handleCustomDialogueChange(e.target.value)}
-                                        onInput={(e) => {
-                                          e.currentTarget.style.height = 'auto';
-                                          e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
-                                        }}
+                                        onInput={adjustDialogueTextareaHeight}
                                         placeholder="Type your custom script here (AI will generate if left blank)"
                                         rows={1}
-                                        className={`w-full bg-transparent border-none !outline-none !ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-sm text-foreground placeholder:text-muted-foreground pr-8 resize-none overflow-y-auto leading-relaxed`}
-                                        style={{ height: 'auto', minHeight: '24px' }}
+                                        onFocus={() => {
+                                          if (hasMultiLineDialogue()) {
+                                            setIsTextareaExpanded(true);
+                                            userHasManuallyCollapsed.current = false;
+                                          }
+                                        }}
+                                        className={`w-full bg-transparent border-none !outline-none !ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-sm text-foreground placeholder:text-muted-foreground pr-8 resize-none leading-relaxed ${
+                                          isTextareaExpanded ? 'overflow-y-auto' : 'overflow-y-hidden'
+                                        }`}
+                                        style={{ height: 'auto', minHeight: '24px', maxHeight: isTextareaExpanded ? '180px' : '24px' }}
                                       />
                                       <div className="absolute bottom-2.5 right-2 flex items-center bg-background/80 backdrop-blur-sm rounded-md">
                                         {showExpandCollapseIcon && (

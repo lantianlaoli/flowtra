@@ -226,7 +226,7 @@ export default function CompetitorReplicaShowcasePage() {
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_origin.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
-                      showControls
+                      showControls={false}
                       playsInline
                       loop
                     />
@@ -242,7 +242,7 @@ export default function CompetitorReplicaShowcasePage() {
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_result.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
-                      showControls
+                      showControls={false}
                       playsInline
                       loop
                     />
@@ -489,7 +489,7 @@ export default function CompetitorReplicaShowcasePage() {
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_parse.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
-                      showControls
+                      showControls={false}
                       playsInline
                       loop
                       autoPlay
@@ -514,7 +514,7 @@ export default function CompetitorReplicaShowcasePage() {
                         src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone-video-image-prompt.mp4"
                         wrapperClassName="w-full"
                         className="w-full h-auto"
-                        showControls
+                        showControls={false}
                         playsInline
                         loop
                         autoPlay
@@ -525,7 +525,7 @@ export default function CompetitorReplicaShowcasePage() {
                         src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone-video-video-promp.mp4"
                         wrapperClassName="w-full"
                         className="w-full h-auto"
-                        showControls
+                        showControls={false}
                         playsInline
                         loop
                         autoPlay
