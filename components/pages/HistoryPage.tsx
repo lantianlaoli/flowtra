@@ -41,7 +41,6 @@ interface CompetitorUgcReplicationItem {
   isSegmented?: boolean;
   segmentCount?: number;
   videoDuration?: string;
-  videoQuality?: string;
   language?: string;
   customScript?: string;
   useCustomScript?: boolean;

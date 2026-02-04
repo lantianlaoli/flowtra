@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Zap, Coins, Calendar, Film, ThumbsUp, ThumbsDown, Send, ArrowLeft } from 'lucide-react';
+import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Coins, Calendar, Film, ThumbsUp, ThumbsDown, Send, ArrowLeft } from 'lucide-react';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -33,7 +33,6 @@ interface CompetitorUgcReplicationItem {
   isSegmented?: boolean;
   segmentCount?: number;
   videoDuration?: string;
-  videoQuality?: string;
   language?: string;
   customScript?: string;
   useCustomScript?: boolean;
@@ -117,6 +116,7 @@ const getModelDisplayName = (model: string): string => {
   const modelNames: Record<string, string> = {
     'veo3': 'Veo3.1',
     'veo3_fast': 'Veo3.1 fast',
+    'seedance_1_5_pro': 'Seedance 1.5 Pro',
     'sora2': 'Sora2 (Legacy)',
     'sora2_pro': 'Sora2 Pro (Legacy)',
     'grok': 'Grok (Legacy)',
@@ -190,6 +190,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [showTikTokPanel, setShowTikTokPanel] = useState(false);
+  const isSeedanceModel = item?.videoModel === 'seedance_1_5_pro';
 
   const toggleShot = (shotKey: string) => {
     setExpandedShots(prev => {
@@ -552,6 +553,15 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
     }
   }, [item, supportsHighRes]);
 
+  useEffect(() => {
+    if (!item) return;
+    if (isSeedanceModel) {
+      setSelectedResolution('1080p');
+      return;
+    }
+    setSelectedResolution('720p');
+  }, [item?.id, isSeedanceModel]);
+
   const canDownload = !!item && item.status === 'completed' && item.videoUrl;
   const canPublishToTikTok = useMemo(() => {
     if (!item) return false;
@@ -572,11 +582,22 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   }, [isHighResReady]);
 
   if (!item) return null;
-  const resolutionOptions: Array<{ value: HighResResolution; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-    { value: '720p', label: '720p Original', icon: Film },
-    { value: '1080p', label: '1080p', icon: Maximize },
-    { value: '4k', label: '4K Ultra', icon: Sparkles }
-  ];
+  const resolutionOptions: Array<{
+    value: HighResResolution;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    disabled?: boolean;
+    note?: string;
+  }> = isSeedanceModel
+    ? [
+        { value: '1080p', label: '1080p', icon: Maximize },
+        { value: '4k', label: '4K Ultra', icon: Sparkles, disabled: true, note: 'Not supported for Seedance 1.5 Pro' }
+      ]
+    : [
+        { value: '720p', label: '720p Original', icon: Film },
+        { value: '1080p', label: '1080p', icon: Maximize },
+        { value: '4k', label: '4K Ultra', icon: Sparkles }
+      ];
 
   // Aspect ratio class - ensure video fills container properly
   const getAspectRatioClass = () => {
@@ -706,15 +727,6 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                             value={item.language.toUpperCase()} 
                           />
                         )}
-                        {isCompetitorUgcReplication(item) && item.videoQuality && (
-                          <CompactParam 
-                            icon={<Zap className="w-3.5 h-3.5" />} 
-                            label="Quality" 
-                            value={item.videoQuality} 
-                            capitalize 
-                          />
-                        )}
-
                         <CompactParam 
                           icon={<Coins className="w-3.5 h-3.5" />} 
                           label="Credits" 
@@ -845,17 +857,30 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                                   <button
                                     key={option.value}
                                     type="button"
+                                    disabled={option.disabled}
                                     onClick={() => {
+                                      if (option.disabled) return;
                                       setSelectedResolution(option.value);
                                       setResolutionMenuOpen(false);
                                     }}
                                     className={cn(
-                                      'my-ads-details-menu-item flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
-                                      isSelected ? 'bg-black text-white' : 'text-black hover:bg-[#F7F7F7]'
+                                      'my-ads-details-menu-item flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm',
+                                      option.disabled
+                                        ? 'cursor-not-allowed text-[#999999] bg-[#FAFAFA]'
+                                        : isSelected
+                                          ? 'bg-black text-white'
+                                          : 'text-black hover:bg-[#F7F7F7]'
                                     )}
                                   >
-                                    <Icon className={cn('h-4 w-4', isSelected ? 'text-white' : 'text-black')} />
-                                    <span>{option.label}</span>
+                                    <div className="flex items-center gap-2">
+                                      <Icon className={cn('h-4 w-4', option.disabled ? 'text-[#999999]' : isSelected ? 'text-white' : 'text-black')} />
+                                      <span>{option.label}</span>
+                                    </div>
+                                    {option.note && (
+                                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[#999999]">
+                                        Unsupported
+                                      </span>
+                                    )}
                                   </button>
                                 );
                               })}
