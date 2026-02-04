@@ -1,0 +1,557 @@
+{
+    "name": "FaceSwap Video [image generate]",
+    "nodes": [
+      {
+        "parameters": {
+          "url": "https://api.kie.ai/api/v1/jobs/recordInfo",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpBearerAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "taskId",
+                "value": "={{ $('generate image').item.json.data.taskId }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          2128,
+          -1264
+        ],
+        "id": "8d663c38-5a00-44d8-8aa1-ccd9fbc46b4a",
+        "name": "check images",
+        "retryOnFail": true,
+        "credentials": {
+          "httpBearerAuth": {
+            "id": "yFc2kwTQcwtSahn7",
+            "name": "KIE"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "5aef2416-51dd-4944-bca7-7166b0e0d372",
+                "leftValue": "={{ $json.data.state }}",
+                "rightValue": "success",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          2352,
+          -1200
+        ],
+        "id": "d3f615ef-beb3-45fc-9493-37aa59cf4871",
+        "name": "if image generate success"
+      },
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "row number",
+                "type": "number"
+              },
+              {
+                "name": "first frame image"
+              },
+              {
+                "name": "character image"
+              },
+              {
+                "name": "product image"
+              },
+              {
+                "name": "dimensions"
+              }
+            ]
+          }
+        },
+        "id": "a3eea56e-2c55-4aba-b6d7-438ed210e5f3",
+        "typeVersion": 1.1,
+        "name": "Start",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "position": [
+          1232,
+          -1200
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.kie.ai/api/v1/jobs/createTask",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpBearerAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"model\": \"nano-banana-pro\",\n  \"input\": {\n    \"prompt\": \"This is a controlled visual replacement task. Based strictly on the provided reference images, selectively replace only the corresponding elements in the reference frame:\\n\\n1) If a CHARACTER reference image is provided, replace ONLY the human subject’s identity (face, body shape, and physical appearance) to match the new character. Do NOT change clothing, outfit design, fabric, colors, patterns, fit, accessories, hairstyle (unless required by the face), pose, body position, gesture, movement, or any interaction with objects.\\n\\n2) If a PRODUCT reference image is provided, replace ONLY the product itself to match the new product exactly (shape, design, color, material, branding). Do NOT change how the product is held, positioned, oriented, scaled, or interacted with by the human.\\n\\n3) If only one of the two (character or product) is provided, modify ONLY that element and preserve everything else exactly as in the original frame.\\n\\n4) If both character and product references are provided, replace both accordingly while keeping their relative positions, interactions, and spatial relationships unchanged.\\n\\nDo NOT modify the background, environment, lighting, shadows, reflections, camera angle, framing, composition, depth of field, or image style. Do NOT add or remove any objects, props, or accessories. Preserve all original visual details, realism, texture, and image quality. The final result must look like the same scene captured by the same camera, with only the specified elements replaced.\",\n    \"image_input\": {{ JSON.stringify([\n  $json[\"first frame image\"],\n  $json[\"character image\"],\n  $json[\"product image\"]\n].filter(Boolean)) }},\n    \"aspect_ratio\": \"{{ $json.dimensions }}\",\n    \"resolution\": \"2K\",\n    \"output_format\": \"png\"\n  }\n}\n",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          1456,
+          -1200
+        ],
+        "id": "7e83cfcb-e472-4249-86ae-5f552878b3cc",
+        "name": "generate image",
+        "credentials": {
+          "httpBearerAuth": {
+            "id": "yFc2kwTQcwtSahn7",
+            "name": "KIE"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "amount": 3
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          1904,
+          -1200
+        ],
+        "id": "4c551fb1-2095-458c-a64d-c50776b043c2",
+        "name": "wait",
+        "webhookId": "254657cf-da1d-4201-a8b9-e4658429eb2b"
+      },
+      {
+        "parameters": {
+          "authentication": "serviceAccount",
+          "operation": "update",
+          "documentId": {
+            "__rl": true,
+            "value": "1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE",
+            "mode": "list",
+            "cachedResultName": "FaceSwap Video",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "gid=0",
+            "mode": "list",
+            "cachedResultName": "工作表1",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE/edit#gid=0"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "row_number": "={{ $('Start').item.json['row number'] }}",
+              "image status": "process",
+              "image task id": "={{ $json.data.taskId }}"
+            },
+            "matchingColumns": [
+              "row_number"
+            ],
+            "schema": [
+              {
+                "id": "character image",
+                "displayName": "character image",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "product image",
+                "displayName": "product image",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "first frame",
+                "displayName": "first frame",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "original video",
+                "displayName": "original video",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "image task id",
+                "displayName": "image task id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "image status",
+                "displayName": "image status",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "image ",
+                "displayName": "image ",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "video task id",
+                "displayName": "video task id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "video status",
+                "displayName": "video status",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "final video",
+                "displayName": "final video",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "row_number",
+                "displayName": "row_number",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "readOnly": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          1680,
+          -1200
+        ],
+        "id": "15b7e9ce-50fc-4137-9eef-8cd8b4583022",
+        "name": "Update row in sheet",
+        "credentials": {
+          "googleApi": {
+            "id": "v5Oy6YCuuDZMlFsN",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "authentication": "serviceAccount",
+          "operation": "update",
+          "documentId": {
+            "__rl": true,
+            "value": "1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE",
+            "mode": "list",
+            "cachedResultName": "FaceSwap Video",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "gid=0",
+            "mode": "list",
+            "cachedResultName": "工作表1",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE/edit#gid=0"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "image status": "success",
+              "image ": "={{ JSON.parse($json.data.resultJson).resultUrls[0] }}",
+              "row_number": "={{ $('Start').item.json['row number'] }}"
+            },
+            "matchingColumns": [
+              "row_number"
+            ],
+            "schema": [
+              {
+                "id": "character image",
+                "displayName": "character image",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "product image",
+                "displayName": "product image",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "first frame",
+                "displayName": "first frame",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "original video",
+                "displayName": "original video",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "image task id",
+                "displayName": "image task id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "image status",
+                "displayName": "image status",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "image ",
+                "displayName": "image ",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "video task id",
+                "displayName": "video task id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "video status",
+                "displayName": "video status",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "final video",
+                "displayName": "final video",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "row_number",
+                "displayName": "row_number",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "readOnly": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          2576,
+          -1200
+        ],
+        "id": "6f3b4f39-1b74-48cf-9211-8a8e3fe3d088",
+        "name": "Update row in sheet1",
+        "credentials": {
+          "googleApi": {
+            "id": "v5Oy6YCuuDZMlFsN",
+            "name": "Google Sheets account"
+          }
+        }
+      }
+    ],
+    "pinData": {
+      "Start": [
+        {
+          "json": {
+            "row number": 5,
+            "first frame image": "https://tempfile.redpandaai.co/kieai/127630/tools/image-uploads/image-1768979958540.png",
+            "character image": " https://i.ibb.co/hN325SX/user-default-female.png",
+            "product image": "",
+            "dimensions": "16:9"
+          },
+          "pairedItem": {
+            "item": 0
+          }
+        }
+      ]
+    },
+    "connections": {
+      "check images": {
+        "main": [
+          [
+            {
+              "node": "if image generate success",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "if image generate success": {
+        "main": [
+          [
+            {
+              "node": "Update row in sheet1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "wait",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Start": {
+        "main": [
+          [
+            {
+              "node": "generate image",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "generate image": {
+        "main": [
+          [
+            {
+              "node": "Update row in sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "wait": {
+        "main": [
+          [
+            {
+              "node": "check images",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update row in sheet": {
+        "main": [
+          [
+            {
+              "node": "wait",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "active": true,
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": false
+    },
+    "versionId": "b8e659b2-6440-4459-81b1-a2e8ebbf15fd",
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "5c9b806856444dc73dc3048b08f740d9c9783f723dd550c267d490b010e33c2d"
+    },
+    "id": "7kw684UIA8IvgrcW",
+    "tags": []
+  }

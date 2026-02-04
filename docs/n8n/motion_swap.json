@@ -1,0 +1,631 @@
+{
+    "name": "Fetch tiktok influencer posts",
+    "nodes": [
+      {
+        "parameters": {
+          "fieldToSplitOut": "data.itemList",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.splitOut",
+        "typeVersion": 1,
+        "position": [
+          128,
+          -192
+        ],
+        "id": "761e6b75-402f-42a9-96b5-9f2daedd94e4",
+        "name": "Split Out"
+      },
+      {
+        "parameters": {
+          "url": "https://tiktok-api23.p.rapidapi.com/api/user/posts",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "secUid",
+                "value": "={{ $json.userInfo.user.secUid }}"
+              },
+              {
+                "name": "count",
+                "value": "1"
+              },
+              {
+                "name": "cursor",
+                "value": "0"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-rapidapi-host",
+                "value": "tiktok-api23.p.rapidapi.com"
+              },
+              {
+                "name": "x-rapidapi-key",
+                "value": "9cd8f50679mshfb82068c03dab30p1e59c1jsne0326ef0c992"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          -96,
+          -192
+        ],
+        "id": "68803588-c3d4-48f3-93d8-3d4d53c3123a",
+        "name": "get user posts"
+      },
+      {
+        "parameters": {
+          "url": "https://tiktok-api23.p.rapidapi.com/api/user/info",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "uniqueId",
+                "value": "={{ $json[\"account url\"].split('@')[1] }}"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-rapidapi-host",
+                "value": "tiktok-api23.p.rapidapi.com"
+              },
+              {
+                "name": "x-rapidapi-key",
+                "value": "9cd8f50679mshfb82068c03dab30p1e59c1jsne0326ef0c992"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          -320,
+          -192
+        ],
+        "id": "8ca4c545-32a8-4dba-8301-865c9ec1a09f",
+        "name": "get secure id of influencer"
+      },
+      {
+        "parameters": {
+          "url": "https://tiktok-api23.p.rapidapi.com/api/download/video",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "url",
+                "value": "={{ $json.video_url }}"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-rapidapi-host",
+                "value": "tiktok-api23.p.rapidapi.com"
+              },
+              {
+                "name": "x-rapidapi-key",
+                "value": "9cd8f50679mshfb82068c03dab30p1e59c1jsne0326ef0c992"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          576,
+          -192
+        ],
+        "id": "87af46fb-79de-44c0-97e7-cf83bee517cf",
+        "name": "get download videos"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "f5e28927-40e6-4463-b9c0-b56d8144ad25",
+                "leftValue": "={{ $json.error }}",
+                "rightValue": "Video not found",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          800,
+          -192
+        ],
+        "id": "aaccf82b-6505-4a80-9901-80c00b0495c6",
+        "name": "If"
+      },
+      {
+        "parameters": {
+          "authentication": "serviceAccount",
+          "documentId": {
+            "__rl": true,
+            "value": "1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE",
+            "mode": "list",
+            "cachedResultName": "FaceSwap Video",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "gid=0",
+            "mode": "list",
+            "cachedResultName": "工作表1",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE/edit#gid=0"
+          },
+          "filtersUI": {
+            "values": [
+              {
+                "lookupColumn": "final video"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          1248,
+          -384
+        ],
+        "id": "19fa5204-646d-4893-983d-82547fc8ce76",
+        "name": "get unfinished row",
+        "credentials": {
+          "googleApi": {
+            "id": "v5Oy6YCuuDZMlFsN",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          1472,
+          -288
+        ],
+        "id": "1df1adae-0dfb-4854-a11e-090026a5c593",
+        "name": "Merge"
+      },
+      {
+        "parameters": {
+          "authentication": "serviceAccount",
+          "operation": "update",
+          "documentId": {
+            "__rl": true,
+            "value": "1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE",
+            "mode": "list",
+            "cachedResultName": "FaceSwap Video",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "gid=0",
+            "mode": "list",
+            "cachedResultName": "工作表1",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HB4gxdtJazUZeW-noZNb1NzCq0gpo5oUWW_hA5OymWE/edit#gid=0"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "original video": "={{ $json.downloadUrl }}",
+              "first frame": "={{ $('fetch raw video and cover').item.json.cover_url }}",
+              "row_number": "={{ $json.row_number }}"
+            },
+            "matchingColumns": [
+              "row_number"
+            ],
+            "schema": [
+              {
+                "id": "character image",
+                "displayName": "character image",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "product image",
+                "displayName": "product image",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "first frame",
+                "displayName": "first frame",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "original video",
+                "displayName": "original video",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "image task id",
+                "displayName": "image task id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "image status",
+                "displayName": "image status",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "image ",
+                "displayName": "image ",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "video task id",
+                "displayName": "video task id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "video status",
+                "displayName": "video status",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "final video",
+                "displayName": "final video",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "row_number",
+                "displayName": "row_number",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "readOnly": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          1696,
+          -288
+        ],
+        "id": "0a22e1e0-32c2-4a41-8559-07845e21b0a5",
+        "name": "update first frame and origin video",
+        "credentials": {
+          "googleApi": {
+            "id": "v5Oy6YCuuDZMlFsN",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "raw",
+          "jsonOutput": "={\n  \"video_url\": \"{{ 'https://www.tiktok.com/@' + $json.author.uniqueId + '/video/' + $json.id }}\",\n  \"cover_url\": \"{{ $json.video.zoomCover['960'] }}\"\n}\n",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          352,
+          -192
+        ],
+        "id": "5ee38c87-7c20-4e39-abec-8d47424c12c9",
+        "name": "fetch raw video and cover"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://kieai.redpandaai.co/api/file-url-upload",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpBearerAuth",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "fileUrl",
+                "value": "={{ $json.play }}"
+              },
+              {
+                "name": "uploadPath",
+                "value": "reference-videos"
+              },
+              {
+                "name": "fileName",
+                "value": "={{ $json.play.split('/')[3] + '.mp4' }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          1024,
+          -192
+        ],
+        "id": "1c6a04f5-9fbf-43ff-ab31-a10ec47a2daa",
+        "name": "get download video url",
+        "credentials": {
+          "httpBearerAuth": {
+            "id": "yFc2kwTQcwtSahn7",
+            "name": "KIE"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "3768b2c3-e0af-4e0e-8b2f-69ff32565e6b",
+                "name": "downloadUrl",
+                "value": "={{ $json.data.downloadUrl.trim() }}",
+                "type": "string"
+              },
+              {
+                "id": "2e07b564-d3ce-4e2a-99f1-abb2a7878206",
+                "name": "cover_url",
+                "value": "={{ $('fetch raw video and cover').item.json.cover_url }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          1248,
+          -192
+        ],
+        "id": "b2ffeb81-fb4f-4264-97eb-3bc0a3cec01b",
+        "name": "collect cover and video url"
+      },
+      {
+        "parameters": {
+          "formTitle": "Fetch tiktok influencer posts",
+          "formFields": {
+            "values": [
+              {
+                "fieldName": "account url",
+                "fieldLabel": "the website url of influencer （https://www.tiktok.com/@lovisuafgdz）",
+                "requiredField": true
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.formTrigger",
+        "typeVersion": 2.4,
+        "position": [
+          -544,
+          -288
+        ],
+        "id": "8b07d0df-01f7-47b4-a189-ffe90105ab3e",
+        "name": "On form submission",
+        "webhookId": "c0d6e987-577f-440a-a640-897c24880873"
+      }
+    ],
+    "pinData": {},
+    "connections": {
+      "Split Out": {
+        "main": [
+          [
+            {
+              "node": "fetch raw video and cover",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "get user posts": {
+        "main": [
+          [
+            {
+              "node": "Split Out",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "get secure id of influencer": {
+        "main": [
+          [
+            {
+              "node": "get user posts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "get download videos": {
+        "main": [
+          [
+            {
+              "node": "If",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If": {
+        "main": [
+          [
+            {
+              "node": "get download video url",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "get unfinished row": {
+        "main": [
+          [
+            {
+              "node": "Merge",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge": {
+        "main": [
+          [
+            {
+              "node": "update first frame and origin video",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "update first frame and origin video": {
+        "main": [
+          []
+        ]
+      },
+      "fetch raw video and cover": {
+        "main": [
+          [
+            {
+              "node": "get download videos",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "get download video url": {
+        "main": [
+          [
+            {
+              "node": "collect cover and video url",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "collect cover and video url": {
+        "main": [
+          [
+            {
+              "node": "Merge",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "On form submission": {
+        "main": [
+          [
+            {
+              "node": "get secure id of influencer",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "get unfinished row",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "active": false,
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": false
+    },
+    "versionId": "bcf07f4b-a99a-47d9-98ae-d8cbb6ead530",
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "5c9b806856444dc73dc3048b08f740d9c9783f723dd550c267d490b010e33c2d"
+    },
+    "id": "YrrNWSQJ13BPvD3R",
+    "tags": []
+  }
