@@ -6,7 +6,7 @@
 export const GENERATION_COSTS = {
   'veo3': 150,           // Veo3.1: 150 credits per 8s segment
   'veo3_fast': 20,       // Veo3.1 fast: 20 credits per 8s segment
-  'seedance_1_5_pro': 56 // Seedance 1.5 Pro: 56 credits per 8s segment (720p with audio)
+  'seedance_1_5_pro': 120 // Seedance 1.5 Pro: 120 credits per 8s segment (1080p with audio)
 } as const;
 
 // DEPRECATED: Legacy CREDIT_COSTS for backwards compatibility

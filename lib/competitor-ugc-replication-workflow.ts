@@ -2977,7 +2977,7 @@ async function startSegmentVideoTaskSeedance(
       prompt: promptText,
       input_urls: inputUrls,
       aspect_ratio: aspectRatio, // '16:9' or '9:16'
-      resolution: '720p', // Fixed 720p for high quality
+      resolution: '1080p', // Fixed 1080p as default for Seedance
       duration: '8', // Fixed 8s segments
       fixed_lens: false, // Allow dynamic camera movement
       generate_audio: true // Enable audio generation

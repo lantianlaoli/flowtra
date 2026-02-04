@@ -29,7 +29,6 @@ interface CompetitorUgcReplicationItem {
   isSegmented?: boolean;
   segmentCount?: number;
   videoDuration?: string;
-  videoQuality?: string;
   language?: string;
   customScript?: string;
   useCustomScript?: boolean;
@@ -116,10 +115,13 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
   return normalizeAspectRatio(ratio);
 };
 
-const ALLOWED_COMPETITOR_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast'];
+const ALLOWED_COMPETITOR_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro'];
 const LEGACY_MODELS = ['sora2', 'sora2_pro', 'grok', 'kling_2_6'];
 
 const normalizeCompetitorVideoModel = (model?: string | null): VideoModel => {
+  if (model === 'seedance-1.5-pro' || model === 'bytedance/seedance-1.5-pro') {
+    return 'seedance_1_5_pro';
+  }
   if (ALLOWED_COMPETITOR_VIDEO_MODELS.includes(model as VideoModel)) {
     return model as VideoModel;
   }
@@ -244,7 +246,6 @@ export async function GET() {
         isSegmented: item.is_segmented || false,
         segmentCount: item.segment_count || undefined,
         videoDuration: item.video_duration || undefined,
-        videoQuality: item.video_quality || undefined,
         language: item.language || undefined,
         customScript: item.custom_script || undefined,
         useCustomScript: item.use_custom_script || false,
