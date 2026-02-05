@@ -16,7 +16,8 @@ import {
   Menu,
   Shuffle,
   Moon,
-  Sun
+  Sun,
+  MessageCircle
 } from 'lucide-react';
 import {
   Sidebar as ShadcnSidebar,
@@ -56,6 +57,11 @@ const navigation = [
     name: 'Home',
     href: '/dashboard',
     icon: Home
+  },
+  {
+    name: 'Agent',
+    href: '/dashboard/agent',
+    icon: MessageCircle
   },
   {
     name: 'Video Clone',
