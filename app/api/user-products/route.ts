@@ -15,10 +15,7 @@ export async function GET() {
       .select(`
         *,
         user_product_photos (
-          id,
-          photo_url,
-          file_name,
-          is_primary
+          *
         )
       `)
       .eq('user_id', userId)

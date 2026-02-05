@@ -17,10 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .select(`
         *,
         user_product_photos (
-          id,
-          photo_url,
-          file_name,
-          is_primary
+          *
         )
       `)
       .eq('id', id)

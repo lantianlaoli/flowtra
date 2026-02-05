@@ -163,8 +163,25 @@ export interface UserAvatar {
   avatar_name: string
   photo_url: string
   file_name: string
+  photo_set_json?: AvatarPhotoSet | null
+  primary_photo_url?: string
+  reference_photos?: AvatarPhotoEntry[]
   is_active: boolean
   created_at: string
+  updated_at: string
+}
+
+export type AvatarReferenceTag = 'angle_45' | 'profile_or_detail' | 'custom'
+
+export interface AvatarPhotoEntry {
+  photo_url: string
+  file_name: string
+  tag?: AvatarReferenceTag
+}
+
+export interface AvatarPhotoSet {
+  primary: AvatarPhotoEntry
+  references: AvatarPhotoEntry[]
   updated_at: string
 }
 
@@ -197,6 +214,7 @@ export interface UserProductPhoto {
   user_id: string
   photo_url: string
   file_name: string
+  photo_role: 'frontal' | 'reference'
   is_primary: boolean
   created_at: string
   updated_at: string
@@ -450,38 +468,168 @@ export function extractExcerpt(content: string, maxLength: number = 160): string
 }
 
 // User avatar management functions
-export const uploadAvatarToStorage = async (file: File, userId: string, avatarName: string) => {
-  console.log(`[uploadAvatarToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes), name: ${avatarName}`);
+export const normalizeAvatarPhotoSet = (
+  photoSet: unknown,
+  fallbackPhotoUrl: string,
+  fallbackFileName: string
+): AvatarPhotoSet => {
+  const fallbackPrimary: AvatarPhotoEntry = {
+    photo_url: fallbackPhotoUrl,
+    file_name: fallbackFileName || 'avatar_primary'
+  }
 
+  if (!photoSet || typeof photoSet !== 'object') {
+    return {
+      primary: fallbackPrimary,
+      references: [],
+      updated_at: new Date().toISOString()
+    }
+  }
+
+  const candidate = photoSet as Partial<AvatarPhotoSet> & {
+    primary?: Partial<AvatarPhotoEntry>
+    references?: Array<Partial<AvatarPhotoEntry>>
+  }
+
+  const primary: AvatarPhotoEntry = {
+    photo_url: candidate.primary?.photo_url || fallbackPrimary.photo_url,
+    file_name: candidate.primary?.file_name || fallbackPrimary.file_name
+  }
+
+  const references = Array.isArray(candidate.references)
+    ? candidate.references
+      .filter((item) => typeof item?.photo_url === 'string')
+      .map((item) => ({
+        photo_url: item.photo_url as string,
+        file_name: item.file_name || 'avatar_reference',
+        tag: item.tag === 'angle_45' || item.tag === 'profile_or_detail' || item.tag === 'custom'
+          ? item.tag
+          : 'custom'
+      }))
+      .slice(0, 3)
+    : []
+
+  return {
+    primary,
+    references,
+    updated_at: typeof candidate.updated_at === 'string'
+      ? candidate.updated_at
+      : new Date().toISOString()
+  }
+}
+
+export const createAvatarPhotoSet = (
+  primaryPhotoUrl: string,
+  primaryFileName: string,
+  references: AvatarPhotoEntry[] = []
+): AvatarPhotoSet => ({
+  primary: {
+    photo_url: primaryPhotoUrl,
+    file_name: primaryFileName
+  },
+  references: references.slice(0, 3),
+  updated_at: new Date().toISOString()
+})
+
+export const addAvatarReferencePhoto = (
+  photoSet: AvatarPhotoSet,
+  reference: AvatarPhotoEntry
+): AvatarPhotoSet => ({
+  ...photoSet,
+  references: [...photoSet.references, reference].slice(0, 3),
+  updated_at: new Date().toISOString()
+})
+
+export const deleteAvatarReferencePhotoByIndex = (
+  photoSet: AvatarPhotoSet,
+  referenceIndex: number
+): AvatarPhotoSet => ({
+  ...photoSet,
+  references: photoSet.references.filter((_, index) => index !== referenceIndex),
+  updated_at: new Date().toISOString()
+})
+
+export const promoteAvatarReferenceToPrimary = (
+  photoSet: AvatarPhotoSet,
+  referenceIndex: number
+): AvatarPhotoSet => {
+  const promotedReference = photoSet.references[referenceIndex]
+  if (!promotedReference) {
+    return photoSet
+  }
+
+  const remainingReferences = photoSet.references.filter((_, index) => index !== referenceIndex)
+  return {
+    primary: {
+      photo_url: promotedReference.photo_url,
+      file_name: promotedReference.file_name
+    },
+    references: [
+      ...remainingReferences,
+      {
+        photo_url: photoSet.primary.photo_url,
+        file_name: photoSet.primary.file_name,
+        tag: 'custom' as AvatarReferenceTag
+      }
+    ].slice(0, 3),
+    updated_at: new Date().toISOString()
+  }
+}
+
+export const uploadAvatarPhotoToStorage = async (file: File, userId: string) => {
   const fileName = `${userId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
   const filePath = `avatars/${fileName}`
+  const supabase = getSupabaseAdmin()
 
-  const supabase = getSupabase()
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
 
-  // Upload to storage
-  console.log(`[uploadAvatarToStorage] Uploading to storage path: ${filePath}`);
   const { data, error } = await supabase.storage
     .from('images')
-    .upload(filePath, file, {
+    .upload(filePath, buffer, {
       cacheControl: '3600',
-      upsert: false
+      upsert: false,
+      contentType: file.type || 'image/jpeg'
     })
 
   if (error) {
-    console.error(`[uploadAvatarToStorage] Storage upload error for user ${userId}:`, {
-      error: error.message,
-      filePath,
-      fileSize: file.size,
-      fileType: file.type
-    });
-    throw new Error(`Storage upload failed: ${error.message}`);
+    throw new Error(`Storage upload failed: ${error.message}`)
   }
-
-  console.log(`[uploadAvatarToStorage] Storage upload successful for user ${userId}, path: ${data.path}`);
 
   const { data: { publicUrl } } = supabase.storage
     .from('images')
     .getPublicUrl(filePath)
+
+  return {
+    fileName,
+    path: data.path,
+    publicUrl
+  }
+}
+
+export const deleteAvatarPhotoFromStorage = async (photoUrl: string | null | undefined) => {
+  if (!photoUrl) return
+
+  const supabase = getSupabaseAdmin()
+  const urlParts = photoUrl.split('/images/')
+  if (urlParts.length < 2) return
+
+  const filePath = urlParts[1]
+  const { error } = await supabase.storage
+    .from('images')
+    .remove([filePath])
+
+  if (error) {
+    throw new Error(`Failed to delete avatar photo: ${error.message}`)
+  }
+}
+
+export const uploadAvatarToStorage = async (file: File, userId: string, avatarName: string) => {
+  console.log(`[uploadAvatarToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes), name: ${avatarName}`);
+
+  const supabase = getSupabaseAdmin()
+  const uploadResult = await uploadAvatarPhotoToStorage(file, userId)
+  const { fileName, path, publicUrl } = uploadResult
 
   console.log(`[uploadAvatarToStorage] Generated public URL for user ${userId}: ${publicUrl}`);
 
@@ -494,6 +642,7 @@ export const uploadAvatarToStorage = async (file: File, userId: string, avatarNa
       avatar_name: avatarName,
       photo_url: publicUrl,
       file_name: fileName,
+      photo_set_json: createAvatarPhotoSet(publicUrl, fileName),
       is_active: true
     })
     .select()
@@ -503,16 +652,16 @@ export const uploadAvatarToStorage = async (file: File, userId: string, avatarNa
     console.error(`[uploadAvatarToStorage] Database insert error for user ${userId}:`, {
       error: dbError.message,
       code: dbError.code,
-      filePath
+      filePath: path
     });
 
     // If database insert fails, cleanup the uploaded file
-    console.log(`[uploadAvatarToStorage] Cleaning up uploaded file due to database error: ${filePath}`);
+    console.log(`[uploadAvatarToStorage] Cleaning up uploaded file due to database error: ${path}`);
     try {
-      await supabase.storage.from('images').remove([filePath])
-      console.log(`[uploadAvatarToStorage] Cleanup successful for file: ${filePath}`);
+      await supabase.storage.from('images').remove([path])
+      console.log(`[uploadAvatarToStorage] Cleanup successful for file: ${path}`);
     } catch (cleanupError) {
-      console.error(`[uploadAvatarToStorage] Cleanup failed for file ${filePath}:`, cleanupError);
+      console.error(`[uploadAvatarToStorage] Cleanup failed for file ${path}:`, cleanupError);
     }
 
     throw new Error(`Database insert failed: ${dbError.message}`);
@@ -521,7 +670,7 @@ export const uploadAvatarToStorage = async (file: File, userId: string, avatarNa
   console.log(`[uploadAvatarToStorage] Complete success for user ${userId}, record ID: ${avatarRecord?.id}`);
 
   return {
-    path: data.path,
+    path,
     publicUrl,
     fullUrl: publicUrl,
     avatarRecord
@@ -571,12 +720,24 @@ export const deleteAvatar = async (avatarId: string, userId: string): Promise<vo
   }
 
   // Delete from storage (hard delete)
-  const filePath = `avatars/${avatar.file_name}`
-  const { error: storageError } = await supabase.storage.from('images').remove([filePath])
+  try {
+    await deleteAvatarPhotoFromStorage(avatar.photo_url)
+  } catch (storageError) {
+    console.warn('[deleteAvatar] Failed to remove primary photo:', storageError)
+  }
 
-  // Optionally delete from storage (uncomment if you want hard delete)
-  // const filePath = `avatars/${avatar.file_name}`
-  // await supabase.storage.from('images').remove([filePath])
+  const normalizedPhotoSet = normalizeAvatarPhotoSet(
+    avatar.photo_set_json,
+    avatar.photo_url,
+    avatar.file_name
+  )
+  for (const reference of normalizedPhotoSet.references) {
+    try {
+      await deleteAvatarPhotoFromStorage(reference.photo_url)
+    } catch (storageError) {
+      console.warn('[deleteAvatar] Failed to remove reference photo:', storageError)
+    }
+  }
 }
 
 export const uploadAvatarFromUrl = async (imageUrl: string, userId: string, avatarName: string = 'Optimized Avatar') => {
@@ -593,10 +754,10 @@ export const uploadAvatarFromUrl = async (imageUrl: string, userId: string, avat
     const mimeType = contentType.split(';')[0].trim();
     const ext = mimeType.split('/')[1] || 'png';
 
+    const supabase = getSupabaseAdmin();
+
     const fileName = `${userId}_${Date.now()}_optimized.${ext}`;
     const filePath = `avatars/${fileName}`;
-
-    const supabase = getSupabaseAdmin();
 
     const { data, error } = await supabase.storage
       .from('images')
@@ -619,6 +780,7 @@ export const uploadAvatarFromUrl = async (imageUrl: string, userId: string, avat
         avatar_name: avatarName,
         photo_url: publicUrl,
         file_name: fileName,
+        photo_set_json: createAvatarPhotoSet(publicUrl, fileName),
         is_active: true
       })
       .select()

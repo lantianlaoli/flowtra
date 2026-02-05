@@ -16,7 +16,7 @@ interface ProductCardProps {
   // Full edit mode (open modal with product object)
   onEditClick?: (product: UserProduct) => void;
   onDelete: (productId: string) => void;
-  onPhotoUpload?: (productId: string, file: File) => void;
+  onPhotoUpload?: (productId: string, file: File, photoRole?: 'frontal' | 'reference') => void;
   onDeletePhoto?: (productId: string, photoId: string) => void;
   // View/select modes
   onView?: (product: UserProduct) => void;
@@ -35,7 +35,7 @@ export default function ProductCard({
   onDelete,
   onPhotoUpload,
   onDeletePhoto,
-  // onView - intentionally not destructured as it's not used in this component
+  onView,
   onSelect,
   isSelected = false,
   isDeleting = false,
@@ -47,6 +47,9 @@ export default function ProductCard({
   const [editingName, setEditingName] = useState('');
   const [photoError, setPhotoError] = useState<string | null>(null);
   const photos = product.user_product_photos || [];
+  const frontalPhoto = photos.find((photo) => photo.photo_role === 'frontal')
+    || photos.find((photo) => photo.is_primary)
+    || photos[0];
 
   const isCompactMode = mode === 'compact';
   const isSelectableMode = mode === 'selectable';
@@ -57,6 +60,8 @@ export default function ProductCard({
   const handleCardClick = () => {
     if (isSelectableMode && onSelect) {
       onSelect(product);
+    } else if (isCompactMode && onView) {
+      onView(product);
     } else if (isCompactMode && onEditClick) {
       onEditClick(product);
     }
@@ -64,6 +69,10 @@ export default function ProductCard({
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isCompactMode && onView) {
+      onView(product);
+      return;
+    }
     if (onEditClick) {
       onEditClick(product);
     } else if (isFullMode) {
@@ -170,7 +179,8 @@ export default function ProductCard({
       // Image passes all validations - proceed with upload
       if (onPhotoUpload) {
         setPhotoError(null);
-        onPhotoUpload(product.id, file);
+        const hasFrontal = photos.some((photo) => photo.photo_role === 'frontal' || photo.is_primary);
+        onPhotoUpload(product.id, file, hasFrontal ? 'reference' : 'frontal');
       }
       if (e.target) e.target.value = '';
     };
@@ -189,30 +199,23 @@ export default function ProductCard({
     return (
       <>
         <motion.div
-          className="assets-product-card assets-product-card--compact bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group"
+          className="assets-product-card assets-product-card--compact bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 cursor-pointer hover:border-gray-300 hover:shadow-sm"
           onClick={handleCardClick}
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          whileHover={{ y: -4 }}
+          whileHover={{ y: -2 }}
         >
           {/* Product Photo */}
           <div className="assets-product-card-media relative w-full aspect-square bg-gray-100">
-            {photos.length > 0 ? (
-              <>
-                <Image
-                  src={photos[0].photo_url}
-                  alt={product.product_name}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                />
-                {photos.length > 1 && (
-                  <div className="assets-product-card-count absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
-                    +{photos.length - 1}
-                  </div>
-                )}
-              </>
+            {frontalPhoto ? (
+              <Image
+                src={frontalPhoto.photo_url}
+                alt={product.product_name}
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              />
             ) : (
               <div className="assets-product-card-empty w-full h-full flex items-center justify-center text-gray-400">
                 <span className="text-sm">No photo</span>
@@ -231,22 +234,22 @@ export default function ProductCard({
                 {brandLabel}
               </span>
             )}
-            <div className="flex items-center justify-between">
-              <p className="assets-product-card-meta text-xs text-gray-500">
-                {new Date(product.created_at).toLocaleDateString()}
-              </p>
-              <div className="flex items-center gap-1">
+            <div className="mt-3 flex items-center gap-2">
+              <div className="flex-1">
                 <button
                   onClick={handleEditClick}
-                  className="assets-product-card-action p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                  className="assets-product-card-action w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                   title="Edit product"
                 >
                   <Edit2 className="w-4 h-4" />
+                  <span>Edit</span>
                 </button>
+              </div>
+              <div className="flex-1">
                 <button
                   onClick={handleDelete}
                   disabled={isDeleting}
-                  className="assets-product-card-action p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="assets-product-card-action w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title={isDeleting ? 'Deleting...' : 'Delete product'}
                 >
                   {isDeleting ? (
@@ -254,6 +257,7 @@ export default function ProductCard({
                   ) : (
                     <Trash2 className="w-4 h-4" />
                   )}
+                  <span>{isDeleting ? 'Deleting' : 'Delete'}</span>
                 </button>
               </div>
             </div>
@@ -289,20 +293,13 @@ export default function ProductCard({
             {/* Product Photo (left side on desktop, top on mobile) */}
             <div className="assets-product-card-media relative w-full sm:w-20 aspect-square sm:aspect-square flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
               {photos.length > 0 ? (
-                <>
-                  <Image
-                    src={photos[0].photo_url}
-                    alt={product.product_name}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 640px) 100vw, 80px"
-                  />
-                  {photos.length > 1 && (
-                  <div className="assets-product-card-count absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
-                    +{photos.length - 1}
-                  </div>
-                )}
-              </>
+                <Image
+                  src={photos[0].photo_url}
+                  alt={product.product_name}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 640px) 100vw, 80px"
+                />
             ) : (
               <div className="assets-product-card-empty w-full h-full flex items-center justify-center text-gray-400">
                 <span className="text-xs">No photo</span>
@@ -315,11 +312,6 @@ export default function ProductCard({
               <h4 className="assets-product-card-title font-medium text-base text-gray-900 truncate mb-1">
                 {product.product_name}
               </h4>
-              {photos.length > 1 && (
-                <p className="assets-product-card-meta text-xs text-gray-500 mt-1">
-                  {photos.length} photos
-                </p>
-              )}
             </div>
 
             {/* Action Buttons (right side on desktop, bottom on mobile) */}
@@ -453,7 +445,7 @@ export default function ProductCard({
         {/* Photos Grid */}
         <div className="assets-product-card-body p-4">
           <div className="assets-product-card-grid grid grid-cols-3 gap-2">
-            {photos.slice(0, 5).map((photo) => (
+            {(frontalPhoto ? [frontalPhoto, ...photos.filter((photo) => photo.id !== frontalPhoto.id)] : photos).slice(0, 5).map((photo) => (
               <div key={photo.id} className="assets-product-card-thumb relative group aspect-square">
                 <Image
                   src={photo.photo_url}
@@ -474,7 +466,7 @@ export default function ProductCard({
             ))}
 
             {/* Add Photo Button */}
-            {!isSelectableMode && onPhotoUpload && photos.length < 6 && (
+            {!isSelectableMode && onPhotoUpload && photos.length < 4 && (
               <label className="assets-product-card-add aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
                 <input
                   type="file"

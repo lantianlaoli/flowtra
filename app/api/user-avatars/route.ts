@@ -1,7 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@clerk/nextjs/server';
-import { uploadAvatarToStorage, getUserAvatars, deleteAvatar, uploadAvatarFromUrl, updateAvatarName } from '@/lib/supabase';
+import {
+  uploadAvatarToStorage,
+  getUserAvatars,
+  deleteAvatar,
+  uploadAvatarFromUrl,
+  updateAvatarName,
+  getSupabaseAdmin,
+  normalizeAvatarPhotoSet,
+  uploadAvatarPhotoToStorage,
+  deleteAvatarPhotoFromStorage,
+  addAvatarReferencePhoto,
+  deleteAvatarReferencePhotoByIndex,
+  promoteAvatarReferenceToPrimary,
+  type UserAvatar
+} from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+
+type AvatarAction = 'rename' | 'replace_primary' | 'add_reference' | 'delete_reference' | 'promote_reference_to_primary';
+
+function enrichAvatarRecord(avatar: UserAvatar): UserAvatar {
+  const normalizedPhotoSet = normalizeAvatarPhotoSet(
+    avatar.photo_set_json,
+    avatar.photo_url,
+    avatar.file_name
+  );
+
+  return {
+    ...avatar,
+    photo_set_json: normalizedPhotoSet,
+    primary_photo_url: normalizedPhotoSet.primary.photo_url,
+    reference_photos: normalizedPhotoSet.references
+  };
+}
+
+function parseReferenceIndex(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isInteger(parsed) ? parsed : null;
+  }
+  return null;
+}
 
 // GET: Fetch all user avatars
 export async function GET(request: NextRequest) {
@@ -12,7 +54,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const avatars = await getUserAvatars(userId);
+    const avatars = (await getUserAvatars(userId)).map(enrichAvatarRecord);
 
     return NextResponse.json({
       success: true,
@@ -57,9 +99,10 @@ export async function POST(request: NextRequest) {
       }
 
       const result = await uploadAvatarFromUrl(imageUrl, userId, avatarName);
+      const avatarRecord = enrichAvatarRecord(result.avatarRecord);
       return NextResponse.json({
         success: true,
-        avatar: result.avatarRecord,
+        avatar: avatarRecord,
         imageUrl: result.publicUrl,
         path: result.path,
         message: 'Avatar saved successfully'
@@ -116,6 +159,7 @@ export async function POST(request: NextRequest) {
 
     // Upload avatar to storage and save to database
     const uploadResult = await uploadAvatarToStorage(file, userId, avatarName);
+    const avatarRecord = enrichAvatarRecord(uploadResult.avatarRecord);
 
     const duration = Date.now() - startTime;
     console.log(`[Avatar Upload] Success for user ${userId} in ${duration}ms:`, {
@@ -126,7 +170,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      avatar: uploadResult.avatarRecord,
+      avatar: avatarRecord,
       imageUrl: uploadResult.publicUrl,
       path: uploadResult.path,
       message: 'Avatar uploaded successfully'
@@ -185,7 +229,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT: Update avatar name
+// PUT: Update avatar name/photos
 export async function PUT(request: NextRequest) {
   try {
     const { userId } = getAuth(request);
@@ -204,27 +248,221 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'System avatars cannot be edited' }, { status: 400 });
     }
 
-    const body = await request.json();
-    const { avatarName } = body;
+    const supabase = getSupabaseAdmin();
+    const { data: existingAvatar, error: existingAvatarError } = await supabase
+      .from('user_avatars')
+      .select('*')
+      .eq('id', avatarId)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
 
-    if (!avatarName || typeof avatarName !== 'string') {
-      return NextResponse.json({ error: 'Avatar name is required' }, { status: 400 });
+    if (existingAvatarError || !existingAvatar) {
+      return NextResponse.json({ error: 'Avatar not found' }, { status: 404 });
     }
 
-    if (avatarName.length > 255) {
-      return NextResponse.json({ error: 'Avatar name too long (max 255 characters)' }, { status: 400 });
+    const contentType = request.headers.get('content-type') || '';
+    const isMultipart = contentType.includes('multipart/form-data');
+
+    let action: AvatarAction | null = null;
+    let avatarName: string | undefined;
+    let file: File | null = null;
+    let referenceIndex: number | null = null;
+    let referenceTag: string | null = null;
+
+    if (isMultipart) {
+      const formData = await request.formData();
+      const actionValue = formData.get('action');
+      action = typeof actionValue === 'string' ? actionValue as AvatarAction : null;
+      avatarName = formData.get('avatarName') as string | undefined;
+      file = formData.get('file') as File | null;
+      referenceIndex = parseReferenceIndex(formData.get('referenceIndex'));
+      referenceTag = formData.get('tag') as string | null;
+    } else {
+      const body = await request.json();
+      action = typeof body.action === 'string' ? body.action as AvatarAction : null;
+      avatarName = body.avatarName;
+      referenceIndex = parseReferenceIndex(body.referenceIndex);
+      referenceTag = typeof body.tag === 'string' ? body.tag : null;
     }
 
-    const updatedAvatar = await updateAvatarName(avatarId, userId, avatarName);
+    if (!action) {
+      return NextResponse.json({ error: 'Action is required' }, { status: 400 });
+    }
 
-    console.log('Avatar name updated successfully:', avatarId);
+    if (!['rename', 'replace_primary', 'add_reference', 'delete_reference', 'promote_reference_to_primary'].includes(action)) {
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    }
+
+    const currentPhotoSet = normalizeAvatarPhotoSet(
+      existingAvatar.photo_set_json,
+      existingAvatar.photo_url,
+      existingAvatar.file_name
+    );
+
+    if (action === 'rename') {
+      if (!avatarName || typeof avatarName !== 'string') {
+        return NextResponse.json({ error: 'Avatar name is required' }, { status: 400 });
+      }
+
+      if (avatarName.length > 255) {
+        return NextResponse.json({ error: 'Avatar name too long (max 255 characters)' }, { status: 400 });
+      }
+
+      const updatedAvatar = enrichAvatarRecord(await updateAvatarName(avatarId, userId, avatarName));
+      return NextResponse.json({
+        success: true,
+        avatar: updatedAvatar,
+        message: 'Avatar name updated successfully'
+      });
+    }
+
+    if (action === 'replace_primary' || action === 'add_reference') {
+      if (!file) {
+        return NextResponse.json({ error: 'Image file is required' }, { status: 400 });
+      }
+      if (!file.type.startsWith('image/')) {
+        return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
+      }
+
+      if (action === 'add_reference' && currentPhotoSet.references.length >= 3) {
+        return NextResponse.json({ error: 'You can add up to 3 reference photos.' }, { status: 400 });
+      }
+
+      const uploadedFile = await uploadAvatarPhotoToStorage(file, userId);
+      let nextPhotoSet = {
+        ...currentPhotoSet,
+        updated_at: new Date().toISOString()
+      };
+
+      if (action === 'replace_primary') {
+        const previousPrimary = currentPhotoSet.primary;
+        nextPhotoSet = {
+          ...nextPhotoSet,
+          primary: {
+            photo_url: uploadedFile.publicUrl,
+            file_name: uploadedFile.fileName
+          }
+        };
+
+        const { data: updatedAvatar, error: updateError } = await supabase
+          .from('user_avatars')
+          .update({
+            photo_set_json: nextPhotoSet,
+            photo_url: nextPhotoSet.primary.photo_url,
+            file_name: nextPhotoSet.primary.file_name
+          })
+          .eq('id', avatarId)
+          .eq('user_id', userId)
+          .select('*')
+          .single();
+
+        if (updateError || !updatedAvatar) {
+          throw updateError ?? new Error('Failed to update avatar');
+        }
+
+        try {
+          await deleteAvatarPhotoFromStorage(previousPrimary.photo_url);
+        } catch (storageError) {
+          console.warn('Failed to delete old avatar primary photo:', storageError);
+        }
+
+        return NextResponse.json({
+          success: true,
+          avatar: enrichAvatarRecord(updatedAvatar),
+          message: 'Primary photo replaced successfully'
+        });
+      }
+
+      const nextPhotoSetWithReference = addAvatarReferencePhoto(currentPhotoSet, {
+        photo_url: uploadedFile.publicUrl,
+        file_name: uploadedFile.fileName,
+        tag: referenceTag === 'angle_45' || referenceTag === 'profile_or_detail' ? referenceTag : 'custom'
+      });
+
+      const { data: updatedAvatar, error: updateError } = await supabase
+        .from('user_avatars')
+        .update({
+          photo_set_json: nextPhotoSetWithReference,
+          photo_url: currentPhotoSet.primary.photo_url,
+          file_name: currentPhotoSet.primary.file_name
+        })
+        .eq('id', avatarId)
+        .eq('user_id', userId)
+        .select('*')
+        .single();
+
+      if (updateError || !updatedAvatar) {
+        throw updateError ?? new Error('Failed to update avatar');
+      }
+
+      return NextResponse.json({
+        success: true,
+        avatar: enrichAvatarRecord(updatedAvatar),
+        message: 'Reference photo added successfully'
+      });
+    }
+
+    if (referenceIndex === null || referenceIndex < 0 || referenceIndex >= currentPhotoSet.references.length) {
+      return NextResponse.json({ error: 'Invalid reference index' }, { status: 400 });
+    }
+
+    if (action === 'delete_reference') {
+      const deletedReference = currentPhotoSet.references[referenceIndex];
+      const nextPhotoSetWithoutReference = deleteAvatarReferencePhotoByIndex(currentPhotoSet, referenceIndex);
+
+      const { data: updatedAvatar, error: updateError } = await supabase
+        .from('user_avatars')
+        .update({
+          photo_set_json: nextPhotoSetWithoutReference,
+          photo_url: currentPhotoSet.primary.photo_url,
+          file_name: currentPhotoSet.primary.file_name
+        })
+        .eq('id', avatarId)
+        .eq('user_id', userId)
+        .select('*')
+        .single();
+
+      if (updateError || !updatedAvatar) {
+        throw updateError ?? new Error('Failed to update avatar');
+      }
+
+      try {
+        await deleteAvatarPhotoFromStorage(deletedReference.photo_url);
+      } catch (storageError) {
+        console.warn('Failed to delete avatar reference photo:', storageError);
+      }
+
+      return NextResponse.json({
+        success: true,
+        avatar: enrichAvatarRecord(updatedAvatar),
+        message: 'Reference photo deleted successfully'
+      });
+    }
+
+    const nextPhotoSetWithPromotedReference = promoteAvatarReferenceToPrimary(currentPhotoSet, referenceIndex);
+
+    const { data: updatedAvatar, error: updateError } = await supabase
+      .from('user_avatars')
+      .update({
+        photo_set_json: nextPhotoSetWithPromotedReference,
+        photo_url: nextPhotoSetWithPromotedReference.primary.photo_url,
+        file_name: nextPhotoSetWithPromotedReference.primary.file_name
+      })
+      .eq('id', avatarId)
+      .eq('user_id', userId)
+      .select('*')
+      .single();
+
+    if (updateError || !updatedAvatar) {
+      throw updateError ?? new Error('Failed to update avatar');
+    }
 
     return NextResponse.json({
       success: true,
-      avatar: updatedAvatar,
-      message: 'Avatar name updated successfully'
+      avatar: enrichAvatarRecord(updatedAvatar),
+      message: 'Reference photo promoted to primary successfully'
     });
-
   } catch (error) {
     console.error('Avatar update error:', error);
     return NextResponse.json(

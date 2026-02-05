@@ -28,24 +28,52 @@ export async function POST(request: NextRequest) {
 
     // 3. Create temporary photo record (product_id NULL for now)
     const supabase = getSupabaseAdmin();
-    const { data: photo, error: photoError } = await supabase
+    const insertWithRole = await supabase
       .from('user_product_photos')
       .insert({
         product_id: null, // Will be linked when product is created
         user_id: userId,
         photo_url: imageUrl,
         file_name: fileName || `temp-photo-${Date.now()}.png`,
+        photo_role: 'frontal',
         is_primary: true,
         purification_status: 'uploading'
       })
       .select('id')
       .single();
 
+    let photo = insertWithRole.data;
+    let photoError = insertWithRole.error;
+
+    if (photoError?.code === '42703') {
+      const fallbackInsert = await supabase
+        .from('user_product_photos')
+        .insert({
+          product_id: null,
+          user_id: userId,
+          photo_url: imageUrl,
+          file_name: fileName || `temp-photo-${Date.now()}.png`,
+          is_primary: true,
+          purification_status: 'uploading'
+        })
+        .select('id')
+        .single();
+      photo = fallbackInsert.data;
+      photoError = fallbackInsert.error;
+    }
+
     if (photoError) {
       console.error('[temp-photo] Failed to create photo record:', photoError);
       return NextResponse.json({
         error: 'Failed to create photo record',
         details: photoError.message
+      }, { status: 500 });
+    }
+
+    if (!photo) {
+      return NextResponse.json({
+        error: 'Failed to create photo record',
+        details: 'No photo data returned'
       }, { status: 500 });
     }
 

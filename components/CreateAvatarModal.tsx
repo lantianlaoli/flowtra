@@ -1,19 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, UserCircle, Upload, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { X, UserCircle, Upload, Loader2, Plus, AlertCircle, CircleHelp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { UserAvatar } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
-
-const GOOD_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/character_ad_example.png';
-const BLURRY_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/competitor_videos/user-photos/character_ad_bad.png';
 
 interface CreateAvatarModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAvatarCreated: (avatar: UserAvatar) => void;
+}
+
+const GOOD_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/character_ad_example.png';
+const BLURRY_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/competitor_videos/user-photos/character_ad_bad.png';
+
+interface PreviewFile {
+  file: File;
+  preview: string;
 }
 
 export default function CreateAvatarModal({
@@ -22,37 +28,38 @@ export default function CreateAvatarModal({
   onAvatarCreated
 }: CreateAvatarModalProps) {
   const [avatarName, setAvatarName] = useState('');
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const [primaryImage, setPrimaryImage] = useState<PreviewFile | null>(null);
+  const [referenceImages, setReferenceImages] = useState<PreviewFile[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUploadingRefs, setIsUploadingRefs] = useState(false);
 
-  // Reset form when modal opens/closes
+  const primaryInputRef = useRef<HTMLInputElement | null>(null);
+  const referenceInputRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
     if (isOpen) {
       setAvatarName('');
-      setAvatarFile(null);
-      setAvatarPreview(null);
+      setPrimaryImage(null);
+      setReferenceImages([]);
       setError(null);
-      // Auto focus input after modal animation
       setTimeout(() => {
-        const input = document.querySelector('#avatar-name-input') as HTMLInputElement;
-        if (input) input.focus();
+        const input = document.querySelector('#avatar-name-input') as HTMLInputElement | null;
+        input?.focus();
       }, 150);
     }
   }, [isOpen]);
 
-  // Handle ESC key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !isCreating) {
+      if (e.key === 'Escape' && isOpen && !isCreating && !isUploadingRefs) {
         onClose();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, isCreating, onClose]);
+  }, [isOpen, isCreating, isUploadingRefs, onClose]);
 
   const renderErrorMessage = (message: string) => {
     if (!message.includes(IMAGE_CONVERSION_LINK)) {
@@ -75,26 +82,80 @@ export default function CreateAvatarModal({
     );
   };
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const validationResult = validateImageFormat(file);
-      if (!validationResult.isValid) {
-        setError(validationResult.error);
-        return;
-      }
-      if (file.size > 8 * 1024 * 1024) {
-        setError('Avatar file size must be less than 8MB');
-        return;
-      }
-      setAvatarFile(file);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      setError(null);
+  const validateAndLoadImage = async (file: File): Promise<string> => {
+    const validationResult = validateImageFormat(file);
+    if (!validationResult.isValid) {
+      throw new Error(validationResult.error);
     }
+
+    if (file.size > 8 * 1024 * 1024) {
+      throw new Error('Image file size must be less than 8MB');
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const img = document.createElement('img');
+        img.onload = () => {
+          if (img.width < 300 || img.height < 300) {
+            reject(new Error(`Image too small. Minimum size is 300x300px. Your image is ${img.width}x${img.height}px.`));
+            return;
+          }
+          resolve();
+        };
+        img.onerror = () => reject(new Error('Failed to load image. Please try a different file.'));
+        img.src = objectUrl;
+      });
+
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Failed to read image file. Please try again.'));
+        reader.readAsDataURL(file);
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const handlePrimaryUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const preview = await validateAndLoadImage(file);
+      setPrimaryImage({ file, preview });
+      setError(null);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Failed to load image.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const handleReferenceUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (referenceImages.length >= 3) {
+      setError('You can add up to 3 reference photos.');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      const preview = await validateAndLoadImage(file);
+      setReferenceImages((prev) => [...prev, { file, preview }]);
+      setError(null);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Failed to load image.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const removeReferenceImage = (index: number) => {
+    setReferenceImages((prev) => prev.filter((_, idx) => idx !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,8 +166,8 @@ export default function CreateAvatarModal({
       return;
     }
 
-    if (!avatarFile) {
-      setError('Please select an avatar image');
+    if (!primaryImage) {
+      setError('Upload one primary avatar photo to continue.');
       return;
     }
 
@@ -115,35 +176,60 @@ export default function CreateAvatarModal({
 
     try {
       const formData = new FormData();
-      formData.append('file', avatarFile);
+      formData.append('file', primaryImage.file);
       formData.append('avatarName', avatarName.trim());
 
-      const response = await fetch('/api/user-avatars', {
+      const createResponse = await fetch('/api/user-avatars', {
         method: 'POST',
         body: formData
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create avatar');
+      const createPayload = await createResponse.json().catch(() => ({}));
+      if (!createResponse.ok || !createPayload?.avatar) {
+        throw new Error(createPayload?.error || 'Failed to create avatar');
       }
 
-      const data = await response.json();
-      onAvatarCreated(data.avatar);
+      let latestAvatar = createPayload.avatar as UserAvatar;
+
+      if (referenceImages.length > 0) {
+        setIsUploadingRefs(true);
+        for (const reference of referenceImages) {
+          const refFormData = new FormData();
+          refFormData.append('action', 'add_reference');
+          refFormData.append('file', reference.file);
+
+          const refResponse = await fetch(`/api/user-avatars?avatarId=${latestAvatar.id}`, {
+            method: 'PUT',
+            body: refFormData
+          });
+
+          const refPayload = await refResponse.json().catch(() => ({}));
+          if (!refResponse.ok || !refPayload?.avatar) {
+            throw new Error(refPayload?.error || 'Failed to upload reference photo');
+          }
+
+          latestAvatar = refPayload.avatar as UserAvatar;
+        }
+      }
+
+      onAvatarCreated(latestAvatar);
       onClose();
-    } catch (error) {
-      console.error('Error creating avatar:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create avatar. Please try again.');
+    } catch (submitError) {
+      console.error('Error creating avatar:', submitError);
+      setError(submitError instanceof Error ? submitError.message : 'Failed to create avatar. Please try again.');
     } finally {
       setIsCreating(false);
+      setIsUploadingRefs(false);
     }
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isCreating) {
+  const handleBackdropClick = (event: React.MouseEvent) => {
+    if (event.target === event.currentTarget && !isCreating && !isUploadingRefs) {
       onClose();
     }
   };
+
+  const canSubmit = Boolean(avatarName.trim() && primaryImage && !isCreating && !isUploadingRefs);
 
   return (
     <AnimatePresence>
@@ -155,7 +241,6 @@ export default function CreateAvatarModal({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {/* Backdrop */}
           <motion.div
             className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={handleBackdropClick}
@@ -164,159 +249,191 @@ export default function CreateAvatarModal({
             exit={{ opacity: 0 }}
           />
 
-          {/* Modal Card */}
           <motion.div
-            className="assets-modal-panel assets-create-avatar-panel relative mx-auto w-full max-w-xl rounded-2xl border border-gray-200 bg-white shadow-2xl"
+            className="assets-modal-panel assets-create-avatar-panel relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Header */}
-            <div className="assets-modal-header flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
               <div className="flex items-center gap-3">
-                <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black">
-                  <UserCircle className="h-5 w-5 text-white" />
+                <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
+                  <UserCircle className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="assets-modal-title text-xl font-semibold text-gray-900">Add New Avatar</h3>
-                  <p className="assets-modal-subtitle text-sm text-gray-600">Upload character photo with a name</p>
+                  <p className="assets-modal-title text-xl font-semibold text-gray-900">Create New Avatar</p>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">Add 1 primary portrait and up to 3 reference photos.</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={onClose}
-                className="assets-modal-close w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
-                disabled={isCreating}
+                className="assets-modal-close flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100"
+                disabled={isCreating || isUploadingRefs}
               >
-                <X className="w-4 h-4 text-gray-500" />
+                <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="assets-modal-body space-y-5 p-6">
-              {/* Portrait Examples */}
-              <div className="assets-modal-card rounded-xl border border-gray-200 bg-[#FAFAFA] p-4">
-                <h4 className="assets-modal-card-title text-sm font-semibold text-gray-800 mb-3">Portrait Photo Examples</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="assets-modal-example-good mb-2 h-24 w-24 overflow-hidden rounded-full border-2 border-gray-300 shadow-sm">
-                      <Image
-                        src={GOOD_EXAMPLE_URL}
-                        alt="Good example"
-                        width={96}
-                        height={96}
-                        className="object-cover w-full h-full"
-                      />
-                    </div>
-                    <span className="assets-modal-example-label text-xs font-medium text-gray-700">Good Example</span>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <div className="assets-modal-example-bad mb-2 h-24 w-24 overflow-hidden rounded-full border-2 border-gray-300 shadow-sm">
-                      <Image
-                        src={BLURRY_EXAMPLE_URL}
-                        alt="Bad example (blurry)"
-                        width={96}
-                        height={96}
-                        className="object-cover w-full h-full"
-                      />
-                    </div>
-                    <span className="assets-modal-example-label text-xs font-medium text-gray-700">Bad Example (Blurry)</span>
-                  </div>
+            <form onSubmit={handleSubmit} className="assets-modal-body space-y-5 px-6 py-6">
+              {error && (
+                <div className="assets-modal-error flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{renderErrorMessage(error)}</span>
                 </div>
-                <p className="assets-modal-helper text-xs text-gray-500 mt-3">
-                  Use a clear, well-lit, front-facing portrait of a single person. Avoid blurry or low-resolution images.
-                </p>
-              </div>
+              )}
 
-              {/* Avatar Name Input */}
               <div>
-                <label htmlFor="avatar-name-input" className="assets-modal-label block text-sm font-medium text-gray-700 mb-2">
-                  Avatar Name *
-                </label>
+                <label htmlFor="avatar-name-input" className="assets-modal-label text-sm font-medium text-gray-700">Avatar Name</label>
                 <input
                   id="avatar-name-input"
                   type="text"
                   value={avatarName}
-                  onChange={(e) => setAvatarName(e.target.value)}
-                  className="assets-modal-input w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
-                  placeholder="e.g., Founder, Model, Demo Character"
-                  disabled={isCreating}
+                  onChange={(event) => setAvatarName(event.target.value)}
+                  className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
+                  placeholder="Enter avatar name"
                   maxLength={255}
                 />
               </div>
 
-              {/* Avatar Photo Upload */}
-              <div>
-                <label className="assets-modal-label block text-sm font-medium text-gray-700 mb-2">
-                  Avatar Photo *
-                </label>
+              <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
                 <div className="space-y-3">
-                  {avatarPreview ? (
-                    <div className="relative">
-                      <div className="assets-modal-preview flex h-56 w-full items-center justify-center rounded-xl border border-gray-200 bg-[#FAFAFA] p-4">
-                        <Image
-                          src={avatarPreview}
-                          alt="Avatar preview"
-                          width={300}
-                          height={300}
-                          className="max-h-full max-w-full object-contain rounded-lg"
-                        />
-                      </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium leading-5 text-gray-900">Primary Portrait (Required)</p>
+                    <div className="relative group">
                       <button
                         type="button"
-                        onClick={() => {
-                          setAvatarFile(null);
-                          setAvatarPreview(null);
-                        }}
-                        className="assets-modal-thumb-remove absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-black"
-                        disabled={isCreating}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:text-gray-600 align-middle"
+                        aria-label="Photo examples"
                       >
-                        <X className="w-3 h-3" />
+                        <CircleHelp className="h-4 w-4" />
                       </button>
-                    </div>
-                  ) : (
-                    <label className="block">
-                      <input
-                        type="file"
-                        accept={getAcceptedImageFormats()}
-                        onChange={handleAvatarUpload}
-                        className="hidden"
-                        disabled={isCreating}
-                      />
-                      <div className="assets-modal-upload flex h-56 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-[#FAFAFA] transition-colors hover:border-gray-400">
-                        <Upload className="mb-2 h-8 w-8 text-gray-400" />
-                        <p className="text-sm font-medium text-gray-900">Click to upload avatar photo</p>
-                        <p className="assets-modal-helper text-xs text-gray-500">PNG, JPG up to 8MB</p>
+                      <div className="pointer-events-none absolute left-0 top-6 z-20 w-72 rounded-xl border border-gray-200 bg-white p-3 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                        <p className="text-xs font-semibold text-gray-800 mb-2">Portrait Photo Examples</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className="h-16 w-16 overflow-hidden rounded-full border border-gray-200">
+                              <Image src={GOOD_EXAMPLE_URL} alt="Good example" width={64} height={64} className="h-full w-full object-cover" />
+                            </div>
+                            <span className="mt-1 text-[11px] text-gray-600">Good Example</span>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <div className="h-16 w-16 overflow-hidden rounded-full border border-gray-200">
+                              <Image src={BLURRY_EXAMPLE_URL} alt="Bad example" width={64} height={64} className="h-full w-full object-cover" />
+                            </div>
+                            <span className="mt-1 text-[11px] text-gray-600">Bad (Blurry)</span>
+                          </div>
+                        </div>
                       </div>
-                    </label>
-                  )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">Use a front-facing, well-lit portrait on a clean background.</p>
+
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => primaryInputRef.current?.click()}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        primaryInputRef.current?.click();
+                      }
+                    }}
+                    className={cn(
+                      'relative w-full aspect-[4/5] max-h-[560px] overflow-hidden rounded-2xl border-2 border-dashed transition',
+                      primaryImage ? 'border-gray-300 bg-[#F8F8F8]' : 'border-gray-300 bg-[#FAFAFA] hover:border-gray-400'
+                    )}
+                  >
+                    <div className="absolute left-3 top-3">
+                      <span className="rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">Primary</span>
+                    </div>
+
+                    {primaryImage ? (
+                      <>
+                        <Image src={primaryImage.preview} alt="Primary preview" fill className="object-cover" />
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setPrimaryImage(null);
+                          }}
+                          className="absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-600">
+                        <Upload className="mb-3 h-7 w-7 text-gray-400" />
+                        <p className="text-base font-semibold text-gray-900">Upload primary portrait</p>
+                        <p className="mt-1 text-xs text-gray-500">PNG or JPG, up to 8MB</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <input
+                    ref={primaryInputRef}
+                    type="file"
+                    accept={getAcceptedImageFormats()}
+                    onChange={handlePrimaryUpload}
+                    className="hidden"
+                    disabled={isCreating || isUploadingRefs}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-900">Reference Photos (Optional)</p>
+                  <p className="text-xs text-gray-500">Recommended: one 45° side angle and 1–2 detail/profile shots.</p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {referenceImages.map((item, index) => (
+                      <div key={`reference-${index}`} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50 group">
+                        <Image src={item.preview} alt={`Reference ${index + 1}`} fill className="object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeReferenceImage(index)}
+                          className="absolute top-2 right-2 h-6 w-6 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {referenceImages.length < 3 && (
+                      <label className="aspect-square rounded-xl border-2 border-dashed border-gray-300 bg-[#FAFAFA] flex flex-col items-center justify-center text-gray-600 hover:border-gray-400 hover:bg-gray-50 transition cursor-pointer">
+                        <input
+                          ref={referenceInputRef}
+                          type="file"
+                          accept={getAcceptedImageFormats()}
+                          onChange={handleReferenceUpload}
+                          className="hidden"
+                          disabled={isCreating || isUploadingRefs}
+                        />
+                        <Plus className="h-5 w-5 mb-2 text-gray-400" />
+                        <span className="text-xs font-medium">Add Reference</span>
+                      </label>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Error Message */}
-              {error && (
-                <p className="assets-modal-error text-sm text-red-600">{renderErrorMessage(error)}</p>
-              )}
-
-              {/* Action Buttons */}
               <div className="assets-modal-actions flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={onClose}
                   className="assets-modal-secondary flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
-                  disabled={isCreating}
+                  disabled={isCreating || isUploadingRefs}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isCreating || !avatarName.trim() || !avatarFile}
+                  disabled={!canSubmit}
                   className="assets-modal-primary flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isCreating && (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  )}
-                  {isCreating ? 'Creating...' : 'Create Avatar'}
+                  {(isCreating || isUploadingRefs) && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isUploadingRefs ? 'Uploading references...' : isCreating ? 'Creating...' : 'Create Avatar'}
                 </button>
               </div>
             </form>

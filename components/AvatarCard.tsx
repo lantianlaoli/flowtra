@@ -61,8 +61,8 @@ export default function AvatarCard({
     <>
       <motion.div
         className={`
-          assets-avatar-card relative group bg-white rounded-lg border overflow-hidden transition-all duration-200
-          ${isSelectableMode ? 'cursor-pointer hover:border-gray-400' : ''}
+          assets-avatar-card relative bg-white rounded-xl border overflow-hidden transition-all duration-200
+          ${isSelectableMode ? 'cursor-pointer hover:border-gray-300 hover:shadow-sm' : 'hover:border-gray-300 hover:shadow-sm'}
           ${isSelected ? 'border-gray-900 ring-2 ring-gray-900' : 'border-gray-200'}
           ${isDeleting ? 'opacity-50 pointer-events-none' : ''}
         `}
@@ -105,23 +105,21 @@ export default function AvatarCard({
           <p className="assets-avatar-card-title text-sm font-medium text-gray-900 truncate" title={avatar.avatar_name}>
             {avatar.avatar_name}
           </p>
-          <div className="flex items-center justify-between mt-1">
-            <p className="assets-avatar-card-meta text-xs text-gray-500">
-              {new Date(avatar.created_at).toLocaleDateString()}
-            </p>
+          <div className="mt-3 flex items-center gap-2">
             {isFullMode && (
-              <div className="flex items-center gap-1">
+              <>
                 <button
                   onClick={handleEditClick}
-                  className={`assets-avatar-card-action p-1.5 rounded-lg transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
+                  className={`assets-avatar-card-action flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
                   title={isSystemAvatar ? 'System avatar' : 'Edit avatar'}
                   disabled={isSystemAvatar}
                 >
                   <Edit2 className="w-4 h-4" />
+                  <span>Edit</span>
                 </button>
                 <button
                   onClick={handleDeleteClick}
-                  className={`assets-avatar-card-action assets-avatar-card-danger p-1.5 rounded-lg transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
+                  className={`assets-avatar-card-action assets-avatar-card-danger flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
                   title={isSystemAvatar ? 'System avatar' : (isDeleting ? 'Deleting...' : 'Delete avatar')}
                   disabled={isSystemAvatar}
                 >
@@ -130,8 +128,9 @@ export default function AvatarCard({
                   ) : (
                     <Trash2 className="w-4 h-4" />
                   )}
+                  <span>{isDeleting ? 'Deleting' : 'Delete'}</span>
                 </button>
-              </div>
+              </>
             )}
           </div>
         </div>

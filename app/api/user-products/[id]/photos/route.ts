@@ -4,6 +4,36 @@ import { getSupabaseAdmin, uploadProductPhotoToStorage, deleteProductPhotoFromSt
 import sharp from 'sharp';
 import { validateImageFormat } from '@/lib/image-validation';
 
+type PhotoRole = 'frontal' | 'reference';
+
+type ExistingPhotoRole = {
+  id: string;
+  photo_role: string | null;
+};
+
+export function validateProductPhotoRoleConstraints(
+  existingPhotos: ExistingPhotoRole[],
+  photoRole: PhotoRole
+) {
+  const totalPhotos = existingPhotos.length;
+  const frontalCount = existingPhotos.filter(photo => photo.photo_role === 'frontal').length;
+  const referenceCount = existingPhotos.filter(photo => photo.photo_role === 'reference').length;
+
+  if (totalPhotos >= 4) {
+    return 'A product can only have up to 4 photos total (1 frontal + 3 reference).';
+  }
+
+  if (photoRole === 'frontal' && frontalCount >= 1) {
+    return 'This product already has a frontal image. Delete it before uploading a new frontal image.';
+  }
+
+  if (photoRole === 'reference' && referenceCount >= 3) {
+    return 'A product can only have up to 3 reference images.';
+  }
+
+  return null;
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { userId } = await auth();
@@ -62,10 +92,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const formData = await req.formData();
     const file = formData.get('file') as File;
-    const isPrimary = formData.get('is_primary') === 'true';
+    const photoRoleRaw = formData.get('photo_role');
+    const photoRole = photoRoleRaw === 'frontal' || photoRoleRaw === 'reference'
+      ? photoRoleRaw
+      : null;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    if (!photoRole) {
+      return NextResponse.json({
+        error: 'photo_role is required and must be frontal or reference'
+      }, { status: 400 });
     }
 
     const validationResult = validateImageFormat(file);
@@ -90,20 +129,46 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Invalid image file' }, { status: 400 });
     }
 
-    // Check if product already has a photo (single photo per product constraint)
-    const { data: existingPhotos, error: photoCheckError } = await supabase
+    // Schema verified via Supabase MCP (2026-02-05): user_product_photos has photo_role, is_primary
+    let existingPhotos: Array<{ id: string; photo_role: string | null }> = [];
+    const {
+      data: existingPhotosWithRole,
+      error: photoCheckError
+    } = await supabase
       .from('user_product_photos')
-      .select('id')
+      .select('id, photo_role, is_primary')
       .eq('product_id', id)
       .eq('user_id', userId);
 
     if (photoCheckError) {
-      throw photoCheckError;
+      if (photoCheckError.code !== '42703') {
+        throw photoCheckError;
+      }
+      const { data: fallbackPhotos, error: fallbackError } = await supabase
+        .from('user_product_photos')
+        .select('id, is_primary')
+        .eq('product_id', id)
+        .eq('user_id', userId);
+
+      if (fallbackError) {
+        throw fallbackError;
+      }
+
+      existingPhotos = (fallbackPhotos || []).map(photo => ({
+        id: photo.id,
+        photo_role: photo.is_primary ? 'frontal' : 'reference'
+      }));
+    } else {
+      existingPhotos = (existingPhotosWithRole || []).map(photo => ({
+        id: photo.id,
+        photo_role: photo.photo_role ?? (photo.is_primary ? 'frontal' : 'reference')
+      }));
     }
 
-    if (existingPhotos && existingPhotos.length > 0) {
+    const constraintError = validateProductPhotoRoleConstraints(existingPhotos, photoRole);
+    if (constraintError) {
       return NextResponse.json(
-        { error: 'This product already has a photo. Please delete the existing photo before uploading a new one.' },
+        { error: constraintError },
         { status: 400 }
       );
     }
@@ -115,7 +180,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       throw new Error('Failed to upload to storage');
     }
 
-    // If setting as primary, unset other primary photos for this product
+    const isPrimary = photoRole === 'frontal';
+
     if (isPrimary) {
       await supabase
         .from('user_product_photos')
@@ -125,17 +191,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     // Save photo record
-    const { data, error: insertError } = await supabase
+    let data;
+    let insertError;
+    const insertPayload = {
+      product_id: id,
+      user_id: userId,
+      photo_url: uploadResult.publicUrl,
+      file_name: file.name,
+      photo_role: photoRole,
+      is_primary: isPrimary
+    };
+
+    const insertWithRole = await supabase
       .from('user_product_photos')
-      .insert({
-        product_id: id,
-        user_id: userId,
-        photo_url: uploadResult.publicUrl,
-        file_name: file.name,
-        is_primary: isPrimary
-      })
+      .insert(insertPayload)
       .select()
       .single();
+
+    data = insertWithRole.data;
+    insertError = insertWithRole.error;
+
+    if (insertError?.code === '42703') {
+      const insertWithoutRole = await supabase
+        .from('user_product_photos')
+        .insert({
+          product_id: id,
+          user_id: userId,
+          photo_url: uploadResult.publicUrl,
+          file_name: file.name,
+          is_primary: isPrimary
+        })
+        .select()
+        .single();
+      data = insertWithoutRole.data;
+      insertError = insertWithoutRole.error;
+    }
 
     if (insertError) {
       throw insertError;

@@ -46,10 +46,7 @@ export async function GET(
       .select(`
         *,
         user_product_photos (
-          id,
-          photo_url,
-          is_primary,
-          created_at
+          *
         )
       `)
       .eq('brand_id', brandId)

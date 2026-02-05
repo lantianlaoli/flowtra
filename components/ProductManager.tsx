@@ -105,11 +105,15 @@ export default function ProductManager({
     }
   };
 
-  const handlePhotoUpload = async (productId: string, file: File) => {
+  const handlePhotoUpload = async (
+    productId: string,
+    file: File,
+    photoRole: 'frontal' | 'reference' = 'reference'
+  ) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('is_primary', 'false');
+      formData.append('photo_role', photoRole);
 
       const response = await fetch(`/api/user-products/${productId}/photos`, {
         method: 'POST',

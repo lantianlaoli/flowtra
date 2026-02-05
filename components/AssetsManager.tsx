@@ -90,6 +90,14 @@ export default function AssetsManager() {
     loadAvatars();
   }, []);
 
+  useEffect(() => {
+    if (!editingProduct) return;
+    const latest = assetsData.products.find((product) => product.id === editingProduct.id);
+    if (latest) {
+      setEditingProduct(latest);
+    }
+  }, [assetsData.products, editingProduct]);
+
   const loadAssets = async () => {
     try {
       const response = await fetch('/api/assets', { cache: 'no-store' });
@@ -204,6 +212,55 @@ export default function AssetsManager() {
       );
     } finally {
       setDeletingProductId(null);
+    }
+  };
+
+  const handlePhotoUpload = async (
+    productId: string,
+    file: File,
+    photoRole: 'frontal' | 'reference' = 'reference'
+  ) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('photo_role', photoRole);
+
+      const response = await fetch(`/api/user-products/${productId}/photos`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError(payload?.error || payload?.details || 'Failed to upload image', 5000);
+        return;
+      }
+
+      showSuccess(photoRole === 'frontal' ? 'Frontal image uploaded successfully' : 'Reference image uploaded successfully');
+      await loadAssets();
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      showError('An error occurred while uploading the image. Please try again.', 5000);
+    }
+  };
+
+  const handleDeletePhoto = async (productId: string, photoId: string) => {
+    try {
+      const response = await fetch(`/api/user-products/${productId}/photos?photoId=${photoId}`, {
+        method: 'DELETE'
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError(payload?.error || payload?.details || 'Failed to delete photo', 5000);
+        return;
+      }
+
+      showSuccess('Photo deleted successfully');
+      await loadAssets();
+    } catch (error) {
+      console.error('Error deleting photo:', error);
+      showError('An error occurred while deleting the photo. Please try again.', 5000);
     }
   };
 
@@ -400,8 +457,10 @@ export default function AssetsManager() {
                   <ProductCard
                     key={product.id}
                     product={product}
+                    onView={handleEditProduct}
                     onEditClick={handleEditProduct}
                     onDelete={handleDeleteProduct}
+                    onPhotoUpload={handlePhotoUpload}
                     isDeleting={deletingProductId === product.id}
                     mode="compact"
                     brandLabel={undefined}
@@ -562,6 +621,10 @@ export default function AssetsManager() {
         product={editingProduct}
         onClose={() => setEditingProduct(null)}
         onProductUpdated={handleProductUpdated}
+        onDelete={handleDeleteProduct}
+        onPhotoUpload={handlePhotoUpload}
+        onDeletePhoto={handleDeletePhoto}
+        isDeleting={deletingProductId === editingProduct?.id}
       />
 
       <CreateProductModal

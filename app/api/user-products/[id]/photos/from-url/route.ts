@@ -48,17 +48,37 @@ export async function POST(
 
     console.log('[from-url] Creating photo record:', { productId, userId, imageUrl, fileName });
 
-    const { data: photo, error: photoError } = await supabase
+    const insertWithRole = await supabase
       .from('user_product_photos')
       .insert({
         product_id: productId,
         photo_url: imageUrl,
         file_name: fileName,
+        photo_role: 'frontal',
         is_primary: true,
         user_id: userId
       })
       .select()
       .single();
+
+    let photo = insertWithRole.data;
+    let photoError = insertWithRole.error;
+
+    if (photoError?.code === '42703') {
+      const fallbackInsert = await supabase
+        .from('user_product_photos')
+        .insert({
+          product_id: productId,
+          photo_url: imageUrl,
+          file_name: fileName,
+          is_primary: true,
+          user_id: userId
+        })
+        .select()
+        .single();
+      photo = fallbackInsert.data;
+      photoError = fallbackInsert.error;
+    }
 
     if (photoError) {
       console.error('[from-url] Failed to create photo record:', photoError);

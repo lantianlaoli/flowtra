@@ -14,7 +14,7 @@ interface ProductDetailModalProps {
   product: UserProduct | null;
   onEdit: (product: UserProduct) => void;
   onDelete: (productId: string) => void;
-  onPhotoUpload: (productId: string, file: File) => void;
+  onPhotoUpload: (productId: string, file: File, photoRole?: 'frontal' | 'reference') => void;
   onDeletePhoto: (productId: string, photoId: string) => void;
   isDeleting?: boolean;
 }
@@ -34,7 +34,6 @@ export default function ProductDetailModal({
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Handle ESC key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -46,7 +45,6 @@ export default function ProductDetailModal({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  // Reset selected photo when modal opens
   useEffect(() => {
     if (isOpen) {
       setSelectedPhotoIndex(0);
@@ -56,7 +54,13 @@ export default function ProductDetailModal({
 
   if (!product) return null;
 
-  const photos = product.user_product_photos || [];
+  const allPhotos = product.user_product_photos || [];
+  const frontalPhoto = allPhotos.find((photo) => photo.photo_role === 'frontal')
+    || allPhotos.find((photo) => photo.is_primary)
+    || allPhotos[0]
+    || null;
+  const referencePhotos = allPhotos.filter((photo) => photo.id !== frontalPhoto?.id);
+  const orderedPhotos = frontalPhoto ? [frontalPhoto, ...referencePhotos] : allPhotos;
 
   const handleEdit = () => {
     onEdit(product);
@@ -80,8 +84,8 @@ export default function ProductDetailModal({
     if (photoToDelete) {
       onDeletePhoto(product.id, photoToDelete.id);
       setPhotoToDelete(null);
-      // Adjust selected photo index if needed
-      if (selectedPhotoIndex >= photos.length - 1 && selectedPhotoIndex > 0) {
+
+      if (selectedPhotoIndex >= orderedPhotos.length - 1 && selectedPhotoIndex > 0) {
         setSelectedPhotoIndex(selectedPhotoIndex - 1);
       }
     }
@@ -108,7 +112,7 @@ export default function ProductDetailModal({
     );
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (photoRole: 'frontal' | 'reference') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -120,7 +124,7 @@ export default function ProductDetailModal({
     }
 
     setUploadError(null);
-    onPhotoUpload(product.id, file);
+    onPhotoUpload(product.id, file, photoRole);
     if (e.target) e.target.value = '';
   };
 
@@ -141,7 +145,6 @@ export default function ProductDetailModal({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Backdrop */}
             <motion.div
               className="absolute inset-0 bg-black/50 backdrop-blur-sm"
               onClick={handleBackdropClick}
@@ -150,7 +153,6 @@ export default function ProductDetailModal({
               exit={{ opacity: 0 }}
             />
 
-            {/* Modal Card */}
             <motion.div
               className="relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-4xl mx-auto overflow-hidden"
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -158,7 +160,6 @@ export default function ProductDetailModal({
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
             >
-              {/* Header */}
               <div className="flex items-start justify-between p-6 border-b border-gray-200">
                 <div className="flex-1">
                   <h2 className="text-2xl font-semibold text-gray-900">
@@ -173,12 +174,11 @@ export default function ProductDetailModal({
                 </button>
               </div>
 
-              {/* Main Photo Display */}
-              {photos.length > 0 && (
+              {orderedPhotos.length > 0 && (
                 <div className="relative bg-gray-50">
                   <div className="aspect-video relative">
                     <Image
-                      src={photos[selectedPhotoIndex].photo_url}
+                      src={orderedPhotos[selectedPhotoIndex].photo_url}
                       alt={product.product_name}
                       fill
                       className="object-contain"
@@ -186,10 +186,9 @@ export default function ProductDetailModal({
                     />
                   </div>
 
-                  {/* Photo navigation */}
-                  {photos.length > 1 && (
+                  {orderedPhotos.length > 1 && (
                     <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-                      {photos.map((_, index) => (
+                      {orderedPhotos.map((_, index) => (
                         <button
                           key={index}
                           onClick={() => setSelectedPhotoIndex(index)}
@@ -205,55 +204,106 @@ export default function ProductDetailModal({
                 </div>
               )}
 
-              {/* Photo Thumbnails */}
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-gray-900">
-                    Photos ({photos.length}/6)
-                  </h3>
-                </div>
+              <div className="p-6 border-b border-gray-200 space-y-5">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-900">Frontal Photo</h3>
+                  </div>
+                  <p className="mb-2 text-xs text-gray-500">Use a clear front-facing product shot on clean background.</p>
 
-                <div className="grid grid-cols-6 gap-2">
-                  {photos.map((photo, index) => (
-                    <div
-                      key={photo.id}
-                      className={`relative group aspect-square cursor-pointer rounded-lg overflow-hidden ${
-                        index === selectedPhotoIndex ? 'ring-2 ring-blue-500' : ''
-                      }`}
-                      onClick={() => setSelectedPhotoIndex(index)}
-                    >
-                      <Image
-                        src={photo.photo_url}
-                        alt={photo.file_name}
-                        fill
-                        className="object-cover"
-                        sizes="160px"
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePhotoDelete(photo);
+                  <div className="grid grid-cols-4 gap-2">
+                    {frontalPhoto ? (
+                      <div
+                        className={`relative group aspect-square cursor-pointer rounded-lg overflow-hidden ${
+                          orderedPhotos[selectedPhotoIndex]?.id === frontalPhoto.id ? 'ring-2 ring-blue-500' : ''
+                        }`}
+                        onClick={() => {
+                          const index = orderedPhotos.findIndex((photo) => photo.id === frontalPhoto.id);
+                          setSelectedPhotoIndex(index < 0 ? 0 : index);
                         }}
-                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-
-                  {/* Add Photo Button */}
-                  {photos.length < 6 && (
-                    <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer group">
-                      <input
-                        type="file"
-                        accept={getAcceptedImageFormats()}
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                      <Plus className="w-6 h-6 text-gray-400 group-hover:text-gray-600" />
-                    </label>
-                  )}
+                        <Image
+                          src={frontalPhoto.photo_url}
+                          alt={frontalPhoto.file_name}
+                          fill
+                          className="object-cover"
+                          sizes="160px"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePhotoDelete(frontalPhoto);
+                          }}
+                          className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer group">
+                        <input
+                          type="file"
+                          accept={getAcceptedImageFormats()}
+                          onChange={handleFileUpload('frontal')}
+                          className="hidden"
+                        />
+                        <Plus className="w-6 h-6 text-gray-400 group-hover:text-gray-600" />
+                      </label>
+                    )}
+                  </div>
                 </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-900">Reference Photos</h3>
+                  </div>
+                  <p className="mb-2 text-xs text-gray-500">Recommended: one 45° front angle plus 1–2 detail shots (back/close-up/structure).</p>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    {referencePhotos.map((photo) => (
+                      <div
+                        key={photo.id}
+                        className={`relative group aspect-square cursor-pointer rounded-lg overflow-hidden ${
+                          orderedPhotos[selectedPhotoIndex]?.id === photo.id ? 'ring-2 ring-blue-500' : ''
+                        }`}
+                        onClick={() => {
+                          const index = orderedPhotos.findIndex((item) => item.id === photo.id);
+                          setSelectedPhotoIndex(index < 0 ? 0 : index);
+                        }}
+                      >
+                        <Image
+                          src={photo.photo_url}
+                          alt={photo.file_name}
+                          fill
+                          className="object-cover"
+                          sizes="160px"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePhotoDelete(photo);
+                          }}
+                          className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {referencePhotos.length < 3 && (
+                      <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer group">
+                        <input
+                          type="file"
+                          accept={getAcceptedImageFormats()}
+                          onChange={handleFileUpload('reference')}
+                          className="hidden"
+                        />
+                        <Plus className="w-6 h-6 text-gray-400 group-hover:text-gray-600" />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
                 {uploadError && (
                   <p className="mt-2 text-sm text-red-600">
                     {renderErrorMessage(uploadError)}
@@ -261,7 +311,6 @@ export default function ProductDetailModal({
                 )}
               </div>
 
-              {/* Actions */}
               <div className="flex items-center justify-end gap-3 p-6 bg-gray-50">
                 <button
                   onClick={handleDelete}
@@ -288,7 +337,6 @@ export default function ProductDetailModal({
         )}
       </AnimatePresence>
 
-      {/* Delete Product Confirmation */}
       <ConfirmDialog
         isOpen={showDeleteProductDialog}
         onClose={() => setShowDeleteProductDialog(false)}
@@ -299,7 +347,6 @@ export default function ProductDetailModal({
         variant="danger"
       />
 
-      {/* Delete Photo Confirmation */}
       <ConfirmDialog
         isOpen={!!photoToDelete}
         onClose={() => setPhotoToDelete(null)}
