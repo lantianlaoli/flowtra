@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { FaTiktok } from 'react-icons/fa6';
+import { BOOKING_URL } from '@/lib/booking';
 
 interface FounderCardProps {
   variant?: 'compact' | 'hero' | 'featured';
@@ -53,7 +54,14 @@ export default function FounderCard({
           <div className="text-[#d9d9d7]">·</div>
 
           {/* Content - compact */}
-          <span className="text-[#37352f] font-medium">Book a demo</span>
+          <a
+            href={BOOKING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#37352f] font-medium hover:underline"
+          >
+            Book a demo
+          </a>
 
           {/* Separator */}
           <div className="text-[#d9d9d7]">·</div>
@@ -147,4 +155,3 @@ export default function FounderCard({
       </motion.div>
     );
 }
-

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, XCircle, PartyPopper, Upload, Play, Mic, CheckCircle, ArrowRight, Mail } from 'lucide-react';
 import { useVideoAnalysis } from '@/hooks/useVideoAnalysis';
 import { hasUsedFreeAnalysis } from '@/lib/rate-limit';
+import { BOOKING_URL } from '@/lib/booking';
 import { useEffect, useState } from 'react';
 
 // Inline refined components for left-right layout
@@ -258,33 +259,7 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
   // LEFT-RIGHT LAYOUT WRAPPER
   const hasVideo = uploadedVideoUrl && (state === 'uploading' || state === 'analyzing' || state === 'completed');
 
-  // Book demo email handler
-  const handleBookDemo = () => {
-    const email = process.env.NEXT_PUBLIC_EMAIL || 'lantianlaoli@gmail.com';
-    const subject = encodeURIComponent('Hey! Want to try Flowtra 👋');
-    const body = encodeURIComponent(`Hi Laoli,
-
-I'd love to give Flowtra a try!
-
-What I want to test:
-□ Avatar Ads - talking character videos
-□ Competitor Cloning - recreate successful ads with my product
-□ Both look awesome
-
-My use case:
-[Tell me a bit about what you do and how you'd use it]
-
-My materials:
-For Avatar Ads: [Share product image links or I can attach them]
-For Competitor Cloning: [Paste the TikTok video link you want to recreate]
-
-Best time to chat:
-[Whenever works, I'm flexible]
-
-Thanks!`);
-
-    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-  };
+  
 
   // FULL-WIDTH STATES (no video preview)
   // Rate Limited State
@@ -311,14 +286,16 @@ Thanks!`);
             >
               View Pricing
             </Link>
-            <button
-              onClick={handleBookDemo}
+            <a
+              href={BOOKING_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
               style={{ borderRadius: '8px' }}
             >
               <Mail className="w-4 h-4" strokeWidth={1.5} />
               Book a Demo
-            </button>
+            </a>
           </div>
           <p className="text-sm text-gray-500 mt-4">
             Starting at $29/month
@@ -493,14 +470,16 @@ Thanks!`);
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
-              <button
-                onClick={handleBookDemo}
+              <a
+                href={BOOKING_URL}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
                 style={{ borderRadius: '8px' }}
               >
                 <Mail className="w-4 h-4" strokeWidth={1.5} />
                 Book a Demo
-              </button>
+              </a>
             </div>
           </div>
         )}

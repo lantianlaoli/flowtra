@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ArrowRight, Mail, MessageCircle, Calendar } from 'lucide-react';
 import type { VideoAnalysisResult } from '@/hooks/useVideoAnalysis';
+import { BOOKING_URL } from '@/lib/booking';
 
 interface CTASectionProps {
   result: VideoAnalysisResult;
@@ -19,7 +20,6 @@ export function CTASection({ result }: CTASectionProps) {
   const contactEmail = process.env.NEXT_PUBLIC_EMAIL || 'hello@flowtra.com';
   const discordLink = process.env.NEXT_PUBLIC_DISCORD;
   const linkedinLink = process.env.NEXT_PUBLIC_LINKEDIN;
-  const bookingLink = process.env.NEXT_PUBLIC_BOOKING_URL;
 
   return (
     <div className="mt-8 space-y-8 border-t border-gray-200 pt-8">
@@ -103,9 +103,9 @@ export function CTASection({ result }: CTASectionProps) {
           )}
 
           {/* Calendar booking */}
-          {bookingLink && (
+          {BOOKING_URL && (
             <a
-              href={bookingLink}
+              href={BOOKING_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-3 bg-white border-2 border-gray-200 rounded-lg font-medium text-gray-700 hover:border-black hover:bg-gray-50 transition-all"
