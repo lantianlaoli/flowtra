@@ -39,6 +39,13 @@ import { getDownloadCost, type VideoModel, getVideoModelDisplayName } from '@/li
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
 import SegmentEditorSplitPane from '@/components/competitor-ugc-replication/SegmentEditorSplitPane';
 
+const ACTION_BUTTON_BASE =
+  'inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/35';
+const ACTION_BUTTON_DARK =
+  `${ACTION_BUTTON_BASE} border border-zinc-900 bg-gradient-to-b from-zinc-900 to-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_3px_8px_rgba(0,0,0,0.18)] hover:from-black hover:to-zinc-900 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_6px_12px_rgba(0,0,0,0.2)] hover:-translate-y-[1px]`;
+const ACTION_BUTTON_DARK_DISABLED =
+  `${ACTION_BUTTON_BASE} border border-zinc-900/60 bg-zinc-900/75 text-white/75 cursor-not-allowed shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]`;
+
 export interface Generation {
   id: string;
   timestamp: Date;
@@ -345,7 +352,7 @@ function GenerationCard({
 
   const downloadActionLabel = useMemo(() => {
     if (isDownloading) return 'Downloading…';
-    if (downloaded) return 'Downloaded';
+    if (downloaded) return 'Download Again';
     return 'Download';
   }, [isDownloading, downloaded]);
 
@@ -439,7 +446,10 @@ function GenerationCard({
     (displayStatus === 'failed' && Boolean(errorMessage)) ||
     hasSegments ||
     (status === 'completed' && (Boolean(videoUrl) || Boolean(coverUrl)));
-  const showPreviewAction = displayStatus === 'awaiting_review' && Boolean(coverUrl) && Boolean(onReview);
+  const showPreviewAction =
+    Boolean(coverUrl) &&
+    Boolean(onReview) &&
+    (displayStatus === 'awaiting_review' || status === 'completed');
 
   const MetaTag = ({ icon: Icon, text }: { icon?: React.ElementType; text: string }) => (
     <div className="generation-progress-meta inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 border border-gray-100 rounded-lg text-[11px] font-medium text-gray-600">
@@ -477,58 +487,44 @@ function GenerationCard({
             {showPreviewAction && (
               <button
                 onClick={() => onReview?.(generation)}
-                className="generation-progress-action inline-flex h-11 items-center gap-2 rounded-xl bg-black px-5 text-base font-bold text-white hover:bg-gray-800 transition-all shadow-sm"
+                className={`generation-progress-action ${ACTION_BUTTON_DARK}`}
               >
-                <PencilLine className="w-4 h-4" />
+                <PencilLine className="w-3.5 h-3.5" />
                 {reviewCtaLabel}
               </button>
             )}
             {primaryActionLabel && onPrimaryAction && (
               <button
                 onClick={() => onPrimaryAction(generation)}
-                className="generation-progress-action inline-flex h-11 items-center gap-2 rounded-xl bg-black px-5 text-base font-bold text-white hover:bg-gray-800 transition-all shadow-sm"
+                className={`generation-progress-action ${ACTION_BUTTON_DARK}`}
               >
-                <PencilLine className="w-4 h-4" />
+                <PencilLine className="w-3.5 h-3.5" />
                 <span>{primaryActionLabel}</span>
               </button>
             )}
-            {hasSegments && generation.segments && generation.segments.length > 0 && !mergeComplete && (
+            {hasSegments && generation.segments && generation.segments.length > 0 && (
               <div className="flex flex-col gap-1.5 items-end">
                 <button
                   onClick={() => {
                     setEditorReadOnly(false);
                     setShowSegmentEditor(true);
                   }}
-                  className="generation-progress-edit inline-flex h-11 items-center gap-2 rounded-xl bg-black px-5 text-base font-bold text-white transition-all hover:bg-gray-800 shadow-sm"
+                  className={`generation-progress-edit ${ACTION_BUTTON_DARK}`}
                 >
-                  <PencilLine className="w-4 h-4" />
+                  <PencilLine className="w-3.5 h-3.5" />
                   <span>Edit</span>
                 </button>
               </div>
             )}
-            {hasSegments && generation.segments && generation.segments.length > 0 && mergeComplete && (
-              <button
-                onClick={() => {
-                  setEditorReadOnly(true);
-                  setShowSegmentEditor(true);
-                }}
-                className="generation-progress-action inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-900 rounded-xl text-[13px] font-semibold hover:border-gray-900 hover:bg-gray-50 transition-all"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Review Segments</span>
-              </button>
-            )}
             {status === 'completed' && videoUrl && (
               <>
                 <button
-                  onClick={() => !isDownloading && !downloaded && onDownload?.(generation)}
-                  disabled={isDownloading || downloaded}
-                  className={`inline-flex items-center gap-2 px-4 py-2 border rounded-xl text-[13px] font-semibold transition-all ${
-                    downloaded
-                      ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-default'
-                      : isDownloading
-                      ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-wait'
-                      : 'border-gray-200 bg-white text-gray-900 hover:border-gray-900 hover:bg-gray-50 cursor-pointer'
+                  onClick={() => !isDownloading && onDownload?.(generation)}
+                  disabled={isDownloading}
+                  className={`${
+                    isDownloading
+                      ? `${ACTION_BUTTON_DARK_DISABLED} animate-pulse`
+                      : `${ACTION_BUTTON_DARK} cursor-pointer`
                   }`}
                 >
                   <Download className={`w-3.5 h-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
@@ -969,7 +965,7 @@ function FeedbackButtons({
       <button
         onClick={() => handleFeedback('positive')}
         disabled={submitting !== null}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[13px] font-medium hover:border-gray-900 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className={`${submitting !== null ? ACTION_BUTTON_DARK_DISABLED : ACTION_BUTTON_DARK}`}
       >
         {submitting === 'positive' ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -981,7 +977,7 @@ function FeedbackButtons({
       <button
         onClick={() => handleFeedback('negative')}
         disabled={submitting !== null}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[13px] font-medium hover:border-gray-900 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className={`${submitting !== null ? ACTION_BUTTON_DARK_DISABLED : ACTION_BUTTON_DARK}`}
       >
         {submitting === 'negative' ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
