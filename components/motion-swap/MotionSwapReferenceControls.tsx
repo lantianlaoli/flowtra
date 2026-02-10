@@ -49,6 +49,8 @@ export default function MotionSwapReferenceControls({
     () => videos.find(video => video.id === selectedVideoId),
     [videos, selectedVideoId]
   );
+  const selectedVideoEligible = Boolean(selectedVideo?.cover_url);
+  const triggerVideo = selectedVideoEligible ? selectedVideo : null;
   const isInline = variant === 'inline';
 
   return (
@@ -68,8 +70,8 @@ export default function MotionSwapReferenceControls({
               <div className="bottom-bar-video-thumb h-8 w-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
                 {selectedVideo?.cover_url ? (
                   <Image
-                    src={selectedVideo.cover_url}
-                    alt={selectedVideo.description || 'Video'}
+                    src={triggerVideo?.cover_url || ''}
+                    alt={triggerVideo?.description || 'Video'}
                     width={32}
                     height={32}
                     className="h-full w-full object-cover"
@@ -79,7 +81,7 @@ export default function MotionSwapReferenceControls({
                 )}
               </div>
               <p className="bottom-bar-video-title text-sm font-medium text-gray-900">
-                {selectedVideo?.description?.slice(0, 28) || 'Select video'}
+                {triggerVideo?.description?.slice(0, 28) || 'Select video'}
               </p>
             </div>
           }
@@ -87,6 +89,7 @@ export default function MotionSwapReferenceControls({
           {videos.length > 0 ? (
             <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
               {videos.map(video => {
+                const hasFirstFrame = Boolean(video.cover_url);
                 const likeCount = getStatCount(video.stats, 'diggCount');
                 const commentCount = getStatCount(video.stats, 'commentCount');
                 const shareCount = getStatCount(video.stats, 'shareCount');
@@ -100,13 +103,17 @@ export default function MotionSwapReferenceControls({
                     key={video.id}
                     type="button"
                     onClick={() => {
+                      if (!hasFirstFrame) return;
                       onSelectVideoId(video.id);
                       setVideoOpen(false);
                     }}
+                    disabled={!hasFirstFrame}
                     className={`bottom-bar-video-option w-full rounded-lg border p-3 text-left transition-colors ${
-                      selectedVideoId === video.id
+                      selectedVideoId === video.id && hasFirstFrame
                         ? 'border-black bg-gray-50'
-                        : 'border-gray-200 hover:border-black'
+                        : hasFirstFrame
+                          ? 'border-gray-200 hover:border-black'
+                          : 'border-gray-200 bg-gray-50/70 opacity-70 cursor-not-allowed'
                     }`}
                   >
                     <div className="flex gap-3">
@@ -136,6 +143,9 @@ export default function MotionSwapReferenceControls({
                         <p className="bottom-bar-video-option-title text-sm font-medium text-gray-900 line-clamp-2">
                           {video.description || 'TikTok video'}
                         </p>
+                        {!hasFirstFrame && (
+                          <p className="text-[11px] font-medium text-gray-500 mt-1">First frame required</p>
+                        )}
                         <div className="bottom-bar-video-option-meta flex flex-wrap gap-3 text-[11px] text-gray-500 mt-2">
                           <span className="inline-flex items-center gap-1">
                             <Clock3 className="w-3 h-3" />
