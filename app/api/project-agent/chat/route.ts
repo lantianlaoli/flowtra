@@ -13,7 +13,7 @@ const openrouter = createOpenAI({
   baseURL: 'https://openrouter.ai/api/v1'
 });
 
-const model = openrouter.chat('google/gemini-3-pro-preview');
+const model = openrouter.chat(process.env.OPENROUTER_MODEL || 'bytedance-seed/seed-1.6-flash');
 
 const emptySchema = jsonSchema({ type: 'object', properties: {}, required: [] });
 

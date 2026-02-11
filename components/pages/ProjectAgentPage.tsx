@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { ArrowUp, Check, Loader2, MessageCircle, Plus } from 'lucide-react';
+import { ArrowUp, Check, History, Loader2, MessageCircle, Plus, Search, Sparkles } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import VideoAssetCard from '@/components/VideoAssetCard';
@@ -346,6 +346,8 @@ export default function ProjectAgentPage() {
   const [pendingBaselineCount, setPendingBaselineCount] = useState(0);
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [isHistoryPopoverOpen, setIsHistoryPopoverOpen] = useState(false);
+  const [historyQuery, setHistoryQuery] = useState('');
   const [cloneableVideos, setCloneableVideos] = useState<CloneableVideoAsset[]>([]);
   const [isCloneableVideosLoading, setIsCloneableVideosLoading] = useState(false);
   const [showCloneableVideos, setShowCloneableVideos] = useState(false);
@@ -371,6 +373,7 @@ export default function ProjectAgentPage() {
   const [awaitingCloneDraftReply, setAwaitingCloneDraftReply] = useState(false);
   const [cloneDraftReplyBaseline, setCloneDraftReplyBaseline] = useState(0);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  const historyPopoverRef = useRef<HTMLDivElement | null>(null);
   const isStreamingRef = useRef(false);
 
   const ensureHistoryTracked = useCallback((id: string, options?: { prependIfNew?: boolean }) => {
@@ -741,6 +744,7 @@ export default function ProjectAgentPage() {
     setIsGeneratingCloneProject(false);
     setIsGeneratingFinalVideo(false);
     setRegeneratingSegmentIndex(null);
+    setIsHistoryPopoverOpen(false);
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(SESSION_STORAGE_KEY, nextId);
@@ -766,6 +770,7 @@ export default function ProjectAgentPage() {
     setIsGeneratingCloneProject(false);
     setIsGeneratingFinalVideo(false);
     setRegeneratingSegmentIndex(null);
+    setIsHistoryPopoverOpen(false);
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(SESSION_STORAGE_KEY, targetSessionId);
@@ -775,6 +780,12 @@ export default function ProjectAgentPage() {
 
   const isReady = Boolean(sessionId);
   const displayMessages = useMemo(() => dedupeConversationMessages(messages), [messages]);
+  const filteredHistoryItems = useMemo(() => {
+    const query = historyQuery.trim().toLowerCase();
+    if (!query) return historyItems;
+    return historyItems.filter((item) => item.title.toLowerCase().includes(query));
+  }, [historyItems, historyQuery]);
+
   const loadCloneableVideos = useCallback(async () => {
     setIsCloneableVideosLoading(true);
     try {
@@ -833,6 +844,14 @@ export default function ProjectAgentPage() {
       latestUserText.includes('ugc')
     );
   }, [latestUserText]);
+
+  const activeChatTitle = useMemo(() => {
+    const firstUser = displayMessages.find((message) => message.role === 'user');
+    if (!firstUser) return 'New chat';
+    const text = renderUIMessageText(firstUser).trim();
+    if (!text) return 'New chat';
+    return text.length > 44 ? `${text.slice(0, 44)}...` : text;
+  }, [displayMessages]);
 
   useEffect(() => {
     if (!isCloneIntentTurn) return;
@@ -1545,6 +1564,7 @@ export default function ProjectAgentPage() {
     if (!segments?.length) return false;
     return segments.every((segment) => segment.status === 'first_frame_ready' || Boolean(segment.firstFrameUrl));
   }, [sessionState?.cloneExecution?.segments]);
+  const hasCloneSurfaceContent = showCloneableVideos || showCloneReplacementSelectors || showClonePromptDraftStep || showCloneSceneReviewStep;
 
   useEffect(() => {
     scrollToBottom('auto');
@@ -1553,6 +1573,30 @@ export default function ProjectAgentPage() {
   useEffect(() => {
     scrollToBottom(isStreaming ? 'auto' : 'smooth');
   }, [displayMessages, pendingUserText, isStreaming, scrollToBottom]);
+
+  useEffect(() => {
+    if (!isHistoryPopoverOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!historyPopoverRef.current?.contains(target)) {
+        setIsHistoryPopoverOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsHistoryPopoverOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isHistoryPopoverOpen]);
 
   if (!isLoaded) {
     return <FlowtraLoading />;
@@ -1569,230 +1613,130 @@ export default function ProjectAgentPage() {
 
       <div className="dashboard-content-offset h-screen overflow-hidden">
         <div className="h-full p-4 md:p-6 lg:p-8">
-          <div className="grid h-full grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4">
-            <aside className="h-full rounded-2xl border border-[#e6e6e4] bg-[#fbfbfa] overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-[#e6e6e4]">
-                <div className="text-sm font-semibold text-[#1f1f1e]">History</div>
-                <button
-                  type="button"
-                  onClick={startNewChat}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[#d9d9d7] bg-white px-2.5 text-xs font-medium text-[#1f1f1e] hover:bg-[#f3f3f2]"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  New
-                </button>
-              </div>
-
-              <div className="h-[calc(100%-57px)] overflow-y-auto p-2 space-y-1">
-                {isHistoryLoading && historyItems.length === 0 ? (
-                  <div className="px-2 py-3 text-xs text-[#787876]">Loading history...</div>
-                ) : historyItems.length === 0 ? (
-                  <div className="px-2 py-3 text-xs text-[#787876]">No conversations yet.</div>
-                ) : (
-                  historyItems.map((item) => (
-                    <button
-                      key={item.sessionId}
-                      type="button"
-                      onClick={() => selectHistory(item.sessionId)}
-                      className={`w-full text-left rounded-lg px-2.5 py-2 border transition-colors ${
-                        item.sessionId === sessionId
-                          ? 'bg-white border-[#1f1f1e]'
-                          : 'bg-transparent border-transparent hover:bg-white hover:border-[#e6e6e4]'
-                      }`}
-                    >
-                      <div className="text-[13px] text-[#1f1f1e] font-medium truncate">{item.title}</div>
-                      <div className="text-[11px] text-[#9b9b98] mt-0.5">
-                        {new Date(item.updatedAt).toLocaleString()}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </aside>
-
-            <section className="h-full rounded-2xl border border-[#e6e6e4] bg-[#fbfbfa] flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-[#e6e6e4]">
-                <div className="flex items-center gap-2 text-[#1f1f1e]">
-                  <MessageCircle className="w-4 h-4" />
-                  <span className="text-sm font-semibold">Flowtra Agent</span>
-                </div>
-                {statusNote ? <span className="text-xs text-[#787876]">{statusNote}</span> : null}
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={sessionId || 'empty-session'}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18, ease: 'easeOut' }}
-                    className="space-y-4"
-                  >
-                    {displayMessages.map((message) => {
-                      const messageText = renderUIMessageText(message).trim();
-                      if (message.role === 'assistant' && !messageText) return null;
-                      return (
-                      <div
-                        key={message.id}
-                        className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-7 ${
-                          message.role === 'user'
-                            ? 'ml-auto bg-[#0f0f0f] text-white'
-                            : 'bg-[#efefed] text-[#1f1f1e]'
-                        }`}
-                      >
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                            ul: ({ children }) => <ul className="mb-2 list-disc pl-5">{children}</ul>,
-                            ol: ({ children }) => <ol className="mb-2 list-decimal pl-5">{children}</ol>,
-                            li: ({ children }) => <li className="mb-1 last:mb-0">{children}</li>,
-                            strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                            code: ({ children }) => (
-                              <code className="rounded bg-black/10 px-1 py-0.5 text-xs">{children}</code>
-                            )
-                          }}
-                        >
-                          {messageText}
-                        </ReactMarkdown>
-                      </div>
-                    );})}
-
-                    {pendingUserText && !hasPendingInMessages && (
-                      <div className="max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-7 ml-auto bg-[#0f0f0f] text-white">
-                        {pendingUserText}
-                      </div>
-                    )}
-
-                    {isStreaming && (
-                      <div className="max-w-[88%] rounded-2xl px-4 py-3 text-sm bg-[#efefed] text-[#787876]">
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Flowtra is thinking...</span>
-                        </div>
-                      </div>
-                    )}
-
+          <div className="grid h-full grid-cols-1 xl:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)] gap-4">
+            <section className="relative h-full rounded-2xl border border-[#e6e6e4] bg-[#fbfbfa] overflow-hidden">
+              <div className={hasCloneSurfaceContent ? 'h-full overflow-y-auto px-4 py-4 md:px-6 md:py-5' : 'h-full grid place-items-center px-6'}>
+                {hasCloneSurfaceContent ? (
+                  <div className="w-full max-w-[1100px] space-y-4">
                     {showCloneableVideos && (
-                      <div className="w-full max-w-full lg:max-w-[56%] rounded-2xl border border-[#e6e6e4] bg-white p-4 lg:max-h-[68vh] lg:overflow-y-auto">
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-semibold text-[#1f1f1e]">Step 1: Choose Reference Video</p>
-                            <p className="text-xs text-[#787876]">Select one video from Assets first. Product selection comes later.</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => void loadCloneableVideos()}
-                            className="rounded-lg border border-[#d9d9d7] bg-white px-2.5 py-1.5 text-xs text-[#1f1f1e] hover:bg-[#f3f3f2]"
-                            disabled={isCloneableVideosLoading}
-                          >
-                            {isCloneableVideosLoading ? 'Refreshing...' : 'Refresh'}
-                          </button>
+                    <div className="w-full rounded-2xl border border-[#e6e6e4] bg-white p-4 lg:max-h-[68vh] lg:overflow-y-auto">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-[#1f1f1e]">Step 1: Choose Reference Video</p>
+                          <p className="text-xs text-[#787876]">Select one video from Assets first. Product selection comes later.</p>
                         </div>
-
-                        {isCloneableVideosLoading && cloneableVideos.length === 0 ? (
-                          <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
-                            Loading your video assets...
-                          </div>
-                        ) : cloneableVideos.length === 0 ? (
-                          <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
-                            No videos found in Assets. Import a video first, then ask to clone.
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                            {cloneableVideos.map((video) => (
-                              <VideoAssetCard
-                                key={video.id}
-                                video={video}
-                                compact
-                                onViewDetails={(asset) => {
-                                  setSelectedVideo(asset as CloneableVideoAsset);
-                                  setShowVideoDetails(true);
-                                }}
-                              />
-                            ))}
-                          </div>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => void loadCloneableVideos()}
+                          className="rounded-lg border border-[#d9d9d7] bg-white px-2.5 py-1.5 text-xs text-[#1f1f1e] hover:bg-[#f3f3f2]"
+                          disabled={isCloneableVideosLoading}
+                        >
+                          {isCloneableVideosLoading ? 'Refreshing...' : 'Refresh'}
+                        </button>
                       </div>
+
+                      {isCloneableVideosLoading && cloneableVideos.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                          Loading your video assets...
+                        </div>
+                      ) : cloneableVideos.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                          No videos found in Assets. Import a video first, then ask to clone.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                          {cloneableVideos.map((video) => (
+                            <VideoAssetCard
+                              key={video.id}
+                              video={video}
+                              compact
+                              onViewDetails={(asset) => {
+                                setSelectedVideo(asset as CloneableVideoAsset);
+                                setShowVideoDetails(true);
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     )}
 
                     {showCloneReplacementSelectors && (
-                      <div className="w-full max-w-full lg:max-w-[56%] rounded-2xl border border-[#e6e6e4] bg-white p-4 space-y-4">
-                        <div>
-                          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 2</p>
-                          <p className="text-sm font-medium text-[#4f4f4d]">Replace Character & Product</p>
-                        </div>
-
-                        {isCloneOptionsLoading ? (
-                          <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
-                            Loading avatar and product options...
-                          </div>
-                        ) : (
-                          <>
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Avatar</p>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                                {cloneAvatarOptions.map((avatar) => (
-                                  <button
-                                    key={avatar.id}
-                                    type="button"
-                                    onClick={() => setSelectedCloneAvatarId(avatar.id)}
-                                    className={`rounded-lg border p-2 text-left transition-colors ${selectedCloneAvatarId === avatar.id ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
-                                  >
-                                    <div className="w-full aspect-square rounded-md overflow-hidden bg-[#efefed] mb-1.5">
-                                      {avatar.photoUrl ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={avatar.photoUrl} alt={avatar.name} className="w-full h-full object-cover" />
-                                      ) : null}
-                                    </div>
-                                    <p className="text-[11px] font-medium text-[#1f1f1e] truncate">{avatar.name}</p>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Product</p>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                                {cloneProductOptions.map((product) => (
-                                  <button
-                                    key={product.id}
-                                    type="button"
-                                    onClick={() => setSelectedCloneProductId(product.id)}
-                                    className={`rounded-lg border p-2 text-left transition-colors ${selectedCloneProductId === product.id ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
-                                  >
-                                    <div className="w-full aspect-square rounded-md overflow-hidden bg-[#efefed] mb-1.5">
-                                      {product.photoUrl ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
-                                      ) : null}
-                                    </div>
-                                    <p className="text-[11px] font-medium text-[#1f1f1e] truncate">{product.name}</p>
-                                    {product.brandName ? (
-                                      <p className="text-[10px] text-[#787876] truncate">{product.brandName}</p>
-                                    ) : null}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={handleConfirmCloneSelections}
-                              disabled={(!selectedCloneAvatarId && !selectedCloneProductId) || isStreaming || isSubmittingCloneSelection}
-                              className="w-full rounded-lg bg-[#0f0f0f] text-white text-sm font-medium py-2.5 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
-                            >
-                              {isSubmittingCloneSelection ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Check className="w-4 h-4" />
-                              )}
-                              {isSubmittingCloneSelection ? 'Submitting...' : 'Confirm Replacements'}
-                            </button>
-                          </>
-                        )}
+                    <div className="w-full rounded-2xl border border-[#e6e6e4] bg-white p-4 space-y-4">
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 2</p>
+                        <p className="text-sm font-medium text-[#4f4f4d]">Replace Character & Product</p>
                       </div>
+
+                      {isCloneOptionsLoading ? (
+                        <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                          Loading avatar and product options...
+                        </div>
+                      ) : (
+                        <>
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Avatar</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                              {cloneAvatarOptions.map((avatar) => (
+                                <button
+                                  key={avatar.id}
+                                  type="button"
+                                  onClick={() => setSelectedCloneAvatarId(avatar.id)}
+                                  className={`rounded-lg border p-2 text-left transition-colors ${selectedCloneAvatarId === avatar.id ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                >
+                                  <div className="w-full aspect-square rounded-md overflow-hidden bg-[#efefed] mb-1.5">
+                                    {avatar.photoUrl ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={avatar.photoUrl} alt={avatar.name} className="w-full h-full object-cover" />
+                                    ) : null}
+                                  </div>
+                                  <p className="text-[11px] font-medium text-[#1f1f1e] truncate">{avatar.name}</p>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Product</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                              {cloneProductOptions.map((product) => (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  onClick={() => setSelectedCloneProductId(product.id)}
+                                  className={`rounded-lg border p-2 text-left transition-colors ${selectedCloneProductId === product.id ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                >
+                                  <div className="w-full aspect-square rounded-md overflow-hidden bg-[#efefed] mb-1.5">
+                                    {product.photoUrl ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
+                                    ) : null}
+                                  </div>
+                                  <p className="text-[11px] font-medium text-[#1f1f1e] truncate">{product.name}</p>
+                                  {product.brandName ? (
+                                    <p className="text-[10px] text-[#787876] truncate">{product.brandName}</p>
+                                  ) : null}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleConfirmCloneSelections}
+                            disabled={(!selectedCloneAvatarId && !selectedCloneProductId) || isStreaming || isSubmittingCloneSelection}
+                            className="w-full rounded-lg bg-[#0f0f0f] text-white text-sm font-medium py-2.5 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                          >
+                            {isSubmittingCloneSelection ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Check className="w-4 h-4" />
+                            )}
+                            {isSubmittingCloneSelection ? 'Submitting...' : 'Confirm Replacements'}
+                          </button>
+                        </>
+                      )}
+                    </div>
                     )}
 
                     {showClonePromptDraftStep && sessionState?.cloneReplacementDraft ? (
@@ -1808,6 +1752,7 @@ export default function ProjectAgentPage() {
                         isRegenerating={isRegeneratingCloneDraft}
                       />
                     ) : null}
+
                     {showCloneSceneReviewStep && sessionState?.cloneExecution ? (
                       <CloneSceneReviewStep
                         execution={sessionState.cloneExecution}
@@ -1820,12 +1765,166 @@ export default function ProjectAgentPage() {
                         regeneratingSegmentIndex={regeneratingSegmentIndex}
                       />
                     ) : null}
+                  </div>
+                ) : (
+                  <div className="w-full max-w-[560px] text-center">
+                    <div className="mx-auto mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e6e6e4] bg-white">
+                      <Sparkles className="h-4.5 w-4.5 text-[#525251]" />
+                    </div>
+                    <p className="text-[17px] font-medium text-[#1f1f1e]">Ready when you are.</p>
+                    <p className="mt-2 text-sm text-[#7a7a77]">
+                      Try saying one of these to kick off a clone flow.
+                    </p>
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                      {[
+                        'Clone this video',
+                        'Use this as my reference video',
+                        'Remake this ad with my product'
+                      ].map((hint) => (
+                        <span
+                          key={hint}
+                          className="rounded-full border border-[#e4e4e2] bg-white px-3 py-1.5 text-xs text-[#5f5f5d]"
+                        >
+                          {hint}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="h-full rounded-2xl border border-[#e6e6e4] bg-[#fbfbfa] flex flex-col overflow-hidden">
+              <div className="relative flex items-center justify-between px-4 py-3 border-b border-[#e6e6e4]">
+                <div className="flex items-center gap-2 text-[#1f1f1e]">
+                  <MessageCircle className="w-4 h-4" />
+                  <span className="text-sm font-semibold">{activeChatTitle}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {statusNote ? <span className="hidden md:inline text-xs text-[#787876]">{statusNote}</span> : null}
+                  <div ref={historyPopoverRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsHistoryPopoverOpen((prev) => !prev)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d9d9d7] bg-white text-[#1f1f1e] hover:bg-[#f3f3f2]"
+                      aria-label="Open history"
+                    >
+                      <History className="w-4 h-4" />
+                    </button>
+                    {isHistoryPopoverOpen ? (
+                      <div className="absolute right-0 top-11 z-20 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#e6e6e4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.14)]">
+                        <div className="px-3 py-3 border-b border-[#efefed]">
+                          <p className="text-xs font-semibold text-[#1f1f1e]">History</p>
+                          <div className="mt-2 relative">
+                            <Search className="w-3.5 h-3.5 text-[#9b9b98] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                            <input
+                              value={historyQuery}
+                              onChange={(event) => setHistoryQuery(event.target.value)}
+                              placeholder="Search..."
+                              className="h-9 w-full rounded-lg border border-[#d9d9d7] bg-[#fbfbfa] pl-8 pr-3 text-xs text-[#1f1f1e] placeholder:text-[#a3a3a0] focus:outline-none focus:ring-2 focus:ring-black"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={startNewChat}
+                            className="mt-2 inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#d9d9d7] bg-white px-2.5 text-xs font-medium text-[#1f1f1e] hover:bg-[#f3f3f2]"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            New chat
+                          </button>
+                        </div>
+                        <div className="max-h-[360px] overflow-y-auto p-2 space-y-1">
+                          {isHistoryLoading && historyItems.length === 0 ? (
+                            <div className="px-2 py-3 text-xs text-[#787876]">Loading history...</div>
+                          ) : filteredHistoryItems.length === 0 ? (
+                            <div className="px-2 py-3 text-xs text-[#787876]">No matching conversations.</div>
+                          ) : (
+                            filteredHistoryItems.map((item) => (
+                              <button
+                                key={item.sessionId}
+                                type="button"
+                                onClick={() => selectHistory(item.sessionId)}
+                                className={`w-full text-left rounded-lg px-2.5 py-2 border transition-colors ${
+                                  item.sessionId === sessionId
+                                    ? 'bg-[#f7f7f5] border-[#1f1f1e]'
+                                    : 'bg-transparent border-transparent hover:bg-[#f7f7f5] hover:border-[#e6e6e4]'
+                                }`}
+                              >
+                                <div className="text-[12px] text-[#1f1f1e] font-medium truncate">{item.title}</div>
+                                <div className="text-[10px] text-[#9b9b98] mt-0.5">
+                                  {new Date(item.updatedAt).toLocaleString()}
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={sessionId || 'empty-session'}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    className="space-y-4"
+                  >
+                    {displayMessages.map((message) => {
+                      const messageText = renderUIMessageText(message).trim();
+                      if (message.role === 'assistant' && !messageText) return null;
+                      return (
+                        <div
+                          key={message.id}
+                          className={`rounded-2xl px-4 py-3 text-sm ${
+                            message.role === 'user'
+                              ? 'ml-auto w-fit max-w-[94%] bg-[#0f0f0f] text-white leading-7'
+                              : 'max-w-[94%] bg-[#efefed] text-[#1f1f1e] leading-6'
+                          }`}
+                        >
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                              ul: ({ children }) => <ul className="mb-2 list-disc pl-5">{children}</ul>,
+                              ol: ({ children }) => <ol className="mb-2 list-decimal pl-5">{children}</ol>,
+                              li: ({ children }) => <li className="mb-1 last:mb-0">{children}</li>,
+                              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                              code: ({ children }) => (
+                                <code className="rounded bg-black/10 px-1 py-0.5 text-xs">{children}</code>
+                              )
+                            }}
+                          >
+                            {messageText}
+                          </ReactMarkdown>
+                        </div>
+                      );
+                    })}
+
+                    {pendingUserText && !hasPendingInMessages ? (
+                      <div className="w-fit max-w-[94%] rounded-2xl px-4 py-3 text-sm leading-7 ml-auto bg-[#0f0f0f] text-white">
+                        {pendingUserText}
+                      </div>
+                    ) : null}
+
+                    {isStreaming ? (
+                      <div className="max-w-[94%] rounded-2xl px-4 py-3 text-sm bg-[#efefed] text-[#787876]">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Hmm... thinking through this</span>
+                        </div>
+                      </div>
+                    ) : null}
                     <div ref={chatBottomRef} />
                   </motion.div>
                 </AnimatePresence>
               </div>
 
-              <div className="border-t border-[#e6e6e4] px-4 py-4 md:px-6">
+              <div className="border-t border-[#e6e6e4] px-4 py-4">
                 <form onSubmit={handleSubmit} className="flex gap-2">
                   <input
                     value={draft}
