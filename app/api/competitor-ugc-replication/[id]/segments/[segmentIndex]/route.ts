@@ -205,20 +205,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     };
 
     const ensureBrandAndProductAssets = async () => {
-      if (project.selected_brand_id) {
-        // Schema verified via Supabase MCP (2026-01-12): user_brands has brand_name, brand_logo_url
-        const { data: brand } = await supabase
-          .from('user_brands')
-          .select('brand_name,brand_logo_url')
-          .eq('id', project.selected_brand_id)
-          .single();
-        if (brand) {
-          brandLogoUrl = brand.brand_logo_url || null;
-          brandContext = {
-            brand_name: brand.brand_name || ''
-          };
-        }
-      }
+      // Brand step has been removed from clone flow; keep brand references disabled.
+      brandLogoUrl = null;
+      brandContext = undefined;
 
       if (requestedProductIds.length > 0) {
         const { data: requestedProducts } = await supabase

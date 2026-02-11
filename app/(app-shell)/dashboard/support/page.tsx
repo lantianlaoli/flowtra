@@ -85,7 +85,7 @@ export default function SupportPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-background min-h-screen ">
+      <div className="dashboard-content-offset ml-0 bg-background min-h-screen ">
         <div className="max-w-[1280px] mx-auto px-6 md:px-8 pb-6 md:pb-8 pt-14 md:pt-8">
           
           {/* Header Section */}

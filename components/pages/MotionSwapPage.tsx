@@ -665,7 +665,7 @@ export default function MotionSwapPage() {
           userEmail={user?.primaryEmailAddress?.emailAddress}
           userImageUrl={user?.imageUrl}
         />
-        <div className="md:ml-72 ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+        <div className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
           <div className="flex-1 flex flex-col min-h-0">
             <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
               <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
@@ -690,7 +690,7 @@ export default function MotionSwapPage() {
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
-      <div className="md:ml-72 ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+      <div className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
           <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
             <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">

@@ -6,7 +6,6 @@ import {
   X,
   Loader2,
   Sparkles,
-  Shuffle,
   Clock,
   Languages,
   Film,
@@ -37,12 +36,18 @@ interface VideoAssetDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   video: VideoAsset | null;
+  size?: "default" | "compact";
+  onUseForClone?: (video: VideoAsset) => Promise<void> | void;
+  cloneActionLabel?: string;
 }
 
 export default function VideoAssetDetailsModal({
   isOpen,
   onClose,
   video,
+  size = "default",
+  onUseForClone,
+  cloneActionLabel = "Use for Clone",
 }: VideoAssetDetailsModalProps) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
@@ -81,6 +86,7 @@ export default function VideoAssetDetailsModal({
   }, [video?.analysis_result, video?.analysis_language]);
 
   const hasAnalysis = Boolean(video?.analysis_result);
+  const isCompact = size === "compact";
 
   const displayName = useMemo(() => {
     if (!video) return "TikTok Video";
@@ -95,6 +101,12 @@ export default function VideoAssetDetailsModal({
 
     setIsCreatingClone(true);
     try {
+      if (onUseForClone) {
+        await onUseForClone(video);
+        onClose();
+        return;
+      }
+
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem(
           "preselect_competitor_ad",
@@ -120,23 +132,6 @@ export default function VideoAssetDetailsModal({
     }
   };
 
-  const handleUseInMotionSwap = () => {
-    if (!video) return;
-
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(
-        "preselect_motion_swap_video",
-        JSON.stringify({
-          videoId: video.id,
-        }),
-      );
-    }
-
-    showSuccess("Video selected for Motion Swap.");
-    onClose();
-    router.push("/dashboard/motion-swap");
-  };
-
   return (
     <AnimatePresence>
       {isOpen && video && (
@@ -156,7 +151,9 @@ export default function VideoAssetDetailsModal({
           />
 
           <motion.div
-            className="assets-modal-panel assets-video-details-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-5xl mx-auto overflow-hidden"
+            className={`assets-modal-panel assets-video-details-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full mx-auto overflow-hidden ${
+              isCompact ? "max-w-4xl max-h-[86vh]" : "max-w-5xl"
+            }`}
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 20 }}
@@ -179,16 +176,16 @@ export default function VideoAssetDetailsModal({
               </button>
             </div>
 
-            <div className="assets-modal-body grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6">
+            <div className={`assets-modal-body grid grid-cols-1 gap-6 p-6 overflow-y-auto ${isCompact ? "lg:grid-cols-[minmax(0,0.54fr)_minmax(0,0.46fr)]" : "lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]"}`}>
               <div className="assets-video-details-preview bg-black/95 rounded-xl overflow-hidden">
                 {video.video_cdn_url ? (
                   <VideoPlayer
                     src={video.video_cdn_url}
-                    className="w-full h-full"
+                    className={`w-full ${isCompact ? "max-h-[62vh]" : "h-full"}`}
                     showControls
                   />
                 ) : (
-                  <div className="assets-video-details-preview-empty flex items-center justify-center aspect-[9/16] text-gray-400">
+                  <div className={`assets-video-details-preview-empty flex items-center justify-center text-gray-400 ${isCompact ? "aspect-[4/5]" : "aspect-[9/16]"}`}>
                     Video unavailable
                   </div>
                 )}
@@ -299,17 +296,7 @@ export default function VideoAssetDetailsModal({
                       ) : (
                         <Sparkles className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
                       )}
-                      Use for Clone
-                    </span>
-                  </button>
-                  <button
-                    onClick={handleUseInMotionSwap}
-                    disabled={!video.source_id}
-                    className="assets-video-details-action w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200"
-                  >
-                    <span className="font-medium flex items-center gap-2">
-                      <Shuffle className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
-                      Use in Motion Swap
+                      {cloneActionLabel}
                     </span>
                   </button>
                 </div>

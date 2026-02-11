@@ -405,7 +405,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
           {/* Modal Panel */}
           <div className="fixed inset-0 overflow-hidden flex items-center justify-center p-4 sm:p-6">
             <motion.div
-              className="avatar-ads-editor-panel w-full max-w-6xl h-[90vh] bg-white shadow-2xl rounded-xl flex flex-col overflow-hidden border border-gray-200"
+              className="avatar-ads-editor-panel w-full max-w-[1680px] h-[90vh] bg-white shadow-2xl rounded-xl flex flex-col overflow-hidden border border-gray-200"
               initial={{ opacity: 0, scale: 0.98, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: 20 }}
@@ -461,15 +461,15 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                 ) : (
                   <>
                     {/* LEFT: Image Preview (Fixed / Minimal Scroll) */}
-                    <div className="avatar-ads-editor-preview w-[400px] shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
-                      <div className="p-6 space-y-6">
+                    <div className="avatar-ads-editor-preview w-[560px] shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
+                      <div className="p-3 space-y-3">
                          {/* Image Container */}
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                            <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-medium text-gray-900">
                               <ImageIcon className="w-4 h-4" />
                               Video First Frame
                            </div>
-                           <div className="avatar-ads-editor-media relative aspect-[9/16] w-full bg-white rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                           <div className="avatar-ads-editor-media relative aspect-[9/16] w-full bg-white rounded-md overflow-hidden border border-gray-200 shadow-sm">
                               {project.generated_image_url ? (
                                 <Image
                                   src={project.generated_image_url}

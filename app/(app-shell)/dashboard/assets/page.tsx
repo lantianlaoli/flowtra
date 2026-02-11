@@ -22,7 +22,7 @@ export default function AssetsPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-background min-h-screen">
+      <div className="dashboard-content-offset ml-0 bg-background min-h-screen">
         <div className="px-8 md:px-12 lg:px-16 pb-12 max-w-[1280px] mx-auto pt-16 md:pt-12">
           {/* Header - Minimalist with generous spacing */}
           <div className="mb-16">

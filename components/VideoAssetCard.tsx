@@ -17,11 +17,13 @@ interface VideoAsset {
 interface VideoAssetCardProps {
   video: VideoAsset;
   onViewDetails: (video: VideoAsset) => void;
+  compact?: boolean;
 }
 
 export default function VideoAssetCard({
   video,
   onViewDetails,
+  compact = false,
 }: VideoAssetCardProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -45,7 +47,7 @@ export default function VideoAssetCard({
   return (
     <div className="assets-video-card bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 group">
       <div
-        className="assets-video-card-media relative w-full aspect-[9/16] bg-gray-100"
+        className={`assets-video-card-media relative w-full bg-gray-100 ${compact ? 'aspect-[3/4]' : 'aspect-[9/16]'}`}
         onMouseEnter={handleHoverPlay}
         onMouseLeave={handleHoverPause}
         onFocus={handleHoverPlay}
@@ -69,10 +71,10 @@ export default function VideoAssetCard({
         <div className="assets-video-card-overlay absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
 
-      <div className="assets-video-card-footer p-3 bg-white">
+      <div className={`assets-video-card-footer bg-white ${compact ? 'p-2' : 'p-3'}`}>
         <button
           onClick={handleViewDetails}
-          className="assets-video-card-action w-full flex items-center justify-between px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn"
+          className={`assets-video-card-action w-full flex items-center justify-between bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn ${compact ? 'px-2.5 py-2 text-xs' : 'px-3 py-2.5 text-sm'}`}
         >
           <span className="font-medium">View Details</span>
           <Eye className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />

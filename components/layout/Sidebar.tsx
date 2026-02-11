@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -17,7 +17,10 @@ import {
   Shuffle,
   Moon,
   Sun,
-  MessageCircle
+  MessageCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
+  MessageSquare
 } from 'lucide-react';
 import {
   Sidebar as ShadcnSidebar,
@@ -98,19 +101,38 @@ const navigation = [
 export default function Sidebar({ credits = 0, creditsData, userEmail, userImageUrl, onTriggerOnboarding }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = window.localStorage.getItem('flowtra-dashboard-dark');
+    return stored === null ? true : stored === 'true';
+  });
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = window.localStorage.getItem('flowtra-dashboard-sidebar-collapsed');
+    if (stored !== null) return stored === 'true';
+    return (
+      document.documentElement.classList.contains('flowtra-sidebar-collapsed') ||
+      document.body.classList.contains('flowtra-sidebar-collapsed')
+    );
+  });
+  const [isSidebarReady, setIsSidebarReady] = useState(false);
 
   // Use creditsData if available, otherwise fall back to legacy credits prop
   const displayCredits = creditsData?.credits_remaining ?? credits;
   const subscriptionCredits = creditsData?.subscription_credits ?? 0;
   const purchasedCredits = creditsData?.purchased_credits ?? 0;
 
+  useLayoutEffect(() => {
+    setIsSidebarReady(true);
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem('flowtra-dashboard-dark');
-    const enabled = stored === null ? true : stored === 'true';
-    setIsDarkMode(enabled);
-  }, []);
+    document.documentElement.classList.toggle('flowtra-sidebar-collapsed', isCollapsed);
+    document.body.classList.toggle('flowtra-sidebar-collapsed', isCollapsed);
+    window.localStorage.setItem('flowtra-dashboard-sidebar-collapsed', String(isCollapsed));
+    window.dispatchEvent(new CustomEvent('flowtra-dashboard-sidebar-collapse', { detail: isCollapsed }));
+  }, [isCollapsed]);
 
   const toggleDarkMode = () => {
     const nextValue = !isDarkMode;
@@ -123,31 +145,49 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
     }
   };
 
+  const toggleSidebarCollapse = () => {
+    setIsCollapsed((prev) => !prev);
+  };
+
   // Desktop sidebar content (uses shadcn Sidebar components with SidebarProvider)
   const DesktopSidebarContent = () => (
     <>
-      <SidebarHeader className="p-6">
-        <Link href="/dashboard" className="flex items-center gap-3 group">
-          <Image
-            src="/logo.svg"
-            alt="Flowtra Logo"
-            width={95}
-            height={95}
-            className="w-[95px] h-[95px] transition-transform group-hover:scale-105 duration-200 logo-theme"
-          />
-        </Link>
+      <SidebarHeader className={cn("p-6", isCollapsed && "px-3 py-4")}>
+        <div className={cn("flex items-center gap-2", isCollapsed ? "justify-center" : "justify-between")}>
+          {!isCollapsed && (
+            <Link href="/dashboard" className="flex items-center gap-3 group">
+              <Image
+                src="/logo.svg"
+                alt="Flowtra Logo"
+                width={95}
+                height={95}
+                className="w-[95px] h-[95px] transition-transform group-hover:scale-105 duration-200 logo-theme"
+              />
+            </Link>
+          )}
+
+          <button
+            type="button"
+            onClick={toggleSidebarCollapse}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-sidebar-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+          </button>
+        </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-6">
+      <SidebarContent className={cn("px-6", isCollapsed && "px-2")}>
         {/* User Profile */}
-        {userEmail && (
+        {userEmail && !isCollapsed && (
           <div className="mb-4">
             <UserProfile userEmail={userEmail} userImageUrl={userImageUrl} />
           </div>
         )}
 
         {/* Credits Display */}
-        {(credits !== undefined || creditsData) && (
+        {(credits !== undefined || creditsData) && !isCollapsed && (
           <div className="mb-6">
             <CreditsDisplay
               credits={displayCredits}
@@ -158,7 +198,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
           </div>
         )}
 
-        <Separator className="mb-6 bg-border" />
+        {!isCollapsed && <Separator className="mb-6 bg-border" />}
 
         {/* Navigation */}
         <SidebarGroup>
@@ -174,6 +214,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                         isActive={isActive}
                         className={cn(
                           "relative h-10 px-3 text-sm font-medium rounded-lg transition-colors duration-200 overflow-hidden",
+                          isCollapsed ? "justify-center px-0" : "",
                           isActive
                             ? (isDarkMode
                               ? "text-sidebar-foreground bg-sidebar-accent border border-sidebar-border shadow-[0_6px_16px_rgba(0,0,0,0.25)]"
@@ -204,20 +245,23 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                           )}
                           <item.icon
                             className={cn(
-                              "relative z-10 w-4 h-4 mr-3 transition-transform duration-200",
+                              "relative z-10 w-4 h-4 transition-transform duration-200",
+                              isCollapsed ? "mr-0" : "mr-3",
                               isActive
                                 ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground")
                                 : (isDarkMode ? "text-sidebar-foreground/70" : "text-muted-foreground")
                             )}
                           />
-                          <span
-                            className={cn(
-                              "relative z-10",
-                              isActive ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground") : ""
-                            )}
-                          >
-                            {item.name}
-                          </span>
+                          {!isCollapsed && (
+                            <span
+                              className={cn(
+                                "relative z-10",
+                                isActive ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground") : ""
+                              )}
+                            >
+                              {item.name}
+                            </span>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -229,41 +273,61 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-6 border-t border-sidebar-border">
+      <SidebarFooter className={cn("p-6 border-t border-sidebar-border", isCollapsed && "px-2")}>
         <div className="space-y-2">
           {/* Product Tour */}
           {onTriggerOnboarding && (
             <button
               onClick={onTriggerOnboarding}
-              className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
+              className={cn(
+                "flex items-center w-full py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200",
+                isCollapsed ? "justify-center px-2" : "gap-3 px-4"
+              )}
             >
               <HelpCircle className="w-5 h-5" />
-              <span>Product Tour</span>
+              {!isCollapsed && <span>Product Tour</span>}
             </button>
           )}
 
           {/* Theme Toggle */}
           <button
             onClick={toggleDarkMode}
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
+            className={cn(
+              "flex items-center w-full py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200",
+              isCollapsed ? "justify-center px-2" : "gap-3 px-4"
+            )}
             aria-label="Toggle dark mode"
             type="button"
           >
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            {!isCollapsed && <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>}
           </button>
 
           {/* Feedback Widget */}
-          <FeedbackWidget />
+          {isCollapsed ? (
+            <Link
+              href="/dashboard/support"
+              className="flex items-center justify-center w-full px-2 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
+              aria-label="Having trouble?"
+              title="Having trouble?"
+            >
+              <MessageSquare className="w-5 h-5" />
+            </Link>
+          ) : (
+            <FeedbackWidget />
+          )}
 
           {/* Back to Landing */}
           <Link
             href="/"
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200"
+            className={cn(
+              "flex items-center w-full py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors duration-200",
+              isCollapsed ? "justify-center px-2" : "gap-3 px-4"
+            )}
             onClick={() => setMobileOpen(false)}
           >
             <Home className="w-5 h-5" />
-            <span>Back to Landing</span>
+            {!isCollapsed && <span>Back to Landing</span>}
           </Link>
         </div>
       </SidebarFooter>
@@ -419,9 +483,9 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className="hidden md:block fixed md:top-0 md:left-0 md:h-screen md:w-72 md:z-20">
+      <div className={cn("hidden md:block fixed md:top-0 md:left-0 md:h-screen md:z-20", isSidebarReady ? "transition-[width] duration-200" : "transition-none", isCollapsed ? "md:w-[88px]" : "md:w-72")}>
         <SidebarProvider>
-          <ShadcnSidebar className="w-72 h-full border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+          <ShadcnSidebar className={cn("h-full border-r border-sidebar-border bg-sidebar text-sidebar-foreground", isSidebarReady ? "transition-[width] duration-200" : "transition-none", isCollapsed ? "w-[88px]" : "w-72")}>
             <DesktopSidebarContent />
           </ShadcnSidebar>
         </SidebarProvider>

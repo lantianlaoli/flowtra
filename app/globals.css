@@ -1803,6 +1803,17 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+@media (min-width: 768px) {
+  .dashboard-content-offset {
+    margin-left: 18rem;
+    transition: margin-left 200ms ease;
+  }
+
+  body.flowtra-sidebar-collapsed .dashboard-content-offset {
+    margin-left: 88px;
+  }
+}
+
 html {
   scroll-behavior: smooth;
   font-feature-settings:

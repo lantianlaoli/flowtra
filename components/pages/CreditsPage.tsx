@@ -345,7 +345,7 @@ export default function CreditsPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="md:ml-72 ml-0 bg-background min-h-screen ">
+      <div className="dashboard-content-offset ml-0 bg-background min-h-screen ">
         <div className="px-6 md:px-8 pb-6 md:pb-8 max-w-[1280px] mx-auto pt-14 md:pt-8">
           <div className="mb-8 pb-6 border-b border-border">
             <h1 className="text-[40px] font-semibold tracking-tight text-foreground">

@@ -2019,7 +2019,7 @@ export default function CompetitorUgcReplicationPage() {
     <>
       <div className="min-h-screen bg-background">
         <Sidebar {...sidebarProps} />
-        <div className="md:ml-72 ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+        <div className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
           <div className="flex-1 flex flex-col min-h-0">
             {/* Main Content Area - Progress Display */}
             <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">

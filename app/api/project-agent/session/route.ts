@@ -95,31 +95,57 @@ export async function PATCH(request: Request) {
     }
 
     if (!session) {
-      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
-    }
-
-    const nextState = {
-      ...(session.state as Record<string, unknown> | undefined),
-      ...(statePatch || {})
-    };
-
-    const { error: updateError } = await supabase
-      .from(sessionTable)
-      .update({
+      const nextState = { ...(statePatch || {}) };
+      const insertPayload: Record<string, unknown> = {
+        id: sessionId,
+        user_id: userId,
         state: nextState,
-        messages: messages ?? undefined,
-        project_id: projectId ?? undefined,
         updated_at: new Date().toISOString()
-      })
-      .eq('id', sessionId)
-      .eq('user_id', userId);
+      };
 
-    if (updateError) {
-      console.error('[Project Agent] Failed to update session:', updateError);
-      return NextResponse.json(
-        { error: 'Failed to update session', details: updateError.message },
-        { status: 500 }
-      );
+      if (Array.isArray(messages)) {
+        insertPayload.messages = messages;
+      }
+
+      if (projectId !== undefined) {
+        insertPayload.project_id = projectId;
+      }
+
+      const { error: insertError } = await supabase
+        .from(sessionTable)
+        .insert(insertPayload);
+
+      if (insertError) {
+        console.error('[Project Agent] Failed to create session on patch:', insertError);
+        return NextResponse.json(
+          { error: 'Failed to create session', details: insertError.message },
+          { status: 500 }
+        );
+      }
+    } else {
+      const nextState = {
+        ...(session.state as Record<string, unknown> | undefined),
+        ...(statePatch || {})
+      };
+
+      const { error: updateError } = await supabase
+        .from(sessionTable)
+        .update({
+          state: nextState,
+          messages: messages ?? undefined,
+          project_id: projectId ?? undefined,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId)
+        .eq('user_id', userId);
+
+      if (updateError) {
+        console.error('[Project Agent] Failed to update session:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to update session', details: updateError.message },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({ success: true });

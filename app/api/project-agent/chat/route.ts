@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { convertToModelMessages, jsonSchema, stepCountIs, streamText, tool, type UIMessage } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -19,9 +20,65 @@ const emptySchema = jsonSchema({ type: 'object', properties: {}, required: [] })
 type SessionState = {
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
   step?: 'collecting' | 'creating' | 'awaiting_review' | 'regenerating_image' | 'generating_videos' | 'completed';
+  cloneReferenceVideo?: {
+    id: string;
+    name?: string | null;
+    sourceType?: 'creator' | 'competitor_ad';
+    sourceId?: string | null;
+    videoUrl?: string | null;
+    cdnUrl?: string | null;
+    language?: string | null;
+    analysisSummary?: string | null;
+    keyShots?: string[] | null;
+    detectedCharacter?: string | null;
+    detectedProduct?: string | null;
+  };
+  cloneReplacementDraft?: {
+    status: 'idle' | 'generating' | 'ready' | 'failed';
+    error?: string | null;
+    selectedAvatar?: { id: string; name: string; photoUrl?: string | null };
+    selectedProduct?: { id: string; name: string; photoUrl?: string | null; brandName?: string | null };
+    scenes: Array<{
+      sceneIndex: number;
+      imagePrompt: string;
+      videoPrompt: {
+        shots: Array<{
+          id: number;
+          time_range: string;
+          subject: string;
+          context_environment: string;
+          action: string;
+          style: string;
+          camera_motion_positioning: string;
+          composition: string;
+          ambiance_colour_lighting: string;
+          audio: string;
+          dialogue: string;
+          language?: string;
+        }>;
+      };
+      sourceSummary?: string | null;
+    }>;
+  };
+  cloneExecution?: {
+    projectId: string;
+    phase: 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'merging' | 'completed' | 'failed';
+    model?: 'veo3' | 'veo3_fast' | 'seedance_1_5_pro';
+    duration?: string;
+    creditsCost?: number;
+    error?: string | null;
+    segments?: Array<{
+      segmentIndex: number;
+      status: string;
+      firstFrameUrl?: string | null;
+      videoUrl?: string | null;
+      errorMessage?: string | null;
+    }>;
+  } | null;
   avatar?: { id: string; name: string; photoUrl: string };
   brand?: { id: string; name: string };
   product?: { id: string; name: string; brandId?: string | null; brandName?: string | null };
+  customDialogue?: string;
   language?: string;
   videoDurationSeconds?: number;
   videoAspectRatio?: '16:9' | '9:16';
@@ -51,38 +108,86 @@ type ProductWithBrand = {
   brand?: { brand_name?: string | null } | Array<{ brand_name?: string | null }> | null;
 };
 
+type AvatarOption = {
+  id: string;
+  avatar_name: string;
+  photo_url: string | null;
+};
+
 const buildSystemPrompt = (state: SessionState) => {
   const avatarLabel = state.avatar ? `${state.avatar.name} (${state.avatar.id})` : 'not selected';
   const productLabel = state.product ? `${state.product.name} (${state.product.id})` : 'not selected';
   const brandLabel = state.brand ? `${state.brand.name} (${state.brand.id})` : 'not selected';
+  const dialogueLabel = state.customDialogue?.trim() ? 'provided' : 'not provided';
+  const referenceVideoLabel = state.cloneReferenceVideo
+    ? `${state.cloneReferenceVideo.name || 'selected video'} (${state.cloneReferenceVideo.id})`
+    : 'not selected';
+  const referenceVideoSummary = state.cloneReferenceVideo?.analysisSummary || 'not available';
+  const referenceVideoShots = Array.isArray(state.cloneReferenceVideo?.keyShots) && state.cloneReferenceVideo?.keyShots.length > 0
+    ? state.cloneReferenceVideo?.keyShots.join(' | ')
+    : 'not available';
+  const cloneDraftStatus = state.cloneReplacementDraft?.status || 'idle';
+  const cloneDraftSceneCount = Array.isArray(state.cloneReplacementDraft?.scenes) ? state.cloneReplacementDraft.scenes.length : 0;
+  const cloneDraftSelection = [
+    state.cloneReplacementDraft?.selectedAvatar?.name ? `avatar=${state.cloneReplacementDraft.selectedAvatar.name}` : null,
+    state.cloneReplacementDraft?.selectedProduct?.name ? `product=${state.cloneReplacementDraft.selectedProduct.name}` : null
+  ].filter(Boolean).join(', ') || 'none';
+  const cloneExecutionPhase = state.cloneExecution?.phase || 'idle';
+  const cloneExecutionProjectId = state.cloneExecution?.projectId || 'none';
+  const cloneExecutionSegments = Array.isArray(state.cloneExecution?.segments) ? state.cloneExecution?.segments.length : 0;
   const projectLabel = state.projectId || 'none';
 
   return `You are Flowtra Project Agent. You orchestrate Flowtra video workflows through a conversational flow.
 
 Supported workflows:
 - avatar_ads (create spokesperson-style avatar videos)
-- competitor_ugc_replication (primary use case: clone viral videos with your product/brand)
+- competitor_ugc_replication (primary use case: clone viral videos with your product)
 - motion_swap (collect requirements, then hand off to existing workflow entrypoints)
 
 Current configured required inputs for avatar_ads:
 - Character (avatar)
-- Brand + product (product is mandatory for this flow)
+- Either:
+  - Product-based mode: brand + product
+  - Talking-head mode: custom dialogue/script (product not required)
 - Video duration (8-80s, multiple of 8)
 - Aspect ratio (16:9 or 9:16)
 - Language (default en)
 
 Workflow rules:
 - Always identify/confirm the target workflow intent first.
+- If the user is just chatting (greeting, Q&A, small talk), answer naturally and do not force workflow steps.
+- In small-talk turns, do NOT append workflow menus or call-to-action lists unless the user explicitly asks about capabilities or creating videos.
+- Every turn must end with a natural-language assistant reply to the user (never stay silent).
 - Collect missing required inputs before execution.
 - Confirm collected inputs before project creation.
 - For avatar_ads, use createAvatarAdsProject only after user confirmation.
+- Use setCustomDialogue when user provides or updates a custom script.
 - After project creation, wait for prompts/image to be ready (status awaiting_review) before edits.
 - Use syncProjectStatus to fetch the latest project data.
 - For image prompt edits, use regenerateImage with a new imagePrompt.
 - For video prompt edits, use updatePromptEdits with a full updatedPrompts object.
 - When the user confirms prompts, use confirmVideoGeneration.
-- If the user picks competitor_ugc_replication, collect requirements and explain the implementation is staged if execution tools are not available yet.
-- If the user picks motion_swap, collect requirements and explain the implementation is staged if execution tools are not available yet.
+- If the user picks competitor_ugc_replication, run the executable clone flow end-to-end in chat:
+  - Step 1: choose reference video.
+  - Step 2: choose replacement avatar and/or product.
+  - Step 3: review replaced prompts and click Generate.
+  - Step 4: review first frames per scene, regenerate frames if needed, then click Generate Final Video.
+  - Keep replies progress-aware and concise at each phase.
+- For competitor_ugc_replication, the sequence must follow the existing manual flow:
+  1) First ask user to select ONE reference video.
+  2) Do not ask for product before a reference video is selected.
+  3) Do not ask for brand (brand step has been removed from clone flow).
+  4) Ask for product only as a later step.
+  5) In step 1 responses, never mention "brand" as a requirement.
+  6) If Reference Video is already selected in current state, do not ask for reference video again; continue to the next required step.
+  7) After Reference Video is selected, your first sentence must explicitly confirm you understood the video structure using the provided summary and key shots.
+  8) In the same reply, naturally recommend replacement directions and ask user to choose replacement avatar/person and replacement product.
+  9) Keep this as a normal conversational reply; do not rely on UI labels or step headers in the wording.
+  10) If cloneReplacementDraft.status is "ready", reply naturally that replacement prompts are prepared from the reference structure, briefly summarize selected replacements, and ask the user to review/edit Scene and shot-level fields (subject, background, action, style, camera, composition, lighting, audio, dialogue) in Step 3.
+  11) If cloneReplacementDraft.status is "generating", tell the user you are preparing prompt drafts now and to wait briefly.
+  12) If cloneReplacementDraft.status is "failed", explain the failure briefly and ask whether to retry draft generation.
+  13) If user asks to regenerate this step, acknowledge you are re-running the same replacement step with current selections and respond as a normal assistant turn (no technical wording like "draft schema").
+- If the user picks motion_swap, collect requirements and guide to the existing workflow entrypoint.
 - When user asks what workflows are available, always list ALL three:
   1) Avatar Ads
   2) Clone Viral Videos (Competitor UGC Replication)
@@ -92,6 +197,16 @@ Current state:
 - Avatar: ${avatarLabel}
 - Brand: ${brandLabel}
 - Product: ${productLabel}
+- Reference Video: ${referenceVideoLabel}
+- Reference Summary: ${referenceVideoSummary}
+- Reference Key Shots: ${referenceVideoShots}
+- Clone Draft Status: ${cloneDraftStatus}
+- Clone Draft Selections: ${cloneDraftSelection}
+- Clone Draft Scenes: ${cloneDraftSceneCount}
+- Clone Execution Project: ${cloneExecutionProjectId}
+- Clone Execution Phase: ${cloneExecutionPhase}
+- Clone Execution Segments: ${cloneExecutionSegments}
+- Custom Dialogue: ${dialogueLabel}
 - Duration: ${state.videoDurationSeconds ?? 'unset'}
 - Aspect: ${state.videoAspectRatio ?? 'unset'}
 - Language: ${state.language ?? 'unset'}
@@ -116,6 +231,10 @@ const mergeState = (state: SessionState, patch: Partial<SessionState>) => ({
   avatar: patch.avatar ?? state.avatar,
   brand: patch.brand ?? state.brand,
   product: patch.product ?? state.product,
+  customDialogue: patch.customDialogue ?? state.customDialogue,
+  cloneReferenceVideo: patch.cloneReferenceVideo ?? state.cloneReferenceVideo,
+  cloneReplacementDraft: patch.cloneReplacementDraft ?? state.cloneReplacementDraft,
+  cloneExecution: patch.cloneExecution ?? state.cloneExecution,
   pendingUpdatedPrompts: patch.pendingUpdatedPrompts ?? state.pendingUpdatedPrompts
 });
 
@@ -138,10 +257,65 @@ const normalizeUIMessage = (message: unknown, fallbackId: string): UIMessage => 
     : [{ type: 'text' as const, text: typeof raw.content === 'string' ? raw.content : '' }];
 
   return {
-    id: raw.id ?? fallbackId,
+    id: (typeof raw.id === 'string' && raw.id.trim().length > 0) ? raw.id : fallbackId,
     role: raw.role ?? 'user',
     parts
   };
+};
+
+const messageText = (message: UIMessage) =>
+  message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text ?? '')
+    .join('')
+    .trim();
+
+const dedupeMessages = (messages: UIMessage[]) => {
+  // Keep latest payload per id so streamed final chunks are not lost.
+  const byIdMap = new Map<string, UIMessage>();
+  for (const message of messages) {
+    byIdMap.set(message.id, message);
+  }
+  const byId = Array.from(byIdMap.values());
+
+  const collapsed: UIMessage[] = [];
+  for (const message of byId) {
+    const previous = collapsed[collapsed.length - 1];
+    if (!previous) {
+      collapsed.push(message);
+      continue;
+    }
+
+    if (previous.role === 'assistant' && message.role === 'assistant') {
+      const prevText = messageText(previous);
+      const nextText = messageText(message);
+      if (prevText && prevText === nextText) {
+        continue;
+      }
+    }
+
+    collapsed.push(message);
+  }
+
+  return collapsed;
+};
+
+const mergeAvatarOptions = (userAvatars: AvatarOption[]) => {
+  const merged: AvatarOption[] = [
+    ...SYSTEM_AVATARS.map((avatar) => ({
+      id: avatar.id,
+      avatar_name: avatar.avatar_name,
+      photo_url: avatar.photo_url
+    })),
+    ...userAvatars
+  ];
+
+  const seen = new Set<string>();
+  return merged.filter((avatar) => {
+    if (seen.has(avatar.id)) return false;
+    seen.add(avatar.id);
+    return true;
+  });
 };
 
 export async function POST(request: Request) {
@@ -199,14 +373,14 @@ export async function POST(request: Request) {
       normalizeUIMessage(storedMessage, `stored-${index}`)
     );
     const normalizedIncomingMessage = normalizeUIMessage(message, `user-${Date.now()}`);
-    const conversationMessages = [
+    const conversationMessages = dedupeMessages([
       ...storedMessages,
       ...(
         storedMessages.some((storedMessage: UIMessage) => storedMessage.id === normalizedIncomingMessage.id)
           ? []
           : [normalizedIncomingMessage]
       )
-    ];
+    ]);
 
     if (!existingSession) {
       const { error: insertError } = await supabase
@@ -288,7 +462,14 @@ export async function POST(request: Request) {
               throw new Error('Failed to load avatars');
             }
 
-            return { avatars: data ?? [] };
+            const userAvatars: AvatarOption[] = (data ?? []).map((avatar) => ({
+              id: avatar.id,
+              avatar_name: avatar.avatar_name || 'Unnamed Avatar',
+              photo_url: avatar.photo_url
+            }));
+            const avatars = mergeAvatarOptions(userAvatars);
+
+            return { avatars };
           }
         }),
         listBrandsAndProducts: tool({
@@ -345,7 +526,12 @@ export async function POST(request: Request) {
             }
 
             const normalizedName = avatarName?.toLowerCase().trim();
-            const match = avatars.find((avatar) => {
+            const mergedAvatars = mergeAvatarOptions((avatars ?? []).map((avatar) => ({
+              id: avatar.id,
+              avatar_name: avatar.avatar_name || 'Unnamed Avatar',
+              photo_url: avatar.photo_url ?? null
+            })));
+            const match = mergedAvatars.find((avatar) => {
               if (avatarId) return avatar.id === avatarId;
               if (!normalizedName) return false;
               return avatar.avatar_name?.toLowerCase().includes(normalizedName);
@@ -353,6 +539,9 @@ export async function POST(request: Request) {
 
             if (!match) {
               return { success: false, message: 'No matching avatar found.' };
+            }
+            if (!match.photo_url) {
+              return { success: false, message: 'Selected avatar is missing a photo URL.' };
             }
 
             await persistSession({
@@ -448,6 +637,24 @@ export async function POST(request: Request) {
             return { success: true };
           }
         }),
+        setCustomDialogue: tool({
+          description: 'Set or update custom dialogue/script for talking-head mode or guided ad script',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              customDialogue: { type: 'string' }
+            },
+            required: ['customDialogue']
+          }),
+          execute: async ({ customDialogue }) => {
+            const trimmedDialogue = customDialogue.trim();
+            await persistSession({
+              customDialogue: trimmedDialogue
+            });
+
+            return { success: true, customDialogue: trimmedDialogue };
+          }
+        }),
         createAvatarAdsProject: tool({
           description: 'Create the avatar ads project once all inputs are confirmed',
           inputSchema: jsonSchema({
@@ -462,8 +669,17 @@ export async function POST(request: Request) {
               return { success: false, message: 'Awaiting confirmation.' };
             }
 
-            if (!sessionState.avatar || !sessionState.product) {
-              return { success: false, message: 'Avatar and product are required before creation.' };
+            if (!sessionState.avatar) {
+              return { success: false, message: 'Avatar is required before creation.' };
+            }
+
+            const hasProduct = Boolean(sessionState.product);
+            const hasCustomDialogue = Boolean(sessionState.customDialogue?.trim());
+            if (!hasProduct && !hasCustomDialogue) {
+              return {
+                success: false,
+                message: 'Provide a product or a custom dialogue script before creation.'
+              };
             }
 
             const duration = sessionState.videoDurationSeconds ?? 16;
@@ -478,8 +694,16 @@ export async function POST(request: Request) {
             formData.set('video_model', sessionState.videoModel ?? 'veo3_fast');
             formData.set('video_aspect_ratio', aspect);
             formData.set('selected_person_photo_url', sessionState.avatar.photoUrl);
-            formData.set('selected_product_id', sessionState.product.id);
             formData.set('language', sessionState.language ?? 'en');
+            if (sessionState.product?.id) {
+              formData.set('selected_product_id', sessionState.product.id);
+            }
+            if (sessionState.customDialogue?.trim()) {
+              formData.set('custom_dialogue', sessionState.customDialogue.trim());
+            }
+            if (!hasProduct && hasCustomDialogue) {
+              formData.set('talking_head_mode', 'true');
+            }
 
             const response = await fetch(`${origin}/api/avatar-ads/create`, {
               method: 'POST',
@@ -621,26 +845,29 @@ export async function POST(request: Request) {
     });
 
     return result.toUIMessageStreamResponse({
-      originalMessages: conversationMessages,
       onFinish: async ({ messages: finalMessages }) => {
-        const hasAssistantText = finalMessages.some((message) => {
-          if (message.role !== 'assistant') return false;
-          return message.parts.some((part: { type: string; text?: string }) => part.type === 'text' && (part.text ?? '').trim().length > 0);
-        });
+        const normalizedFinalMessages = dedupeMessages(
+          finalMessages.map((message, index) => normalizeUIMessage(message, `final-${index}`))
+        );
+        // Preserve existing timeline exactly as-is, and only append genuinely new
+        // streamed messages. Never overwrite prior history by id.
+        const existingIds = new Set(conversationMessages.map((message) => message.id));
+        const messagesToPersist = [...conversationMessages];
+        for (const message of normalizedFinalMessages) {
+          if (existingIds.has(message.id)) {
+            continue;
+          }
 
-        const messagesToPersist = hasAssistantText
-          ? finalMessages
-          : [
-              ...finalMessages,
-              {
-                id: `assistant-${Date.now()}`,
-                role: 'assistant' as const,
-                parts: [{
-                  type: 'text' as const,
-                  text: 'I can help with Avatar Ads, Clone Viral Videos, and Motion Swap. Which workflow do you want to start?'
-                }]
-              }
-            ];
+          const previous = messagesToPersist[messagesToPersist.length - 1];
+          const previousText = previous ? messageText(previous) : '';
+          const nextText = messageText(message);
+          if (previous && previous.role === message.role && previousText && previousText === nextText) {
+            continue;
+          }
+
+          messagesToPersist.push(message);
+          existingIds.add(message.id);
+        }
 
         await supabase
           .from(sessionTable)
