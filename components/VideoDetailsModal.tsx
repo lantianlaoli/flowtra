@@ -117,6 +117,7 @@ const getModelDisplayName = (model: string): string => {
     'veo3': 'Veo3.1',
     'veo3_fast': 'Veo3.1 fast',
     'seedance_1_5_pro': 'Seedance 1.5 Pro',
+    'kling_3': 'Kling 3.0',
     'sora2': 'Sora2 (Legacy)',
     'sora2_pro': 'Sora2 Pro (Legacy)',
     'grok': 'Grok (Legacy)',
@@ -130,11 +131,7 @@ const formatDuration = (item: HistoryItem): string => {
     return `${item.videoDurationSeconds || 8}s`;
   }
   if (isCompetitorUgcReplication(item)) {
-    if (item.isSegmented && item.segmentCount) {
-      const totalSeconds = item.segmentCount * 8;
-      return `${totalSeconds}s`;
-    }
-    return `${item.videoDuration || '8'}s`;
+    return `${item.videoDuration || (item.isSegmented && item.segmentCount ? item.segmentCount * 8 : 8)}s`;
   }
   if (isMotionSwap(item)) {
     return `${item.videoDurationSeconds || 8}s`;

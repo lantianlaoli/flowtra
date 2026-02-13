@@ -9,6 +9,9 @@ import {
   getSegmentDurationForModel,
   getReplicaPhotoCredits,
   DEFAULT_SEGMENT_DURATION_SECONDS,
+  KLING_MAX_TASK_DURATION_SECONDS,
+  KLING_MAX_PROJECT_DURATION_SECONDS,
+  KLING_MIN_TASK_DURATION_SECONDS,
   snapDurationToModel,
   MAX_BASE64_VIDEO_SIZE_BYTES,
   type LanguageCode,
@@ -23,6 +26,7 @@ import {
   type CompetitorShot
 } from '@/lib/competitor-shots';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 
 async function retryAsync<T>(fn: () => Promise<T>, options?: { maxAttempts?: number; baseDelayMs?: number; label?: string }): Promise<T> {
   const attempts = options?.maxAttempts && options.maxAttempts > 0 ? options.maxAttempts : 3;
@@ -65,7 +69,7 @@ export interface StartWorkflowRequest {
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
   creatorSourceVideoId?: string; // Asset video reference
   userId: string;
-  videoModel: 'veo3' | 'veo3_fast';
+  videoModel: VideoModel;
   imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
   imageSize?: string;
   elementsCount?: number;
@@ -84,7 +88,7 @@ export interface StartWorkflowRequest {
   // NEW: Custom Script mode
   customScript?: string; // User-provided video script for direct video generation
   useCustomScript?: boolean; // Flag to enable custom script mode
-  resolvedVideoModel?: 'veo3' | 'veo3_fast';
+  resolvedVideoModel?: VideoModel;
 }
 
 interface WorkflowResult {
@@ -379,15 +383,360 @@ export interface SegmentStatusPayload {
   mergedVideoUrl?: string | null;
 }
 
-export const SEGMENTED_DURATIONS = new Set(['16', '24', '32', '40', '48', '56', '64']);
-
 export function isSegmentedVideoRequest(
-  model: 'veo3' | 'veo3_fast',
+  model: VideoModel,
   videoDuration?: string | null
 ): boolean {
-  if (!videoDuration) return false;
-  // All veo3 models use segmented approach for durations > 8s
-  return SEGMENTED_DURATIONS.has(videoDuration);
+  if (model === 'kling_3') return true;
+  const duration = Number(videoDuration);
+  if (!Number.isFinite(duration)) return false;
+  return duration > getSegmentDurationForModel(model);
+}
+
+function resolvePerSegmentDurationSeconds(
+  model: VideoModel,
+  totalDuration: string | undefined,
+  segmentCount: number
+): number {
+  const fallback = getSegmentDurationForModel(model);
+  const normalizedSegmentCount = Math.max(1, segmentCount);
+  const totalSeconds = Number(totalDuration);
+
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    return fallback;
+  }
+
+  const equalized = Math.ceil(totalSeconds / normalizedSegmentCount);
+  if (model === 'kling_3') {
+    return Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_TASK_DURATION_SECONDS, equalized));
+  }
+
+  return Math.max(1, equalized);
+}
+
+function normalizeRequestedDuration(
+  model: VideoModel,
+  rawDuration?: string | null
+): VideoDuration | undefined {
+  if (!rawDuration) return undefined;
+  const seconds = Number(rawDuration);
+  if (!Number.isFinite(seconds) || seconds <= 0) return undefined;
+  if (model === 'kling_3') {
+    return snapDurationToModel(model, Math.min(seconds, KLING_MAX_PROJECT_DURATION_SECONDS));
+  }
+  return snapDurationToModel(model, Math.min(seconds, 64));
+}
+
+type PlannedKlingShotPart = {
+  shot: CompetitorShot;
+  durationSeconds: number;
+};
+
+type PlannedKlingSegment = {
+  durationSeconds: number;
+  shotParts: PlannedKlingShotPart[];
+};
+
+function splitDurationForKlingSegments(totalSeconds: number): number[] {
+  const safeTotal = Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.round(totalSeconds));
+  const chunks: number[] = [];
+  let remaining = safeTotal;
+
+  while (remaining > KLING_MAX_TASK_DURATION_SECONDS) {
+    chunks.push(KLING_MAX_TASK_DURATION_SECONDS);
+    remaining -= KLING_MAX_TASK_DURATION_SECONDS;
+  }
+
+  if (remaining > 0) {
+    chunks.push(remaining);
+  }
+
+  if (chunks.length >= 2) {
+    const lastIndex = chunks.length - 1;
+    while (chunks[lastIndex] < KLING_MIN_TASK_DURATION_SECONDS) {
+      const donorIndex = chunks.findIndex((value, index) => index < lastIndex && value > KLING_MIN_TASK_DURATION_SECONDS);
+      if (donorIndex === -1) {
+        break;
+      }
+      chunks[donorIndex] -= 1;
+      chunks[lastIndex] += 1;
+    }
+  }
+
+  return chunks.filter(chunk => chunk > 0);
+}
+
+function normalizeKlingTimelineShots(shots: CompetitorShot[], targetTotalSeconds: number): PlannedKlingShotPart[] {
+  if (!shots.length) return [];
+
+  const sourceDurations = shots.map(shot => Math.max(1, Math.round(shot.durationSeconds || 1)));
+  const sourceTotal = sourceDurations.reduce((sum, value) => sum + value, 0);
+
+  if (sourceTotal <= 0) {
+    return shots.map(shot => ({ shot, durationSeconds: 1 }));
+  }
+
+  const scaled = sourceDurations.map(value => Math.max(1, Math.floor((value / sourceTotal) * targetTotalSeconds)));
+  let allocated = scaled.reduce((sum, value) => sum + value, 0);
+  let cursor = 0;
+
+  while (allocated < targetTotalSeconds) {
+    scaled[cursor % scaled.length] += 1;
+    allocated += 1;
+    cursor += 1;
+  }
+
+  while (allocated > targetTotalSeconds) {
+    const index = scaled.findIndex(value => value > 1);
+    if (index === -1) break;
+    scaled[index] -= 1;
+    allocated -= 1;
+  }
+
+  return shots.map((shot, index) => ({
+    shot,
+    durationSeconds: scaled[index]
+  }));
+}
+
+function planKlingSegmentsFromShots(
+  shots: CompetitorShot[],
+  totalDurationSeconds: number
+): PlannedKlingSegment[] {
+  const boundedTotal = Math.max(
+    KLING_MIN_TASK_DURATION_SECONDS,
+    Math.min(KLING_MAX_PROJECT_DURATION_SECONDS, Math.round(totalDurationSeconds))
+  );
+
+  if (!shots.length) {
+    return splitDurationForKlingSegments(boundedTotal).map(durationSeconds => ({
+      durationSeconds,
+      shotParts: []
+    }));
+  }
+
+  const normalizedParts = normalizeKlingTimelineShots(shots, boundedTotal);
+  const plannedSegments: PlannedKlingSegment[] = [];
+  let currentParts: PlannedKlingShotPart[] = [];
+  let currentDuration = 0;
+
+  const flushCurrent = () => {
+    if (!currentParts.length) return;
+    plannedSegments.push({
+      durationSeconds: currentDuration,
+      shotParts: [...currentParts]
+    });
+    currentParts = [];
+    currentDuration = 0;
+  };
+
+  normalizedParts.forEach(part => {
+    const splitDurations = part.durationSeconds > KLING_MAX_TASK_DURATION_SECONDS
+      ? splitDurationForKlingSegments(part.durationSeconds)
+      : [part.durationSeconds];
+
+    splitDurations.forEach(duration => {
+      const forcedSingle = splitDurations.length > 1;
+      if (forcedSingle) {
+        flushCurrent();
+        plannedSegments.push({
+          durationSeconds: duration,
+          shotParts: [{ shot: part.shot, durationSeconds: duration }]
+        });
+        return;
+      }
+
+      if (currentDuration + duration <= KLING_MAX_TASK_DURATION_SECONDS) {
+        currentParts.push({ shot: part.shot, durationSeconds: duration });
+        currentDuration += duration;
+      } else {
+        flushCurrent();
+        currentParts.push({ shot: part.shot, durationSeconds: duration });
+        currentDuration = duration;
+      }
+    });
+  });
+
+  flushCurrent();
+
+  if (!plannedSegments.length) {
+    return [{
+      durationSeconds: boundedTotal,
+      shotParts: []
+    }];
+  }
+
+  if (plannedSegments.length > 1) {
+    const lastIndex = plannedSegments.length - 1;
+    while (plannedSegments[lastIndex].durationSeconds < KLING_MIN_TASK_DURATION_SECONDS) {
+      const donorIndex = plannedSegments.findIndex((segment, index) =>
+        index < lastIndex && segment.durationSeconds > KLING_MIN_TASK_DURATION_SECONDS
+      );
+      if (donorIndex === -1) break;
+      plannedSegments[donorIndex].durationSeconds -= 1;
+      plannedSegments[lastIndex].durationSeconds += 1;
+      if (plannedSegments[donorIndex].shotParts.length > 0) {
+        plannedSegments[donorIndex].shotParts[plannedSegments[donorIndex].shotParts.length - 1].durationSeconds =
+          Math.max(1, plannedSegments[donorIndex].shotParts[plannedSegments[donorIndex].shotParts.length - 1].durationSeconds - 1);
+      }
+      if (plannedSegments[lastIndex].shotParts.length > 0) {
+        plannedSegments[lastIndex].shotParts[0].durationSeconds += 1;
+      }
+    }
+  }
+
+  return plannedSegments;
+}
+
+function buildSegmentPlanFromKlingSegments(
+  plannedSegments: PlannedKlingSegment[],
+  defaultLanguage: string
+): SegmentPrompt[] {
+  return plannedSegments.map((segment, segmentIndex) => {
+    let offset = 0;
+    const shotParts = segment.shotParts.length > 0
+      ? segment.shotParts
+      : [
+          {
+            shot: {
+              id: 1,
+              startTime: '00:00',
+              endTime: formatTimecode(segment.durationSeconds),
+              durationSeconds: segment.durationSeconds,
+              firstFrameDescription: '',
+              subject: '',
+              contextEnvironment: '',
+              action: '',
+              style: '',
+              cameraMotionPositioning: '',
+              composition: '',
+              ambianceColourLighting: '',
+              audio: '',
+              startTimeSeconds: 0,
+              endTimeSeconds: segment.durationSeconds
+            },
+            durationSeconds: segment.durationSeconds
+          }
+        ];
+
+    const shots: SegmentShot[] = shotParts.map((part, shotIndex) => {
+      const start = offset;
+      const end = Math.min(segment.durationSeconds, start + part.durationSeconds);
+      offset = end;
+
+      return {
+        id: shotIndex + 1,
+        time_range: `${formatTimecode(start)} - ${formatTimecode(end)}`,
+        start_seconds: start,
+        end_seconds: end,
+        duration_seconds: Math.max(1, end - start),
+        audio: part.shot.audio || '',
+        style: part.shot.style || '',
+        action: part.shot.action || '',
+        subject: part.shot.subject || '',
+        dialogue: '',
+        language: defaultLanguage,
+        composition: part.shot.composition || '',
+        context_environment: part.shot.contextEnvironment || '',
+        ambiance_colour_lighting: part.shot.ambianceColourLighting || '',
+        camera_motion_positioning: part.shot.cameraMotionPositioning || ''
+      };
+    });
+
+    const primaryShot = shotParts[0]?.shot;
+    return {
+      audio: primaryShot?.audio || '',
+      style: primaryShot?.style || '',
+      action: primaryShot?.action || '',
+      subject: primaryShot?.subject || '',
+      composition: primaryShot?.composition || '',
+      context_environment: primaryShot?.contextEnvironment || '',
+      first_frame_description: primaryShot?.firstFrameDescription || '',
+      ambiance_colour_lighting: primaryShot?.ambianceColourLighting || '',
+      camera_motion_positioning: primaryShot?.cameraMotionPositioning || '',
+      dialogue: '',
+      language: defaultLanguage,
+      index: segmentIndex + 1,
+      first_frame_image_size: undefined,
+      is_continuation_from_prev: segmentIndex > 0,
+      shots
+    };
+  });
+}
+
+function alignKlingPromptsToPlan(
+  prompts: Record<string, unknown>,
+  plannedSegments: PlannedKlingSegment[],
+  defaultLanguage: string
+): SegmentPrompt[] {
+  const plannedBase = buildSegmentPlanFromKlingSegments(plannedSegments, defaultLanguage);
+  const aiBase = normalizeSegmentPrompts(
+    prompts,
+    plannedSegments.length,
+    undefined,
+    DEFAULT_SEGMENT_DURATION_SECONDS
+  );
+
+  return plannedBase.map((plannedSegment, segmentIndex) => {
+    const aiSegment = aiBase[segmentIndex] || aiBase[aiBase.length - 1];
+    const plannedShots = Array.isArray(plannedSegment.shots) && plannedSegment.shots.length > 0
+      ? plannedSegment.shots
+      : [buildFallbackShot(1, defaultLanguage, plannedSegment, plannedSegments[segmentIndex]?.durationSeconds || DEFAULT_SEGMENT_DURATION_SECONDS)];
+    const targetDuration = plannedSegments[segmentIndex]?.durationSeconds || plannedShots[0]?.duration_seconds || DEFAULT_SEGMENT_DURATION_SECONDS;
+    const targetShotCount = Math.max(1, plannedShots.length);
+    const aiShots = Array.isArray(aiSegment?.shots) ? aiSegment.shots : [];
+    const perShotDuration = targetDuration / targetShotCount;
+
+    const shots: SegmentShot[] = Array.from({ length: targetShotCount }, (_, shotIndex) => {
+      const plannerShot = plannedShots[shotIndex] || plannedShots[plannedShots.length - 1];
+      const aiShot = aiShots[shotIndex] || aiShots[aiShots.length - 1];
+      const fallbackStart = Math.round(shotIndex * perShotDuration);
+      const { display, start, end, duration } = normalizeShotTimeRange(
+        undefined,
+        fallbackStart,
+        perShotDuration
+      );
+
+      return {
+        id: shotIndex + 1,
+        time_range: display,
+        start_seconds: start,
+        end_seconds: end,
+        duration_seconds: duration,
+        audio: cleanSegmentText(aiShot?.audio) || plannerShot?.audio || '',
+        style: cleanSegmentText(aiShot?.style) || plannerShot?.style || '',
+        action: cleanSegmentText(aiShot?.action) || plannerShot?.action || '',
+        subject: cleanSegmentText(aiShot?.subject) || plannerShot?.subject || '',
+        dialogue: cleanSegmentText(aiShot?.dialogue) || '',
+        language: cleanSegmentText(aiShot?.language) || cleanSegmentText(aiSegment?.language) || defaultLanguage,
+        composition: cleanSegmentText(aiShot?.composition) || plannerShot?.composition || '',
+        context_environment: cleanSegmentText(aiShot?.context_environment) || plannerShot?.context_environment || '',
+        ambiance_colour_lighting: cleanSegmentText(aiShot?.ambiance_colour_lighting) || plannerShot?.ambiance_colour_lighting || '',
+        camera_motion_positioning: cleanSegmentText(aiShot?.camera_motion_positioning) || plannerShot?.camera_motion_positioning || ''
+      };
+    });
+
+    const firstShot = shots[0];
+    return {
+      ...plannedSegment,
+      first_frame_description:
+        cleanSegmentText(aiSegment?.first_frame_description) ||
+        cleanSegmentText(plannedSegment.first_frame_description) ||
+        '',
+      is_continuation_from_prev: segmentIndex > 0,
+      audio: cleanSegmentText(aiSegment?.audio) || firstShot.audio || '',
+      style: cleanSegmentText(aiSegment?.style) || firstShot.style || '',
+      action: cleanSegmentText(aiSegment?.action) || firstShot.action || '',
+      subject: cleanSegmentText(aiSegment?.subject) || firstShot.subject || '',
+      composition: cleanSegmentText(aiSegment?.composition) || firstShot.composition || '',
+      context_environment: cleanSegmentText(aiSegment?.context_environment) || firstShot.context_environment || '',
+      ambiance_colour_lighting: cleanSegmentText(aiSegment?.ambiance_colour_lighting) || firstShot.ambiance_colour_lighting || '',
+      camera_motion_positioning: cleanSegmentText(aiSegment?.camera_motion_positioning) || firstShot.camera_motion_positioning || '',
+      dialogue: cleanSegmentText(aiSegment?.dialogue) || '',
+      language: cleanSegmentText(aiSegment?.language) || firstShot.language || defaultLanguage,
+      shots
+    };
+  });
 }
 
 
@@ -490,8 +839,26 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     }
 
     // Use the selected video model directly
-    const actualVideoModel: 'veo3' | 'veo3_fast' = request.videoModel;
+    const actualVideoModel: VideoModel = request.videoModel;
+    const referenceDurationSeconds = Number(competitorAdContext?.video_duration_seconds || 0);
+    if (
+      actualVideoModel === 'kling_3' &&
+      Number.isFinite(referenceDurationSeconds) &&
+      referenceDurationSeconds > KLING_MAX_PROJECT_DURATION_SECONDS
+    ) {
+      return {
+        success: false,
+        error: 'Kling duration limit exceeded',
+        details: 'Kling 3.0 clone supports reference videos up to 60 seconds.'
+      };
+    }
+
+    request.videoDuration = normalizeRequestedDuration(
+      actualVideoModel,
+      request.videoDuration
+    );
     let competitorShotTimeline: { shots: CompetitorShot[]; totalDurationSeconds: number } | null = null;
+    let plannedKlingSegments: PlannedKlingSegment[] | null = null;
 
     if (competitorAdContext?.existing_analysis) {
       const timeline = parseCompetitorTimeline(
@@ -529,9 +896,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
     }
 
-    const segmentedByDuration = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
+    const segmentedByDuration = actualVideoModel === 'kling_3'
+      ? true
+      : isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
     const isSegmented = segmentedByDuration;
-    const resolvedSegmentDuration = getSegmentDurationForModel(actualVideoModel);
 
     // NEW: Smart segment count calculation
     // Priority 1: If competitor shots exist and match user's segment count → use 1:1 mapping
@@ -550,7 +918,15 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     console.log(`   - Competitor shot count: ${competitorShotCount}`);
     console.log(`   - User segment count (from duration): ${userSegmentCount}`);
 
-    if (competitorShotCount > 0 && userSegmentCount === competitorShotCount) {
+    if (actualVideoModel === 'kling_3') {
+      const klingTargetDuration = Number(request.videoDuration || competitorShotTimeline?.totalDurationSeconds || 8);
+      plannedKlingSegments = planKlingSegmentsFromShots(
+        competitorShotTimeline?.shots || [],
+        klingTargetDuration
+      );
+      segmentCount = plannedKlingSegments.length;
+      console.log(`✅ Kling 3.0 shot-aware segmentation planned: ${segmentCount} segments`);
+    } else if (competitorShotCount > 0 && userSegmentCount === competitorShotCount) {
       segmentCount = competitorShotCount;
       console.log(`✅ Perfect match: ${competitorShotCount} competitor shots = ${userSegmentCount} segments (1:1 mapping)`);
     } else {
@@ -563,11 +939,23 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     }
 
     console.log(`🎬 [SEGMENT DEBUG] Final segment count: ${segmentCount}`);
+    const resolvedSegmentDuration = resolvePerSegmentDurationSeconds(
+      actualVideoModel,
+      request.videoDuration,
+      segmentCount
+    );
+    const hasSegmentFlow = segmentCount >= 1;
 
     // Precompute shot-to-segment mapping asap so we can persist plans even if prompt generation fails later
     let shotPlanForSegments: CompetitorShot[] | undefined;
     let precomputedSegmentPlan: SegmentPrompt[] | undefined;
-    if (segmentCount > 0 && competitorShotTimeline?.shots.length) {
+    if (actualVideoModel === 'kling_3' && plannedKlingSegments?.length) {
+      precomputedSegmentPlan = buildSegmentPlanFromKlingSegments(
+        plannedKlingSegments,
+        request.language || competitorAdContext?.language || 'en'
+      );
+      console.log(`📐 Prepared Kling segment plan (${plannedKlingSegments.length} segments)`);
+    } else if (segmentCount > 0 && competitorShotTimeline?.shots.length) {
       if (competitorShotTimeline.shots.length === segmentCount) {
         shotPlanForSegments = competitorShotTimeline.shots;
         console.log('📐 Prepared 1:1 competitor shot map for future recovery');
@@ -651,8 +1039,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       console.log(`💳 [CREDITS DEBUG] Generation cost calculated:`, {
         model: actualVideoModel,
         duration,
-        segments: Math.ceil(Number(duration) / 8),
-        costPerSegment: GENERATION_COSTS[actualVideoModel],
+        units: actualVideoModel === 'kling_3'
+          ? `${Math.ceil(Number(duration || '0') || 0)}s`
+          : `${Math.ceil(Number(duration || '0') / 8)} segments`,
+        unitCost: GENERATION_COSTS[actualVideoModel],
         totalCost: generationCost
       });
 
@@ -713,21 +1103,21 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         status: 'processing',
         current_step: request.useCustomScript
           ? 'ready_for_video'
-          : isSegmented
+          : hasSegmentFlow
             ? 'generating_segment_frames'
             : 'generating_cover',
-        progress_percentage: request.useCustomScript ? 50 : isSegmented ? 25 : 20,
+        progress_percentage: request.useCustomScript ? 50 : hasSegmentFlow ? 25 : 20,
         credits_cost: generationCost, // Only generation cost (download cost charged separately)
         language: request.language || 'en', // Language for AI-generated content
-        // Generic video fields (renamed from sora2_pro_*)
-        video_duration: duration || (actualVideoModel === 'veo3' || actualVideoModel === 'veo3_fast' ? '8' : '10'),
+        // Generic video fields
+        video_duration: duration || '8',
         video_quality: quality || 'standard',
         // DEPRECATED: download_credits_used (downloads are now free)
         download_credits_used: 0,
-        is_segmented: segmentCount >= 1, // FIX: Use segmentCount instead of isSegmented to avoid data inconsistency
+        is_segmented: hasSegmentFlow, // FIX: Use segmentCount instead of isSegmented to avoid data inconsistency
         segment_count: segmentCount,
-        segment_duration_seconds: isSegmented ? resolvedSegmentDuration : null,
-        segment_status: isSegmented
+        segment_duration_seconds: hasSegmentFlow ? resolvedSegmentDuration : null,
+        segment_status: hasSegmentFlow
           ? {
               total: segmentCount,
               framesReady: 0,
@@ -869,7 +1259,7 @@ async function startAIWorkflow(
   projectId: string,
   request: StartWorkflowRequest & {
     imageUrl?: string; // Optional when no product image is provided
-    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+    resolvedVideoModel: VideoModel;
   },
   productContext?: { product_name?: string; brand_name?: string },
   competitorAdContext?: {
@@ -918,20 +1308,33 @@ async function startAIWorkflow(
       }
     }
 
+    const referenceDurationSeconds = Number(competitorAdContext?.video_duration_seconds || 0);
+    if (
+      request.resolvedVideoModel === 'kling_3' &&
+      Number.isFinite(referenceDurationSeconds) &&
+      referenceDurationSeconds > KLING_MAX_PROJECT_DURATION_SECONDS
+    ) {
+      throw new Error('Kling 3.0 clone supports reference videos up to 60 seconds.');
+    }
+
     let competitorTimelineShots: CompetitorShot[] | undefined;
+    let plannedKlingSegments: PlannedKlingSegment[] | null = null;
     if (competitorDescription) {
       const parsedTimeline = parseCompetitorTimeline(
         competitorDescription as Record<string, unknown>,
         competitorAdContext?.video_duration_seconds
       );
       competitorTimelineShots = parsedTimeline.shots;
+      if (request.resolvedVideoModel === 'kling_3') {
+        const klingTargetDuration = Number(request.videoDuration || parsedTimeline.videoDurationSeconds || 8);
+        plannedKlingSegments = planKlingSegmentsFromShots(parsedTimeline.shots, klingTargetDuration);
+      }
 
       if (
         parsedTimeline.videoDurationSeconds &&
         (request.resolvedVideoModel === 'veo3' ||
           request.resolvedVideoModel === 'veo3_fast' ||
-          request.resolvedVideoModel === 'grok' ||
-          request.resolvedVideoModel === 'kling_2_6')
+          request.resolvedVideoModel === 'kling_3')
       ) {
         const snappedDuration = snapDurationToModel(request.resolvedVideoModel, parsedTimeline.videoDurationSeconds);
         if (snappedDuration && request.videoDuration !== snappedDuration) {
@@ -941,11 +1344,24 @@ async function startAIWorkflow(
       }
     }
 
+    if (request.resolvedVideoModel === 'kling_3' && !plannedKlingSegments) {
+      plannedKlingSegments = planKlingSegmentsFromShots([], Number(request.videoDuration || 8));
+    }
+
     const totalDurationSeconds = parseInt(request.videoDuration || '8', 10);
-    const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
-    const segmentCount = segmentedFlow
-      ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
-      : 1;
+    const segmentedFlow = request.resolvedVideoModel === 'kling_3'
+      ? true
+      : isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
+    const segmentCount = request.resolvedVideoModel === 'kling_3'
+      ? (plannedKlingSegments?.length || 1)
+      : (segmentedFlow
+        ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
+        : 1);
+    const resolvedSegmentDurationSeconds = resolvePerSegmentDurationSeconds(
+      request.resolvedVideoModel,
+      request.videoDuration,
+      segmentCount
+    );
 
     // BUG FIX: Do NOT update is_segmented here, as it was already set correctly during project creation
     // Updating it here can cause data inconsistency if videoDuration was modified (line 1046)
@@ -956,7 +1372,7 @@ async function startAIWorkflow(
         video_duration: request.videoDuration || null,
         // is_segmented: segmentedFlow, // REMOVED: Do not overwrite is_segmented
         segment_count: segmentedFlow ? segmentCount : 1,
-        segment_duration_seconds: segmentedFlow ? getSegmentDurationForModel(request.resolvedVideoModel) : null
+        segment_duration_seconds: resolvedSegmentDurationSeconds
       })
       .eq('id', projectId);
     if (projectConfigUpdateError) {
@@ -970,13 +1386,14 @@ async function startAIWorkflow(
       request.language,
       totalDurationSeconds,
       segmentCount,
+      request.resolvedVideoModel,
       productContext,
       competitorDescription // Pass competitor analysis result (not raw context)
     );
 
     console.log('🎯 Generated creative prompts:', prompts);
 
-    if (!shotPlanForSegments && segmentedFlow && competitorTimelineShots && competitorTimelineShots.length > 0) {
+    if (request.resolvedVideoModel !== 'kling_3' && !shotPlanForSegments && segmentedFlow && competitorTimelineShots && competitorTimelineShots.length > 0) {
       if (competitorTimelineShots.length === segmentCount) {
         shotPlanForSegments = competitorTimelineShots;
         console.log(`✅ Using 1:1 shot-to-segment mapping (${segmentCount} shots)`);
@@ -996,7 +1413,10 @@ async function startAIWorkflow(
       prompts,
       segmentCount,
       competitorDescription,
-      shotPlanForSegments,
+      request.resolvedVideoModel === 'kling_3'
+        ? undefined
+        : shotPlanForSegments,
+      plannedKlingSegments,
       brandLogoUrl, // NEW: Pass brand logo URL
       request.imageUrl ? [request.imageUrl] : null, // Provide initial product reference if available
       productContext, // NEW: Pass product context for fallback text generation
@@ -1014,7 +1434,7 @@ async function startReplicaWorkflow(
   projectId: string,
   request: StartWorkflowRequest & {
     imageUrl: string | undefined;
-    resolvedVideoModel: 'veo3' | 'veo3_fast' | 'sora2' | 'sora2_pro' | 'grok' | 'kling_2_6';
+    resolvedVideoModel: VideoModel;
   },
   productContext?: { product_name?: string; brand_name?: string },
   competitorAdContext?: {
@@ -1587,6 +2007,7 @@ async function generateImageBasedPrompts(
   language?: string,
   videoDurationSeconds?: number,
   segmentCount = 1,
+  videoModel?: VideoModel,
   productContext?: { product_name?: string; brand_name?: string },
   competitorDescription?: Record<string, unknown> // Changed: Now receives analysis result, not raw context
 ): Promise<Record<string, unknown>> {
@@ -1594,7 +2015,13 @@ async function generateImageBasedPrompts(
 
 
   const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
-  const perSegmentDuration = Math.max(8, Math.round(duration / Math.max(1, segmentCount)));
+  const minDurationForModel = videoModel === 'kling_3' ? KLING_MIN_TASK_DURATION_SECONDS : DEFAULT_SEGMENT_DURATION_SECONDS;
+  const maxDurationForModel = videoModel === 'kling_3' ? KLING_MAX_TASK_DURATION_SECONDS : 64;
+  const perSegmentDuration = Math.max(
+    minDurationForModel,
+    Math.min(maxDurationForModel, Math.round(duration / Math.max(1, segmentCount)))
+  );
+  const minShotsPerSegment = videoModel === 'kling_3' ? 1 : 2;
   const dialogueWordLimit = Math.max(12, Math.round(perSegmentDuration * 2.2));
 
   const shotProperties = {
@@ -1659,7 +2086,7 @@ async function generateImageBasedPrompts(
 - Dialogue must stay under ${dialogueWordLimit} words and be natural.
 - "first_frame_description" must provide a DETAILED visual description of the opening frame: scene setup, subject positioning, camera angle, key visual elements. This is used to generate the keyframe image. Example: "Close-up of woman's hands gently applying moisturizer to her face, soft natural lighting from the right, white marble bathroom counter in background, serene morning ambiance."
 - "is_continuation_from_prev" must be false for Segment 1, and only true when the current segment continues the exact same camera move/subject as the previous segment.
-- "shots" must contain 2-4 entries that evenly cover the entire ${perSegmentDuration}-second segment runtime. Each shot's "time_range" is RELATIVE to the start of the segment (e.g., "00:00 - 00:02", "00:02 - 00:04"), and the final shot must end at ${formatTimecode(perSegmentDuration)}.
+- "shots" must contain ${minShotsPerSegment}-4 entries that evenly cover the entire ${perSegmentDuration}-second segment runtime. Each shot's "time_range" is RELATIVE to the start of the segment (e.g., "00:00 - 00:02", "00:02 - 00:04"), and the final shot must end at ${formatTimecode(perSegmentDuration)}.
 
 
 Return JSON:
@@ -1961,6 +2388,7 @@ async function startSegmentedWorkflow(
   segmentCount: number,
   competitorDescription?: Record<string, unknown>, // Competitor analysis
   competitorShots?: CompetitorShot[],
+  klingPlannedSegments?: PlannedKlingSegment[] | null,
   brandLogoUrl?: string | null, // NEW: Brand logo URL for brand shots
   productImageUrls?: string[] | null, // UPDATED: Multiple product image URLs for product shots
   productContext?: { product_name?: string; brand_name?: string }, // NEW: For text fallback
@@ -1970,8 +2398,15 @@ async function startSegmentedWorkflow(
 
   const defaultFrameSize = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
   const segmentModelForDuration = request.resolvedVideoModel || request.videoModel;
-  const perSegmentDurationSeconds = getSegmentDurationForModel(segmentModelForDuration);
-  const normalizedSegments = normalizeSegmentPrompts(prompts, segmentCount, competitorShots, perSegmentDurationSeconds).map(segment => ({
+  const perSegmentDurationSeconds = resolvePerSegmentDurationSeconds(
+    segmentModelForDuration,
+    request.videoDuration,
+    segmentCount
+  );
+  const klingSegments = request.resolvedVideoModel === 'kling_3' && klingPlannedSegments?.length
+    ? alignKlingPromptsToPlan(prompts, klingPlannedSegments, request.language || 'en')
+    : null;
+  const normalizedSegments = (klingSegments || normalizeSegmentPrompts(prompts, segmentCount, competitorShots, perSegmentDurationSeconds)).map(segment => ({
     ...segment,
     first_frame_image_size: segment.first_frame_image_size || defaultFrameSize
   }));
@@ -2506,7 +2941,6 @@ Scene Focus:
 - Create ${isBrandShot ? 'brand-focused' : 'product-focused'} keyframe that shows authentic use cases
 
 Render Instructions:
-- ${frameDescription}
 - Ensure composition seamlessly transitions ${frameType === 'first' ? 'into the upcoming motion clip' : 'out of the prior scene'}
 - No text overlays, no watermarks, no borders`;
 
@@ -2747,14 +3181,31 @@ export async function startSegmentVideoTask(
   segmentIndex: number,
   totalSegments: number
 ): Promise<string> {
-  const videoModel = (project.video_model || 'veo3_fast') as 'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'grok' | 'kling_2_6';
+  const videoModel = (project.video_model || 'veo3_fast') as VideoModel;
 
-  const supportedSegmentModels: Array<'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'grok' | 'kling_2_6'> = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'grok', 'kling_2_6'];
+  const supportedSegmentModels: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'kling_3'];
   if (!supportedSegmentModels.includes(videoModel)) {
-    throw new Error(`Segmented workflow only supports Veo3, Seedance 1.5 Pro, Grok, or Kling (see docs/kie/seedance1.5pro.md). Received ${videoModel}`);
+    throw new Error(`Segmented workflow only supports Veo3, Seedance 1.5 Pro, or Kling 3.0. Received ${videoModel}`);
   }
 
-  // Route to Seedance API if using seedance_1_5_pro model
+  const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+  const languageCode = (project.language || 'en') as LanguageCode;
+  const prompts = (project.video_prompts || {}) as { ad_copy?: string };
+  const providedAdCopyRaw = typeof prompts.ad_copy === 'string' ? prompts.ad_copy.trim() : undefined;
+  const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
+  const action = cleanSegmentText(segmentPrompt.action) || '';
+  const dialogueContent = providedAdCopy || segmentPrompt.dialogue || '';
+  const music = cleanSegmentText(segmentPrompt.audio) || '';
+  const perSegmentDuration = resolveTaskDurationSeconds(project, videoModel, segmentIndex, totalSegments);
+  const normalizedShots = buildNormalizedShots(
+    segmentPrompt,
+    perSegmentDuration,
+    languageCode,
+    action,
+    dialogueContent,
+    music
+  );
+
   if (videoModel === 'seedance_1_5_pro') {
     return await startSegmentVideoTaskSeedance(
       project,
@@ -2766,22 +3217,141 @@ export async function startSegmentVideoTask(
     );
   }
 
-  // Continue with Veo3/Grok/Kling logic for other models
-  const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
-  const languageCode = (project.language || 'en') as LanguageCode;
-  const prompts = (project.video_prompts || {}) as { ad_copy?: string };
-  const providedAdCopyRaw = typeof prompts.ad_copy === 'string' ? prompts.ad_copy.trim() : undefined;
-  const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
-  const action = cleanSegmentText(segmentPrompt.action) || '';
-  const dialogueContent = providedAdCopy || segmentPrompt.dialogue || '';
-  const music = cleanSegmentText(segmentPrompt.audio) || '';
+  if (videoModel === 'kling_3') {
+    return await startSegmentVideoTaskKling(
+      project,
+      segmentPrompt,
+      normalizedShots,
+      firstFrameUrl,
+      closingFrameUrl,
+      segmentIndex,
+      totalSegments,
+      perSegmentDuration
+    );
+  }
 
   const voiceDescriptor = 'Calm professional narrator';
   const voiceToneDescriptor = 'warm and confident';
+  const structuredPromptPayload = {
+    is_continuation_from_prev: Boolean(segmentPrompt.is_continuation_from_prev && segmentIndex > 0),
+    first_frame_description: segmentPrompt.first_frame_description,
+    narrator: {
+      descriptor: voiceDescriptor,
+      tone: voiceToneDescriptor
+    },
+    shots: normalizedShots
+  };
 
-  const projectVideoModel = (project.video_model ?? null) as VideoModel | null;
-  const perSegmentDuration = project.segment_duration_seconds || getSegmentDurationForModel(projectVideoModel);
-  const normalizedShots = (segmentPrompt.shots && segmentPrompt.shots.length > 0
+  // Determine imageUrls based on whether a closing frame exists
+  const hasClosingFrame = !!closingFrameUrl && closingFrameUrl !== firstFrameUrl;
+  const imageUrls = hasClosingFrame ? [firstFrameUrl, closingFrameUrl] : [firstFrameUrl];
+
+  console.log(`🎬 Segment ${segmentIndex + 1}: Images count = ${imageUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
+
+  const requestBody = {
+    prompt: JSON.stringify(structuredPromptPayload),
+    model: videoModel,
+    aspectRatio,
+    generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
+    imageUrls,
+    enableAudio: true,
+    audioEnabled: true,
+    generateVoiceover: true,
+    includeDialogue: true,
+    enableTranslation: false,
+    callBackUrl: VIDEO_WEBHOOK_URL
+  };
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody)
+  }, 5, 30000);
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Failed to generate segment video: ${response.status} ${errorData}`);
+  }
+
+  const data = await response.json();
+  if (data.code !== 200) {
+    throw new Error(data.msg || 'Failed to generate segment video');
+  }
+
+  return data.data.taskId;
+}
+
+type NormalizedVideoShot = {
+  time_range: string;
+  audio: string;
+  style: string;
+  action: string;
+  subject: string;
+  dialogue: string;
+  language: string;
+  composition: string;
+  context_environment: string;
+  ambiance_colour_lighting: string;
+  camera_motion_positioning: string;
+};
+
+type KlingMentionType = 'character' | 'product';
+
+type KlingMention = {
+  type: KlingMentionType;
+  name: string;
+  key: string;
+};
+
+type KlingElement = {
+  name: string;
+  description: string;
+  element_input_urls: string[];
+};
+
+const MENTION_REGEX = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
+const KLING_SHOT_MIN_DURATION_SECONDS = 1;
+const KLING_SHOT_MAX_DURATION_SECONDS = 12;
+
+function resolveTaskDurationSeconds(
+  project: SingleVideoProject,
+  model: VideoModel,
+  segmentIndex: number,
+  totalSegments: number
+): number {
+  if (typeof project.segment_duration_seconds === 'number' && project.segment_duration_seconds > 0) {
+    return project.segment_duration_seconds;
+  }
+
+  const totalDuration = Number(project.video_duration);
+  if (!Number.isFinite(totalDuration) || totalDuration <= 0) {
+    return getSegmentDurationForModel(model);
+  }
+
+  const safeTotalSegments = Math.max(1, totalSegments);
+  const base = Math.floor(totalDuration / safeTotalSegments);
+  const remainder = totalDuration % safeTotalSegments;
+  const distributed = base + (segmentIndex < remainder ? 1 : 0);
+
+  if (model === 'kling_3') {
+    return Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_TASK_DURATION_SECONDS, distributed));
+  }
+
+  return Math.max(1, distributed);
+}
+
+function buildNormalizedShots(
+  segmentPrompt: SegmentPrompt,
+  perSegmentDuration: number,
+  languageCode: LanguageCode,
+  action: string,
+  dialogueContent: string,
+  music: string
+): NormalizedVideoShot[] {
+  return (segmentPrompt.shots && segmentPrompt.shots.length > 0
     ? segmentPrompt.shots
     : [
         {
@@ -2812,60 +3382,460 @@ export async function startSegmentVideoTask(
     ambiance_colour_lighting: cleanSegmentText(shot.ambiance_colour_lighting) || segmentPrompt.ambiance_colour_lighting || '',
     camera_motion_positioning: cleanSegmentText(shot.camera_motion_positioning) || segmentPrompt.camera_motion_positioning || ''
   }));
+}
 
-  const structuredPromptPayload = {
-    is_continuation_from_prev: Boolean(segmentPrompt.is_continuation_from_prev && segmentIndex > 0),
-    first_frame_description: segmentPrompt.first_frame_description,
-    narrator: {
-      descriptor: voiceDescriptor,
-      tone: voiceToneDescriptor
-    },
-    shots: normalizedShots
+function collectKlingMentions(texts: string[]): KlingMention[] {
+  const map = new Map<string, KlingMention>();
+  texts.forEach(text => {
+    if (!text) return;
+    for (const match of text.matchAll(MENTION_REGEX)) {
+      const type = match.groups?.type as KlingMentionType | undefined;
+      const name = (match.groups?.name || '').trim();
+      if (!type || !name) continue;
+      const key = `${type}:${name.toLowerCase()}`;
+      if (!map.has(key)) {
+        map.set(key, { type, name, key });
+      }
+    }
+  });
+  return Array.from(map.values());
+}
+
+function slugifyElementName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 24) || 'asset';
+}
+
+function replacePromptMentions(text: string, tokenMap: Record<string, string>): string {
+  if (!text) return text;
+  return text.replace(MENTION_REGEX, (_, type: string, name: string) => {
+    const key = `${type}:${String(name || '').trim().toLowerCase()}`;
+    const mapped = tokenMap[key];
+    // If mention cannot be mapped to kling_elements, degrade to plain text
+    // to avoid Kling failing on unresolved @element references.
+    return mapped ? `@${mapped}` : String(name || '').trim();
+  });
+}
+
+async function buildKlingElementsFromMentions(
+  userId: string,
+  mentions: KlingMention[]
+): Promise<{ elements: KlingElement[]; tokenMap: Record<string, string>; skippedMentions: KlingMention[] }> {
+  if (!mentions.length) {
+    return { elements: [], tokenMap: {}, skippedMentions: [] };
+  }
+
+  const mentionNames = Array.from(new Set(mentions.map(mention => mention.name.toLowerCase())));
+  const supabase = getSupabaseAdmin();
+  const productPromise = supabase
+    .from('user_products')
+    .select('id,product_name,user_product_photos(photo_url,is_primary)')
+    .eq('user_id', userId);
+
+  const fetchAvatars = async () => {
+    const richQuery = await supabase
+      .from('user_avatars')
+      .select('id,avatar_name,photo_url,reference_photos,photo_set_json')
+      .eq('user_id', userId);
+
+    if (!richQuery.error) {
+      return richQuery;
+    }
+
+    if ((richQuery.error as { code?: string } | null)?.code === '42703') {
+      console.warn('[Kling Elements] Falling back to avatar query without reference_photos:', richQuery.error.message);
+      const photoSetQuery = await supabase
+        .from('user_avatars')
+        .select('id,avatar_name,photo_url,photo_set_json')
+        .eq('user_id', userId);
+
+      if (!photoSetQuery.error) {
+        return photoSetQuery;
+      }
+
+      if ((photoSetQuery.error as { code?: string } | null)?.code === '42703') {
+        console.warn('[Kling Elements] Falling back to minimal avatar query without photo_set_json:', photoSetQuery.error.message);
+        return supabase
+          .from('user_avatars')
+          .select('id,avatar_name,photo_url')
+          .eq('user_id', userId);
+      }
+
+      return photoSetQuery;
+    }
+
+    return richQuery;
   };
-  const fullPrompt = JSON.stringify(structuredPromptPayload);
 
-  // Determine imageUrls based on whether a closing frame exists
-  // generationType remains 'FIRST_AND_LAST_FRAMES_2_VIDEO' but with 1 or 2 images
-  const hasClosingFrame = !!closingFrameUrl && closingFrameUrl !== firstFrameUrl;
-  const imageUrls = hasClosingFrame ? [firstFrameUrl, closingFrameUrl] : [firstFrameUrl];
+  const [productResult, avatarResult] = await Promise.all([
+    productPromise,
+    fetchAvatars()
+  ]);
 
-  console.log(`🎬 Segment ${segmentIndex + 1}: Images count = ${imageUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
+  if (productResult.error) {
+    console.error('[Kling Elements] Failed to fetch products:', productResult.error);
+  }
+  if (avatarResult.error) {
+    console.error('[Kling Elements] Failed to fetch avatars:', avatarResult.error);
+  }
 
-  // All models use Veo3 endpoint
-  const requestBody = {
-    prompt: JSON.stringify(structuredPromptPayload),
-    model: videoModel,
-    aspectRatio,
-    generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
-    imageUrls,
-    enableAudio: true,
-    audioEnabled: true,
-    generateVoiceover: true,
-    includeDialogue: true,
-    enableTranslation: false,
-    callBackUrl: VIDEO_WEBHOOK_URL // Event-driven: Register callback for instant status updates
+  const products = (productResult.data || []).filter(product =>
+    mentionNames.includes((product.product_name || '').toLowerCase())
+  );
+  const userAvatars = (avatarResult.data || []).filter(avatar =>
+    mentionNames.includes((avatar.avatar_name || '').toLowerCase())
+  );
+  const systemAvatars = SYSTEM_AVATARS.filter(avatar =>
+    mentionNames.includes((avatar.avatar_name || '').toLowerCase())
+  );
+  const avatars = [...systemAvatars, ...userAvatars];
+
+  const productsByName = new Map(
+    products.map(product => [(product.product_name || '').toLowerCase(), product])
+  );
+  const avatarsByName = new Map(
+    avatars.map(avatar => [(avatar.avatar_name || '').toLowerCase(), avatar])
+  );
+
+  const collectAvatarUrls = (avatar: Record<string, unknown> | undefined): string[] => {
+    if (!avatar) return [];
+
+    const urls: string[] = [];
+    const pushIfString = (value: unknown) => {
+      if (typeof value === 'string' && value.trim()) {
+        urls.push(value.trim());
+      }
+    };
+
+    pushIfString(avatar.photo_url);
+    const referencePhotos = Array.isArray(avatar.reference_photos)
+      ? avatar.reference_photos
+      : [];
+    referencePhotos.forEach((entry) => {
+      if (entry && typeof entry === 'object') {
+        pushIfString((entry as Record<string, unknown>).photo_url);
+      }
+    });
+
+    const photoSet = avatar.photo_set_json && typeof avatar.photo_set_json === 'object'
+      ? (avatar.photo_set_json as Record<string, unknown>)
+      : null;
+
+    if (photoSet) {
+      const primary = photoSet.primary && typeof photoSet.primary === 'object'
+        ? (photoSet.primary as Record<string, unknown>)
+        : null;
+      if (primary) {
+        pushIfString(primary.photo_url);
+      }
+
+      const setReferences = Array.isArray(photoSet.references)
+        ? photoSet.references
+        : [];
+      setReferences.forEach((entry) => {
+        if (entry && typeof entry === 'object') {
+          pushIfString((entry as Record<string, unknown>).photo_url);
+        }
+      });
+    }
+
+    // Kling image element requires 2-4 images
+    return Array.from(new Set(urls)).slice(0, 4);
   };
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
+  const tokenMap: Record<string, string> = {};
+  const elements: KlingElement[] = [];
+  const usedElementNames = new Set<string>();
+  const skippedMentions: KlingMention[] = [];
+
+  mentions.forEach((mention, index) => {
+    const product = mention.type === 'product' ? productsByName.get(mention.name.toLowerCase()) : undefined;
+    const avatar = mention.type === 'character' ? avatarsByName.get(mention.name.toLowerCase()) : undefined;
+
+    const productUrls = product?.user_product_photos
+      ? [
+          ...product.user_product_photos
+            .sort((a, b) => Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)))
+            .map(photo => photo.photo_url)
+        ]
+      : [];
+    const avatarUrls = collectAvatarUrls(avatar as Record<string, unknown> | undefined);
+    const urls = Array.from(new Set([...(mention.type === 'product' ? productUrls : avatarUrls)].filter(Boolean) as string[])).slice(0, 4);
+
+    if (urls.length < 2) {
+      console.warn('[Kling Elements] Skipping mention without minimum 2 images:', {
+        mention,
+        imageCount: urls.length
+      });
+      skippedMentions.push(mention);
+      return;
+    }
+
+    const slug = slugifyElementName(mention.name);
+    let elementName = `element_${mention.type}_${slug}`;
+    if (usedElementNames.has(elementName)) {
+      elementName = `element_${mention.type}_${slug}_${index + 1}`;
+    }
+    usedElementNames.add(elementName);
+    tokenMap[mention.key] = elementName;
+
+    elements.push({
+      name: elementName,
+      description:
+        mention.type === 'product'
+          ? (product?.product_name || mention.name)
+          : (avatar?.avatar_name || mention.name),
+      element_input_urls: urls
+    });
+  });
+
+  return { elements, tokenMap, skippedMentions };
+}
+
+function buildKlingShotPrompt(
+  segmentPrompt: SegmentPrompt,
+  shot: NormalizedVideoShot,
+  shotIndex: number,
+  replaceMention: (text: string) => string
+): string {
+  const shotParts: string[] = [];
+  if (shot.action) shotParts.push(shot.action);
+  if (shot.subject) shotParts.push(`Subject: ${shot.subject}`);
+  if (shot.dialogue) shotParts.push(`Dialogue: ${shot.dialogue}`);
+  if (shot.style) shotParts.push(`Style: ${shot.style}`);
+  if (shot.composition) shotParts.push(`Composition: ${shot.composition}`);
+  if (shot.context_environment) shotParts.push(`Environment: ${shot.context_environment}`);
+  if (shot.ambiance_colour_lighting) shotParts.push(`Lighting: ${shot.ambiance_colour_lighting}`);
+  if (shot.camera_motion_positioning) shotParts.push(`Camera: ${shot.camera_motion_positioning}`);
+  if (shot.audio) shotParts.push(`Audio: ${shot.audio}`);
+
+  const headerParts: string[] = [];
+  if (shot.time_range) {
+    headerParts.push(`Time range: ${shot.time_range}`);
+  }
+  if (shotIndex === 0 && segmentPrompt.first_frame_description) {
+    headerParts.push(`Opening frame: ${segmentPrompt.first_frame_description}`);
+  }
+
+  const merged = [
+    `Shot ${shotIndex + 1}`,
+    ...headerParts,
+    shotParts.join('. ')
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return truncateText(replaceMention(merged), 2500);
+}
+
+function buildKlingSinglePrompt(
+  segmentPrompt: SegmentPrompt,
+  shot: NormalizedVideoShot,
+  replaceMention: (text: string) => string
+): string {
+  const parts: string[] = [];
+  if (segmentPrompt.first_frame_description) {
+    parts.push(`Opening frame: ${segmentPrompt.first_frame_description}`);
+  }
+  if (shot.subject) parts.push(`Subject: ${shot.subject}`);
+  if (shot.action) parts.push(`Action: ${shot.action}`);
+  if (shot.dialogue) parts.push(`Dialogue: ${shot.dialogue}`);
+  if (shot.style) parts.push(`Style: ${shot.style}`);
+  if (shot.context_environment) parts.push(`Environment: ${shot.context_environment}`);
+  if (shot.composition) parts.push(`Composition: ${shot.composition}`);
+  if (shot.ambiance_colour_lighting) parts.push(`Lighting: ${shot.ambiance_colour_lighting}`);
+  if (shot.camera_motion_positioning) parts.push(`Camera: ${shot.camera_motion_positioning}`);
+  if (shot.audio) parts.push(`Audio: ${shot.audio}`);
+  return truncateText(replaceMention(parts.join('\n')), 2500);
+}
+
+function allocateKlingShotDurations(totalDuration: number, shotCount: number): number[] {
+  const safeShotCount = Math.max(1, Math.min(totalDuration, shotCount));
+  const durations = new Array<number>(safeShotCount).fill(KLING_SHOT_MIN_DURATION_SECONDS);
+  let remaining = totalDuration - safeShotCount * KLING_SHOT_MIN_DURATION_SECONDS;
+
+  let cursor = 0;
+  while (remaining > 0) {
+    const room = KLING_SHOT_MAX_DURATION_SECONDS - durations[cursor];
+    if (room > 0) {
+      durations[cursor] += 1;
+      remaining -= 1;
+    }
+    cursor = (cursor + 1) % safeShotCount;
+  }
+
+  return durations;
+}
+
+function buildKlingMultiPrompt(
+  segmentPrompt: SegmentPrompt,
+  normalizedShots: NormalizedVideoShot[],
+  replaceMention: (text: string) => string,
+  totalDuration: number
+): Array<{ prompt: string; duration: number }> {
+  const sourceShots = normalizedShots.length > 0 ? normalizedShots : [
+    {
+      time_range: `00:00 - ${formatTimecode(totalDuration)}`,
+      audio: '',
+      style: segmentPrompt.style || '',
+      action: segmentPrompt.action || '',
+      subject: segmentPrompt.subject || '',
+      dialogue: segmentPrompt.dialogue || '',
+      language: segmentPrompt.language || 'en',
+      composition: segmentPrompt.composition || '',
+      context_environment: segmentPrompt.context_environment || '',
+      ambiance_colour_lighting: segmentPrompt.ambiance_colour_lighting || '',
+      camera_motion_positioning: segmentPrompt.camera_motion_positioning || ''
+    }
+  ];
+
+  const minShotCount = Math.ceil(totalDuration / KLING_SHOT_MAX_DURATION_SECONDS);
+  const desiredShotCount = Math.max(minShotCount, Math.min(totalDuration, sourceShots.length));
+  const mergedShots: NormalizedVideoShot[] = sourceShots.slice(0, desiredShotCount);
+
+  if (sourceShots.length > desiredShotCount) {
+    const overflowShots = sourceShots.slice(desiredShotCount - 1);
+    const mergedLastAction = overflowShots
+      .map(shot => shot.action)
+      .filter(Boolean)
+      .join(' Then ');
+    mergedShots[desiredShotCount - 1] = {
+      ...mergedShots[desiredShotCount - 1],
+      action: mergedLastAction || mergedShots[desiredShotCount - 1].action
+    };
+  }
+
+  while (mergedShots.length < desiredShotCount) {
+    mergedShots.push({ ...mergedShots[mergedShots.length - 1] });
+  }
+
+  const shotDurations = allocateKlingShotDurations(totalDuration, desiredShotCount);
+  return mergedShots.map((shot, index) => ({
+    prompt: buildKlingShotPrompt(segmentPrompt, shot, index, replaceMention),
+    duration: shotDurations[index]
+  }));
+}
+
+async function startSegmentVideoTaskKling(
+  project: SingleVideoProject,
+  segmentPrompt: SegmentPrompt,
+  normalizedShots: NormalizedVideoShot[],
+  firstFrameUrl: string,
+  closingFrameUrl: string | null | undefined,
+  segmentIndex: number,
+  totalSegments: number,
+  taskDuration: number
+): Promise<string> {
+  const boundedDuration = Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_TASK_DURATION_SECONDS, taskDuration));
+  const mentionSourceTexts = [
+    segmentPrompt.first_frame_description,
+    segmentPrompt.action,
+    segmentPrompt.subject,
+    segmentPrompt.dialogue,
+    segmentPrompt.context_environment,
+    segmentPrompt.composition,
+    segmentPrompt.style,
+    segmentPrompt.ambiance_colour_lighting,
+    segmentPrompt.camera_motion_positioning,
+    ...normalizedShots.flatMap(shot => [
+      shot.action,
+      shot.subject,
+      shot.dialogue,
+      shot.context_environment,
+      shot.composition,
+      shot.style,
+      shot.ambiance_colour_lighting,
+      shot.camera_motion_positioning,
+      shot.audio
+    ])
+  ].filter(Boolean) as string[];
+
+  const mentions = collectKlingMentions(mentionSourceTexts);
+  const { elements, tokenMap, skippedMentions } = await buildKlingElementsFromMentions(project.user_id, mentions);
+  const replaceMention = (text: string) => replacePromptMentions(text, tokenMap);
+  const hasMultipleShots = normalizedShots.length > 1;
+  const primaryShot = normalizedShots[0] || {
+    time_range: `00:00 - ${formatTimecode(boundedDuration)}`,
+    audio: '',
+    style: segmentPrompt.style || '',
+    action: segmentPrompt.action || '',
+    subject: segmentPrompt.subject || '',
+    dialogue: segmentPrompt.dialogue || '',
+    language: segmentPrompt.language || 'en',
+    composition: segmentPrompt.composition || '',
+    context_environment: segmentPrompt.context_environment || '',
+    ambiance_colour_lighting: segmentPrompt.ambiance_colour_lighting || '',
+    camera_motion_positioning: segmentPrompt.camera_motion_positioning || ''
+  };
+  const multiPrompt = hasMultipleShots
+    ? buildKlingMultiPrompt(segmentPrompt, normalizedShots, replaceMention, boundedDuration)
+    : [];
+  const singlePrompt = hasMultipleShots
+    ? ''
+    : buildKlingSinglePrompt(segmentPrompt, primaryShot, replaceMention);
+  const hasClosingFrame = Boolean(closingFrameUrl && closingFrameUrl !== firstFrameUrl);
+  const imageUrls = hasMultipleShots
+    ? [firstFrameUrl]
+    : (hasClosingFrame ? [firstFrameUrl, closingFrameUrl as string] : [firstFrameUrl]);
+
+  const requestBody: Record<string, unknown> = {
+    model: 'kling-3.0/video',
+    callBackUrl: VIDEO_WEBHOOK_URL,
+    input: {
+      mode: 'pro',
+      image_urls: imageUrls,
+      sound: true,
+      duration: String(boundedDuration),
+      aspect_ratio: project.video_aspect_ratio === '9:16' ? '9:16' : '16:9',
+      multi_shots: hasMultipleShots
+    }
+  };
+
+  if (hasMultipleShots) {
+    (requestBody.input as Record<string, unknown>).multi_prompt = multiPrompt;
+  } else {
+    (requestBody.input as Record<string, unknown>).prompt = singlePrompt;
+  }
+
+  if (elements.length > 0) {
+    (requestBody.input as Record<string, unknown>).kling_elements = elements;
+  }
+
+  console.log(`🎬 Kling Segment ${segmentIndex + 1}/${totalSegments}:`, {
+    mode: 'pro',
+    duration: boundedDuration,
+    multiShots: hasMultipleShots,
+    shotCount: normalizedShots.length,
+    imageCount: imageUrls.length,
+    multiPromptCount: multiPrompt.length,
+    mentionsCount: mentions.length,
+    elementsCount: elements.length,
+    skippedMentionsCount: skippedMentions.length
+  });
+
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.KIE_API_KEY}`
     },
     body: JSON.stringify(requestBody)
   }, 5, 30000);
 
   if (!response.ok) {
-    const errorData = await response.text();
-    throw new Error(`Failed to generate segment video: ${response.status} ${errorData}`);
+    const errorText = await response.text();
+    throw new Error(`Kling API error: ${response.status} - ${errorText}`);
   }
 
-  const data = await response.json();
-  if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to generate segment video');
+  const result = await response.json();
+  if (result.code !== 200 || !result.data?.taskId) {
+    throw new Error(`Kling API failed: ${result.msg || 'Unknown error'}`);
   }
 
-  return data.data.taskId;
+  return result.data.taskId;
 }
 
 /**
@@ -2889,6 +3859,12 @@ async function startSegmentVideoTaskSeedance(
   // Prepare input_urls: first frame is required, closing frame optional
   const hasClosingFrame = !!closingFrameUrl && closingFrameUrl !== firstFrameUrl;
   const inputUrls = hasClosingFrame ? [firstFrameUrl, closingFrameUrl] : [firstFrameUrl];
+  const segmentDuration = resolveTaskDurationSeconds(
+    project,
+    'seedance_1_5_pro',
+    segmentIndex,
+    totalSegments
+  );
 
   console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${inputUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
 
@@ -2978,7 +3954,7 @@ async function startSegmentVideoTaskSeedance(
       input_urls: inputUrls,
       aspect_ratio: aspectRatio, // '16:9' or '9:16'
       resolution: '1080p', // Fixed 1080p as default for Seedance
-      duration: '8', // Fixed 8s segments
+      duration: String(segmentDuration),
       fixed_lens: false, // Allow dynamic camera movement
       generate_audio: true // Enable audio generation
     },

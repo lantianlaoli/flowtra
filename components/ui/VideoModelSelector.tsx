@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Lock, Coins, Video, Zap, AlertCircle } from 'lucide-react';
-import { Google, ByteDance } from '@lobehub/icons';
+import { ChevronDown, Check, Lock, Coins, Video, Zap, AlertTriangle } from 'lucide-react';
+import { Google, ByteDance, Kling } from '@lobehub/icons';
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
@@ -27,9 +27,30 @@ interface VideoModelSelectorProps {
   showIcon?: boolean;
   hideCredits?: boolean;
   disabledModels?: VideoModel[];
+  disabledModelReasons?: Partial<Record<VideoModel, string>>;
   hiddenModels?: VideoModel[];
   adsCount?: number;
   videoDurationSeconds?: number;
+}
+
+const VEO_SAFETY_BADGE_LABEL = 'No kids in video';
+
+function VeoSafetyBadge() {
+  return (
+    <span className="pointer-events-none inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-800">
+      <AlertTriangle className="h-3 w-3" />
+      <span>{VEO_SAFETY_BADGE_LABEL}</span>
+    </span>
+  );
+}
+
+function ModelConstraintBadge({ label }: { label: string }) {
+  return (
+    <span className="pointer-events-none inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[11px] font-medium leading-none text-gray-600">
+      <AlertTriangle className="h-3 w-3" />
+      <span>{label}</span>
+    </span>
+  );
 }
 
 export default function VideoModelSelector({
@@ -43,6 +64,7 @@ export default function VideoModelSelector({
   showIcon = false,
   hideCredits = false,
   disabledModels = [],
+  disabledModelReasons = {},
   hiddenModels,
   adsCount = 1,
   videoDurationSeconds
@@ -63,7 +85,10 @@ export default function VideoModelSelector({
         // Fallback to base cost if no config provided
         return GENERATION_COSTS[model] || 0;
       }
-      // Character ads duration-based cost (all veo3 models use 8s segments)
+      if (model === 'kling_3') {
+        return Math.ceil(videoDurationSeconds) * (GENERATION_COSTS.kling_3 || 0);
+      }
+      // Segment-priced models use 8s units
       const unitSeconds = 8;
       const baseCost = GENERATION_COSTS[model] || 0;
       return Math.round((videoDurationSeconds / unitSeconds) * baseCost);
@@ -103,6 +128,18 @@ export default function VideoModelSelector({
         features: 'Built-in audio, 1-2 min',
         supported: isModelSupported('seedance_1_5_pro'),
         badge: 'Audio'
+      },
+      {
+        value: 'kling_3' as const,
+        label: getVideoModelDisplayName('kling_3'),
+        description: '1080P · with audio',
+        icon: Kling,
+        cost: calculateDurationCost('kling_3'),
+        processingTime: getProcessingTime('kling_3'),
+        affordable: canAffordModel(credits, 'kling_3'),
+        features: 'Pro mode default, 40 credits / s',
+        supported: isModelSupported('kling_3'),
+        badge: 'New'
       },
       {
         value: 'veo3' as const,
@@ -200,6 +237,12 @@ export default function VideoModelSelector({
               <selectedOption.icon className="h-4 w-4 text-gray-700" />
             </span>
             <span className="font-medium truncate">{selectedOption?.label}</span>
+            {selectedOption && disabledModels.includes(selectedOption.value) && disabledModelReasons[selectedOption.value] && (
+              <ModelConstraintBadge label={disabledModelReasons[selectedOption.value] as string} />
+            )}
+            {(selectedOption?.value === 'veo3' || selectedOption?.value === 'veo3_fast') && (
+              <VeoSafetyBadge />
+            )}
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
             <ChevronDown className="config-select-icon h-3 w-3 text-gray-600" />
@@ -219,6 +262,7 @@ export default function VideoModelSelector({
           >
             {visibleOptions.map((option) => {
               const disabledByConstraint = disabledModels.includes(option.value);
+              const disabledReason = disabledModelReasons[option.value];
               const disabledByConfig = !option.supported; // NEW: Disable if not supported by quality/duration
               const isDisabled = !option.affordable || disabledByConstraint || disabledByConfig;
               return (
@@ -241,6 +285,12 @@ export default function VideoModelSelector({
                     <option.icon className="h-4 w-4 text-gray-700" />
                   </span>
                   <span className="font-medium">{option.label}</span>
+                  {disabledByConstraint && disabledReason && (
+                    <ModelConstraintBadge label={disabledReason} />
+                  )}
+                  {(option.value === 'veo3' || option.value === 'veo3_fast') && (
+                    <VeoSafetyBadge />
+                  )}
                   {isDisabled && (
                     <Lock className="config-select-icon w-3 h-3 text-gray-400" />
                   )}
@@ -255,19 +305,6 @@ export default function VideoModelSelector({
           </motion.div>
         )}
         </AnimatePresence>
-      </div>
-      
-      {/* Kids Category Warning */}
-      <div className="config-kids-warning mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2.5">
-        <AlertCircle className="config-kids-icon w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-        <div className="space-y-1">
-          <p className="config-kids-title text-[11px] font-semibold text-blue-900 leading-tight">
-            Kids/Children Category Guidance
-          </p>
-          <p className="config-kids-copy text-[10px] text-blue-700 leading-relaxed">
-            Due to Google safety restrictions, please select the <strong>Seedance</strong> model for children&apos;s products. Avoid using <strong>Veo</strong> series models for this category.
-          </p>
-        </div>
       </div>
     </div>
     </>

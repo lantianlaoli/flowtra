@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { snapDurationToModel, type VideoDuration, type VideoModel } from '@/lib/constants';
+import { type VideoDuration, type VideoModel } from '@/lib/constants';
 
 export type WorkflowStep = 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'complete';
 export type WorkflowStatus = 'started' | 'uploaded_waiting_config' | 'workflow_initiated' | 'in_progress' | 'completed' | 'failed';
@@ -94,18 +94,6 @@ export const useCompetitorUgcReplicationWorkflow = (
       }
     }));
   }, [selectedModel]);
-
-  const resolveVideoConfig = useCallback(() => {
-    let normalizedDuration: VideoDuration = videoDuration;
-
-    // All supported models use 8-64 second range
-    const allowed: VideoDuration[] = ['8', '16', '24', '32', '40', '48', '56', '64'];
-    if (!allowed.includes(normalizedDuration)) {
-      normalizedDuration = '8';
-    }
-
-    return { videoDuration: normalizedDuration } as const;
-  }, [videoDuration, selectedModel]);
 
   const setLoading = useCallback((loading: boolean) => {
     setState(prev => ({ ...prev, isLoading: loading, error: null }));
@@ -245,7 +233,6 @@ export const useCompetitorUgcReplicationWorkflow = (
             : prev.workflowStatus
       }));
 
-      const { videoDuration: resolvedDuration } = resolveVideoConfig();
       const normalizedPhotoOnly = typeof replicaOptions?.photoOnly === 'boolean'
         ? replicaOptions.photoOnly
         : generateVideo === undefined
@@ -261,7 +248,7 @@ export const useCompetitorUgcReplicationWorkflow = (
         shouldGenerateVideo: generateVideo,
         photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
-        videoDuration: resolvedDuration,
+        videoDuration,
         competitorAdId: competitorAdId || undefined,
         creatorSourceVideoId: creatorSourceVideoId || undefined,
         language: selectedLanguage,
@@ -339,7 +326,6 @@ export const useCompetitorUgcReplicationWorkflow = (
     elementsCount,
     imageSize,
     videoAspectRatio,
-    resolveVideoConfig,
     videoDuration,
     selectedLanguage,
     useCustomScript,
