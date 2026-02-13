@@ -3409,6 +3409,53 @@ function slugifyElementName(value: string): string {
     .slice(0, 24) || 'asset';
 }
 
+function buildShortStableToken(value: string): string {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = ((hash << 5) - hash + value.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36).slice(0, 4).padEnd(4, '0');
+}
+
+function buildKlingElementName(rawName: string, mentionKey: string, usedNames: Set<string>): string {
+  const MAX_LEN = 20;
+  const stableToken = buildShortStableToken(mentionKey.toLowerCase());
+  const slug = slugifyElementName(rawName).replace(/^element_+/, '') || 'asset';
+  const suffix = `_${stableToken}`;
+  const headLen = Math.max(1, MAX_LEN - suffix.length);
+  let candidate = `${slug.slice(0, headLen)}${suffix}`;
+
+  if (!usedNames.has(candidate)) {
+    return candidate;
+  }
+
+  for (let i = 2; i < 200; i++) {
+    const dedupeSuffix = `_${i.toString(36)}`;
+    const baseLen = Math.max(1, MAX_LEN - dedupeSuffix.length);
+    candidate = `${candidate.slice(0, baseLen)}${dedupeSuffix}`;
+    if (!usedNames.has(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidate.slice(0, MAX_LEN);
+}
+
+function optimizeKlingPromptText(text: string): string {
+  if (!text) return text;
+  return text
+    .split('\n')
+    .map(line =>
+      line
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\.{2,}/g, '.')
+        .trim()
+    )
+    .filter((line, index, arr) => !(line === '' && arr[index - 1] === ''))
+    .join('\n')
+    .trim();
+}
+
 function replacePromptMentions(text: string, tokenMap: Record<string, string>): string {
   if (!text) return text;
   return text.replace(MENTION_REGEX, (_, type: string, name: string) => {
@@ -3418,6 +3465,57 @@ function replacePromptMentions(text: string, tokenMap: Record<string, string>): 
     // to avoid Kling failing on unresolved @element references.
     return mapped ? `@${mapped}` : String(name || '').trim();
   });
+}
+
+function collectElementKeysFromText(text: string, tokenMap: Record<string, string>): string[] {
+  if (!text) return [];
+  const tags: string[] = [];
+  for (const match of text.matchAll(MENTION_REGEX)) {
+    const type = match.groups?.type;
+    const name = (match.groups?.name || '').trim().toLowerCase();
+    if (!type || !name) continue;
+    const mapped = tokenMap[`${type}:${name}`];
+    if (mapped) {
+      tags.push(`@${mapped}`);
+    }
+  }
+  return tags;
+}
+
+function collectElementTagsFromTexts(texts: string[], tokenMap: Record<string, string>): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const text of texts) {
+    const tags = collectElementKeysFromText(text, tokenMap);
+    for (const tag of tags) {
+      if (!seen.has(tag)) {
+        seen.add(tag);
+        ordered.push(tag);
+      }
+    }
+  }
+  return ordered;
+}
+
+function appendTrailingElementTags(basePrompt: string, tags: string[], maxChars = 2500): string {
+  if (!tags.length) {
+    return truncateText(optimizeKlingPromptText(basePrompt), maxChars);
+  }
+
+  const trailing = tags.join(' ');
+  const optimizedBasePrompt = optimizeKlingPromptText(basePrompt);
+  if (optimizedBasePrompt.length + 1 + trailing.length <= maxChars) {
+    return `${optimizedBasePrompt}\n${trailing}`;
+  }
+
+  const allowedBaseLen = Math.max(0, maxChars - 1 - trailing.length);
+  const trimmedBase = truncateText(optimizedBasePrompt, allowedBaseLen);
+  if (trimmedBase.length + 1 + trailing.length <= maxChars) {
+    return `${trimmedBase}\n${trailing}`;
+  }
+
+  const allowedTrailingLen = Math.max(0, maxChars - 1 - trimmedBase.length);
+  return `${trimmedBase}\n${trailing.slice(0, allowedTrailingLen)}`.trim();
 }
 
 async function buildKlingElementsFromMentions(
@@ -3436,38 +3534,24 @@ async function buildKlingElementsFromMentions(
     .eq('user_id', userId);
 
   const fetchAvatars = async () => {
-    const richQuery = await supabase
+    const photoSetQuery = await supabase
       .from('user_avatars')
-      .select('id,avatar_name,photo_url,reference_photos,photo_set_json')
+      .select('id,avatar_name,photo_url,photo_set_json')
       .eq('user_id', userId);
 
-    if (!richQuery.error) {
-      return richQuery;
-    }
-
-    if ((richQuery.error as { code?: string } | null)?.code === '42703') {
-      console.warn('[Kling Elements] Falling back to avatar query without reference_photos:', richQuery.error.message);
-      const photoSetQuery = await supabase
-        .from('user_avatars')
-        .select('id,avatar_name,photo_url,photo_set_json')
-        .eq('user_id', userId);
-
-      if (!photoSetQuery.error) {
-        return photoSetQuery;
-      }
-
-      if ((photoSetQuery.error as { code?: string } | null)?.code === '42703') {
-        console.warn('[Kling Elements] Falling back to minimal avatar query without photo_set_json:', photoSetQuery.error.message);
-        return supabase
-          .from('user_avatars')
-          .select('id,avatar_name,photo_url')
-          .eq('user_id', userId);
-      }
-
+    if (!photoSetQuery.error) {
       return photoSetQuery;
     }
 
-    return richQuery;
+    if ((photoSetQuery.error as { code?: string } | null)?.code === '42703') {
+      console.warn('[Kling Elements] Falling back to minimal avatar query without photo_set_json:', photoSetQuery.error.message);
+      return supabase
+        .from('user_avatars')
+        .select('id,avatar_name,photo_url')
+        .eq('user_id', userId);
+    }
+
+    return photoSetQuery;
   };
 
   const [productResult, avatarResult] = await Promise.all([
@@ -3551,7 +3635,7 @@ async function buildKlingElementsFromMentions(
   const usedElementNames = new Set<string>();
   const skippedMentions: KlingMention[] = [];
 
-  mentions.forEach((mention, index) => {
+  mentions.forEach((mention) => {
     const product = mention.type === 'product' ? productsByName.get(mention.name.toLowerCase()) : undefined;
     const avatar = mention.type === 'character' ? avatarsByName.get(mention.name.toLowerCase()) : undefined;
 
@@ -3574,11 +3658,7 @@ async function buildKlingElementsFromMentions(
       return;
     }
 
-    const slug = slugifyElementName(mention.name);
-    let elementName = `element_${mention.type}_${slug}`;
-    if (usedElementNames.has(elementName)) {
-      elementName = `element_${mention.type}_${slug}_${index + 1}`;
-    }
+    const elementName = buildKlingElementName(mention.name, mention.key, usedElementNames);
     usedElementNames.add(elementName);
     tokenMap[mention.key] = elementName;
 
@@ -3599,6 +3679,7 @@ function buildKlingShotPrompt(
   segmentPrompt: SegmentPrompt,
   shot: NormalizedVideoShot,
   shotIndex: number,
+  tokenMap: Record<string, string>,
   replaceMention: (text: string) => string
 ): string {
   const shotParts: string[] = [];
@@ -3627,13 +3708,25 @@ function buildKlingShotPrompt(
   ]
     .filter(Boolean)
     .join('\n');
-
-  return truncateText(replaceMention(merged), 2500);
+  const trailingTags = collectElementTagsFromTexts([
+    shot.action,
+    shot.subject,
+    shot.dialogue,
+    shot.context_environment,
+    shot.composition,
+    shot.style,
+    shot.ambiance_colour_lighting,
+    shot.camera_motion_positioning,
+    shot.audio,
+    shotIndex === 0 ? segmentPrompt.first_frame_description : ''
+  ].filter(Boolean) as string[], tokenMap);
+  return appendTrailingElementTags(replaceMention(merged), trailingTags, 2500);
 }
 
 function buildKlingSinglePrompt(
   segmentPrompt: SegmentPrompt,
   shot: NormalizedVideoShot,
+  tokenMap: Record<string, string>,
   replaceMention: (text: string) => string
 ): string {
   const parts: string[] = [];
@@ -3649,7 +3742,19 @@ function buildKlingSinglePrompt(
   if (shot.ambiance_colour_lighting) parts.push(`Lighting: ${shot.ambiance_colour_lighting}`);
   if (shot.camera_motion_positioning) parts.push(`Camera: ${shot.camera_motion_positioning}`);
   if (shot.audio) parts.push(`Audio: ${shot.audio}`);
-  return truncateText(replaceMention(parts.join('\n')), 2500);
+  const trailingTags = collectElementTagsFromTexts([
+    segmentPrompt.first_frame_description,
+    shot.subject,
+    shot.action,
+    shot.dialogue,
+    shot.context_environment,
+    shot.composition,
+    shot.style,
+    shot.ambiance_colour_lighting,
+    shot.camera_motion_positioning,
+    shot.audio
+  ].filter(Boolean) as string[], tokenMap);
+  return appendTrailingElementTags(replaceMention(parts.join('\n')), trailingTags, 2500);
 }
 
 function allocateKlingShotDurations(totalDuration: number, shotCount: number): number[] {
@@ -3673,6 +3778,7 @@ function allocateKlingShotDurations(totalDuration: number, shotCount: number): n
 function buildKlingMultiPrompt(
   segmentPrompt: SegmentPrompt,
   normalizedShots: NormalizedVideoShot[],
+  tokenMap: Record<string, string>,
   replaceMention: (text: string) => string,
   totalDuration: number
 ): Array<{ prompt: string; duration: number }> {
@@ -3714,7 +3820,7 @@ function buildKlingMultiPrompt(
 
   const shotDurations = allocateKlingShotDurations(totalDuration, desiredShotCount);
   return mergedShots.map((shot, index) => ({
-    prompt: buildKlingShotPrompt(segmentPrompt, shot, index, replaceMention),
+    prompt: buildKlingShotPrompt(segmentPrompt, shot, index, tokenMap, replaceMention),
     duration: shotDurations[index]
   }));
 }
@@ -3771,11 +3877,11 @@ async function startSegmentVideoTaskKling(
     camera_motion_positioning: segmentPrompt.camera_motion_positioning || ''
   };
   const multiPrompt = hasMultipleShots
-    ? buildKlingMultiPrompt(segmentPrompt, normalizedShots, replaceMention, boundedDuration)
+    ? buildKlingMultiPrompt(segmentPrompt, normalizedShots, tokenMap, replaceMention, boundedDuration)
     : [];
   const singlePrompt = hasMultipleShots
     ? ''
-    : buildKlingSinglePrompt(segmentPrompt, primaryShot, replaceMention);
+    : buildKlingSinglePrompt(segmentPrompt, primaryShot, tokenMap, replaceMention);
   const hasClosingFrame = Boolean(closingFrameUrl && closingFrameUrl !== firstFrameUrl);
   const imageUrls = hasMultipleShots
     ? [firstFrameUrl]
@@ -3813,7 +3919,12 @@ async function startSegmentVideoTaskKling(
     multiPromptCount: multiPrompt.length,
     mentionsCount: mentions.length,
     elementsCount: elements.length,
-    skippedMentionsCount: skippedMentions.length
+    skippedMentionsCount: skippedMentions.length,
+    trailingTagMode: 'shot-only',
+    inlineAndTrailing: true,
+    trailingTagCounts: hasMultipleShots
+      ? multiPrompt.map(item => (item.prompt.match(/@element_[a-z0-9_]+/g) || []).length)
+      : [(singlePrompt.match(/@element_[a-z0-9_]+/g) || []).length]
   });
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {

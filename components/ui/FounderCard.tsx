@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { FaTiktok } from 'react-icons/fa6';
+import { Kling } from '@lobehub/icons';
 import { BOOKING_URL } from '@/lib/booking';
 
 interface FounderCardProps {
@@ -31,7 +32,7 @@ export default function FounderCard({
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className={`inline-flex ${className}`}
+        className={`inline-flex items-center gap-2 ${className}`}
       >
         <div className="inline-flex items-center gap-2.5 px-3.5 py-2 bg-[#fafafa] border border-[#e9e9e7] rounded-full text-sm hover:bg-[#f5f5f5] transition-colors">
           {/* Avatar - compact */}
@@ -77,6 +78,28 @@ export default function FounderCard({
             <span className="text-xs font-medium">DM founder</span>
           </a>
         </div>
+
+        <motion.div
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#fafafa] border border-[#e9e9e7] rounded-full text-sm"
+          animate={{
+            borderColor: ['#e9e9e7', '#bdbdb8', '#e9e9e7'],
+            boxShadow: ['0 0 0 rgba(0,0,0,0)', '0 4px 14px rgba(0,0,0,0.08)', '0 0 0 rgba(0,0,0,0)']
+          }}
+          transition={{
+            duration: 2.2,
+            repeat: Infinity,
+            ease: 'easeInOut'
+          }}
+        >
+          <motion.span
+            animate={{ rotate: [0, -6, 6, 0] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            className="inline-flex"
+          >
+            <Kling className="w-3.5 h-3.5 text-[#37352f]" />
+          </motion.span>
+          <span className="text-xs font-semibold text-[#37352f]">Kling 3.0 supported</span>
+        </motion.div>
       </motion.div>
     );
   }

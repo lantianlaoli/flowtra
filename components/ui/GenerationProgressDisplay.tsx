@@ -612,14 +612,6 @@ function GenerationCard({
         {/* Error/Body */}
         {showBody && (
           <div className="pt-2">
-            {displayStatus === 'attention' && hasSegmentFailure && (
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-gray-900 mt-0.5" />
-                <p className="text-[12px] text-gray-600 leading-relaxed font-medium">
-                  Some segments require your attention. Please review and adjust the prompts.
-                </p>
-              </div>
-            )}
             {displayStatus === 'failed' && errorMessage && (
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-start gap-2.5">
                 <XCircle className="w-4 h-4 text-gray-900 mt-0.5" />
@@ -667,30 +659,6 @@ function GenerationCard({
                     className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-colors"
                   >
                     <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Merge Action - Only show when at least some frames are ready */}
-            {hasSegments && segmentCount !== 1 && !mergeComplete && (framesReady > 0 || videosReady > 0) && (
-              <div className="mt-3">
-                {mergeInProgress ? (
-                  <div className="flex items-center justify-center gap-3 p-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 font-semibold text-[13px]">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Merging your masterpiece...
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => onMerge?.(generation)}
-                    disabled={!canMerge}
-                    className={`w-full py-3 rounded-xl font-bold text-[13px] transition-all border ${
-                      canMerge
-                        ? 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800 shadow-sm'
-                        : 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed'
-                    }`}
-                  >
-                    Finalize & Merge Video
                   </button>
                 )}
               </div>
