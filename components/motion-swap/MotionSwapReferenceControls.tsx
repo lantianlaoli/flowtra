@@ -55,6 +55,9 @@ export default function MotionSwapReferenceControls({
     ? Boolean(selectedVideo?.cover_url)
     : Boolean(selectedVideo);
   const triggerVideo = selectedVideoEligible ? selectedVideo : null;
+  const selectedVideoLabel = selectedVideo
+    ? (selectedVideo.description?.trim() || 'TikTok video')
+    : 'Select video';
   const isInline = variant === 'inline';
 
   return (
@@ -74,8 +77,8 @@ export default function MotionSwapReferenceControls({
               <div className="bottom-bar-video-thumb h-8 w-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
                 {selectedVideo?.cover_url ? (
                   <Image
-                    src={triggerVideo?.cover_url || ''}
-                    alt={triggerVideo?.description || 'Video'}
+                    src={selectedVideo.cover_url}
+                    alt={selectedVideoLabel}
                     width={32}
                     height={32}
                     className="h-full w-full object-cover"
@@ -85,7 +88,7 @@ export default function MotionSwapReferenceControls({
                 )}
               </div>
               <p className="bottom-bar-video-title text-sm font-medium text-gray-900">
-                {triggerVideo?.description?.slice(0, 28) || 'Select video'}
+                {selectedVideoLabel.slice(0, 28)}
               </p>
             </div>
           }

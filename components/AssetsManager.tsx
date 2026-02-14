@@ -662,6 +662,8 @@ export default function AssetsManager() {
         avatar={editingAvatar}
         onClose={() => setEditingAvatar(null)}
         onAvatarUpdated={handleAvatarUpdated}
+        onDelete={handleDeleteAvatar}
+        isDeleting={deletingAvatarId === editingAvatar?.id}
       />
       <VideoImportModal
         isOpen={showVideoImportModal}

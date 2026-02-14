@@ -1,12 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import Image from 'next/image';
-import { Edit2, Trash2, Loader2 } from 'lucide-react';
+import { Eye, Loader2 } from 'lucide-react';
 import { UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
 import { motion } from 'framer-motion';
-import ConfirmDialog from './ConfirmDialog';
 
 type AvatarCardItem = UserAvatar | SystemAvatar;
 
@@ -23,13 +21,11 @@ interface AvatarCardProps {
 export default function AvatarCard({
   avatar,
   onEdit,
-  onDelete,
   isDeleting = false,
   mode = 'full',
   onSelect,
   isSelected = false
 }: AvatarCardProps) {
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const isSystemAvatar = Boolean((avatar as SystemAvatar).isSystem);
 
   const isSelectableMode = mode === 'selectable';
@@ -47,19 +43,8 @@ export default function AvatarCard({
     onEdit(avatar);
   };
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isDeleting || isSystemAvatar) return;
-    setShowDeleteDialog(true);
-  };
-
-  const confirmDelete = () => {
-    onDelete(avatar.id);
-  };
-
   return (
-    <>
-      <motion.div
+    <motion.div
         className={`
           assets-avatar-card relative bg-white rounded-xl border overflow-hidden transition-all duration-200
           ${isSelectableMode ? 'cursor-pointer hover:border-gray-300 hover:shadow-sm' : 'hover:border-gray-300 hover:shadow-sm'}
@@ -73,7 +58,6 @@ export default function AvatarCard({
         exit={{ opacity: 0, scale: 0.9 }}
         transition={{ duration: 0.2 }}
       >
-        {/* Avatar Image */}
         <div className="assets-avatar-card-media relative w-full aspect-square">
           <Image
             src={avatar.photo_url}
@@ -83,14 +67,12 @@ export default function AvatarCard({
             sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
 
-          {/* Deleting indicator */}
           {isDeleting && (
             <div className="assets-avatar-card-loading absolute inset-0 bg-white/80 flex items-center justify-center">
               <Loader2 className="w-6 h-6 text-gray-900 animate-spin" />
             </div>
           )}
 
-          {/* Selected indicator */}
           {isSelected && isSelectableMode && (
             <div className="assets-avatar-card-selected absolute top-2 right-2 w-6 h-6 bg-gray-900 rounded-full flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -100,7 +82,6 @@ export default function AvatarCard({
           )}
         </div>
 
-        {/* Avatar Name */}
         <div className="assets-avatar-card-body p-3 bg-white border-t border-gray-100">
           <p className="assets-avatar-card-title text-sm font-medium text-gray-900 truncate" title={avatar.avatar_name}>
             {avatar.avatar_name}
@@ -110,43 +91,17 @@ export default function AvatarCard({
               <>
                 <button
                   onClick={handleEditClick}
-                  className={`assets-avatar-card-action flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
-                  title={isSystemAvatar ? 'System avatar' : 'Edit avatar'}
+                  className={`assets-avatar-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 ${isSystemAvatar ? 'opacity-40 cursor-not-allowed hover:bg-black' : ''}`}
+                  title={isSystemAvatar ? 'System avatar' : 'View details'}
                   disabled={isSystemAvatar}
                 >
-                  <Edit2 className="w-4 h-4" />
-                  <span>Edit</span>
-                </button>
-                <button
-                  onClick={handleDeleteClick}
-                  className={`assets-avatar-card-action assets-avatar-card-danger flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium transition-colors ${isSystemAvatar ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
-                  title={isSystemAvatar ? 'System avatar' : (isDeleting ? 'Deleting...' : 'Delete avatar')}
-                  disabled={isSystemAvatar}
-                >
-                  {isDeleting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                  <span>{isDeleting ? 'Deleting' : 'Delete'}</span>
+                  <Eye className="w-4 h-4" />
+                  <span>View Details</span>
                 </button>
               </>
             )}
           </div>
         </div>
       </motion.div>
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={showDeleteDialog}
-        onClose={() => setShowDeleteDialog(false)}
-        onConfirm={confirmDelete}
-        title="Delete Avatar"
-        message={`Are you sure you want to delete "${avatar.avatar_name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="danger"
-      />
-    </>
   );
 }
