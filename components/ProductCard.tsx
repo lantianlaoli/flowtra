@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Edit2, Trash2, Plus, X, Loader2 } from 'lucide-react';
+import { Eye, Edit2, Trash2, Plus, X, Loader2 } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmDialog from './ConfirmDialog';
@@ -234,32 +234,15 @@ export default function ProductCard({
                 {brandLabel}
               </span>
             )}
-            <div className="mt-3 flex items-center gap-2">
-              <div className="flex-1">
-                <button
-                  onClick={handleEditClick}
-                  className="assets-product-card-action w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                  title="Edit product"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  <span>Edit</span>
-                </button>
-              </div>
-              <div className="flex-1">
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="assets-product-card-action w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={isDeleting ? 'Deleting...' : 'Delete product'}
-                >
-                  {isDeleting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                  <span>{isDeleting ? 'Deleting' : 'Delete'}</span>
-                </button>
-              </div>
+            <div className="mt-3">
+              <button
+                onClick={handleEditClick}
+                className="assets-product-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                title="View details"
+              >
+                <Eye className="w-4 h-4" />
+                <span>View Details</span>
+              </button>
             </div>
           </div>
         </motion.div>

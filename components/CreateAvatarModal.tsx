@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, UserCircle, Upload, Loader2, Plus, AlertCircle, CircleHelp } from 'lucide-react';
+import { X, UserCircle, Upload, Loader2, Plus, AlertCircle, CircleHelp, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { UserAvatar } from '@/lib/supabase';
@@ -33,6 +33,7 @@ export default function CreateAvatarModal({
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isUploadingRefs, setIsUploadingRefs] = useState(false);
+  const [isGeneratingReferences, setIsGeneratingReferences] = useState(false);
 
   const primaryInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
@@ -43,6 +44,7 @@ export default function CreateAvatarModal({
       setPrimaryImage(null);
       setReferenceImages([]);
       setError(null);
+      setIsGeneratingReferences(false);
       setTimeout(() => {
         const input = document.querySelector('#avatar-name-input') as HTMLInputElement | null;
         input?.focus();
@@ -158,6 +160,107 @@ export default function CreateAvatarModal({
     setReferenceImages((prev) => prev.filter((_, idx) => idx !== index));
   };
 
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const buildPreviewFileFromUrl = async (imageUrl: string, fileName: string): Promise<PreviewFile> => {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error('Failed to download generated reference image.');
+    }
+
+    const blob = await response.blob();
+    const file = new File([blob], fileName, { type: blob.type || 'image/png' });
+    const preview = await validateAndLoadImage(file);
+    return { file, preview };
+  };
+
+  const handleGenerateReferences = async () => {
+    if (!primaryImage) {
+      setError('Upload a primary portrait first.');
+      return;
+    }
+
+    const missingCount = 3 - referenceImages.length;
+    if (missingCount <= 0) {
+      setError('Reference photos are already full (3/3).');
+      return;
+    }
+
+    setIsGeneratingReferences(true);
+    setError(null);
+
+    try {
+      const createResponse = await fetch('/api/assets/ai-reference-angles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetType: 'avatar',
+          imageDataUrl: primaryImage.preview,
+          existingReferenceCount: referenceImages.length,
+          count: missingCount
+        })
+      });
+
+      const createPayload = await createResponse.json().catch(() => ({}));
+      if (!createResponse.ok || !Array.isArray(createPayload?.tasks) || createPayload.tasks.length !== missingCount) {
+        throw new Error(createPayload?.error || 'Failed to start AI reference generation.');
+      }
+
+      const tasks = createPayload.tasks as Array<{ taskId: string }>;
+      let resolvedStatuses: Array<{ taskId: string; status: 'pending' | 'success' | 'failed'; imageUrl?: string | null; failMsg?: string | null }> = [];
+
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        const params = new URLSearchParams();
+        tasks.forEach((task) => params.append('taskId', task.taskId));
+
+        const statusResponse = await fetch(`/api/assets/ai-reference-angles?${params.toString()}`, {
+          method: 'GET'
+        });
+
+        const statusPayload = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok || !Array.isArray(statusPayload?.statuses)) {
+          throw new Error(statusPayload?.error || 'Failed to check AI generation progress.');
+        }
+
+        resolvedStatuses = statusPayload.statuses;
+        const allFinished = resolvedStatuses.every(
+          (item) => item.status === 'success' || item.status === 'failed'
+        );
+
+        if (allFinished) {
+          break;
+        }
+
+        await wait(2500);
+      }
+
+      if (!resolvedStatuses.length || resolvedStatuses.some((item) => item.status !== 'success')) {
+        const failedTask = resolvedStatuses.find((item) => item.status === 'failed');
+        throw new Error(failedTask?.failMsg || 'AI reference generation timed out. Please try again.');
+      }
+
+      const orderedStatuses = tasks
+        .map((task) => resolvedStatuses.find((item) => item.taskId === task.taskId))
+        .filter(Boolean) as Array<{ imageUrl?: string | null }>;
+
+      const generatedReferences: PreviewFile[] = [];
+      for (let index = 0; index < orderedStatuses.length; index += 1) {
+        const imageUrl = orderedStatuses[index].imageUrl;
+        if (!imageUrl) {
+          throw new Error('AI generated image URL is missing.');
+        }
+        const reference = await buildPreviewFileFromUrl(imageUrl, `avatar-reference-angle-${index + 1}.png`);
+        generatedReferences.push(reference);
+      }
+
+      setReferenceImages(generatedReferences.slice(0, 3));
+    } catch (generationError) {
+      setError(generationError instanceof Error ? generationError.message : 'Failed to generate AI references.');
+    } finally {
+      setIsGeneratingReferences(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -229,7 +332,13 @@ export default function CreateAvatarModal({
     }
   };
 
-  const canSubmit = Boolean(avatarName.trim() && primaryImage && !isCreating && !isUploadingRefs);
+  const canSubmit = Boolean(
+    avatarName.trim() &&
+      primaryImage &&
+      !isCreating &&
+      !isUploadingRefs &&
+      !isGeneratingReferences
+  );
 
   return (
     <AnimatePresence>
@@ -298,7 +407,7 @@ export default function CreateAvatarModal({
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
-                <div className="space-y-3">
+                <div className="space-y-3 h-full min-h-0 flex flex-col">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium leading-5 text-gray-900">Primary Portrait (Required)</p>
                     <div className="relative group">
@@ -383,12 +492,53 @@ export default function CreateAvatarModal({
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-900">Reference Photos (Optional)</p>
-                  <p className="text-xs text-gray-500">Recommended: one 45° side angle and 1–2 detail/profile shots.</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5 leading-none">
+                      <p className="text-sm font-medium text-gray-900">Reference Photos (Optional)</p>
+                      <div className="relative group">
+                        <button
+                          type="button"
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600"
+                          aria-label="Reference angle recommendation"
+                        >
+                          <CircleHelp className="h-4 w-4" />
+                        </button>
+                        <div className="pointer-events-none absolute right-0 top-6 z-20 w-72 rounded-xl border border-gray-200 bg-white p-3 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                          <p className="text-xs text-gray-700">
+                            Recommended: one 45° side angle and 1–2 detail/profile shots.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">{referenceImages.length}/3</span>
+                      <button
+                        type="button"
+                        onClick={handleGenerateReferences}
+                        disabled={!primaryImage || referenceImages.length >= 3 || isCreating || isUploadingRefs || isGeneratingReferences}
+                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-gray-900 hover:text-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        {isGeneratingReferences ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        {isGeneratingReferences ? 'Generating…' : 'AI Generate'}
+                      </button>
+                    </div>
+                  </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-[auto_minmax(0,1fr)] gap-3">
                     {referenceImages.map((item, index) => (
-                      <div key={`reference-${index}`} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50 group">
+                      <div
+                        key={`reference-${index}`}
+                        className={cn(
+                          'relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50 group',
+                          referenceImages.length === 3 && index === 2
+                            ? 'col-span-2 h-full min-h-[220px]'
+                            : 'aspect-square'
+                        )}
+                      >
                         <Image src={item.preview} alt={`Reference ${index + 1}`} fill className="object-cover" />
                         <button
                           type="button"
@@ -408,7 +558,7 @@ export default function CreateAvatarModal({
                           accept={getAcceptedImageFormats()}
                           onChange={handleReferenceUpload}
                           className="hidden"
-                          disabled={isCreating || isUploadingRefs}
+                          disabled={isCreating || isUploadingRefs || isGeneratingReferences}
                         />
                         <Plus className="h-5 w-5 mb-2 text-gray-400" />
                         <span className="text-xs font-medium">Add Reference</span>
