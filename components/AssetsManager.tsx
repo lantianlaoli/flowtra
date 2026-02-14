@@ -42,6 +42,8 @@ interface CreatorSource {
 
 interface VideoAsset extends CreatorSourceVideo {
   source_name?: string | null;
+  source_type?: 'creator' | 'competitor_ad';
+  competitor_ad_id?: string | null;
 }
 
 interface AssetsData {
@@ -328,6 +330,19 @@ export default function AssetsManager() {
     if (!options?.skipRefresh) {
       void loadAssets();
     }
+  };
+
+  const handleVideoDeleted = (videoId: string) => {
+    setAssetsData((prev) => ({
+      ...prev,
+      videos: prev.videos.filter((video) => video.id !== videoId),
+      stats: {
+        ...prev.stats,
+        totalCreatorVideos: Math.max((prev.stats.totalCreatorVideos || 0) - 1, 0),
+      },
+    }));
+
+    setSelectedVideo((current) => (current?.id === videoId ? null : current));
   };
 
   const normalizedSearch = useMemo(() => searchTerm.trim().toLowerCase(), [searchTerm]);
@@ -658,6 +673,7 @@ export default function AssetsManager() {
         isOpen={showVideoDetails}
         onClose={() => setShowVideoDetails(false)}
         video={selectedVideo}
+        onVideoDeleted={handleVideoDeleted}
       />
     </div>
   );

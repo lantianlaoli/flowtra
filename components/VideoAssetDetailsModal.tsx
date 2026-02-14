@@ -11,6 +11,7 @@ import {
   Languages,
   Film,
   Tag,
+  Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/ToastContext";
@@ -31,22 +32,27 @@ interface VideoAsset {
   analysis_result?: Record<string, unknown> | null;
   analysis_error?: string | null;
   analysis_language?: string | null;
+  source_type?: "creator" | "competitor_ad";
+  competitor_ad_id?: string | null;
 }
 
 interface VideoAssetDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   video: VideoAsset | null;
+  onVideoDeleted?: (videoId: string) => void;
 }
 
 export default function VideoAssetDetailsModal({
   isOpen,
   onClose,
   video,
+  onVideoDeleted,
 }: VideoAssetDetailsModalProps) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [isCreatingClone, setIsCreatingClone] = useState(false);
+  const [isDeletingVideo, setIsDeletingVideo] = useState(false);
 
   const shots = useMemo(() => {
     const raw =
@@ -137,6 +143,42 @@ export default function VideoAssetDetailsModal({
     router.push("/dashboard/motion-swap");
   };
 
+  const handleDeleteVideo = async () => {
+    if (!video || isDeletingVideo) return;
+
+    const confirmed = window.confirm(
+      "Delete this video from assets? This action cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    const isCompetitorAd =
+      video.source_type === "competitor_ad" || Boolean(video.competitor_ad_id);
+    const endpoint = isCompetitorAd
+      ? `/api/competitor-ads/${video.id}`
+      : `/api/creator-videos/${video.id}`;
+
+    try {
+      setIsDeletingVideo(true);
+      const response = await fetch(endpoint, { method: "DELETE" });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        showError(payload.error || "Failed to delete video");
+        return;
+      }
+
+      showSuccess("Video deleted successfully");
+      onVideoDeleted?.(video.id);
+      onClose();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete video";
+      showError(message);
+    } finally {
+      setIsDeletingVideo(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && video && (
@@ -156,7 +198,7 @@ export default function VideoAssetDetailsModal({
           />
 
           <motion.div
-            className="assets-modal-panel assets-video-details-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-5xl mx-auto overflow-hidden"
+            className="assets-modal-panel assets-video-details-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-5xl h-[88vh] mx-auto overflow-hidden"
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 20 }}
@@ -179,7 +221,7 @@ export default function VideoAssetDetailsModal({
               </button>
             </div>
 
-            <div className="assets-modal-body grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6">
+            <div className="assets-modal-body h-[calc(88vh-85px)] min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6">
               <div className="assets-video-details-preview bg-black/95 rounded-xl overflow-hidden">
                 {video.video_cdn_url ? (
                   <VideoPlayer
@@ -194,7 +236,7 @@ export default function VideoAssetDetailsModal({
                 )}
               </div>
 
-              <div className="assets-video-details-panel flex flex-col gap-6">
+              <div className="assets-video-details-panel flex min-h-0 flex-col gap-6">
                 <div className="space-y-2">
                   <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                     Overview
@@ -237,20 +279,20 @@ export default function VideoAssetDetailsModal({
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-3">
+                <div className="flex min-h-0 flex-1 flex-col gap-3">
                   <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                     Structure Analysis
                   </p>
                   {hasAnalysis ? (
-                    <div className="space-y-3">
-                      <div className="assets-video-details-shots max-h-[420px] overflow-y-auto">
+                    <div className="flex min-h-0 flex-1 flex-col">
+                      <div className="assets-video-details-shots min-h-0 flex-1 overflow-y-auto pr-1">
                         <CompetitorShotsEditor
                           shots={parsedShots}
                           onShotsChange={() => {}}
                           showSummary={false}
                           readOnly
                           hideHeader
-                          expandedMaxHeightClass="max-h-[280px] overflow-y-auto"
+                          expandedMaxHeightClass="max-h-[320px] overflow-y-auto"
                         />
                       </div>
                     </div>
@@ -291,13 +333,13 @@ export default function VideoAssetDetailsModal({
                   <button
                     onClick={handleUseForClone}
                     disabled={!hasAnalysis || isCreatingClone}
-                    className="assets-video-details-action w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200"
+                    className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="font-medium flex items-center gap-2">
                       {isCreatingClone ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <Sparkles className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
+                        <Sparkles className="w-4 h-4 text-white/90" />
                       )}
                       Use for Clone
                     </span>
@@ -305,11 +347,25 @@ export default function VideoAssetDetailsModal({
                   <button
                     onClick={handleUseInMotionSwap}
                     disabled={!video.source_id}
-                    className="assets-video-details-action w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200"
+                    className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="font-medium flex items-center gap-2">
-                      <Shuffle className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
+                      <Shuffle className="w-4 h-4 text-white/90" />
                       Use in Motion Swap
+                    </span>
+                  </button>
+                  <button
+                    onClick={handleDeleteVideo}
+                    disabled={isDeletingVideo}
+                    className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-red-600 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="font-medium flex items-center gap-2">
+                      {isDeletingVideo ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      Delete Video
                     </span>
                   </button>
                 </div>
