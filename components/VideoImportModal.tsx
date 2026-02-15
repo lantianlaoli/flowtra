@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Play, Wand2 } from 'lucide-react';
+import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Sparkles, Shuffle } from 'lucide-react';
 import { SiTiktok } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -41,6 +41,7 @@ interface VideoImportModalProps {
 }
 
 type ImportStep = 'choose' | 'link' | 'upload' | 'creator' | 'creator-preview' | 'processing' | 'processing-batch';
+type ProcessingOrigin = 'upload' | 'link' | 'creator' | null;
 
 export default function VideoImportModal({
   isOpen,
@@ -63,6 +64,9 @@ export default function VideoImportModal({
   const [processingVideo, setProcessingVideo] = useState<ImportedVideo | null>(null);
   const [processingMessage, setProcessingMessage] = useState('');
   const [processingCount, setProcessingCount] = useState(0);
+  const [processingOrigin, setProcessingOrigin] = useState<ProcessingOrigin>(null);
+  const [isFirstFrameUploading, setIsFirstFrameUploading] = useState(false);
+  const [firstFrameUploadError, setFirstFrameUploadError] = useState<string | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const router = useRouter();
 
@@ -79,6 +83,9 @@ export default function VideoImportModal({
     setProcessingVideo(null);
     setProcessingMessage('');
     setProcessingCount(0);
+    setProcessingOrigin(null);
+    setIsFirstFrameUploading(false);
+    setFirstFrameUploadError(null);
   }, [isOpen]);
 
   useEffect(() => {
@@ -101,7 +108,13 @@ export default function VideoImportModal({
   }, [processingVideo?.analysis_result]);
 
   const canUseForClone = Boolean(processingVideo?.analysis_result);
-  const canUseForMotionSwap = Boolean(processingVideo?.source_id && processingVideo?.id);
+  const requiresFirstFrameForMotionSwap = processingOrigin === 'upload';
+  const hasFirstFrameImage = Boolean(processingVideo?.cover_url);
+  const canUseForMotionSwap = Boolean(
+    processingVideo?.source_id &&
+    processingVideo?.id &&
+    (!requiresFirstFrameForMotionSwap || hasFirstFrameImage)
+  );
 
   const handleBackToChoose = () => {
     setStep('choose');
@@ -126,6 +139,8 @@ export default function VideoImportModal({
     setStep('processing');
     setIsSubmitting(true);
     setError(null);
+    setFirstFrameUploadError(null);
+    setProcessingOrigin('link');
     setProcessingMessage('Importing video and running analysis...');
     setProcessingVideo(null);
 
@@ -179,6 +194,8 @@ export default function VideoImportModal({
     setStep('processing');
     setIsSubmitting(true);
     setError(null);
+    setFirstFrameUploadError(null);
+    setProcessingOrigin('upload');
     setProcessingMessage('Uploading video and running analysis...');
     setProcessingVideo(null);
 
@@ -263,6 +280,8 @@ export default function VideoImportModal({
     setStep('processing-batch');
     setIsSubmitting(true);
     setError(null);
+    setFirstFrameUploadError(null);
+    setProcessingOrigin('creator');
     setProcessingMessage('Processing selected videos. This may take a few minutes.');
     setProcessingCount(selectedVideos.length);
 
@@ -329,6 +348,46 @@ export default function VideoImportModal({
   const handleUseInMotionSwap = () => {
     onClose();
     router.push(`/dashboard/motion-swap?videoId=${processingVideo?.id}`);
+  };
+
+  const handleUploadFirstFrame = async (file: File | null) => {
+    if (!file || !processingVideo?.id) {
+      return;
+    }
+
+    setIsFirstFrameUploading(true);
+    setFirstFrameUploadError(null);
+
+    try {
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Please upload an image file for the first frame.');
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`/api/creator-videos/${processingVideo.id}/first-frame`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload first frame image.');
+      }
+
+      const updatedVideo = data.video as ImportedVideo;
+      setProcessingVideo(prev => prev ? { ...prev, cover_url: updatedVideo.cover_url || null } : prev);
+      onImported([updatedVideo], {
+        message: 'First frame uploaded. Motion Swap is now available.'
+      });
+    } catch (uploadError) {
+      const message = uploadError instanceof Error ? uploadError.message : 'Failed to upload first frame image.';
+      setFirstFrameUploadError(message);
+      onError?.(message);
+    } finally {
+      setIsFirstFrameUploading(false);
+    }
   };
 
   return (
@@ -612,20 +671,65 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing' && (
-              <div className="assets-modal-body grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6 min-h-[600px]">
-                <div className="assets-video-import-preview bg-black/95 rounded-xl overflow-hidden flex items-center justify-center min-h-[520px] aspect-[9/16]">
-                  {processingVideo?.video_cdn_url ? (
-                    <VideoPlayer
-                      src={processingVideo.video_cdn_url}
-                      className="w-full h-full"
-                      showControls
-                    />
-                  ) : (
-                    <div className="assets-video-import-preview-empty flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Preparing video preview...
+              <div className={`assets-modal-body grid grid-cols-1 ${requiresFirstFrameForMotionSwap ? 'lg:grid-cols-[minmax(0,0.68fr)_minmax(0,0.32fr)]' : 'lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]'} gap-6 p-6 min-h-[600px]`}>
+                <div className={`grid gap-4 ${requiresFirstFrameForMotionSwap ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {requiresFirstFrameForMotionSwap && (
+                    <div className="assets-video-import-preview bg-gray-100 rounded-xl overflow-hidden border border-gray-200 min-h-[520px] aspect-[9/16] flex flex-col">
+                      <div className="p-3 border-b border-gray-200 bg-white">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">First Frame Image</p>
+                      </div>
+                      <div className="flex-1 flex items-center justify-center p-3">
+                        {processingVideo?.cover_url ? (
+                          <img
+                            src={processingVideo.cover_url}
+                            alt="Uploaded first frame"
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="h-full w-full rounded-lg border-2 border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-center px-4 gap-3">
+                            <p className="text-sm font-medium text-gray-800">Upload First Frame</p>
+                            <p className="text-xs text-gray-500">Take a screenshot from your video and upload it.</p>
+                            <label className="inline-flex items-center justify-center px-3 py-2 text-xs font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-60">
+                              {isFirstFrameUploading ? 'Uploading...' : 'Upload First Frame'}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={isFirstFrameUploading}
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0] || null;
+                                  void handleUploadFirstFrame(file);
+                                  event.currentTarget.value = '';
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-3 pb-3">
+                        <p className="text-xs text-gray-500">
+                          Without a first-frame image, this video cannot be used in Motion Swap.
+                        </p>
+                        {firstFrameUploadError && (
+                          <p className="text-xs text-red-600 mt-2">{firstFrameUploadError}</p>
+                        )}
+                      </div>
                     </div>
                   )}
+                  <div className="assets-video-import-preview bg-black/95 rounded-xl overflow-hidden flex items-center justify-center min-h-[520px] aspect-[9/16]">
+                    {processingVideo?.video_cdn_url ? (
+                      <VideoPlayer
+                        src={processingVideo.video_cdn_url}
+                        className="w-full h-full"
+                        showControls
+                      />
+                    ) : (
+                      <div className="assets-video-import-preview-empty flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Preparing video preview...
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="assets-video-import-panel flex flex-col gap-4 min-h-[520px]">
                   <div className="space-y-2">
@@ -681,17 +785,21 @@ export default function VideoImportModal({
                     <button
                       onClick={handleUseForClone}
                       disabled={!canUseForClone}
-                      className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className="w-full h-11 px-4 text-sm font-semibold text-white rounded-xl border border-black bg-gradient-to-b from-[#141414] to-black shadow-[0_8px_20px_rgba(0,0,0,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.30)] active:translate-y-0 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-[0_8px_20px_rgba(0,0,0,0.24)] flex items-center justify-center gap-2"
                     >
-                      <Play className="w-4 h-4" />
+                      <span className="w-6 h-6 rounded-md border border-white/20 bg-white/10 flex items-center justify-center">
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </span>
                       Go to Clone Video
                     </button>
                     <button
                       onClick={handleUseInMotionSwap}
-                      disabled={!canUseForMotionSwap}
-                      className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      disabled={!canUseForMotionSwap || isFirstFrameUploading}
+                      className="w-full h-11 px-4 text-sm font-semibold text-white rounded-xl border border-black bg-gradient-to-b from-[#101010] to-black shadow-[0_8px_20px_rgba(0,0,0,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.30)] active:translate-y-0 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-[0_8px_20px_rgba(0,0,0,0.24)] flex items-center justify-center gap-2"
                     >
-                      <Wand2 className="w-4 h-4" />
+                      <span className="w-6 h-6 rounded-md border border-white/20 bg-white/10 flex items-center justify-center">
+                        <Shuffle className="w-3.5 h-3.5" />
+                      </span>
                       Go to Motion Swap
                     </button>
                   </div>

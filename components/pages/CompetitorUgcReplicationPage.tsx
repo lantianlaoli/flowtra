@@ -21,18 +21,13 @@ import GenerationProgressDisplay, {
 import SegmentInspector, {
   type SegmentPromptPayload,
 } from "@/components/competitor-ugc-replication/SegmentInspector";
-import type { VideoDurationOption } from "@/components/ui/VideoDurationSelector";
 
 import {
   canAffordModel,
-  getAvailableQualities,
-  getModelSupportedDurations,
   getGenerationCost,
   getSegmentCountFromDuration,
   snapDurationToModel,
-  MODEL_CAPABILITIES,
   type VideoModel,
-  type VideoQuality,
   type VideoDuration,
   getReplicaPhotoCredits,
 } from "@/lib/constants";
@@ -185,58 +180,13 @@ const getStageLabel = (status: Generation["status"], step?: string | null) => {
   return "Queued";
 };
 
-const ALL_VIDEO_QUALITIES: Array<"standard" | "high"> = ["standard", "high"];
-const ALL_VIDEO_DURATIONS: VideoDuration[] = [
-  "8",
-  "16",
-  "24",
-  "32",
-  "40",
-  "48",
-  "56",
-  "64",
-];
 const ALL_VIDEO_MODELS: VideoModel[] = [
   "veo3",
   "veo3_fast",
   "seedance_1_5_pro",
+  "kling_3",
 ];
 const SESSION_STORAGE_KEY = "flowtra_competitor_ugc_replication_generations";
-
-const COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS: VideoDurationOption[] = [
-  {
-    value: "8",
-    label: "8s",
-  },
-  {
-    value: "16",
-    label: "16s",
-  },
-  {
-    value: "24",
-    label: "24s",
-  },
-  {
-    value: "32",
-    label: "32s",
-  },
-  {
-    value: "40",
-    label: "40s",
-  },
-  {
-    value: "48",
-    label: "48s",
-  },
-  {
-    value: "56",
-    label: "56s",
-  },
-  {
-    value: "64",
-    label: "64s",
-  },
-];
 
 export default function CompetitorUgcReplicationPage() {
   const { user } = useUser();
@@ -282,7 +232,6 @@ export default function CompetitorUgcReplicationPage() {
   >({});
 
   // Video configuration states
-  const [videoDuration, setVideoDuration] = useState<VideoDuration>("8");
   const [selectedModel, setSelectedModel] = useState<VideoModel>("veo3_fast");
   const [format, setFormat] = useState<Format>("9:16");
 
@@ -323,15 +272,6 @@ export default function CompetitorUgcReplicationPage() {
     useState<ReplicaOutputFormat>("png");
   const [isGenerating, setIsGenerating] = useState(false);
   const isMountedRef = useRef(true);
-  const lastAutoDurationRef = useRef<{
-    competitorId: string | null;
-    model: VideoModel | null;
-    duration: VideoDuration | null;
-  }>({
-    competitorId: null,
-    model: null,
-    duration: null,
-  });
   const lastAutoLanguageRef = useRef<{
     competitorId: string | null;
     appliedLanguage: string | null;
@@ -400,40 +340,13 @@ export default function CompetitorUgcReplicationPage() {
     }
   }, [selectedReferenceVideo]);
 
-  useEffect(() => {
-    // Reference videos are used for clone mode
-    if (!selectedReferenceVideo) {
-      lastAutoDurationRef.current = {
-        competitorId: null,
-        model: null,
-        duration: null,
-      };
-      return;
+  const effectiveVideoDuration = useMemo<VideoDuration>(() => {
+    const targetDurationSeconds = selectedReferenceVideo?.duration_seconds || 0;
+    if (!targetDurationSeconds) {
+      return "8";
     }
-
-    // Use actual video duration for direct time matching
-    const targetDurationSeconds = selectedReferenceVideo.duration_seconds || 0;
-
-    if (!targetDurationSeconds) return;
-
-    const snapped = snapDurationToModel(selectedModel, targetDurationSeconds);
-    if (
-      snapped &&
-      (lastAutoDurationRef.current.competitorId !== selectedReferenceVideo.id ||
-        lastAutoDurationRef.current.model !== selectedModel ||
-        lastAutoDurationRef.current.duration !== snapped)
-    ) {
-      console.log(
-        `⏱️ Auto-selecting ${snapped}s duration based on ${targetDurationSeconds}s reference video (${selectedModel})`,
-      );
-      setVideoDuration(snapped);
-      lastAutoDurationRef.current = {
-        competitorId: selectedReferenceVideo.id,
-        model: selectedModel,
-        duration: snapped,
-      };
-    }
-  }, [selectedReferenceVideo, selectedModel]);
+    return snapDurationToModel(selectedModel, Math.min(targetDurationSeconds, 64));
+  }, [selectedReferenceVideo?.duration_seconds, selectedModel]);
 
   // Check for showcase TikTok analysis and preselect matching asset video
   useEffect(() => {
@@ -616,7 +529,7 @@ export default function CompetitorUgcReplicationPage() {
       elementsCount,
       format,
       format as "16:9" | "9:16",
-      videoDuration,
+      effectiveVideoDuration,
       selectedLanguage,
       false, // Always use auto mode now
       "",
@@ -1682,76 +1595,6 @@ export default function CompetitorUgcReplicationPage() {
 
   // Platform change handler has been removed (platform feature deprecated)
 
-  // Calculate available and disabled options
-  const availableDurations = useMemo(
-    () => getModelSupportedDurations(selectedModel),
-    [selectedModel],
-  );
-
-  const disabledDurations = useMemo(
-    () => ALL_VIDEO_DURATIONS.filter((d) => !availableDurations.includes(d)),
-    [availableDurations],
-  );
-
-  // Calculate recommended duration based on competitor ad
-  const recommendedDuration = useMemo(() => {
-    // Competitor ads are now video-only
-    if (selectedReferenceVideo) {
-      // Use actual video duration for direct time matching
-      const targetDurationSeconds =
-        selectedReferenceVideo.duration_seconds || 0;
-
-      if (targetDurationSeconds > 0) {
-        return snapDurationToModel(selectedModel, targetDurationSeconds);
-      }
-    }
-    return null;
-  }, [selectedReferenceVideo, selectedModel]);
-
-  // Filter duration options to only show supported durations for current model
-  // and dynamically add 'recommended' based on competitor ad analysis
-  const filteredDurationOptions = useMemo(
-    () =>
-      COMPETITOR_UGC_REPLICATION_DURATION_OPTIONS.filter((option) =>
-        availableDurations.includes(option.value),
-      ).map((option) => ({
-        ...option,
-        recommended: recommendedDuration
-          ? option.value === recommendedDuration
-          : undefined,
-      })),
-    [availableDurations, recommendedDuration],
-  );
-
-  const disabledModels = useMemo<VideoModel[]>(() => {
-    // Models should only be disabled by:
-    // 1. User's available credits (handled in VideoModelSelector)
-    // 2. Explicit disable props (if any)
-    // NOT by quality!
-    return [];
-  }, []);
-
-  // Auto-adjust duration when it becomes invalid
-  useEffect(() => {
-    if (!availableDurations.includes(videoDuration)) {
-      // Use snapDurationToModel to find the closest supported duration
-      const closest = snapDurationToModel(selectedModel, Number(videoDuration));
-      setVideoDuration(closest);
-    }
-  }, [videoDuration, availableDurations, selectedModel]);
-
-  // Auto-switch model when it becomes disabled
-  useEffect(() => {
-    if (disabledModels.includes(selectedModel)) {
-      const firstAvailable = ALL_VIDEO_MODELS.find(
-        (m) => !disabledModels.includes(m),
-      );
-      if (firstAvailable) {
-        setSelectedModel(firstAvailable);
-      }
-    }
-  }, [selectedModel, disabledModels]);
-
   // Check KIE API credits
   useEffect(() => {
     const checkKieCredits = async () => {
@@ -1803,12 +1646,27 @@ export default function CompetitorUgcReplicationPage() {
       return;
     }
 
+    const referenceDurationSeconds = Number(
+      selectedReferenceVideo.duration_seconds || 0,
+    );
+    if (
+      selectedModel === "kling_3" &&
+      Number.isFinite(referenceDurationSeconds) &&
+      referenceDurationSeconds > 60
+    ) {
+      setValidationMessage(
+        "Kling 3.0 clone supports reference videos up to 60 seconds.",
+      );
+      setShowValidationModal(true);
+      return;
+    }
+
     if (isGenerating) return;
 
     setIsGenerating(true);
 
     const initialSegmentCount = shouldGenerateVideo
-      ? getSegmentCountFromDuration(videoDuration, selectedModel)
+      ? getSegmentCountFromDuration(effectiveVideoDuration, selectedModel)
       : null;
 
     const selectedVideoAspectRatio =
@@ -1849,7 +1707,7 @@ export default function CompetitorUgcReplicationPage() {
       videoAspectRatio: shouldGenerateVideo ? selectedVideoAspectRatio : null,
       downloaded: false,
       segmentCount: initialSegmentCount ?? undefined,
-      videoDuration: shouldGenerateVideo ? videoDuration : null,
+      videoDuration: shouldGenerateVideo ? effectiveVideoDuration : null,
       isSegmented: Boolean(initialSegmentCount && initialSegmentCount > 1),
       segmentStatus: initialSegmentStatus, // Properly initialized segment status
       segmentPlan: null,
@@ -1980,7 +1838,7 @@ export default function CompetitorUgcReplicationPage() {
   const replicaPhotoCredits = getReplicaPhotoCredits(photoResolution);
   const generationCost = isCompetitorPhotoMode
     ? replicaPhotoCredits
-    : getGenerationCost(selectedModel, videoDuration.toString());
+    : getGenerationCost(selectedModel, effectiveVideoDuration.toString());
   const downloadCost = 0; // Version 2.0: ALL downloads are FREE
   const canAfford = isCompetitorPhotoMode
     ? (userCredits || 0) >= generationCost
@@ -2163,6 +2021,7 @@ export default function CompetitorUgcReplicationPage() {
               videos={assetVideos}
               selectedVideoId={selectedReferenceVideoId}
               onSelectVideoId={setSelectedReferenceVideoId}
+              requireFirstFrameForSelection={false}
               variant="inline"
               showLabel={false}
               className="flex-shrink-0"
@@ -2171,17 +2030,14 @@ export default function CompetitorUgcReplicationPage() {
         }
         configButton={
           <ConfigPopover
-            videoDuration={videoDuration}
-            onDurationChange={setVideoDuration}
-            disabledDurations={disabledDurations}
-            durationOptions={filteredDurationOptions}
-            recommendedDuration={recommendedDuration}
+            videoDuration={effectiveVideoDuration}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
             userCredits={userCredits || 0}
             selectedLanguage={selectedLanguage}
             onLanguageChange={setSelectedLanguage}
             hideLanguageSelector
+            hideDurationSelector
             format={format}
             onFormatChange={setFormat}
             disabled={isGenerating}

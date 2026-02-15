@@ -6,10 +6,12 @@ import {
   X,
   Loader2,
   Sparkles,
+  Shuffle,
   Clock,
   Languages,
   Film,
   Tag,
+  Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/ToastContext";
@@ -30,6 +32,8 @@ interface VideoAsset {
   analysis_result?: Record<string, unknown> | null;
   analysis_error?: string | null;
   analysis_language?: string | null;
+  source_type?: "creator" | "competitor_ad";
+  competitor_ad_id?: string | null;
 }
 
 interface VideoAssetDetailsModalProps {
@@ -39,6 +43,7 @@ interface VideoAssetDetailsModalProps {
   size?: "default" | "compact";
   onUseForClone?: (video: VideoAsset) => Promise<void> | void;
   cloneActionLabel?: string;
+  onVideoDeleted?: (videoId: string) => void;
 }
 
 export default function VideoAssetDetailsModal({
@@ -48,15 +53,17 @@ export default function VideoAssetDetailsModal({
   size = "default",
   onUseForClone,
   cloneActionLabel = "Use for Clone",
+  onVideoDeleted,
 }: VideoAssetDetailsModalProps) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [isCreatingClone, setIsCreatingClone] = useState(false);
+  const [isDeletingVideo, setIsDeletingVideo] = useState(false);
 
   const shots = useMemo(() => {
     const raw =
       video?.analysis_result && typeof video.analysis_result === "object"
-        ? (video.analysis_result as any).shots
+        ? (video.analysis_result as { shots?: unknown }).shots
         : null;
     return Array.isArray(raw) ? raw : [];
   }, [video?.analysis_result]);
@@ -64,22 +71,16 @@ export default function VideoAssetDetailsModal({
   const parsedShots = useMemo(() => parseShotsFromAnalysis(shots), [shots]);
 
   const analysisName = useMemo(() => {
-    if (!video?.analysis_result || typeof video.analysis_result !== "object")
+    if (!video?.analysis_result || typeof video.analysis_result !== "object") {
       return null;
-    const name = (video.analysis_result as any).name;
+    }
+    const name = (video.analysis_result as { name?: unknown }).name;
     return typeof name === "string" ? name : null;
-  }, [video?.analysis_result]);
-
-  const analysisDuration = useMemo(() => {
-    if (!video?.analysis_result || typeof video.analysis_result !== "object")
-      return null;
-    const duration = (video.analysis_result as any).video_duration_seconds;
-    return typeof duration === "number" ? duration : null;
   }, [video?.analysis_result]);
 
   const detectedLanguage = useMemo(() => {
     if (video?.analysis_result && typeof video.analysis_result === "object") {
-      const detected = (video.analysis_result as any).detected_language;
+      const detected = (video.analysis_result as { detected_language?: unknown }).detected_language;
       if (typeof detected === "string") return detected;
     }
     return video?.analysis_language || null;
@@ -132,6 +133,59 @@ export default function VideoAssetDetailsModal({
     }
   };
 
+  const handleUseInMotionSwap = () => {
+    if (!video) return;
+
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(
+        "preselect_motion_swap_video",
+        JSON.stringify({
+          videoId: video.id,
+        }),
+      );
+    }
+
+    showSuccess("Video selected for Motion Swap.");
+    onClose();
+    router.push("/dashboard/motion-swap");
+  };
+
+  const handleDeleteVideo = async () => {
+    if (!video || isDeletingVideo) return;
+
+    const confirmed = window.confirm(
+      "Delete this video from assets? This action cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    const isCompetitorAd =
+      video.source_type === "competitor_ad" || Boolean(video.competitor_ad_id);
+    const endpoint = isCompetitorAd
+      ? `/api/competitor-ads/${video.id}`
+      : `/api/creator-videos/${video.id}`;
+
+    try {
+      setIsDeletingVideo(true);
+      const response = await fetch(endpoint, { method: "DELETE" });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        showError((payload as { error?: string }).error || "Failed to delete video");
+        return;
+      }
+
+      showSuccess("Video deleted successfully");
+      onVideoDeleted?.(video.id);
+      onClose();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete video";
+      showError(message);
+    } finally {
+      setIsDeletingVideo(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && video && (
@@ -152,7 +206,7 @@ export default function VideoAssetDetailsModal({
 
           <motion.div
             className={`assets-modal-panel assets-video-details-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full mx-auto overflow-hidden ${
-              isCompact ? "max-w-4xl max-h-[86vh]" : "max-w-5xl"
+              isCompact ? "max-w-4xl max-h-[86vh]" : "max-w-5xl h-[88vh]"
             }`}
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -176,7 +230,11 @@ export default function VideoAssetDetailsModal({
               </button>
             </div>
 
-            <div className={`assets-modal-body grid grid-cols-1 gap-6 p-6 overflow-y-auto ${isCompact ? "lg:grid-cols-[minmax(0,0.54fr)_minmax(0,0.46fr)]" : "lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]"}`}>
+            <div
+              className={`assets-modal-body grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6 ${
+                isCompact ? "overflow-y-auto" : "h-[calc(88vh-85px)] min-h-0"
+              }`}
+            >
               <div className="assets-video-details-preview bg-black/95 rounded-xl overflow-hidden">
                 {video.video_cdn_url ? (
                   <VideoPlayer
@@ -185,13 +243,17 @@ export default function VideoAssetDetailsModal({
                     showControls
                   />
                 ) : (
-                  <div className={`assets-video-details-preview-empty flex items-center justify-center text-gray-400 ${isCompact ? "aspect-[4/5]" : "aspect-[9/16]"}`}>
+                  <div
+                    className={`assets-video-details-preview-empty flex items-center justify-center text-gray-400 ${
+                      isCompact ? "aspect-[4/5]" : "aspect-[9/16]"
+                    }`}
+                  >
                     Video unavailable
                   </div>
                 )}
               </div>
 
-              <div className="assets-video-details-panel flex flex-col gap-6">
+              <div className="assets-video-details-panel flex min-h-0 flex-col gap-6">
                 <div className="space-y-2">
                   <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                     Overview
@@ -234,20 +296,20 @@ export default function VideoAssetDetailsModal({
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-3">
+                <div className="flex min-h-0 flex-1 flex-col gap-3">
                   <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                     Structure Analysis
                   </p>
                   {hasAnalysis ? (
-                    <div className="space-y-3">
-                      <div className="assets-video-details-shots max-h-[420px] overflow-y-auto">
+                    <div className="flex min-h-0 flex-1 flex-col">
+                      <div className="assets-video-details-shots min-h-0 flex-1 overflow-y-auto pr-1">
                         <CompetitorShotsEditor
                           shots={parsedShots}
                           onShotsChange={() => {}}
                           showSummary={false}
                           readOnly
                           hideHeader
-                          expandedMaxHeightClass="max-h-[280px] overflow-y-auto"
+                          expandedMaxHeightClass="max-h-[320px] overflow-y-auto"
                         />
                       </div>
                     </div>
@@ -288,15 +350,39 @@ export default function VideoAssetDetailsModal({
                   <button
                     onClick={handleUseForClone}
                     disabled={!hasAnalysis || isCreatingClone}
-                    className="assets-video-details-action w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200"
+                    className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="font-medium flex items-center gap-2">
                       {isCreatingClone ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <Sparkles className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
+                        <Sparkles className="w-4 h-4 text-white/90" />
                       )}
                       {cloneActionLabel}
+                    </span>
+                  </button>
+                  <button
+                    onClick={handleUseInMotionSwap}
+                    disabled={!video.source_id}
+                    className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="font-medium flex items-center gap-2">
+                      <Shuffle className="w-4 h-4 text-white/90" />
+                      Use in Motion Swap
+                    </span>
+                  </button>
+                  <button
+                    onClick={handleDeleteVideo}
+                    disabled={isDeletingVideo}
+                    className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-red-600 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="font-medium flex items-center gap-2">
+                      {isDeletingVideo ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      Delete Video
                     </span>
                   </button>
                 </div>

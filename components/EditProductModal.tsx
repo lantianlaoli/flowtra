@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Package, Loader2, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
+import { AlertCircle, CircleHelp, Loader2, Package, Sparkles, Upload, X } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import ConfirmDialog from './ConfirmDialog';
+import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 interface EditProductModalProps {
@@ -30,46 +31,44 @@ export default function EditProductModal({
   isDeleting = false
 }: EditProductModalProps) {
   const [productName, setProductName] = useState('');
-  const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [photoToDelete, setPhotoToDelete] = useState<UserProductPhoto | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [isGeneratingReferences, setIsGeneratingReferences] = useState(false);
   const [showDeleteProductDialog, setShowDeleteProductDialog] = useState(false);
+
+  const frontalInputRef = useRef<HTMLInputElement | null>(null);
+  const referenceInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (isOpen && product) {
       setProductName(product.product_name);
       setError(null);
-      setUploadError(null);
-      setSelectedPhotoIndex(0);
-      setTimeout(() => {
-        const input = document.querySelector('#edit-product-name-input') as HTMLInputElement;
-        if (input) input.focus();
-      }, 150);
+      setIsSaving(false);
+      setIsUploadingPhotos(false);
+      setIsGeneratingReferences(false);
     }
   }, [isOpen, product]);
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !isUpdating) {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen && !isSaving && !isUploadingPhotos && !isGeneratingReferences) {
         onClose();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, isUpdating, onClose]);
+  }, [isOpen, isSaving, isUploadingPhotos, isGeneratingReferences, onClose]);
 
   if (!product) return null;
 
-  const allPhotos = product.user_product_photos || [];
-  const frontalPhoto = allPhotos.find((photo) => photo.photo_role === 'frontal')
-    || allPhotos.find((photo) => photo.is_primary)
-    || allPhotos[0]
+  const photos = product.user_product_photos || [];
+  const frontalPhoto = photos.find((photo) => photo.photo_role === 'frontal')
+    || photos.find((photo) => photo.is_primary)
+    || photos[0]
     || null;
-  const referencePhotos = allPhotos.filter((photo) => photo.id !== frontalPhoto?.id);
-  const orderedPhotos = frontalPhoto ? [frontalPhoto, ...referencePhotos] : allPhotos;
+  const referencePhotos = photos.filter((photo) => photo.id !== frontalPhoto?.id);
 
   const renderErrorMessage = (message: string) => {
     if (!message.includes(IMAGE_CONVERSION_LINK)) {
@@ -92,77 +91,257 @@ export default function EditProductModal({
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateAndLoadImage = async (file: File): Promise<void> => {
+    const validationResult = validateImageFormat(file);
+    if (!validationResult.isValid) {
+      throw new Error(validationResult.error);
+    }
 
-    if (!productName.trim()) {
-      setError('Product name is required');
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const img = document.createElement('img');
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => reject(new Error('Failed to load image. Please try a different file.'));
+        img.src = objectUrl;
+      });
+
+      if (dimensions.width < 300 || dimensions.height < 300) {
+        throw new Error(`Image too small. Minimum size is 300x300px. Your image is ${dimensions.width}x${dimensions.height}px.`);
+      }
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const handleFrontalUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setError(null);
+      setIsUploadingPhotos(true);
+      await validateAndLoadImage(file);
+
+      if (frontalPhoto) {
+        await onDeletePhoto(product.id, frontalPhoto.id);
+      }
+
+      await onPhotoUpload(product.id, file, 'frontal');
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Failed to upload frontal image.');
+    } finally {
+      setIsUploadingPhotos(false);
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const handleReferenceUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (referencePhotos.length >= 3) {
+      setError('You can upload up to 3 reference images.');
+      if (event.target) event.target.value = '';
       return;
     }
 
-    setIsUpdating(true);
+    try {
+      setError(null);
+      setIsUploadingPhotos(true);
+      await validateAndLoadImage(file);
+      await onPhotoUpload(product.id, file, 'reference');
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Failed to upload reference image.');
+    } finally {
+      setIsUploadingPhotos(false);
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: string) => {
+    try {
+      setError(null);
+      setIsUploadingPhotos(true);
+      await onDeletePhoto(product.id, photoId);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete photo.');
+    } finally {
+      setIsUploadingPhotos(false);
+    }
+  };
+
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const convertImageUrlToDataUrl = async (imageUrl: string): Promise<string> => {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error('Failed to read frontal image for AI generation.');
+    }
+
+    const blob = await response.blob();
+
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Failed to convert image to data URL.'));
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const buildFileFromUrl = async (imageUrl: string, fileName: string): Promise<File> => {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error('Failed to download generated reference image.');
+    }
+
+    const blob = await response.blob();
+    const file = new File([blob], fileName, { type: blob.type || 'image/png' });
+    await validateAndLoadImage(file);
+    return file;
+  };
+
+  const handleGenerateReferences = async () => {
+    if (!frontalPhoto?.photo_url) {
+      setError('Upload a frontal image first.');
+      return;
+    }
+
+    const missingCount = 3 - referencePhotos.length;
+    if (missingCount <= 0) {
+      setError('Reference images are already full (3/3).');
+      return;
+    }
+
+    setIsGeneratingReferences(true);
     setError(null);
 
     try {
-      const hasChanges = productName.trim() !== product.product_name;
-      if (!hasChanges) return;
+      const imageDataUrl = await convertImageUrlToDataUrl(frontalPhoto.photo_url);
 
+      const createResponse = await fetch('/api/assets/ai-reference-angles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetType: 'product',
+          imageDataUrl,
+          existingReferenceCount: referencePhotos.length,
+          count: missingCount
+        })
+      });
+
+      const createPayload = await createResponse.json().catch(() => ({}));
+      if (!createResponse.ok || !Array.isArray(createPayload?.tasks) || createPayload.tasks.length !== missingCount) {
+        throw new Error(createPayload?.error || 'Failed to start AI reference generation.');
+      }
+
+      const tasks = createPayload.tasks as Array<{ taskId: string }>;
+      let resolvedStatuses: Array<{
+        taskId: string;
+        status: 'pending' | 'success' | 'failed';
+        imageUrl?: string | null;
+        failMsg?: string | null;
+      }> = [];
+
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        const params = new URLSearchParams();
+        tasks.forEach((task) => params.append('taskId', task.taskId));
+
+        const statusResponse = await fetch(`/api/assets/ai-reference-angles?${params.toString()}`, {
+          method: 'GET'
+        });
+
+        const statusPayload = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok || !Array.isArray(statusPayload?.statuses)) {
+          throw new Error(statusPayload?.error || 'Failed to check AI generation progress.');
+        }
+
+        resolvedStatuses = statusPayload.statuses;
+        const allFinished = resolvedStatuses.every(
+          (item) => item.status === 'success' || item.status === 'failed'
+        );
+
+        if (allFinished) {
+          break;
+        }
+
+        await wait(2500);
+      }
+
+      if (!resolvedStatuses.length || resolvedStatuses.some((item) => item.status !== 'success')) {
+        const failedTask = resolvedStatuses.find((item) => item.status === 'failed');
+        throw new Error(failedTask?.failMsg || 'AI reference generation timed out. Please try again.');
+      }
+
+      const orderedStatuses = tasks
+        .map((task) => resolvedStatuses.find((item) => item.taskId === task.taskId))
+        .filter(Boolean) as Array<{ imageUrl?: string | null }>;
+
+      setIsUploadingPhotos(true);
+      for (let index = 0; index < orderedStatuses.length; index += 1) {
+        const imageUrl = orderedStatuses[index].imageUrl;
+        if (!imageUrl) {
+          throw new Error('AI generated image URL is missing.');
+        }
+
+        const referenceFile = await buildFileFromUrl(imageUrl, `product-reference-angle-${index + 1}.png`);
+        await onPhotoUpload(product.id, referenceFile, 'reference');
+      }
+    } catch (generateError) {
+      setError(generateError instanceof Error ? generateError.message : 'Failed to generate AI references.');
+    } finally {
+      setIsGeneratingReferences(false);
+      setIsUploadingPhotos(false);
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!productName.trim()) {
+      setError('Product name is required.');
+      return;
+    }
+
+    if (productName.trim() === product.product_name) {
+      onClose();
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
       const response = await fetch(`/api/user-products/${product.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product_name: productName.trim() })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update product');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.product) {
+        throw new Error(payload?.error || 'Failed to update product');
       }
 
-      const data = await response.json();
-      onProductUpdated(data.product);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update product.');
+      onProductUpdated(payload.product as UserProduct);
+      onClose();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Failed to update product.');
     } finally {
-      setIsUpdating(false);
+      setIsSaving(false);
     }
   };
 
-  const handleFileUpload = (photoRole: 'frontal' | 'reference') => async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const validationResult = validateImageFormat(file);
-    if (!validationResult.isValid) {
-      setUploadError(validationResult.error);
-      if (e.target) e.target.value = '';
-      return;
-    }
-
-    try {
-      setUploadError(null);
-      if (photoRole === 'frontal' && frontalPhoto) {
-        await onDeletePhoto(product.id, frontalPhoto.id);
-      }
-      await onPhotoUpload(product.id, file, photoRole);
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Failed to upload photo');
-    } finally {
-      if (e.target) e.target.value = '';
+  const handleBackdropClick = (event: React.MouseEvent) => {
+    if (event.target === event.currentTarget && !isSaving && !isUploadingPhotos && !isGeneratingReferences) {
+      onClose();
     }
   };
 
-  const handleDeletePhoto = async () => {
-    if (!photoToDelete) return;
-    try {
-      await onDeletePhoto(product.id, photoToDelete.id);
-      setPhotoToDelete(null);
-      if (selectedPhotoIndex >= orderedPhotos.length - 1 && selectedPhotoIndex > 0) {
-        setSelectedPhotoIndex(selectedPhotoIndex - 1);
-      }
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Failed to delete photo');
-    }
-  };
+  const canSave = Boolean(
+    productName.trim() && !isSaving && !isUploadingPhotos && !isGeneratingReferences
+  );
 
   return (
     <>
@@ -177,179 +356,243 @@ export default function EditProductModal({
           >
             <motion.div
               className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
-              onClick={onClose}
+              onClick={handleBackdropClick}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             />
 
             <motion.div
-              className="assets-modal-panel assets-edit-product-panel relative bg-white rounded-xl shadow-lg border border-gray-200 w-full max-w-4xl mx-auto overflow-hidden"
+              className="assets-modal-panel assets-edit-product-panel relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl"
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="assets-modal-header flex items-center justify-between p-5 border-b border-gray-200">
+              <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
                 <div className="flex items-center gap-3">
-                  <div className="assets-modal-icon w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-                    <Package className="w-4 h-4 text-white" />
+                  <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
+                    <Package className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="assets-modal-title text-lg font-semibold text-gray-900">Edit Product</h3>
+                    <p className="assets-modal-title text-xl font-semibold text-gray-900">Edit Product</p>
                     <p className="assets-modal-subtitle text-sm text-gray-600">Manage name and product photos in one place.</p>
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={onClose}
-                  className="assets-modal-close w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
-                  disabled={isUpdating}
+                  className="assets-modal-close flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100"
+                  disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
                 >
-                  <X className="w-4 h-4 text-gray-500" />
+                  <X className="h-5 w-5 text-gray-500" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr]">
-                <div className="border-r border-gray-200 bg-gray-50">
-                  {orderedPhotos.length > 0 ? (
-                    <div className="aspect-square relative">
-                      <Image
-                        src={orderedPhotos[selectedPhotoIndex].photo_url}
-                        alt={product.product_name}
-                        fill
-                        className="object-contain"
-                        sizes="(max-width: 1024px) 100vw, 60vw"
-                      />
-                    </div>
-                  ) : (
-                    <div className="aspect-square flex items-center justify-center text-sm text-gray-400">No photo</div>
-                  )}
+              <form onSubmit={handleSubmit} className="assets-modal-body space-y-5 px-6 py-6">
+                {error && (
+                  <div className="assets-modal-error flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{renderErrorMessage(error)}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="edit-product-name-input" className="assets-modal-label text-sm font-medium text-gray-700">
+                    Product Name
+                  </label>
+                  <input
+                    id="edit-product-name-input"
+                    type="text"
+                    value={productName}
+                    onChange={(event) => setProductName(event.target.value)}
+                    className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
+                    placeholder="Enter product name"
+                    maxLength={100}
+                    disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+                  />
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-5 space-y-5">
-                  <div>
-                    <label htmlFor="edit-product-name-input" className="block text-sm font-medium text-gray-700 mb-2">
-                      Product Name
-                    </label>
-                    <input
-                      id="edit-product-name-input"
-                      type="text"
-                      value={productName}
-                      onChange={(e) => setProductName(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                      placeholder="Enter product name"
-                      disabled={isUpdating}
-                      maxLength={100}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-gray-900">Frontal Photo</p>
+                <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900">Frontal Image (Required)</p>
                     </div>
-                    <p className="mb-2 text-xs text-gray-500">Use a clear front-facing product shot on clean background.</p>
-                    <div className="grid grid-cols-3 gap-2">
+
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => frontalInputRef.current?.click()}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          frontalInputRef.current?.click();
+                        }
+                      }}
+                      className={cn(
+                        'assets-modal-upload relative w-full aspect-[4/5] max-h-[560px] overflow-hidden rounded-2xl border-2 border-dashed transition',
+                        frontalPhoto
+                          ? 'border-gray-300 bg-[#F8F8F8]'
+                          : 'border-gray-300 bg-[#FAFAFA] hover:border-gray-400'
+                      )}
+                    >
+                      <div className="absolute left-3 top-3">
+                        <span className="assets-modal-chip rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                          Frontal
+                        </span>
+                      </div>
+
                       {frontalPhoto ? (
-                        <div
-                          className={`relative group aspect-square rounded-lg overflow-hidden cursor-pointer border ${orderedPhotos[selectedPhotoIndex]?.id === frontalPhoto.id ? 'border-gray-900' : 'border-gray-200'}`}
-                          onClick={() => {
-                            const index = orderedPhotos.findIndex((photo) => photo.id === frontalPhoto.id);
-                            setSelectedPhotoIndex(index < 0 ? 0 : index);
-                          }}
-                        >
-                          <Image src={frontalPhoto.photo_url} alt={frontalPhoto.file_name} fill className="object-cover" sizes="120px" />
-                          <label
-                            className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <input type="file" accept={getAcceptedImageFormats()} onChange={handleFileUpload('frontal')} className="hidden" />
-                            <span className="inline-flex items-center gap-1 text-xs">
-                              <Plus className="w-3 h-3" />
-                              Replace
-                            </span>
-                          </label>
+                        <>
+                          <Image src={frontalPhoto.photo_url} alt="Frontal preview" fill className="object-cover" />
                           <button
                             type="button"
+                            className="assets-modal-chip-close absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
                             onClick={(event) => {
                               event.stopPropagation();
-                              setPhotoToDelete(frontalPhoto);
+                              void handleDeletePhoto(frontalPhoto.id);
                             }}
-                            className="absolute top-1 right-1 w-5 h-5 bg-black/70 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100"
+                            disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
                           >
-                            <X className="w-3 h-3" />
+                            <X className="h-4 w-4" />
                           </button>
-                        </div>
+                        </>
                       ) : (
-                        <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer">
-                          <input type="file" accept={getAcceptedImageFormats()} onChange={handleFileUpload('frontal')} className="hidden" />
-                          <span className="inline-flex items-center gap-1 text-xs text-gray-600"><Plus className="w-3 h-3" />Add</span>
-                        </label>
+                        <div className="assets-modal-upload-empty flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-600">
+                          <Upload className="mb-3 h-7 w-7 text-gray-400" />
+                          <div className="w-full max-w-[300px]">
+                            <p className="assets-modal-upload-title text-base font-semibold text-gray-900 leading-6">
+                              Upload the frontal product image
+                            </p>
+                            <p className="assets-modal-helper mt-2 text-xs text-gray-500 leading-5">
+                              PNG or JPG, up to 8MB. Minimum size 300x300.
+                            </p>
+                          </div>
+                        </div>
                       )}
+
+                      <input
+                        ref={frontalInputRef}
+                        type="file"
+                        accept={getAcceptedImageFormats()}
+                        className="hidden"
+                        onChange={handleFrontalUpload}
+                        disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+                      />
                     </div>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-gray-900">Reference Photos</p>
+                  <div className="space-y-3 h-full min-h-0 flex flex-col">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-1.5 leading-none">
+                        <p className="text-sm font-medium text-gray-900">Reference Images (Optional)</p>
+                        <div className="relative group">
+                          <button
+                            type="button"
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600"
+                            aria-label="Reference angle recommendation"
+                          >
+                            <CircleHelp className="h-4 w-4" />
+                          </button>
+                          <div className="pointer-events-none absolute right-0 top-6 z-20 w-72 rounded-xl border border-gray-200 bg-white p-3 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                            <p className="text-xs text-gray-700">
+                              Recommendation: upload one 45° front-angle shot and up to two extra detail shots for function or structure (such as back view or close-up).
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">{referencePhotos.length}/3</span>
+                        <button
+                          type="button"
+                          onClick={handleGenerateReferences}
+                          disabled={!frontalPhoto || referencePhotos.length >= 3 || isSaving || isUploadingPhotos || isGeneratingReferences}
+                          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-gray-900 hover:text-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                        >
+                          {isGeneratingReferences ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5" />
+                          )}
+                          {isGeneratingReferences ? 'Generating…' : 'AI Generate'}
+                        </button>
+                      </div>
                     </div>
-                    <p className="mb-2 text-xs text-gray-500">Recommended: one 45° front angle plus 1–2 detail shots (back/close-up/structure).</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {referencePhotos.map((photo) => (
+
+                    <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-[auto_minmax(0,1fr)] gap-3">
+                      {referencePhotos.map((photo, index) => (
                         <div
                           key={photo.id}
-                          className={`relative group aspect-square rounded-lg overflow-hidden cursor-pointer border ${orderedPhotos[selectedPhotoIndex]?.id === photo.id ? 'border-gray-900' : 'border-gray-200'}`}
-                          onClick={() => {
-                            const index = orderedPhotos.findIndex((item) => item.id === photo.id);
-                            setSelectedPhotoIndex(index < 0 ? 0 : index);
-                          }}
+                          className={cn(
+                            'relative overflow-hidden rounded-xl border border-gray-200 bg-gray-50',
+                            referencePhotos.length === 3 && index === 2
+                              ? 'col-span-2 h-full min-h-[220px]'
+                              : 'aspect-square'
+                          )}
                         >
-                          <Image src={photo.photo_url} alt={photo.file_name} fill className="object-cover" sizes="120px" />
+                          <Image
+                            src={photo.photo_url}
+                            alt={`Reference ${index + 1}`}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 1024px) 45vw, 220px"
+                          />
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setPhotoToDelete(photo);
+                            onClick={() => {
+                              void handleDeletePhoto(photo.id);
                             }}
-                            className="absolute top-1 right-1 w-5 h-5 bg-black/70 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100"
+                            className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white hover:bg-black"
+                            disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
                           >
-                            <X className="w-3 h-3" />
+                            <X className="h-3 w-3" />
                           </button>
                         </div>
                       ))}
 
                       {referencePhotos.length < 3 && (
-                        <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer">
-                          <input type="file" accept={getAcceptedImageFormats()} onChange={handleFileUpload('reference')} className="hidden" />
-                          <span className="inline-flex items-center gap-1 text-xs text-gray-600"><Plus className="w-3 h-3" />Add</span>
-                        </label>
+                        <button
+                          type="button"
+                          onClick={() => referenceInputRef.current?.click()}
+                          className="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-[#FAFAFA] text-gray-500 transition hover:border-gray-400"
+                          disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+                        >
+                          <Upload className="mb-2 h-5 w-5" />
+                          <span className="text-xs font-medium">Add reference</span>
+                        </button>
                       )}
                     </div>
-                  </div>
 
-                  {(error || uploadError) && (
-                    <p className="text-sm text-red-600">{renderErrorMessage(error || uploadError || '')}</p>
-                  )}
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowDeleteProductDialog(true)}
-                      className="flex-1 px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-                      disabled={isDeleting}
-                    >
-                      {isDeleting ? 'Deleting...' : 'Delete Product'}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isUpdating || !productName.trim()}
-                      className="flex-1 px-3 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {isUpdating && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {isUpdating ? 'Saving...' : 'Save Changes'}
-                    </button>
+                    <input
+                      ref={referenceInputRef}
+                      type="file"
+                      accept={getAcceptedImageFormats()}
+                      className="hidden"
+                      onChange={handleReferenceUpload}
+                      disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+                    />
                   </div>
-                </form>
-              </div>
+                </div>
+
+                <div className="assets-modal-actions flex flex-col gap-3 pt-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteProductDialog(true)}
+                    className="assets-modal-secondary flex-1 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
+                    disabled={isDeleting || isSaving || isUploadingPhotos || isGeneratingReferences}
+                  >
+                    {isDeleting ? 'Deleting…' : 'Delete Product'}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!canSave}
+                    className="assets-modal-primary flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40"
+                  >
+                    {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {isSaving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </motion.div>
         )}
@@ -364,16 +607,6 @@ export default function EditProductModal({
         }}
         title="Delete Product"
         message={`Are you sure you want to delete "${product.product_name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        variant="danger"
-      />
-
-      <ConfirmDialog
-        isOpen={!!photoToDelete}
-        onClose={() => setPhotoToDelete(null)}
-        onConfirm={handleDeletePhoto}
-        title="Delete Photo"
-        message="Are you sure you want to delete this photo? This action cannot be undone."
         confirmText="Delete"
         variant="danger"
       />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
   Image as ImageIcon,
@@ -82,11 +82,13 @@ export default function MotionSwapPage() {
   const [editPhotoPrompt, setEditPhotoPrompt] = useState("");
   const [editVideoPrompt, setEditVideoPrompt] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
+  const invalidSelectionToastRef = useRef<string | null>(null);
 
   const selectedVideo = useMemo(
     () => videos.find((video) => video.id === selectedVideoId),
     [videos, selectedVideoId],
   );
+  const selectedVideoHasFirstFrame = Boolean(selectedVideo?.cover_url);
   const activeProject = useMemo(() => {
     if (activeProjectId) {
       return projects.find((item) => item.id === activeProjectId) || null;
@@ -216,13 +218,18 @@ export default function MotionSwapPage() {
     if (videoId) {
       const video = videos.find((item) => item.id === videoId);
       if (video) {
-        setSelectedVideoId(videoId);
+        if (video.cover_url) {
+          setSelectedVideoId(videoId);
+        } else {
+          setSelectedVideoId("");
+          showError("This video needs a first-frame image before Motion Swap.");
+        }
         if (typeof window !== "undefined") {
           window.history.replaceState({}, "", "/dashboard/motion-swap");
         }
       }
     }
-  }, [isLoading, searchParams, videos]);
+  }, [isLoading, searchParams, showError, videos]);
 
   // Preselect video from sessionStorage (for Motion Swap)
   useEffect(() => {
@@ -241,17 +248,37 @@ export default function MotionSwapPage() {
 
       const video = videos.find((item) => item.id === targetId);
       if (video) {
-        setSelectedVideoId(targetId);
-        showSuccess("Video selected for Motion Swap.");
+        if (video.cover_url) {
+          setSelectedVideoId(targetId);
+          showSuccess("Video selected for Motion Swap.");
+        } else {
+          setSelectedVideoId("");
+          showError("This video needs a first-frame image before Motion Swap.");
+        }
       } else {
-        // If video not found (e.g., filtered out), try to add it from competitor_ads
-        // Fallback: set the ID anyway if it's a valid video ID
-        setSelectedVideoId(targetId);
+        setSelectedVideoId("");
       }
     } catch (error) {
       console.error("[MotionSwapPage] Failed to preselect video:", error);
     }
-  }, [isLoading, videos, showSuccess]);
+  }, [isLoading, videos, showError, showSuccess]);
+
+  useEffect(() => {
+    if (!selectedVideoId) {
+      invalidSelectionToastRef.current = null;
+      return;
+    }
+    if (!selectedVideo) return;
+    if (selectedVideo.cover_url) {
+      invalidSelectionToastRef.current = null;
+      return;
+    }
+    if (invalidSelectionToastRef.current !== selectedVideo.id) {
+      showError("This video needs a first-frame image before Motion Swap.");
+      invalidSelectionToastRef.current = selectedVideo.id;
+    }
+    setSelectedVideoId("");
+  }, [selectedVideoId, selectedVideo, showError]);
 
   useEffect(() => {
     if (!projects.length) return;
@@ -455,6 +482,7 @@ export default function MotionSwapPage() {
   const canGenerateImage = Boolean(
     activeProject?.id &&
       selectedVideoId &&
+      selectedVideoHasFirstFrame &&
       editPhotoPrompt.trim().length > 0 &&
       hasSwapTarget &&
       !isSubmittingEdit &&
@@ -463,6 +491,7 @@ export default function MotionSwapPage() {
   const canGenerateVideo = Boolean(
     activeProject?.id &&
       selectedVideoId &&
+      selectedVideoHasFirstFrame &&
       editPhotoPrompt.trim().length > 0 &&
       editVideoPrompt.trim().length > 0 &&
       hasSwapTarget &&
@@ -603,6 +632,10 @@ export default function MotionSwapPage() {
     }
     if (!selectedVideoId) {
       setEditError("Select a reference video to continue.");
+      return;
+    }
+    if (!selectedVideoHasFirstFrame) {
+      setEditError("This video needs a first-frame image before Motion Swap.");
       return;
     }
     if (!hasSwapTarget) {
@@ -781,7 +814,15 @@ export default function MotionSwapPage() {
             <MotionSwapReferenceControls
               videos={videos}
               selectedVideoId={selectedVideoId}
-              onSelectVideoId={setSelectedVideoId}
+              onSelectVideoId={(id) => {
+                const targetVideo = videos.find((video) => video.id === id);
+                if (targetVideo?.cover_url) {
+                  setSelectedVideoId(id);
+                  return;
+                }
+                setSelectedVideoId("");
+                showError("This video needs a first-frame image before Motion Swap.");
+              }}
               variant="inline"
               showLabel={false}
             />

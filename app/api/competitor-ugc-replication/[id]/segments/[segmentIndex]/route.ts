@@ -14,6 +14,7 @@ import {
 } from '@/lib/competitor-ugc-replication-workflow';
 import { getGenerationCost, getReplicaPhotoCredits, getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 
 type PatchPayload = {
   prompt?: Partial<SegmentPrompt>;
@@ -23,6 +24,28 @@ type PatchPayload = {
 };
 
 const PRODUCT_REFERENCE_LIMIT = 10;
+const MENTION_REGEX = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
+
+function collectMentionNames(texts: Array<string | undefined | null>) {
+  const characterNames = new Set<string>();
+  const productNames = new Set<string>();
+
+  texts.forEach((text) => {
+    if (!text) return;
+    for (const match of text.matchAll(MENTION_REGEX)) {
+      const type = match.groups?.type;
+      const name = (match.groups?.name || '').trim().toLowerCase();
+      if (!name) continue;
+      if (type === 'character') characterNames.add(name);
+      if (type === 'product') productNames.add(name);
+    }
+  });
+
+  return {
+    characterNames: Array.from(characterNames),
+    productNames: Array.from(productNames)
+  };
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string; segmentIndex: string }> }) {
   let projectUserId: string | null = null;
@@ -50,7 +73,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const regenerate = payload.regenerate || 'none';
     const shouldRegeneratePhoto = regenerate === 'photo' || regenerate === 'both';
     const shouldRegenerateVideo = regenerate === 'video' || regenerate === 'both';
-    const requestedProductIds = Array.isArray(payload.productIds)
+    let requestedProductIds = Array.isArray(payload.productIds)
       ? Array.from(
           new Set(
             payload.productIds
@@ -59,7 +82,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           )
         ).slice(0, PRODUCT_REFERENCE_LIMIT)
       : [];
-    const requestedCharacterIds = Array.isArray(payload.characterIds)
+    let requestedCharacterIds = Array.isArray(payload.characterIds)
       ? Array.from(
           new Set(
             payload.characterIds
@@ -131,6 +154,65 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       : undefined;
     if (!mergedPrompt.first_frame_image_size) {
       mergedPrompt.first_frame_image_size = previousFrameSize || defaultFrameImageSize;
+    }
+
+    // Fallback mention resolution on server-side:
+    // If frontend didn't provide productIds/characterIds, parse @mentions directly from prompt.
+    if (shouldRegeneratePhoto && (requestedProductIds.length === 0 || requestedCharacterIds.length === 0)) {
+      const mentionSources: string[] = [
+        mergedPrompt.first_frame_description || '',
+        ...(Array.isArray(mergedPrompt.shots)
+          ? mergedPrompt.shots.flatMap((shot) => [
+              shot?.subject || '',
+              shot?.action || ''
+            ])
+          : [])
+      ];
+      const { productNames, characterNames } = collectMentionNames(mentionSources);
+
+      if (requestedProductIds.length === 0 && productNames.length > 0) {
+        const { data: productsByUser } = await supabase
+          .from('user_products')
+          .select('id,product_name')
+          .eq('user_id', project.user_id);
+
+        if (productsByUser?.length) {
+          const matchedProductIds = productsByUser
+            .filter(product => productNames.includes((product.product_name || '').trim().toLowerCase()))
+            .map(product => product.id);
+          requestedProductIds = Array.from(new Set(matchedProductIds)).slice(0, PRODUCT_REFERENCE_LIMIT);
+        }
+      }
+
+      if (requestedCharacterIds.length === 0 && characterNames.length > 0) {
+        const matchedSystemCharacterIds = SYSTEM_AVATARS
+          .filter(avatar => characterNames.includes((avatar.avatar_name || '').trim().toLowerCase()))
+          .map(avatar => avatar.id);
+
+        const { data: avatarsByUser } = await supabase
+          .from('user_avatars')
+          .select('id,avatar_name')
+          .eq('user_id', project.user_id);
+
+        if (avatarsByUser?.length) {
+          const matchedCharacterIds = avatarsByUser
+            .filter(avatar => characterNames.includes((avatar.avatar_name || '').trim().toLowerCase()))
+            .map(avatar => avatar.id);
+          requestedCharacterIds = Array.from(new Set([
+            ...matchedSystemCharacterIds,
+            ...matchedCharacterIds
+          ])).slice(0, PRODUCT_REFERENCE_LIMIT);
+        } else if (matchedSystemCharacterIds.length > 0) {
+          requestedCharacterIds = Array.from(new Set(matchedSystemCharacterIds)).slice(0, PRODUCT_REFERENCE_LIMIT);
+        }
+      }
+
+      console.log('[SEGMENT API] Mention fallback resolved IDs:', {
+        productNames,
+        characterNames,
+        requestedProductIds,
+        requestedCharacterIds
+      });
     }
 
     if (shouldRegeneratePhoto && segmentRow.status === 'generating_first_frame') {
@@ -234,29 +316,45 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       if (requestedCharacterIds.length > 0) {
         console.log('[SEGMENT API] Fetching character photos:', { requestedCharacterIds });
-        const { data: characters, error: characterError } = await supabase
-          .from('user_avatars')
-          .select('id, photo_url')
-          .in('id', requestedCharacterIds)
-          .eq('user_id', project.user_id);
+        const systemAvatarMap = new Map(SYSTEM_AVATARS.map(avatar => [avatar.id, avatar.photo_url]));
+        const userCharacterIds = requestedCharacterIds.filter(id => !systemAvatarMap.has(id));
 
-        if (characterError) {
-          console.error('[SEGMENT API] Failed to fetch characters:', characterError);
+        requestedCharacterIds.forEach((charId) => {
+          const systemPhotoUrl = systemAvatarMap.get(charId);
+          if (systemPhotoUrl && !characterPhotoUrls.includes(systemPhotoUrl)) {
+            characterPhotoUrls.push(systemPhotoUrl);
+          }
+        });
+
+        if (userCharacterIds.length === 0) {
+          console.log('[SEGMENT API] All character IDs resolved from system avatars');
         }
 
-        if (characters && characters.length > 0) {
-          console.log('[SEGMENT API] Characters fetched:', characters);
-          const charMap = new Map(characters.map(c => [c.id, c.photo_url]));
-          requestedCharacterIds.forEach(charId => {
-            const photoUrl = charMap.get(charId);
-            if (photoUrl && typeof photoUrl === 'string' && photoUrl.length > 0) {
-              characterPhotoUrls.push(photoUrl);
-            }
-          });
-          console.log('[SEGMENT API] Character photo URLs extracted:', characterPhotoUrls);
-        } else {
-          console.warn('[SEGMENT API] No characters found in database');
+        if (userCharacterIds.length > 0) {
+          const { data: characters, error: characterError } = await supabase
+            .from('user_avatars')
+            .select('id, photo_url')
+            .in('id', userCharacterIds)
+            .eq('user_id', project.user_id);
+
+          if (characterError) {
+            console.error('[SEGMENT API] Failed to fetch characters:', characterError);
+          }
+
+          if (characters && characters.length > 0) {
+            console.log('[SEGMENT API] Characters fetched:', characters);
+            const charMap = new Map(characters.map(c => [c.id, c.photo_url]));
+            requestedCharacterIds.forEach(charId => {
+              const photoUrl = charMap.get(charId);
+              if (photoUrl && typeof photoUrl === 'string' && photoUrl.length > 0) {
+                characterPhotoUrls.push(photoUrl);
+              }
+            });
+          } else {
+            console.warn('[SEGMENT API] No user characters found in database for requested IDs');
+          }
         }
+        console.log('[SEGMENT API] Character photo URLs extracted:', characterPhotoUrls);
       }
 
       if (project.competitor_ad_id) {
@@ -343,11 +441,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       segmentUpdates.error_message = null;
       // CRITICAL: Clear webhook timestamp to allow new webhook to process
       segmentUpdates.video_webhook_received_at = null;
-
-      // Normalize legacy models to current VideoModel type
-      const rawModel = project.video_model || 'veo3_fast';
-      const normalizedModel: 'veo3' | 'veo3_fast' =
-        (rawModel === 'veo3' || rawModel === 'veo3_fast') ? rawModel : 'veo3_fast';
 
       // Regenerating videos from the segment editor is free (no credit deduction).
 

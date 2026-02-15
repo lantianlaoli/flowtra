@@ -244,9 +244,19 @@ export async function POST(request: NextRequest) {
       // Failure case - Check if we should retry
       const MAX_RETRIES = 3;
       const currentRetryCount = segment.retry_count || 0;
+      const normalizedFailMsg = (failMsg || msg || '').toLowerCase();
+      const isInternalRetryableMessage =
+        normalizedFailMsg.includes('internal error') &&
+        normalizedFailMsg.includes('please try again later');
       const shouldRetry = currentRetryCount < MAX_RETRIES && (
         failCode === '422' || // Invalid parameters - might be transient
-        code === 500 || code === 503 // Server errors - definitely retry
+        failCode === '500' ||
+        failCode === '501' ||
+        failCode === '503' ||
+        code === 500 ||
+        code === 501 ||
+        code === 503 ||
+        isInternalRetryableMessage
       );
 
       console.error('[UGC Frame Webhook] Frame generation failed:', {
@@ -268,7 +278,7 @@ export async function POST(request: NextRequest) {
             retry_count: newRetryCount,
             status: 'generating_first_frame',
             error_message: null,
-            first_frame_webhook_received_at: new Date().toISOString() // Mark webhook received
+            first_frame_webhook_received_at: null
           })
           .eq('id', segment.id);
 
@@ -309,7 +319,10 @@ export async function POST(request: NextRequest) {
 
             await supabase
               .from('competitor_ugc_replication_segments')
-              .update({ first_frame_task_id: taskId })
+              .update({
+                first_frame_task_id: taskId,
+                first_frame_webhook_received_at: null
+              })
               .eq('id', segment.id);
 
             console.log(`✅ [UGC Frame Webhook] Retry triggered, new taskId: ${taskId}`);

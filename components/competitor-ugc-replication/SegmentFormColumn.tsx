@@ -438,6 +438,18 @@ export default function SegmentFormColumn({
     const primary = product.user_product_photos.find(photo => photo.is_primary);
     return primary?.photo_url || product.user_product_photos[0]?.photo_url || null;
   };
+  const getProductPhotoCount = (product?: BrandProduct | null) =>
+    Array.isArray(product?.user_product_photos)
+      ? product.user_product_photos.filter(photo => Boolean(photo?.photo_url)).length
+      : 0;
+  const getCharacterPhotoCount = (character?: UserAvatar | null) => {
+    if (!character) return 0;
+    const referenceCount = Array.isArray(character.reference_photos)
+      ? character.reference_photos.filter(photo => Boolean(photo?.photo_url)).length
+      : 0;
+    return (character.photo_url ? 1 : 0) + referenceCount;
+  };
+  const enforceKlingElementPhotoCount = videoModel === 'kling_3';
 
   // Auto-save logic
   const saveChanges = async () => {
@@ -610,13 +622,18 @@ export default function SegmentFormColumn({
               characterMentions={characterOptions.map(character => ({
                 id: character.id,
                 label: character.avatar_name,
-                imageUrl: character.photo_url
+                imageUrl: character.photo_url,
+                photoCount: getCharacterPhotoCount(character)
               }))}
               productMentions={productOptions.map(product => ({
                 id: product.id,
                 label: product.product_name,
-                imageUrl: getProductPhotoUrl(product)
+                imageUrl: getProductPhotoUrl(product),
+                photoCount: getProductPhotoCount(product)
               }))}
+              enforcePhotoCount={enforceKlingElementPhotoCount}
+              minRequiredPhotos={2}
+              insufficientPhotosLabel="Need 2 photos"
             />
             {photoPromptTooLong && (
               <p className="text-xs text-red-600">Photo prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
@@ -780,30 +797,30 @@ export default function SegmentFormColumn({
                             <User className="w-3.5 h-3.5" />
                             <span>Subject</span>
                           </div>
-                          <textarea
+                          <PromptMentionTextarea
                             value={shot.subject}
-                            rows={1}
+                            onChange={(value) => handleShotChange(shot.id, 'subject', value)}
+                            rows={2}
                             disabled={readOnly}
                             readOnly={readOnly}
-                            onFocus={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = 'auto';
-                              e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                            }}
-                            onBlur={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = '';
-                            }}
-                            onInput={(e) => {
-                              if (readOnly) return;
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = `${target.scrollHeight}px`;
-                              handleShotChange(shot.id, 'subject', target.value);
-                            }}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-1 focus:ring-offset-1 focus:ring-black/5 min-h-[72px] ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
+                            characterMentions={characterOptions.map(character => ({
+                              id: character.id,
+                              label: character.avatar_name,
+                              imageUrl: character.photo_url,
+                              photoCount: getCharacterPhotoCount(character)
+                            }))}
+                            productMentions={productOptions.map(product => ({
+                              id: product.id,
+                              label: product.product_name,
+                              imageUrl: getProductPhotoUrl(product),
+                              photoCount: getProductPhotoCount(product)
+                            }))}
+                            enforcePhotoCount={enforceKlingElementPhotoCount}
+                            minRequiredPhotos={2}
+                            insufficientPhotosLabel="Need 2 photos"
                           />
                         </div>
 
@@ -813,30 +830,30 @@ export default function SegmentFormColumn({
                             <Clapperboard className="w-3.5 h-3.5" />
                             <span>Action</span>
                           </div>
-                          <textarea
+                          <PromptMentionTextarea
                             value={shot.action}
-                            rows={1}
+                            onChange={(value) => handleShotChange(shot.id, 'action', value)}
+                            rows={2}
                             disabled={readOnly}
                             readOnly={readOnly}
-                            onFocus={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = 'auto';
-                              e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                            }}
-                            onBlur={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = '';
-                            }}
-                            onInput={(e) => {
-                              if (readOnly) return;
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = `${target.scrollHeight}px`;
-                              handleShotChange(shot.id, 'action', target.value);
-                            }}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-1 focus:ring-offset-1 focus:ring-black/5 min-h-[72px] ${
                               readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                             }`}
+                            characterMentions={characterOptions.map(character => ({
+                              id: character.id,
+                              label: character.avatar_name,
+                              imageUrl: character.photo_url,
+                              photoCount: getCharacterPhotoCount(character)
+                            }))}
+                            productMentions={productOptions.map(product => ({
+                              id: product.id,
+                              label: product.product_name,
+                              imageUrl: getProductPhotoUrl(product),
+                              photoCount: getProductPhotoCount(product)
+                            }))}
+                            enforcePhotoCount={enforceKlingElementPhotoCount}
+                            minRequiredPhotos={2}
+                            insufficientPhotosLabel="Need 2 photos"
                           />
                         </div>
 

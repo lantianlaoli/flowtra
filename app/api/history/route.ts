@@ -115,7 +115,7 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
   return normalizeAspectRatio(ratio);
 };
 
-const ALLOWED_COMPETITOR_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro'];
+const ALLOWED_COMPETITOR_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'kling_3'];
 const LEGACY_MODELS = ['sora2', 'sora2_pro', 'grok', 'kling_2_6'];
 
 const normalizeCompetitorVideoModel = (model?: string | null): VideoModel => {

@@ -6,7 +6,8 @@
 export const GENERATION_COSTS = {
   'veo3': 150,           // Veo3.1: 150 credits per 8s segment
   'veo3_fast': 20,       // Veo3.1 fast: 20 credits per 8s segment
-  'seedance_1_5_pro': 120 // Seedance 1.5 Pro: 120 credits per 8s segment (1080p with audio)
+  'seedance_1_5_pro': 120, // Seedance 1.5 Pro: 120 credits per 8s segment (1080p with audio)
+  'kling_3': 40 // Kling 3.0 Pro (1080P + audio): 40 credits per second
 } as const;
 
 // DEPRECATED: Legacy CREDIT_COSTS for backwards compatibility
@@ -78,7 +79,8 @@ export const IMAGE_SIZE_OPTIONS = {
 export const VIDEO_ASPECT_RATIO_OPTIONS = {
   'veo3': ['16:9', '9:16'],
   'veo3_fast': ['16:9', '9:16'],
-  'seedance_1_5_pro': ['16:9', '9:16']
+  'seedance_1_5_pro': ['16:9', '9:16'],
+  'kling_3': ['16:9', '9:16']
 } as const
 
 // Credit costs for different image models (all free)
@@ -92,7 +94,8 @@ export const IMAGE_CREDIT_COSTS = {
 export const MODEL_PROCESSING_TIMES = {
   'veo3_fast': '2-3 min',         // Veo3.1 fast: 2-3 minutes processing time
   'veo3': '5-8 min',              // Veo3.1: 5-8 minutes processing time
-  'seedance_1_5_pro': '1-2 min'   // Seedance 1.5 Pro: 1-2 minutes processing time
+  'seedance_1_5_pro': '1-2 min',  // Seedance 1.5 Pro: 1-2 minutes processing time
+  'kling_3': '2-4 min'            // Kling 3.0 Pro: 2-4 minutes processing time
 } as const
 
 // Processing times for different image models
@@ -185,6 +188,12 @@ export function getGenerationCost(
   _videoQuality?: 'standard' | 'high' // Ignored, kept for backwards compatibility
 ): number {
   const duration = Number(videoDuration);
+  if (model === 'kling_3') {
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return GENERATION_COSTS.kling_3 * DEFAULT_SEGMENT_DURATION_SECONDS;
+    }
+    return Math.ceil(duration) * GENERATION_COSTS.kling_3;
+  }
   if (!Number.isFinite(duration) || duration <= 0) {
     return GENERATION_COSTS[model]; // One segment (8s)
   }
@@ -335,14 +344,15 @@ export function getAutoImageSize(videoAspectRatio: '16:9' | '9:16', imageModel: 
 
 // Video model capabilities based on quality and duration
 export type VideoQuality = 'standard' | 'high';
-export type VideoDuration = '8' | '16' | '24' | '32' | '40' | '48' | '56' | '64';
-export type VideoModel = 'veo3' | 'veo3_fast' | 'seedance_1_5_pro';
+export type VideoDuration = `${number}`;
+export type VideoModel = 'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'kling_3';
 
 // Video model display names for UI
 export const VIDEO_MODEL_DISPLAY_NAMES: Record<VideoModel, string> = {
   'veo3': 'Veo3.1',
   'veo3_fast': 'Veo3.1 fast',
-  'seedance_1_5_pro': 'Seedance 1.5 Pro'
+  'seedance_1_5_pro': 'Seedance 1.5 Pro',
+  'kling_3': 'Kling 3.0'
 } as const;
 
 export function getVideoModelDisplayName(model: VideoModel): string {
@@ -371,6 +381,11 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
     model: 'seedance_1_5_pro',
     supportedQualities: ['standard'],
     supportedDurations: ['8', '16', '24', '32', '40', '48', '56', '64']
+  },
+  {
+    model: 'kling_3',
+    supportedQualities: ['standard'],
+    supportedDurations: Array.from({ length: 58 }, (_, index) => String(index + 3) as VideoDuration)
   }
 ];
 
@@ -450,15 +465,29 @@ export function getAvailableQualities(duration: VideoDuration): VideoQuality[] {
 }
 
 export const DEFAULT_SEGMENT_DURATION_SECONDS = 8;
+export const KLING_MAX_TASK_DURATION_SECONDS = 15;
+export const KLING_MIN_TASK_DURATION_SECONDS = 3;
+export const KLING_MAX_PROJECT_DURATION_SECONDS = 60;
 
 export function getSegmentDurationForModel(model?: VideoModel | null): number {
-  // All veo3 models use 8-second segments
+  if (model === 'kling_3') {
+    return KLING_MAX_TASK_DURATION_SECONDS;
+  }
+  // All non-Kling models use 8-second segments
   return DEFAULT_SEGMENT_DURATION_SECONDS;
 }
 
 export function getSegmentCountFromDuration(videoDuration?: string | null, model?: VideoModel): number {
+  if (model === 'kling_3') {
+    const klingDuration = Number(videoDuration);
+    if (!Number.isFinite(klingDuration) || klingDuration <= KLING_MAX_TASK_DURATION_SECONDS) {
+      return 1;
+    }
+    return Math.max(1, Math.ceil(klingDuration / KLING_MAX_TASK_DURATION_SECONDS));
+  }
+
   const duration = Number(videoDuration);
-  const segmentLength = 8; // All veo3 models use 8-second segments
+  const segmentLength = getSegmentDurationForModel(model ?? null);
   const maxSegments = 8; // Maximum 8 segments (64 seconds)
 
   if (!Number.isFinite(duration) || duration <= segmentLength) {
@@ -470,7 +499,13 @@ export function getSegmentCountFromDuration(videoDuration?: string | null, model
 }
 
 export function snapDurationToModel(model: VideoModel, targetSeconds: number): VideoDuration {
-  const supportedDurations = [8, 16, 24, 32, 40, 48, 56, 64]; // All veo3 models support these durations
+  if (model === 'kling_3') {
+    const normalized = Math.round(targetSeconds);
+    const bounded = Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_PROJECT_DURATION_SECONDS, normalized));
+    return String(bounded) as VideoDuration;
+  }
+
+  const supportedDurations = [8, 16, 24, 32, 40, 48, 56, 64]; // Segment-priced models support 8s steps
 
   if (targetSeconds <= 8) return '8';
   if (targetSeconds >= 64) return '64';
@@ -489,7 +524,10 @@ export function getModelCostByConfig(
   quality: VideoQuality,
   duration: VideoDuration
 ): number {
-  // Both veo3 and veo3_fast use same calculation: cost per segment * number of segments
+  if (model === 'kling_3') {
+    return Number(duration) * GENERATION_COSTS.kling_3;
+  }
+  // Segment-priced models: cost per segment * number of segments
   const segments = getSegmentCountFromDuration(duration, model);
   return GENERATION_COSTS[model] * segments;
 }

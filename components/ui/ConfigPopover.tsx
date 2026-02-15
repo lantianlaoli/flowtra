@@ -24,6 +24,8 @@ interface ConfigPopoverProps {
   selectedModel?: VideoModel;
   onModelChange?: (model: VideoModel) => void;
   userCredits?: number;
+  disabledModels?: VideoModel[];
+  disabledModelReasons?: Partial<Record<VideoModel, string>>;
   hideModelSelector?: boolean;
 
   // Language props
@@ -61,6 +63,8 @@ export default function ConfigPopover({
   selectedModel,
   onModelChange,
   userCredits = 0,
+  disabledModels = [],
+  disabledModelReasons = {},
   hideModelSelector = false,
   selectedLanguage,
   onLanguageChange,
@@ -255,6 +259,8 @@ export default function ConfigPopover({
           selectedModel={selectedModel}
           onModelChange={onModelChange}
           videoDuration={videoDuration}
+          disabledModels={disabledModels}
+          disabledModelReasons={disabledModelReasons}
           label="Video Model"
           showIcon
         />

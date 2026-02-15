@@ -12,6 +12,7 @@ export type PromptMentionItem = {
   label: string;
   type: MentionType;
   imageUrl?: string | null;
+  photoCount?: number;
 };
 
 type PromptMentionTextareaProps = {
@@ -22,8 +23,11 @@ type PromptMentionTextareaProps = {
   disabled?: boolean;
   readOnly?: boolean;
   hasError?: boolean;
-  characterMentions?: Array<{ id: string; label: string; imageUrl?: string | null }>;
-  productMentions?: Array<{ id: string; label: string; imageUrl?: string | null }>;
+  characterMentions?: Array<{ id: string; label: string; imageUrl?: string | null; photoCount?: number }>;
+  productMentions?: Array<{ id: string; label: string; imageUrl?: string | null; photoCount?: number }>;
+  enforcePhotoCount?: boolean;
+  minRequiredPhotos?: number;
+  insufficientPhotosLabel?: string;
   className?: string;
 };
 
@@ -46,6 +50,9 @@ export default function PromptMentionTextarea({
   hasError,
   characterMentions = [],
   productMentions = [],
+  enforcePhotoCount = false,
+  minRequiredPhotos = 2,
+  insufficientPhotosLabel = 'Need 2 photos',
   className,
 }: PromptMentionTextareaProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -80,6 +87,12 @@ export default function PromptMentionTextarea({
       ...filteredProducts.map(item => ({ ...item, type: 'product' as const }))
     ];
   }, [filteredCharacters, filteredProducts]);
+
+  const isItemDisabled = (item: PromptMentionItem) => {
+    if (!enforcePhotoCount) return false;
+    const count = item.photoCount ?? (item.imageUrl ? 1 : 0);
+    return count < minRequiredPhotos;
+  };
 
   const updateMentionState = (nextValue: string, caret: number) => {
     if (disabled || readOnly) {
@@ -217,6 +230,7 @@ export default function PromptMentionTextarea({
   };
 
   const insertMention = (item: PromptMentionItem) => {
+    if (isItemDisabled(item)) return;
     const target = textareaRef.current;
     if (!target || mentionStart === null) return;
     const caret = target.selectionStart ?? value.length;
@@ -316,6 +330,10 @@ export default function PromptMentionTextarea({
     }
     if (event.key === 'Enter') {
       if (flatItems.length > 0) {
+        if (isItemDisabled(flatItems[activeIndex])) {
+          event.preventDefault();
+          return;
+        }
         event.preventDefault();
         insertMention(flatItems[activeIndex]);
       }
@@ -443,20 +461,27 @@ export default function PromptMentionTextarea({
                   {filteredCharacters.map((item, index) => {
                     const flatIndex = index;
                     const isActive = flatIndex === activeIndex;
+                    const isDisabled = isItemDisabled({ ...item, type: 'character' });
                     return (
                       <button
                         key={`character-${item.id}`}
                         type="button"
                         role="option"
                         aria-selected={isActive}
+                        disabled={isDisabled}
                         data-active={isActive}
                         onMouseDown={event => {
                           event.preventDefault();
-                          insertMention({ id: item.id, label: item.label, type: 'character', imageUrl: item.imageUrl });
+                          if (isDisabled) return;
+                          insertMention({ id: item.id, label: item.label, type: 'character', imageUrl: item.imageUrl, photoCount: item.photoCount });
                         }}
                         className={clsx(
                           'prompt-mention-option w-full rounded-xl px-3 py-2 text-left text-sm transition flex items-center gap-3',
-                          isActive ? 'bg-gray-900 text-white' : 'text-gray-900 hover:bg-gray-100'
+                          isDisabled
+                            ? 'cursor-not-allowed bg-gray-50 text-gray-400'
+                            : isActive
+                              ? 'bg-gray-900 text-white'
+                              : 'text-gray-900 hover:bg-gray-100'
                         )}
                       >
                         <span className={clsx('relative h-9 w-9 rounded-full overflow-hidden border', isActive ? 'border-white/60' : 'border-gray-200')}>
@@ -469,6 +494,11 @@ export default function PromptMentionTextarea({
                           )}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        {isDisabled && (
+                          <span className="rounded-md border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                            {insufficientPhotosLabel}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -487,20 +517,27 @@ export default function PromptMentionTextarea({
                   {filteredProducts.map((item, index) => {
                     const flatIndex = filteredCharacters.length + index;
                     const isActive = flatIndex === activeIndex;
+                    const isDisabled = isItemDisabled({ ...item, type: 'product' });
                     return (
                       <button
                         key={`product-${item.id}`}
                         type="button"
                         role="option"
                         aria-selected={isActive}
+                        disabled={isDisabled}
                         data-active={isActive}
                         onMouseDown={event => {
                           event.preventDefault();
-                          insertMention({ id: item.id, label: item.label, type: 'product', imageUrl: item.imageUrl });
+                          if (isDisabled) return;
+                          insertMention({ id: item.id, label: item.label, type: 'product', imageUrl: item.imageUrl, photoCount: item.photoCount });
                         }}
                         className={clsx(
                           'prompt-mention-option w-full rounded-xl px-3 py-2 text-left text-sm transition flex items-center gap-3',
-                          isActive ? 'bg-gray-900 text-white' : 'text-gray-900 hover:bg-gray-100'
+                          isDisabled
+                            ? 'cursor-not-allowed bg-gray-50 text-gray-400'
+                            : isActive
+                              ? 'bg-gray-900 text-white'
+                              : 'text-gray-900 hover:bg-gray-100'
                         )}
                       >
                         <span className={clsx('relative h-9 w-9 rounded-full overflow-hidden border', isActive ? 'border-white/60' : 'border-gray-200')}>
@@ -513,6 +550,11 @@ export default function PromptMentionTextarea({
                           )}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        {isDisabled && (
+                          <span className="rounded-md border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                            {insufficientPhotosLabel}
+                          </span>
+                        )}
                       </button>
                     );
                   })}

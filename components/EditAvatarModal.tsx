@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, UserCircle, Loader2, Plus, ArrowUpCircle, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
+import { AlertCircle, CircleHelp, Loader2, Sparkles, Upload, UserCircle, X } from 'lucide-react';
 import {
-  type AvatarPhotoEntry,
   type AvatarPhotoSet,
   normalizeAvatarPhotoSet,
   type UserAvatar
 } from '@/lib/supabase';
+import ConfirmDialog from './ConfirmDialog';
+import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 interface EditAvatarModalProps {
@@ -17,37 +18,33 @@ interface EditAvatarModalProps {
   onClose: () => void;
   avatar: UserAvatar | null;
   onAvatarUpdated: (avatar: UserAvatar) => void;
+  onDelete?: (avatarId: string) => Promise<void> | void;
+  isDeleting?: boolean;
 }
 
-type PreviewTarget =
-  | { kind: 'primary' }
-  | { kind: 'reference'; index: number };
-
-function getPreviewImage(photoSet: AvatarPhotoSet, target: PreviewTarget) {
-  if (target.kind === 'primary') {
-    return photoSet.primary;
-  }
-  return photoSet.references[target.index] || photoSet.primary;
-}
+type AvatarAction = 'rename' | 'replace_primary' | 'add_reference' | 'delete_reference' | 'promote_reference_to_primary';
 
 export default function EditAvatarModal({
   isOpen,
   onClose,
   avatar,
-  onAvatarUpdated
+  onAvatarUpdated,
+  onDelete,
+  isDeleting = false
 }: EditAvatarModalProps) {
   const [avatarName, setAvatarName] = useState('');
   const [currentAvatar, setCurrentAvatar] = useState<UserAvatar | null>(null);
-  const [previewTarget, setPreviewTarget] = useState<PreviewTarget>({ kind: 'primary' });
-  const [isSaving, setIsSaving] = useState(false);
-  const [activeAction, setActiveAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const primaryUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [isGeneratingReferences, setIsGeneratingReferences] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const photoSet = useMemo(() => {
-    if (!currentAvatar) {
-      return null;
-    }
+  const primaryInputRef = useRef<HTMLInputElement | null>(null);
+  const referenceInputRef = useRef<HTMLInputElement | null>(null);
+
+  const photoSet: AvatarPhotoSet | null = useMemo(() => {
+    if (!currentAvatar) return null;
     return normalizeAvatarPhotoSet(
       currentAvatar.photo_set_json,
       currentAvatar.photo_url,
@@ -55,39 +52,27 @@ export default function EditAvatarModal({
     );
   }, [currentAvatar]);
 
-  const selectedPreview = useMemo(() => {
-    if (!photoSet) {
-      return null;
-    }
-    return getPreviewImage(photoSet, previewTarget);
-  }, [photoSet, previewTarget]);
-
   useEffect(() => {
     if (isOpen && avatar) {
       setCurrentAvatar(avatar);
       setAvatarName(avatar.avatar_name);
-      setPreviewTarget({ kind: 'primary' });
       setError(null);
-      setTimeout(() => {
-        const input = document.querySelector('#edit-avatar-name-input') as HTMLInputElement | null;
-        if (input) {
-          input.focus();
-          input.select();
-        }
-      }, 150);
+      setIsSaving(false);
+      setIsUploadingPhotos(false);
+      setIsGeneratingReferences(false);
     }
   }, [isOpen, avatar]);
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !isSaving) {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen && !isSaving && !isUploadingPhotos && !isGeneratingReferences) {
         onClose();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, isSaving, onClose]);
+  }, [isOpen, isSaving, isUploadingPhotos, isGeneratingReferences, onClose]);
 
   const renderErrorMessage = (message: string) => {
     if (!message.includes(IMAGE_CONVERSION_LINK)) {
@@ -116,19 +101,25 @@ export default function EditAvatarModal({
     referenceIndex,
     nextName
   }: {
-    action: 'rename' | 'replace_primary' | 'add_reference' | 'delete_reference' | 'promote_reference_to_primary';
+    action: AvatarAction;
     file?: File;
     referenceIndex?: number;
     nextName?: string;
   }) => {
     if (!currentAvatar) return;
 
-    setIsSaving(true);
-    setActiveAction(action);
+    const isPhotoAction = action === 'replace_primary' || action === 'add_reference' || action === 'delete_reference' || action === 'promote_reference_to_primary';
+    if (isPhotoAction) {
+      setIsUploadingPhotos(true);
+    } else {
+      setIsSaving(true);
+    }
+
     setError(null);
 
     try {
       let response: Response;
+
       if (file) {
         const formData = new FormData();
         formData.append('action', action);
@@ -136,6 +127,7 @@ export default function EditAvatarModal({
         if (typeof referenceIndex === 'number') {
           formData.append('referenceIndex', String(referenceIndex));
         }
+
         response = await fetch(`/api/user-avatars?avatarId=${currentAvatar.id}`, {
           method: 'PUT',
           body: formData
@@ -143,9 +135,7 @@ export default function EditAvatarModal({
       } else {
         response = await fetch(`/api/user-avatars?avatarId=${currentAvatar.id}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action,
             avatarName: nextName,
@@ -155,33 +145,216 @@ export default function EditAvatarModal({
       }
 
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
+      if (!response.ok || !payload?.avatar) {
         throw new Error(payload?.error || 'Failed to update avatar');
       }
 
-      setCurrentAvatar(payload.avatar);
-      onAvatarUpdated(payload.avatar);
-
-      if (action === 'delete_reference') {
-        setPreviewTarget({ kind: 'primary' });
-      }
-      if (action === 'promote_reference_to_primary' || action === 'replace_primary') {
-        setPreviewTarget({ kind: 'primary' });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update avatar.');
+      setCurrentAvatar(payload.avatar as UserAvatar);
+      onAvatarUpdated(payload.avatar as UserAvatar);
     } finally {
-      setIsSaving(false);
-      setActiveAction(null);
+      if (isPhotoAction) {
+        setIsUploadingPhotos(false);
+      } else {
+        setIsSaving(false);
+      }
     }
   };
 
-  const handleSaveChanges = async () => {
+  const validateImageFile = async (file: File) => {
+    const validationResult = validateImageFormat(file);
+    if (!validationResult.isValid) {
+      throw new Error(validationResult.error);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const img = document.createElement('img');
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => reject(new Error('Failed to load image. Please try a different file.'));
+        img.src = objectUrl;
+      });
+
+      if (dimensions.width < 300 || dimensions.height < 300) {
+        throw new Error(`Image too small. Minimum size is 300x300px. Your image is ${dimensions.width}x${dimensions.height}px.`);
+      }
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const handlePrimaryUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !photoSet) return;
+
+    try {
+      await validateImageFile(file);
+      await runAvatarAction({ action: 'replace_primary', file });
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Failed to upload primary photo.');
+    } finally {
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const handleReferenceUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !photoSet) return;
+
+    if (photoSet.references.length >= 3) {
+      setError('You can add up to 3 reference photos.');
+      if (event.target) event.target.value = '';
+      return;
+    }
+
+    try {
+      await validateImageFile(file);
+      await runAvatarAction({ action: 'add_reference', file });
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Failed to upload reference photo.');
+    } finally {
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const handleDeleteReference = async (index: number) => {
+    try {
+      await runAvatarAction({ action: 'delete_reference', referenceIndex: index });
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete reference photo.');
+    }
+  };
+
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const convertImageUrlToDataUrl = async (imageUrl: string): Promise<string> => {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error('Failed to read primary image for AI generation.');
+    }
+
+    const blob = await response.blob();
+
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Failed to convert image to data URL.'));
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const buildFileFromUrl = async (imageUrl: string, fileName: string): Promise<File> => {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error('Failed to download generated reference image.');
+    }
+
+    const blob = await response.blob();
+    const file = new File([blob], fileName, { type: blob.type || 'image/png' });
+    await validateImageFile(file);
+    return file;
+  };
+
+  const handleGenerateReferences = async () => {
+    if (!photoSet?.primary?.photo_url) {
+      setError('Upload a primary portrait first.');
+      return;
+    }
+
+    const missingCount = 3 - photoSet.references.length;
+    if (missingCount <= 0) {
+      setError('Reference photos are already full (3/3).');
+      return;
+    }
+
+    setIsGeneratingReferences(true);
+    setError(null);
+
+    try {
+      const imageDataUrl = await convertImageUrlToDataUrl(photoSet.primary.photo_url);
+
+      const createResponse = await fetch('/api/assets/ai-reference-angles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetType: 'avatar',
+          imageDataUrl,
+          existingReferenceCount: photoSet.references.length,
+          count: missingCount
+        })
+      });
+
+      const createPayload = await createResponse.json().catch(() => ({}));
+      if (!createResponse.ok || !Array.isArray(createPayload?.tasks) || createPayload.tasks.length !== missingCount) {
+        throw new Error(createPayload?.error || 'Failed to start AI reference generation.');
+      }
+
+      const tasks = createPayload.tasks as Array<{ taskId: string }>;
+      let resolvedStatuses: Array<{
+        taskId: string;
+        status: 'pending' | 'success' | 'failed';
+        imageUrl?: string | null;
+        failMsg?: string | null;
+      }> = [];
+
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        const params = new URLSearchParams();
+        tasks.forEach((task) => params.append('taskId', task.taskId));
+
+        const statusResponse = await fetch(`/api/assets/ai-reference-angles?${params.toString()}`, {
+          method: 'GET'
+        });
+
+        const statusPayload = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok || !Array.isArray(statusPayload?.statuses)) {
+          throw new Error(statusPayload?.error || 'Failed to check AI generation progress.');
+        }
+
+        resolvedStatuses = statusPayload.statuses;
+        const allFinished = resolvedStatuses.every(
+          (item) => item.status === 'success' || item.status === 'failed'
+        );
+
+        if (allFinished) {
+          break;
+        }
+
+        await wait(2500);
+      }
+
+      if (!resolvedStatuses.length || resolvedStatuses.some((item) => item.status !== 'success')) {
+        const failedTask = resolvedStatuses.find((item) => item.status === 'failed');
+        throw new Error(failedTask?.failMsg || 'AI reference generation timed out. Please try again.');
+      }
+
+      const orderedStatuses = tasks
+        .map((task) => resolvedStatuses.find((item) => item.taskId === task.taskId))
+        .filter(Boolean) as Array<{ imageUrl?: string | null }>;
+
+      for (let index = 0; index < orderedStatuses.length; index += 1) {
+        const imageUrl = orderedStatuses[index].imageUrl;
+        if (!imageUrl) {
+          throw new Error('AI generated image URL is missing.');
+        }
+        const referenceFile = await buildFileFromUrl(imageUrl, `avatar-reference-angle-${index + 1}.png`);
+        await runAvatarAction({ action: 'add_reference', file: referenceFile });
+      }
+    } catch (generateError) {
+      setError(generateError instanceof Error ? generateError.message : 'Failed to generate AI references.');
+    } finally {
+      setIsGeneratingReferences(false);
+    }
+  };
+
+  const handleSaveChanges = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (!currentAvatar) return;
 
     const trimmedName = avatarName.trim();
     if (!trimmedName) {
-      setError('Avatar name is required');
+      setError('Avatar name is required.');
       return;
     }
 
@@ -190,284 +363,274 @@ export default function EditAvatarModal({
       return;
     }
 
-    await runAvatarAction({
-      action: 'rename',
-      nextName: trimmedName
-    });
+    try {
+      await runAvatarAction({ action: 'rename', nextName: trimmedName });
+      onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save avatar.');
+    }
+  };
 
+  const handleConfirmDelete = async () => {
+    if (!onDelete || !currentAvatar) return;
+    await onDelete(currentAvatar.id);
     onClose();
   };
 
-  const handlePrimaryReplace = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const validationResult = validateImageFormat(file);
-    if (!validationResult.isValid) {
-      setError(validationResult.error);
-      event.target.value = '';
-      return;
-    }
-
-    await runAvatarAction({
-      action: 'replace_primary',
-      file
-    });
-
-    event.target.value = '';
-  };
-
-  const handleAddReference = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const validationResult = validateImageFormat(file);
-    if (!validationResult.isValid) {
-      setError(validationResult.error);
-      event.target.value = '';
-      return;
-    }
-
-    if ((photoSet?.references.length || 0) >= 3) {
-      setError('You can add up to 3 reference photos.');
-      event.target.value = '';
-      return;
-    }
-
-    await runAvatarAction({
-      action: 'add_reference',
-      file
-    });
-
-    event.target.value = '';
-  };
-
-  const handleDeleteReference = async (index: number) => {
-    await runAvatarAction({
-      action: 'delete_reference',
-      referenceIndex: index
-    });
-  };
-
-  const handlePromoteReference = async (index: number) => {
-    await runAvatarAction({
-      action: 'promote_reference_to_primary',
-      referenceIndex: index
-    });
-  };
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isSaving) {
+  const handleBackdropClick = (event: React.MouseEvent) => {
+    if (event.target === event.currentTarget && !isSaving && !isUploadingPhotos && !isGeneratingReferences) {
       onClose();
     }
   };
 
   if (!avatar || !currentAvatar || !photoSet) return null;
 
+  const canSave = Boolean(avatarName.trim() && !isSaving && !isUploadingPhotos && !isGeneratingReferences);
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          className="assets-modal assets-edit-avatar fixed inset-0 z-50 flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-        >
+    <>
+      <AnimatePresence>
+        {isOpen && (
           <motion.div
-            className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={handleBackdropClick}
+            className="assets-modal assets-edit-avatar fixed inset-0 z-50 flex items-center justify-center p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-          />
-
-          <motion.div
-            className="assets-modal-panel assets-edit-avatar-panel relative bg-white rounded-xl shadow-lg border border-gray-200 w-full max-w-5xl mx-auto overflow-hidden"
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="assets-modal-header flex items-center justify-between p-5 border-b border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className="assets-modal-icon w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-                  <UserCircle className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="assets-modal-title text-lg font-semibold text-gray-900">Edit Avatar</h3>
-                  <p className="assets-modal-subtitle text-sm text-gray-600">Manage avatar name and photos in one place.</p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="assets-modal-close w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
-                disabled={isSaving}
-              >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
+            <motion.div
+              className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={handleBackdropClick}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
 
-            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr]">
-              <div className="border-r border-gray-200 bg-gray-50">
-                {selectedPreview ? (
-                  <div className="aspect-square relative">
-                    <Image
-                      src={selectedPreview.photo_url}
-                      alt={currentAvatar.avatar_name}
-                      fill
-                      className="object-contain"
-                      sizes="(max-width: 1024px) 100vw, 60vw"
-                    />
+            <motion.div
+              className="assets-modal-panel assets-edit-avatar-panel relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
+                    <UserCircle className="h-5 w-5" />
                   </div>
-                ) : (
-                  <div className="aspect-square flex items-center justify-center text-sm text-gray-400">No photo</div>
-                )}
+                  <div>
+                    <p className="assets-modal-title text-xl font-semibold text-gray-900">Edit Avatar</p>
+                    <p className="assets-modal-subtitle text-sm text-gray-600">Manage name and avatar photos in one place.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="assets-modal-close flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100"
+                  disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+                >
+                  <X className="h-5 w-5 text-gray-500" />
+                </button>
               </div>
 
-              <div className="p-5 space-y-5">
+              <form onSubmit={handleSaveChanges} className="assets-modal-body space-y-5 px-6 py-6">
+                {error && (
+                  <div className="assets-modal-error flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{renderErrorMessage(error)}</span>
+                  </div>
+                )}
+
                 <div>
-                  <label htmlFor="edit-avatar-name-input" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="edit-avatar-name-input" className="assets-modal-label text-sm font-medium text-gray-700">
                     Avatar Name
                   </label>
                   <input
                     id="edit-avatar-name-input"
                     type="text"
                     value={avatarName}
-                    onChange={(e) => setAvatarName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    onChange={(event) => setAvatarName(event.target.value)}
+                    className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
                     placeholder="Enter avatar name"
-                    disabled={isSaving}
                     maxLength={255}
+                    disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-900">Primary Photo</p>
-                  <p className="text-xs text-gray-500">Front-facing, well-lit portrait.</p>
-                  <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900">Primary Portrait (Required)</p>
+                    </div>
+
                     <div
-                      className={`relative group aspect-square rounded-lg overflow-hidden cursor-pointer border ${previewTarget.kind === 'primary' ? 'border-gray-900' : 'border-gray-200'}`}
-                      onClick={() => setPreviewTarget({ kind: 'primary' })}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => primaryInputRef.current?.click()}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          primaryInputRef.current?.click();
+                        }
+                      }}
+                      className="assets-modal-upload relative w-full aspect-[4/5] max-h-[560px] overflow-hidden rounded-2xl border-2 border-dashed border-gray-300 bg-[#F8F8F8]"
                     >
-                      <Image src={photoSet.primary.photo_url} alt={photoSet.primary.file_name} fill className="object-cover" sizes="120px" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <span className="inline-flex items-center gap-1 text-xs text-white">
-                          {activeAction === 'replace_primary' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                          Replace
+                      <div className="absolute left-3 top-3">
+                        <span className="assets-modal-chip rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                          Primary
                         </span>
                       </div>
+
+                      <Image src={photoSet.primary.photo_url} alt="Primary preview" fill className="object-cover" />
+
                       <button
                         type="button"
+                        className="assets-modal-chip-close absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
                         onClick={(event) => {
                           event.stopPropagation();
-                          primaryUploadInputRef.current?.click();
+                          primaryInputRef.current?.click();
                         }}
-                        className="absolute inset-0"
-                        aria-label="Replace primary photo"
+                        disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+                      >
+                        {isUploadingPhotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                      </button>
+
+                      <input
+                        ref={primaryInputRef}
+                        type="file"
+                        accept={getAcceptedImageFormats()}
+                        className="hidden"
+                        onChange={handlePrimaryUpload}
+                        disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-3 h-full min-h-0 flex flex-col">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-1.5 leading-none">
+                        <p className="text-sm font-medium text-gray-900">Reference Photos (Optional)</p>
+                        <div className="relative group">
+                          <button
+                            type="button"
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600"
+                            aria-label="Reference angle recommendation"
+                          >
+                            <CircleHelp className="h-4 w-4" />
+                          </button>
+                          <div className="pointer-events-none absolute right-0 top-6 z-20 w-72 rounded-xl border border-gray-200 bg-white p-3 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                            <p className="text-xs text-gray-700">
+                              Recommended: one 45° side angle and 1–2 detail/profile shots.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">{photoSet.references.length}/3</span>
+                        <button
+                          type="button"
+                          onClick={handleGenerateReferences}
+                          disabled={!photoSet.primary || photoSet.references.length >= 3 || isSaving || isUploadingPhotos || isGeneratingReferences}
+                          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-gray-900 hover:text-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                        >
+                          {isGeneratingReferences ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5" />
+                          )}
+                          {isGeneratingReferences ? 'Generating…' : 'AI Generate'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-[auto_minmax(0,1fr)] gap-3">
+                      {photoSet.references.map((photo, index) => (
+                        <div
+                          key={`${photo.photo_url}-${index}`}
+                          className={cn(
+                            'relative overflow-hidden rounded-xl border border-gray-200 bg-gray-50',
+                            photoSet.references.length === 3 && index === 2
+                              ? 'col-span-2 h-full min-h-[220px]'
+                              : 'aspect-square'
+                          )}
+                        >
+                          <Image
+                            src={photo.photo_url}
+                            alt={`Reference ${index + 1}`}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 1024px) 45vw, 220px"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleDeleteReference(index);
+                            }}
+                            className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white hover:bg-black"
+                            disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {photoSet.references.length < 3 && (
+                        <button
+                          type="button"
+                          onClick={() => referenceInputRef.current?.click()}
+                          className="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-[#FAFAFA] text-gray-500 transition hover:border-gray-400"
+                          disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+                        >
+                          <Upload className="mb-2 h-5 w-5" />
+                          <span className="text-xs font-medium">Add reference</span>
+                        </button>
+                      )}
+                    </div>
+
                     <input
-                      ref={primaryUploadInputRef}
+                      ref={referenceInputRef}
                       type="file"
                       accept={getAcceptedImageFormats()}
-                      onChange={handlePrimaryReplace}
                       className="hidden"
-                      disabled={isSaving}
+                      onChange={handleReferenceUpload}
+                      disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-900">Reference Photos</p>
-                  <p className="text-xs text-gray-500">Recommended: 45° side angle and detail/profile shots for expression and structure consistency.</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {photoSet.references.map((photo, index) => (
-                      <div
-                        key={`${photo.photo_url}-${index}`}
-                        className={`relative group aspect-square rounded-lg overflow-hidden border ${previewTarget.kind === 'reference' && previewTarget.index === index ? 'border-gray-900' : 'border-gray-200'}`}
-                      >
-                        <button
-                          type="button"
-                          className="absolute inset-0"
-                          onClick={() => setPreviewTarget({ kind: 'reference', index })}
-                        >
-                          <Image src={photo.photo_url} alt={photo.file_name} fill className="object-cover" sizes="120px" />
-                        </button>
-
-                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handlePromoteReference(index);
-                            }}
-                            className="w-6 h-6 bg-black/70 text-white rounded-full flex items-center justify-center"
-                            title="Promote to primary"
-                          >
-                            {activeAction === 'promote_reference_to_primary' ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowUpCircle className="w-3 h-3" />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handleDeleteReference(index);
-                            }}
-                            className="w-6 h-6 bg-black/70 text-white rounded-full flex items-center justify-center"
-                            title="Delete reference"
-                          >
-                            {activeAction === 'delete_reference' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-
-                    {photoSet.references.length < 3 && (
-                      <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer">
-                        <input
-                          type="file"
-                          accept={getAcceptedImageFormats()}
-                          onChange={handleAddReference}
-                          className="hidden"
-                          disabled={isSaving}
-                        />
-                        <span className="inline-flex items-center gap-1 text-xs text-gray-600">
-                          {activeAction === 'add_reference' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                          Add
-                        </span>
-                      </label>
-                    )}
-                  </div>
-                </div>
-
-                {error && (
-                  <p className="text-sm text-red-600">{renderErrorMessage(error)}</p>
-                )}
-
-                <div className="flex gap-2 pt-2">
+                <div className="assets-modal-actions flex flex-col gap-3 pt-2 sm:flex-row">
                   <button
                     type="button"
-                    onClick={onClose}
-                    disabled={isSaving}
-                    className="flex-1 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="assets-modal-secondary flex-1 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
+                    disabled={!onDelete || isDeleting || isSaving || isUploadingPhotos || isGeneratingReferences}
                   >
-                    Cancel
+                    {isDeleting ? 'Deleting…' : 'Delete Avatar'}
                   </button>
                   <button
-                    type="button"
-                    onClick={() => void handleSaveChanges()}
-                    disabled={isSaving || !avatarName.trim()}
-                    className="flex-1 px-3 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center justify-center gap-2"
+                    type="submit"
+                    disabled={!canSave}
+                    className="assets-modal-primary flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40"
                   >
-                    {activeAction === 'rename' && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Save Changes
+                    {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {isSaving ? 'Saving…' : 'Save Changes'}
                   </button>
                 </div>
-              </div>
-            </div>
+              </form>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+
+      <ConfirmDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Avatar"
+        message={`Are you sure you want to delete "${currentAvatar.avatar_name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+      />
+    </>
   );
 }

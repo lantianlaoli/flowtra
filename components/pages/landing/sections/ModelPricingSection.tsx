@@ -4,6 +4,13 @@ export default function ModelPricingSection() {
   // Credit to USD conversion rate
   const CREDIT_TO_USD = 0.015; // $0.015 per credit
 
+  type PricingOption = {
+    duration: string;
+    credits: number;
+    unit: string;
+    comingSoon?: boolean;
+  };
+
   const models = [
     {
       name: 'Veo3.1 fast',
@@ -14,32 +21,8 @@ export default function ModelPricingSection() {
       billingType: 'generation' as const,
       pricingOptions: [
         { duration: '1 min', credits: 150, unit: 'per min' },
-      ],
+      ] as PricingOption[],
       quality: ['1080p', '4K'],
-    },
-    {
-      name: 'Kling 2.6 Motion Control',
-      description: 'Precise motion control for dynamic video generation',
-      icon: Kling,
-      badge: 'New',
-      durationRange: '5-10s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { duration: '1 min', credits: 540, unit: 'per min' },
-      ],
-      quality: ['1080p'],
-    },
-    {
-      name: 'Seedance 1.5 Pro',
-      description: 'ByteDance model with built-in audio generation',
-      icon: ByteDance,
-      badge: 'New',
-      durationRange: '8-64s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { duration: '1 min', credits: 900, unit: 'per min' },
-      ],
-      quality: ['1080p'],
     },
     {
       name: 'Veo3.1',
@@ -50,7 +33,7 @@ export default function ModelPricingSection() {
       billingType: 'generation' as const,
       pricingOptions: [
         { duration: '1 min', credits: 1125, unit: 'per min' },
-      ],
+      ] as PricingOption[],
       quality: ['1080p', '4K'],
     },
     {
@@ -62,8 +45,56 @@ export default function ModelPricingSection() {
       billingType: 'generation' as const,
       pricingOptions: [
         { duration: '1 min', credits: 0, unit: 'per min' },
-      ],
+      ] as PricingOption[],
       quality: ['1K', '2K', '4K'],
+    },
+    {
+      name: 'Kling 2.6 Motion Control',
+      description: 'Precise motion control for dynamic video generation',
+      icon: Kling,
+      badge: 'New',
+      durationRange: '5-10s',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { duration: '1 min', credits: 540, unit: 'per min' },
+      ] as PricingOption[],
+      quality: ['1080p'],
+    },
+    {
+      name: 'Kling 3.0',
+      description: 'Latest Kling model for clone video generation with audio',
+      icon: Kling,
+      badge: 'Latest',
+      durationRange: '3-60s',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { duration: '1 min', credits: 2400, unit: 'per min' },
+      ] as PricingOption[],
+      quality: ['1080p'],
+    },
+    {
+      name: 'Seedance 1.5 Pro',
+      description: 'ByteDance model with built-in audio generation',
+      icon: ByteDance,
+      badge: 'New',
+      durationRange: '8-64s',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { duration: '1 min', credits: 900, unit: 'per min' },
+      ] as PricingOption[],
+      quality: ['1080p'],
+    },
+    {
+      name: 'Seedance 2',
+      description: 'Next-generation Seedance model. Coming soon.',
+      icon: ByteDance,
+      badge: 'Soon',
+      durationRange: '-',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { duration: '1 min', credits: 0, unit: 'coming soon', comingSoon: true },
+      ] as PricingOption[],
+      quality: ['1080p'],
     },
   ];
 
@@ -100,6 +131,7 @@ export default function ModelPricingSection() {
               return model.pricingOptions.map((option, optionIndex) => {
                 const isFirstRow = optionIndex === 0;
                 const rowSpan = isMultiRow ? model.pricingOptions.length : 1;
+                const isComingSoon = Boolean(option.comingSoon);
                 const isFree = option.credits === 0;
                 const usdCost = (option.credits * CREDIT_TO_USD).toFixed(2);
 
@@ -150,9 +182,9 @@ export default function ModelPricingSection() {
                     {/* Generation Cost */}
                     <td className="px-6 py-6 lg:px-7 lg:py-7">
                       <div className="text-[16px] font-bold tracking-tight text-black">
-                        {isFree ? 'Free' : `$${usdCost}`}
+                        {isComingSoon ? 'Coming soon' : (isFree ? 'Free' : `$${usdCost}`)}
                       </div>
-                      {!isFree && (
+                      {!isComingSoon && !isFree && (
                         <p className="mt-1 text-[12px] text-[#666666]">
                           {option.unit}
                         </p>
@@ -207,11 +239,13 @@ export default function ModelPricingSection() {
                       </span>
                       <div className="text-right">
                         <span className="text-sm font-bold text-gray-900 block">
-                          {option.credits === 0
+                          {option.comingSoon
+                            ? 'Coming soon'
+                            : option.credits === 0
                             ? 'Free'
                             : `$${(option.credits * CREDIT_TO_USD).toFixed(2)}`}
                         </span>
-                        {option.credits !== 0 && (
+                        {!option.comingSoon && option.credits !== 0 && (
                           <span className="text-xs text-gray-500">
                             {option.unit}
                           </span>

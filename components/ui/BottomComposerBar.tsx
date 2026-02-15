@@ -41,6 +41,7 @@ export default function BottomComposerBar({
 }: BottomComposerBarProps) {
   const canAfford = userCredits >= generationCost;
   const showInsufficientCredits = !canAfford && generationCost > 0;
+  const isButtonDisabled = !canGenerate || isGenerating || showInsufficientCredits;
 
   return (
     <div className={`bottom-composer-bar fixed bottom-0 left-0 right-0 md:left-72 z-40 px-3 md:px-12 lg:px-16 pb-4 md:pb-6 pointer-events-none ${className}`}>
@@ -68,15 +69,15 @@ export default function BottomComposerBar({
             {/* Generate button - standardized */}
             <button
               onClick={onGenerate}
-              disabled={!canGenerate || isGenerating}
-              data-disabled={!canGenerate || isGenerating}
+              disabled={isButtonDisabled}
+              data-disabled={isButtonDisabled}
               data-generating={isGenerating}
               className={`
                 bottom-composer-generate
                 flex items-center justify-center gap-2 px-6 h-12 rounded-lg cursor-pointer
                 font-semibold text-sm whitespace-nowrap min-w-[140px]
                 transition-all duration-200
-                ${canGenerate && !isGenerating
+                ${!isButtonDisabled
                   ? 'bg-black hover:bg-black/90 text-white shadow-sm'
                   : 'bg-[#F7F7F7] text-[#999999] cursor-not-allowed border border-[#E5E5E5]'
                 }

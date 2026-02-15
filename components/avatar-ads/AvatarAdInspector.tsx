@@ -32,6 +32,8 @@ export interface StructuredVideoPrompt {
 interface InspectorProject {
   id: string;
   generated_image_url?: string;
+  generated_video_urls?: string[];
+  merged_video_url?: string;
   image_prompt?: string;
   generated_prompts?: {
     scenes: Array<{ prompt: StructuredVideoPrompt }>;
@@ -113,6 +115,10 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   const scenes = project?.generated_prompts?.scenes ?? [];
   const totalScenes = scenes.length;
   const activeScenePrompt = editedScenes[activeSceneIndex] || scenes[activeSceneIndex]?.prompt || null;
+  const previewVideoUrl =
+    project?.merged_video_url ||
+    (Array.isArray(project?.generated_video_urls) ? project?.generated_video_urls[0] : undefined) ||
+    undefined;
 
   const fetchProjectDetails = useCallback(async ({ isInitialLoad = false }: { isInitialLoad?: boolean } = {}) => {
     if (!projectId) return;
@@ -461,21 +467,46 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                 ) : (
                   <>
                     {/* LEFT: Image Preview (Fixed / Minimal Scroll) */}
-                    <div className="avatar-ads-editor-preview w-[560px] shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
-                      <div className="p-3 space-y-3">
-                         {/* Image Container */}
-                        <div className="space-y-2">
-                           <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-medium text-gray-900">
+                    <div className="avatar-ads-editor-preview w-[820px] shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-hidden">
+                      <div className="p-6 h-full min-h-0 flex flex-col">
+                        <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
+                          <div className="flex min-h-0 flex-col gap-3">
+                            <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-medium text-gray-900">
+                              <Film className="w-4 h-4" />
+                              Video Preview
+                            </div>
+                            <div className="avatar-ads-editor-media relative w-full flex-1 min-h-0 bg-black rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                              {previewVideoUrl ? (
+                                <video
+                                  src={previewVideoUrl}
+                                  className="h-full w-full object-contain"
+                                  controls
+                                  playsInline
+                                  muted
+                                  loop
+                                  preload="metadata"
+                                  poster={project.generated_image_url}
+                                />
+                              ) : (
+                                <div className="flex h-full items-center justify-center text-gray-400 text-xs">
+                                  Video not ready yet
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex min-h-0 flex-col gap-3">
+                            <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-medium text-gray-900">
                               <ImageIcon className="w-4 h-4" />
-                              Video First Frame
-                           </div>
-                           <div className="avatar-ads-editor-media relative aspect-[9/16] w-full bg-white rounded-md overflow-hidden border border-gray-200 shadow-sm">
+                              First Frame
+                            </div>
+                            <div className="avatar-ads-editor-media relative w-full flex-1 min-h-0 bg-white rounded-lg overflow-hidden border border-gray-200 shadow-sm">
                               {project.generated_image_url ? (
                                 <Image
                                   src={project.generated_image_url}
                                   alt="Generated Cover"
                                   fill
-                                  className="object-cover"
+                                  className="object-contain"
                                 />
                               ) : (
                                 !isRegeneratingImage && (
@@ -490,7 +521,8 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                                   <p className="text-xs font-medium">Regenerating...</p>
                                 </div>
                               )}
-                           </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
