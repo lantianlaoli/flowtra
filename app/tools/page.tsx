@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, Upload } from "lucide-react";
+import { Calculator, Sparkles, Upload } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
@@ -15,6 +15,12 @@ const tools = [
     title: "ROAS Calculator",
     description: "Calculate ROAS, net profit, margin, and conversion-level ad performance.",
     icon: Calculator,
+  },
+  {
+    href: "/tools/ai-angle-generator",
+    title: "AI Multi-Angle Photo",
+    description: "Upload one frontal photo and generate 3 additional viewing angles.",
+    icon: Sparkles,
   },
 ];
 

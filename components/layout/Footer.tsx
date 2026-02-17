@@ -77,6 +77,11 @@ export default function Footer() {
                   ROAS Calculator
                 </Link>
               </li>
+              <li>
+                <Link href="/tools/ai-angle-generator" className="text-[14px] text-[#666666] hover:text-black transition-colors">
+                  AI Multi-Angle Photo
+                </Link>
+              </li>
             </ul>
           </nav>
 

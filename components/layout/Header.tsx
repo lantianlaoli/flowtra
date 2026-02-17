@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Upload,
   Calculator,
+  Sparkles,
   LayoutDashboard,
   Moon,
   Sun,
@@ -186,6 +187,22 @@ export default function Header({
                       </div>
                     </div>
                   </Link>
+                  <Link
+                    href="/tools/ai-angle-generator"
+                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                      <Sparkles className="w-5 h-5 text-black" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-black">
+                        AI Multi-Angle Photo
+                      </div>
+                      <div className="text-[12px] opacity-70">
+                        Generate 3 additional viewing angles
+                      </div>
+                    </div>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -313,6 +330,13 @@ export default function Header({
             onClick={() => setMobileMenuOpen(false)}
           >
             ROAS Calculator
+          </Link>
+          <Link
+            href="/tools/ai-angle-generator"
+            className="text-[16px] font-medium text-black"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            AI Multi-Angle Photo
           </Link>
           <Link
             href="/#pricing"
