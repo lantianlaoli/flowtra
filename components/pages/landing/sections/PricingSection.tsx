@@ -63,22 +63,17 @@ export default function PricingSection({
             </div>
 
             {/* Trial Badge */}
-            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F7F7F7] border border-[#E5E5E5] rounded-full">
-              <span className="text-[10px] font-medium text-[#000000] uppercase tracking-wider">
+            <div className="mt-4 inline-flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 py-2 shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
+              <span className="inline-flex items-center rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">
+                Trial
+              </span>
+              <span className="text-[12px] font-semibold leading-none text-black">
                 1 Day Free Trial
               </span>
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                className="opacity-60"
-              >
-                <path
-                  d="M6 1L7.5 4.5L11 5L8.5 7.5L9 11L6 9L3 11L3.5 7.5L1 5L4.5 4.5L6 1Z"
-                  fill="#000000"
-                />
-              </svg>
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full bg-green-500 motion-safe:animate-pulse motion-reduce:animate-none"
+              />
             </div>
           </div>
 
@@ -112,26 +107,6 @@ export default function PricingSection({
               </li>
             ))}
 
-            {/* Bonus: n8n Workflow */}
-            <li className="flex items-start gap-3 text-[14px] pt-2 border-t border-[#E5E5E5]">
-              <Check className="w-4 h-4 text-black flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <span className="font-semibold text-black">
-                  Bonus: TikTok Clone n8n Workflow
-                </span>
-                <div className="text-[12px] text-[#666666] mt-1">
-                  ($39.9 value) •{" "}
-                  <a
-                    href="https://lantianlaoli.gumroad.com/l/ivzajh"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-black underline hover:no-underline"
-                  >
-                    Preview
-                  </a>
-                </div>
-              </div>
-            </li>
           </ul>
 
           <PricingButton packageName="lite" />

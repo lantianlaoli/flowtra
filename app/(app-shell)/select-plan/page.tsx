@@ -1,10 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import PricingSection from '@/components/pages/landing/sections/PricingSection';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
+
+const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
+  loading: () => <div className="py-12 text-center text-gray-400">Loading...</div>
+});
 
 export default function SelectPlanPage() {
   const { user, isLoaded } = useUser();
@@ -100,7 +106,19 @@ export default function SelectPlanPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-4 py-16">
+      <div className="fixed top-0 inset-x-0 z-50 border-b border-[#E5E5E5] bg-white">
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+          <p className="hidden sm:block text-sm text-gray-600">Not ready to choose a plan yet?</p>
+          <Link
+            href="/"
+            className="inline-flex min-h-11 items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 pt-24 pb-16">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-black mb-4">
             Choose Your Plan
@@ -116,6 +134,8 @@ export default function SelectPlanPage() {
           Need help choosing? <a href="/support" className="text-black underline">Contact support</a>
         </div>
       </div>
+
+      <FAQ />
     </div>
   );
 }
