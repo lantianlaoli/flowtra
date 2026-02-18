@@ -30,6 +30,8 @@ type GeneratedImage = {
   imageUrl: string;
 };
 
+type SourceAspect = "portrait" | "square" | "landscape";
+
 const POLL_MAX_ATTEMPTS = 45;
 const POLL_INTERVAL_MS = 2500;
 
@@ -53,7 +55,13 @@ export default function AiAngleGeneratorPage() {
     return null;
   }, [status]);
 
-  const validateAndReadDataUrl = async (file: File) => {
+  const getSourceAspect = (width: number, height: number): SourceAspect => {
+    if (height > width) return "portrait";
+    if (width === height) return "square";
+    return "landscape";
+  };
+
+  const validateAndReadDataUrl = async (file: File): Promise<{ imageDataUrl: string; sourceAspect: SourceAspect }> => {
     const formatCheck = validateImageFormat(file);
     if (!formatCheck.isValid) {
       throw new Error(formatCheck.error);
@@ -79,12 +87,17 @@ export default function AiAngleGeneratorPage() {
       );
     }
 
-    return await new Promise<string>((resolve, reject) => {
+    const imageDataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = () => reject(new Error("Failed to read image file."));
       reader.readAsDataURL(file);
     });
+
+    return {
+      imageDataUrl,
+      sourceAspect: getSourceAspect(dimensions.width, dimensions.height),
+    };
   };
 
   const handleCopyUrl = async (taskId: string, imageUrl: string) => {
@@ -145,7 +158,7 @@ export default function AiAngleGeneratorPage() {
     setSelectedFileName(file.name);
 
     try {
-      const imageDataUrl = await validateAndReadDataUrl(file);
+      const { imageDataUrl, sourceAspect } = await validateAndReadDataUrl(file);
       setFrontalPreview(imageDataUrl);
       setStatus("generating");
 
@@ -153,7 +166,8 @@ export default function AiAngleGeneratorPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          assetType: "product",
+          assetType: "universal",
+          sourceAspect,
           imageDataUrl,
           existingReferenceCount: 0,
           count: 3,
