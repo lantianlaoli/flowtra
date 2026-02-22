@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, Mail, MessageCircle, Calendar } from 'lucide-react';
+import { ArrowRight, Mail, MessageCircle } from 'lucide-react';
 import type { VideoAnalysisResult } from '@/hooks/useVideoAnalysis';
-import { BOOKING_URL } from '@/lib/booking';
+import { FeatureInterestReward } from '@/components/lead/FeatureInterestReward';
 
 interface CTASectionProps {
   result: VideoAnalysisResult;
@@ -102,18 +102,11 @@ export function CTASection({ result }: CTASectionProps) {
             </a>
           )}
 
-          {/* Calendar booking */}
-          {BOOKING_URL && (
-            <a
-              href={BOOKING_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-3 bg-white border-2 border-gray-200 rounded-lg font-medium text-gray-700 hover:border-black hover:bg-gray-50 transition-all"
-            >
-              <Calendar className="w-4 h-4" />
-              Book a Call
-            </a>
-          )}
+          <FeatureInterestReward
+            variant="buttonTrigger"
+            buttonLabel="Claim 100 Free Credits"
+            buttonClassName="inline-flex items-center gap-2 px-4 py-3 bg-white border-2 border-gray-200 rounded-lg font-medium text-gray-700 hover:border-black hover:bg-gray-50 transition-all"
+          />
         </div>
 
         {/* Social proof */}

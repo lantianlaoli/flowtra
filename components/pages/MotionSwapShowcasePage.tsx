@@ -460,12 +460,12 @@ export default function MotionSwapShowcasePage() {
         </div>
       </section>
 
-      {/* Book Demo CTA - Compact */}
+      {/* Free Credits CTA - Compact */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <BookDemoCTA
           variant="compact"
           title="Want to Try Motion Swap?"
-          description="Book a demo to explore AI motion cloning with trial access."
+          description="Tell us what you want to test and claim 100 free credits instantly."
         />
       </section>
 

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, XCircle, PartyPopper, Upload, Play, Mic, CheckCircle, ArrowRight, Mail } from 'lucide-react';
 import { useVideoAnalysis } from '@/hooks/useVideoAnalysis';
 import { hasUsedFreeAnalysis } from '@/lib/rate-limit';
-import { BOOKING_URL } from '@/lib/booking';
+import { FeatureInterestReward } from '@/components/lead/FeatureInterestReward';
 import { useEffect, useState } from 'react';
 
 // Inline refined components for left-right layout
@@ -286,16 +286,11 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
             >
               View Pricing
             </Link>
-            <a
-              href={BOOKING_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
-              style={{ borderRadius: '8px' }}
-            >
-              <Mail className="w-4 h-4" strokeWidth={1.5} />
-              Book a Demo
-            </a>
+            <FeatureInterestReward
+              variant="buttonTrigger"
+              buttonLabel="Claim 100 Free Credits"
+              buttonClassName="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors rounded-[8px]"
+            />
           </div>
           <p className="text-sm text-gray-500 mt-4">
             Starting at $29/month
@@ -470,16 +465,11 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
-              <a
-                href={BOOKING_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors"
-                style={{ borderRadius: '8px' }}
-              >
-                <Mail className="w-4 h-4" strokeWidth={1.5} />
-                Book a Demo
-              </a>
+              <FeatureInterestReward
+                variant="buttonTrigger"
+                buttonLabel="Claim 100 Free Credits"
+                buttonClassName="flex items-center justify-center gap-2 w-full px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors rounded-[8px]"
+              />
             </div>
           </div>
         )}

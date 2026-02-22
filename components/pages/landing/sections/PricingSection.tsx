@@ -1,11 +1,15 @@
 import { PricingButton } from "@/components/pages/landing/PricingButton";
-import { DemoContactCard } from "@/components/pages/landing/DemoContactCard";
 import { Check, Zap, TrendingUp, Crown } from "lucide-react";
+import Link from "next/link";
 
 export default function PricingSection({
   showTitle = true,
+  showWelcomeBonusCard = false,
+  welcomeBonusCredits = 100,
 }: {
   showTitle?: boolean;
+  showWelcomeBonusCard?: boolean;
+  welcomeBonusCredits?: number;
 }) {
   const LITE_PRICE = 29;
   const BASIC_PRICE = 59;
@@ -28,10 +32,47 @@ export default function PricingSection({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Demo Contact Card */}
+      <div
+        className={`grid grid-cols-1 md:grid-cols-2 gap-8 max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 ${
+          showWelcomeBonusCard ? "lg:grid-cols-4" : "lg:grid-cols-3"
+        }`}
+      >
+        {showWelcomeBonusCard && (
+          <article className="bg-white rounded-xl border border-[#E5E5E5] p-8 flex flex-col">
+            <h3 className="text-[20px] font-bold text-black tracking-tight mb-2">
+              Welcome Bonus
+            </h3>
+            <p className="text-[14px] text-[#666666] mb-6 leading-6">
+              Congratulations. You received{" "}
+              <span className="font-semibold text-black">{welcomeBonusCredits} credits</span>.
+            </p>
 
-        <DemoContactCard />
+            <ul className="space-y-4 mb-10 flex-grow">
+              {[
+                "Avatar Ads",
+                "Clone viral video",
+                "Motion Swap",
+                "Unlimited product configuration",
+                "Unlimited character configuration",
+                "Import TikTok videos",
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-3 text-[14px] text-[#666666]">
+                  <Check className="w-4 h-4 text-black flex-shrink-0" />
+                  <span className="font-medium text-black">{item}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-auto">
+              <Link
+                href="/dashboard"
+                className="w-full inline-flex items-center justify-center rounded-lg bg-black px-4 py-3 text-[14px] font-semibold text-white hover:bg-[#1f1f1f] transition-colors"
+              >
+                Enter Console
+              </Link>
+            </div>
+          </article>
+        )}
 
         {/* Lite Plan */}
 

@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 import { auth } from '@clerk/nextjs/server'
-import { getUserCredits, initializeUserCredits } from '@/lib/credits'
+import { deductCredits, getUserCredits, initializeUserCredits, recordCreditTransaction } from '@/lib/credits'
 import { getUserSubscription } from '@/lib/subscription'
 import { INITIAL_FREE_CREDITS } from '@/lib/constants'
+
+const WELCOME_BONUS_DESCRIPTION = 'Initial free credits for new user'
 
 export async function GET() {
   // Ensure this route is dynamic and not statically evaluated at build time
@@ -63,10 +65,42 @@ export async function GET() {
       }, { status: 500 })
     }
 
+    let credits = result.credits
+
+    // Backfill one-time welcome credits for older unpurchased users that were initialized at 0.
+    // Schema verified via Supabase MCP (2026-02-22):
+    // user_credits columns used: has_purchased, credits_remaining, purchased_credits, subscription_credits
+    // credit_transactions columns used: user_id, type, amount, description
+    const shouldBackfillWelcomeBonus =
+      !credits.has_purchased &&
+      credits.credits_remaining === 0 &&
+      credits.purchased_credits === 0 &&
+      credits.subscription_credits === 0 &&
+      INITIAL_FREE_CREDITS > 0
+
+    if (shouldBackfillWelcomeBonus) {
+      const grantResult = await deductCredits(userId, -INITIAL_FREE_CREDITS)
+      if (grantResult.success) {
+        await recordCreditTransaction(
+          userId,
+          'purchase',
+          INITIAL_FREE_CREDITS,
+          WELCOME_BONUS_DESCRIPTION,
+          undefined,
+          true
+        )
+
+        const refreshed = await getUserCredits(userId)
+        if (refreshed.success && refreshed.credits) {
+          credits = refreshed.credits
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      credits: result.credits, // Return full credits object
-      hasCredits: result.credits.credits_remaining > 0,
+      credits, // Return full credits object
+      hasCredits: credits.credits_remaining > 0,
       userId: userId,
       subscription: subscriptionResult.subscription || null
     })

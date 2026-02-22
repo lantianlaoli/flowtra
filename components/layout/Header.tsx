@@ -242,7 +242,7 @@ export default function Header({
                 <SignedOut>
                   <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                     <button className="bg-black text-white text-[14px] font-medium px-6 py-2.5 rounded-lg hover:bg-[#2a2a2a] transition-all cursor-pointer">
-                      Get Started
+                      Sign up for 100 credits
                     </button>
                   </SignInButton>
                 </SignedOut>

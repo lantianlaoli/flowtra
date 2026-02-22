@@ -9,10 +9,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
+import { Kling } from "@lobehub/icons";
 import TikTokInputHero from "@/components/pages/landing/TikTokInputHero";
 import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
 import BlackFridayBadge from "@/components/landing/BlackFridayBadge";
-import FounderCard from "@/components/ui/FounderCard";
 
 interface HeroSectionProps {
   activatedUserCount: number;
@@ -26,14 +26,19 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
     >
       {/* Left Content */}
       <div className="lg:col-span-3 space-y-5 sm:space-y-6 lg:space-y-8">
-        {/* Black Friday Promotion Badge + Founder Card */}
+        {/* Top Badges */}
         <div className="flex flex-wrap items-center gap-3">
           <BlackFridayBadge />
-          <FounderCard
-            variant="hero"
-            showGreeting={false}
-            className="hidden lg:inline-flex"
-          />
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#fafafa] border border-[#e9e9e7] rounded-full text-sm">
+            <Kling className="w-3.5 h-3.5 text-[#37352f]" />
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 rounded-full bg-green-500 motion-safe:animate-pulse motion-reduce:animate-none"
+            />
+            <span className="text-xs font-semibold text-[#37352f]">
+              Kling 3.0 is live
+            </span>
+          </div>
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-black leading-tight tracking-[-0.02em]">

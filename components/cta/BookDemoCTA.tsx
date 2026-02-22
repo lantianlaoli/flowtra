@@ -1,7 +1,7 @@
 'use client';
 
-import { ArrowUpRight, Mail } from 'lucide-react';
-import { BOOKING_URL } from '@/lib/booking';
+import { Mail } from 'lucide-react';
+import { FeatureInterestReward } from '@/components/lead/FeatureInterestReward';
 
 interface BookDemoCTAProps {
   title?: string;
@@ -11,7 +11,7 @@ interface BookDemoCTAProps {
 
 export function BookDemoCTA({
   title = "Ready to Transform Your Video Marketing?",
-  description = "Book a personalized demo and get trial access to explore Flowtra's AI-powered video generation platform.",
+  description = "Tell us which feature you want to try, then send your interest message on any platform to get 100 free credits.",
   variant = 'default'
 }: BookDemoCTAProps) {
   if (variant === 'compact') {
@@ -22,16 +22,11 @@ export function BookDemoCTA({
             <h3 className="text-[20px] font-bold text-black mb-2">{title}</h3>
             <p className="text-[14px] text-[#666666]">{description}</p>
           </div>
-          <a
-            href={BOOKING_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-shrink-0 bg-black text-white px-6 py-3 rounded-lg font-medium text-[14px] transition-all duration-200 hover:bg-[#1a1a1a] active:scale-[0.98] flex items-center gap-2 group whitespace-nowrap"
-          >
-            <Mail className="w-4 h-4" />
-            <span>Book Demo</span>
-            <ArrowUpRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </a>
+          <FeatureInterestReward
+            variant="buttonTrigger"
+            buttonLabel="Claim 100 Free Credits"
+            buttonClassName="flex-shrink-0 bg-black text-white px-6 py-3 rounded-lg font-medium text-[14px] transition-all duration-200 hover:bg-[#1a1a1a] active:scale-[0.98] inline-flex items-center gap-2 whitespace-nowrap"
+          />
         </div>
       </div>
     );
@@ -59,16 +54,11 @@ export function BookDemoCTA({
 
             {/* CTA Button */}
             <div className="pt-4">
-              <a
-                href={BOOKING_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-3 bg-black text-white px-8 py-4 rounded-lg font-semibold text-[16px] transition-all duration-200 hover:bg-[#1a1a1a] hover:shadow-[0_8px_24px_rgba(0,0,0,0.2)] active:scale-[0.98] group"
-              >
-                <Mail className="w-5 h-5" />
-                <span>Book a Demo</span>
-                <ArrowUpRight className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-1 group-hover:-translate-y-1" />
-              </a>
+              <FeatureInterestReward
+                variant="buttonTrigger"
+                buttonLabel="Claim 100 Free Credits"
+                buttonClassName="inline-flex items-center gap-3 bg-black text-white px-8 py-4 rounded-lg font-semibold text-[16px] transition-all duration-200 hover:bg-[#1a1a1a] hover:shadow-[0_8px_24px_rgba(0,0,0,0.2)] active:scale-[0.98] group"
+              />
             </div>
 
             {/* Fine Print */}

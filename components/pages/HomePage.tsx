@@ -35,9 +35,10 @@ export default function HomePage() {
     hoursSaved: 0,
   });
   const [onboardingProgress, setOnboardingProgress] = useState<{
-    hasBrand: boolean;
+    hasImportedTiktok: boolean;
     hasProduct: boolean;
-    hasCreatedAd: boolean;
+    hasAvatar: boolean;
+    hasCreatedVideo: boolean;
     tasksCompleted: number;
     totalTasks: number;
   } | null>(null);

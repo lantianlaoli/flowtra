@@ -434,12 +434,12 @@ export default function AvatarAdsShowcasePage() {
         </div>
       </section>
 
-      {/* Book Demo CTA - Compact */}
+      {/* Free Credits CTA - Compact */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <BookDemoCTA
           variant="compact"
           title="Want to Try Avatar Ads?"
-          description="Book a demo to explore AI character videos with trial access."
+          description="Tell us what you want to test and claim 100 free credits instantly."
         />
       </section>
 

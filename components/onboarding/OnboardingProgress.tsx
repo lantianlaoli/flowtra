@@ -3,8 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-  BuildingStorefrontIcon,
+  ArrowDownTrayIcon,
   CubeIcon,
+  UserCircleIcon,
   SparklesIcon,
   CheckCircleIcon,
   ArrowRightIcon
@@ -12,9 +13,10 @@ import {
 
 interface OnboardingProgressProps {
   progress: {
-    hasBrand: boolean;
+    hasImportedTiktok: boolean;
     hasProduct: boolean;
-    hasCreatedAd: boolean;
+    hasAvatar: boolean;
+    hasCreatedVideo: boolean;
     tasksCompleted: number;
     totalTasks: number;
   };
@@ -40,12 +42,12 @@ export default function OnboardingProgress({ progress, className = '' }: Onboard
 
   const tasks: Task[] = [
     {
-      id: 'brand',
-      title: 'Create your first brand',
-      description: 'Set up your brand identity and style',
-      completed: progress.hasBrand,
+      id: 'import-tiktok',
+      title: 'Import a TikTok video',
+      description: 'Bring in a reference video to start',
+      completed: progress.hasImportedTiktok,
       targetUrl: '/dashboard/assets',
-      icon: BuildingStorefrontIcon,
+      icon: ArrowDownTrayIcon,
     },
     {
       id: 'product',
@@ -56,20 +58,33 @@ export default function OnboardingProgress({ progress, className = '' }: Onboard
       icon: CubeIcon,
     },
     {
-      id: 'ad',
-      title: 'Generate your first ad',
-      description: 'Create AI-powered video content',
-      completed: progress.hasCreatedAd,
+      id: 'avatar',
+      title: 'Add a person',
+      description: 'Upload a character/avatar image',
+      completed: progress.hasAvatar,
+      targetUrl: '/dashboard/assets',
+      icon: UserCircleIcon,
+    },
+    {
+      id: 'video',
+      title: 'Generate your first video',
+      description: 'Use any feature to create your first output',
+      completed: progress.hasCreatedVideo,
       targetUrl: '/dashboard/competitor-ugc-replication',
       icon: SparklesIcon,
     },
   ];
 
   const progressPercentage = (progress.tasksCompleted / progress.totalTasks) * 100;
+  const firstIncompleteTask = tasks.find((task) => !task.completed) ?? tasks[0];
 
   const handleTaskClick = (task: Task) => {
-    if (!task.completed) {
-      router.push(task.targetUrl);
+    router.push(task.targetUrl);
+  };
+
+  const handleProgressClick = () => {
+    if (firstIncompleteTask) {
+      router.push(firstIncompleteTask.targetUrl);
     }
   };
 
@@ -107,9 +122,13 @@ export default function OnboardingProgress({ progress, className = '' }: Onboard
               className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
             />
           </div>
-          <div className="text-xs text-gray-500 mt-1 text-right">
+          <button
+            type="button"
+            onClick={handleProgressClick}
+            className="text-xs text-gray-500 mt-1 text-right hover:text-gray-900 transition-colors"
+          >
             {Math.round(progressPercentage)}% complete
-          </div>
+          </button>
         </div>
 
         {/* Task List */}
@@ -124,9 +143,9 @@ export default function OnboardingProgress({ progress, className = '' }: Onboard
                 transition={{ delay: index * 0.1 }}
                 onClick={() => handleTaskClick(task)}
                 className={`
-                  flex items-start gap-4 p-4 rounded-lg border transition-all
+                  group flex items-start gap-4 p-4 rounded-lg border transition-all
                   ${task.completed
-                    ? 'bg-green-50 border-green-200'
+                    ? 'bg-green-50 border-green-200 hover:border-green-300 hover:shadow-sm cursor-pointer'
                     : 'bg-gray-50 border-gray-200 hover:border-gray-300 hover:shadow-sm cursor-pointer'
                   }
                 `}
