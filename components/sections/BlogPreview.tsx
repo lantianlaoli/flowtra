@@ -36,14 +36,14 @@ export default function BlogPreview() {
   }, []);
 
   return (
-    <section id="blog" className="py-16 scroll-mt-24">
+    <section id="blog" className="py-14 md:py-16 scroll-mt-24">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900">From the Blog</h2>
-            <p className="text-gray-600 mt-2">Latest tips and case studies about AI ads</p>
+            <h2 className="text-[32px] md:text-[40px] font-bold tracking-tight text-black">From the Blog</h2>
+            <p className="text-[#666666] text-base md:text-lg mt-2">Latest tips and case studies about AI ads</p>
           </div>
-          <Link href="/blog" className="text-gray-900 font-medium hover:underline whitespace-nowrap">
+          <Link href="/blog" className="text-black text-[14px] font-semibold hover:underline whitespace-nowrap">
             View all →
           </Link>
         </div>
@@ -51,7 +51,7 @@ export default function BlogPreview() {
         {(loading || articles.length === 0) ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((index) => (
-              <div key={index} className="bg-gray-50 border border-gray-200 rounded-xl p-6 animate-pulse space-y-4">
+              <div key={index} className="bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl p-5 sm:p-6 animate-pulse space-y-4">
                 <div className="h-44 w-full bg-white/70 rounded-lg" />
                 <div className="h-4 bg-white/80 rounded w-2/3" />
                 <div className="h-4 bg-white/70 rounded w-1/2" />
@@ -67,7 +67,7 @@ export default function BlogPreview() {
               const readingTime = calculateReadingTime(article.content);
               const excerpt = extractExcerpt(article.content, 100);
               return (
-                <article key={article.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                <article key={article.id} className="bg-white border border-[#E5E5E5] rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
                   {article.cover ? (
                     <Image
                       src={article.cover}
@@ -77,12 +77,12 @@ export default function BlogPreview() {
                       className="h-44 w-full object-cover"
                     />
                   ) : (
-                    <div className="h-44 bg-gray-100 flex items-center justify-center">
-                      <span className="text-gray-400 text-sm">No Image</span>
+                    <div className="h-44 bg-[#F7F7F7] flex items-center justify-center">
+                      <span className="text-[#666666] text-sm">No Image</span>
                     </div>
                   )}
-                  <div className="p-5 flex flex-col flex-1">
-                    <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
+                  <div className="p-5 sm:p-6 flex flex-col flex-1">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#666666] mb-2">
                       <div className="flex items-center gap-1">
                         <CalendarIcon className="w-4 h-4" />
                         {publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
@@ -92,12 +92,12 @@ export default function BlogPreview() {
                         {readingTime}
                       </div>
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2 hover:text-gray-700">
+                    <h3 className="text-[20px] font-semibold text-black mb-2 hover:text-[#333333]">
                       <Link href={`/blog/${article.slug}`}>{article.title}</Link>
                     </h3>
-                    <p className="text-gray-600 mb-3 line-clamp-2">{excerpt}</p>
+                    <p className="text-[#666666] text-[15px] mb-3 line-clamp-2 leading-relaxed">{excerpt}</p>
                     <div className="mt-auto">
-                      <Link href={`/blog/${article.slug}`} className="text-gray-900 font-medium hover:underline">
+                      <Link href={`/blog/${article.slug}`} className="text-black text-[14px] font-semibold hover:underline">
                         Read More →
                       </Link>
                     </div>

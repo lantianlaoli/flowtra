@@ -4,23 +4,23 @@ import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
 
 export default function FeaturesSection() {
   return (
-    <section className="py-16 lg:py-24">
-      <div className="text-center max-w-3xl mx-auto mb-16 px-4">
+    <section className="py-12 md:py-16 lg:py-24">
+      <div className="text-center max-w-3xl mx-auto mb-10 md:mb-16 px-4">
         <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">
           Explore Our Features
         </h2>
 
-        <p className="text-lg text-[#666666]">
+        <p className="text-base md:text-lg text-[#666666]">
           Powerful AI tools to transform your product images into professional
           marketing content
         </p>
       </div>
 
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-24">
+        <div className="flex flex-col gap-14 md:gap-24">
           {/* Feature 1: Viral Clone */}
 
-          <article className="flex flex-col lg:flex-row items-center gap-16">
+          <article className="flex flex-col lg:flex-row items-center gap-10 md:gap-16">
             {/* Left (visually right): Content */}
 
             <div className="flex-1 space-y-8">
@@ -119,7 +119,7 @@ export default function FeaturesSection() {
 
           {/* Feature 2: Avatar Ads */}
 
-          <article className="flex flex-col lg:flex-row-reverse items-center gap-16">
+          <article className="flex flex-col lg:flex-row-reverse items-center gap-10 md:gap-16">
             {/* Left: Content */}
 
             <div className="flex-1 space-y-8">
@@ -194,7 +194,7 @@ export default function FeaturesSection() {
 
           {/* Feature 3: Motion Swap */}
 
-          <article className="flex flex-col lg:flex-row items-center gap-16">
+          <article className="flex flex-col lg:flex-row items-center gap-10 md:gap-16">
             {/* Left (visually right): Content */}
 
             <div className="flex-1 space-y-8">

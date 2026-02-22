@@ -66,7 +66,13 @@ export default function Header({
   }, [isDarkMode]);
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-[#E5E5E5] h-[72px] sm:h-[80px] flex items-center">
+    <header
+      className={`sticky top-0 z-50 bg-white border-b border-[#E5E5E5] flex items-center transition-all duration-200 ${
+        compact
+          ? "h-[64px] sm:h-[72px] shadow-[0_8px_20px_rgba(0,0,0,0.04)]"
+          : "h-[72px] sm:h-[80px]"
+      }`}
+    >
       <div className="mx-auto max-w-[1280px] w-full px-4 sm:px-6 lg:px-8 flex items-center">
         {/* Logo - Left */}
         <div className="flex items-center justify-start">
@@ -79,7 +85,7 @@ export default function Header({
               alt="Flowtra AI Logo"
               width={95}
               height={95}
-              className="logo-theme w-[95px] h-[95px]"
+              className="logo-theme w-[86px] h-[86px] sm:w-[95px] sm:h-[95px]"
             />
           </Link>
         </div>
@@ -227,7 +233,7 @@ export default function Header({
           </nav>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <SignedIn>
               <Link
                 href="/dashboard"
@@ -241,8 +247,11 @@ export default function Header({
               <>
                 <SignedOut>
                   <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                    <button className="bg-black text-white text-[14px] font-medium px-6 py-2.5 rounded-lg hover:bg-[#2a2a2a] transition-all cursor-pointer">
-                      Sign up for 100 credits
+                    <button className="h-10 sm:h-11 bg-black text-white text-[12px] sm:text-[14px] font-medium px-3 sm:px-5 rounded-lg hover:bg-[#2a2a2a] transition-all cursor-pointer whitespace-nowrap inline-flex items-center">
+                      <span className="hidden sm:inline">
+                        Sign up · Get 100 free credits
+                      </span>
+                      <span className="sm:hidden">Get 100 Credits</span>
                     </button>
                   </SignInButton>
                 </SignedOut>
@@ -270,7 +279,7 @@ export default function Header({
                 type="button"
                 onClick={() => setIsDarkMode((prev) => !prev)}
                 aria-label="Toggle light and dark mode"
-                className="bg-[#F5F5F5] text-[#333333] hover:bg-[#EBEBEB] hover:text-black px-3 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
+                className="h-10 sm:h-11 bg-[#F5F5F5] text-[#333333] hover:bg-[#EBEBEB] hover:text-black px-3 sm:px-3.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
               >
                 {isDarkMode ? (
                   <Sun className="w-4 h-4" />

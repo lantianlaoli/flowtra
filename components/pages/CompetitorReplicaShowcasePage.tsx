@@ -183,17 +183,17 @@ export default function CompetitorReplicaShowcasePage() {
       <Header />
 
       {/* Hero Section */}
-      <section className="pt-24 pb-16 lg:pt-32 lg:pb-24">
+      <section className="pt-20 pb-12 md:pb-16 lg:pt-28 lg:pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <div className="inline-block px-4 py-2 bg-black text-white rounded-full mb-6">
                 <span className="text-sm font-semibold">Viral Clone Demo</span>
               </div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-6 leading-tight">
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-black mb-6 leading-tight">
                 Clone a Viral Video
               </h1>
-              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+              <p className="text-base sm:text-lg text-gray-600 mb-8 leading-relaxed">
                 Flowtra mapped this entire viral ad beat-for-beat, swapped the product, and delivered a launch-ready clone in minutes. Same structure. Same energy. Your brand.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
@@ -255,7 +255,7 @@ export default function CompetitorReplicaShowcasePage() {
       </section>
 
       {/* Tutorial Section (New) */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="grid lg:grid-cols-2 gap-12 items-center">
               {/* Left: Steps */}
@@ -322,7 +322,7 @@ export default function CompetitorReplicaShowcasePage() {
                   className="tiktok-embed"
                   cite="https://www.tiktok.com/@laolilantian/video/7600702812682587400?lang=en"
                   data-video-id="7600702812682587400"
-                  style={{ maxWidth: '605px', minWidth: '325px' }}
+                  style={{ maxWidth: '605px', minWidth: '280px' }}
                 >
                   <section>
                     <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">
@@ -353,7 +353,7 @@ export default function CompetitorReplicaShowcasePage() {
       </section>
 
       {/* AI Analysis Demo Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-start">
 
@@ -385,8 +385,8 @@ export default function CompetitorReplicaShowcasePage() {
                   </div>
 
                   <div className="space-y-3">
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1 !h-14">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                           <LinkIcon className="w-5 h-5 text-gray-400" />
                         </div>
@@ -395,10 +395,10 @@ export default function CompetitorReplicaShowcasePage() {
                           placeholder="Paste TikTok video URL..."
                           value={tiktokUrl}
                           onChange={handleUrlChange}
-                          className={`w-full pl-12 pr-10 py-3 border rounded-lg text-base font-medium placeholder:text-gray-400 bg-white focus:ring-0 focus:outline-none transition-all shadow-sm focus:shadow-md ${
+                          className={`w-full !h-14 pl-12 pr-10 border-2 rounded-xl text-base font-medium placeholder:text-gray-400 bg-white focus:ring-0 focus:outline-none transition-all shadow-sm focus:shadow-md ${
                             validationError 
                               ? 'border-red-300 focus:border-red-400' 
-                              : 'border-[#E5E5E5] focus:border-[#CCCCCC]'
+                              : 'border-[#D9D9D9] focus:border-black/50'
                           }`}
                         />
                         {/* Help Tooltip */}
@@ -417,9 +417,10 @@ export default function CompetitorReplicaShowcasePage() {
                       <button
                         onClick={handleAnalyzeTikTok}
                         disabled={!tiktokUrl.trim() || !!validationError}
-                        className="flex-shrink-0 w-12 h-[50px] inline-flex items-center justify-center bg-black text-white rounded-lg hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:border disabled:cursor-not-allowed shadow-sm"
+                        className="flex-shrink-0 w-full sm:w-12 h-14 inline-flex items-center justify-center gap-2 bg-black text-white rounded-xl border-2 border-black hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:cursor-not-allowed shadow-sm"
                         aria-label="Analyze TikTok Video"
                       >
+                        <span className="sm:hidden font-semibold">Analyze</span>
                         <ArrowRightIcon className="w-5 h-5" />
                       </button>
                     </div>
@@ -454,7 +455,7 @@ export default function CompetitorReplicaShowcasePage() {
                   <div className="max-h-[400px] overflow-y-auto p-0">
                     {demoAnalysisData.shots.map((shot) => (
                       <div key={shot.shot_id} className="border-b border-gray-100 last:border-0 p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex gap-4 mb-2">
+                        <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 mb-2">
                            <span className="text-xs font-bold text-gray-400 w-16 shrink-0 font-sans">
                              {shot.start_time} - {shot.end_time}
                            </span>
@@ -462,7 +463,7 @@ export default function CompetitorReplicaShowcasePage() {
                              Shot {shot.shot_id}
                            </span>
                         </div>
-                        <div className="grid gap-2 pl-20">
+                        <div className="grid gap-2 pl-0 sm:pl-20">
                            <div>
                              <span className="text-gray-400 text-[10px] uppercase tracking-wide font-sans block mb-1">Action</span>
                              <p className="text-gray-800 leading-snug">{shot.action}</p>
@@ -483,7 +484,7 @@ export default function CompetitorReplicaShowcasePage() {
             </div>
 
             {/* Right: Video */}
-            <div className="sticky top-24">
+            <div className="lg:sticky lg:top-24">
                 <div className="relative aspect-[9/16] w-full max-w-sm mx-auto bg-black rounded-[2rem] overflow-hidden shadow-2xl border-4 border-black">
                     <LazyVideoPlayer
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_parse.mp4"
@@ -502,7 +503,7 @@ export default function CompetitorReplicaShowcasePage() {
       </section>
 
       {/* Segment Editor Demo Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
               
@@ -596,7 +597,7 @@ export default function CompetitorReplicaShowcasePage() {
       </section>
 
       {/* Key Features Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
@@ -631,7 +632,7 @@ export default function CompetitorReplicaShowcasePage() {
       </section>
 
       {/* Use Cases Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">

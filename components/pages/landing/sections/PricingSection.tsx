@@ -20,13 +20,13 @@ export default function PricingSection({
   const proPricing = PRO_PRICE;
 
   return (
-    <section id="pricing" className="py-20">
+    <section id="pricing" className="py-14 md:py-20">
       {showTitle && (
-        <div className="text-center mb-16 px-4">
+        <div className="text-center mb-10 md:mb-16 px-4">
           <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">
             Choose Your Plan
           </h2>
-          <p className="text-lg text-[#666666] mb-6">
+          <p className="text-base md:text-lg text-[#666666] mb-6">
             Monthly subscription with automatic credit reset
           </p>
         </div>
@@ -77,7 +77,7 @@ export default function PricingSection({
         {/* Lite Plan */}
 
         <article
-          className="bg-white rounded-xl border border-[#E5E5E5] p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col"
+          className="bg-white rounded-xl border border-[#E5E5E5] p-6 sm:p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col"
           itemScope
           itemType="https://schema.org/Offer"
         >
@@ -156,7 +156,7 @@ export default function PricingSection({
         {/* Basic Plan (Recommended) */}
 
         <article
-          className="relative bg-white rounded-xl border-2 border-black p-8 shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col"
+          className="relative bg-white rounded-xl border-2 border-black p-6 sm:p-8 shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col"
           itemScope
           itemType="https://schema.org/Offer"
         >
@@ -226,7 +226,7 @@ export default function PricingSection({
         {/* Pro Plan */}
 
         <article
-          className="bg-white rounded-xl border border-[#E5E5E5] p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col"
+          className="bg-white rounded-xl border border-[#E5E5E5] p-6 sm:p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col"
           itemScope
           itemType="https://schema.org/Offer"
         >

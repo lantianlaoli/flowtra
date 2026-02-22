@@ -75,13 +75,13 @@ export default function MotionSwapShowcasePage() {
       <Header />
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 lg:py-24">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div className="text-left space-y-6">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black leading-tight">
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-black leading-tight">
               AI Motion Swap
             </h1>
-            <p className="text-xl text-gray-600 leading-relaxed">
+            <p className="text-base sm:text-lg text-gray-600 leading-relaxed">
               Clone viral ads in seconds. Just enter a creator&apos;s name and our AI swaps the person and product while keeping the exact movements, actions, and background that made it go viral.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
@@ -142,7 +142,7 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* Tutorial Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left: Steps */}
@@ -195,7 +195,7 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* Feature 1: Creator Input */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left: Video */}
@@ -259,7 +259,7 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* Feature 2: Frame Editing */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left: Text */}
@@ -323,7 +323,7 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* Before/After Comparison Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
@@ -376,7 +376,7 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* Key Features Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
@@ -414,7 +414,7 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* Use Cases Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
@@ -438,13 +438,13 @@ export default function MotionSwapShowcasePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl border-2 border-gray-200 p-12 space-y-6">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black">
               Clone Your First Viral Ad
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-base md:text-xl text-gray-600 max-w-2xl mx-auto">
               Stop guessing what works. Clone proven viral formats and swap in your product.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">

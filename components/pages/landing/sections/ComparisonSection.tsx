@@ -2,10 +2,10 @@ import { Check } from "lucide-react";
 
 export default function ComparisonSection() {
   return (
-    <section className="py-20 lg:py-24 bg-white">
-      <div className="text-center mb-16 px-4">
+    <section className="py-14 md:py-20 lg:py-24 bg-white">
+      <div className="text-center mb-10 md:mb-16 px-4">
         <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">Arcads Alternative</h2>
-        <p className="text-lg text-[#666666]">Discover a superior alternative for your video generation needs</p>
+        <p className="text-base md:text-lg text-[#666666]">Discover a superior alternative for your video generation needs</p>
       </div>
 
       <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -83,9 +83,9 @@ export default function ComparisonSection() {
         </div>
 
         {/* Mobile Card View */}
-        <div className="lg:hidden space-y-8">
+        <div className="lg:hidden space-y-5">
           {/* Flowtra Card */}
-          <div className="bg-white rounded-xl border-2 border-black p-8 space-y-6 relative shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
+          <div className="bg-white rounded-xl border-2 border-black p-6 sm:p-8 space-y-5 relative shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
              <div className="absolute top-0 right-0 bg-black text-white text-[10px] font-bold px-4 py-1.5 uppercase tracking-widest rounded-bl-xl">
               BEST VALUE
             </div>
@@ -98,7 +98,7 @@ export default function ComparisonSection() {
               </div>
             </div>
 
-            <div className="space-y-6 pt-6 border-t border-[#E5E5E5]">
+            <div className="space-y-5 pt-5 border-t border-[#E5E5E5]">
               <div>
                 <h4 className="text-[12px] font-bold text-black uppercase tracking-wider mb-3">Included</h4>
                 <ul className="text-[14px] text-[#666666] space-y-2">
@@ -118,24 +118,24 @@ export default function ComparisonSection() {
                   ))}
                 </ul>
               </div>
-            </div>
+           </div>
           </div>
 
            {/* Arcads Card */}
-           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+           <div className="bg-white rounded-xl border border-[#E5E5E5] p-6 sm:p-7 space-y-5">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="text-xl font-medium text-gray-900">Arcads</h3>
-                <div className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-900/5 text-gray-700">
+                <h3 className="text-[20px] font-semibold text-black">Arcads</h3>
+                <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#F7F7F7] text-black border border-[#E5E5E5]">
                   Creator: $220/mo
                 </div>
               </div>
             </div>
             
-            <div className="space-y-4 pt-4 border-t border-gray-100">
+            <div className="space-y-4 pt-4 border-t border-[#E5E5E5]">
               <div>
-                <h4 className="text-sm text-gray-600 mb-2">Included</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
+                <h4 className="text-[12px] font-bold text-black uppercase tracking-wider mb-3">Included</h4>
+                <ul className="text-[14px] text-[#666666] space-y-2">
                   {[
                     "20 credits per month",
                     "300 Natural AI Actors",
@@ -144,7 +144,7 @@ export default function ComparisonSection() {
                     "Play videos up to 120 sec",
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-gray-900 flex-shrink-0" />
+                      <Check className="w-4 h-4 text-black flex-shrink-0" />
                       <span>{item}</span>
                     </li>
                   ))}

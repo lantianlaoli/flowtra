@@ -29,21 +29,21 @@ export default function ToolsPage() {
     <>
       <Header />
       <main className="bg-white">
-        <section className="mx-auto max-w-[980px] px-6 py-20">
+        <section className="mx-auto max-w-[980px] px-4 sm:px-6 py-14 md:py-20">
           <div className="space-y-4">
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">Tools</p>
-            <h1 className="text-4xl sm:text-5xl font-semibold text-black tracking-tight">Marketing Utilities</h1>
+            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">Marketing Utilities</h1>
             <p className="max-w-2xl text-base text-[#666666]">
               Fast tools for campaign operations and performance analysis.
             </p>
           </div>
 
-          <div className="mt-12 grid gap-5 sm:grid-cols-2">
+          <div className="mt-8 sm:mt-12 grid gap-4 sm:gap-5 sm:grid-cols-2">
             {tools.map(({ href, title, description, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
-                className="group rounded-2xl border border-[#E5E5E5] bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_30px_70px_rgba(0,0,0,0.1)]"
+                className="group rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-6 shadow-[0_24px_60px_rgba(0,0,0,0.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_30px_70px_rgba(0,0,0,0.1)]"
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F7F7F7]">
                   <Icon className="h-5 w-5 text-black" />

@@ -22,7 +22,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
   return (
     <section
       id="hero"
-      className="grid lg:grid-cols-5 items-center py-8 sm:py-10 lg:py-12 gap-6 sm:gap-8 lg:gap-12"
+      className="grid lg:grid-cols-5 items-center py-6 sm:py-10 lg:py-12 gap-6 sm:gap-8 lg:gap-12"
     >
       {/* Left Content */}
       <div className="lg:col-span-3 space-y-5 sm:space-y-6 lg:space-y-8">
@@ -41,7 +41,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
           </div>
         </div>
 
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-black leading-tight tracking-[-0.02em]">
+        <h1 className="text-[34px] sm:text-5xl lg:text-6xl font-bold text-black leading-[1.08] tracking-[-0.02em]">
           Turn{" "}
           <span className="underline decoration-[#E5E5E5] underline-offset-8">
             Viral Videos
@@ -49,32 +49,32 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
           Into Your Own
         </h1>
 
-        <p className="text-xl text-[#666666] leading-relaxed max-w-lg">
+        <p className="text-base sm:text-xl text-[#666666] leading-relaxed max-w-lg">
           For TikTok dropshipping, small businesses, and local stores.
         </p>
 
         {/* Selling points */}
-        <div className="mt-4 space-y-3 text-[#666666] text-[16px]">
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-black" />
+        <div className="mt-4 space-y-3 text-[#666666] text-[15px] sm:text-[16px]">
+          <div className="flex items-start gap-2">
+            <Check className="w-4 h-4 text-black mt-0.5 shrink-0" />
             <span>Clone viral TikTok UGC in minutes</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-black" />
+          <div className="flex items-start gap-2">
+            <Check className="w-4 h-4 text-black mt-0.5 shrink-0" />
             <span>Swap people, products, or pets with your own</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-black" />
+          <div className="flex items-start gap-2">
+            <Check className="w-4 h-4 text-black mt-0.5 shrink-0" />
             <span>
               Videos from $2.25 per minute (150x cheaper than hiring UGC
               creators)
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-black" />
+          <div className="flex items-start gap-2">
+            <Check className="w-4 h-4 text-black mt-0.5 shrink-0" />
             <span>Supports English, Spanish, and over 10 other languages</span>
           </div>
         </div>
@@ -99,7 +99,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         {activatedUserCount > 0 && (
           <div className="pt-3" aria-label="Social proof">
             <div
-              className="inline-flex min-w-[240px] items-center gap-3 rounded-xl px-4 py-2
+              className="inline-flex w-full sm:w-auto items-center gap-3 rounded-xl px-4 py-2
                          bg-[#F7F7F7] border border-[#E5E5E5] transition-colors"
             >
               {/* Avatars group */}
@@ -123,7 +123,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
               </div>
               {/* Single-line copy for harmony with avatars */}
               <span
-                className="text-sm font-semibold text-black whitespace-nowrap"
+                className="text-xs sm:text-sm font-semibold text-black whitespace-normal sm:whitespace-nowrap leading-relaxed"
                 title={`${activatedUserCount.toLocaleString("en-US")} small business owners trust Flowtra`}
               >
                 {`Trusted by `}
@@ -139,7 +139,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
 
       {/* Right Demo - Comparison Layout */}
       <div className="lg:col-span-2 flex flex-col items-center justify-center">
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full max-w-[480px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full max-w-[480px]">
           {/* Reference Video */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">

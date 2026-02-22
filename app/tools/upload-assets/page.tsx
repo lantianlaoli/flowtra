@@ -197,10 +197,10 @@ export default function ToolsPage() {
     <>
       <Header />
       <main className="bg-white">
-        <section className="mx-auto max-w-[980px] px-6 py-20 space-y-16">
+        <section className="mx-auto max-w-[980px] px-4 sm:px-6 py-14 md:py-20 space-y-10 md:space-y-16">
           <div className="space-y-4">
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">Tools</p>
-            <h1 className="text-4xl sm:text-5xl font-semibold text-black tracking-tight">
+            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">
               Upload Assets to URL
             </h1>
             <p className="text-base text-[#666666] max-w-2xl">
@@ -208,7 +208,7 @@ export default function ToolsPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-[#E5E5E5] bg-white p-8 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
+          <div className="rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-8 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
             <div className="flex flex-col gap-6">
               <div className="flex items-start gap-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F7F7F7]">
@@ -290,7 +290,7 @@ export default function ToolsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#E5E5E5] bg-white p-8 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
+          <div className="rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-8 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
             <div className="flex flex-col gap-6">
               <div className="flex items-start gap-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F7F7F7]">

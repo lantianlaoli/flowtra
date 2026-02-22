@@ -99,10 +99,10 @@ export default function ModelPricingSection() {
   ];
 
   return (
-    <section id="model-pricing" className="scroll-mt-24 px-4 py-20 md:px-6 md:py-24">
-      <div className="mb-14 text-center">
+    <section id="model-pricing" className="scroll-mt-24 px-4 py-14 md:px-6 md:py-24">
+      <div className="mb-10 md:mb-14 text-center">
         <h2 className="mb-4 text-[32px] font-bold tracking-tight text-black md:text-[40px]">Price details</h2>
-        <p className="text-lg text-[#666666] max-w-2xl mx-auto">
+        <p className="text-base md:text-lg text-[#666666] max-w-2xl mx-auto">
           Transparent pricing for all models. Choose the right model for your needs.
         </p>
       </div>
@@ -205,25 +205,25 @@ export default function ModelPricingSection() {
           return (
             <article
               key={model.name}
-              className="rounded-2xl border border-[#E5E5E5] bg-white p-5"
+              className="rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-6"
             >
               {/* Header */}
               <div className="flex items-center gap-3 mb-4">
                 <div className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] p-2">
-                  <Icon className="h-6 w-6 text-gray-900" />
+                  <Icon className="h-6 w-6 text-black" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-semibold text-gray-900">
+                    <h3 className="text-base font-semibold text-black">
                       {model.name}
                     </h3>
                     {model.badge && (
-                      <span className="bg-gray-900 text-white text-xs font-medium px-2 py-0.5 rounded">
+                      <span className="bg-black text-white text-[10px] font-semibold uppercase tracking-[0.08em] px-2 py-0.5 rounded">
                         {model.badge}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-600 mt-0.5">
+                  <p className="text-sm text-[#666666] mt-0.5">
                     {model.description}
                   </p>
                 </div>
@@ -234,11 +234,11 @@ export default function ModelPricingSection() {
                 {model.pricingOptions.map((option, idx) => (
                   <div key={idx} className="rounded-xl border border-[#EDEDED] bg-[#FAFAFA] p-3.5">
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-sm font-medium text-gray-900">
+                      <span className="text-sm font-medium text-black">
                         Generation Cost
                       </span>
                       <div className="text-right">
-                        <span className="text-sm font-bold text-gray-900 block">
+                        <span className="text-sm font-bold text-black block">
                           {option.comingSoon
                             ? 'Coming soon'
                             : option.credits === 0
@@ -246,19 +246,19 @@ export default function ModelPricingSection() {
                             : `$${(option.credits * CREDIT_TO_USD).toFixed(2)}`}
                         </span>
                         {!option.comingSoon && option.credits !== 0 && (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-[#666666]">
                             {option.unit}
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center justify-between text-xs text-[#666666]">
                       <span>Resolution</span>
                       <div className="flex flex-wrap justify-end gap-1">
                         {model.quality.map((item) => (
                           <span
                             key={item}
-                            className="text-[10px] font-semibold text-gray-800 uppercase tracking-wide border border-gray-200 bg-white px-2 py-0.5 rounded-full"
+                            className="text-[10px] font-semibold text-black uppercase tracking-wide border border-[#E5E5E5] bg-white px-2 py-0.5 rounded-full"
                           >
                             {item}
                           </span>
