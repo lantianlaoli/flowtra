@@ -46,13 +46,13 @@ export default function AvatarAdsShowcasePage() {
       <Header />
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 lg:py-24">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div className="text-left space-y-6">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black leading-tight">
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-black leading-tight">
               AI Character-Driven Video Ads
             </h1>
-            <p className="text-xl text-gray-600 leading-relaxed">
+            <p className="text-base sm:text-lg text-gray-600 leading-relaxed">
               Bring your products to life with realistic AI characters. Create engaging video advertisements where custom characters showcase your products and deliver your message.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
@@ -89,7 +89,7 @@ export default function AvatarAdsShowcasePage() {
       </section>
 
       {/* Tutorial Section (New) */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="grid lg:grid-cols-2 gap-12 items-center">
               {/* Left: Steps */}
@@ -147,7 +147,7 @@ export default function AvatarAdsShowcasePage() {
                   className="tiktok-embed"
                   cite="https://www.tiktok.com/@laolilantian/video/7600701595625688327?lang=en"
                   data-video-id="7600701595625688327"
-                  style={{ maxWidth: '605px', minWidth: '325px' }}
+                  style={{ maxWidth: '605px', minWidth: '280px' }}
                 >
                   <section>
                     <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a> Learn to create viral UGC videos faster. Set up your brand in Assets, choose an avatar, and let AI script the rest. Preview and refine for perfect results. <a title="aiavatar" target="_blank" href="https://www.tiktok.com/tag/aiavatar?refer=embed">#AIAvatar</a> <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a> <a title="contentcreation" target="_blank" href="https://www.tiktok.com/tag/contentcreation?refer=embed">#ContentCreation</a> <a target="_blank" title="♬ original sound  - Lantian laoli" href="https://www.tiktok.com/music/original-sound-Lantian-laoli-7588829377820527361?refer=embed">♬ original sound  - Lantian laoli</a>
@@ -160,7 +160,7 @@ export default function AvatarAdsShowcasePage() {
       </section>
 
       {/* Feature Configuration Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="grid lg:grid-cols-2 gap-12 items-center">
               {/* Left: Text */}
@@ -231,7 +231,7 @@ export default function AvatarAdsShowcasePage() {
       </section>
 
       {/* Character Selection Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="grid lg:grid-cols-2 gap-12 items-center">
               {/* Left: Video (Alternating layout) */}
@@ -286,7 +286,7 @@ export default function AvatarAdsShowcasePage() {
       </section>
 
       {/* Advanced Prompt Control Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="grid lg:grid-cols-2 gap-12 items-center">
               {/* Left: Text */}
@@ -341,7 +341,7 @@ export default function AvatarAdsShowcasePage() {
       </section>
 
       {/* Key Features Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
@@ -379,7 +379,7 @@ export default function AvatarAdsShowcasePage() {
       </section>
 
       {/* Use Cases Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
@@ -412,13 +412,13 @@ export default function AvatarAdsShowcasePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-12 md:py-16 lg:py-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl border-2 border-gray-200 p-12 space-y-6">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black">
               Create Your First Character Ad
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-base md:text-xl text-gray-600 max-w-2xl mx-auto">
               Join businesses using AI characters to create more engaging and personal video advertisements
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
@@ -434,12 +434,12 @@ export default function AvatarAdsShowcasePage() {
         </div>
       </section>
 
-      {/* Book Demo CTA - Compact */}
+      {/* Free Credits CTA - Compact */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <BookDemoCTA
           variant="compact"
           title="Want to Try Avatar Ads?"
-          description="Book a demo to explore AI character videos with trial access."
+          description="Tell us what you want to test and claim 100 free credits instantly."
         />
       </section>
 

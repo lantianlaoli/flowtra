@@ -4,7 +4,6 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { FaTiktok } from 'react-icons/fa6';
 import { Kling } from '@lobehub/icons';
-import { BOOKING_URL } from '@/lib/booking';
 
 interface FounderCardProps {
   variant?: 'compact' | 'hero' | 'featured';
@@ -56,9 +55,7 @@ export default function FounderCard({
 
           {/* Content - compact */}
           <a
-            href={BOOKING_URL}
-            target="_blank"
-            rel="noopener noreferrer"
+            href="#pricing"
             className="text-[#37352f] font-medium hover:underline"
           >
             Book a demo

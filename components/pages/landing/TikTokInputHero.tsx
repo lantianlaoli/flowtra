@@ -13,7 +13,6 @@ export default function TikTokInputHero() {
   const [tiktokUrl, setTiktokUrl] = useState('');
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [selectedTikTokUrl, setSelectedTikTokUrl] = useState('');
-  const [hasUsedFreeAnalysis, setHasUsedFreeAnalysis] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const isValidTikTokUrl = (url: string): boolean => {
@@ -30,7 +29,7 @@ export default function TikTokInputHero() {
   useEffect(() => {
     const analysisUsed = sessionStorage.getItem('tiktok_analysis_used');
     if (analysisUsed) {
-      setHasUsedFreeAnalysis(true);
+      return;
     }
   }, []);
 
@@ -76,20 +75,20 @@ export default function TikTokInputHero() {
   return (
     <>
       <div className="w-full max-w-lg">
-        <div className="flex gap-2 h-14">
-          <div className="relative flex-1 h-full">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1 !h-16 sm:!h-14">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <LinkIcon className="w-5 h-5 text-gray-400" />
+              <LinkIcon className="w-6 h-6 sm:w-5 sm:h-5 text-gray-400" />
             </div>
             <input
               type="url"
               placeholder="Paste TikTok URL..."
               value={tiktokUrl}
               onChange={handleUrlChange}
-              className={`w-full h-full pl-12 pr-10 border rounded-lg text-base font-medium placeholder:text-gray-400 focus:ring-0 focus:outline-none transition-all shadow-sm ${
+              className={`w-full !h-16 sm:!h-14 pl-14 sm:pl-12 pr-11 border-2 rounded-xl text-base font-medium placeholder:text-gray-400 focus:ring-0 focus:outline-none transition-all shadow-sm ${
                 validationError 
                   ? 'border-red-300 focus:border-red-400 bg-white' 
-                  : 'border-[#E5E5E5] focus:border-[#CCCCCC] bg-white'
+                  : 'border-[#D9D9D9] focus:border-black/50 bg-white'
               }`}
             />
             {/* Valid URL Flood Animation */}
@@ -109,7 +108,7 @@ export default function TikTokInputHero() {
             )}
             {/* Help Tooltip */}
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
+              <HelpCircle className="w-6 h-6 sm:w-5 sm:h-5 text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
               <div className="absolute bottom-full right-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 leading-relaxed">
                 <p className="font-semibold mb-1">How to get a video URL:</p>
                 <ol className="list-decimal pl-4 space-y-1 text-gray-300">
@@ -126,7 +125,7 @@ export default function TikTokInputHero() {
           <button
             onClick={handleAnalyzeTikTok}
             disabled={!isUrlValid}
-            className="flex-shrink-0 px-6 h-14 inline-flex items-center justify-center gap-2 bg-black text-white rounded-lg hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:border disabled:cursor-not-allowed shadow-sm cursor-pointer"
+            className="w-full sm:w-auto flex-shrink-0 px-6 h-16 sm:h-14 inline-flex items-center justify-center gap-2 bg-black text-white rounded-xl hover:bg-black/90 active:scale-[0.98] transition-all border-2 border-black disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:cursor-not-allowed shadow-sm cursor-pointer"
             aria-label="Analyze TikTok Video"
           >
             <span className="font-semibold">Analyze</span>
@@ -136,7 +135,7 @@ export default function TikTokInputHero() {
         
         {/* Validation Error Message */}
         {validationError && (
-          <p className="text-sm text-red-500 pl-1 mt-2 animate-in fade-in slide-in-from-top-1 duration-200 absolute">
+          <p className="text-sm text-red-500 pl-1 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
             {validationError}
           </p>
         )}
@@ -151,7 +150,6 @@ export default function TikTokInputHero() {
             used: true,
             timestamp: Date.now()
           }));
-          setHasUsedFreeAnalysis(true);
           sessionStorage.setItem('showcase_tiktok_analysis', JSON.stringify({
             ...result,
             tiktokUrl: selectedTikTokUrl

@@ -132,10 +132,10 @@ export default function RoasCalculatorPage() {
     <>
       <Header />
       <main className="bg-white">
-        <section className="mx-auto max-w-[1040px] px-6 py-20">
+        <section className="mx-auto max-w-[1040px] px-4 sm:px-6 py-14 md:py-20">
           <div className="space-y-4">
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">Tools</p>
-            <h1 className="text-4xl sm:text-5xl font-semibold text-black tracking-tight">
+            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">
               TikTok Dropshipping ROAS Calculator
             </h1>
             <p className="max-w-2xl text-base text-[#666666]">
@@ -144,8 +144,8 @@ export default function RoasCalculatorPage() {
             </p>
           </div>
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-[1.05fr_1fr]">
-            <section className="rounded-2xl border border-[#E5E5E5] bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
+          <div className="mt-8 sm:mt-10 grid gap-5 sm:gap-6 lg:grid-cols-[1.05fr_1fr]">
+            <section className="rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-6 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F7F7F7]">
                   <ShoppingBag className="h-5 w-5 text-black" />
@@ -231,7 +231,7 @@ export default function RoasCalculatorPage() {
             </section>
 
             <section className="space-y-4">
-              <article className="rounded-2xl border border-[#E5E5E5] bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
+              <article className="rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-6 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
                 <p className="text-sm uppercase tracking-[0.2em] text-[#666666]">Core Result</p>
                 <div className="mt-3 flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-black" />

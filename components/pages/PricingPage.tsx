@@ -143,23 +143,6 @@ export default function PricingPage() {
                   <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
                   <span className="text-gray-600">TikTok publishing support</span>
                 </li>
-                <li className="flex items-start gap-3 pt-2 border-t border-gray-200">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full mt-1.5"></div>
-                  <div className="flex-1">
-                    <span className="text-gray-900 font-semibold">Bonus: TikTok Clone n8n Workflow</span>
-                    <div className="text-xs text-gray-600 mt-0.5">
-                      ($39.9 value) •{' '}
-                      <a
-                        href="https://lantianlaoli.gumroad.com/l/ivzajh"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-900 underline hover:no-underline"
-                      >
-                        Preview
-                      </a>
-                    </div>
-                  </div>
-                </li>
               </ul>
               <PricingButton packageName="lite" />
             </div>

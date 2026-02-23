@@ -114,13 +114,13 @@ export async function GET() {
     stats.hoursSaved = completedCount * HOURS_PER_VIDEO;
 
     // Query onboarding progress data
-    const { data: brands, error: brandsError } = await supabase
-      .from('user_brands')
+    const { data: tiktokVideos, error: tiktokVideosError } = await supabase
+      .from('creator_source_videos')
       .select('id')
       .eq('user_id', userId);
 
-    if (brandsError) {
-      console.error('❌ Error querying user_brands:', brandsError);
+    if (tiktokVideosError) {
+      console.error('❌ Error querying creator_source_videos:', tiktokVideosError);
     }
 
     const { data: products, error: productsError } = await supabase
@@ -132,18 +132,31 @@ export async function GET() {
       console.error('❌ Error querying user_products:', productsError);
     }
 
+    const { data: avatars, error: avatarsError } = await supabase
+      .from('user_avatars')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (avatarsError) {
+      console.error('❌ Error querying user_avatars:', avatarsError);
+    }
+
     // Calculate onboarding progress
-    const hasBrand = (brands?.length ?? 0) > 0;
+    // Schema verified via Supabase MCP (2026-02-22):
+    // creator_source_videos.user_id, user_products.user_id, user_avatars.user_id
+    const hasImportedTiktok = (tiktokVideos?.length ?? 0) > 0;
     const hasProduct = (products?.length ?? 0) > 0;
-    const hasCreatedAd = stats.totalVideos > 0;
-    const tasksCompleted = [hasBrand, hasProduct, hasCreatedAd].filter(Boolean).length;
+    const hasAvatar = (avatars?.length ?? 0) > 0;
+    const hasCreatedVideo = stats.totalVideos > 0;
+    const tasksCompleted = [hasImportedTiktok, hasProduct, hasAvatar, hasCreatedVideo].filter(Boolean).length;
 
     const onboardingProgress = {
-      hasBrand,
+      hasImportedTiktok,
       hasProduct,
-      hasCreatedAd,
+      hasAvatar,
+      hasCreatedVideo,
       tasksCompleted,
-      totalTasks: 3
+      totalTasks: 4
     };
 
     return NextResponse.json({
@@ -165,11 +178,12 @@ export async function GET() {
     };
 
     const fallbackProgress = {
-      hasBrand: false,
+      hasImportedTiktok: false,
       hasProduct: false,
-      hasCreatedAd: false,
+      hasAvatar: false,
+      hasCreatedVideo: false,
       tasksCompleted: 0,
-      totalTasks: 3
+      totalTasks: 4
     };
 
     return NextResponse.json({

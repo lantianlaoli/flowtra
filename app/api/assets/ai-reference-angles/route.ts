@@ -7,7 +7,8 @@ const KIE_UPLOAD_ENDPOINT = 'https://kieai.redpandaai.co/api/file-base64-upload'
 const KIE_CREATE_TASK_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_RECORD_INFO_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/recordInfo';
 
-type AssetType = 'product' | 'avatar';
+type AssetType = 'product' | 'avatar' | 'universal';
+type SourceAspect = 'portrait' | 'square' | 'landscape';
 
 type AnglePreset = {
   key: string;
@@ -55,8 +56,32 @@ const ANGLE_PRESETS: Record<AssetType, AnglePreset[]> = {
       prompt:
         'Generate a photorealistic side-profile portrait of the same person. Preserve identity, facial features, hairstyle, skin tone, and clothing style. Clean background, natural lighting.'
     }
+  ],
+  universal: [
+    {
+      key: 'front_left_45',
+      label: '45° Front Left',
+      prompt:
+        'Generate a photorealistic image of the same subject/object/entity from a 45-degree front-left angle. Preserve identity and all defining visual traits: shape, proportions, colors, textures, fur/material details, and distinguishing marks. Do not add any new objects, products, logos, text, packaging, accessories, or props. Keep a clean background and high detail.'
+    },
+    {
+      key: 'front_right_45',
+      label: '45° Front Right',
+      prompt:
+        'Generate a photorealistic image of the same subject/object/entity from a 45-degree front-right angle. Preserve identity and all defining visual traits: shape, proportions, colors, textures, fur/material details, and distinguishing marks. Do not add any new objects, products, logos, text, packaging, accessories, or props. Keep a clean background and high detail.'
+    },
+    {
+      key: 'back_view',
+      label: 'Back View',
+      prompt:
+        'Generate a photorealistic centered back-view image of the same subject/object/entity. Preserve identity and all defining visual traits: shape, proportions, colors, textures, fur/material details, and distinguishing marks. Do not add any new objects, products, logos, text, packaging, accessories, or props. Keep a clean background and high detail.'
+    }
   ]
 };
+
+function getUniversalImageSize(sourceAspect?: SourceAspect): '9:16' | '1:1' {
+  return sourceAspect === 'portrait' ? '9:16' : '1:1';
+}
 
 function getImageExtensionFromDataUrl(dataUrl: string): string {
   const match = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,/i);
@@ -104,7 +129,16 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const imageDataUrl = typeof body?.imageDataUrl === 'string' ? body.imageDataUrl : '';
-    const assetType = body?.assetType === 'avatar' ? 'avatar' : body?.assetType === 'product' ? 'product' : null;
+    const assetType = body?.assetType === 'avatar'
+      ? 'avatar'
+      : body?.assetType === 'product'
+        ? 'product'
+        : body?.assetType === 'universal'
+          ? 'universal'
+          : null;
+    const sourceAspect = body?.sourceAspect === 'portrait' || body?.sourceAspect === 'square' || body?.sourceAspect === 'landscape'
+      ? body.sourceAspect
+      : undefined;
     const parsedExistingCount = Number(body?.existingReferenceCount);
     const existingReferenceCount = Number.isFinite(parsedExistingCount)
       ? Math.max(0, Math.min(Math.floor(parsedExistingCount), 3))
@@ -121,7 +155,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!assetType) {
-      return NextResponse.json({ error: 'assetType must be avatar or product' }, { status: 400 });
+      return NextResponse.json({ error: 'assetType must be avatar, product, or universal' }, { status: 400 });
     }
 
     const extension = getImageExtensionFromDataUrl(imageDataUrl);
@@ -173,7 +207,11 @@ export async function POST(request: NextRequest) {
               prompt: preset.prompt,
               image_urls: [sourceImageUrl],
               output_format: 'png',
-              image_size: assetType === 'avatar' ? '9:16' : '1:1'
+              image_size: assetType === 'avatar'
+                ? '9:16'
+                : assetType === 'universal'
+                  ? getUniversalImageSize(sourceAspect)
+                  : '1:1'
             }
           })
         }, 3, 30000);

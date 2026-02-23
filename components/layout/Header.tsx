@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Upload,
   Calculator,
+  Sparkles,
   LayoutDashboard,
   Moon,
   Sun,
@@ -65,7 +66,13 @@ export default function Header({
   }, [isDarkMode]);
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-[#E5E5E5] h-[72px] sm:h-[80px] flex items-center">
+    <header
+      className={`sticky top-0 z-50 bg-white border-b border-[#E5E5E5] flex items-center transition-all duration-200 ${
+        compact
+          ? "h-[64px] sm:h-[72px] shadow-[0_8px_20px_rgba(0,0,0,0.04)]"
+          : "h-[72px] sm:h-[80px]"
+      }`}
+    >
       <div className="mx-auto max-w-[1280px] w-full px-4 sm:px-6 lg:px-8 flex items-center">
         {/* Logo - Left */}
         <div className="flex items-center justify-start">
@@ -78,7 +85,7 @@ export default function Header({
               alt="Flowtra AI Logo"
               width={95}
               height={95}
-              className="logo-theme w-[95px] h-[95px]"
+              className="logo-theme w-[86px] h-[86px] sm:w-[95px] sm:h-[95px]"
             />
           </Link>
         </div>
@@ -186,6 +193,22 @@ export default function Header({
                       </div>
                     </div>
                   </Link>
+                  <Link
+                    href="/tools/ai-angle-generator"
+                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                      <Sparkles className="w-5 h-5 text-black" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-black">
+                        AI Multi-Angle Photo
+                      </div>
+                      <div className="text-[12px] opacity-70">
+                        Generate 3 additional viewing angles
+                      </div>
+                    </div>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -210,7 +233,7 @@ export default function Header({
           </nav>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <SignedIn>
               <Link
                 href="/dashboard"
@@ -224,8 +247,11 @@ export default function Header({
               <>
                 <SignedOut>
                   <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                    <button className="bg-black text-white text-[14px] font-medium px-6 py-2.5 rounded-lg hover:bg-[#2a2a2a] transition-all cursor-pointer">
-                      Get Started
+                    <button className="h-10 sm:h-11 bg-black text-white text-[12px] sm:text-[14px] font-medium px-3 sm:px-5 rounded-lg hover:bg-[#2a2a2a] transition-all cursor-pointer whitespace-nowrap inline-flex items-center">
+                      <span className="hidden sm:inline">
+                        Sign up · Get 100 free credits
+                      </span>
+                      <span className="sm:hidden">Get 100 Credits</span>
                     </button>
                   </SignInButton>
                 </SignedOut>
@@ -253,7 +279,7 @@ export default function Header({
                 type="button"
                 onClick={() => setIsDarkMode((prev) => !prev)}
                 aria-label="Toggle light and dark mode"
-                className="bg-[#F5F5F5] text-[#333333] hover:bg-[#EBEBEB] hover:text-black px-3 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
+                className="h-10 sm:h-11 bg-[#F5F5F5] text-[#333333] hover:bg-[#EBEBEB] hover:text-black px-3 sm:px-3.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
               >
                 {isDarkMode ? (
                   <Sun className="w-4 h-4" />
@@ -313,6 +339,13 @@ export default function Header({
             onClick={() => setMobileMenuOpen(false)}
           >
             ROAS Calculator
+          </Link>
+          <Link
+            href="/tools/ai-angle-generator"
+            className="text-[16px] font-medium text-black"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            AI Multi-Angle Photo
           </Link>
           <Link
             href="/#pricing"
