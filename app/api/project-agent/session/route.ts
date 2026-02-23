@@ -5,13 +5,6 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const resolveSessionTable = async (supabase: ReturnType<typeof getSupabaseAdmin>) => {
-  const { error } = await supabase.from('project_agent_sessions').select('id').limit(1);
-  if (!error) return 'project_agent_sessions';
-  if (error.code === 'PGRST205') return 'avatar_ads_agent_sessions';
-  throw error;
-};
-
 export async function GET(request: Request) {
   try {
     const { userId } = await auth();
@@ -27,12 +20,10 @@ export async function GET(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
-    const sessionTable = await resolveSessionTable(supabase);
-
     // Schema verified via Supabase MCP (2026-01-13):
     // project_agent_sessions columns: id, user_id, project_id, intent, status, state, messages, created_at, updated_at
     const { data: session, error } = await supabase
-      .from(sessionTable)
+      .from('project_agent_sessions')
       .select('*')
       .eq('id', sessionId)
       .eq('user_id', userId)
@@ -77,10 +68,8 @@ export async function PATCH(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
-    const sessionTable = await resolveSessionTable(supabase);
-
     const { data: session, error: fetchError } = await supabase
-      .from(sessionTable)
+      .from('project_agent_sessions')
       .select('state')
       .eq('id', sessionId)
       .eq('user_id', userId)
@@ -112,7 +101,7 @@ export async function PATCH(request: Request) {
       }
 
       const { error: insertError } = await supabase
-        .from(sessionTable)
+        .from('project_agent_sessions')
         .insert(insertPayload);
 
       if (insertError) {
@@ -129,7 +118,7 @@ export async function PATCH(request: Request) {
       };
 
       const { error: updateError } = await supabase
-        .from(sessionTable)
+        .from('project_agent_sessions')
         .update({
           state: nextState,
           messages: messages ?? undefined,

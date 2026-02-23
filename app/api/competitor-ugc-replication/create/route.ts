@@ -97,13 +97,34 @@ export async function POST(request: NextRequest) {
 
     if (requestData.creatorSourceVideoId) {
       const supabase = getSupabaseAdmin();
-      // Schema verified via Supabase MCP (2026-01-28): creator_source_videos includes analysis_result
-      const { data: referenceVideo, error: referenceError } = await supabase
-        .from('creator_source_videos')
-        .select('id, analysis_result, analysis_status')
-        .eq('id', requestData.creatorSourceVideoId)
-        .eq('user_id', requestData.userId)
-        .single();
+      // Schema verified via Supabase MCP (2026-01-28): creator_source_videos includes id, source_id, analysis_result
+      let referenceVideo: { id: string; analysis_result: unknown; analysis_status: unknown } | null = null;
+      let referenceError: unknown = null;
+
+      {
+        const result = await supabase
+          .from('creator_source_videos')
+          .select('id, analysis_result, analysis_status')
+          .eq('id', requestData.creatorSourceVideoId)
+          .eq('user_id', requestData.userId)
+          .maybeSingle();
+        referenceVideo = result.data as { id: string; analysis_result: unknown; analysis_status: unknown } | null;
+        referenceError = result.error;
+      }
+
+      // Backward compatibility: old clients may pass creator source id instead of video id.
+      if (!referenceVideo) {
+        const result = await supabase
+          .from('creator_source_videos')
+          .select('id, analysis_result, analysis_status')
+          .eq('source_id', requestData.creatorSourceVideoId)
+          .eq('user_id', requestData.userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        referenceVideo = result.data as { id: string; analysis_result: unknown; analysis_status: unknown } | null;
+        referenceError = result.error ?? referenceError;
+      }
 
       if (referenceError || !referenceVideo) {
         return NextResponse.json(

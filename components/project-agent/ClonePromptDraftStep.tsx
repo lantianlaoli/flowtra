@@ -1,30 +1,28 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   AlertCircle,
-  Camera,
-  Check,
   ChevronDown,
   Clapperboard,
   Clock,
   Image as ImageIcon,
-  Layout,
   Loader2,
-  MapPin,
-  MessageSquare,
-  Music,
-  Palette,
   RefreshCw,
   Sparkles,
   TextQuote,
-  Sun,
-  User,
-  Zap
+  User
 } from 'lucide-react';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import ShotTimeRangeSlider, { type ShotRangeSec } from '@/components/project-agent/ShotTimeRangeSlider';
+import {
+  CLONE_PROMPT_SHOT_FIELDS,
+  PromptFieldLabel,
+  PromptShotLabel,
+  PromptTimeLabel,
+  promptUi
+} from '@/components/project-agent/prompt-ui';
 
 export type CloneDraftShot = {
   id: number;
@@ -75,18 +73,17 @@ type ClonePromptDraftStepProps = {
   draft: ClonePromptDraft | null;
   characterMentions: MentionOption[];
   productMentions: MentionOption[];
-  onGenerate: (scenes: CloneDraftScene[]) => Promise<void> | void;
-  onRegenerate: () => Promise<void> | void;
+  enablePromptMentions?: boolean;
+  onDraftChange?: (scenes: CloneDraftScene[]) => void;
   onReselect?: () => void;
-  generationCost: number | null;
-  isGenerating: boolean;
-  isRegenerating: boolean;
 };
 
 const sceneSignature = (draft: ClonePromptDraft | null) => JSON.stringify(draft?.scenes || []);
 const DEFAULT_SCENE_DURATION = 8;
 const MIN_GAP_SEC = 0.2;
 const TIME_STEP_SEC = 0.1;
+const MENTION_TOKEN_REGEX = /@(?:character|product)\([^)]*\)/g;
+const stripMentionTokens = (value: string) => value.replace(MENTION_TOKEN_REGEX, '');
 
 const formatTime = (seconds: number) => {
   const safe = Math.max(0, seconds);
@@ -164,15 +161,6 @@ const normalizeScenes = (scenes: CloneDraftScene[]): CloneDraftScene[] => (
       }
     };
   })
-);
-
-const fieldBase = 'text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6d] mb-1 inline-flex items-center gap-1.5';
-
-const FieldLabel = ({ icon: Icon, children }: { icon: ComponentType<{ className?: string }>; children: ReactNode }) => (
-  <p className={fieldBase}>
-    <Icon className="h-3.5 w-3.5" />
-    <span>{children}</span>
-  </p>
 );
 
 const inferSceneDuration = (shots: CloneDraftShot[]) => {
@@ -328,23 +316,63 @@ export default function ClonePromptDraftStep({
   draft,
   characterMentions,
   productMentions,
-  onGenerate,
-  onRegenerate,
-  onReselect,
-  generationCost,
-  isGenerating,
-  isRegenerating
+  enablePromptMentions = false,
+  onDraftChange,
+  onReselect
 }: ClonePromptDraftStepProps) {
   const [localScenes, setLocalScenes] = useState<CloneDraftScene[]>(normalizeScenes(draft?.scenes || []));
+  const [pendingSyncVersion, setPendingSyncVersion] = useState(0);
   const [openScenes, setOpenScenes] = useState<Record<number, boolean>>({});
+  const [openShots, setOpenShots] = useState<Record<string, boolean>>({});
   const prefersReducedMotion = useReducedMotion();
+  const mentionPropsForSubjectAction = enablePromptMentions
+    ? { characterMentions, productMentions }
+    : { characterMentions: [], productMentions: [] };
+  const mentionPropsDisabled = { characterMentions: [], productMentions: [] };
+  const sanitizeScenesForModel = useMemo(() => (
+    (scenes: CloneDraftScene[]) => {
+      if (enablePromptMentions) return scenes;
+      return scenes.map((scene) => {
+        const normalizedPrompt = typeof scene.videoPrompt === 'string'
+          ? {
+              shots: [emptyShot(1, stripMentionTokens(scene.videoPrompt))]
+            }
+          : {
+              shots: (scene.videoPrompt.shots || []).map((shot, index) => ({
+                ...shot,
+                id: Number.isFinite(shot.id) && shot.id > 0 ? shot.id : index + 1,
+                subject: stripMentionTokens(shot.subject || ''),
+                context_environment: stripMentionTokens(shot.context_environment || ''),
+                action: stripMentionTokens(shot.action || ''),
+                style: stripMentionTokens(shot.style || ''),
+                camera_motion_positioning: stripMentionTokens(shot.camera_motion_positioning || ''),
+                composition: stripMentionTokens(shot.composition || ''),
+                ambiance_colour_lighting: stripMentionTokens(shot.ambiance_colour_lighting || ''),
+                audio: stripMentionTokens(shot.audio || ''),
+                dialogue: stripMentionTokens(shot.dialogue || '')
+              }))
+            };
+        return {
+          ...scene,
+          imagePrompt: scene.imagePrompt || '',
+          videoPrompt: normalizedPrompt
+        };
+      });
+    }
+  ), [enablePromptMentions]);
 
   const signature = useMemo(() => sceneSignature(draft), [draft]);
 
   useEffect(() => {
-    setLocalScenes(normalizeScenes(draft?.scenes || []));
+    setLocalScenes(sanitizeScenesForModel(normalizeScenes(draft?.scenes || [])));
+    setPendingSyncVersion(0);
     setOpenScenes({});
-  }, [signature, draft]);
+  }, [signature, sanitizeScenesForModel]);
+
+  useEffect(() => {
+    if (!onDraftChange || pendingSyncVersion === 0) return;
+    onDraftChange(localScenes);
+  }, [localScenes, onDraftChange, pendingSyncVersion]);
 
   const toggleScene = (sceneIndex: number) => {
     setOpenScenes((prev) => ({
@@ -353,10 +381,22 @@ export default function ClonePromptDraftStep({
     }));
   };
 
+  const toggleShot = (sceneIndex: number, shotIndex: number) => {
+    const key = `${sceneIndex}-${shotIndex}`;
+    setOpenShots((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
   const updateSceneImage = (sceneIndex: number, imagePrompt: string) => {
-    setLocalScenes((prev) => prev.map((scene) => (
-      scene.sceneIndex === sceneIndex ? { ...scene, imagePrompt } : scene
-    )));
+    setLocalScenes((prev) => {
+      const nextScenes = prev.map((scene) => (
+        scene.sceneIndex === sceneIndex ? { ...scene, imagePrompt } : scene
+      ));
+      return nextScenes;
+    });
+    setPendingSyncVersion((version) => version + 1);
   };
 
   const updateShot = (
@@ -364,23 +404,27 @@ export default function ClonePromptDraftStep({
     shotIndex: number,
     patch: Partial<CloneDraftShot>
   ) => {
-    setLocalScenes((prev) => prev.map((scene) => {
-      if (scene.sceneIndex !== sceneIndex) return scene;
-      const normalized = typeof scene.videoPrompt === 'string'
-        ? { shots: [emptyShot(1, scene.videoPrompt)] }
-        : { shots: scene.videoPrompt.shots.map((shot) => ({ ...shot })) };
+    setLocalScenes((prev) => {
+      const nextScenes = prev.map((scene) => {
+        if (scene.sceneIndex !== sceneIndex) return scene;
+        const normalized = typeof scene.videoPrompt === 'string'
+          ? { shots: [emptyShot(1, scene.videoPrompt)] }
+          : { shots: scene.videoPrompt.shots.map((shot) => ({ ...shot })) };
 
-      normalized.shots[shotIndex] = {
-        ...normalized.shots[shotIndex],
-        ...patch,
-        id: normalized.shots[shotIndex].id || shotIndex + 1
-      };
+        normalized.shots[shotIndex] = {
+          ...normalized.shots[shotIndex],
+          ...patch,
+          id: normalized.shots[shotIndex].id || shotIndex + 1
+        };
 
-      return {
-        ...scene,
-        videoPrompt: normalized
-      };
-    }));
+        return {
+          ...scene,
+          videoPrompt: normalized
+        };
+      });
+      return nextScenes;
+    });
+    setPendingSyncVersion((version) => version + 1);
   };
 
   const updateLinkedShotRange = (
@@ -388,36 +432,40 @@ export default function ClonePromptDraftStep({
     shotIndex: number,
     nextRange: ShotRangeSec
   ) => {
-    setLocalScenes((prev) => prev.map((scene) => {
-      if (scene.sceneIndex !== sceneIndex) return scene;
-      const normalized = typeof scene.videoPrompt === 'string'
-        ? { shots: [emptyShot(1, scene.videoPrompt)] }
-        : { shots: scene.videoPrompt.shots.map((shot) => ({ ...shot })) };
+    setLocalScenes((prev) => {
+      const nextScenes = prev.map((scene) => {
+        if (scene.sceneIndex !== sceneIndex) return scene;
+        const normalized = typeof scene.videoPrompt === 'string'
+          ? { shots: [emptyShot(1, scene.videoPrompt)] }
+          : { shots: scene.videoPrompt.shots.map((shot) => ({ ...shot })) };
 
-      const sceneDuration = inferSceneDuration(normalized.shots);
-      const currentRanges = parseSceneRanges(normalized.shots, sceneDuration);
-      const nextRanges = applyLinkedRangeChange(
-        currentRanges,
-        shotIndex,
-        nextRange,
-        sceneDuration,
-        MIN_GAP_SEC
-      );
+        const sceneDuration = inferSceneDuration(normalized.shots);
+        const currentRanges = parseSceneRanges(normalized.shots, sceneDuration);
+        const nextRanges = applyLinkedRangeChange(
+          currentRanges,
+          shotIndex,
+          nextRange,
+          sceneDuration,
+          MIN_GAP_SEC
+        );
 
-      if (!nextRanges) return scene;
+        if (!nextRanges) return scene;
 
-      return {
-        ...scene,
-        videoPrompt: {
-          shots: serializeSceneRangesToShots(normalized.shots, nextRanges)
-        }
-      };
-    }));
+        return {
+          ...scene,
+          videoPrompt: {
+            shots: serializeSceneRangesToShots(normalized.shots, nextRanges)
+          }
+        };
+      });
+      return nextScenes;
+    });
+    setPendingSyncVersion((version) => version + 1);
   };
 
   return (
-    <div className="w-full max-w-full lg:max-w-[56%] rounded-2xl border border-[#e6e6e4] bg-white p-4 space-y-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className={promptUi.frame}>
+      <div className="flex items-start gap-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 3</p>
           <p className="text-sm font-semibold text-[#2a2a28] inline-flex items-center gap-1.5">
@@ -425,15 +473,6 @@ export default function ClonePromptDraftStep({
             Review Replaced Prompts
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void onRegenerate()}
-          disabled={isRegenerating}
-          className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#d9d9d7] bg-white px-3 py-2 text-xs text-[#1f1f1e] transition-colors hover:bg-[#f3f3f2] disabled:opacity-50"
-        >
-          {isRegenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          {isRegenerating ? 'Regenerating...' : 'Regenerate'}
-        </button>
       </div>
 
       {draft?.status === 'generating' ? (
@@ -453,7 +492,7 @@ export default function ClonePromptDraftStep({
             <button
               type="button"
               onClick={onReselect}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#e4bcbc] bg-white px-2.5 py-1.5 text-xs text-[#7a2d2d] hover:bg-[#fff4f4]"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#e4bcbc] bg-white px-2.5 py-1.5 text-xs text-[#7a2d2d] hover:bg-[#fff4f4]"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               Reselect Replacements
@@ -471,7 +510,7 @@ export default function ClonePromptDraftStep({
             const sceneRanges = parseSceneRanges(shots, sceneDuration);
 
             return (
-              <div key={scene.sceneIndex} className="rounded-xl border border-[#e6e6e4] bg-[#fcfcfb] overflow-hidden">
+              <div key={scene.sceneIndex} className={promptUi.sectionCard}>
                 <button
                   type="button"
                   onClick={() => toggleScene(scene.sceneIndex)}
@@ -506,101 +545,107 @@ export default function ClonePromptDraftStep({
                       className="border-t border-[#ececea]"
                     >
                       <div className="p-3 space-y-4">
-                        <div className="rounded-lg border border-[#e6e6e4] bg-white p-3">
-                          <FieldLabel icon={ImageIcon}>Image Prompt</FieldLabel>
+                        <div className={promptUi.block}>
+                          <PromptFieldLabel icon={ImageIcon}>Image Prompt</PromptFieldLabel>
                           <PromptMentionTextarea
                             value={scene.imagePrompt}
                             onChange={(next) => updateSceneImage(scene.sceneIndex, next)}
                             rows={3}
+                            className={promptUi.fieldInput}
                             characterMentions={characterMentions}
                             productMentions={productMentions}
                           />
                         </div>
 
-                        <div className="rounded-lg border border-[#e6e6e4] bg-white p-3 space-y-3">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#525251] inline-flex items-center gap-1.5">
-                            <Clapperboard className="h-3.5 w-3.5" />
-                            Video Prompt (Shot Fields)
-                          </p>
+                        <div className={`${promptUi.block} space-y-3`}>
+                          <PromptShotLabel>Video Prompt (Shot Fields)</PromptShotLabel>
 
-                          {shots.map((shot, shotIndex) => {
-                            const currentRange = sceneRanges[shotIndex];
-                            const frontCount = shotIndex;
-                            const backCount = sceneRanges.length - shotIndex - 1;
-                            const minStart = frontCount * MIN_GAP_SEC;
-                            const maxEnd = sceneDuration - (backCount * MIN_GAP_SEC);
+                          <div className="h-[520px] overflow-y-auto pr-1 space-y-3">
+                            {shots.map((shot, shotIndex) => {
+                              const currentRange = sceneRanges[shotIndex];
+                              const frontCount = shotIndex;
+                              const backCount = sceneRanges.length - shotIndex - 1;
+                              const minStart = frontCount * MIN_GAP_SEC;
+                              const maxEnd = sceneDuration - (backCount * MIN_GAP_SEC);
+                              const shotKey = `${scene.sceneIndex}-${shotIndex}`;
+                              const shotExpanded = openShots[shotKey] ?? shotIndex === 0;
 
-                            return (
-                              <div key={`${scene.sceneIndex}-${shotIndex}`} className="rounded-lg border border-[#ececea] bg-[#fcfcfb] p-3 space-y-3">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="text-xs font-semibold text-[#1f1f1e] inline-flex items-center gap-1.5">
-                                    <Sparkles className="h-3.5 w-3.5" />
-                                    Shot {shotIndex + 1}
-                                  </p>
-                                  <span className="text-[11px] text-[#666665] inline-flex items-center gap-1">
-                                    <Clock className="h-3.5 w-3.5" />
-                                    {formatTimeRange(currentRange.startSec, currentRange.endSec)}
-                                  </span>
-                                </div>
+                              return (
+                                <div key={`${scene.sceneIndex}-${shotIndex}`} className={promptUi.shotCard}>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleShot(scene.sceneIndex, shotIndex)}
+                                    className="group w-full text-left inline-flex items-center justify-between gap-2"
+                                    aria-expanded={shotExpanded}
+                                  >
+                                    <p className="text-xs font-semibold text-[#1f1f1e] inline-flex items-center gap-1.5">
+                                      <Sparkles className="h-3.5 w-3.5" />
+                                      Shot {shotIndex + 1}
+                                    </p>
+                                    <span className="inline-flex items-center gap-2">
+                                      <PromptTimeLabel>
+                                        {formatTimeRange(currentRange.startSec, currentRange.endSec)}
+                                      </PromptTimeLabel>
+                                      <ChevronDown className={`h-4 w-4 text-[#787876] transition-transform duration-200 ease-out group-hover:text-[#1f1f1e] ${shotExpanded ? 'rotate-180' : 'rotate-0'}`} />
+                                    </span>
+                                  </button>
 
-                                <div>
-                                  <FieldLabel icon={Clock}>Time Range</FieldLabel>
-                                  <ShotTimeRangeSlider
-                                    ranges={sceneRanges}
-                                    selectedIndex={shotIndex}
-                                    sceneDurationSec={sceneDuration}
-                                    minStartSec={minStart}
-                                    maxEndSec={maxEnd}
-                                    stepSec={TIME_STEP_SEC}
-                                    minGapSec={MIN_GAP_SEC}
-                                    onChange={({ startSec, endSec }) => {
-                                      updateLinkedShotRange(scene.sceneIndex, shotIndex, {
-                                        startSec,
-                                        endSec
-                                      });
-                                    }}
-                                  />
-                                </div>
+                                  <AnimatePresence initial={false}>
+                                    {shotExpanded ? (
+                                      <motion.div
+                                        key={`shot-${shotKey}-body`}
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={prefersReducedMotion
+                                          ? { duration: 0 }
+                                          : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                        className="space-y-3 overflow-hidden"
+                                      >
+                                        <div>
+                                          <PromptFieldLabel icon={Clock}>Time Range</PromptFieldLabel>
+                                          <ShotTimeRangeSlider
+                                            ranges={sceneRanges}
+                                            selectedIndex={shotIndex}
+                                            sceneDurationSec={sceneDuration}
+                                            minStartSec={minStart}
+                                            maxEndSec={maxEnd}
+                                            stepSec={TIME_STEP_SEC}
+                                            minGapSec={MIN_GAP_SEC}
+                                            onChange={({ startSec, endSec }) => {
+                                              updateLinkedShotRange(scene.sceneIndex, shotIndex, {
+                                                startSec,
+                                                endSec
+                                              });
+                                            }}
+                                          />
+                                        </div>
 
-                                <div>
-                                  <FieldLabel icon={User}>Subject</FieldLabel>
-                                  <PromptMentionTextarea value={shot.subject} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { subject: next })} rows={2} characterMentions={characterMentions} productMentions={productMentions} />
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                          <div className="min-w-0 lg:col-span-2">
+                                            <PromptFieldLabel icon={User}>Subject</PromptFieldLabel>
+                                            <PromptMentionTextarea value={shot.subject} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { subject: next })} rows={2} className={promptUi.fieldInput} {...mentionPropsForSubjectAction} />
+                                          </div>
+                                          {CLONE_PROMPT_SHOT_FIELDS.filter((field) => field.key !== 'subject').map((field) => (
+                                            <div key={`${scene.sceneIndex}-${shotIndex}-${field.key}`} className="min-w-0">
+                                              <PromptFieldLabel icon={field.icon}>{field.label}</PromptFieldLabel>
+                                              <PromptMentionTextarea
+                                                value={String(shot[field.key] ?? '')}
+                                                onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { [field.key]: next })}
+                                                rows={2}
+                                                className={promptUi.fieldInput}
+                                                {...(field.key === 'action' ? mentionPropsForSubjectAction : mentionPropsDisabled)}
+                                              />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </motion.div>
+                                    ) : null}
+                                  </AnimatePresence>
                                 </div>
-                                <div>
-                                  <FieldLabel icon={MapPin}>Context & Environment</FieldLabel>
-                                  <PromptMentionTextarea value={shot.context_environment} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { context_environment: next })} rows={2} characterMentions={characterMentions} productMentions={productMentions} />
-                                </div>
-                                <div>
-                                  <FieldLabel icon={Zap}>Action</FieldLabel>
-                                  <PromptMentionTextarea value={shot.action} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { action: next })} rows={2} characterMentions={characterMentions} productMentions={productMentions} />
-                                </div>
-                                <div>
-                                  <FieldLabel icon={Palette}>Style</FieldLabel>
-                                  <PromptMentionTextarea value={shot.style} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { style: next })} rows={2} characterMentions={characterMentions} productMentions={productMentions} />
-                                </div>
-                                <div>
-                                  <FieldLabel icon={Camera}>Camera Motion & Positioning</FieldLabel>
-                                  <PromptMentionTextarea value={shot.camera_motion_positioning} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { camera_motion_positioning: next })} rows={2} characterMentions={characterMentions} productMentions={productMentions} />
-                                </div>
-                                <div>
-                                  <FieldLabel icon={Layout}>Composition</FieldLabel>
-                                  <PromptMentionTextarea value={shot.composition} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { composition: next })} rows={2} characterMentions={characterMentions} productMentions={productMentions} />
-                                </div>
-                                <div>
-                                  <FieldLabel icon={Sun}>Ambiance / Colour / Lighting</FieldLabel>
-                                  <PromptMentionTextarea value={shot.ambiance_colour_lighting} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { ambiance_colour_lighting: next })} rows={2} characterMentions={characterMentions} productMentions={productMentions} />
-                                </div>
-                                <div>
-                                  <FieldLabel icon={Music}>Audio</FieldLabel>
-                                  <PromptMentionTextarea value={shot.audio} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { audio: next })} rows={2} characterMentions={characterMentions} productMentions={productMentions} />
-                                </div>
-                                <div>
-                                  <FieldLabel icon={MessageSquare}>Dialogue</FieldLabel>
-                                  <PromptMentionTextarea value={shot.dialogue} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { dialogue: next })} rows={2} characterMentions={characterMentions} productMentions={productMentions} />
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </motion.div>
@@ -616,20 +661,6 @@ export default function ClonePromptDraftStep({
         </div>
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => void onGenerate(localScenes)}
-        disabled={isGenerating || localScenes.length === 0}
-        className="w-full min-h-11 rounded-lg bg-[#0f0f0f] text-white text-sm font-medium py-2.5 transition-opacity disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
-      >
-        {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-        <span>{isGenerating ? 'Generating...' : 'Generate'}</span>
-        {generationCost !== null ? (
-          <span className="rounded-md bg-white/15 px-2 py-0.5 text-[11px] font-medium">
-            {generationCost} credits
-          </span>
-        ) : null}
-      </button>
     </div>
   );
 }

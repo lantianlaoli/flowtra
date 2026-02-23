@@ -53,7 +53,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const creditCharges: Array<{ amount: number; description: string }> = [];
 
   try {
-    const { userId } = await auth();
+    const isInternalRequest = request.headers.get('x-project-agent-internal') === '1';
+    const internalUserId = request.headers.get('x-project-agent-user-id');
+    const { userId: clerkUserId } = isInternalRequest ? { userId: null } : await auth();
+    const userId = internalUserId || clerkUserId;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -117,7 +120,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (project.user_id !== userId) {
+    if (!isInternalRequest && project.user_id !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     projectUserId = project.user_id;

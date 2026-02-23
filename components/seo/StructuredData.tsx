@@ -18,7 +18,7 @@ export default function StructuredData() {
       width: 250,
       height: 60
     },
-    description: 'AI-powered video cloning platform that replicates viral UGC videos for small businesses. Transform any TikTok ad, Instagram Reel, or YouTube Short into your own branded content.',
+    description: 'AI-powered video cloning platform that replicates viral UGC videos for small businesses. Transform any TikTok ad, Instagram Reel, or YouTube Short into product-and-avatar customized content.',
     sameAs: [
       'https://twitter.com/flowtra',
       'https://www.linkedin.com/company/flowtra'

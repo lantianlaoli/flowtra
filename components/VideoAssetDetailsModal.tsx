@@ -88,6 +88,7 @@ export default function VideoAssetDetailsModal({
 
   const hasAnalysis = Boolean(video?.analysis_result);
   const isCompact = size === "compact";
+  const isAgentSelectionMode = Boolean(onUseForClone);
 
   const displayName = useMemo(() => {
     if (!video) return "TikTok Video";
@@ -100,14 +101,22 @@ export default function VideoAssetDetailsModal({
       return;
     }
 
+    if (onUseForClone) {
+      // Agent selection flow: close immediately for snappy UX,
+      // then continue async work in the background.
+      onClose();
+      try {
+        await onUseForClone(video);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to start clone flow";
+        showError(message);
+      }
+      return;
+    }
+
     setIsCreatingClone(true);
     try {
-      if (onUseForClone) {
-        await onUseForClone(video);
-        onClose();
-        return;
-      }
-
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem(
           "preselect_competitor_ad",
@@ -205,8 +214,8 @@ export default function VideoAssetDetailsModal({
           />
 
           <motion.div
-            className={`assets-modal-panel assets-video-details-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full mx-auto overflow-hidden ${
-              isCompact ? "max-w-4xl max-h-[86vh]" : "max-w-5xl h-[88vh]"
+            className={`assets-modal-panel assets-video-details-panel relative flex flex-col bg-white rounded-2xl shadow-xl border border-gray-200 w-full mx-auto overflow-hidden ${
+              isCompact ? "max-w-4xl h-[86vh]" : "max-w-5xl"
             }`}
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -230,30 +239,28 @@ export default function VideoAssetDetailsModal({
               </button>
             </div>
 
-            <div
-              className={`assets-modal-body grid grid-cols-1 lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] gap-6 p-6 ${
-                isCompact ? "overflow-y-auto" : "h-[calc(88vh-85px)] min-h-0"
-              }`}
-            >
-              <div className="assets-video-details-preview bg-black/95 rounded-xl overflow-hidden">
-                {video.video_cdn_url ? (
-                  <VideoPlayer
-                    src={video.video_cdn_url}
-                    className={`w-full ${isCompact ? "max-h-[62vh]" : "h-full"}`}
-                    showControls
-                  />
-                ) : (
-                  <div
-                    className={`assets-video-details-preview-empty flex items-center justify-center text-gray-400 ${
-                      isCompact ? "aspect-[4/5]" : "aspect-[9/16]"
-                    }`}
-                  >
-                    Video unavailable
-                  </div>
-                )}
+            <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 p-6 overflow-hidden ${isCompact ? "lg:grid-cols-[minmax(0,0.54fr)_minmax(0,0.46fr)]" : "lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]"}`}>
+              <div className="min-h-0 h-full flex">
+                <div className={`assets-video-details-preview bg-black/95 rounded-xl overflow-hidden ${isCompact ? "h-full w-auto max-w-full aspect-[9/16]" : "w-full aspect-[9/16] max-h-[76vh]"}`}>
+                  {video.video_cdn_url ? (
+                    <VideoPlayer
+                      src={video.video_cdn_url}
+                      className="w-full h-full"
+                      showControls
+                    />
+                  ) : (
+                    <div
+                      className={`assets-video-details-preview-empty flex h-full w-full items-center justify-center text-gray-400 ${
+                        isCompact ? "min-h-[320px]" : "aspect-[9/16]"
+                      }`}
+                    >
+                      Video unavailable
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="assets-video-details-panel flex min-h-0 flex-col gap-6">
+              <div className="assets-video-details-panel min-h-0 h-full flex flex-col gap-6">
                 <div className="space-y-2">
                   <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                     Overview
@@ -301,15 +308,15 @@ export default function VideoAssetDetailsModal({
                     Structure Analysis
                   </p>
                   {hasAnalysis ? (
-                    <div className="flex min-h-0 flex-1 flex-col">
-                      <div className="assets-video-details-shots min-h-0 flex-1 overflow-y-auto pr-1">
+                    <div className="min-h-0 flex-1">
+                      <div className="assets-video-details-shots h-full overflow-y-auto pr-1">
                         <CompetitorShotsEditor
                           shots={parsedShots}
                           onShotsChange={() => {}}
                           showSummary={false}
                           readOnly
                           hideHeader
-                          expandedMaxHeightClass="max-h-[320px] overflow-y-auto"
+                          expandedMaxHeightClass="max-h-none"
                         />
                       </div>
                     </div>
@@ -350,41 +357,45 @@ export default function VideoAssetDetailsModal({
                   <button
                     onClick={handleUseForClone}
                     disabled={!hasAnalysis || isCreatingClone}
-                    className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="assets-video-details-action w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-[#0f0f0f] text-white rounded-lg border border-[#0f0f0f] hover:bg-[#1d1d1d] transition-all duration-200 group/btn disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-[#0f0f0f] disabled:border-[#0f0f0f]"
                   >
                     <span className="font-medium flex items-center gap-2">
                       {isCreatingClone ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <Sparkles className="w-4 h-4 text-white/90" />
+                        <Sparkles className="w-4 h-4 text-white/80 group-hover/btn:text-white transition-colors" />
                       )}
                       {cloneActionLabel}
                     </span>
                   </button>
-                  <button
-                    onClick={handleUseInMotionSwap}
-                    disabled={!video.source_id}
-                    className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="font-medium flex items-center gap-2">
-                      <Shuffle className="w-4 h-4 text-white/90" />
-                      Use in Motion Swap
-                    </span>
-                  </button>
-                  <button
-                    onClick={handleDeleteVideo}
-                    disabled={isDeletingVideo}
-                    className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-red-600 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="font-medium flex items-center gap-2">
-                      {isDeletingVideo ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                      Delete Video
-                    </span>
-                  </button>
+                  {!isAgentSelectionMode ? (
+                    <>
+                      <button
+                        onClick={handleUseInMotionSwap}
+                        disabled={!video.source_id}
+                        className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="font-medium flex items-center gap-2">
+                          <Shuffle className="w-4 h-4 text-white/90" />
+                          Use in Motion Swap
+                        </span>
+                      </button>
+                      <button
+                        onClick={handleDeleteVideo}
+                        disabled={isDeletingVideo}
+                        className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-red-600 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="font-medium flex items-center gap-2">
+                          {isDeletingVideo ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                          Delete Video
+                        </span>
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>

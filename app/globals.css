@@ -732,8 +732,8 @@
 }
 
 .dashboard-theme .prompt-mention-textarea:focus {
-  border-color: #3a3a3a !important;
-  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.3) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .dashboard-theme .prompt-mention-textarea::placeholder {

@@ -89,6 +89,24 @@ export interface StartWorkflowRequest {
   customScript?: string; // User-provided video script for direct video generation
   useCustomScript?: boolean; // Flag to enable custom script mode
   resolvedVideoModel?: VideoModel;
+  segmentPrompts?: Array<{
+    first_frame_description?: string;
+    is_continuation_from_prev?: boolean;
+    shots?: Array<{
+      id?: number;
+      time_range?: string;
+      subject?: string;
+      context_environment?: string;
+      action?: string;
+      style?: string;
+      camera_motion_positioning?: string;
+      composition?: string;
+      ambiance_colour_lighting?: string;
+      audio?: string;
+      dialogue?: string;
+      language?: string;
+    }>;
+  }>;
 }
 
 interface WorkflowResult {
@@ -1275,6 +1293,7 @@ async function startAIWorkflow(
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
   let shotPlanForSegments = initialShotPlan;
+  const hasSegmentPromptOverrides = Array.isArray(request.segmentPrompts) && request.segmentPrompts.length > 0;
 
   try {
     // Image-driven workflow with AI creative generation
@@ -1348,15 +1367,17 @@ async function startAIWorkflow(
       plannedKlingSegments = planKlingSegmentsFromShots([], Number(request.videoDuration || 8));
     }
 
-    const totalDurationSeconds = parseInt(request.videoDuration || '8', 10);
+    const overrideSegmentCount = hasSegmentPromptOverrides ? request.segmentPrompts!.length : 0;
+    const totalDurationSeconds = parseInt(request.videoDuration || String(Math.max(1, overrideSegmentCount) * 8), 10);
     const segmentedFlow = request.resolvedVideoModel === 'kling_3'
       ? true
       : isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
-    const segmentCount = request.resolvedVideoModel === 'kling_3'
+    const calculatedSegmentCount = request.resolvedVideoModel === 'kling_3'
       ? (plannedKlingSegments?.length || 1)
       : (segmentedFlow
         ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
         : 1);
+    const segmentCount = hasSegmentPromptOverrides ? overrideSegmentCount : calculatedSegmentCount;
     const resolvedSegmentDurationSeconds = resolvePerSegmentDurationSeconds(
       request.resolvedVideoModel,
       request.videoDuration,
@@ -1381,15 +1402,43 @@ async function startAIWorkflow(
 
     // Step 2: Generate prompts for our product
     console.log(competitorDescription ? '🎯 Step 2: Generating prompts (competitor reference mode)...' : '🎨 Generating prompts (traditional mode)...');
-    const prompts = await generateImageBasedPrompts(
-      request.imageUrl,
-      request.language,
-      totalDurationSeconds,
-      segmentCount,
-      request.resolvedVideoModel,
-      productContext,
-      competitorDescription // Pass competitor analysis result (not raw context)
-    );
+    const prompts = hasSegmentPromptOverrides
+      ? {
+          segments: request.segmentPrompts!.map((segment, index) => ({
+            index: index + 1,
+            first_frame_description: cleanSegmentText(segment.first_frame_description) || '',
+            is_continuation_from_prev: Boolean(segment.is_continuation_from_prev),
+            shots: Array.isArray(segment.shots)
+              ? segment.shots.map((shot, shotIndex) => ({
+                  id: typeof shot.id === 'number' ? shot.id : shotIndex + 1,
+                  time_range: cleanSegmentText(shot.time_range) || '00:00 - 00:08',
+                  subject: cleanSegmentText(shot.subject) || '',
+                  context_environment: cleanSegmentText(shot.context_environment) || '',
+                  action: cleanSegmentText(shot.action) || '',
+                  style: cleanSegmentText(shot.style) || '',
+                  camera_motion_positioning: cleanSegmentText(shot.camera_motion_positioning) || '',
+                  composition: cleanSegmentText(shot.composition) || '',
+                  ambiance_colour_lighting: cleanSegmentText(shot.ambiance_colour_lighting) || '',
+                  audio: cleanSegmentText(shot.audio) || '',
+                  dialogue: cleanSegmentText(shot.dialogue) || '',
+                  language: cleanSegmentText(shot.language) || request.language || 'en'
+                }))
+              : []
+          }))
+        }
+      : await generateImageBasedPrompts(
+          request.imageUrl,
+          request.language,
+          totalDurationSeconds,
+          segmentCount,
+          request.resolvedVideoModel,
+          productContext,
+          competitorDescription // Pass competitor analysis result (not raw context)
+        );
+
+    if (hasSegmentPromptOverrides) {
+      console.log(`✅ Using ${segmentCount} segment prompt overrides from Step 3 (skipping AI prompt regeneration).`);
+    }
 
     console.log('🎯 Generated creative prompts:', prompts);
 

@@ -110,7 +110,7 @@ export default function ShotTimeRangeSlider({
         ref={rootRef}
         role="group"
         aria-label="Shot time range slider"
-        className="relative h-10 touch-none rounded-lg border border-[#e4e4e2] bg-[#f7f7f6]"
+        className="relative h-10 touch-none rounded-xl border border-[#e4e4e2] bg-[#f7f7f6]"
         onPointerDown={onTrackPointerDown}
         onPointerMove={onTrackPointerMove}
         onPointerUp={onTrackPointerUp}

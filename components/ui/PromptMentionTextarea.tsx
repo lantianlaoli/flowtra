@@ -32,6 +32,7 @@ type PromptMentionTextareaProps = {
 };
 
 const TOKEN_REGEX = /@(?:character|product)\([^)]*\)/g;
+const TOKEN_PARSE_REGEX = /^@(character|product)\(([^)]*)\)\s*$/;
 
 const buildMentionToken = (item: PromptMentionItem) => `@${item.type}(${item.label})`;
 
@@ -68,6 +69,8 @@ export default function PromptMentionTextarea({
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [lastCaretDirection, setLastCaretDirection] = useState<'left' | 'right' | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
+  const mentionEnabled = characterMentions.length > 0 || productMentions.length > 0;
 
   const filteredCharacters = useMemo(() => {
     const query = mentionQuery.trim().toLowerCase();
@@ -88,6 +91,18 @@ export default function PromptMentionTextarea({
     ];
   }, [filteredCharacters, filteredProducts]);
 
+  const characterImageMap = useMemo(() => {
+    const map = new Map<string, string | null | undefined>();
+    characterMentions.forEach((item) => map.set(item.label, item.imageUrl));
+    return map;
+  }, [characterMentions]);
+
+  const productImageMap = useMemo(() => {
+    const map = new Map<string, string | null | undefined>();
+    productMentions.forEach((item) => map.set(item.label, item.imageUrl));
+    return map;
+  }, [productMentions]);
+
   const isItemDisabled = (item: PromptMentionItem) => {
     if (!enforcePhotoCount) return false;
     const count = item.photoCount ?? (item.imageUrl ? 1 : 0);
@@ -95,6 +110,12 @@ export default function PromptMentionTextarea({
   };
 
   const updateMentionState = (nextValue: string, caret: number) => {
+    if (!mentionEnabled) {
+      setMentionOpen(false);
+      setMentionStart(null);
+      setMentionQuery('');
+      return;
+    }
     if (disabled || readOnly) {
       setMentionOpen(false);
       setMentionStart(null);
@@ -190,6 +211,11 @@ export default function PromptMentionTextarea({
     return ranges.find(range => index > range.start && index < range.end) || null;
   };
 
+  const getTokenIntersections = (text: string, start: number, end: number) => {
+    if (start === end) return [] as Array<{ start: number; end: number }>;
+    return getTokenRanges(text).filter((range) => range.end > start && range.start < end);
+  };
+
   const snapSelectionIfInsideToken = () => {
     const target = textareaRef.current;
     if (!target) return;
@@ -221,6 +247,7 @@ export default function PromptMentionTextarea({
   const handleScroll = () => {
     if (!textareaRef.current || !overlayRef.current) return;
     overlayRef.current.scrollTop = textareaRef.current.scrollTop;
+    overlayRef.current.scrollLeft = textareaRef.current.scrollLeft;
   };
 
   const closeMention = () => {
@@ -249,6 +276,8 @@ export default function PromptMentionTextarea({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!mentionEnabled) return;
+
     const isUndo = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z';
     const isRedo = (event.metaKey || event.ctrlKey) && (event.key.toLowerCase() === 'y' || (event.shiftKey && event.key.toLowerCase() === 'z'));
     if (isUndo) {
@@ -290,7 +319,25 @@ export default function PromptMentionTextarea({
     if (event.key === 'Backspace' || event.key === 'Delete') {
       const target = textareaRef.current;
       if (!target) return;
-      const caret = target.selectionStart ?? 0;
+      const selectionStart = target.selectionStart ?? 0;
+      const selectionEnd = target.selectionEnd ?? selectionStart;
+
+      // If selection partially intersects token(s), delete whole token blocks.
+      const intersections = getTokenIntersections(value, selectionStart, selectionEnd);
+      if (intersections.length > 0) {
+        event.preventDefault();
+        const deleteStart = Math.min(selectionStart, intersections[0].start);
+        const deleteEnd = Math.max(selectionEnd, intersections[intersections.length - 1].end);
+        const nextValue = `${value.slice(0, deleteStart)}${value.slice(deleteEnd)}`;
+        commitValue(nextValue);
+        requestAnimationFrame(() => {
+          target.focus();
+          target.setSelectionRange(deleteStart, deleteStart);
+        });
+        return;
+      }
+
+      const caret = selectionStart;
       const token = findTokenAt(value, caret);
       if (token) {
         event.preventDefault();
@@ -370,6 +417,15 @@ export default function PromptMentionTextarea({
     return segments;
   }, [value]);
 
+  const parseMentionToken = (tokenText: string) => {
+    const match = tokenText.match(TOKEN_PARSE_REGEX);
+    if (!match) return null;
+    return {
+      type: match[1] as MentionType,
+      label: match[2],
+    };
+  };
+
   useEffect(() => {
     syncHistoryFromExternalValue(value);
   }, [value]);
@@ -390,63 +446,110 @@ export default function PromptMentionTextarea({
     };
   }, [mentionOpen]);
 
+  useEffect(() => {
+    if (isFocused) return;
+    if (!textareaRef.current || !overlayRef.current) return;
+    overlayRef.current.scrollTop = textareaRef.current.scrollTop;
+    overlayRef.current.scrollLeft = textareaRef.current.scrollLeft;
+  }, [isFocused, value]);
+
   return (
-    <div ref={rootRef} className="prompt-mention-root relative">
+    <div ref={rootRef} className="prompt-mention-root relative min-w-0">
       <div
-        ref={overlayRef}
         className={clsx(
-          'prompt-mention-overlay pointer-events-none absolute inset-0 whitespace-pre-wrap break-words px-3 py-2 text-sm',
-          readOnly ? 'text-gray-500' : 'text-gray-900'
-        )}
-        aria-hidden="true"
-      >
-        {Array.isArray(highlightedContent)
-          ? highlightedContent.map((segment, index) =>
-              segment.highlighted ? (
-                <span
-                  key={`${segment.text}-${index}`}
-                  className={clsx(
-                    'prompt-mention-token rounded-md ring-1 ring-inset',
-                    segment.text.startsWith('@character(')
-                      ? 'bg-blue-100 text-blue-900 ring-blue-200'
-                      : 'bg-amber-100 text-amber-900 ring-amber-200'
-                  )}
-                  data-token-type={segment.text.startsWith('@character(') ? 'character' : 'product'}
-                >
-                  {segment.text}
-                </span>
-              ) : (
-                <span key={`${segment.text}-${index}`}>{segment.text}</span>
-              )
-            )
-          : highlightedContent}
-      </div>
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        onKeyUp={handleSelectionUpdate}
-        onClick={handleSelectionUpdate}
-        onScroll={handleScroll}
-        rows={rows}
-        disabled={disabled}
-        readOnly={readOnly}
-        className={clsx(
-          'prompt-mention-textarea relative w-full rounded-2xl border bg-transparent px-3 py-2 text-sm text-transparent caret-black focus:outline-none focus:ring-2',
+          'relative overflow-hidden rounded-2xl border bg-white transition-colors',
           hasError
-            ? 'border-red-500 focus:ring-red-500'
-            : 'border-gray-200 focus:ring-gray-900 focus:border-gray-900',
-          readOnly || disabled ? 'cursor-not-allowed bg-gray-50' : '',
-          'placeholder:text-gray-400',
-          className
+            ? 'border-red-500 focus-within:border-red-500'
+            : 'border-gray-200 focus-within:border-black',
+          readOnly || disabled ? 'bg-gray-50' : ''
         )}
-        placeholder={placeholder}
-      />
+      >
+        {!isFocused ? (
+          <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-[inherit]" aria-hidden="true">
+            <div
+              ref={overlayRef}
+              className="prompt-mention-overlay h-full overflow-auto whitespace-pre-wrap break-words px-3 py-2 text-sm leading-6 text-[#1f1f1e]"
+            >
+              {Array.isArray(highlightedContent)
+                ? highlightedContent.map((segment, index) =>
+                    segment.highlighted ? (
+                      <span
+                        key={`${segment.text}-${index}`}
+                        className="inline-flex items-center align-baseline"
+                      >
+                        {(() => {
+                          const trailingMatch = segment.text.match(/\s+$/);
+                          const trailingWhitespace = trailingMatch?.[0] ?? '';
+                          const tokenOnly = trailingWhitespace
+                            ? segment.text.slice(0, -trailingWhitespace.length)
+                            : segment.text;
+                          const parsed = parseMentionToken(tokenOnly);
+                          const mentionImage = parsed
+                            ? (parsed.type === 'character'
+                              ? characterImageMap.get(parsed.label)
+                              : productImageMap.get(parsed.label))
+                            : null;
+                          const mentionLabel = parsed?.label ?? tokenOnly;
+
+                          return (
+                            <>
+                              <span
+                                className="prompt-mention-token inline-flex items-center gap-1.5 overflow-hidden rounded-xl bg-[#eef2f7] px-2 py-0.5 text-[#1f1f1e] ring-1 ring-inset ring-[#d4dbe6]"
+                                data-token-type={parsed?.type ?? 'unknown'}
+                              >
+                                <span className="shrink-0 text-[#6b7280]">@</span>
+                                <span className="relative h-4 w-4 shrink-0 overflow-hidden rounded-full bg-white ring-1 ring-[#d4dbe6]">
+                                  {mentionImage ? (
+                                    <NextImage src={mentionImage} alt={mentionLabel} fill sizes="16px" className="object-cover" />
+                                  ) : (
+                                    <span className="flex h-full w-full items-center justify-center text-[#6b7280]">
+                                      {parsed?.type === 'product' ? <ShoppingBag className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="min-w-0 truncate">{mentionLabel}</span>
+                              </span>
+                              {trailingWhitespace}
+                            </>
+                          );
+                        })()}
+                      </span>
+                    ) : (
+                      <span key={`${segment.text}-${index}`} className="text-[#1f1f1e]">{segment.text}</span>
+                    )
+                  )
+                : highlightedContent}
+            </div>
+          </div>
+        ) : null}
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onKeyUp={handleSelectionUpdate}
+          onClick={handleSelectionUpdate}
+          onScroll={handleScroll}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          rows={rows}
+          disabled={disabled}
+          readOnly={readOnly}
+          spellCheck={false}
+          className={clsx(
+            'prompt-mention-textarea block relative z-0 w-full border-0 bg-transparent px-3 py-2 text-sm leading-6 caret-black selection:bg-[#11111122] focus:outline-none focus:ring-0 focus:border-0 overflow-x-hidden overflow-y-auto resize-none',
+            isFocused ? 'text-[#1f1f1e] selection:text-[#1f1f1e]' : 'text-transparent selection:text-transparent',
+            readOnly || disabled ? 'cursor-not-allowed bg-gray-50' : '',
+            'placeholder:text-gray-400',
+            className
+          )}
+          placeholder={placeholder}
+        />
+      </div>
       {mentionOpen && (
         <div
           role="listbox"
-          className="prompt-mention-menu absolute z-20 mt-2 w-full rounded-2xl border border-gray-200 bg-white shadow-lg"
+          className="prompt-mention-menu absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg"
         >
           <div className="max-h-64 overflow-y-auto p-2 space-y-2">
             <div>
@@ -495,7 +598,7 @@ export default function PromptMentionTextarea({
                         </span>
                         <span className="min-w-0 flex-1 truncate">{item.label}</span>
                         {isDisabled && (
-                          <span className="rounded-md border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                          <span className="rounded-xl border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
                             {insufficientPhotosLabel}
                           </span>
                         )}
@@ -551,7 +654,7 @@ export default function PromptMentionTextarea({
                         </span>
                         <span className="min-w-0 flex-1 truncate">{item.label}</span>
                         {isDisabled && (
-                          <span className="rounded-md border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                          <span className="rounded-xl border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
                             {insufficientPhotosLabel}
                           </span>
                         )}

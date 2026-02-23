@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
 
 type ShotPrompt = {
   id: number;
@@ -39,12 +40,12 @@ type CloneReplacementDraft = {
     id: string;
     name: string;
     photoUrl?: string | null;
-    brandName?: string | null;
   };
   scenes: ScenePrompt[];
 };
 
 type SessionState = {
+  videoModel?: 'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'kling_3';
   cloneReferenceVideo?: {
     id: string;
     name?: string | null;
@@ -60,13 +61,6 @@ type ReferenceScene = {
   sceneIndex: number;
   sourceSummary: string;
   sourceShots: ShotPrompt[];
-};
-
-const resolveSessionTable = async (supabase: ReturnType<typeof getSupabaseAdmin>) => {
-  const { error } = await supabase.from('project_agent_sessions').select('id').limit(1);
-  if (!error) return 'project_agent_sessions';
-  if (error.code === 'PGRST205') return 'avatar_ads_agent_sessions';
-  throw error;
 };
 
 const emptyShot = (subject: string, id = 1): ShotPrompt => ({
@@ -164,6 +158,18 @@ const enforceMentionToken = (prompt: string, token: string): string => {
   return `${token} ${trimmed}`;
 };
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const enforcePlainReplacement = (text: string, label: string, fallback: string): string => {
+  const trimmedLabel = label.trim();
+  if (!trimmedLabel) return text.trim() || fallback;
+  const source = text.trim();
+  if (!source) return `${trimmedLabel} ${fallback}`.trim();
+  const hasLabel = new RegExp(`\\b${escapeRegExp(trimmedLabel)}\\b`, 'i').test(source);
+  if (hasLabel) return source;
+  return `${trimmedLabel} ${source}`.trim();
+};
+
 const enforceTokenInShot = (
   shot: ShotPrompt,
   token: string,
@@ -220,6 +226,7 @@ const generateReplacementDraft = async (input: {
   referenceSummary: string;
   avatarName?: string;
   productName?: string;
+  enableMentionTokens: boolean;
 }) => {
   const modelName = process.env.OPENROUTER_MODEL || 'google/gemini-3-pro-preview';
 
@@ -308,9 +315,20 @@ const generateReplacementDraft = async (input: {
           content: [
             'You are rewriting clone prompts while preserving original shot structure.',
             'Output must preserve scene order and source intent.',
-            avatarToken ? `Character replacement must explicitly use token: ${avatarToken}.` : 'Character remains original; do not force character replacement.',
-            productToken ? `Product replacement must explicitly use token: ${productToken}.` : 'Product remains original; do not force product replacement.',
+            input.enableMentionTokens && avatarToken
+              ? `Character replacement must explicitly use token in subject/action fields: ${avatarToken}.`
+              : (input.avatarName
+                ? `For imagePrompt, use ${avatarToken} by replacing the character words directly inside natural sentence flow; do not append token clauses at the end. For shot fields, use plain text "${input.avatarName}" and do not use @character(...) token.`
+                : 'Do not use any @character(...) token.'),
+            input.enableMentionTokens && productToken
+              ? `Product replacement must explicitly use token in subject/action fields: ${productToken}.`
+              : (input.productName
+                ? `For imagePrompt, use ${productToken} by replacing product words directly inside natural sentence flow; do not append token clauses at the end. For shot fields, use plain text "${input.productName}" and do not use @product(...) token.`
+                : 'Do not use any @product(...) token.'),
             'For each scene output imagePrompt and videoPrompt.shots.',
+            'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
+            'Do not use trailing templates like ", featuring @character(...) interacting with @product(...)".',
+            'Write a normal fluent prompt first, then embed mention tokens only at the noun phrase positions.',
             'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, dialogue, time_range.',
             'Keep fields concise but specific.'
           ].join(' ')
@@ -355,14 +373,59 @@ const generateReplacementDraft = async (input: {
       ? scene.videoPrompt.shots
       : (input.scenes[index]?.sourceShots ?? []);
 
-    if (avatarToken) {
-      imagePrompt = enforceMentionToken(imagePrompt, avatarToken);
-      shots = shots.map((shot) => enforceTokenInShot(shot, avatarToken, ['subject', 'action', 'dialogue']));
-    }
+    if (input.enableMentionTokens) {
+      if (avatarToken) {
+        shots = shots.map((shot) => enforceTokenInShot(shot, avatarToken, ['subject', 'action']));
+      }
+      if (productToken) {
+        shots = shots.map((shot) => enforceTokenInShot(shot, productToken, ['subject', 'action']));
+      }
+      imagePrompt = injectMentionsInline({
+        imagePrompt,
+        fallbackSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || '',
+        avatarToken,
+        productToken,
+        avatarName: input.avatarName,
+        productName: input.productName
+      });
+    } else {
+      imagePrompt = injectMentionsInline({
+        imagePrompt,
+        fallbackSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || '',
+        avatarToken,
+        productToken,
+        avatarName: input.avatarName,
+        productName: input.productName
+      });
+      shots = shots.map((shot) => ({
+        ...shot,
+        subject: stripMentionTokens(shot.subject || ''),
+        context_environment: stripMentionTokens(shot.context_environment || ''),
+        action: stripMentionTokens(shot.action || ''),
+        style: stripMentionTokens(shot.style || ''),
+        camera_motion_positioning: stripMentionTokens(shot.camera_motion_positioning || ''),
+        composition: stripMentionTokens(shot.composition || ''),
+        ambiance_colour_lighting: stripMentionTokens(shot.ambiance_colour_lighting || ''),
+        audio: stripMentionTokens(shot.audio || ''),
+        dialogue: stripMentionTokens(shot.dialogue || '')
+      }));
 
-    if (productToken) {
-      imagePrompt = enforceMentionToken(imagePrompt, productToken);
-      shots = shots.map((shot) => enforceTokenInShot(shot, productToken, ['subject', 'action', 'context_environment', 'dialogue']));
+      if (input.avatarName?.trim()) {
+        shots = shots.map((shot) => ({
+          ...shot,
+          subject: enforcePlainReplacement(shot.subject || '', input.avatarName as string, 'appears in frame.'),
+          action: enforcePlainReplacement(shot.action || '', input.avatarName as string, 'moves naturally in scene.')
+        }));
+      }
+
+      if (input.productName?.trim()) {
+        shots = shots.map((shot) => ({
+          ...shot,
+          subject: enforcePlainReplacement(shot.subject || '', input.productName as string, 'product shown in frame.'),
+          action: enforcePlainReplacement(shot.action || '', input.productName as string, 'product interaction is clear.'),
+          context_environment: enforcePlainReplacement(shot.context_environment || '', input.productName as string, 'product placement is visible.')
+        }));
+      }
     }
 
     return {
@@ -374,9 +437,12 @@ const generateReplacementDraft = async (input: {
   });
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const isInternalRequest = request.headers.get('x-project-agent-internal') === '1';
+    const internalUserId = request.headers.get('x-project-agent-user-id');
+    const { userId: clerkUserId } = isInternalRequest ? { userId: null } : await auth();
+    const userId = internalUserId || clerkUserId;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -404,11 +470,9 @@ export async function POST(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
-    const sessionTable = await resolveSessionTable(supabase);
-
-    // Schema verified via Supabase MCP (2026-02-11): project_agent_sessions/ avatar_ads_agent_sessions
+    // Schema verified via Supabase MCP (2026-02-11): project_agent_sessions
     const { data: session, error: sessionError } = await supabase
-      .from(sessionTable)
+      .from('project_agent_sessions')
       .select('id,user_id,state')
       .eq('id', sessionId)
       .eq('user_id', userId)
@@ -439,7 +503,7 @@ export async function POST(request: Request) {
     };
 
     await supabase
-      .from(sessionTable)
+      .from('project_agent_sessions')
       .update({
         state: generatingState,
         updated_at: new Date().toISOString()
@@ -482,7 +546,7 @@ export async function POST(request: Request) {
       // Schema verified via Supabase MCP (2026-02-11): user_products includes id,user_id,product_name.
       const { data: product } = await supabase
         .from('user_products')
-        .select('id,product_name,user_product_photos(photo_url,is_primary),brand:user_brands(brand_name)')
+        .select('id,product_name,user_product_photos(photo_url,is_primary)')
         .eq('id', productId)
         .eq('user_id', userId)
         .maybeSingle();
@@ -495,20 +559,17 @@ export async function POST(request: Request) {
         ? product.user_product_photos as Array<{ photo_url?: string; is_primary?: boolean }>
         : [];
       const primaryPhoto = photos.find((photo) => photo.is_primary) || photos[0];
-      const brandName = Array.isArray(product.brand)
-        ? (product.brand[0] as { brand_name?: string } | undefined)?.brand_name
-        : (product.brand as { brand_name?: string } | null | undefined)?.brand_name;
 
       productSelection = {
         id: product.id,
         name: product.product_name || 'Unnamed Product',
-        photoUrl: primaryPhoto?.photo_url || null,
-        brandName: brandName || null
+        photoUrl: primaryPhoto?.photo_url || null
       };
     }
 
     const referenceSourceType = reference.sourceType || 'creator';
     const referenceSourceId = reference.sourceId || reference.id;
+    const referenceVideoId = reference.id || reference.sourceId;
 
     let analysisResult: Record<string, unknown> | null = null;
 
@@ -522,13 +583,31 @@ export async function POST(request: Request) {
         .maybeSingle();
       analysisResult = (competitorAd?.analysis_result as Record<string, unknown> | null) || null;
     } else {
-      // Schema verified via Supabase MCP (2026-02-11): creator_source_videos includes id,user_id,analysis_result.
-      const { data: creatorVideo } = await supabase
-        .from('creator_source_videos')
-        .select('id,analysis_result')
-        .eq('id', referenceSourceId)
-        .eq('user_id', userId)
-        .maybeSingle();
+      // Schema verified via Supabase MCP (2026-02-11): creator_source_videos includes id,user_id,source_id,analysis_result.
+      let creatorVideo: { id: string; analysis_result: unknown } | null = null;
+      if (referenceVideoId) {
+        const { data } = await supabase
+          .from('creator_source_videos')
+          .select('id,analysis_result')
+          .eq('id', referenceVideoId)
+          .eq('user_id', userId)
+          .maybeSingle();
+        creatorVideo = data as { id: string; analysis_result: unknown } | null;
+      }
+
+      // Backward compatibility for sessions that mistakenly persisted source_id.
+      if (!creatorVideo && referenceSourceId) {
+        const { data } = await supabase
+          .from('creator_source_videos')
+          .select('id,analysis_result')
+          .eq('source_id', referenceSourceId)
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        creatorVideo = data as { id: string; analysis_result: unknown } | null;
+      }
+
       analysisResult = (creatorVideo?.analysis_result as Record<string, unknown> | null) || null;
     }
 
@@ -542,7 +621,8 @@ export async function POST(request: Request) {
       scenes,
       referenceSummary: reference.analysisSummary || 'Reference structure selected.',
       avatarName: avatarSelection?.name,
-      productName: productSelection?.name
+      productName: productSelection?.name,
+      enableMentionTokens: state.videoModel === 'kling_3'
     });
 
     const cloneReplacementDraft: CloneReplacementDraft = {
@@ -559,7 +639,7 @@ export async function POST(request: Request) {
     };
 
     const { error: updateError } = await supabase
-      .from(sessionTable)
+      .from('project_agent_sessions')
       .update({
         state: nextState,
         updated_at: new Date().toISOString()

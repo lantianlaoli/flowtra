@@ -1,17 +1,24 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   CheckCircle2,
+  ChevronDown,
   Clapperboard,
   Image as ImageIcon,
   Loader2,
-  RefreshCw,
   Sparkles,
-  AlertCircle,
-  Play
+  AlertCircle
 } from 'lucide-react';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  CLONE_PROMPT_SHOT_FIELDS,
+  PromptFieldLabel,
+  PromptShotLabel,
+  promptUi
+} from '@/components/project-agent/prompt-ui';
 
 type MentionOption = {
   id: string;
@@ -47,21 +54,6 @@ export type CloneExecutionSegment = {
   prompt?: CloneExecutionSegmentPrompt;
 };
 
-const SHOT_FIELDS: Array<{
-  key: keyof CloneExecutionSegmentPrompt['shots'][number];
-  label: string;
-}> = [
-  { key: 'subject', label: 'Subject' },
-  { key: 'context_environment', label: 'Context & Environment' },
-  { key: 'action', label: 'Action' },
-  { key: 'style', label: 'Style' },
-  { key: 'camera_motion_positioning', label: 'Camera Motion & Positioning' },
-  { key: 'composition', label: 'Composition' },
-  { key: 'ambiance_colour_lighting', label: 'Ambiance / Colour / Lighting' },
-  { key: 'audio', label: 'Audio' },
-  { key: 'dialogue', label: 'Dialogue' }
-];
-
 type CloneSceneReviewStepProps = {
   execution: {
     projectId: string;
@@ -70,16 +62,13 @@ type CloneSceneReviewStepProps = {
   };
   characterMentions: MentionOption[];
   productMentions: MentionOption[];
-  onRegenerateFrame: (segmentIndex: number, prompt: CloneExecutionSegmentPrompt) => Promise<void> | void;
-  onGenerateFinalVideo: () => Promise<void> | void;
-  canGenerateFinalVideo: boolean;
-  isGeneratingFinalVideo: boolean;
-  regeneratingSegmentIndex: number | null;
+  preferredFrameRegeneratingSceneIndex?: number | null;
 };
 
 const statusLabel = (status: string) => {
   if (status === 'first_frame_ready') return 'Ready';
   if (status === 'generating_first_frame') return 'Generating frame';
+  if (status === 'generating_video') return 'Generating video';
   if (status === 'failed') return 'Failed';
   if (status === 'video_ready') return 'Video ready';
   return 'Queued';
@@ -114,22 +103,90 @@ export default function CloneSceneReviewStep({
   execution,
   characterMentions,
   productMentions,
-  onRegenerateFrame,
-  onGenerateFinalVideo,
-  canGenerateFinalVideo,
-  isGeneratingFinalVideo,
-  regeneratingSegmentIndex
+  preferredFrameRegeneratingSceneIndex = null
 }: CloneSceneReviewStepProps) {
   const [localPrompts, setLocalPrompts] = useState<Record<number, CloneExecutionSegmentPrompt>>({});
+  const [openShots, setOpenShots] = useState<Record<string, boolean>>({});
+  const [frameOverlayVisible, setFrameOverlayVisible] = useState<Record<number, boolean>>({});
+  const frameOverlayHideTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const prefersReducedMotion = useReducedMotion();
   const segments = useMemo(() => execution.segments || [], [execution.segments]);
+  const hasExplicitRegenerateTarget = (
+    typeof preferredFrameRegeneratingSceneIndex === 'number' &&
+    preferredFrameRegeneratingSceneIndex > 0
+  );
 
   useEffect(() => {
-    const next: Record<number, CloneExecutionSegmentPrompt> = {};
-    segments.forEach((segment) => {
-      next[segment.segmentIndex] = normalizePrompt(segment);
+    setLocalPrompts((prev) => {
+      const next: Record<number, CloneExecutionSegmentPrompt> = {};
+      segments.forEach((segment) => {
+        next[segment.segmentIndex] = prev[segment.segmentIndex] || normalizePrompt(segment);
+      });
+      return next;
     });
-    setLocalPrompts(next);
   }, [segments]);
+
+  useEffect(() => {
+    const hideTimers = frameOverlayHideTimersRef.current;
+    const hasPreferredTarget = typeof preferredFrameRegeneratingSceneIndex === 'number' && preferredFrameRegeneratingSceneIndex > 0;
+    const isFrameGenerationPhase = execution.phase === 'generating_frames' || execution.phase === 'reviewing_frames';
+
+    const nextIndices = new Set(segments.map((segment) => segment.segmentIndex));
+    Object.entries(hideTimers).forEach(([key, timer]) => {
+      const segmentIndex = Number(key);
+      if (!nextIndices.has(segmentIndex)) {
+        clearTimeout(timer);
+        delete hideTimers[segmentIndex];
+      }
+    });
+
+    segments.forEach((segment) => {
+      const segmentIndex = segment.segmentIndex;
+      const isGenerating = segment.status === 'generating_first_frame';
+      const matchesPreferred = (
+        preferredFrameRegeneratingSceneIndex === null ||
+        segmentIndex + 1 === preferredFrameRegeneratingSceneIndex
+      );
+      const shouldShowOverlay = isFrameGenerationPhase && isGenerating && (hasPreferredTarget ? matchesPreferred : true);
+
+      if (shouldShowOverlay) {
+        if (hideTimers[segmentIndex]) {
+          clearTimeout(hideTimers[segmentIndex]);
+          delete hideTimers[segmentIndex];
+        }
+        setFrameOverlayVisible((prev) => (prev[segmentIndex] ? prev : { ...prev, [segmentIndex]: true }));
+        return;
+      }
+
+      if (hideTimers[segmentIndex]) {
+        return;
+      }
+
+      if (hasPreferredTarget) {
+        // Strict mode: when user specified a target scene, only that scene may animate.
+        // If target is not yet generating, keep all overlays hidden (no fallback to other scenes).
+        setFrameOverlayVisible((prev) => {
+          if (!prev[segmentIndex]) return prev;
+          return { ...prev, [segmentIndex]: false };
+        });
+        return;
+      }
+
+      // Keep overlay visible briefly after status flips to avoid jitter/flicker from polling races.
+      hideTimers[segmentIndex] = setTimeout(() => {
+        setFrameOverlayVisible((prev) => {
+          if (!prev[segmentIndex]) return prev;
+          return { ...prev, [segmentIndex]: false };
+        });
+        delete hideTimers[segmentIndex];
+      }, 700);
+    });
+  }, [execution.phase, preferredFrameRegeneratingSceneIndex, segments]);
+
+  useEffect(() => () => {
+    Object.values(frameOverlayHideTimersRef.current).forEach((timer) => clearTimeout(timer));
+    frameOverlayHideTimersRef.current = {};
+  }, []);
 
   const headerLabel = useMemo(() => {
     if (execution.phase === 'generating_frames') return 'Generating scene frames...';
@@ -148,8 +205,16 @@ export default function CloneSceneReviewStep({
     }));
   };
 
+  const toggleShot = (segmentIndex: number, shotIndex: number) => {
+    const key = `${segmentIndex}-${shotIndex}`;
+    setOpenShots((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
   return (
-    <div className="w-full max-w-full lg:max-w-[64%] rounded-2xl border border-[#e6e6e4] bg-white p-4 space-y-4">
+    <div className={`${promptUi.frame} max-w-full`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 4</p>
@@ -159,106 +224,211 @@ export default function CloneSceneReviewStep({
           </p>
           <p className="text-xs text-[#787876] mt-1">{headerLabel}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void onGenerateFinalVideo()}
-          disabled={!canGenerateFinalVideo || isGeneratingFinalVideo}
-          className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-[#0f0f0f] px-3 py-2 text-xs text-white disabled:opacity-50"
-        >
-          {isGeneratingFinalVideo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-          {isGeneratingFinalVideo ? 'Starting...' : 'Generate Final Video'}
-        </button>
       </div>
 
       <div className="space-y-3">
         {segments.map((segment) => {
           const prompt = localPrompts[segment.segmentIndex] || normalizePrompt(segment);
+          const showFrameOverlay =
+            execution.phase !== 'generating_videos' &&
+            frameOverlayVisible[segment.segmentIndex] === true;
+          const frameOverlayText = hasExplicitRegenerateTarget
+            ? 'Regenerating this frame...'
+            : 'Generating first frame...';
+          const shouldShowVideoGenerating =
+            !segment.videoUrl &&
+            (
+              segment.status === 'generating_video' ||
+              (execution.phase === 'generating_videos' && segment.status !== 'failed')
+            );
+          const effectiveStatus = shouldShowVideoGenerating
+            ? 'generating_video'
+            : (segment.status || 'queued');
           return (
-            <div key={segment.segmentIndex} className="rounded-xl border border-[#e6e6e4] bg-[#fcfcfb] p-3 space-y-3">
+            <div key={segment.segmentIndex} className={`${promptUi.sectionCard} p-3 space-y-3`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="inline-flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-[#454543]" />
                   <span className="text-sm font-semibold text-[#1f1f1e]">Scene {segment.segmentIndex + 1}</span>
                 </div>
-                <div className="inline-flex items-center gap-1.5 text-xs text-[#666665]">
-                  {segment.status === 'first_frame_ready' ? (
+                <div className={`inline-flex items-center gap-1.5 text-xs ${
+                  effectiveStatus === 'failed' ? 'text-[#b23b3b]' : 'text-[#666665]'
+                }`}>
+                  {effectiveStatus === 'first_frame_ready' ? (
                     <CheckCircle2 className="h-3.5 w-3.5 text-[#1f7a3b]" />
-                  ) : segment.status === 'failed' ? (
-                    <AlertCircle className="h-3.5 w-3.5 text-[#b23b3b]" />
+                  ) : effectiveStatus === 'failed' ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex h-4 w-4 items-center justify-center text-[#b23b3b]"
+                          aria-label={`Scene ${segment.segmentIndex + 1} failed details`}
+                        >
+                          <AlertCircle className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" sideOffset={8} className="max-w-[320px] whitespace-normal leading-5">
+                        {segment.errorMessage || 'This scene failed during generation.'}
+                      </TooltipContent>
+                    </Tooltip>
                   ) : (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   )}
-                  <span>{statusLabel(segment.status)}</span>
+                  <span>{statusLabel(effectiveStatus)}</span>
                 </div>
               </div>
 
-              {segment.firstFrameUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={segment.firstFrameUrl} alt={`Scene ${segment.segmentIndex + 1} frame`} className="h-40 w-full rounded-lg border border-[#e6e6e4] object-cover" />
-              ) : (
-                <div className="h-40 w-full rounded-lg border border-dashed border-[#d9d9d7] bg-[#f7f7f5] flex items-center justify-center text-xs text-[#8d8d8a]">
-                  <ImageIcon className="h-4 w-4 mr-1" />
-                  Frame is generating...
-                </div>
-              )}
-
-              <div>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6d]">Image Prompt</p>
-                <PromptMentionTextarea
-                  value={prompt.first_frame_description}
-                  rows={3}
-                  onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({ ...current, first_frame_description: next }))}
-                  characterMentions={characterMentions}
-                  productMentions={productMentions}
-                />
-              </div>
-
-              {prompt.shots.map((shot, shotIndex) => (
-                <div key={`${segment.segmentIndex}-${shot.id}-${shotIndex}`} className="rounded-lg border border-[#ececea] bg-white p-3 space-y-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6d]">Shot {shotIndex + 1}</p>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {SHOT_FIELDS.map((field) => (
-                      <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`}>
-                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6d]">
-                          {field.label}
-                        </p>
-                        <PromptMentionTextarea
-                          value={String(shot[field.key] ?? '')}
-                          rows={2}
-                          onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({
-                            ...current,
-                            shots: current.shots.map((item, index) => (
-                              index === shotIndex
-                                ? { ...item, [field.key]: next }
-                                : item
-                            ))
-                          }))}
-                          characterMentions={characterMentions}
-                          productMentions={productMentions}
+              <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.5fr)] lg:h-[clamp(520px,68vh,820px)]">
+                <div className="flex min-h-[360px] flex-col gap-1 lg:min-h-0 lg:h-full">
+                  <PromptFieldLabel icon={ImageIcon}>Frame Preview</PromptFieldLabel>
+                  <div className="w-full aspect-[9/16] lg:aspect-auto lg:flex-1 lg:min-h-0">
+                    {segment.firstFrameUrl ? (
+                      <div className="relative h-full w-full overflow-hidden rounded-2xl border border-[#e6e6e4] bg-[#f3f3f2]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={segment.firstFrameUrl}
+                          alt={`Scene ${segment.segmentIndex + 1} frame`}
+                          className="h-full w-full object-cover"
                         />
+                        <div
+                          className={`pointer-events-none absolute inset-x-3 bottom-3 inline-flex items-center rounded-full bg-black/55 px-2.5 py-1 text-[11px] text-white backdrop-blur-sm transition-all duration-300 ${
+                            showFrameOverlay
+                              ? 'opacity-100 translate-y-0'
+                              : 'opacity-0 translate-y-1'
+                          }`}
+                        >
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                            {frameOverlayText}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative h-full w-full overflow-hidden rounded-2xl border border-dashed border-[#d9d9d7] bg-[#f7f7f5]">
+                        {showFrameOverlay ? (
+                          <div className="flex h-full w-full flex-col items-center justify-center px-4 text-center">
+                            <div className="inline-flex items-center text-xs text-[#8d8d8a]">
+                              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                              Frame is generating...
+                            </div>
+                            <div className="mt-3 w-[68%] space-y-1.5">
+                              <div className="h-1.5 rounded-full bg-[#e2e2df] animate-pulse" />
+                              <div className="h-1.5 w-[82%] rounded-full bg-[#e2e2df] animate-pulse" />
+                              <div className="h-1.5 w-[58%] rounded-full bg-[#e2e2df] animate-pulse" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs text-[#8d8d8a]">
+                            <ImageIcon className="mr-1 h-4 w-4" />
+                            Frame preview will appear here
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex min-h-[360px] flex-col gap-1 lg:min-h-0 lg:h-full">
+                  <PromptFieldLabel icon={Clapperboard}>Video Preview</PromptFieldLabel>
+                  <div className="w-full aspect-[9/16] lg:aspect-auto lg:flex-1 lg:min-h-0">
+                    {segment.videoUrl ? (
+                      <video
+                        src={segment.videoUrl}
+                        controls
+                        className="h-full w-full rounded-2xl border border-[#e6e6e4] bg-black object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full rounded-2xl border border-dashed border-[#d9d9d7] bg-[#f7f7f5] flex items-center justify-center text-xs text-[#8d8d8a]">
+                        {shouldShowVideoGenerating ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            Video is generating...
+                          </>
+                        ) : (
+                          <>
+                            <Clapperboard className="h-4 w-4 mr-1" />
+                            Video preview will be available after frame review
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex min-h-[420px] flex-col gap-3 lg:min-h-0 lg:h-full">
+                  <div>
+                    <PromptFieldLabel icon={ImageIcon}>Image Prompt</PromptFieldLabel>
+                    <PromptMentionTextarea
+                      value={prompt.first_frame_description}
+                      rows={3}
+                      className={promptUi.fieldInput}
+                      onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({ ...current, first_frame_description: next }))}
+                      characterMentions={characterMentions}
+                      productMentions={productMentions}
+                    />
+                  </div>
+
+                  <PromptShotLabel>Video Prompt (Shot Fields)</PromptShotLabel>
+                  <div className="max-h-[520px] overflow-y-auto pr-1 space-y-3 lg:max-h-none lg:min-h-0 lg:flex-1">
+                    {prompt.shots.map((shot, shotIndex) => (
+                      <div key={`${segment.segmentIndex}-${shot.id}-${shotIndex}`} className={promptUi.shotCard}>
+                        {(() => {
+                          const shotKey = `${segment.segmentIndex}-${shotIndex}`;
+                          const shotExpanded = openShots[shotKey] ?? shotIndex === 0;
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => toggleShot(segment.segmentIndex, shotIndex)}
+                                className="group w-full text-left inline-flex items-center justify-between gap-2"
+                                aria-expanded={shotExpanded}
+                              >
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6d]">Shot {shotIndex + 1}</p>
+                                <ChevronDown className={`h-4 w-4 text-[#787876] transition-transform duration-200 ease-out group-hover:text-[#1f1f1e] ${shotExpanded ? 'rotate-180' : 'rotate-0'}`} />
+                              </button>
+                              <AnimatePresence initial={false}>
+                                {shotExpanded ? (
+                                  <motion.div
+                                    key={`shot-${shotKey}-body`}
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={prefersReducedMotion
+                                      ? { duration: 0 }
+                                      : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                      {CLONE_PROMPT_SHOT_FIELDS.map((field) => (
+                                        <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`}>
+                                          <PromptFieldLabel icon={field.icon}>{field.label}</PromptFieldLabel>
+                                          <PromptMentionTextarea
+                                            value={String(shot[field.key] ?? '')}
+                                            rows={2}
+                                            className={promptUi.fieldInput}
+                                            onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({
+                                              ...current,
+                                              shots: current.shots.map((item, index) => (
+                                                index === shotIndex
+                                                  ? { ...item, [field.key]: next }
+                                                  : item
+                                              ))
+                                            }))}
+                                            characterMentions={characterMentions}
+                                            productMentions={productMentions}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </motion.div>
+                                ) : null}
+                              </AnimatePresence>
+                            </>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
                 </div>
-              ))}
-
-              <button
-                type="button"
-                onClick={() => void onRegenerateFrame(segment.segmentIndex, prompt)}
-                disabled={regeneratingSegmentIndex === segment.segmentIndex}
-                className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#d9d9d7] bg-white px-3 py-2 text-xs text-[#1f1f1e] hover:bg-[#f3f3f2] disabled:opacity-50"
-              >
-                {regeneratingSegmentIndex === segment.segmentIndex ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}
-                {regeneratingSegmentIndex === segment.segmentIndex ? 'Regenerating...' : 'Regenerate Frame'}
-              </button>
-
-              {segment.errorMessage ? (
-                <p className="text-xs text-[#b23b3b]">{segment.errorMessage}</p>
-              ) : null}
+              </div>
             </div>
           );
         })}

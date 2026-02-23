@@ -62,7 +62,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // segment_index, status, first_frame_url, closing_frame_url, video_url, prompt, updated_at, error_message.
       const { data: segmentRows, error: segmentError } = await supabase
         .from('competitor_ugc_replication_segments')
-        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,prompt,updated_at,error_message')
+        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,video_task_id,prompt,updated_at,error_message')
         .eq('project_id', record.id)
         .order('segment_index', { ascending: true });
 
@@ -75,6 +75,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           firstFrameUrl: row.first_frame_url,
           closingFrameUrl: row.closing_frame_url,
           videoUrl: row.video_url,
+          videoTaskId: row.video_task_id,
           errorMessage: row.error_message,
           prompt: hydrateSerializedSegmentPrompt(
             row.prompt as SerializedSegmentPlanSegment,

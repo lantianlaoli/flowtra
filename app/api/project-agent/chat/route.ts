@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { convertToModelMessages, jsonSchema, stepCountIs, streamText, tool, type UIMessage } from 'ai';
+import { convertToModelMessages, generateText, jsonSchema, stepCountIs, streamText, tool, type UIMessage } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin, normalizeAvatarPhotoSet } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +16,19 @@ const openrouter = createOpenAI({
 const model = openrouter.chat(process.env.OPENROUTER_MODEL || 'bytedance-seed/seed-1.6-flash');
 
 const emptySchema = jsonSchema({ type: 'object', properties: {}, required: [] });
+const CHINESE_SCENE_NUMERALS: Record<string, number> = {
+  '一': 1,
+  '二': 2,
+  '两': 2,
+  '三': 3,
+  '四': 4,
+  '五': 5,
+  '六': 6,
+  '七': 7,
+  '八': 8,
+  '九': 9,
+  '十': 10
+};
 
 type SessionState = {
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
@@ -37,7 +50,7 @@ type SessionState = {
     status: 'idle' | 'generating' | 'ready' | 'failed';
     error?: string | null;
     selectedAvatar?: { id: string; name: string; photoUrl?: string | null };
-    selectedProduct?: { id: string; name: string; photoUrl?: string | null; brandName?: string | null };
+    selectedProduct?: { id: string; name: string; photoUrl?: string | null };
     scenes: Array<{
       sceneIndex: number;
       imagePrompt: string;
@@ -73,11 +86,11 @@ type SessionState = {
       firstFrameUrl?: string | null;
       videoUrl?: string | null;
       errorMessage?: string | null;
+      prompt?: Record<string, unknown>;
     }>;
   } | null;
-  avatar?: { id: string; name: string; photoUrl: string };
-  brand?: { id: string; name: string };
-  product?: { id: string; name: string; brandId?: string | null; brandName?: string | null };
+  avatar?: { id: string; name: string; photoUrl: string } | null;
+  product?: { id: string; name: string } | null;
   customDialogue?: string;
   language?: string;
   videoDurationSeconds?: number;
@@ -96,16 +109,14 @@ const DEFAULT_STATE: SessionState = {
   step: 'collecting',
   language: 'en',
   videoDurationSeconds: 16,
-  videoAspectRatio: '16:9',
+  videoAspectRatio: '9:16',
   imageModel: 'nano_banana_pro',
   videoModel: 'veo3_fast'
 };
 
-type ProductWithBrand = {
+type ProductRow = {
   id: string;
   product_name: string;
-  brand_id?: string | null;
-  brand?: { brand_name?: string | null } | Array<{ brand_name?: string | null }> | null;
 };
 
 type AvatarOption = {
@@ -114,18 +125,138 @@ type AvatarOption = {
   photo_url: string | null;
 };
 
+type AvatarRow = {
+  id: string;
+  avatar_name: string | null;
+  photo_url: string | null;
+  file_name?: string | null;
+  photo_set_json?: unknown;
+};
+
+const parseSceneIndexFromUserTurn = (text: string): number | undefined => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return undefined;
+
+  const explicitDigitMatch = normalized.match(
+    /(?:scene|shot|segment)\s*#?\s*(\d{1,2})|(?:第\s*(\d{1,2})\s*(?:个|场|段|张|幕)?)/i
+  );
+  if (explicitDigitMatch) {
+    const value = Number(explicitDigitMatch[1] || explicitDigitMatch[2]);
+    if (Number.isFinite(value) && value >= 1) return value;
+  }
+
+  const ordinalMatch = normalized.match(/(\d{1,2})(?:st|nd|rd|th)/i);
+  if (ordinalMatch) {
+    const value = Number(ordinalMatch[1]);
+    if (Number.isFinite(value) && value >= 1) return value;
+  }
+
+  const chineseMatch = normalized.match(/第\s*([一二两三四五六七八九十])\s*(?:个|场|段|张|幕)?/);
+  if (chineseMatch) {
+    const mapped = CHINESE_SCENE_NUMERALS[chineseMatch[1]];
+    if (mapped) return mapped;
+  }
+
+  return undefined;
+};
+
+type ForcedToolChoice = { type: 'tool'; toolName: 'startCloneVideoGeneration' | 'mergeCloneVideos' } | undefined;
+
+const tryParseJsonObject = (raw: string): Record<string, unknown> | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const candidate = fencedMatch?.[1] || trimmed;
+
+  const objectStart = candidate.indexOf('{');
+  const objectEnd = candidate.lastIndexOf('}');
+  if (objectStart < 0 || objectEnd <= objectStart) return null;
+
+  const jsonSlice = candidate.slice(objectStart, objectEnd + 1);
+  try {
+    const parsed = JSON.parse(jsonSlice);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+};
+
+const classifyToolIntent = async (input: {
+  model: ReturnType<typeof openrouter.chat>;
+  latestUserTurnText: string;
+  clonePhase?: SessionState['cloneExecution'] extends { phase: infer P } ? P : string;
+  hasCloneProject: boolean;
+}): Promise<ForcedToolChoice> => {
+  const userText = input.latestUserTurnText.trim();
+  if (!userText) return undefined;
+  if (!input.hasCloneProject) return undefined;
+
+  const normalized = userText.toLowerCase();
+  // Deterministic routing for explicit workflow commands to avoid LLM-confidence misses.
+  if (
+    /\b(start|begin|run|generate|render)\b[\s\w-]{0,24}\b(video|videos)\b/.test(normalized) ||
+    /start\s+generate\s+video/.test(normalized) ||
+    /start\s+video\s+generation/.test(normalized) ||
+    /开始.*视频|生成.*视频|开始视频生成/.test(userText)
+  ) {
+    return { type: 'tool', toolName: 'startCloneVideoGeneration' };
+  }
+  if (
+    /\b(merge|stitch|finali[sz]e)\b[\s\w-]{0,24}\b(video|videos)\b/.test(normalized) ||
+    /合并.*视频|拼接.*视频|导出.*视频/.test(userText)
+  ) {
+    return { type: 'tool', toolName: 'mergeCloneVideos' };
+  }
+
+  const { text } = await generateText({
+    model: input.model,
+    system: [
+      'You are an intent router for clone video workflow.',
+      'Detect whether the user is explicitly asking to start video generation or merge/finalize videos.',
+      'Do NOT route frame/image/photo regeneration requests.',
+      'Support any language.',
+      'Return JSON only: {"tool":"startCloneVideoGeneration"|"mergeCloneVideos"|"none","confidence":0..1}'
+    ].join(' '),
+    prompt: [
+      `User message: ${userText}`,
+      `Clone phase: ${input.clonePhase || 'unknown'}`,
+      'Choose "startCloneVideoGeneration" only when user asks to begin/render/generate videos.',
+      'Choose "mergeCloneVideos" only when user asks to merge/stitch/finalize completed segment videos.',
+      'Otherwise choose "none".'
+    ].join('\n')
+  });
+
+  const parsed = tryParseJsonObject(text);
+  if (!parsed) return undefined;
+
+  const tool = typeof parsed.tool === 'string' ? parsed.tool : 'none';
+  const confidenceRaw = parsed.confidence;
+  const confidence = typeof confidenceRaw === 'number' ? confidenceRaw : Number(confidenceRaw);
+
+  if (!Number.isFinite(confidence) || confidence < 0.7) {
+    return undefined;
+  }
+
+  if (tool === 'startCloneVideoGeneration' || tool === 'mergeCloneVideos') {
+    return { type: 'tool', toolName: tool };
+  }
+  return undefined;
+};
+
 const buildSystemPrompt = (state: SessionState) => {
-  const avatarLabel = state.avatar ? `${state.avatar.name} (${state.avatar.id})` : 'not selected';
-  const productLabel = state.product ? `${state.product.name} (${state.product.id})` : 'not selected';
-  const brandLabel = state.brand ? `${state.brand.name} (${state.brand.id})` : 'not selected';
+  const avatarLabel = state.cloneReplacementDraft?.selectedAvatar?.name || state.avatar?.name || 'not selected';
+  const productLabel = state.cloneReplacementDraft?.selectedProduct?.name || state.product?.name || 'not selected';
   const dialogueLabel = state.customDialogue?.trim() ? 'provided' : 'not provided';
   const referenceVideoLabel = state.cloneReferenceVideo
-    ? `${state.cloneReferenceVideo.name || 'selected video'} (${state.cloneReferenceVideo.id})`
+    ? (state.cloneReferenceVideo.name || 'selected video')
     : 'not selected';
   const referenceVideoSummary = state.cloneReferenceVideo?.analysisSummary || 'not available';
   const referenceVideoShots = Array.isArray(state.cloneReferenceVideo?.keyShots) && state.cloneReferenceVideo?.keyShots.length > 0
     ? state.cloneReferenceVideo?.keyShots.join(' | ')
     : 'not available';
+  const referenceDetectedCharacter = state.cloneReferenceVideo?.detectedCharacter || 'not available';
+  const referenceDetectedProduct = state.cloneReferenceVideo?.detectedProduct || 'not available';
   const cloneDraftStatus = state.cloneReplacementDraft?.status || 'idle';
   const cloneDraftSceneCount = Array.isArray(state.cloneReplacementDraft?.scenes) ? state.cloneReplacementDraft.scenes.length : 0;
   const cloneDraftSelection = [
@@ -133,9 +264,7 @@ const buildSystemPrompt = (state: SessionState) => {
     state.cloneReplacementDraft?.selectedProduct?.name ? `product=${state.cloneReplacementDraft.selectedProduct.name}` : null
   ].filter(Boolean).join(', ') || 'none';
   const cloneExecutionPhase = state.cloneExecution?.phase || 'idle';
-  const cloneExecutionProjectId = state.cloneExecution?.projectId || 'none';
   const cloneExecutionSegments = Array.isArray(state.cloneExecution?.segments) ? state.cloneExecution?.segments.length : 0;
-  const projectLabel = state.projectId || 'none';
 
   return `You are Flowtra Project Agent. You orchestrate Flowtra video workflows through a conversational flow.
 
@@ -144,10 +273,14 @@ Supported workflows:
 - competitor_ugc_replication (primary use case: clone viral videos with your product)
 - motion_swap (collect requirements, then hand off to existing workflow entrypoints)
 
+Domain model (strict):
+- First-class user objects are ONLY: avatar and product.
+- Brand is deprecated/removed in this project and must not be treated as an object.
+
 Current configured required inputs for avatar_ads:
 - Character (avatar)
 - Either:
-  - Product-based mode: brand + product
+  - Product-based mode: product
   - Talking-head mode: custom dialogue/script (product not required)
 - Video duration (8-80s, multiple of 8)
 - Aspect ratio (16:9 or 9:16)
@@ -158,6 +291,12 @@ Workflow rules:
 - If the user is just chatting (greeting, Q&A, small talk), answer naturally and do not force workflow steps.
 - In small-talk turns, do NOT append workflow menus or call-to-action lists unless the user explicitly asks about capabilities or creating videos.
 - Every turn must end with a natural-language assistant reply to the user (never stay silent).
+- Never expose technical identifiers or internal fields in user-facing text (e.g. UUIDs, database ids, session ids, project ids, tool payload keys).
+- Style rule: avoid fixed/canned templates. Each reply must be generated from the current conversation context and latest state, with wording adapted to the specific user turn.
+- Language rule (strict): all user-facing replies and guidance must be in English only.
+- Terminology rule (strict): never use "brand", "your brand", "branding", or "brand identity" in user-facing copy for this flow.
+- Terminology rule (strict): always frame replacement choices as avatar/person + product.
+- If the user uses "brand" in their input, reinterpret it to product/avatar intent and confirm that selection using product/avatar wording.
 - Collect missing required inputs before execution.
 - Confirm collected inputs before project creation.
 - For avatar_ads, use createAvatarAdsProject only after user confirmation.
@@ -170,15 +309,14 @@ Workflow rules:
 - If the user picks competitor_ugc_replication, run the executable clone flow end-to-end in chat:
   - Step 1: choose reference video.
   - Step 2: choose replacement avatar and/or product.
-  - Step 3: review replaced prompts and click Generate.
-  - Step 4: review first frames per scene, regenerate frames if needed, then click Generate Final Video.
+  - Step 3: review replaced prompts, then ask me in chat to start generation.
+  - Step 4: review first frames per scene; if needed, ask me in chat to regenerate frame(s), then ask me in chat to start video generation/merge.
   - Keep replies progress-aware and concise at each phase.
 - For competitor_ugc_replication, the sequence must follow the existing manual flow:
   1) First ask user to select ONE reference video.
   2) Do not ask for product before a reference video is selected.
-  3) Do not ask for brand (brand step has been removed from clone flow).
-  4) Ask for product only as a later step.
-  5) In step 1 responses, never mention "brand" as a requirement.
+  3) Ask for product only as a later step.
+  4) In step 1 responses, never mention product requirements yet.
   6) If Reference Video is already selected in current state, do not ask for reference video again; continue to the next required step.
   7) After Reference Video is selected, your first sentence must explicitly confirm you understood the video structure using the provided summary and key shots.
   8) In the same reply, naturally recommend replacement directions and ask user to choose replacement avatar/person and replacement product.
@@ -187,6 +325,21 @@ Workflow rules:
   11) If cloneReplacementDraft.status is "generating", tell the user you are preparing prompt drafts now and to wait briefly.
   12) If cloneReplacementDraft.status is "failed", explain the failure briefly and ask whether to retry draft generation.
   13) If user asks to regenerate this step, acknowledge you are re-running the same replacement step with current selections and respond as a normal assistant turn (no technical wording like "draft schema").
+  14) Grounding rule (strict): when replying about a selected reference video, you must use ONLY "Reference Summary", "Reference Key Shots", "Reference Detected Character", and "Reference Detected Product" from current state. If details are missing, say they are unavailable; do not invent scene details.
+  15) In the first response after reference selection, cite at least two concrete shot cues from "Reference Key Shots" verbatim or near-verbatim when available.
+  16) Context rule (strict): for every reply, incorporate the latest user request plus relevant prior chat context; do not answer with generic fallback copy.
+  17) Step 2 auto-match rule: when reference video is selected and user describes replacements in natural language (e.g. "replace with a man and LIEVEDA book"), you must try to resolve matches from existing options by calling listAvatars and listProducts, then call selectAvatar/selectProduct for best matches.
+  18) You may only claim something is "preselected" after a successful selectAvatar/selectProduct tool call in this turn (tool result must be success=true). If a tool returns success=false, do not claim any preselection and ask a short clarification instead.
+  19) Product guard: if the user did not explicitly specify a replacement product in the latest turn, do not call selectProduct and do not assume any product. Ask a short follow-up question instead.
+  20) After successful auto-match, explicitly tell the user which avatar/product were preselected and ask if those choices are correct; instruct confirmation only via chat message.
+  20.1) When the user confirms replacements in natural language (not limited to fixed phrases), call generateCloneReplacementDraft immediately to start Step 3 draft generation.
+  20.2) Manual-selection rule: if current state already has selected avatar/product (from left panel) and user says they are done/selected/continue without repeating names, explicitly read back the selected avatar/product from state and ask whether to proceed to next step.
+  20.3) If both selected avatar and selected product already exist in current state and user confirms to continue, call generateCloneReplacementDraft even when the latest message does not restate the names.
+  21) If the latest user message indicates they already confirmed replacements (e.g. "I selected replacement ... Continue to the next step..."), do NOT ask for confirmation again. Instead, acknowledge the chosen avatar/product and say you are now applying those replacements to the original prompt structure.
+  22) In that post-confirmation turn, guide the user to review/edit the generated Scene and shot fields in Step 3 (subject, context/background, action, style, camera, composition, lighting, audio, dialogue), then tell them to send a chat command to start generation.
+  24) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only. During clone execution phases, never instruct clicking removed buttons. Use command-style guidance, e.g. "Say 'regenerate scene 2 frame'" or "say 'start video generation'".
+  25) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft. If the user asks to regenerate frames, call regenerateCloneFrames. If user asks to start video generation after frame review, call startCloneVideoGeneration. If user asks to stitch/finalize when awaiting merge, call mergeCloneVideos.
+  23) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
 - If the user picks motion_swap, collect requirements and guide to the existing workflow entrypoint.
 - When user asks what workflows are available, always list ALL three:
   1) Avatar Ads
@@ -195,22 +348,21 @@ Workflow rules:
 
 Current state:
 - Avatar: ${avatarLabel}
-- Brand: ${brandLabel}
 - Product: ${productLabel}
 - Reference Video: ${referenceVideoLabel}
 - Reference Summary: ${referenceVideoSummary}
 - Reference Key Shots: ${referenceVideoShots}
+- Reference Detected Character: ${referenceDetectedCharacter}
+- Reference Detected Product: ${referenceDetectedProduct}
 - Clone Draft Status: ${cloneDraftStatus}
 - Clone Draft Selections: ${cloneDraftSelection}
 - Clone Draft Scenes: ${cloneDraftSceneCount}
-- Clone Execution Project: ${cloneExecutionProjectId}
 - Clone Execution Phase: ${cloneExecutionPhase}
 - Clone Execution Segments: ${cloneExecutionSegments}
 - Custom Dialogue: ${dialogueLabel}
 - Duration: ${state.videoDurationSeconds ?? 'unset'}
 - Aspect: ${state.videoAspectRatio ?? 'unset'}
 - Language: ${state.language ?? 'unset'}
-- Project ID: ${projectLabel}
 - Step: ${state.step ?? 'unknown'}
 
 Stay concise, ask one clarification at a time, and prefer explicit confirmations before running generation tools.
@@ -218,25 +370,74 @@ Stay concise, ask one clarification at a time, and prefer explicit confirmations
 };
 
 const getOrigin = (request: Request) => new URL(request.url).origin;
-const resolveSessionTable = async (supabase: ReturnType<typeof getSupabaseAdmin>) => {
-  const { error } = await supabase.from('project_agent_sessions').select('id').limit(1);
-  if (!error) return 'project_agent_sessions';
-  if (error.code === 'PGRST205') return 'avatar_ads_agent_sessions';
-  throw error;
-};
-
 const mergeState = (state: SessionState, patch: Partial<SessionState>) => ({
   ...state,
-  ...patch,
-  avatar: patch.avatar ?? state.avatar,
-  brand: patch.brand ?? state.brand,
-  product: patch.product ?? state.product,
-  customDialogue: patch.customDialogue ?? state.customDialogue,
-  cloneReferenceVideo: patch.cloneReferenceVideo ?? state.cloneReferenceVideo,
-  cloneReplacementDraft: patch.cloneReplacementDraft ?? state.cloneReplacementDraft,
-  cloneExecution: patch.cloneExecution ?? state.cloneExecution,
-  pendingUpdatedPrompts: patch.pendingUpdatedPrompts ?? state.pendingUpdatedPrompts
+  ...patch
 });
+
+const mapClonePhaseFromStatusPayload = (payload: Record<string, unknown>): 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'merging' | 'completed' | 'failed' => {
+  const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
+  const step = typeof payload.current_step === 'string' ? payload.current_step : '';
+  const status = typeof payload.status === 'string' ? payload.status : '';
+
+  if (status === 'completed') return 'completed';
+  if (status === 'failed') return 'failed';
+  if (step === 'awaiting_merge' || step === 'merging_segments') return 'merging';
+
+  const segmentStatus = (data.segmentStatus && typeof data.segmentStatus === 'object')
+    ? data.segmentStatus as Record<string, unknown>
+    : null;
+  const total = Number(segmentStatus?.total ?? 0);
+  const framesReady = Number(segmentStatus?.framesReady ?? 0);
+  const videosReady = Number(segmentStatus?.videosReady ?? 0);
+  const videoGenerationRequested = Boolean(data.videoGenerationRequested);
+
+  if (
+    step === 'generating_segment_videos' ||
+    step === 'ready_for_video' ||
+    step === 'generating_video' ||
+    videosReady > 0 ||
+    videoGenerationRequested
+  ) {
+    return 'generating_videos';
+  }
+
+  if (total > 0 && framesReady === total && videosReady < total) {
+    return 'reviewing_frames';
+  }
+
+  return 'generating_frames';
+};
+
+const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<string, unknown>): NonNullable<SessionState['cloneExecution']> => {
+  const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
+  const segmentsRaw = Array.isArray(data.segments) ? data.segments as Array<Record<string, unknown>> : [];
+  const segments = segmentsRaw.map((segment) => ({
+    segmentIndex: Number(segment.index ?? 0),
+    status: typeof segment.status === 'string' ? segment.status : 'queued',
+    firstFrameUrl: typeof segment.firstFrameUrl === 'string' ? segment.firstFrameUrl : null,
+    videoUrl: typeof segment.videoUrl === 'string' ? segment.videoUrl : null,
+    errorMessage: typeof segment.errorMessage === 'string' ? segment.errorMessage : null,
+    prompt: (segment.prompt && typeof segment.prompt === 'object')
+      ? segment.prompt as Record<string, unknown>
+      : undefined
+  }));
+
+  const videoModel = data.videoModel;
+  const normalizedModel = (videoModel === 'veo3' || videoModel === 'seedance_1_5_pro' || videoModel === 'veo3_fast')
+    ? videoModel
+    : 'veo3_fast';
+
+  return {
+    projectId,
+    phase: mapClonePhaseFromStatusPayload(payload),
+    model: normalizedModel,
+    duration: typeof data.videoDuration === 'string' ? data.videoDuration : undefined,
+    creditsCost: typeof data.creditsUsed === 'number' ? data.creditsUsed : undefined,
+    error: typeof data.errorMessage === 'string' ? data.errorMessage : null,
+    segments
+  };
+};
 
 const normalizeUIMessage = (message: unknown, fallbackId: string): UIMessage => {
   const raw = (message ?? {}) as {
@@ -300,6 +501,8 @@ const dedupeMessages = (messages: UIMessage[]) => {
   return collapsed;
 };
 
+const MODEL_CONTEXT_WINDOW_MESSAGES = 48;
+
 const mergeAvatarOptions = (userAvatars: AvatarOption[]) => {
   const merged: AvatarOption[] = [
     ...SYSTEM_AVATARS.map((avatar) => ({
@@ -318,6 +521,24 @@ const mergeAvatarOptions = (userAvatars: AvatarOption[]) => {
   });
 };
 
+const resolveAvatarPrimaryPhotoUrl = (avatar: AvatarRow) => {
+  const direct = typeof avatar.photo_url === 'string' ? avatar.photo_url.trim() : '';
+  if (direct) return direct;
+
+  const fallbackFileName = typeof avatar.file_name === 'string' && avatar.file_name.trim()
+    ? avatar.file_name
+    : 'avatar_primary';
+  const normalizedPhotoSet = normalizeAvatarPhotoSet(
+    avatar.photo_set_json ?? null,
+    direct,
+    fallbackFileName
+  );
+  const fromPhotoSet = typeof normalizedPhotoSet.primary?.photo_url === 'string'
+    ? normalizedPhotoSet.primary.photo_url.trim()
+    : '';
+  return fromPhotoSet || null;
+};
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -326,10 +547,11 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { message, sessionId, id } = body as {
+    const { message, sessionId, id, statePatch } = body as {
       message?: UIMessage;
       sessionId?: string;
       id?: string;
+      statePatch?: Partial<SessionState>;
     };
     const resolvedSessionId = (sessionId && sessionId.trim()) || (id && id.trim()) || '';
 
@@ -342,12 +564,10 @@ export async function POST(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
-    const sessionTable = await resolveSessionTable(supabase);
-
     // Schema verified via Supabase MCP (2026-01-13):
     // project_agent_sessions columns: id, user_id, project_id, intent, status, state, messages, created_at, updated_at
     const { data: existingSession, error: fetchError } = await supabase
-      .from(sessionTable)
+      .from('project_agent_sessions')
       .select('*')
       .eq('id', resolvedSessionId)
       .maybeSingle();
@@ -368,11 +588,15 @@ export async function POST(request: Request) {
       ...DEFAULT_STATE,
       ...(existingSession?.state as SessionState | undefined)
     };
+    if (statePatch && typeof statePatch === 'object') {
+      sessionState = mergeState(sessionState, statePatch);
+    }
     const storedMessagesRaw = Array.isArray(existingSession?.messages) ? existingSession.messages : [];
     const storedMessages = storedMessagesRaw.map((storedMessage: unknown, index: number) =>
       normalizeUIMessage(storedMessage, `stored-${index}`)
     );
     const normalizedIncomingMessage = normalizeUIMessage(message, `user-${Date.now()}`);
+    const latestUserTurnText = messageText(normalizedIncomingMessage).toLowerCase();
     const conversationMessages = dedupeMessages([
       ...storedMessages,
       ...(
@@ -382,9 +606,25 @@ export async function POST(request: Request) {
       )
     ]);
 
+    const persistMessagesOnly = async (nextMessages: UIMessage[], nextState?: SessionState) => {
+      const { error: updateError } = await supabase
+        .from('project_agent_sessions')
+        .update({
+          messages: nextMessages,
+          ...(nextState ? { state: nextState } : {}),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', resolvedSessionId)
+        .eq('user_id', userId);
+
+      if (updateError) {
+        console.error('[Project Agent] Failed to persist session messages:', updateError);
+      }
+    };
+
     if (!existingSession) {
       const { error: insertError } = await supabase
-        .from(sessionTable)
+        .from('project_agent_sessions')
         .insert({
           id: resolvedSessionId,
           user_id: userId,
@@ -400,26 +640,31 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
       }
     } else {
-      const { error: updateError } = await supabase
-        .from(sessionTable)
-        .update({
-          state: sessionState,
-          messages: conversationMessages,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', resolvedSessionId)
-        .eq('user_id', userId);
-
-      if (updateError) {
-        console.error('[Project Agent] Failed to update session:', updateError);
-        return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
-      }
+      await persistMessagesOnly(
+        conversationMessages,
+        statePatch && typeof statePatch === 'object' ? sessionState : undefined
+      );
     }
 
     const persistSession = async (patch: Partial<SessionState>) => {
-      sessionState = mergeState(sessionState, patch);
+      const { data: latestSession, error: latestError } = await supabase
+        .from('project_agent_sessions')
+        .select('state')
+        .eq('id', resolvedSessionId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (latestError) {
+        console.error('[Project Agent] Failed to load latest session state before persist:', latestError);
+      }
+
+      const latestState = (latestSession?.state as SessionState | undefined) ?? {};
+      sessionState = mergeState(
+        mergeState(sessionState, latestState),
+        patch
+      );
       const { error: updateError } = await supabase
-        .from(sessionTable)
+        .from('project_agent_sessions')
         .update({
           state: sessionState,
           project_id: sessionState.projectId ?? null,
@@ -435,64 +680,110 @@ export async function POST(request: Request) {
       }
     };
 
+    const resolveCloneProjectId = async (): Promise<string | null> => {
+      const fromState = sessionState.cloneExecution?.projectId;
+      if (fromState) {
+        return fromState;
+      }
+
+      const { data: latestCloneProject, error: latestCloneProjectError } = await supabase
+        .from('competitor_ugc_replication_projects')
+        .select('id')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestCloneProjectError) {
+        console.error('[Project Agent] Failed to resolve latest clone project id:', latestCloneProjectError);
+        return null;
+      }
+
+      return latestCloneProject?.id || null;
+    };
+
     const origin = getOrigin(request);
 
-    const modelMessages = await convertToModelMessages(conversationMessages);
+    const fetchUserAvatarOptions = async (): Promise<AvatarOption[]> => {
+      const extendedQuery = await supabase
+        .from('user_avatars')
+        .select('id, avatar_name, photo_url, file_name, photo_set_json')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      let avatarRows: AvatarRow[] | null = null;
+
+      if (extendedQuery.error) {
+        console.warn('[Project Agent] Avatar extended query failed; falling back to minimal fields:', extendedQuery.error.message);
+        const fallbackQuery = await supabase
+          .from('user_avatars')
+          .select('id, avatar_name, photo_url')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+        if (fallbackQuery.error) {
+          throw new Error('Failed to load avatars');
+        }
+        avatarRows = (fallbackQuery.data ?? []) as AvatarRow[];
+      } else {
+        avatarRows = (extendedQuery.data ?? []) as AvatarRow[];
+      }
+
+      return avatarRows.map((avatar) => ({
+        id: avatar.id,
+        avatar_name: avatar.avatar_name || 'Unnamed Avatar',
+        photo_url: resolveAvatarPrimaryPhotoUrl(avatar)
+      }));
+    };
+
+    const modelContextMessages = conversationMessages.slice(-MODEL_CONTEXT_WINDOW_MESSAGES);
+    const modelMessages = await convertToModelMessages(modelContextMessages);
+    const inferredSceneIndexFromTurn = parseSceneIndexFromUserTurn(latestUserTurnText);
+    let forcedToolChoice: ForcedToolChoice;
+    try {
+      forcedToolChoice = await classifyToolIntent({
+        model,
+        latestUserTurnText,
+        clonePhase: sessionState.cloneExecution?.phase,
+        hasCloneProject: Boolean(
+          sessionState.cloneExecution?.projectId ||
+          sessionState.projectId
+        )
+      });
+    } catch (intentError) {
+      console.warn('[Project Agent] Tool intent classification failed, falling back to model autonomy:', intentError);
+      forcedToolChoice = undefined;
+    }
 
     const result = await streamText({
       model,
       system: buildSystemPrompt(sessionState),
       messages: modelMessages,
       stopWhen: stepCountIs(5),
+      ...(forcedToolChoice ? { toolChoice: forcedToolChoice } : {}),
       tools: {
         listAvatars: tool({
           description: 'List available avatars for the user',
           inputSchema: emptySchema,
           execute: async () => {
             // Schema verified via Supabase MCP (2026-01-13):
-            // user_avatars columns: id, user_id, photo_url, file_name, is_active, created_at, updated_at, avatar_name
-            const { data, error } = await supabase
-              .from('user_avatars')
-              .select('id, avatar_name, photo_url')
-              .eq('user_id', userId)
-              .eq('is_active', true)
-              .order('created_at', { ascending: false });
-
-            if (error) {
-              throw new Error('Failed to load avatars');
-            }
-
-            const userAvatars: AvatarOption[] = (data ?? []).map((avatar) => ({
-              id: avatar.id,
-              avatar_name: avatar.avatar_name || 'Unnamed Avatar',
-              photo_url: avatar.photo_url
-            }));
+            // user_avatars columns include id, avatar_name, photo_url, file_name, photo_set_json
+            const userAvatars = await fetchUserAvatarOptions();
             const avatars = mergeAvatarOptions(userAvatars);
 
             return { avatars };
           }
         }),
-        listBrandsAndProducts: tool({
-          description: 'List brands and products for the user',
+        listProducts: tool({
+          description: 'List products for the user',
           inputSchema: emptySchema,
           execute: async () => {
             // Schema verified via Supabase MCP (2026-01-13):
-            // user_brands columns: id, user_id, brand_name, brand_logo_url, created_at, updated_at
-            const { data: brands, error: brandsError } = await supabase
-              .from('user_brands')
-              .select('id, brand_name')
-              .eq('user_id', userId)
-              .order('created_at', { ascending: false });
-
-            if (brandsError) {
-              throw new Error('Failed to load brands');
-            }
-
-            // Schema verified via Supabase MCP (2026-01-13):
-            // user_products columns: id, user_id, product_name, created_at, updated_at, brand_id
+            // user_products columns: id, user_id, product_name, created_at, updated_at
             const { data: products, error: productsError } = await supabase
               .from('user_products')
-              .select('id, product_name, brand_id')
+              .select('id, product_name')
               .eq('user_id', userId)
               .order('created_at', { ascending: false });
 
@@ -500,7 +791,7 @@ export async function POST(request: Request) {
               throw new Error('Failed to load products');
             }
 
-            return { brands: brands ?? [], products: products ?? [] };
+            return { products: products ?? [] };
           }
         }),
         selectAvatar: tool({
@@ -514,28 +805,27 @@ export async function POST(request: Request) {
             required: []
           }),
           execute: async ({ avatarId, avatarName }) => {
-            const { data: avatars, error } = await supabase
-              .from('user_avatars')
-              .select('id, avatar_name, photo_url')
-              .eq('user_id', userId)
-              .eq('is_active', true)
-              .order('created_at', { ascending: false });
-
-            if (error || !avatars) {
-              throw new Error('Failed to load avatars');
-            }
+            const avatars = await fetchUserAvatarOptions();
 
             const normalizedName = avatarName?.toLowerCase().trim();
-            const mergedAvatars = mergeAvatarOptions((avatars ?? []).map((avatar) => ({
-              id: avatar.id,
-              avatar_name: avatar.avatar_name || 'Unnamed Avatar',
-              photo_url: avatar.photo_url ?? null
-            })));
-            const match = mergedAvatars.find((avatar) => {
-              if (avatarId) return avatar.id === avatarId;
-              if (!normalizedName) return false;
-              return avatar.avatar_name?.toLowerCase().includes(normalizedName);
-            });
+            const mergedAvatars = mergeAvatarOptions(avatars);
+            const normalizedAvatarName = (name: string) => name.toLowerCase().replace(/\s+/g, ' ').trim();
+            const avatarAlias = normalizedName ? normalizedAvatarName(normalizedName) : '';
+            const maleAlias = new Set(['man', 'male', 'guy', 'boy']);
+            const femaleAlias = new Set(['woman', 'female', 'girl']);
+
+            let match = mergedAvatars.find((avatar) => avatarId ? avatar.id === avatarId : false);
+            if (!match && avatarAlias) {
+              if (maleAlias.has(avatarAlias)) {
+                match = mergedAvatars.find((avatar) => normalizedAvatarName(avatar.avatar_name || '') === 'default male')
+                  || mergedAvatars.find((avatar) => /male|man/.test(normalizedAvatarName(avatar.avatar_name || '')));
+              } else if (femaleAlias.has(avatarAlias)) {
+                match = mergedAvatars.find((avatar) => normalizedAvatarName(avatar.avatar_name || '') === 'default female')
+                  || mergedAvatars.find((avatar) => /female|woman/.test(normalizedAvatarName(avatar.avatar_name || '')));
+              } else {
+                match = mergedAvatars.find((avatar) => normalizedAvatarName(avatar.avatar_name || '').includes(avatarAlias));
+              }
+            }
 
             if (!match) {
               return { success: false, message: 'No matching avatar found.' };
@@ -549,6 +839,18 @@ export async function POST(request: Request) {
                 id: match.id,
                 name: match.avatar_name || 'Unnamed Avatar',
                 photoUrl: match.photo_url
+              },
+              cloneReplacementDraft: {
+                ...(sessionState.cloneReplacementDraft ?? {
+                  status: 'idle',
+                  error: null,
+                  scenes: []
+                }),
+                selectedAvatar: {
+                  id: match.id,
+                  name: match.avatar_name || 'Unnamed Avatar',
+                  photoUrl: match.photo_url ?? null
+                }
               }
             });
 
@@ -556,20 +858,19 @@ export async function POST(request: Request) {
           }
         }),
         selectProduct: tool({
-          description: 'Select a product by name or id, optionally using brand name for disambiguation',
+          description: 'Select a product by name or id',
           inputSchema: jsonSchema({
             type: 'object',
             properties: {
               productId: { type: 'string' },
-              productName: { type: 'string' },
-              brandName: { type: 'string' }
+              productName: { type: 'string' }
             },
             required: []
           }),
-          execute: async ({ productId, productName, brandName }) => {
+          execute: async ({ productId, productName }) => {
             const { data, error } = await supabase
               .from('user_products')
-              .select('id, product_name, brand_id, brand:user_brands(brand_name)')
+              .select('id, product_name')
               .eq('user_id', userId)
               .order('created_at', { ascending: false });
 
@@ -577,43 +878,133 @@ export async function POST(request: Request) {
               throw new Error('Failed to load products');
             }
 
-            const products = data as ProductWithBrand[];
+            const products = data as ProductRow[];
 
             const normalizedProduct = productName?.toLowerCase().trim();
-            const normalizedBrand = brandName?.toLowerCase().trim();
+
+            const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+            const latestUserTextNormalized = normalize(latestUserTurnText || '');
+            const normalizedProductNeedle = normalizedProduct ? normalize(normalizedProduct) : '';
+
             const match = products.find((product) => {
               if (productId) return product.id === productId;
-              if (!normalizedProduct) return false;
-              const nameMatches = product.product_name?.toLowerCase().includes(normalizedProduct);
-              if (!nameMatches) return false;
-              if (!normalizedBrand) return true;
-              const brandName = Array.isArray(product.brand)
-                ? product.brand[0]?.brand_name
-                : product.brand?.brand_name;
-              return brandName?.toLowerCase().includes(normalizedBrand);
+              if (!normalizedProductNeedle) return false;
+
+              const normalizedProductName = normalize(product.product_name || '');
+              return normalizedProductName.includes(normalizedProductNeedle);
             });
 
             if (!match) {
               return { success: false, message: 'No matching product found.' };
             }
 
-            const matchedBrandName = Array.isArray(match.brand)
-              ? match.brand[0]?.brand_name
-              : match.brand?.brand_name;
+            const matchedProductNameNormalized = normalize(match.product_name || '');
+            if (!latestUserTextNormalized || !latestUserTextNormalized.includes(matchedProductNameNormalized)) {
+              return {
+                success: false,
+                message: 'User has not explicitly specified this replacement product in the latest message.'
+              };
+            }
 
             await persistSession({
               product: {
                 id: match.id,
-                name: match.product_name,
-                brandId: match.brand_id ?? null,
-                brandName: matchedBrandName ?? null
+                name: match.product_name
               },
-              brand: match.brand_id && matchedBrandName
-                ? { id: match.brand_id, name: matchedBrandName }
-                : sessionState.brand
+              cloneReplacementDraft: {
+                ...(sessionState.cloneReplacementDraft ?? {
+                  status: 'idle',
+                  error: null,
+                  scenes: []
+                }),
+                selectedProduct: {
+                  id: match.id,
+                  name: match.product_name,
+                  photoUrl: null
+                }
+              }
             });
 
             return { success: true, product: match };
+          }
+        }),
+        generateCloneReplacementDraft: tool({
+          description: 'Generate Step 3 replacement prompt draft from current selected avatar/product for clone workflow',
+          inputSchema: emptySchema,
+          execute: async () => {
+            if (sessionState.intent !== 'competitor_ugc_replication' || !sessionState.cloneReferenceVideo?.id) {
+              return { success: false, message: 'Reference video is not selected yet.' };
+            }
+
+            if (sessionState.cloneReplacementDraft?.status === 'generating') {
+              return { success: true, message: 'Replacement draft generation is already in progress.' };
+            }
+            if (sessionState.cloneReplacementDraft?.status === 'ready' && (sessionState.cloneReplacementDraft?.scenes?.length || 0) > 0) {
+              return { success: true, message: 'Replacement draft is already ready.' };
+            }
+
+            const selectedAvatarId =
+              sessionState.cloneReplacementDraft?.selectedAvatar?.id ||
+              sessionState.avatar?.id;
+            const selectedProductId =
+              sessionState.cloneReplacementDraft?.selectedProduct?.id ||
+              sessionState.product?.id;
+
+            if (!selectedAvatarId && !selectedProductId) {
+              return { success: false, message: 'Please select at least one replacement (avatar or product) first.' };
+            }
+
+            const generatingDraft = {
+              status: 'generating' as const,
+              error: null,
+              selectedAvatar: sessionState.cloneReplacementDraft?.selectedAvatar,
+              selectedProduct: sessionState.cloneReplacementDraft?.selectedProduct,
+              scenes: []
+            };
+
+            await persistSession({
+              cloneReplacementDraft: generatingDraft
+            });
+
+            const internalHeaders: HeadersInit = {
+              'Content-Type': 'application/json',
+              'x-project-agent-internal': '1'
+            };
+            if (userId) {
+              internalHeaders['x-project-agent-user-id'] = userId;
+            }
+
+            const draftResponse = await fetch(`${origin}/api/project-agent/clone-replacement-draft`, {
+              method: 'POST',
+              headers: internalHeaders,
+              body: JSON.stringify({
+                sessionId: resolvedSessionId,
+                avatarId: selectedAvatarId,
+                productId: selectedProductId
+              })
+            });
+
+            const draftPayload = await draftResponse.json().catch(() => ({}));
+            if (!draftResponse.ok || !draftPayload?.success || !draftPayload?.draft) {
+              const errorMessage = draftPayload?.error || 'Failed to generate replacement prompts.';
+              await persistSession({
+                cloneReplacementDraft: {
+                  ...generatingDraft,
+                  status: 'failed',
+                  error: errorMessage
+                }
+              });
+              return { success: false, message: errorMessage };
+            }
+
+            await persistSession({
+              cloneReplacementDraft: draftPayload.draft as SessionState['cloneReplacementDraft']
+            });
+
+            return {
+              success: true,
+              scenes: Array.isArray(draftPayload.draft?.scenes) ? draftPayload.draft.scenes.length : 0
+            };
           }
         }),
         setPreferences: tool({
@@ -683,7 +1074,7 @@ export async function POST(request: Request) {
             }
 
             const duration = sessionState.videoDurationSeconds ?? 16;
-            const aspect = sessionState.videoAspectRatio ?? '16:9';
+            const aspect = sessionState.videoAspectRatio ?? '9:16';
             const imageSize = aspect === '9:16' ? 'portrait_16_9' : 'landscape_16_9';
 
             const formData = new FormData();
@@ -814,6 +1205,409 @@ export async function POST(request: Request) {
             return { success: true, project: payload.project };
           }
         }),
+        startCloneGenerationFromDraft: tool({
+          description: 'Start clone generation from Step 3 draft (chat-driven, no UI button).',
+          inputSchema: emptySchema,
+          execute: async () => {
+            if (sessionState.intent !== 'competitor_ugc_replication' || !sessionState.cloneReferenceVideo?.id) {
+              return { success: false, message: 'Reference video is missing.' };
+            }
+
+            const draft = sessionState.cloneReplacementDraft;
+            if (!draft || draft.status !== 'ready' || !Array.isArray(draft.scenes) || draft.scenes.length === 0) {
+              return { success: false, message: 'Replacement draft is not ready yet.' };
+            }
+
+            const selectedProductId = draft.selectedProduct?.id || sessionState.product?.id;
+            if (!selectedProductId) {
+              return { success: false, message: 'A replacement product is required before generation.' };
+            }
+
+            let selectedProductImageUrl = draft.selectedProduct?.photoUrl || null;
+            if (!selectedProductImageUrl) {
+              const { data: product, error: productError } = await supabase
+                .from('user_products')
+                .select('id, product_name, user_product_photos(photo_url,is_primary)')
+                .eq('id', selectedProductId)
+                .eq('user_id', userId)
+                .maybeSingle();
+              if (productError || !product) {
+                return { success: false, message: 'Selected product could not be resolved.' };
+              }
+              const photos = Array.isArray(product.user_product_photos)
+                ? product.user_product_photos as Array<{ photo_url?: string; is_primary?: boolean }>
+                : [];
+              const primary = photos.find((photo) => photo.is_primary) || photos[0];
+              selectedProductImageUrl = primary?.photo_url || null;
+            }
+
+            if (!selectedProductImageUrl) {
+              return { success: false, message: 'Selected product is missing an image.' };
+            }
+
+            const sceneToSegmentPrompt = (scene: NonNullable<SessionState['cloneReplacementDraft']>['scenes'][number]) => {
+              const shots = Array.isArray(scene.videoPrompt?.shots)
+                ? scene.videoPrompt.shots.map((shot, index) => ({
+                    id: Number.isFinite(Number(shot.id)) ? Number(shot.id) : index + 1,
+                    time_range: typeof shot.time_range === 'string' ? shot.time_range : '00:00 - 00:08',
+                    subject: shot.subject || '',
+                    context_environment: shot.context_environment || '',
+                    action: shot.action || '',
+                    style: shot.style || '',
+                    camera_motion_positioning: shot.camera_motion_positioning || '',
+                    composition: shot.composition || '',
+                    ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
+                    audio: shot.audio || '',
+                    dialogue: shot.dialogue || '',
+                    language: shot.language || (sessionState.language ?? 'en')
+                  }))
+                : [];
+              return {
+                first_frame_description: scene.imagePrompt || '',
+                shots,
+                is_continuation_from_prev: (scene.sceneIndex ?? 1) > 1
+              };
+            };
+
+            const segmentPrompts = draft.scenes.map(sceneToSegmentPrompt);
+            const videoDuration = String(Math.max(1, draft.scenes.length) * 8);
+            const normalizedModel: 'veo3_fast' = 'veo3_fast';
+
+            const createPayload: Record<string, unknown> = {
+              userId,
+              imageUrl: selectedProductImageUrl,
+              videoModel: normalizedModel,
+              videoAspectRatio: sessionState.videoAspectRatio || '9:16',
+              videoDuration,
+              language: sessionState.language || 'en',
+              shouldGenerateVideo: true,
+              segmentPrompts
+            };
+            if (sessionState.cloneReferenceVideo.sourceType === 'competitor_ad') {
+              createPayload.competitorAdId = sessionState.cloneReferenceVideo.sourceId || sessionState.cloneReferenceVideo.id;
+            } else {
+              createPayload.creatorSourceVideoId = sessionState.cloneReferenceVideo.id || sessionState.cloneReferenceVideo.sourceId;
+            }
+
+            await persistSession({
+              cloneExecution: {
+                projectId: '',
+                phase: 'generating_frames',
+                model: normalizedModel,
+                duration: videoDuration,
+                creditsCost: undefined,
+                segments: segmentPrompts.map((prompt, index) => ({
+                  segmentIndex: index,
+                  status: 'queued',
+                  prompt
+                }))
+              }
+            });
+
+            const createResponse = await fetch(`${origin}/api/competitor-ugc-replication/create`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(createPayload)
+            });
+            const createPayloadResult = await createResponse.json();
+            if (!createResponse.ok || !createPayloadResult?.success || !createPayloadResult?.projectId) {
+              const errorMessage = createPayloadResult?.error || 'Failed to start clone generation.';
+              await persistSession({
+                cloneExecution: {
+                  projectId: '',
+                  phase: 'failed',
+                  error: errorMessage,
+                  segments: []
+                }
+              });
+              return { success: false, message: errorMessage };
+            }
+
+            const projectId = createPayloadResult.projectId as string;
+            const internalHeaders: HeadersInit = {
+              'x-project-agent-internal': '1',
+              'x-project-agent-user-id': userId
+            };
+            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+              cache: 'no-store',
+              headers: internalHeaders
+            });
+            const statusPayload = await statusResponse.json().catch(() => ({}));
+
+            if (statusResponse.ok && statusPayload?.data) {
+              await persistSession({
+                cloneExecution: toCloneExecutionFromStatusPayload(projectId, statusPayload as Record<string, unknown>)
+              });
+            } else {
+              await persistSession({
+                cloneExecution: {
+                  projectId,
+                  phase: 'generating_frames',
+                  model: normalizedModel,
+                  duration: videoDuration,
+                  segments: []
+                }
+              });
+            }
+
+            return {
+              success: true,
+              projectId,
+              message: 'Clone frame generation has started.'
+            };
+          }
+        }),
+        startCloneVideoGeneration: tool({
+          description: 'Start clone video generation from reviewed first frames for the current competitor clone project',
+          inputSchema: emptySchema,
+          execute: async () => {
+            const projectId = await resolveCloneProjectId();
+            if (!projectId) {
+              return { success: false, message: 'Clone project is not initialized yet.' };
+            }
+
+            const internalHeaders: HeadersInit = {
+              'x-project-agent-internal': '1'
+            };
+            if (userId) {
+              internalHeaders['x-project-agent-user-id'] = userId;
+            }
+
+            const precheckStatusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+              cache: 'no-store',
+              headers: internalHeaders
+            });
+            const precheckStatusPayload = await precheckStatusResponse.json().catch(() => ({}));
+            if (precheckStatusResponse.ok && precheckStatusPayload?.data) {
+              await persistSession({
+                cloneExecution: toCloneExecutionFromStatusPayload(projectId, precheckStatusPayload as Record<string, unknown>)
+              });
+
+              const precheckData = precheckStatusPayload.data as Record<string, unknown>;
+              const segmentStatus = (precheckData.segmentStatus && typeof precheckData.segmentStatus === 'object')
+                ? precheckData.segmentStatus as Record<string, unknown>
+                : null;
+              const total = Number(segmentStatus?.total ?? 0);
+              const framesReady = Number(segmentStatus?.framesReady ?? 0);
+
+              if (total > 0 && framesReady < total) {
+                return {
+                  success: false,
+                  message: `Frames are still generating (${framesReady}/${total} ready). Please wait until all frames are ready, then start video generation.`
+                };
+              }
+            }
+
+            const startResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/start-video`, {
+              method: 'POST',
+              headers: internalHeaders
+            });
+            const startPayload = await startResponse.json().catch(() => ({}));
+
+            if (!startResponse.ok) {
+              return { success: false, message: startPayload?.error || 'Failed to start clone video generation.' };
+            }
+
+            // Optimistic phase transition: backend may still report frame-phase for a short time
+            // after queueing video generation. Keep UI aligned with user intent immediately.
+            const previousExecution = sessionState.cloneExecution;
+            await persistSession({
+              cloneExecution: {
+                projectId,
+                phase: 'generating_videos',
+                model: previousExecution?.model,
+                duration: previousExecution?.duration,
+                creditsCost: previousExecution?.creditsCost,
+                error: null,
+                segments: previousExecution?.segments ?? []
+              }
+            });
+
+            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+              cache: 'no-store',
+              headers: internalHeaders
+            });
+            const statusPayload = await statusResponse.json().catch(() => ({}));
+            if (statusResponse.ok && statusPayload?.data) {
+              const mapped = toCloneExecutionFromStatusPayload(projectId, statusPayload as Record<string, unknown>);
+              const normalized = mapped.phase === 'generating_frames'
+                ? { ...mapped, phase: 'generating_videos' as const }
+                : mapped;
+              await persistSession({
+                cloneExecution: normalized
+              });
+            }
+
+            return { success: true, message: 'Clone video generation has started.' };
+          }
+        }),
+        regenerateCloneFrames: tool({
+          description: 'Regenerate clone frame for one specific scene number; sceneIndex is 1-based.',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              sceneIndex: { type: 'integer', minimum: 1 }
+            },
+            required: []
+          }),
+          execute: async ({ sceneIndex }) => {
+            const projectId = await resolveCloneProjectId();
+            if (!projectId) {
+              return { success: false, message: 'Clone project is not initialized yet.' };
+            }
+
+            const resolvedSceneIndex = typeof sceneIndex === 'number' ? sceneIndex : inferredSceneIndexFromTurn;
+            if (typeof resolvedSceneIndex !== 'number' || !Number.isFinite(resolvedSceneIndex) || resolvedSceneIndex < 1) {
+              return {
+                success: false,
+                message: 'Please specify exactly which scene to regenerate, for example: "regenerate scene 2 frame".'
+              };
+            }
+
+            const internalHeaders: HeadersInit = {
+              'x-project-agent-internal': '1'
+            };
+            if (userId) {
+              internalHeaders['x-project-agent-user-id'] = userId;
+            }
+
+            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+              cache: 'no-store',
+              headers: internalHeaders
+            });
+            const statusPayload = await statusResponse.json().catch(() => ({}));
+            if (!statusResponse.ok || !statusPayload?.data) {
+              return { success: false, message: statusPayload?.error || 'Failed to load clone status before regeneration.' };
+            }
+
+            const segments = Array.isArray((statusPayload.data as Record<string, unknown>).segments)
+              ? (statusPayload.data as Record<string, unknown>).segments as Array<Record<string, unknown>>
+              : [];
+            if (segments.length === 0) {
+              return { success: false, message: 'No segments available to regenerate.' };
+            }
+
+            const targetIndex = Math.max(0, resolvedSceneIndex - 1);
+            const segmentExists = segments.some((segment) => Number(segment.index ?? -1) === targetIndex);
+            if (!segmentExists) {
+              return {
+                success: false,
+                message: `Scene ${resolvedSceneIndex} does not exist in this project.`
+              };
+            }
+
+            const targetIndices = [targetIndex];
+
+            const failures: Array<{ index: number; error: string }> = [];
+            const regeneratedIndices: number[] = [];
+            const alreadyInProgressIndices: number[] = [];
+            for (const index of targetIndices) {
+              const regenerateResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/segments/${index}`, {
+                method: 'PATCH',
+                headers: {
+                  ...internalHeaders,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ regenerate: 'photo' })
+              });
+              const regeneratePayload = await regenerateResponse.json().catch(() => ({}));
+              if (!regenerateResponse.ok) {
+                const errorMessage = regeneratePayload?.error || 'Failed to regenerate frame.';
+                const normalizedError = String(errorMessage).toLowerCase();
+                // Treat in-progress 409 as non-fatal so we don't repeatedly retry the same scene.
+                if (
+                  regenerateResponse.status === 409 &&
+                  (
+                    normalizedError.includes('already in progress') ||
+                    normalizedError.includes('already running')
+                  )
+                ) {
+                  alreadyInProgressIndices.push(index);
+                  continue;
+                }
+                failures.push({
+                  index,
+                  error: (
+                    regenerateResponse.status === 409 &&
+                    normalizedError.includes('previous segment frame not ready')
+                  )
+                    ? `Scene ${index + 1} depends on Scene ${index}. Please wait for Scene ${index} frame to be ready, then retry Scene ${index + 1}.`
+                    : errorMessage
+                });
+                continue;
+              }
+              regeneratedIndices.push(index);
+            }
+
+            const refreshedStatusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+              cache: 'no-store',
+              headers: internalHeaders
+            });
+            const refreshedStatusPayload = await refreshedStatusResponse.json().catch(() => ({}));
+            if (refreshedStatusResponse.ok && refreshedStatusPayload?.data) {
+              await persistSession({
+                cloneExecution: toCloneExecutionFromStatusPayload(projectId, refreshedStatusPayload as Record<string, unknown>)
+              });
+            }
+
+            if (
+              failures.length > 0 &&
+              regeneratedIndices.length === 0 &&
+              alreadyInProgressIndices.length === 0
+            ) {
+              return {
+                success: false,
+                message: failures.map((failure) => `Scene ${failure.index + 1}: ${failure.error}`).join(' | ')
+              };
+            }
+
+            return {
+              success: true,
+              regeneratedScenes: regeneratedIndices.map((index) => index + 1),
+              alreadyInProgressScenes: alreadyInProgressIndices.map((index) => index + 1),
+              partialFailures: failures
+            };
+          }
+        }),
+        mergeCloneVideos: tool({
+          description: 'Merge generated clone scene videos into the final output when the project is awaiting merge',
+          inputSchema: emptySchema,
+          execute: async () => {
+            const projectId = await resolveCloneProjectId();
+            if (!projectId) {
+              return { success: false, message: 'Clone project is not initialized yet.' };
+            }
+
+            const internalHeaders: HeadersInit = {
+              'x-project-agent-internal': '1'
+            };
+            if (userId) {
+              internalHeaders['x-project-agent-user-id'] = userId;
+            }
+
+            const mergeResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/merge`, {
+              method: 'POST',
+              headers: internalHeaders
+            });
+            const mergePayload = await mergeResponse.json().catch(() => ({}));
+            if (!mergeResponse.ok) {
+              return { success: false, message: mergePayload?.error || 'Failed to start merge.' };
+            }
+
+            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+              cache: 'no-store',
+              headers: internalHeaders
+            });
+            const statusPayload = await statusResponse.json().catch(() => ({}));
+            if (statusResponse.ok && statusPayload?.data) {
+              await persistSession({
+                cloneExecution: toCloneExecutionFromStatusPayload(projectId, statusPayload as Record<string, unknown>)
+              });
+            }
+
+            return { success: true, message: 'Final video merge has started.' };
+          }
+        }),
         syncProjectStatus: tool({
           description: 'Fetch the latest project status and prompts for the current project',
           inputSchema: emptySchema,
@@ -844,10 +1638,12 @@ export async function POST(request: Request) {
       }
     });
 
+    const finalizeNonce = Date.now().toString(36);
+
     return result.toUIMessageStreamResponse({
       onFinish: async ({ messages: finalMessages }) => {
         const normalizedFinalMessages = dedupeMessages(
-          finalMessages.map((message, index) => normalizeUIMessage(message, `final-${index}`))
+          finalMessages.map((message, index) => normalizeUIMessage(message, `final-${finalizeNonce}-${index}`))
         );
         // Preserve existing timeline exactly as-is, and only append genuinely new
         // streamed messages. Never overwrite prior history by id.
@@ -869,14 +1665,7 @@ export async function POST(request: Request) {
           existingIds.add(message.id);
         }
 
-        await supabase
-          .from(sessionTable)
-          .update({
-            messages: messagesToPersist,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', resolvedSessionId)
-          .eq('user_id', userId);
+        await persistMessagesOnly(messagesToPersist);
       }
     });
   } catch (error) {
