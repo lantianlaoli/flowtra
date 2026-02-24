@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
 import { buildSegmentStatusPayload, startSegmentVideoTask, type SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
+import { mergeVideosWithFal } from '@/lib/video-merge';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -69,7 +70,7 @@ interface KIEVideoWebhookPayload {
  * Key responsibilities:
  * 1. Update segment with video URL
  * 2. Update closing_frame_url of previous segment
- * 3. Check if all videos ready → update project status to 'awaiting_merge'
+ * 3. Check if all videos ready → auto-start FAL merge for multi-segment projects
  *
  * Security: Simple taskId validation - checks if taskId exists in database.
  * Idempotency: Uses video_webhook_received_at timestamp to prevent duplicate processing.
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
       // Get project info and all segments
       const { data: project } = await supabase
         .from('competitor_ugc_replication_projects')
-        .select('id, segment_count, is_segmented, status')
+        .select('id, segment_count, is_segmented, status, fal_merge_task_id, video_aspect_ratio')
         .eq('id', segment.project_id)
         .single();
 
@@ -227,18 +228,52 @@ export async function POST(request: NextRequest) {
 
             console.log(`✅ [UGC Video Webhook] Single segment project ${segment.project_id} completed without merge`);
           } else {
-            // Multiple segments: Set status to awaiting_merge (user must trigger merge)
-            await supabase
-              .from('competitor_ugc_replication_projects')
-              .update({
-                status: 'awaiting_merge',
-                current_step: 'merging_segments',
-                progress_percentage: 90,
-                last_processed_at: new Date().toISOString()
-              })
-              .eq('id', segment.project_id);
+            // Multiple segments: auto-start merge as soon as all segment videos are ready.
+            if (project.fal_merge_task_id) {
+              console.log(`ℹ️ [UGC Video Webhook] Merge already started for project ${segment.project_id}: ${project.fal_merge_task_id}`);
+            } else {
+              try {
+                const segmentVideoUrls = (allSegments as CompetitorUgcReplicationSegment[])
+                  .map(seg => seg.video_url)
+                  .filter((url): url is string => typeof url === 'string' && url.length > 0);
 
-            console.log(`✅ [UGC Video Webhook] Project ${segment.project_id} awaiting merge`);
+                if (segmentVideoUrls.length !== allSegments.length) {
+                  throw new Error('Cannot start merge: one or more segment video URLs are missing.');
+                }
+
+                const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+                const { taskId: mergeTaskId } = await mergeVideosWithFal(
+                  segmentVideoUrls,
+                  aspectRatio,
+                  '/api/competitor-ugc-replication/webhooks/merge'
+                );
+
+                await supabase
+                  .from('competitor_ugc_replication_projects')
+                  .update({
+                    status: 'processing',
+                    current_step: 'merging_segments',
+                    progress_percentage: 95,
+                    fal_merge_task_id: mergeTaskId,
+                    last_processed_at: new Date().toISOString()
+                  })
+                  .eq('id', segment.project_id);
+
+                console.log(`✅ [UGC Video Webhook] Started merge for project ${segment.project_id}, taskId=${mergeTaskId}`);
+              } catch (mergeError) {
+                console.error(`❌ [UGC Video Webhook] Failed to auto-start merge for project ${segment.project_id}:`, mergeError);
+                // Fallback to explicit awaiting-merge state so user/agent can trigger /merge manually.
+                await supabase
+                  .from('competitor_ugc_replication_projects')
+                  .update({
+                    status: 'awaiting_merge',
+                    current_step: 'awaiting_merge',
+                    progress_percentage: 90,
+                    last_processed_at: new Date().toISOString()
+                  })
+                  .eq('id', segment.project_id);
+              }
+            }
           }
         }
       }

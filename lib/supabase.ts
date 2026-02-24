@@ -84,6 +84,10 @@ export interface SingleVideoProject {
   progress_percentage?: number
   last_processed_at?: string
   selected_brand_id?: string | null // Reference to user_brands table
+  selected_inputs?: Record<string, unknown> | null // Multi-selection context (primary + arrays)
+  brand_logo_url?: string | null
+  product_image_urls?: string[] | null
+  competitor_file_type?: 'video' | 'image' | null
   video_generation_requested?: boolean | null // Whether user approved moving from cover to video
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
   video_generation_prompt?: Record<string, unknown> // JSONB field containing the prompt used for video generation

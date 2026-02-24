@@ -23,6 +23,24 @@ export async function POST(request: NextRequest) {
     }
     const requestData: StartWorkflowRequest = await request.json();
 
+    // Backward/forward compatibility: always normalize selection arrays.
+    const selectedAvatarIds = Array.isArray(requestData.selectedAvatarIds)
+      ? requestData.selectedAvatarIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
+    const selectedProductIds = Array.isArray(requestData.selectedProductIds)
+      ? requestData.selectedProductIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
+    requestData.selectedAvatarIds = Array.from(new Set([
+      ...(requestData.selectedAvatarId ? [requestData.selectedAvatarId] : []),
+      ...selectedAvatarIds
+    ]));
+    requestData.selectedProductIds = Array.from(new Set([
+      ...(requestData.selectedProductId ? [requestData.selectedProductId] : []),
+      ...selectedProductIds
+    ]));
+    requestData.selectedAvatarId = requestData.selectedAvatarId || requestData.selectedAvatarIds[0];
+    requestData.selectedProductId = requestData.selectedProductId || requestData.selectedProductIds[0];
+
     // Validate custom script mode
     if (requestData.useCustomScript) {
       const trimmedScript = requestData.customScript?.trim();
@@ -65,6 +83,10 @@ export async function POST(request: NextRequest) {
     console.log('🚀 Competitor UGC Replication workflow request received:', {
       imageUrl: requestData.imageUrl,
       competitorAdId: requestData.competitorAdId,
+      selectedAvatarId: requestData.selectedAvatarId,
+      selectedProductId: requestData.selectedProductId,
+      selectedAvatarIds: requestData.selectedAvatarIds,
+      selectedProductIds: requestData.selectedProductIds,
       userId: requestData.userId,
       videoModel: requestData.videoModel,
       imageModel: requestData.imageModel,

@@ -82,9 +82,6 @@ const sceneSignature = (draft: ClonePromptDraft | null) => JSON.stringify(draft?
 const DEFAULT_SCENE_DURATION = 8;
 const MIN_GAP_SEC = 0.2;
 const TIME_STEP_SEC = 0.1;
-const MENTION_TOKEN_REGEX = /@(?:character|product)\([^)]*\)/g;
-const stripMentionTokens = (value: string) => value.replace(MENTION_TOKEN_REGEX, '');
-
 const formatTime = (seconds: number) => {
   const safe = Math.max(0, seconds);
   const minutes = Math.floor(safe / 60);
@@ -316,7 +313,7 @@ export default function ClonePromptDraftStep({
   draft,
   characterMentions,
   productMentions,
-  enablePromptMentions = false,
+  enablePromptMentions = true,
   onDraftChange,
   onReselect
 }: ClonePromptDraftStepProps) {
@@ -325,41 +322,27 @@ export default function ClonePromptDraftStep({
   const [openScenes, setOpenScenes] = useState<Record<number, boolean>>({});
   const [openShots, setOpenShots] = useState<Record<string, boolean>>({});
   const prefersReducedMotion = useReducedMotion();
-  const mentionPropsForSubjectAction = enablePromptMentions
+  const mentionPropsForAllFields = enablePromptMentions
     ? { characterMentions, productMentions }
     : { characterMentions: [], productMentions: [] };
-  const mentionPropsDisabled = { characterMentions: [], productMentions: [] };
   const sanitizeScenesForModel = useMemo(() => (
     (scenes: CloneDraftScene[]) => {
-      if (enablePromptMentions) return scenes;
-      return scenes.map((scene) => {
-        const normalizedPrompt = typeof scene.videoPrompt === 'string'
+      return scenes.map((scene) => ({
+        ...scene,
+        imagePrompt: scene.imagePrompt || '',
+        videoPrompt: typeof scene.videoPrompt === 'string'
           ? {
-              shots: [emptyShot(1, stripMentionTokens(scene.videoPrompt))]
+              shots: [emptyShot(1, scene.videoPrompt)]
             }
           : {
               shots: (scene.videoPrompt.shots || []).map((shot, index) => ({
                 ...shot,
-                id: Number.isFinite(shot.id) && shot.id > 0 ? shot.id : index + 1,
-                subject: stripMentionTokens(shot.subject || ''),
-                context_environment: stripMentionTokens(shot.context_environment || ''),
-                action: stripMentionTokens(shot.action || ''),
-                style: stripMentionTokens(shot.style || ''),
-                camera_motion_positioning: stripMentionTokens(shot.camera_motion_positioning || ''),
-                composition: stripMentionTokens(shot.composition || ''),
-                ambiance_colour_lighting: stripMentionTokens(shot.ambiance_colour_lighting || ''),
-                audio: stripMentionTokens(shot.audio || ''),
-                dialogue: stripMentionTokens(shot.dialogue || '')
+                id: Number.isFinite(shot.id) && shot.id > 0 ? shot.id : index + 1
               }))
-            };
-        return {
-          ...scene,
-          imagePrompt: scene.imagePrompt || '',
-          videoPrompt: normalizedPrompt
-        };
-      });
+            }
+      }));
     }
-  ), [enablePromptMentions]);
+  ), []);
 
   const signature = useMemo(() => sceneSignature(draft), [draft]);
 
@@ -478,7 +461,7 @@ export default function ClonePromptDraftStep({
       {draft?.status === 'generating' ? (
         <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-5 text-xs text-[#787876] inline-flex items-center gap-2">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Regenerating prompts from the reference structure...
+          Working on it...
         </div>
       ) : null}
 
@@ -624,7 +607,7 @@ export default function ClonePromptDraftStep({
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                           <div className="min-w-0 lg:col-span-2">
                                             <PromptFieldLabel icon={User}>Subject</PromptFieldLabel>
-                                            <PromptMentionTextarea value={shot.subject} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { subject: next })} rows={2} className={promptUi.fieldInput} {...mentionPropsForSubjectAction} />
+                                            <PromptMentionTextarea value={shot.subject} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { subject: next })} rows={2} className={promptUi.fieldInput} {...mentionPropsForAllFields} />
                                           </div>
                                           {CLONE_PROMPT_SHOT_FIELDS.filter((field) => field.key !== 'subject').map((field) => (
                                             <div key={`${scene.sceneIndex}-${shotIndex}-${field.key}`} className="min-w-0">
@@ -634,7 +617,7 @@ export default function ClonePromptDraftStep({
                                                 onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { [field.key]: next })}
                                                 rows={2}
                                                 className={promptUi.fieldInput}
-                                                {...(field.key === 'action' ? mentionPropsForSubjectAction : mentionPropsDisabled)}
+                                                {...mentionPropsForAllFields}
                                               />
                                             </div>
                                           ))}

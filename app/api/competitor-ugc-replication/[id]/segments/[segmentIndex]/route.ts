@@ -415,14 +415,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         brandLogoUrl,
         productImageUrls.length ? productImageUrls : null,
         brandContext,
-        competitorFileType,
+        competitorFileType === 'video' ? 'video' : null,
         {
           imageModelOverride: 'nano_banana_pro',
           imageSizeOverride: frameImageSize,
           resolutionOverride: '1K',
           characterPhotoUrls: characterPhotoUrls.length > 0 ? characterPhotoUrls : null
         },
-        continuationReferenceUrl
+        continuationReferenceUrl,
+        projectModel || undefined
       );
 
       segmentUpdates.first_frame_task_id = firstFrameTaskId;

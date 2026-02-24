@@ -15,6 +15,7 @@ import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import VideoAssetCard from '@/components/VideoAssetCard';
 import VideoAssetDetailsModal from '@/components/VideoAssetDetailsModal';
 import ClonePromptDraftStep, { type CloneDraftScene, type ClonePromptDraft } from '@/components/project-agent/ClonePromptDraftStep';
+import CloneMergedVideoReviewStep from '@/components/project-agent/CloneMergedVideoReviewStep';
 import CloneSceneReviewStep, {
   type CloneExecutionSegment,
   type CloneExecutionSegmentPrompt
@@ -47,6 +48,7 @@ interface SessionState {
     duration?: string;
     creditsCost?: number;
     error?: string | null;
+    mergedVideoUrl?: string | null;
     segments?: CloneExecutionSegment[];
   } | null;
   avatar?: { id: string; name: string; photoUrl: string } | null;
@@ -155,6 +157,41 @@ const isWorkflowCommandMessage = (text: string) => {
     /^merge\s+(clone\s+)?videos?/.test(normalized) ||
     /^finali[sz]e\s+(clone\s+)?videos?/.test(normalized)
   );
+};
+
+const isReferenceSelectionMessage = (text: string) => {
+  const normalized = text.trim();
+  return /^i selected ".*" as the reference video for clone\.$/i.test(normalized);
+};
+
+const findLatestReferenceSelectionIndex = (messages: UIMessage[]) => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== 'user') continue;
+    if (isReferenceSelectionMessage(renderUIMessageText(message))) {
+      return index;
+    }
+  }
+  return -1;
+};
+
+const isCloneIntentMessage = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  if (isReferenceSelectionMessage(normalized)) return false;
+  if (isWorkflowCommandMessage(normalized)) return false;
+  return /\b(clone|viral|competitor|ugc)\b/i.test(normalized);
+};
+
+const findLatestCloneIntentIndex = (messages: UIMessage[]) => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== 'user') continue;
+    if (isCloneIntentMessage(renderUIMessageText(message))) {
+      return index;
+    }
+  }
+  return -1;
 };
 
 const isStartVideoGenerationCommand = (text: string) => {
@@ -403,10 +440,11 @@ const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'gene
   const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
   const status = typeof payload.status === 'string' ? payload.status : '';
+  const mergeTaskId = typeof data.mergeTaskId === 'string' ? data.mergeTaskId : '';
 
   if (status === 'completed') return 'completed';
   if (status === 'failed') return 'failed';
-  if (step === 'awaiting_merge' || step === 'merging_segments') return 'merging';
+  if (step === 'merging_segments' || Boolean(mergeTaskId)) return 'merging';
 
   const segmentStatus = (data.segmentStatus && typeof data.segmentStatus === 'object')
     ? data.segmentStatus as Record<string, unknown>
@@ -419,7 +457,9 @@ const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'gene
   if (
     step === 'generating_segment_videos' ||
     step === 'ready_for_video' ||
+    step === 'awaiting_merge' ||
     step === 'generating_video' ||
+    status === 'awaiting_merge' ||
     videosReady > 0 ||
     videoGenerationRequested
   ) {
@@ -456,7 +496,7 @@ const clonePhaseRank = (phase?: SessionState['cloneExecution'] extends { phase: 
 
 const cloneExecutionSignalScore = (execution?: SessionState['cloneExecution'] | null) => {
   if (!execution?.segments?.length) return 0;
-  return execution.segments.reduce((acc, segment) => {
+  const segmentScore = execution.segments.reduce((acc, segment) => {
     const status = segment.status || '';
     const hasFirstFrame = Boolean(segment.firstFrameUrl);
     const hasVideo = Boolean(segment.videoUrl);
@@ -465,6 +505,8 @@ const cloneExecutionSignalScore = (execution?: SessionState['cloneExecution'] | 
     if (status === 'generating_first_frame' || status === 'generating_video') return acc + 1;
     return acc;
   }, 0);
+  if (execution.mergedVideoUrl) return segmentScore + 8;
+  return segmentScore;
 };
 
 const shouldKeepLocalCloneExecution = (
@@ -598,6 +640,7 @@ const mergeCloneExecutionWithLocal = (
 
   return {
     ...incomingExecution,
+    mergedVideoUrl: incomingExecution.mergedVideoUrl ?? localExecution.mergedVideoUrl ?? null,
     segments: Array.from(mergedByIndex.values()).sort((a, b) => a.segmentIndex - b.segmentIndex)
   };
 };
@@ -627,6 +670,7 @@ export default function ProjectAgentPage() {
   const [showCloneReplacementSelectors, setShowCloneReplacementSelectors] = useState(false);
   const [awaitingCloneStructureReply, setAwaitingCloneStructureReply] = useState(false);
   const [cloneStructureReplyBaseline, setCloneStructureReplyBaseline] = useState(0);
+  const [cloneStructureReplyReady, setCloneStructureReplyReady] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<CloneableVideoAsset | null>(null);
   const [showVideoDetails, setShowVideoDetails] = useState(false);
   const [cloneAvatarOptions, setCloneAvatarOptions] = useState<CloneAvatarOption[]>([]);
@@ -1200,6 +1244,7 @@ export default function ProjectAgentPage() {
     setAwaitingCloneDraftReply(false);
     setCloneDraftReplyBaseline(0);
     setAwaitingCloneStructureReply(true);
+    setCloneStructureReplyReady(false);
     setCloneStructureReplyBaseline(dedupeConversationMessages(messages).length);
     try {
       const response = await fetch('/api/project-agent/session', {
@@ -1233,9 +1278,9 @@ export default function ProjectAgentPage() {
         setPendingUserText(null);
         setPendingBaselineCount(0);
         setAwaitingCloneStructureReply(false);
+        setCloneStructureReplyReady(false);
         setCloneStructureReplyBaseline(0);
-        setShowCloneReplacementSelectors(true);
-        setStatusNote('Reference selected. Chat sync failed once; continue with replacement selection on the left.');
+        setStatusNote('Reference selected. Chat sync was interrupted once. Please tap Retry in chat to continue.');
       }
     } catch (chatSendError) {
       // Keep clone flow progressing even if chat transport has an intermittent failure.
@@ -1243,9 +1288,9 @@ export default function ProjectAgentPage() {
       setPendingUserText(null);
       setPendingBaselineCount(0);
       setAwaitingCloneStructureReply(false);
+      setCloneStructureReplyReady(false);
       setCloneStructureReplyBaseline(0);
-      setShowCloneReplacementSelectors(true);
-      setStatusNote('Reference selected. Chat sync failed once; continue with replacement selection on the left.');
+      setStatusNote('Reference selected. Chat sync was interrupted once. Please tap Retry in chat to continue.');
     }
 
     void loadCloneReplacementOptions();
@@ -1268,6 +1313,7 @@ export default function ProjectAgentPage() {
     setShowClonePromptDraftStep(false);
     setShowCloneSceneReviewStep(false);
     setAwaitingCloneStructureReply(false);
+    setCloneStructureReplyReady(false);
     setAwaitingCloneDraftReply(false);
     setSelectedCloneAvatarId(null);
     setSelectedCloneProductId(null);
@@ -1295,6 +1341,7 @@ export default function ProjectAgentPage() {
     setShowClonePromptDraftStep(false);
     setShowCloneSceneReviewStep(false);
     setAwaitingCloneStructureReply(false);
+    setCloneStructureReplyReady(false);
     setAwaitingCloneDraftReply(false);
     setSelectedCloneAvatarId(null);
     setSelectedCloneProductId(null);
@@ -1599,10 +1646,13 @@ export default function ProjectAgentPage() {
     if (!text) return 'New chat';
     return text.length > 44 ? `${text.slice(0, 44)}...` : text;
   }, [displayMessages]);
-  const hasAssistantMessage = useMemo(
-    () => displayMessages.some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0),
-    [displayMessages]
-  );
+  const hasAssistantReplyAfterLatestCloneIntent = useMemo(() => {
+    const cloneIntentIndex = findLatestCloneIntentIndex(displayMessages);
+    if (cloneIntentIndex < 0) return false;
+    return displayMessages
+      .slice(cloneIntentIndex + 1)
+      .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
+  }, [displayMessages]);
   const appendSyntheticAssistantMessage = useCallback((text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -1673,9 +1723,8 @@ export default function ProjectAgentPage() {
     if (awaitingCloneEntryReply || showCloneableVideos) return;
     if (sessionState?.intent === 'competitor_ugc_replication' && sessionState?.cloneReferenceVideo?.id) return;
 
-    // If this session already has assistant context for clone intent (e.g. restored from history),
-    // show Step 1 immediately instead of waiting for a new assistant turn.
-    if (hasAssistantMessage && !isStreaming && status === 'ready') {
+    // If this exact clone-intent turn already has an assistant reply (e.g. restored history), show Step 1.
+    if (hasAssistantReplyAfterLatestCloneIntent && !isStreaming && status === 'ready') {
       void loadCloneableVideos();
       setHandledCloneIntentUserMessageId(latestUserMessageId);
       setShowCloneableVideos(true);
@@ -1692,7 +1741,7 @@ export default function ProjectAgentPage() {
   }, [
     awaitingCloneEntryReply,
     displayMessages.length,
-    hasAssistantMessage,
+    hasAssistantReplyAfterLatestCloneIntent,
     handledCloneIntentUserMessageId,
     isStreaming,
     isCloneIntentTurn,
@@ -1739,6 +1788,7 @@ export default function ProjectAgentPage() {
     if (!hasReference) {
       setShowCloneReplacementSelectors(false);
       setAwaitingCloneStructureReply(false);
+      setCloneStructureReplyReady(false);
       return;
     }
 
@@ -1752,38 +1802,69 @@ export default function ProjectAgentPage() {
 
     if (!awaitingCloneStructureReply) {
       const draftStatus = sessionState?.cloneReplacementDraft?.status;
+      const hasExistingReplacementSelection = Boolean(
+        sessionState?.cloneReplacementDraft?.selectedAvatar?.id ||
+        sessionState?.cloneReplacementDraft?.selectedProduct?.id ||
+        sessionState?.avatar?.id ||
+        sessionState?.product?.id
+      );
       if (draftStatus && draftStatus !== 'idle') {
         setShowCloneReplacementSelectors(false);
         return;
       }
-      setShowCloneReplacementSelectors(true);
+      setShowCloneReplacementSelectors(cloneStructureReplyReady || hasExistingReplacementSelection);
     }
   }, [
     awaitingCloneDraftReply,
     awaitingCloneStructureReply,
+    cloneStructureReplyReady,
+    sessionState?.avatar?.id,
+    sessionState?.product?.id,
     sessionState?.intent,
     sessionState?.cloneReferenceVideo?.id,
+    sessionState?.cloneReplacementDraft?.selectedAvatar?.id,
+    sessionState?.cloneReplacementDraft?.selectedProduct?.id,
     sessionState?.cloneReplacementDraft?.status
   ]);
 
+  const hasAssistantReplyAfterLatestReferenceSelection = useMemo(() => {
+    const referenceSelectionIndex = findLatestReferenceSelectionIndex(displayMessages);
+    if (referenceSelectionIndex < 0) return false;
+    return displayMessages
+      .slice(referenceSelectionIndex + 1)
+      .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
+  }, [displayMessages]);
+
+  useEffect(() => {
+    const hasReference = Boolean(
+      sessionState?.intent === 'competitor_ugc_replication' && sessionState?.cloneReferenceVideo?.id
+    );
+    if (!hasReference) return;
+    if (!hasAssistantReplyAfterLatestReferenceSelection) return;
+    if (isStreaming || status !== 'ready') return;
+    setCloneStructureReplyReady(true);
+  }, [hasAssistantReplyAfterLatestReferenceSelection, isStreaming, sessionState?.intent, sessionState?.cloneReferenceVideo?.id, status]);
+
   useEffect(() => {
     if (!awaitingCloneStructureReply) return;
-    if (status !== 'ready') return;
 
     const hasAssistantReplyAfterSelection = displayMessages
       .slice(cloneStructureReplyBaseline)
       .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
 
-    if (!hasAssistantReplyAfterSelection) {
-      if (!isStreaming) {
-        setAwaitingCloneStructureReply(false);
-        requestAssistantRetry();
-      }
+    if (hasAssistantReplyAfterSelection) {
+      if (isStreaming || status !== 'ready') return;
+      setCloneStructureReplyReady(true);
+      setShowCloneReplacementSelectors(true);
+      setAwaitingCloneStructureReply(false);
       return;
     }
 
-    setShowCloneReplacementSelectors(true);
-    setAwaitingCloneStructureReply(false);
+    if (status !== 'ready') return;
+    if (!isStreaming) {
+      setAwaitingCloneStructureReply(false);
+      requestAssistantRetry();
+    }
   }, [awaitingCloneStructureReply, cloneStructureReplyBaseline, displayMessages, isStreaming, requestAssistantRetry, status]);
 
   useEffect(() => {
@@ -1834,17 +1915,27 @@ export default function ProjectAgentPage() {
       return;
     }
     if (draftStatus === 'generating') {
+      // Keep left surface in global "Working on it..." mode while draft is being generated.
+      setShowClonePromptDraftStep(false);
+      return;
+    }
+    const canRevealDraftResult = !awaitingCloneDraftReply && !isStreaming && status === 'ready';
+    if (draftStatus === 'ready' && canRevealDraftResult) {
       setShowClonePromptDraftStep(true);
       return;
     }
-    if (draftStatus === 'ready' && !awaitingCloneDraftReply) {
+    if (draftStatus === 'failed' && canRevealDraftResult) {
       setShowClonePromptDraftStep(true);
       return;
     }
-    if (draftStatus === 'failed' && !awaitingCloneDraftReply) {
-      setShowClonePromptDraftStep(true);
-    }
-  }, [awaitingCloneDraftReply, sessionState?.cloneExecution?.projectId, sessionState?.cloneReplacementDraft?.status]);
+    setShowClonePromptDraftStep(false);
+  }, [
+    awaitingCloneDraftReply,
+    isStreaming,
+    sessionState?.cloneExecution?.projectId,
+    sessionState?.cloneReplacementDraft?.status,
+    status
+  ]);
 
   useEffect(() => {
     if (!sessionState?.cloneExecution?.projectId) {
@@ -2015,6 +2106,9 @@ export default function ProjectAgentPage() {
     }
 
     const data = payload.data as Record<string, unknown>;
+    const segmentStatus = (data.segmentStatus && typeof data.segmentStatus === 'object')
+      ? data.segmentStatus as Record<string, unknown>
+      : null;
     const segmentsRaw = Array.isArray(data.segments) ? data.segments as Array<Record<string, unknown>> : [];
     const segments = segmentsRaw.map((segment) => ({
       segmentIndex: Number(segment.index ?? 0),
@@ -2033,6 +2127,10 @@ export default function ProjectAgentPage() {
       model: normalizeVideoModel(data.videoModel),
       duration: typeof data.videoDuration === 'string' ? data.videoDuration : undefined,
       creditsCost: typeof data.creditsUsed === 'number' ? data.creditsUsed : undefined,
+      mergedVideoUrl:
+        (typeof data.videoUrl === 'string' && data.videoUrl) ||
+        (typeof segmentStatus?.mergedVideoUrl === 'string' && segmentStatus.mergedVideoUrl) ||
+        null,
       segments
     };
   }, []);
@@ -2082,6 +2180,7 @@ export default function ProjectAgentPage() {
       return;
     }
 
+    const selectedAvatarId = sessionState.cloneReplacementDraft.selectedAvatar?.id || selectedCloneAvatarId;
     const selectedProductId = sessionState.cloneReplacementDraft.selectedProduct?.id || selectedCloneProductId;
     const selectedProductFromOptions = selectedProductId
       ? cloneProductOptions.find((item) => item.id === selectedProductId)
@@ -2159,6 +2258,7 @@ export default function ProjectAgentPage() {
               model,
               duration,
               creditsCost: generationCost,
+              mergedVideoUrl: null,
               segments: initialSegments
             }
           }
@@ -2176,6 +2276,7 @@ export default function ProjectAgentPage() {
           model,
           duration,
           creditsCost: generationCost,
+          mergedVideoUrl: null,
           segments: initialSegments
         }
       });
@@ -2183,6 +2284,10 @@ export default function ProjectAgentPage() {
       const createPayload: Record<string, unknown> = {
         userId: user.id,
         imageUrl: selectedProduct.photoUrl,
+        selectedAvatarId,
+        selectedProductId,
+        selectedAvatarIds: selectedAvatarId ? [selectedAvatarId] : [],
+        selectedProductIds: selectedProductId ? [selectedProductId] : [],
         videoModel: model,
         videoAspectRatio: sessionState.videoAspectRatio || '9:16',
         videoDuration: duration,
@@ -2226,6 +2331,7 @@ export default function ProjectAgentPage() {
         model,
         duration,
         creditsCost: typeof createResult.creditsUsed === 'number' ? createResult.creditsUsed : generationCost,
+        mergedVideoUrl: null,
         segments: initialSegments
       };
       try {
@@ -2264,6 +2370,7 @@ export default function ProjectAgentPage() {
                 ...(prev.cloneExecution || {
                   projectId: '',
                   phase: 'failed',
+                  mergedVideoUrl: null,
                   segments: []
                 }),
                 phase: 'failed',
@@ -2282,6 +2389,7 @@ export default function ProjectAgentPage() {
     fetchCloneExecutionStatus,
     isGeneratingCloneProject,
     persistCloneState,
+    selectedCloneAvatarId,
     selectedCloneProductId,
     sendMessageSafely,
     sessionId,
@@ -2410,24 +2518,48 @@ export default function ProjectAgentPage() {
     const model = normalizeVideoModel(sessionState?.videoModel);
     return getGenerationCost(model, String(Math.max(1, scenes.length) * 8));
   }, [sessionState?.cloneReplacementDraft?.scenes, sessionState?.videoModel]);
-  const enableClonePromptMentions = useMemo(
-    () => normalizeVideoModel(sessionState?.videoModel) === 'kling_3',
-    [sessionState?.videoModel]
-  );
+  const enableClonePromptMentions = true;
 
   const hasCloneSurfaceContent = showCloneableVideos || showCloneReplacementSelectors || showClonePromptDraftStep || showCloneSceneReviewStep;
+  const isCloneDraftGenerating = sessionState?.cloneReplacementDraft?.status === 'generating';
+  const waitingForCloneStructureGate = Boolean(
+    sessionState?.intent === 'competitor_ugc_replication' &&
+    sessionState?.cloneReferenceVideo?.id &&
+    !cloneStructureReplyReady &&
+    !sessionState?.cloneReplacementDraft?.selectedAvatar?.id &&
+    !sessionState?.cloneReplacementDraft?.selectedProduct?.id &&
+    !sessionState?.avatar?.id &&
+    !sessionState?.product?.id &&
+    (sessionState?.cloneReplacementDraft?.status ?? 'idle') === 'idle' &&
+    !showCloneableVideos &&
+    !showCloneReplacementSelectors &&
+    !showClonePromptDraftStep &&
+    !showCloneSceneReviewStep
+  );
+  const showCloneMergedResultStep = Boolean(
+    showCloneSceneReviewStep &&
+    sessionState?.cloneExecution &&
+    (
+      sessionState.cloneExecution.phase === 'merging' ||
+      sessionState.cloneExecution.phase === 'completed' ||
+      Boolean(sessionState.cloneExecution.mergedVideoUrl)
+    )
+  );
   const isCloneFlowContext = (
     isCloneIntentTurn ||
     awaitingCloneEntryReply ||
     awaitingCloneStructureReply ||
     awaitingCloneDraftReply ||
+    waitingForCloneStructureGate ||
     sessionState?.intent === 'competitor_ugc_replication'
   );
   const isWorkflowSurfacePending = !hasCloneSurfaceContent && isCloneFlowContext && (
     isStreaming ||
     awaitingCloneEntryReply ||
     awaitingCloneStructureReply ||
-    awaitingCloneDraftReply
+    awaitingCloneDraftReply ||
+    waitingForCloneStructureGate ||
+    isCloneDraftGenerating
   );
 
   useEffect(() => {
@@ -2598,12 +2730,20 @@ export default function ProjectAgentPage() {
                       />
                     ) : null}
 
-                    {showCloneSceneReviewStep && sessionState?.cloneExecution ? (
+                    {showCloneSceneReviewStep && sessionState?.cloneExecution && !showCloneMergedResultStep ? (
                       <CloneSceneReviewStep
                         execution={sessionState.cloneExecution}
                         characterMentions={characterMentions}
                         productMentions={productMentions}
                         preferredFrameRegeneratingSceneIndex={preferredRegeneratingSceneIndex}
+                      />
+                    ) : null}
+
+                    {showCloneMergedResultStep && sessionState?.cloneExecution ? (
+                      <CloneMergedVideoReviewStep
+                        execution={sessionState.cloneExecution}
+                        characterMentions={characterMentions}
+                        productMentions={productMentions}
                       />
                     ) : null}
                   </div>

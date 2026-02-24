@@ -27,6 +27,7 @@ import {
 } from '@/lib/competitor-shots';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { compilePromptForExecution } from '@/lib/competitor-ugc-replication-prompt-compiler';
 
 async function retryAsync<T>(fn: () => Promise<T>, options?: { maxAttempts?: number; baseDelayMs?: number; label?: string }): Promise<T> {
   const attempts = options?.maxAttempts && options.maxAttempts > 0 ? options.maxAttempts : 3;
@@ -68,6 +69,10 @@ export interface StartWorkflowRequest {
   imageUrl?: string;
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
   creatorSourceVideoId?: string; // Asset video reference
+  selectedAvatarId?: string;
+  selectedProductId?: string;
+  selectedAvatarIds?: string[];
+  selectedProductIds?: string[];
   userId: string;
   videoModel: VideoModel;
   imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
@@ -155,6 +160,37 @@ export type SegmentPrompt = {
   shots?: SegmentShot[];
 };
 
+type CloneReferenceAssets = {
+  selectedAvatarId?: string | null;
+  selectedProductId?: string | null;
+  selectedAvatarIds?: string[];
+  selectedProductIds?: string[];
+  avatarPhotoUrls: string[];
+  productImageUrls: string[];
+  avatarName?: string | null;
+  productName?: string | null;
+};
+
+const normalizeSelectedIds = (
+  primaryId: string | null | undefined,
+  ids: string[] | undefined,
+  max = 8
+): string[] => {
+  const candidates = [
+    ...(typeof primaryId === 'string' ? [primaryId] : []),
+    ...(Array.isArray(ids) ? ids : [])
+  ];
+  const normalized: string[] = [];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (!trimmed || normalized.includes(trimmed)) continue;
+    normalized.push(trimmed);
+    if (normalized.length >= max) break;
+  }
+  return normalized;
+};
+
 export type SerializedSegmentPlan = {
   segments: Array<SerializedSegmentPlanSegment>;
 };
@@ -200,6 +236,166 @@ const cleanSegmentText = (value: unknown): string | undefined => {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 };
+
+const collectDistinctUrls = (values: Array<string | null | undefined>, max = 10): string[] => {
+  const output: string[] = [];
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed || output.includes(trimmed)) continue;
+    output.push(trimmed);
+    if (output.length >= max) break;
+  }
+  return output;
+};
+
+const readAvatarPhotoSetUrls = (photoSetRaw: unknown): string[] => {
+  if (!photoSetRaw || typeof photoSetRaw !== 'object') return [];
+  const photoSet = photoSetRaw as Record<string, unknown>;
+  const primary = photoSet.primary && typeof photoSet.primary === 'object'
+    ? (photoSet.primary as Record<string, unknown>)
+    : null;
+  const references = Array.isArray(photoSet.references)
+    ? photoSet.references
+    : [];
+
+  const referenceUrls = references
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const url = (entry as Record<string, unknown>).photo_url;
+      return typeof url === 'string' ? url : null;
+    });
+
+  return collectDistinctUrls([
+    typeof primary?.photo_url === 'string' ? primary.photo_url : null,
+    ...referenceUrls
+  ], 4);
+};
+
+async function resolveCloneReferenceAssets(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  request: StartWorkflowRequest
+): Promise<CloneReferenceAssets> {
+  const selectedAvatarIds = normalizeSelectedIds(request.selectedAvatarId, request.selectedAvatarIds, 8);
+  const selectedProductIds = normalizeSelectedIds(request.selectedProductId, request.selectedProductIds, 8);
+  const primaryAvatarId = selectedAvatarIds[0] || null;
+  const primaryProductId = selectedProductIds[0] || null;
+
+  const assets: CloneReferenceAssets = {
+    selectedAvatarId: primaryAvatarId,
+    selectedProductId: primaryProductId,
+    selectedAvatarIds,
+    selectedProductIds,
+    avatarPhotoUrls: [],
+    productImageUrls: []
+  };
+
+  if (selectedProductIds.length > 0) {
+    const { data: selectedProducts, error: productError } = await supabase
+      .from('user_products')
+      .select('id,product_name,user_product_photos(photo_url,is_primary)')
+      .in('id', selectedProductIds)
+      .eq('user_id', request.userId)
+      .limit(16);
+
+    if (productError) {
+      console.warn('[Clone Assets] Failed to resolve selected product:', productError.message);
+    } else {
+      const productRows = Array.isArray(selectedProducts)
+        ? selectedProducts as Array<{
+            id: string;
+            product_name?: string | null;
+            user_product_photos?: Array<{ photo_url?: string; is_primary?: boolean }>;
+          }>
+        : [];
+      const productMap = new Map(productRows.map((product) => [product.id, product]));
+      const orderedProducts = selectedProductIds
+        .map((id) => productMap.get(id))
+        .filter((product): product is NonNullable<typeof product> => Boolean(product));
+
+      if (orderedProducts.length === 0) {
+        console.warn('[Clone Assets] Selected product ids not found for user:', selectedProductIds);
+      } else {
+        const mergedProductPhotoUrls: Array<string | null> = [];
+        for (const product of orderedProducts) {
+          const photos = Array.isArray(product.user_product_photos)
+            ? product.user_product_photos
+            : [];
+          const orderedPhotos = [
+            ...photos.filter(photo => photo.is_primary),
+            ...photos.filter(photo => !photo.is_primary)
+          ];
+          for (const photo of orderedPhotos) {
+            mergedProductPhotoUrls.push(photo.photo_url || null);
+          }
+        }
+
+        assets.productImageUrls = collectDistinctUrls(mergedProductPhotoUrls, 8);
+        assets.productName = orderedProducts[0]?.product_name || null;
+      }
+    }
+  }
+
+  if (selectedAvatarIds.length > 0) {
+    const mergedAvatarUrls: Array<string | null> = [];
+    let primaryAvatarName: string | null = null;
+
+    for (let avatarIndex = 0; avatarIndex < selectedAvatarIds.length; avatarIndex++) {
+      const avatarId = selectedAvatarIds[avatarIndex];
+      const systemAvatar = SYSTEM_AVATARS.find((avatar) => avatar.id === avatarId);
+      if (systemAvatar) {
+        if (avatarIndex === 0) {
+          primaryAvatarName = systemAvatar.avatar_name || null;
+        }
+        mergedAvatarUrls.push(systemAvatar.photo_url);
+        continue;
+      }
+
+      const queryWithPhotoSet = await supabase
+        .from('user_avatars')
+        .select('id,avatar_name,photo_url,photo_set_json')
+        .eq('id', avatarId)
+        .eq('user_id', request.userId)
+        .maybeSingle();
+
+      let avatarData = queryWithPhotoSet.data as Record<string, unknown> | null;
+      let avatarError = queryWithPhotoSet.error as { code?: string; message?: string } | null;
+
+      if (avatarError?.code === '42703') {
+        const fallbackQuery = await supabase
+          .from('user_avatars')
+          .select('id,avatar_name,photo_url')
+          .eq('id', avatarId)
+          .eq('user_id', request.userId)
+          .maybeSingle();
+        avatarData = fallbackQuery.data as Record<string, unknown> | null;
+        avatarError = fallbackQuery.error as { code?: string; message?: string } | null;
+      }
+
+      if (avatarError) {
+        console.warn('[Clone Assets] Failed to resolve selected avatar:', avatarError.message || avatarError.code || 'unknown');
+        continue;
+      }
+      if (!avatarData) {
+        console.warn('[Clone Assets] Selected avatar id not found for user:', avatarId);
+        continue;
+      }
+
+      const avatarName = typeof avatarData.avatar_name === 'string' ? avatarData.avatar_name : null;
+      if (avatarIndex === 0) {
+        primaryAvatarName = avatarName;
+      }
+      const primaryUrl = typeof avatarData.photo_url === 'string' ? avatarData.photo_url : null;
+      const photoSetUrls = readAvatarPhotoSetUrls(avatarData.photo_set_json);
+      mergedAvatarUrls.push(primaryUrl, ...photoSetUrls);
+    }
+
+    assets.avatarPhotoUrls = collectDistinctUrls(mergedAvatarUrls, 4);
+    assets.avatarName = primaryAvatarName;
+  }
+
+  return assets;
+}
 
 const normalizeShotTimeRange = (
   raw: unknown,
@@ -765,6 +961,11 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     let imageUrl = request.imageUrl;
     const brandLogoUrl: string | null = null;
     const productContext = { product_name: '', brand_name: '' };
+    const cloneReferenceAssets = await resolveCloneReferenceAssets(supabase, request);
+
+    if (!imageUrl && cloneReferenceAssets.productImageUrls.length > 0) {
+      imageUrl = cloneReferenceAssets.productImageUrls[0];
+    }
 
     if (!request.competitorAdId && !request.creatorSourceVideoId) {
       return {
@@ -1109,43 +1310,72 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       generationCost = 0; // Photo-only mode is free
     }
 
-    // Create project record in competitor_ugc_replication_projects table
-    const { data: project, error: insertError} = await supabase
+    const projectInsertBase = {
+      user_id: request.userId,
+      selected_brand_id: null,
+      competitor_ad_id: request.competitorAdId || null, // NEW: Competitor ad reference
+      video_model: actualVideoModel,
+      video_aspect_ratio: request.videoAspectRatio || '16:9',
+      status: 'processing',
+      current_step: request.useCustomScript
+        ? 'ready_for_video'
+        : hasSegmentFlow
+          ? 'generating_segment_frames'
+          : 'generating_cover',
+      progress_percentage: request.useCustomScript ? 50 : hasSegmentFlow ? 25 : 20,
+      credits_cost: generationCost, // Only generation cost (download cost charged separately)
+      language: request.language || 'en', // Language for AI-generated content
+      // Generic video fields
+      video_duration: duration || '8',
+      video_quality: quality || 'standard',
+      // DEPRECATED: download_credits_used (downloads are now free)
+      download_credits_used: 0,
+      is_segmented: hasSegmentFlow, // FIX: Use segmentCount instead of isSegmented to avoid data inconsistency
+      segment_count: segmentCount,
+      segment_duration_seconds: hasSegmentFlow ? resolvedSegmentDuration : null,
+      segment_status: hasSegmentFlow
+        ? {
+            total: segmentCount,
+            framesReady: 0,
+            videosReady: 0,
+            segments: []
+          }
+        : null,
+    };
+
+    const projectInsertWithSelectedInputs = {
+      ...projectInsertBase,
+      selected_inputs: {
+        primaryAvatarId: cloneReferenceAssets.selectedAvatarId || null,
+        primaryProductId: cloneReferenceAssets.selectedProductId || null,
+        avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
+        productIds: cloneReferenceAssets.selectedProductIds || []
+      }
+    };
+
+    // Create project record in competitor_ugc_replication_projects table.
+    // Backward compatibility: if selected_inputs is missing in an older DB/schema cache, retry without it.
+    let { data: project, error: insertError } = await supabase
       .from('competitor_ugc_replication_projects')
-      .insert({
-        user_id: request.userId,
-        selected_brand_id: null,
-        competitor_ad_id: request.competitorAdId || null, // NEW: Competitor ad reference
-        video_model: actualVideoModel,
-        video_aspect_ratio: request.videoAspectRatio || '16:9',
-        status: 'processing',
-        current_step: request.useCustomScript
-          ? 'ready_for_video'
-          : hasSegmentFlow
-            ? 'generating_segment_frames'
-            : 'generating_cover',
-        progress_percentage: request.useCustomScript ? 50 : hasSegmentFlow ? 25 : 20,
-        credits_cost: generationCost, // Only generation cost (download cost charged separately)
-        language: request.language || 'en', // Language for AI-generated content
-        // Generic video fields
-        video_duration: duration || '8',
-        video_quality: quality || 'standard',
-        // DEPRECATED: download_credits_used (downloads are now free)
-        download_credits_used: 0,
-        is_segmented: hasSegmentFlow, // FIX: Use segmentCount instead of isSegmented to avoid data inconsistency
-        segment_count: segmentCount,
-        segment_duration_seconds: hasSegmentFlow ? resolvedSegmentDuration : null,
-        segment_status: hasSegmentFlow
-          ? {
-              total: segmentCount,
-              framesReady: 0,
-              videosReady: 0,
-              segments: []
-            }
-          : null,
-      })
+      .insert(projectInsertWithSelectedInputs)
       .select()
       .single();
+
+    if (
+      insertError &&
+      insertError.code === 'PGRST204' &&
+      typeof insertError.message === 'string' &&
+      insertError.message.includes('selected_inputs')
+    ) {
+      console.warn('⚠️ selected_inputs column unavailable (schema cache lag or old migration). Retrying insert without selected_inputs.');
+      const fallbackInsert = await supabase
+        .from('competitor_ugc_replication_projects')
+        .insert(projectInsertBase)
+        .select()
+        .single();
+      project = fallbackInsert.data;
+      insertError = fallbackInsert.error;
+    }
 
     if (insertError) {
       console.error('Database insert error:', insertError);
@@ -1194,7 +1424,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           productContext,
           competitorAdContext, // Pass competitor ad context for reference
           brandLogoUrl, // Optional logo reference if available
-          shotPlanForSegments
+          shotPlanForSegments,
+          cloneReferenceAssets
         );
       }
     } catch (workflowError) {
@@ -1289,7 +1520,8 @@ async function startAIWorkflow(
     video_duration_seconds?: number | null;
   },
   brandLogoUrl?: string | null, // Optional logo reference if available
-  initialShotPlan?: CompetitorShot[]
+  initialShotPlan?: CompetitorShot[],
+  cloneReferenceAssets?: CloneReferenceAssets
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
   let shotPlanForSegments = initialShotPlan;
@@ -1467,9 +1699,13 @@ async function startAIWorkflow(
         : shotPlanForSegments,
       plannedKlingSegments,
       brandLogoUrl, // NEW: Pass brand logo URL
-      request.imageUrl ? [request.imageUrl] : null, // Provide initial product reference if available
+      collectDistinctUrls([
+        ...(request.imageUrl ? [request.imageUrl] : []),
+        ...(cloneReferenceAssets?.productImageUrls || [])
+      ], 8),
       productContext, // NEW: Pass product context for fallback text generation
-      competitorAdContext ? 'video' : null // Competitor ads are now video-only
+      competitorAdContext ? 'video' : null, // Competitor ads are now video-only
+      cloneReferenceAssets
     );
     return;
 
@@ -2441,7 +2677,8 @@ async function startSegmentedWorkflow(
   brandLogoUrl?: string | null, // NEW: Brand logo URL for brand shots
   productImageUrls?: string[] | null, // UPDATED: Multiple product image URLs for product shots
   productContext?: { product_name?: string; brand_name?: string }, // NEW: For text fallback
-  competitorFileType?: 'video' | null // Competitor ads are now video-only (null means no competitor)
+  competitorFileType?: 'video' | null, // Competitor ads are now video-only (null means no competitor)
+  cloneReferenceAssets?: CloneReferenceAssets
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
 
@@ -2459,8 +2696,31 @@ async function startSegmentedWorkflow(
     ...segment,
     first_frame_image_size: segment.first_frame_image_size || defaultFrameSize
   }));
+  const normalizedAvatarPhotoUrls = collectDistinctUrls(cloneReferenceAssets?.avatarPhotoUrls || [], 4);
+  const normalizedProductImageUrls = collectDistinctUrls(
+    [
+      ...(productImageUrls || []),
+      ...(cloneReferenceAssets?.productImageUrls || [])
+    ],
+    8
+  );
   const serializedPlan = serializeSegmentPlan(normalizedSegments);
-  const storedVideoPrompts = buildStoredVideoPromptsPayload(normalizedSegments, prompts as Record<string, unknown>);
+    const metadataSource = {
+      ...(prompts as Record<string, unknown>),
+      clone_reference_assets: {
+        selectedAvatarId: cloneReferenceAssets?.selectedAvatarId || request.selectedAvatarId || null,
+        selectedProductId: cloneReferenceAssets?.selectedProductId || request.selectedProductId || null,
+        selectedAvatarIds:
+          cloneReferenceAssets?.selectedAvatarIds ||
+          normalizeSelectedIds(request.selectedAvatarId, request.selectedAvatarIds, 8),
+        selectedProductIds:
+          cloneReferenceAssets?.selectedProductIds ||
+          normalizeSelectedIds(request.selectedProductId, request.selectedProductIds, 8),
+        avatarPhotoUrls: normalizedAvatarPhotoUrls,
+        productImageUrls: normalizedProductImageUrls
+      }
+    } satisfies Record<string, unknown>;
+  const storedVideoPrompts = buildStoredVideoPromptsPayload(normalizedSegments, metadataSource);
   const now = new Date().toISOString();
 
   // Clear any previous segment rows for this project to avoid unique key conflicts when restarting workflows
@@ -2533,11 +2793,14 @@ async function startSegmentedWorkflow(
       'first',
       aspectRatio,
       brandLogoUrl || null,
-      productImageUrls || null,
+      normalizedProductImageUrls.length > 0 ? normalizedProductImageUrls : null,
       productContext,
       competitorFileType || null,
-      undefined,
-      null
+      {
+        characterPhotoUrls: normalizedAvatarPhotoUrls.length > 0 ? normalizedAvatarPhotoUrls : null
+      },
+      null,
+      request.resolvedVideoModel
     );
 
     const { error: updateError } = await supabase
@@ -3079,8 +3342,22 @@ export async function createSmartSegmentFrame(
   brandContext?: { brand_name?: string },
   competitorFileType?: 'video' | null, // Competitor ads are video-only (indicates competitor clone mode)
   overrides?: FrameGenerationOverrides,
-  continuationReferenceUrl?: string | null
+  continuationReferenceUrl?: string | null,
+  videoModel?: VideoModel
 ): Promise<string> {
+  const compileModel = videoModel || null;
+  const compilation = compileModel
+    ? compilePromptForExecution(segmentPrompt, compileModel)
+    : null;
+  const promptForProvider = compilation?.compiledValue || segmentPrompt;
+  if (compilation) {
+    console.log('[Prompt Compile] Frame prompt compiled:', {
+      model: compileModel,
+      mention_count: compilation.mentionCount,
+      compile_mode: compilation.compileMode
+    });
+  }
+
   // 🎯 COMPETITOR CLONE MODE: Direct text-to-image shortcut
   const isCompetitorCloneMode = competitorFileType === 'video';
 
@@ -3088,7 +3365,7 @@ export async function createSmartSegmentFrame(
     console.log(`🎨 Competitor clone mode detected: Using direct text-to-image`);
     console.log(`   - Segment ${segmentIndex + 1} ${frameType} frame`);
 
-    const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
+    const frameDescription = resolveFrameDescription(promptForProvider, frameType);
     const imageModel = IMAGE_MODELS.nano_banana_pro;
 
     // Build image_input from multiple sources
@@ -3096,7 +3373,7 @@ export async function createSmartSegmentFrame(
 
     // 1. Continuation reference (for segment continuity)
     const shouldUseContinuation = Boolean(
-      continuationReferenceUrl && frameType === 'first' && segmentPrompt.is_continuation_from_prev
+      continuationReferenceUrl && frameType === 'first' && promptForProvider.is_continuation_from_prev
     );
     if (shouldUseContinuation && continuationReferenceUrl) {
       imageInput.push(continuationReferenceUrl);
@@ -3170,7 +3447,7 @@ export async function createSmartSegmentFrame(
   const isBrandShot = !hasProductImages && hasBrandLogo;
 
   const shouldUseContinuationReference = Boolean(
-    continuationReferenceUrl && frameType === 'first' && segmentPrompt.is_continuation_from_prev
+    continuationReferenceUrl && frameType === 'first' && promptForProvider.is_continuation_from_prev
   );
   const continuationReferences: string[] = shouldUseContinuationReference && continuationReferenceUrl
     ? [continuationReferenceUrl]
@@ -3202,7 +3479,7 @@ export async function createSmartSegmentFrame(
     console.log(`   ✅ Using Image-to-Image with ${combinedReferenceImages.length} reference(s)`);
     return createFrameFromImage(
       combinedReferenceImages,
-      segmentPrompt,
+      promptForProvider,
       segmentIndex,
       frameType,
       aspectRatio,
@@ -3214,7 +3491,7 @@ export async function createSmartSegmentFrame(
 
   console.log(`   ✅ Using Text-to-Image (no references available)`);
   return createFrameFromText(
-    segmentPrompt,
+    promptForProvider,
     segmentIndex,
     frameType,
     aspectRatio,
@@ -3231,6 +3508,14 @@ export async function startSegmentVideoTask(
   totalSegments: number
 ): Promise<string> {
   const videoModel = (project.video_model || 'veo3_fast') as VideoModel;
+  const promptCompilation = compilePromptForExecution(segmentPrompt, videoModel);
+  const compiledSegmentPrompt = promptCompilation.compiledValue;
+
+  console.log('[Prompt Compile] Video prompt compiled:', {
+    model: videoModel,
+    mention_count: promptCompilation.mentionCount,
+    compile_mode: promptCompilation.compileMode
+  });
 
   const supportedSegmentModels: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'kling_3'];
   if (!supportedSegmentModels.includes(videoModel)) {
@@ -3242,12 +3527,13 @@ export async function startSegmentVideoTask(
   const prompts = (project.video_prompts || {}) as { ad_copy?: string };
   const providedAdCopyRaw = typeof prompts.ad_copy === 'string' ? prompts.ad_copy.trim() : undefined;
   const providedAdCopy = providedAdCopyRaw && providedAdCopyRaw.length > 0 ? providedAdCopyRaw : undefined;
-  const action = cleanSegmentText(segmentPrompt.action) || '';
-  const dialogueContent = providedAdCopy || segmentPrompt.dialogue || '';
-  const music = cleanSegmentText(segmentPrompt.audio) || '';
+  const action = cleanSegmentText(compiledSegmentPrompt.action) || '';
+  const dialogueSeed = providedAdCopy || compiledSegmentPrompt.dialogue || '';
+  const dialogueContent = compilePromptForExecution(dialogueSeed, videoModel).compiledValue;
+  const music = cleanSegmentText(compiledSegmentPrompt.audio) || '';
   const perSegmentDuration = resolveTaskDurationSeconds(project, videoModel, segmentIndex, totalSegments);
   const normalizedShots = buildNormalizedShots(
-    segmentPrompt,
+    compiledSegmentPrompt,
     perSegmentDuration,
     languageCode,
     action,
@@ -3258,7 +3544,7 @@ export async function startSegmentVideoTask(
   if (videoModel === 'seedance_1_5_pro') {
     return await startSegmentVideoTaskSeedance(
       project,
-      segmentPrompt,
+      compiledSegmentPrompt,
       firstFrameUrl,
       closingFrameUrl,
       segmentIndex,
@@ -3269,7 +3555,7 @@ export async function startSegmentVideoTask(
   if (videoModel === 'kling_3') {
     return await startSegmentVideoTaskKling(
       project,
-      segmentPrompt,
+      compiledSegmentPrompt,
       normalizedShots,
       firstFrameUrl,
       closingFrameUrl,
@@ -3282,8 +3568,8 @@ export async function startSegmentVideoTask(
   const voiceDescriptor = 'Calm professional narrator';
   const voiceToneDescriptor = 'warm and confident';
   const structuredPromptPayload = {
-    is_continuation_from_prev: Boolean(segmentPrompt.is_continuation_from_prev && segmentIndex > 0),
-    first_frame_description: segmentPrompt.first_frame_description,
+    is_continuation_from_prev: Boolean(compiledSegmentPrompt.is_continuation_from_prev && segmentIndex > 0),
+    first_frame_description: compiledSegmentPrompt.first_frame_description,
     narrator: {
       descriptor: voiceDescriptor,
       tone: voiceToneDescriptor

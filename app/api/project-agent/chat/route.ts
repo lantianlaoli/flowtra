@@ -80,6 +80,7 @@ type SessionState = {
     duration?: string;
     creditsCost?: number;
     error?: string | null;
+    mergedVideoUrl?: string | null;
     segments?: Array<{
       segmentIndex: number;
       status: string;
@@ -265,6 +266,7 @@ const buildSystemPrompt = (state: SessionState) => {
   ].filter(Boolean).join(', ') || 'none';
   const cloneExecutionPhase = state.cloneExecution?.phase || 'idle';
   const cloneExecutionSegments = Array.isArray(state.cloneExecution?.segments) ? state.cloneExecution?.segments.length : 0;
+  const cloneExecutionMergedVideo = state.cloneExecution?.mergedVideoUrl || 'not ready';
 
   return `You are Flowtra Project Agent. You orchestrate Flowtra video workflows through a conversational flow.
 
@@ -339,6 +341,8 @@ Workflow rules:
   22) In that post-confirmation turn, guide the user to review/edit the generated Scene and shot fields in Step 3 (subject, context/background, action, style, camera, composition, lighting, audio, dialogue), then tell them to send a chat command to start generation.
   24) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only. During clone execution phases, never instruct clicking removed buttons. Use command-style guidance, e.g. "Say 'regenerate scene 2 frame'" or "say 'start video generation'".
   25) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft. If the user asks to regenerate frames, call regenerateCloneFrames. If user asks to start video generation after frame review, call startCloneVideoGeneration. If user asks to stitch/finalize when awaiting merge, call mergeCloneVideos.
+  26) Download guidance rule: after merge starts or when cloneExecutionPhase is "completed", explicitly tell the user to check "My Ads" to view/download the final video.
+  27) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it."
   23) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
 - If the user picks motion_swap, collect requirements and guide to the existing workflow entrypoint.
 - When user asks what workflows are available, always list ALL three:
@@ -359,6 +363,7 @@ Current state:
 - Clone Draft Scenes: ${cloneDraftSceneCount}
 - Clone Execution Phase: ${cloneExecutionPhase}
 - Clone Execution Segments: ${cloneExecutionSegments}
+- Clone Execution Merged Video URL: ${cloneExecutionMergedVideo}
 - Custom Dialogue: ${dialogueLabel}
 - Duration: ${state.videoDurationSeconds ?? 'unset'}
 - Aspect: ${state.videoAspectRatio ?? 'unset'}
@@ -379,10 +384,11 @@ const mapClonePhaseFromStatusPayload = (payload: Record<string, unknown>): 'idle
   const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
   const status = typeof payload.status === 'string' ? payload.status : '';
+  const mergeTaskId = typeof data.mergeTaskId === 'string' ? data.mergeTaskId : '';
 
   if (status === 'completed') return 'completed';
   if (status === 'failed') return 'failed';
-  if (step === 'awaiting_merge' || step === 'merging_segments') return 'merging';
+  if (step === 'merging_segments' || Boolean(mergeTaskId)) return 'merging';
 
   const segmentStatus = (data.segmentStatus && typeof data.segmentStatus === 'object')
     ? data.segmentStatus as Record<string, unknown>
@@ -395,7 +401,9 @@ const mapClonePhaseFromStatusPayload = (payload: Record<string, unknown>): 'idle
   if (
     step === 'generating_segment_videos' ||
     step === 'ready_for_video' ||
+    step === 'awaiting_merge' ||
     step === 'generating_video' ||
+    status === 'awaiting_merge' ||
     videosReady > 0 ||
     videoGenerationRequested
   ) {
@@ -411,6 +419,9 @@ const mapClonePhaseFromStatusPayload = (payload: Record<string, unknown>): 'idle
 
 const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<string, unknown>): NonNullable<SessionState['cloneExecution']> => {
   const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
+  const segmentStatus = (data.segmentStatus && typeof data.segmentStatus === 'object')
+    ? data.segmentStatus as Record<string, unknown>
+    : null;
   const segmentsRaw = Array.isArray(data.segments) ? data.segments as Array<Record<string, unknown>> : [];
   const segments = segmentsRaw.map((segment) => ({
     segmentIndex: Number(segment.index ?? 0),
@@ -435,6 +446,10 @@ const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<st
     duration: typeof data.videoDuration === 'string' ? data.videoDuration : undefined,
     creditsCost: typeof data.creditsUsed === 'number' ? data.creditsUsed : undefined,
     error: typeof data.errorMessage === 'string' ? data.errorMessage : null,
+    mergedVideoUrl:
+      (typeof data.videoUrl === 'string' && data.videoUrl) ||
+      (typeof segmentStatus?.mergedVideoUrl === 'string' && segmentStatus.mergedVideoUrl) ||
+      null,
     segments
   };
 };
@@ -607,18 +622,37 @@ export async function POST(request: Request) {
     ]);
 
     const persistMessagesOnly = async (nextMessages: UIMessage[], nextState?: SessionState) => {
-      const { error: updateError } = await supabase
-        .from('project_agent_sessions')
-        .update({
-          messages: nextMessages,
-          ...(nextState ? { state: nextState } : {}),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', resolvedSessionId)
-        .eq('user_id', userId);
+      const payload = {
+        messages: nextMessages,
+        ...(nextState ? { state: nextState } : {}),
+        updated_at: new Date().toISOString()
+      };
 
-      if (updateError) {
+      const tryOnce = async () => (
+        await supabase
+          .from('project_agent_sessions')
+          .update(payload)
+          .eq('id', resolvedSessionId)
+          .eq('user_id', userId)
+      );
+
+      try {
+        const { error: updateError } = await tryOnce();
+        if (!updateError) return;
         console.error('[Project Agent] Failed to persist session messages:', updateError);
+      } catch (persistError) {
+        console.error('[Project Agent] Failed to persist session messages:', persistError);
+      }
+
+      // Retry once for transient network failures (e.g. undici fetch failed).
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      try {
+        const { error: retryError } = await tryOnce();
+        if (retryError) {
+          console.error('[Project Agent] Retry persist session messages failed:', retryError);
+        }
+      } catch (retryPersistError) {
+        console.error('[Project Agent] Retry persist session messages failed:', retryPersistError);
       }
     };
 
@@ -647,36 +681,40 @@ export async function POST(request: Request) {
     }
 
     const persistSession = async (patch: Partial<SessionState>) => {
-      const { data: latestSession, error: latestError } = await supabase
-        .from('project_agent_sessions')
-        .select('state')
-        .eq('id', resolvedSessionId)
-        .eq('user_id', userId)
-        .maybeSingle();
+      try {
+        const { data: latestSession, error: latestError } = await supabase
+          .from('project_agent_sessions')
+          .select('state')
+          .eq('id', resolvedSessionId)
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      if (latestError) {
-        console.error('[Project Agent] Failed to load latest session state before persist:', latestError);
-      }
+        if (latestError) {
+          console.error('[Project Agent] Failed to load latest session state before persist:', latestError);
+        }
 
-      const latestState = (latestSession?.state as SessionState | undefined) ?? {};
-      sessionState = mergeState(
-        mergeState(sessionState, latestState),
-        patch
-      );
-      const { error: updateError } = await supabase
-        .from('project_agent_sessions')
-        .update({
-          state: sessionState,
-          project_id: sessionState.projectId ?? null,
-          intent: sessionState.intent ?? 'avatar_ads',
-          messages: conversationMessages,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', resolvedSessionId)
-        .eq('user_id', userId);
+        const latestState = (latestSession?.state as SessionState | undefined) ?? {};
+        sessionState = mergeState(
+          mergeState(sessionState, latestState),
+          patch
+        );
+        const { error: updateError } = await supabase
+          .from('project_agent_sessions')
+          .update({
+            state: sessionState,
+            project_id: sessionState.projectId ?? null,
+            intent: sessionState.intent ?? 'avatar_ads',
+            messages: conversationMessages,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', resolvedSessionId)
+          .eq('user_id', userId);
 
-      if (updateError) {
-        console.error('[Project Agent] Failed to persist session:', updateError);
+        if (updateError) {
+          console.error('[Project Agent] Failed to persist session:', updateError);
+        }
+      } catch (persistError) {
+        console.error('[Project Agent] Failed to persist session:', persistError);
       }
     };
 
@@ -1218,6 +1256,7 @@ export async function POST(request: Request) {
               return { success: false, message: 'Replacement draft is not ready yet.' };
             }
 
+            const selectedAvatarId = draft.selectedAvatar?.id || sessionState.avatar?.id || undefined;
             const selectedProductId = draft.selectedProduct?.id || sessionState.product?.id;
             if (!selectedProductId) {
               return { success: false, message: 'A replacement product is required before generation.' };
@@ -1276,6 +1315,10 @@ export async function POST(request: Request) {
             const createPayload: Record<string, unknown> = {
               userId,
               imageUrl: selectedProductImageUrl,
+              selectedAvatarId,
+              selectedProductId,
+              selectedAvatarIds: selectedAvatarId ? [selectedAvatarId] : [],
+              selectedProductIds: selectedProductId ? [selectedProductId] : [],
               videoModel: normalizedModel,
               videoAspectRatio: sessionState.videoAspectRatio || '9:16',
               videoDuration,
@@ -1419,6 +1462,7 @@ export async function POST(request: Request) {
                 duration: previousExecution?.duration,
                 creditsCost: previousExecution?.creditsCost,
                 error: null,
+                mergedVideoUrl: previousExecution?.mergedVideoUrl ?? null,
                 segments: previousExecution?.segments ?? []
               }
             });
@@ -1605,7 +1649,10 @@ export async function POST(request: Request) {
               });
             }
 
-            return { success: true, message: 'Final video merge has started.' };
+            return {
+              success: true,
+              message: 'Final video merge has started. Once it finishes, please go to My Ads to view and download the final video.'
+            };
           }
         }),
         syncProjectStatus: tool({
