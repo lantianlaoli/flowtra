@@ -129,7 +129,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         segmentStatus,
         segmentPlan: segmentPlanPayload,
         segments,
-        awaitingMerge: record.current_step === 'awaiting_merge',
+        awaitingMerge: record.current_step === 'awaiting_merge' || record.status === 'awaiting_merge',
         mergeTaskId: record.fal_merge_task_id || null,
         videoQuality: record.video_quality || null,
         photoOnly: record.photo_only || false,

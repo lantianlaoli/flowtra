@@ -151,35 +151,63 @@ const extractScenesFromAnalysis = (
   }];
 };
 
-const enforceMentionToken = (prompt: string, token: string): string => {
-  const trimmed = prompt.trim();
-  if (!trimmed) return `${token} in frame.`;
-  if (trimmed.includes(token)) return trimmed;
-  return `${token} ${trimmed}`;
-};
-
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const AVATAR_HINT_REGEX = /\b(man|male|woman|female|person|character|subject|mother|father|guy|girl|boy|lady|he|she|him|his|her)\b/i;
+const PRODUCT_HINT_REGEX = /\b(product|item|object|toy|book)\b/i;
 
-const enforcePlainReplacement = (text: string, label: string, fallback: string): string => {
-  const trimmedLabel = label.trim();
-  if (!trimmedLabel) return text.trim() || fallback;
-  const source = text.trim();
-  if (!source) return `${trimmedLabel} ${fallback}`.trim();
-  const hasLabel = new RegExp(`\\b${escapeRegExp(trimmedLabel)}\\b`, 'i').test(source);
-  if (hasLabel) return source;
-  return `${trimmedLabel} ${source}`.trim();
+const hasExplicitMentionSignal = (
+  text: string,
+  selectedName?: string | null
+) => {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  if (!selectedName?.trim()) return false;
+  const nameRegex = new RegExp(`\\b${escapeRegExp(selectedName.trim())}\\b`, 'i');
+  return nameRegex.test(normalized);
 };
 
-const enforceTokenInShot = (
-  shot: ShotPrompt,
-  token: string,
-  fields: Array<keyof Pick<ShotPrompt, 'subject' | 'action' | 'dialogue' | 'context_environment'>>
+const transformShotFieldInline = (
+  text: string,
+  input: {
+    avatarToken?: string | null;
+    productToken?: string | null;
+    avatarName?: string | null;
+    productName?: string | null;
+  },
+  options?: {
+    forceAvatar?: boolean;
+    forceProduct?: boolean;
+  }
 ) => {
-  const next = { ...shot };
-  fields.forEach((field) => {
-    next[field] = enforceMentionToken(next[field] || '', token);
+  const base = stripMentionTokens(text || '').trim();
+  if (!base) return '';
+
+  const hasAvatarSignal = Boolean(
+    AVATAR_HINT_REGEX.test(base) ||
+    hasExplicitMentionSignal(base, input.avatarName) ||
+    (input.avatarToken && base.includes(input.avatarToken))
+  );
+  const hasProductSignal = Boolean(
+    PRODUCT_HINT_REGEX.test(base) ||
+    hasExplicitMentionSignal(base, input.productName) ||
+    (input.productToken && base.includes(input.productToken))
+  );
+
+  const avatarToken = (hasAvatarSignal || options?.forceAvatar) ? (input.avatarToken || null) : null;
+  const productToken = (hasProductSignal || options?.forceProduct) ? (input.productToken || null) : null;
+
+  if (!avatarToken && !productToken) {
+    return base;
+  }
+
+  return injectMentionsInline({
+    imagePrompt: base,
+    fallbackSummary: base,
+    avatarToken,
+    productToken,
+    avatarName: input.avatarName,
+    productName: input.productName
   });
-  return next;
 };
 
 const parseModelScenes = (raw: unknown): ScenePrompt[] => {
@@ -226,12 +254,17 @@ const generateReplacementDraft = async (input: {
   referenceSummary: string;
   avatarName?: string;
   productName?: string;
-  enableMentionTokens: boolean;
 }) => {
   const modelName = process.env.OPENROUTER_MODEL || 'google/gemini-3-pro-preview';
 
   const avatarToken = input.avatarName ? `@character(${input.avatarName})` : null;
   const productToken = input.productName ? `@product(${input.productName})` : null;
+  const mentionContext = {
+    avatarToken,
+    productToken,
+    avatarName: input.avatarName,
+    productName: input.productName
+  };
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -315,21 +348,18 @@ const generateReplacementDraft = async (input: {
           content: [
             'You are rewriting clone prompts while preserving original shot structure.',
             'Output must preserve scene order and source intent.',
-            input.enableMentionTokens && avatarToken
-              ? `Character replacement must explicitly use token in subject/action fields: ${avatarToken}.`
-              : (input.avatarName
-                ? `For imagePrompt, use ${avatarToken} by replacing the character words directly inside natural sentence flow; do not append token clauses at the end. For shot fields, use plain text "${input.avatarName}" and do not use @character(...) token.`
-                : 'Do not use any @character(...) token.'),
-            input.enableMentionTokens && productToken
-              ? `Product replacement must explicitly use token in subject/action fields: ${productToken}.`
-              : (input.productName
-                ? `For imagePrompt, use ${productToken} by replacing product words directly inside natural sentence flow; do not append token clauses at the end. For shot fields, use plain text "${input.productName}" and do not use @product(...) token.`
-                : 'Do not use any @product(...) token.'),
+            avatarToken
+              ? `Character replacement must explicitly use token in imagePrompt and shot fields: ${avatarToken}.`
+              : 'Do not use any @character(...) token.',
+            productToken
+              ? `Product replacement must explicitly use token in imagePrompt and shot fields: ${productToken}.`
+              : 'Do not use any @product(...) token.',
             'For each scene output imagePrompt and videoPrompt.shots.',
             'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
             'Do not use trailing templates like ", featuring @character(...) interacting with @product(...)".',
             'Write a normal fluent prompt first, then embed mention tokens only at the noun phrase positions.',
             'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, dialogue, time_range.',
+            'Apply avatar/product replacement inside video shot fields too. Do not leave original role words (e.g. woman/man) when replacement is selected.',
             'Keep fields concise but specific.'
           ].join(' ')
         },
@@ -372,61 +402,27 @@ const generateReplacementDraft = async (input: {
     let shots = scene.videoPrompt.shots.length > 0
       ? scene.videoPrompt.shots
       : (input.scenes[index]?.sourceShots ?? []);
+    imagePrompt = injectMentionsInline({
+      imagePrompt,
+      fallbackSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || '',
+      avatarToken,
+      productToken,
+      avatarName: input.avatarName,
+      productName: input.productName
+    });
 
-    if (input.enableMentionTokens) {
-      if (avatarToken) {
-        shots = shots.map((shot) => enforceTokenInShot(shot, avatarToken, ['subject', 'action']));
-      }
-      if (productToken) {
-        shots = shots.map((shot) => enforceTokenInShot(shot, productToken, ['subject', 'action']));
-      }
-      imagePrompt = injectMentionsInline({
-        imagePrompt,
-        fallbackSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || '',
-        avatarToken,
-        productToken,
-        avatarName: input.avatarName,
-        productName: input.productName
-      });
-    } else {
-      imagePrompt = injectMentionsInline({
-        imagePrompt,
-        fallbackSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || '',
-        avatarToken,
-        productToken,
-        avatarName: input.avatarName,
-        productName: input.productName
-      });
-      shots = shots.map((shot) => ({
-        ...shot,
-        subject: stripMentionTokens(shot.subject || ''),
-        context_environment: stripMentionTokens(shot.context_environment || ''),
-        action: stripMentionTokens(shot.action || ''),
-        style: stripMentionTokens(shot.style || ''),
-        camera_motion_positioning: stripMentionTokens(shot.camera_motion_positioning || ''),
-        composition: stripMentionTokens(shot.composition || ''),
-        ambiance_colour_lighting: stripMentionTokens(shot.ambiance_colour_lighting || ''),
-        audio: stripMentionTokens(shot.audio || ''),
-        dialogue: stripMentionTokens(shot.dialogue || '')
-      }));
-
-      if (input.avatarName?.trim()) {
-        shots = shots.map((shot) => ({
-          ...shot,
-          subject: enforcePlainReplacement(shot.subject || '', input.avatarName as string, 'appears in frame.'),
-          action: enforcePlainReplacement(shot.action || '', input.avatarName as string, 'moves naturally in scene.')
-        }));
-      }
-
-      if (input.productName?.trim()) {
-        shots = shots.map((shot) => ({
-          ...shot,
-          subject: enforcePlainReplacement(shot.subject || '', input.productName as string, 'product shown in frame.'),
-          action: enforcePlainReplacement(shot.action || '', input.productName as string, 'product interaction is clear.'),
-          context_environment: enforcePlainReplacement(shot.context_environment || '', input.productName as string, 'product placement is visible.')
-        }));
-      }
-    }
+    shots = shots.map((shot) => ({
+      ...shot,
+      subject: transformShotFieldInline(shot.subject || '', mentionContext, { forceAvatar: Boolean(input.avatarName), forceProduct: Boolean(input.productName) }),
+      context_environment: transformShotFieldInline(shot.context_environment || '', mentionContext),
+      action: transformShotFieldInline(shot.action || '', mentionContext, { forceAvatar: Boolean(input.avatarName), forceProduct: Boolean(input.productName) }),
+      style: transformShotFieldInline(shot.style || '', mentionContext),
+      camera_motion_positioning: transformShotFieldInline(shot.camera_motion_positioning || '', mentionContext),
+      composition: transformShotFieldInline(shot.composition || '', mentionContext),
+      ambiance_colour_lighting: transformShotFieldInline(shot.ambiance_colour_lighting || '', mentionContext),
+      audio: transformShotFieldInline(shot.audio || '', mentionContext),
+      dialogue: transformShotFieldInline(shot.dialogue || '', mentionContext)
+    }));
 
     return {
       sceneIndex: scene.sceneIndex,
@@ -621,8 +617,7 @@ export async function POST(request: NextRequest) {
       scenes,
       referenceSummary: reference.analysisSummary || 'Reference structure selected.',
       avatarName: avatarSelection?.name,
-      productName: productSelection?.name,
-      enableMentionTokens: state.videoModel === 'kling_3'
+      productName: productSelection?.name
     });
 
     const cloneReplacementDraft: CloneReplacementDraft = {

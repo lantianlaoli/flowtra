@@ -65,13 +65,28 @@ type CloneSceneReviewStepProps = {
   preferredFrameRegeneratingSceneIndex?: number | null;
 };
 
-const statusLabel = (status: string) => {
-  if (status === 'first_frame_ready') return 'Ready';
-  if (status === 'generating_first_frame') return 'Generating frame';
-  if (status === 'generating_video') return 'Generating video';
-  if (status === 'failed') return 'Failed';
-  if (status === 'video_ready') return 'Video ready';
-  return 'Queued';
+type SceneProgressState = 'queued' | 'generating' | 'ready' | 'failed' | 'waiting';
+
+const sceneProgressLabel = (kind: 'frame' | 'video', state: SceneProgressState) => {
+  if (kind === 'frame') {
+    if (state === 'ready') return 'Frame ready';
+    if (state === 'generating') return 'Frame generating';
+    if (state === 'failed') return 'Frame failed';
+    return 'Frame queued';
+  }
+  if (state === 'ready') return 'Video ready';
+  if (state === 'generating') return 'Video generating';
+  if (state === 'failed') return 'Video failed';
+  if (state === 'waiting') return 'Video waiting';
+  return 'Video queued';
+};
+
+const badgeClassForState = (state: SceneProgressState) => {
+  if (state === 'ready') return 'border-[#cce9d4] bg-[#eef8f1] text-[#1f7a3b]';
+  if (state === 'generating') return 'border-[#d9d9d7] bg-[#f3f3f2] text-[#5b5b59]';
+  if (state === 'failed') return 'border-[#efc9c9] bg-[#fff3f3] text-[#b23b3b]';
+  if (state === 'waiting') return 'border-[#e3e3e1] bg-[#f8f8f7] text-[#7a7a77]';
+  return 'border-[#e3e3e1] bg-[#f8f8f7] text-[#7a7a77]';
 };
 
 const normalizePrompt = (segment: CloneExecutionSegment): CloneExecutionSegmentPrompt => {
@@ -189,14 +204,21 @@ export default function CloneSceneReviewStep({
   }, []);
 
   const headerLabel = useMemo(() => {
-    if (execution.phase === 'generating_frames') return 'Generating scene frames...';
-    if (execution.phase === 'reviewing_frames') return 'Review each scene frame and regenerate if needed.';
-    if (execution.phase === 'generating_videos') return 'Final videos are generating.';
+    if (execution.phase === 'generating_frames') return 'Generating scene frames. Videos will start after frame readiness.';
+    if (execution.phase === 'reviewing_frames') return 'Review frames and trigger video generation when ready.';
+    if (execution.phase === 'generating_videos') return 'Generating videos for each scene.';
     if (execution.phase === 'merging') return 'Merging segments...';
     if (execution.phase === 'completed') return 'Generation completed.';
     if (execution.phase === 'failed') return 'Generation failed.';
     return 'Preparing scenes...';
   }, [execution.phase]);
+
+  const progressSummary = useMemo(() => {
+    const total = segments.length;
+    const framesReady = segments.filter((segment) => Boolean(segment.firstFrameUrl)).length;
+    const videosReady = segments.filter((segment) => Boolean(segment.videoUrl)).length;
+    return { total, framesReady, videosReady };
+  }, [segments]);
 
   const updatePrompt = (segmentIndex: number, updater: (current: CloneExecutionSegmentPrompt) => CloneExecutionSegmentPrompt) => {
     setLocalPrompts((prev) => ({
@@ -220,9 +242,17 @@ export default function CloneSceneReviewStep({
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 4</p>
           <p className="text-sm font-semibold text-[#2a2a28] inline-flex items-center gap-1.5">
             <Clapperboard className="h-4 w-4" />
-            Scene First Frame Review
+            Scene Generation Review
           </p>
           <p className="text-xs text-[#787876] mt-1">{headerLabel}</p>
+        </div>
+        <div className="inline-flex items-center gap-2 text-[11px] text-[#6a6a68]">
+          <span className="rounded-full border border-[#e3e3e1] bg-[#f8f8f7] px-2 py-0.5">
+            Frames {progressSummary.framesReady}/{progressSummary.total}
+          </span>
+          <span className="rounded-full border border-[#e3e3e1] bg-[#f8f8f7] px-2 py-0.5">
+            Videos {progressSummary.videosReady}/{progressSummary.total}
+          </span>
         </div>
       </div>
 
@@ -241,9 +271,31 @@ export default function CloneSceneReviewStep({
               segment.status === 'generating_video' ||
               (execution.phase === 'generating_videos' && segment.status !== 'failed')
             );
-          const effectiveStatus = shouldShowVideoGenerating
-            ? 'generating_video'
-            : (segment.status || 'queued');
+          const frameState: SceneProgressState =
+            segment.status === 'failed' && !segment.firstFrameUrl
+              ? 'failed'
+              : segment.firstFrameUrl
+                ? 'ready'
+                : (
+                    segment.status === 'generating_first_frame' ||
+                    execution.phase === 'generating_frames'
+                  )
+                  ? 'generating'
+                  : 'queued';
+          const videoState: SceneProgressState =
+            segment.status === 'failed' && Boolean(segment.firstFrameUrl) && !segment.videoUrl
+              ? 'failed'
+              : segment.videoUrl
+                ? 'ready'
+                : shouldShowVideoGenerating
+                  ? 'generating'
+                  : segment.firstFrameUrl
+                    ? (
+                        execution.phase === 'reviewing_frames'
+                          ? 'queued'
+                          : 'waiting'
+                      )
+                    : 'waiting';
           return (
             <div key={segment.segmentIndex} className={`${promptUi.sectionCard} p-3 space-y-3`}>
               <div className="flex items-center justify-between gap-2">
@@ -251,30 +303,43 @@ export default function CloneSceneReviewStep({
                   <Sparkles className="h-3.5 w-3.5 text-[#454543]" />
                   <span className="text-sm font-semibold text-[#1f1f1e]">Scene {segment.segmentIndex + 1}</span>
                 </div>
-                <div className={`inline-flex items-center gap-1.5 text-xs ${
-                  effectiveStatus === 'failed' ? 'text-[#b23b3b]' : 'text-[#666665]'
-                }`}>
-                  {effectiveStatus === 'first_frame_ready' ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-[#1f7a3b]" />
-                  ) : effectiveStatus === 'failed' ? (
+                <div className="inline-flex items-center gap-2 text-xs">
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${badgeClassForState(frameState)}`}>
+                    {frameState === 'ready' ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : frameState === 'generating' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : frameState === 'failed' ? (
+                      <AlertCircle className="h-3 w-3" />
+                    ) : null}
+                    {sceneProgressLabel('frame', frameState)}
+                  </span>
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${badgeClassForState(videoState)}`}>
+                    {videoState === 'ready' ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : videoState === 'generating' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : videoState === 'failed' ? (
+                      <AlertCircle className="h-3 w-3" />
+                    ) : null}
+                    {sceneProgressLabel('video', videoState)}
+                  </span>
+                  {segment.errorMessage ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
                           type="button"
                           className="inline-flex h-4 w-4 items-center justify-center text-[#b23b3b]"
-                          aria-label={`Scene ${segment.segmentIndex + 1} failed details`}
+                          aria-label={`Scene ${segment.segmentIndex + 1} failure details`}
                         >
                           <AlertCircle className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="left" sideOffset={8} className="max-w-[320px] whitespace-normal leading-5">
-                        {segment.errorMessage || 'This scene failed during generation.'}
+                        {segment.errorMessage}
                       </TooltipContent>
                     </Tooltip>
-                  ) : (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  )}
-                  <span>{statusLabel(effectiveStatus)}</span>
+                  ) : null}
                 </div>
               </div>
 
@@ -342,10 +407,20 @@ export default function CloneSceneReviewStep({
                             <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                             Video is generating...
                           </>
+                        ) : !segment.firstFrameUrl ? (
+                          <>
+                            <Clapperboard className="h-4 w-4 mr-1" />
+                            Video waits for frame readiness
+                          </>
+                        ) : execution.phase === 'reviewing_frames' ? (
+                          <>
+                            <Clapperboard className="h-4 w-4 mr-1" />
+                            Video is queued until you start video generation
+                          </>
                         ) : (
                           <>
                             <Clapperboard className="h-4 w-4 mr-1" />
-                            Video preview will be available after frame review
+                            Video preview will appear here
                           </>
                         )}
                       </div>

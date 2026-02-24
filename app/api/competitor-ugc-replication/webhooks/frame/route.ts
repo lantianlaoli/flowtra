@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createSmartSegmentFrame, type SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
+import {
+  createSmartSegmentFrame,
+  hydrateSerializedSegmentPrompt,
+  serializeSegmentPrompt,
+  type SegmentPrompt,
+  type SerializedSegmentPlanSegment
+} from '@/lib/competitor-ugc-replication-workflow';
+import type { VideoModel } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -19,6 +26,85 @@ interface KIEImageWebhookPayload {
     failCode?: string;
     failMsg?: string;
   };
+}
+
+type ProjectPromptContainer = {
+  segment_plan?: Record<string, unknown> | null;
+  video_prompts?: Record<string, unknown> | null;
+};
+
+const normalizeStringArray = (value: unknown, max = 10): string[] => {
+  if (!Array.isArray(value)) return [];
+  const output: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const trimmed = item.trim();
+    if (!trimmed || output.includes(trimmed)) continue;
+    output.push(trimmed);
+    if (output.length >= max) break;
+  }
+  return output;
+};
+
+const readCloneReferenceAssets = (projectData: Record<string, unknown> | null | undefined) => {
+  const videoPrompts = projectData?.video_prompts;
+  if (!videoPrompts || typeof videoPrompts !== 'object') {
+    return { avatarPhotoUrls: [] as string[], productImageUrls: [] as string[] };
+  }
+  const assets = (videoPrompts as Record<string, unknown>).clone_reference_assets;
+  if (!assets || typeof assets !== 'object') {
+    return { avatarPhotoUrls: [] as string[], productImageUrls: [] as string[] };
+  }
+  const parsed = assets as Record<string, unknown>;
+  return {
+    avatarPhotoUrls: normalizeStringArray(parsed.avatarPhotoUrls, 4),
+    productImageUrls: normalizeStringArray(parsed.productImageUrls, 8)
+  };
+};
+
+function readSegmentPlanEntry(container: Record<string, unknown> | null | undefined, segmentIndex: number): Record<string, unknown> | null {
+  if (!container || typeof container !== 'object') {
+    return null;
+  }
+  const segments = Array.isArray((container as { segments?: unknown[] }).segments)
+    ? ((container as { segments?: unknown[] }).segments || [])
+    : [];
+  const candidate = segments[segmentIndex];
+  if (!candidate || typeof candidate !== 'object') {
+    return null;
+  }
+  return candidate as Record<string, unknown>;
+}
+
+function resolveSegmentPromptForIndex(
+  segmentPromptRaw: unknown,
+  projectData: ProjectPromptContainer | null | undefined,
+  segmentIndex: number
+): SegmentPrompt | null {
+  if (segmentPromptRaw && typeof segmentPromptRaw === 'object') {
+    return hydrateSerializedSegmentPrompt(
+      segmentPromptRaw as SerializedSegmentPlanSegment,
+      segmentIndex
+    );
+  }
+
+  const fromSegmentPlan = readSegmentPlanEntry(projectData?.segment_plan, segmentIndex);
+  if (fromSegmentPlan) {
+    return hydrateSerializedSegmentPrompt(
+      fromSegmentPlan as SerializedSegmentPlanSegment,
+      segmentIndex
+    );
+  }
+
+  const fromVideoPrompts = readSegmentPlanEntry(projectData?.video_prompts, segmentIndex);
+  if (fromVideoPrompts) {
+    return hydrateSerializedSegmentPrompt(
+      fromVideoPrompts as SerializedSegmentPlanSegment,
+      segmentIndex
+    );
+  }
+
+  return null;
 }
 
 /**
@@ -182,22 +268,39 @@ export async function POST(request: NextRequest) {
                   .select('*')
                   .eq('id', nextSegment.id)
                   .single();
-
-                if (!nextSegmentData || !nextSegmentData.prompt) {
-                  throw new Error('Next segment prompt not found');
+                if (!nextSegmentData) {
+                  throw new Error('Next segment row not found');
                 }
 
-                const segmentPrompt = nextSegmentData.prompt as SegmentPrompt;
+                const segmentPrompt = resolveSegmentPromptForIndex(
+                  nextSegmentData.prompt,
+                  fullProject as ProjectPromptContainer,
+                  nextSegmentIndex
+                );
+                if (!segmentPrompt) {
+                  throw new Error(`Next segment prompt not found (segment ${nextSegmentIndex})`);
+                }
                 const aspectRatio = (fullProject.video_aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16';
                 const brandLogoUrl = fullProject.brand_logo_url as string | null;
-                const productImageUrls = fullProject.product_image_urls as string[] | null;
+                const cloneReferenceAssets = readCloneReferenceAssets(fullProject as Record<string, unknown>);
+                const productImageUrls = normalizeStringArray(
+                  (fullProject as { product_image_urls?: unknown }).product_image_urls,
+                  8
+                );
+                const mergedProductImageUrls = normalizeStringArray([
+                  ...productImageUrls,
+                  ...cloneReferenceAssets.productImageUrls
+                ], 8);
                 const competitorFileType = fullProject.competitor_file_type as 'video' | null;
+                const videoModel = (fullProject.video_model || 'veo3_fast') as VideoModel;
 
                 // Mark as generating
                 await supabase
                   .from('competitor_ugc_replication_segments')
                   .update({
-                    status: 'generating_first_frame'
+                    status: 'generating_first_frame',
+                    // Backfill prompt to prevent future continuation failures on the same segment.
+                    prompt: serializeSegmentPrompt(segmentPrompt)
                   })
                   .eq('id', nextSegment.id);
 
@@ -208,11 +311,16 @@ export async function POST(request: NextRequest) {
                   'first',
                   aspectRatio,
                   brandLogoUrl,
-                  productImageUrls,
+                  mergedProductImageUrls.length > 0 ? mergedProductImageUrls : null,
                   undefined, // brandContext - not needed for continuation
-                  competitorFileType,
-                  undefined, // overrides
-                  imageUrl // Use current segment's first frame as continuation reference
+                  competitorFileType === 'video' ? 'video' : null,
+                  {
+                    characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0
+                      ? cloneReferenceAssets.avatarPhotoUrls
+                      : null
+                  },
+                  imageUrl, // Use current segment's first frame as continuation reference
+                  videoModel
                 );
 
                 // Save task ID
@@ -295,38 +403,62 @@ export async function POST(request: NextRequest) {
             .select('*')
             .eq('id', segment.id)
             .single();
-
-          if (fullProject && segmentData && segmentData.prompt) {
-            const segmentPrompt = segmentData.prompt as SegmentPrompt;
-            const aspectRatio = (fullProject.video_aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16';
-            const brandLogoUrl = fullProject.brand_logo_url as string | null;
-            const productImageUrls = fullProject.product_image_urls as string[] | null;
-            const competitorFileType = fullProject.competitor_file_type as 'video' | null;
-
-            // Retry frame generation
-            const taskId = await createSmartSegmentFrame(
-              segmentPrompt,
-              segment.segment_index,
-              'first',
-              aspectRatio,
-              brandLogoUrl,
-              productImageUrls,
-              undefined,
-              competitorFileType,
-              undefined,
-              undefined
-            );
-
-            await supabase
-              .from('competitor_ugc_replication_segments')
-              .update({
-                first_frame_task_id: taskId,
-                first_frame_webhook_received_at: null
-              })
-              .eq('id', segment.id);
-
-            console.log(`✅ [UGC Frame Webhook] Retry triggered, new taskId: ${taskId}`);
+          if (!fullProject || !segmentData) {
+            throw new Error('Project or segment not found for retry');
           }
+
+          const segmentPrompt = resolveSegmentPromptForIndex(
+            segmentData.prompt,
+            fullProject as ProjectPromptContainer,
+            segment.segment_index
+          );
+          if (!segmentPrompt) {
+            throw new Error(`Segment prompt not found for retry (segment ${segment.segment_index})`);
+          }
+
+          const aspectRatio = (fullProject.video_aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16';
+          const brandLogoUrl = fullProject.brand_logo_url as string | null;
+          const cloneReferenceAssets = readCloneReferenceAssets(fullProject as Record<string, unknown>);
+          const productImageUrls = normalizeStringArray(
+            (fullProject as { product_image_urls?: unknown }).product_image_urls,
+            8
+          );
+          const mergedProductImageUrls = normalizeStringArray([
+            ...productImageUrls,
+            ...cloneReferenceAssets.productImageUrls
+          ], 8);
+          const competitorFileType = fullProject.competitor_file_type as 'video' | null;
+          const videoModel = (fullProject.video_model || 'veo3_fast') as VideoModel;
+
+          // Retry frame generation
+          const taskId = await createSmartSegmentFrame(
+            segmentPrompt,
+            segment.segment_index,
+            'first',
+            aspectRatio,
+            brandLogoUrl,
+            mergedProductImageUrls.length > 0 ? mergedProductImageUrls : null,
+            undefined,
+            competitorFileType === 'video' ? 'video' : null,
+            {
+              characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0
+                ? cloneReferenceAssets.avatarPhotoUrls
+                : null
+            },
+            undefined,
+            videoModel
+          );
+
+          await supabase
+            .from('competitor_ugc_replication_segments')
+            .update({
+              first_frame_task_id: taskId,
+              first_frame_webhook_received_at: null,
+              prompt: serializeSegmentPrompt(segmentPrompt)
+            })
+            .eq('id', segment.id);
+
+          console.log(`✅ [UGC Frame Webhook] Retry triggered, new taskId: ${taskId}`);
         } catch (retryError) {
           console.error('[UGC Frame Webhook] Retry failed:', retryError);
           // Fall through to mark as failed

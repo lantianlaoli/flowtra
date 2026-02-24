@@ -132,9 +132,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       .eq('user_id', userId);
 
     // Count how many projects reference this product (for logging purposes)
+    // Standard Ads stores clone selections in selected_inputs JSONB for multi-product support.
     const [competitorUgcReplicationCount, avatarAdsCount] = await Promise.all([
       supabase.from('competitor_ugc_replication_projects').select('id', { count: 'exact', head: true })
-        .eq('selected_product_id', id),
+        .contains('selected_inputs', { productIds: [id] }),
       supabase.from('avatar_ads_projects').select('id', { count: 'exact', head: true })
         .eq('selected_product_id', id),
     ]);
@@ -144,8 +145,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       (avatarAdsCount.count || 0);
 
     // Delete the product
-    // Database foreign key constraints will automatically set selected_product_id to NULL
-    // in all referencing projects (ON DELETE SET NULL)
+    // Avatar Ads foreign key constraints will automatically set selected_product_id to NULL
+    // in referencing avatar ad projects (ON DELETE SET NULL).
+    // Standard Ads clone references are stored in JSON metadata and do not block deletion.
     // Photos will also be deleted by CASCADE from user_product_photos table
     const { error: deleteError } = await supabase
       .from('user_products')
