@@ -67,6 +67,7 @@ export default function VideoImportModal({
   const [processingOrigin, setProcessingOrigin] = useState<ProcessingOrigin>(null);
   const [isFirstFrameUploading, setIsFirstFrameUploading] = useState(false);
   const [firstFrameUploadError, setFirstFrameUploadError] = useState<string | null>(null);
+  const [analysisLoadingMessageIndex, setAnalysisLoadingMessageIndex] = useState(0);
   const closeTimerRef = useRef<number | null>(null);
   const router = useRouter();
 
@@ -86,6 +87,7 @@ export default function VideoImportModal({
     setProcessingOrigin(null);
     setIsFirstFrameUploading(false);
     setFirstFrameUploadError(null);
+    setAnalysisLoadingMessageIndex(0);
   }, [isOpen]);
 
   useEffect(() => {
@@ -106,6 +108,34 @@ export default function VideoImportModal({
       : null;
     return parseShotsFromAnalysis(Array.isArray(raw) ? raw : []);
   }, [processingVideo?.analysis_result]);
+
+  const analysisLoadingMessages = useMemo(
+    () => [
+      'Analyzing your video structure...',
+      'Detecting scene boundaries and pacing...',
+      'Extracting subject, action, and camera motion...',
+      'Mapping composition, lighting, and audio cues...',
+      'Preparing a clean shot-by-shot timeline...'
+    ],
+    []
+  );
+
+  useEffect(() => {
+    const isAnalysisPending = step === 'processing' &&
+      processingVideo?.analysis_status !== 'failed' &&
+      !processingVideo?.analysis_result;
+
+    if (!isAnalysisPending) {
+      setAnalysisLoadingMessageIndex(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setAnalysisLoadingMessageIndex(prev => (prev + 1) % analysisLoadingMessages.length);
+    }, 2200);
+
+    return () => window.clearInterval(timer);
+  }, [analysisLoadingMessages.length, processingVideo?.analysis_result, processingVideo?.analysis_status, step]);
 
   const canUseForClone = Boolean(processingVideo?.analysis_result);
   const requiresFirstFrameForMotionSwap = processingOrigin === 'upload';
@@ -409,7 +439,7 @@ export default function VideoImportModal({
           />
 
           <motion.div
-            className="assets-modal-panel assets-video-import-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-5xl mx-auto overflow-hidden"
+            className="assets-modal-panel assets-video-import-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-[1180px] max-h-[90vh] mx-auto overflow-hidden flex flex-col"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -671,52 +701,39 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing' && (
-              <div className={`assets-modal-body grid grid-cols-1 ${requiresFirstFrameForMotionSwap ? 'lg:grid-cols-[minmax(0,0.68fr)_minmax(0,0.32fr)]' : 'lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]'} gap-6 p-6 min-h-[600px]`}>
+              <div className={`assets-modal-body grid grid-cols-1 ${requiresFirstFrameForMotionSwap ? 'lg:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]' : 'lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]'} gap-6 p-6 flex-1 min-h-0 overflow-hidden`}>
                 <div className={`grid gap-4 ${requiresFirstFrameForMotionSwap ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {requiresFirstFrameForMotionSwap && (
-                    <div className="assets-video-import-preview bg-gray-100 rounded-xl overflow-hidden border border-gray-200 min-h-[520px] aspect-[9/16] flex flex-col">
-                      <div className="p-3 border-b border-gray-200 bg-white">
-                        <p className="text-xs uppercase tracking-wide text-gray-500">First Frame Image</p>
-                      </div>
-                      <div className="flex-1 flex items-center justify-center p-3">
-                        {processingVideo?.cover_url ? (
-                          <img
-                            src={processingVideo.cover_url}
-                            alt="Uploaded first frame"
-                            className="w-full h-full object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="h-full w-full rounded-lg border-2 border-dashed border-gray-300 bg-white flex flex-col items-center justify-center text-center px-4 gap-3">
-                            <p className="text-sm font-medium text-gray-800">Upload First Frame</p>
-                            <p className="text-xs text-gray-500">Take a screenshot from your video and upload it.</p>
-                            <label className="inline-flex items-center justify-center px-3 py-2 text-xs font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-60">
-                              {isFirstFrameUploading ? 'Uploading...' : 'Upload First Frame'}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                disabled={isFirstFrameUploading}
-                                onChange={(event) => {
-                                  const file = event.target.files?.[0] || null;
-                                  void handleUploadFirstFrame(file);
-                                  event.currentTarget.value = '';
-                                }}
-                              />
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                      <div className="px-3 pb-3">
-                        <p className="text-xs text-gray-500">
-                          Without a first-frame image, this video cannot be used in Motion Swap.
-                        </p>
-                        {firstFrameUploadError && (
-                          <p className="text-xs text-red-600 mt-2">{firstFrameUploadError}</p>
-                        )}
-                      </div>
-                    </div>
+                    <label className="assets-video-import-preview h-full min-h-0 aspect-[9/16] rounded-xl border-2 border-dashed border-gray-300 bg-white overflow-hidden flex items-center justify-center text-center px-5 cursor-pointer transition-colors hover:border-gray-500">
+                      {processingVideo?.cover_url ? (
+                        <img
+                          src={processingVideo.cover_url}
+                          alt="Uploaded first frame"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <Upload className="w-5 h-5 text-gray-500" />
+                          <p className="text-sm text-gray-600">
+                            {isFirstFrameUploading ? 'Uploading first frame...' : 'Optional, required for Motion Swap'}
+                          </p>
+                        </div>
+                      )}
+                      <span className="sr-only">Upload first frame</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={isFirstFrameUploading}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] || null;
+                          void handleUploadFirstFrame(file);
+                          event.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
                   )}
-                  <div className="assets-video-import-preview bg-black/95 rounded-xl overflow-hidden flex items-center justify-center min-h-[520px] aspect-[9/16]">
+                  <div className="assets-video-import-preview bg-black/95 rounded-xl overflow-hidden flex items-center justify-center h-full min-h-0 aspect-[9/16]">
                     {processingVideo?.video_cdn_url ? (
                       <VideoPlayer
                         src={processingVideo.video_cdn_url}
@@ -731,7 +748,7 @@ export default function VideoImportModal({
                     )}
                   </div>
                 </div>
-                <div className="assets-video-import-panel flex flex-col gap-4 min-h-[520px]">
+                <div className="assets-video-import-panel flex flex-col gap-4 min-h-0 h-full overflow-hidden">
                   <div className="space-y-2">
                     <p className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">Overview</p>
                     <div className="flex items-center justify-between text-sm text-gray-700">
@@ -759,7 +776,7 @@ export default function VideoImportModal({
                           <span className="font-semibold text-gray-900">Shot List</span>
                           <span className="assets-video-import-meta text-xs text-gray-500">{processingShots.length} shots</span>
                         </div>
-                        <div className="assets-video-import-shots flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 min-h-[180px]">
+                        <div className="assets-video-import-shots flex-1 min-h-0 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4">
                           <CompetitorShotsEditor
                             shots={processingShots}
                             onShotsChange={() => {}}
@@ -771,12 +788,22 @@ export default function VideoImportModal({
                         </div>
                       </>
                     ) : (
-                      <div className="assets-video-import-alert rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 space-y-2">
-                        <div className="flex items-center gap-2 text-gray-600">
+                      <div className="assets-video-import-alert rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 min-h-[80px] flex items-center">
+                        <div className="flex items-center gap-2 text-gray-600 w-full min-w-0">
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Analysis running automatically in the background.</span>
+                          <AnimatePresence mode="wait">
+                            <motion.span
+                              key={analysisLoadingMessages[analysisLoadingMessageIndex]}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -4 }}
+                              transition={{ duration: 0.22 }}
+                              className="truncate"
+                            >
+                              {analysisLoadingMessages[analysisLoadingMessageIndex]}
+                            </motion.span>
+                          </AnimatePresence>
                         </div>
-                        <p className="assets-video-import-meta text-xs text-gray-500">This may take a few minutes. Refresh the page to see the results.</p>
                       </div>
                     )}
                   </div>
