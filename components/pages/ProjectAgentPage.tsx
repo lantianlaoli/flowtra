@@ -14,15 +14,19 @@ import Sidebar from '@/components/layout/Sidebar';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import VideoAssetCard from '@/components/VideoAssetCard';
 import VideoAssetDetailsModal from '@/components/VideoAssetDetailsModal';
-import ClonePromptDraftStep, { type CloneDraftScene, type ClonePromptDraft } from '@/components/project-agent/ClonePromptDraftStep';
+import { type CloneDraftScene, type ClonePromptDraft } from '@/components/project-agent/ClonePromptDraftStep';
 import CloneMergedVideoReviewStep from '@/components/project-agent/CloneMergedVideoReviewStep';
-import CloneSceneReviewStep, {
+import {
   type CloneExecutionSegment,
   type CloneExecutionSegmentPrompt
 } from '@/components/project-agent/CloneSceneReviewStep';
+import CloneSceneWorkspaceStep, {
+  type WorkspaceScene,
+  type WorkspaceShot
+} from '@/components/project-agent/CloneSceneWorkspaceStep';
 import { useCredits } from '@/contexts/CreditsContext';
 import { createClient } from '@/lib/supabase/client';
-import { getGenerationCost, type VideoModel } from '@/lib/constants';
+import { type VideoModel } from '@/lib/constants';
 
 interface SessionState {
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
@@ -436,6 +440,62 @@ const sceneToSegmentPrompt = (scene: CloneDraftScene, fallbackLanguage: string):
   };
 };
 
+const workspacePromptToDraftScene = (scene: WorkspaceScene): CloneDraftScene => ({
+  sceneIndex: scene.sceneIndex,
+  imagePrompt: scene.imagePrompt,
+  sourceSummary: scene.sourceSummary ?? null,
+  videoPrompt: {
+    shots: scene.shots.map((shot, index) => ({
+      id: Number.isFinite(shot.id) && shot.id > 0 ? shot.id : index + 1,
+      time_range: shot.time_range || '00:00 - 00:08',
+      subject: shot.subject || '',
+      context_environment: shot.context_environment || '',
+      action: shot.action || '',
+      style: shot.style || '',
+      camera_motion_positioning: shot.camera_motion_positioning || '',
+      composition: shot.composition || '',
+      ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
+      audio: shot.audio || '',
+      dialogue: shot.dialogue || '',
+      language: shot.language || 'en'
+    }))
+  }
+});
+
+const segmentPromptToWorkspaceShots = (prompt?: CloneExecutionSegmentPrompt): WorkspaceShot[] => {
+  if (!prompt?.shots?.length) {
+    return [{
+      id: 1,
+      time_range: '00:00 - 00:08',
+      subject: '',
+      context_environment: '',
+      action: '',
+      style: '',
+      camera_motion_positioning: '',
+      composition: '',
+      ambiance_colour_lighting: '',
+      audio: '',
+      dialogue: '',
+      language: 'en'
+    }];
+  }
+
+  return prompt.shots.map((shot, index) => ({
+    id: Number.isFinite(shot.id) && shot.id > 0 ? shot.id : index + 1,
+    time_range: shot.time_range || '00:00 - 00:08',
+    subject: shot.subject || '',
+    context_environment: shot.context_environment || '',
+    action: shot.action || '',
+    style: shot.style || '',
+    camera_motion_positioning: shot.camera_motion_positioning || '',
+    composition: shot.composition || '',
+    ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
+    audio: shot.audio || '',
+    dialogue: shot.dialogue || '',
+    language: shot.language || 'en'
+  }));
+};
+
 const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'merging' | 'completed' | 'failed' => {
   const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
@@ -679,8 +739,6 @@ export default function ProjectAgentPage() {
   const [selectedCloneAvatarId, setSelectedCloneAvatarId] = useState<string | null>(null);
   const [selectedCloneProductId, setSelectedCloneProductId] = useState<string | null>(null);
   const [isGeneratingCloneProject, setIsGeneratingCloneProject] = useState(false);
-  const [showClonePromptDraftStep, setShowClonePromptDraftStep] = useState(false);
-  const [showCloneSceneReviewStep, setShowCloneSceneReviewStep] = useState(false);
   const [awaitingCloneDraftReply, setAwaitingCloneDraftReply] = useState(false);
   const [cloneDraftReplyBaseline, setCloneDraftReplyBaseline] = useState(0);
   const [retryableUserMessageId, setRetryableUserMessageId] = useState<string | null>(null);
@@ -1050,23 +1108,6 @@ export default function ProjectAgentPage() {
     clearError();
     setStatusNote('');
     setRetryableUserMessageId(null);
-    const shouldOptimisticallyEnterVideoGeneration = (
-      isStartVideoGenerationCommand(next) &&
-      Boolean(sessionState?.cloneExecution?.projectId)
-    );
-    if (shouldOptimisticallyEnterVideoGeneration) {
-      setSessionState((prev) => {
-        if (!prev?.cloneExecution) return prev;
-        return {
-          ...prev,
-          cloneExecution: {
-            ...prev.cloneExecution,
-            phase: 'generating_videos',
-            error: null
-          }
-        };
-      });
-    }
     ensureHistoryTracked(sessionId);
     setPendingUserText(next);
     setPendingBaselineCount(messages.length);
@@ -1082,7 +1123,6 @@ export default function ProjectAgentPage() {
     draft,
     ensureHistoryTracked,
     messages.length,
-    sessionState?.cloneExecution?.projectId,
     sendMessageSafely,
     sendLocked,
     sessionId
@@ -1100,26 +1140,35 @@ export default function ProjectAgentPage() {
     const retryText = renderUIMessageText(lastUser).trim();
     if (!retryText) return false;
 
+    const execution = sessionState?.cloneExecution;
+    const hasVideoGenerationSignal = Boolean(
+      execution?.phase === 'generating_videos' ||
+      execution?.phase === 'merging' ||
+      execution?.phase === 'completed' ||
+      execution?.segments?.some((segment) => (
+        segment.status === 'generating_video' ||
+        segment.status === 'video_ready' ||
+        Boolean(segment.videoUrl)
+      ))
+    );
+
+    // For deterministic start-video turns, avoid re-sending duplicated user bubbles
+    // once backend signals that video generation has already started.
+    if (isStartVideoGenerationCommand(retryText) && hasVideoGenerationSignal) {
+      const fallbackMessage: UIMessage = {
+        id: `assistant-fallback-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: 'assistant',
+        parts: [{ type: 'text', text: START_VIDEO_FALLBACK_REPLY }]
+      };
+      setMessages((prev) => dedupeConversationMessages([...prev, fallbackMessage]));
+      setRetryableUserMessageId(null);
+      setStatusNote('');
+      return true;
+    }
+
     clearError();
     setStatusNote('');
     setRetryableUserMessageId(null);
-    const shouldOptimisticallyEnterVideoGeneration = (
-      isStartVideoGenerationCommand(retryText) &&
-      Boolean(sessionState?.cloneExecution?.projectId)
-    );
-    if (shouldOptimisticallyEnterVideoGeneration) {
-      setSessionState((prev) => {
-        if (!prev?.cloneExecution) return prev;
-        return {
-          ...prev,
-          cloneExecution: {
-            ...prev.cloneExecution,
-            phase: 'generating_videos',
-            error: null
-          }
-        };
-      });
-    }
     setPendingUserText(retryText);
     setPendingBaselineCount(visibleMessages.length);
 
@@ -1133,7 +1182,7 @@ export default function ProjectAgentPage() {
     }
 
     return true;
-  }, [clearError, isStreaming, messages, sendMessageSafely, sessionState?.cloneExecution?.projectId]);
+  }, [clearError, isStreaming, messages, sendMessageSafely, sessionState?.cloneExecution, setMessages]);
 
   const handleRetryLatestUserMessage = useCallback(() => {
     void retryLastUserMessage();
@@ -1239,8 +1288,6 @@ export default function ProjectAgentPage() {
     setShowCloneReplacementSelectors(false);
     setSelectedCloneAvatarId(null);
     setSelectedCloneProductId(null);
-    setShowClonePromptDraftStep(false);
-    setShowCloneSceneReviewStep(false);
     setAwaitingCloneDraftReply(false);
     setCloneDraftReplyBaseline(0);
     setAwaitingCloneStructureReply(true);
@@ -1295,7 +1342,7 @@ export default function ProjectAgentPage() {
 
     void loadCloneReplacementOptions();
 
-  }, [clearError, ensureHistoryTracked, loadCloneReplacementOptions, messages, messages.length, sendLocked, sendMessageSafely, sessionId]);
+  }, [clearError, ensureHistoryTracked, loadCloneReplacementOptions, messages, sendLocked, sendMessageSafely, sessionId]);
 
   const startNewChat = useCallback(() => {
     const nextId = createSessionId();
@@ -1310,8 +1357,6 @@ export default function ProjectAgentPage() {
     setCloneEntryReplyBaseline(0);
     setHandledCloneIntentUserMessageId(null);
     setShowCloneReplacementSelectors(false);
-    setShowClonePromptDraftStep(false);
-    setShowCloneSceneReviewStep(false);
     setAwaitingCloneStructureReply(false);
     setCloneStructureReplyReady(false);
     setAwaitingCloneDraftReply(false);
@@ -1338,8 +1383,6 @@ export default function ProjectAgentPage() {
     setShowCloneableVideos(false);
     setHandledCloneIntentUserMessageId(null);
     setShowCloneReplacementSelectors(false);
-    setShowClonePromptDraftStep(false);
-    setShowCloneSceneReviewStep(false);
     setAwaitingCloneStructureReply(false);
     setCloneStructureReplyReady(false);
     setAwaitingCloneDraftReply(false);
@@ -1467,14 +1510,13 @@ export default function ProjectAgentPage() {
     setStatusNote('');
     ensureHistoryTracked(sessionId);
 
-    // Enter clone flow directly: open Step 1 reference-video chooser.
-    setShowCloneableVideos(true);
-    setAwaitingCloneEntryReply(false);
-    setCloneEntryReplyBaseline(0);
+    // Enter clone flow with a strict gate: keep left surface in "Working on it..."
+    // until we receive a visible assistant reply for this turn.
+    setShowCloneableVideos(false);
+    setAwaitingCloneEntryReply(true);
+    setCloneEntryReplyBaseline(dedupeConversationMessages(messages).length);
     setHandledCloneIntentUserMessageId(null);
     setShowCloneReplacementSelectors(false);
-    setShowClonePromptDraftStep(false);
-    setShowCloneSceneReviewStep(false);
     setAwaitingCloneStructureReply(false);
     setAwaitingCloneDraftReply(false);
 
@@ -1492,7 +1534,7 @@ export default function ProjectAgentPage() {
     clearError,
     ensureHistoryTracked,
     loadCloneableVideos,
-    messages.length,
+    messages,
     router,
     sendLocked,
     sendMessageSafely,
@@ -1700,6 +1742,24 @@ export default function ProjectAgentPage() {
       /\b(clone|viral|competitor|ugc)\b/i.test(lastUserText)
     );
 
+    const hasVideoGenerationSignal = Boolean(
+      sessionState?.cloneExecution?.phase === 'generating_videos' ||
+      sessionState?.cloneExecution?.phase === 'merging' ||
+      sessionState?.cloneExecution?.phase === 'completed' ||
+      sessionState?.cloneExecution?.segments?.some((segment) => (
+        segment.status === 'generating_video' ||
+        segment.status === 'video_ready' ||
+        Boolean(segment.videoUrl)
+      ))
+    );
+
+    if (isStartVideoGenerationCommand(lastUserText) && hasVideoGenerationSignal) {
+      appendSyntheticAssistantMessage(START_VIDEO_FALLBACK_REPLY);
+      setRetryableUserMessageId(null);
+      setStatusNote('');
+      return true;
+    }
+
     if (isSyntheticWorkflowMessage(lastUserText) || isWorkflowCommandMessage(lastUserText) || isCloneKickoffIntent) {
       setRetryableUserMessageId(lastUser.id);
       setStatusNote('Assistant reply was interrupted. Tap the retry icon below your latest message.');
@@ -1714,14 +1774,18 @@ export default function ProjectAgentPage() {
     setRetryableUserMessageId(lastUser.id);
     setStatusNote('Assistant reply was interrupted. Tap the retry icon below your latest message.');
     return false;
-  }, [autoRetriedUserMessageIds, displayMessages, retryLastUserMessage, sessionState?.cloneReferenceVideo?.id]);
+  }, [appendSyntheticAssistantMessage, autoRetriedUserMessageIds, displayMessages, sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.segments, sessionState?.cloneReferenceVideo?.id]);
 
   useEffect(() => {
     if (!isCloneIntentTurn) return;
     if (!latestUserMessageId) return;
     if (latestUserMessageId === handledCloneIntentUserMessageId) return;
-    if (awaitingCloneEntryReply || showCloneableVideos) return;
+    if (awaitingCloneEntryReply) return;
     if (sessionState?.intent === 'competitor_ugc_replication' && sessionState?.cloneReferenceVideo?.id) return;
+
+    // Always hide left-step content first for a fresh clone-intent turn.
+    // This prevents Step 1 from flashing before assistant text appears.
+    setShowCloneableVideos(false);
 
     // If this exact clone-intent turn already has an assistant reply (e.g. restored history), show Step 1.
     if (hasAssistantReplyAfterLatestCloneIntent && !isStreaming && status === 'ready') {
@@ -1749,8 +1813,7 @@ export default function ProjectAgentPage() {
     loadCloneableVideos,
     sessionState?.cloneReferenceVideo?.id,
     sessionState?.intent,
-    status,
-    showCloneableVideos
+    status
   ]);
 
   useEffect(() => {
@@ -1867,19 +1930,34 @@ export default function ProjectAgentPage() {
     }
   }, [awaitingCloneStructureReply, cloneStructureReplyBaseline, displayMessages, isStreaming, requestAssistantRetry, status]);
 
+  const showCloneSceneWorkspaceStep = useMemo(() => {
+    if (sessionState?.cloneExecution?.projectId) {
+      return true;
+    }
+    const draftStatus = sessionState?.cloneReplacementDraft?.status;
+    if (draftStatus !== 'ready' && draftStatus !== 'failed') {
+      return false;
+    }
+    return !awaitingCloneDraftReply && !isStreaming && status === 'ready';
+  }, [
+    awaitingCloneDraftReply,
+    isStreaming,
+    sessionState?.cloneExecution?.projectId,
+    sessionState?.cloneReplacementDraft?.status,
+    status
+  ]);
+
   useEffect(() => {
     const needsMentionOptions =
       showCloneReplacementSelectors ||
-      showClonePromptDraftStep ||
-      showCloneSceneReviewStep;
+      showCloneSceneWorkspaceStep;
     if (!needsMentionOptions) return;
     if (cloneAvatarOptions.length === 0 || cloneProductOptions.length === 0) {
       void loadCloneReplacementOptions();
     }
   }, [
     showCloneReplacementSelectors,
-    showClonePromptDraftStep,
-    showCloneSceneReviewStep,
+    showCloneSceneWorkspaceStep,
     cloneAvatarOptions.length,
     cloneProductOptions.length,
     loadCloneReplacementOptions
@@ -1905,47 +1983,6 @@ export default function ProjectAgentPage() {
   }, [sessionState?.cloneReplacementDraft?.selectedAvatar?.id, sessionState?.cloneReplacementDraft?.selectedProduct?.id]);
 
   useEffect(() => {
-    const draftStatus = sessionState?.cloneReplacementDraft?.status;
-    if (sessionState?.cloneExecution?.projectId) {
-      setShowClonePromptDraftStep(false);
-      return;
-    }
-    if (!draftStatus || draftStatus === 'idle') {
-      setShowClonePromptDraftStep(false);
-      return;
-    }
-    if (draftStatus === 'generating') {
-      // Keep left surface in global "Working on it..." mode while draft is being generated.
-      setShowClonePromptDraftStep(false);
-      return;
-    }
-    const canRevealDraftResult = !awaitingCloneDraftReply && !isStreaming && status === 'ready';
-    if (draftStatus === 'ready' && canRevealDraftResult) {
-      setShowClonePromptDraftStep(true);
-      return;
-    }
-    if (draftStatus === 'failed' && canRevealDraftResult) {
-      setShowClonePromptDraftStep(true);
-      return;
-    }
-    setShowClonePromptDraftStep(false);
-  }, [
-    awaitingCloneDraftReply,
-    isStreaming,
-    sessionState?.cloneExecution?.projectId,
-    sessionState?.cloneReplacementDraft?.status,
-    status
-  ]);
-
-  useEffect(() => {
-    if (!sessionState?.cloneExecution?.projectId) {
-      setShowCloneSceneReviewStep(false);
-      return;
-    }
-    setShowCloneSceneReviewStep(true);
-  }, [sessionState?.cloneExecution?.projectId]);
-
-  useEffect(() => {
     if (!awaitingCloneDraftReply) return;
     if (status !== 'ready') return;
     const hasAssistantReplyAfterDraft = displayMessages
@@ -1958,7 +1995,6 @@ export default function ProjectAgentPage() {
       }
       return;
     }
-    setShowClonePromptDraftStep(true);
     setAwaitingCloneDraftReply(false);
   }, [awaitingCloneDraftReply, cloneDraftReplyBaseline, displayMessages, isStreaming, requestAssistantRetry, status]);
 
@@ -2175,234 +2211,6 @@ export default function ProjectAgentPage() {
     }
   }, []);
 
-  const handleGenerateCloneProject = useCallback(async (scenes: CloneDraftScene[]) => {
-    if (!sessionId || !user?.id || !sessionState?.cloneReferenceVideo?.id || !sessionState?.cloneReplacementDraft || isGeneratingCloneProject) {
-      return;
-    }
-
-    const selectedAvatarId = sessionState.cloneReplacementDraft.selectedAvatar?.id || selectedCloneAvatarId;
-    const selectedProductId = sessionState.cloneReplacementDraft.selectedProduct?.id || selectedCloneProductId;
-    const selectedProductFromOptions = selectedProductId
-      ? cloneProductOptions.find((item) => item.id === selectedProductId)
-      : null;
-    const selectedProductFromDraft = sessionState.cloneReplacementDraft.selectedProduct
-      ? {
-          id: sessionState.cloneReplacementDraft.selectedProduct.id,
-          name: sessionState.cloneReplacementDraft.selectedProduct.name,
-          photoUrl: sessionState.cloneReplacementDraft.selectedProduct.photoUrl ?? null
-        }
-      : null;
-
-    let selectedProduct = selectedProductFromOptions ?? selectedProductFromDraft;
-
-    // After refresh, options may be empty/stale; resolve product photo from assets as a fallback.
-    if (selectedProductId && !selectedProduct?.photoUrl) {
-      try {
-        const assetsResponse = await fetch('/api/assets', { cache: 'no-store' });
-        if (assetsResponse.ok) {
-          const assetsPayload = await assetsResponse.json();
-          const productsRaw: Array<Record<string, unknown>> = Array.isArray(assetsPayload?.products)
-            ? assetsPayload.products
-            : [];
-          const matched = productsRaw.find((product) => product.id === selectedProductId);
-          if (matched) {
-            const photos = Array.isArray(matched.user_product_photos)
-              ? (matched.user_product_photos as Array<Record<string, unknown>>)
-              : [];
-            const firstPhoto = photos.find((photo) => typeof photo.photo_url === 'string');
-            selectedProduct = {
-              id: selectedProductId,
-              name: (typeof matched.product_name === 'string' && matched.product_name) || selectedProduct?.name || 'Unnamed Product',
-              photoUrl: (firstPhoto?.photo_url as string | undefined) ?? null
-            };
-          }
-        }
-      } catch (resolveProductError) {
-        console.error('Failed to resolve selected product image before generation:', resolveProductError);
-      }
-    }
-
-    if (!selectedProduct?.photoUrl) {
-      setStatusNote('Please select a product with an image before generating.');
-      return;
-    }
-
-    setIsGeneratingCloneProject(true);
-
-    const model = normalizeVideoModel(sessionState.videoModel);
-    const sceneCount = Math.max(1, scenes.length);
-    const duration = String(sceneCount * 8);
-    const generationCost = getGenerationCost(model, duration);
-
-    const updatedDraft: ClonePromptDraft = {
-      ...sessionState.cloneReplacementDraft,
-      scenes
-    };
-
-    const initialSegments: CloneExecutionSegment[] = scenes.map((scene, index) => ({
-      segmentIndex: index,
-      status: 'queued',
-      firstFrameUrl: null,
-      videoUrl: null,
-      prompt: sceneToSegmentPrompt(scene, sessionState.language || 'en')
-    }));
-
-    setSessionState((prev) => (
-      prev
-        ? {
-            ...prev,
-            cloneReplacementDraft: updatedDraft,
-            cloneExecution: {
-              projectId: '',
-              phase: 'generating_frames',
-              model,
-              duration,
-              creditsCost: generationCost,
-              mergedVideoUrl: null,
-              segments: initialSegments
-            }
-          }
-        : prev
-    ));
-    setShowClonePromptDraftStep(false);
-    setShowCloneSceneReviewStep(true);
-
-    try {
-      await persistCloneState({
-        cloneReplacementDraft: updatedDraft,
-        cloneExecution: {
-          projectId: '',
-          phase: 'generating_frames',
-          model,
-          duration,
-          creditsCost: generationCost,
-          mergedVideoUrl: null,
-          segments: initialSegments
-        }
-      });
-
-      const createPayload: Record<string, unknown> = {
-        userId: user.id,
-        imageUrl: selectedProduct.photoUrl,
-        selectedAvatarId,
-        selectedProductId,
-        selectedAvatarIds: selectedAvatarId ? [selectedAvatarId] : [],
-        selectedProductIds: selectedProductId ? [selectedProductId] : [],
-        videoModel: model,
-        videoAspectRatio: sessionState.videoAspectRatio || '9:16',
-        videoDuration: duration,
-        language: sessionState.language || 'en',
-        shouldGenerateVideo: true,
-        segmentPrompts: initialSegments.map((segment) => segment.prompt)
-      };
-      if (sessionState.cloneReferenceVideo.sourceType === 'competitor_ad') {
-        createPayload.competitorAdId = sessionState.cloneReferenceVideo.sourceId || sessionState.cloneReferenceVideo.id;
-      } else {
-        createPayload.creatorSourceVideoId = sessionState.cloneReferenceVideo.id || sessionState.cloneReferenceVideo.sourceId;
-      }
-
-      const userMessage = 'Generate this clone now.';
-      setPendingUserText(userMessage);
-      setPendingBaselineCount(displayMessages.length);
-      setAwaitingCloneDraftReply(true);
-      setCloneDraftReplyBaseline(displayMessages.length);
-      const sent = await sendMessageSafely(userMessage);
-      if (!sent) {
-        setPendingUserText(null);
-        setPendingBaselineCount(0);
-        setAwaitingCloneDraftReply(false);
-        setCloneDraftReplyBaseline(0);
-      }
-
-      const createResponse = await fetch('/api/competitor-ugc-replication/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(createPayload)
-      });
-      const createResult = await createResponse.json();
-      if (!createResponse.ok || !createResult?.success || !createResult?.projectId) {
-        throw new Error(createResult?.error || 'Failed to start clone generation.');
-      }
-
-      const projectId = createResult.projectId as string;
-      let mergedExecution: SessionState['cloneExecution'] = {
-        projectId,
-        phase: 'generating_frames',
-        model,
-        duration,
-        creditsCost: typeof createResult.creditsUsed === 'number' ? createResult.creditsUsed : generationCost,
-        mergedVideoUrl: null,
-        segments: initialSegments
-      };
-      try {
-        const nextExecution = await fetchCloneExecutionStatus(projectId);
-        mergedExecution = {
-          ...nextExecution,
-          creditsCost: typeof createResult.creditsUsed === 'number' ? createResult.creditsUsed : generationCost
-        };
-      } catch {
-        // Project status endpoint can briefly return 404 while the row propagates.
-        setStatusNote('Frame generation started. Status is syncing...');
-      }
-
-      setSessionState((prev) => (
-        prev
-          ? {
-              ...prev,
-              cloneExecution: mergedExecution
-            }
-          : prev
-      ));
-
-      await persistCloneState({
-        cloneExecution: mergedExecution
-      });
-
-      setStatusNote('Frame generation started.');
-    } catch (generateError) {
-      const errorMessage = generateError instanceof Error ? generateError.message : 'Failed to start clone generation.';
-      setStatusNote(errorMessage);
-      setSessionState((prev) => (
-        prev
-          ? {
-              ...prev,
-              cloneExecution: {
-                ...(prev.cloneExecution || {
-                  projectId: '',
-                  phase: 'failed',
-                  mergedVideoUrl: null,
-                  segments: []
-                }),
-                phase: 'failed',
-                error: errorMessage
-              }
-            }
-          : prev
-      ));
-      setShowClonePromptDraftStep(true);
-      setShowCloneSceneReviewStep(false);
-    } finally {
-      setIsGeneratingCloneProject(false);
-    }
-  }, [
-    cloneProductOptions,
-    fetchCloneExecutionStatus,
-    isGeneratingCloneProject,
-    persistCloneState,
-    selectedCloneAvatarId,
-    selectedCloneProductId,
-    sendMessageSafely,
-    sessionId,
-    sessionState?.cloneReferenceVideo?.id,
-    sessionState?.cloneReferenceVideo?.sourceId,
-    sessionState?.cloneReferenceVideo?.sourceType,
-    sessionState?.cloneReplacementDraft,
-    sessionState?.language,
-    sessionState?.videoAspectRatio,
-    sessionState?.videoModel,
-    user?.id
-  ]);
-
   useEffect(() => {
     const projectId = sessionState?.cloneExecution?.projectId;
     const phase = sessionState?.cloneExecution?.phase;
@@ -2461,13 +2269,6 @@ export default function ProjectAgentPage() {
     };
   }, [fetchCloneExecutionStatus, sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.projectId]);
 
-  const handleReselectCloneReplacements = useCallback(() => {
-    setSessionState((prev) => prev ? { ...prev, cloneExecution: null } : prev);
-    setShowClonePromptDraftStep(false);
-    setShowCloneSceneReviewStep(false);
-    setShowCloneReplacementSelectors(true);
-  }, []);
-
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     chatBottomRef.current?.scrollIntoView({ behavior, block: 'end' });
   }, []);
@@ -2512,15 +2313,57 @@ export default function ProjectAgentPage() {
     return options;
   }, [cloneProductOptions, sessionState?.cloneReplacementDraft?.selectedProduct]);
 
-  const cloneGenerationCost = useMemo(() => {
-    const scenes = sessionState?.cloneReplacementDraft?.scenes;
-    if (!scenes?.length) return null;
-    const model = normalizeVideoModel(sessionState?.videoModel);
-    return getGenerationCost(model, String(Math.max(1, scenes.length) * 8));
-  }, [sessionState?.cloneReplacementDraft?.scenes, sessionState?.videoModel]);
-  const enableClonePromptMentions = true;
+  const workspaceScenes = useMemo<WorkspaceScene[]>(() => {
+    const draftScenes = sessionState?.cloneReplacementDraft?.scenes ?? [];
+    const executionSegments = sessionState?.cloneExecution?.segments ?? [];
+    const segmentBySceneIndex = new Map(executionSegments.map((segment) => [segment.segmentIndex + 1, segment]));
+    const allSceneIndexes = new Set<number>();
 
-  const hasCloneSurfaceContent = showCloneableVideos || showCloneReplacementSelectors || showClonePromptDraftStep || showCloneSceneReviewStep;
+    draftScenes.forEach((scene) => allSceneIndexes.add(scene.sceneIndex));
+    executionSegments.forEach((segment) => allSceneIndexes.add(segment.segmentIndex + 1));
+
+    const sortedIndexes = Array.from(allSceneIndexes).sort((a, b) => a - b);
+    return sortedIndexes.map((sceneIndex) => {
+      const draftScene = draftScenes.find((scene) => scene.sceneIndex === sceneIndex);
+      const segment = segmentBySceneIndex.get(sceneIndex);
+      const promptFromSegment = segment?.prompt;
+
+      const draftShots = draftScene
+        ? segmentPromptToWorkspaceShots(sceneToSegmentPrompt(draftScene, sessionState?.language || 'en'))
+        : [];
+      const shots = promptFromSegment?.shots?.length
+        ? segmentPromptToWorkspaceShots(promptFromSegment)
+        : draftShots;
+
+      return {
+        sceneIndex,
+        sourceSummary: draftScene?.sourceSummary ?? null,
+        imagePrompt: promptFromSegment?.first_frame_description || draftScene?.imagePrompt || '',
+        shots,
+        frameUrl: segment?.firstFrameUrl ?? null,
+        videoUrl: segment?.videoUrl ?? null,
+        frameError: (segment?.status === 'failed' && !segment?.videoUrl)
+          ? (segment?.errorMessage ?? null)
+          : null,
+        videoError: (segment?.status === 'failed' && Boolean(segment?.firstFrameUrl))
+          ? (segment?.errorMessage ?? null)
+          : null,
+        segmentStatus: segment?.status ?? null,
+        isContinuation: Boolean(promptFromSegment?.is_continuation_from_prev) || sceneIndex > 1
+      };
+    });
+  }, [sessionState?.cloneExecution?.segments, sessionState?.cloneReplacementDraft?.scenes, sessionState?.language]);
+
+  const workspacePhase = useMemo(() => {
+    if (sessionState?.cloneExecution?.projectId) {
+      return sessionState.cloneExecution.phase === 'idle'
+        ? 'draft_ready'
+        : sessionState.cloneExecution.phase;
+    }
+    return 'draft_ready' as const;
+  }, [sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.projectId]);
+
+  const hasCloneSurfaceContent = showCloneableVideos || showCloneReplacementSelectors || showCloneSceneWorkspaceStep;
   const isCloneDraftGenerating = sessionState?.cloneReplacementDraft?.status === 'generating';
   const waitingForCloneStructureGate = Boolean(
     sessionState?.intent === 'competitor_ugc_replication' &&
@@ -2533,11 +2376,10 @@ export default function ProjectAgentPage() {
     (sessionState?.cloneReplacementDraft?.status ?? 'idle') === 'idle' &&
     !showCloneableVideos &&
     !showCloneReplacementSelectors &&
-    !showClonePromptDraftStep &&
-    !showCloneSceneReviewStep
+    !showCloneSceneWorkspaceStep
   );
   const showCloneMergedResultStep = Boolean(
-    showCloneSceneReviewStep &&
+    showCloneSceneWorkspaceStep &&
     sessionState?.cloneExecution &&
     (
       sessionState.cloneExecution.phase === 'merging' ||
@@ -2553,6 +2395,8 @@ export default function ProjectAgentPage() {
     waitingForCloneStructureGate ||
     sessionState?.intent === 'competitor_ugc_replication'
   );
+  const shouldHoldLeftSurfaceForAssistantReply = isCloneFlowContext && hasUnansweredUserTurn && awaitingAssistantTurn;
+  const showLeftSurfaceContent = hasCloneSurfaceContent && !shouldHoldLeftSurfaceForAssistantReply;
   const isWorkflowSurfacePending = !hasCloneSurfaceContent && isCloneFlowContext && (
     isStreaming ||
     awaitingCloneEntryReply ||
@@ -2611,8 +2455,8 @@ export default function ProjectAgentPage() {
         <div className="h-full box-border min-h-0 p-4 md:p-6 lg:p-8">
           <div className="grid h-full min-h-0 grid-cols-1 xl:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)] gap-4">
             <section className="relative h-full min-h-0 rounded-xl border border-[#e6e6e4] bg-[#fbfbfa] overflow-hidden">
-              <div className={hasCloneSurfaceContent ? 'h-full overflow-y-auto px-4 py-4 md:px-6 md:py-5' : 'h-full grid place-items-center px-6'}>
-                {hasCloneSurfaceContent ? (
+              <div className={showLeftSurfaceContent ? 'h-full overflow-y-auto px-4 py-4 md:px-6 md:py-5' : 'h-full grid place-items-center px-6'}>
+                {showLeftSurfaceContent ? (
                   <div className="w-full min-h-full space-y-4">
                     {showCloneableVideos && (
                     <div className="w-full rounded-xl border border-[#e6e6e4] bg-white p-4">
@@ -2719,23 +2563,17 @@ export default function ProjectAgentPage() {
                     </div>
                     )}
 
-                    {showClonePromptDraftStep && sessionState?.cloneReplacementDraft ? (
-                      <ClonePromptDraftStep
-                        draft={sessionState.cloneReplacementDraft}
-                        characterMentions={characterMentions}
-                        productMentions={productMentions}
-                        enablePromptMentions={enableClonePromptMentions}
-                        onDraftChange={handleCloneDraftChange}
-                        onReselect={sessionState.cloneReplacementDraft.status === 'failed' ? handleReselectCloneReplacements : undefined}
-                      />
-                    ) : null}
-
-                    {showCloneSceneReviewStep && sessionState?.cloneExecution && !showCloneMergedResultStep ? (
-                      <CloneSceneReviewStep
-                        execution={sessionState.cloneExecution}
+                    {showCloneSceneWorkspaceStep && !showCloneMergedResultStep ? (
+                      <CloneSceneWorkspaceStep
+                        phase={workspacePhase}
+                        scenes={workspaceScenes}
                         characterMentions={characterMentions}
                         productMentions={productMentions}
                         preferredFrameRegeneratingSceneIndex={preferredRegeneratingSceneIndex}
+                        onScenesChange={(nextScenes) => {
+                          const nextDraftScenes = nextScenes.map(workspacePromptToDraftScene);
+                          handleCloneDraftChange(nextDraftScenes);
+                        }}
                       />
                     ) : null}
 
@@ -2750,21 +2588,21 @@ export default function ProjectAgentPage() {
                 ) : (
                   <div className="w-full max-w-[560px] text-center">
                     <div className="mx-auto mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e6e6e4] bg-white">
-                      {isWorkflowSurfacePending ? (
+                      {isWorkflowSurfacePending || shouldHoldLeftSurfaceForAssistantReply ? (
                         <Loader2 className="h-4.5 w-4.5 animate-spin text-[#525251]" />
                       ) : (
                         <Sparkles className="h-4.5 w-4.5 text-[#525251]" />
                       )}
                     </div>
                     <p className="text-[17px] font-medium text-[#1f1f1e]">
-                      {isWorkflowSurfacePending ? 'Working on it...' : 'Ready when you are.'}
+                      {isWorkflowSurfacePending || shouldHoldLeftSurfaceForAssistantReply ? 'Working on it...' : 'Ready when you are.'}
                     </p>
                     <p className="mt-2 text-sm text-[#7a7a77]">
-                      {isWorkflowSurfacePending
+                      {isWorkflowSurfacePending || shouldHoldLeftSurfaceForAssistantReply
                         ? 'Preparing the next step for this workflow.'
                         : 'Choose one workflow to start instantly.'}
                     </p>
-                    {!isWorkflowSurfacePending ? (
+                    {!isWorkflowSurfacePending && !shouldHoldLeftSurfaceForAssistantReply ? (
                       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                         {[
                           {
