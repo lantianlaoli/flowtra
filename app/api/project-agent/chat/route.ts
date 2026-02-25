@@ -161,6 +161,76 @@ const parseSceneIndexFromUserTurn = (text: string): number | undefined => {
   return undefined;
 };
 
+const isStartVideoGenerationCommand = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    /^start\s+(video|videos?)\s+generation/.test(normalized) ||
+    /^start\s+(generate|generating)\s+(video|videos?)/.test(normalized) ||
+    /^generate\s+(video|videos?)/.test(normalized) ||
+    /^start\s+video\b/.test(normalized) ||
+    /^begin\s+(video|videos?)/.test(normalized)
+  );
+};
+
+const isStartFrameGenerationCommand = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized === 'generate this clone now.' ||
+    /^start\s+generation/.test(normalized) ||
+    /^start\s+generate/.test(normalized) ||
+    /^start\s+frame/.test(normalized)
+  );
+};
+
+const isRegenerateFrameCommand = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return /regenerate\s+(scene|shot|frame)\s*#?\s*\d+|regenerate\s*#?\s*\d+\s*(scene|shot|frame)/i.test(normalized);
+};
+
+const hasVideoGenerationSignal = (state: SessionState) => {
+  const execution = state.cloneExecution;
+  if (!execution) return false;
+  if (execution.phase === 'generating_videos' || execution.phase === 'merging' || execution.phase === 'completed') {
+    return true;
+  }
+  return Boolean(
+    execution.segments?.some((segment) => (
+      segment.status === 'generating_video' ||
+      segment.status === 'video_ready' ||
+      Boolean(segment.videoUrl)
+    ))
+  );
+};
+
+const buildWorkflowFallbackReply = (latestUserTurnText: string, state: SessionState) => {
+  const raw = latestUserTurnText.trim();
+  if (!raw) return null;
+
+  if (isStartVideoGenerationCommand(raw)) {
+    if (hasVideoGenerationSignal(state)) {
+      return 'Video generation has started. I am rendering each scene video now and will keep you posted as progress updates arrive.';
+    }
+    return 'I received your video-generation request. Frames still appear to be in review/generation, so I will start video generation as soon as all frames are ready.';
+  }
+
+  if (isStartFrameGenerationCommand(raw)) {
+    return 'Frame generation has started. I am generating first frames scene by scene now.';
+  }
+
+  if (isRegenerateFrameCommand(raw)) {
+    const sceneIndex = parseSceneIndexFromUserTurn(raw);
+    if (sceneIndex && Number.isFinite(sceneIndex)) {
+      return `I am regenerating the frame for Scene ${sceneIndex} now.`;
+    }
+    return 'I am regenerating the requested frame now.';
+  }
+
+  return null;
+};
+
 type ForcedToolChoice = { type: 'tool'; toolName: 'startCloneVideoGeneration' | 'mergeCloneVideos' } | undefined;
 
 const tryParseJsonObject = (raw: string): Record<string, unknown> | null => {
@@ -1710,6 +1780,29 @@ export async function POST(request: Request) {
 
           messagesToPersist.push(message);
           existingIds.add(message.id);
+        }
+
+        // Guardrail: certain tool-heavy turns may finish without a visible assistant text.
+        // In that case we persist one deterministic assistant reply to prevent false "interrupted" UX.
+        const hasAssistantAfterLatestUser = (() => {
+          let latestUserIndex = -1;
+          let latestAssistantIndex = -1;
+          messagesToPersist.forEach((msg, index) => {
+            if (msg.role === 'user' && messageText(msg).length > 0) latestUserIndex = index;
+            if (msg.role === 'assistant' && messageText(msg).length > 0) latestAssistantIndex = index;
+          });
+          return latestAssistantIndex > latestUserIndex;
+        })();
+
+        if (!hasAssistantAfterLatestUser) {
+          const fallbackReply = buildWorkflowFallbackReply(latestUserTurnText, sessionState);
+          if (fallbackReply) {
+            messagesToPersist.push({
+              id: `assistant-fallback-${Date.now().toString(36)}`,
+              role: 'assistant',
+              parts: [{ type: 'text', text: fallbackReply }]
+            });
+          }
         }
 
         await persistMessagesOnly(messagesToPersist);
