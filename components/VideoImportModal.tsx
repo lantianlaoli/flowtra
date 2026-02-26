@@ -792,8 +792,8 @@ export default function VideoImportModal({
                       </div>
                     </label>
                   )}
-                  <div className="assets-video-import-preview min-w-0 min-h-0 h-full overflow-hidden rounded-xl border-2 border-gray-300 bg-white p-1 flex items-center justify-center">
-                    <div className="h-full w-auto max-w-full aspect-[9/16] min-h-0 rounded-lg overflow-hidden bg-black flex items-center justify-center">
+                  <div className="min-h-0 h-full flex items-center justify-center">
+                    <div className="assets-video-import-preview h-full w-auto max-w-full aspect-[9/16] min-h-0 overflow-hidden rounded-xl border-2 border-gray-300 bg-black/95">
                       {processingVideo?.video_cdn_url ? (
                         <VideoPlayer
                           src={processingVideo.video_cdn_url}
@@ -801,7 +801,7 @@ export default function VideoImportModal({
                           showControls
                         />
                       ) : (
-                        <div className="assets-video-import-preview-empty flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
+                        <div className="assets-video-import-preview-empty flex h-full w-full flex-col items-center justify-center text-gray-300 text-sm gap-2">
                           <Loader2 className="w-5 h-5 animate-spin" />
                           Preparing video preview...
                         </div>
