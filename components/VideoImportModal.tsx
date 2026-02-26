@@ -772,9 +772,14 @@ export default function VideoImportModal({
                         ) : (
                           <div className="flex flex-col items-center justify-center gap-3">
                             <Upload className="w-5 h-5 text-gray-500" />
-                            <p className="text-sm text-gray-600">
-                              {isFirstFrameUploading ? 'Uploading first frame...' : 'Optional, required for Motion Swap'}
-                            </p>
+                            {isFirstFrameUploading ? (
+                              <p className="text-sm text-gray-600">Uploading first frame...</p>
+                            ) : (
+                              <>
+                                <p className="text-sm font-medium text-gray-800">First Frame</p>
+                                <p className="text-xs text-gray-500">Optional, required for Motion Swap</p>
+                              </>
+                            )}
                           </div>
                         )}
                         <span className="sr-only">Upload first frame</span>

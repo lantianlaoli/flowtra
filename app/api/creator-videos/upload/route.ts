@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { analyzeCreatorVideoAndUpdate } from '@/lib/creator-video-analysis';
@@ -107,33 +107,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save uploaded video' }, { status: 500 });
     }
 
-    await analyzeCreatorVideoAndUpdate({
-      supabase,
-      videoId: storedVideo.id,
-      videoUrl: storedVideo.video_cdn_url || storedVideo.video_url,
-      sourceName: source.source_name,
-      durationSeconds: storedVideo.duration_seconds
+    const storedVideoId = storedVideo.id;
+    const sourceNameForAnalysis = source.source_name;
+    const videoUrlForAnalysis = storedVideo.video_cdn_url || storedVideo.video_url;
+    const durationSecondsForAnalysis = storedVideo.duration_seconds;
+
+    // Avoid long in-request processing that can close production connections.
+    after(async () => {
+      try {
+        await analyzeCreatorVideoAndUpdate({
+          supabase: getSupabaseAdmin(),
+          videoId: storedVideoId,
+          videoUrl: videoUrlForAnalysis,
+          sourceName: sourceNameForAnalysis,
+          durationSeconds: durationSecondsForAnalysis
+        });
+      } catch (analysisError) {
+        console.error('[Creator Videos Upload] Background analysis failed:', analysisError);
+      }
     });
-
-    const { data: analyzedVideo, error: analyzedError } = await supabase
-      .from('creator_source_videos')
-      .select('*')
-      .eq('id', storedVideo.id)
-      .single();
-
-    if (analyzedError || !analyzedVideo) {
-      console.error('[Creator Videos Upload] Analysis fetch error:', analyzedError);
-      return NextResponse.json({
-        video: {
-          ...storedVideo,
-          source_name: source.source_name
-        }
-      });
-    }
 
     return NextResponse.json({
       video: {
-        ...analyzedVideo,
+        ...storedVideo,
         source_name: source.source_name
       }
     });

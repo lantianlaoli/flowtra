@@ -5,7 +5,15 @@ import { Buffer } from 'buffer'
 let browserClient: SupabaseClient | null = null
 let serviceClient: SupabaseClient | null = null
 
+declare global {
+  var __flowtraBrowserSupabaseClient: SupabaseClient | undefined
+  var __flowtraServiceSupabaseClient: SupabaseClient | undefined
+}
+
 export function getSupabase(): SupabaseClient {
+  if (typeof globalThis !== 'undefined' && globalThis.__flowtraBrowserSupabaseClient) {
+    return globalThis.__flowtraBrowserSupabaseClient
+  }
   if (browserClient) return browserClient
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -16,11 +24,17 @@ export function getSupabase(): SupabaseClient {
   }
 
   browserClient = createClient(supabaseUrl, supabaseAnonKey)
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__flowtraBrowserSupabaseClient = browserClient
+  }
   return browserClient
 }
 
 // Service role client for bypassing RLS (server-only)
 export function getSupabaseAdmin(): SupabaseClient {
+  if (typeof globalThis !== 'undefined' && globalThis.__flowtraServiceSupabaseClient) {
+    return globalThis.__flowtraServiceSupabaseClient
+  }
   if (serviceClient) return serviceClient
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -36,6 +50,9 @@ export function getSupabaseAdmin(): SupabaseClient {
       persistSession: false
     }
   })
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__flowtraServiceSupabaseClient = serviceClient
+  }
   return serviceClient
 }
 
