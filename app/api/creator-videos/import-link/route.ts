@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-01-28): creator_sources
+    // Schema verified via Supabase MCP (2026-02-26): creator_sources
     const { data: existingSources, error: sourceError } = await supabase
       .from('creator_sources')
       .select('*')
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (handle) {
-      // Schema verified via Supabase MCP (2026-01-28): creator_source_platforms
+      // Schema verified via Supabase MCP (2026-02-26): creator_source_platforms
       await supabase
         .from('creator_source_platforms')
         .upsert({
@@ -103,34 +103,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch TikTok video URL' }, { status: 500 });
     }
 
-    const { buffer, contentType } = await downloadVideoBuffer(cdnUrl);
-    const uploadResult = await uploadCreatorVideoToStorage({
-      userId,
-      fileName: `${videoId || 'tiktok'}.mp4`,
-      buffer,
-      contentType
-    });
-
-    let coverUrl: string | null = null;
-    try {
-      const fallbackCover = await fetchTikTokCoverByUrl(url);
-      if (fallbackCover) {
-        const coverFile = await downloadVideoBuffer(fallbackCover);
-        const coverUpload = await uploadCreatorVideoCoverToStorage({
-          userId,
-          fileName: `${videoId || 'tiktok'}.png`,
-          buffer: coverFile.buffer,
-          contentType: coverFile.contentType
-        });
-        coverUrl = coverUpload.publicUrl;
-      }
-    } catch (fallbackError) {
-      console.warn('[Creator Videos Import Link] Cover download failed:', fallbackError);
-    }
-
     const platformVideoId = videoId || crypto.randomUUID();
 
-    // Schema verified via Supabase MCP (2026-01-28): creator_source_videos includes analysis_status
+    // Schema verified via Supabase MCP (2026-02-26): creator_source_videos includes analysis_status
     const { data: storedVideo, error: videoError } = await supabase
       .from('creator_source_videos')
       .upsert({
@@ -139,8 +114,8 @@ export async function POST(request: NextRequest) {
         platform: 'tiktok',
         platform_video_id: platformVideoId,
         video_url: url,
-        video_cdn_url: uploadResult.publicUrl,
-        cover_url: coverUrl,
+        video_cdn_url: cdnUrl,
+        cover_url: null,
         analysis_status: 'pending',
         analysis_error: null
       }, { onConflict: 'source_id,platform,platform_video_id' })
@@ -152,33 +127,73 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save video' }, { status: 500 });
     }
 
-    await analyzeCreatorVideoAndUpdate({
-      supabase,
-      videoId: storedVideo.id,
-      videoUrl: storedVideo.video_cdn_url || storedVideo.video_url,
-      sourceName: source.source_name,
-      durationSeconds: storedVideo.duration_seconds
-    });
+    const storedVideoId = storedVideo.id;
+    const sourceNameForAnalysis = source.source_name;
+    const originalCdnUrl = cdnUrl;
+    const originalUrl = url;
+    const expectedVideoFileName = `${videoId || 'tiktok'}.mp4`;
+    const expectedCoverFileName = `${videoId || 'tiktok'}.png`;
 
-    const { data: analyzedVideo, error: analyzedError } = await supabase
-      .from('creator_source_videos')
-      .select('*')
-      .eq('id', storedVideo.id)
-      .single();
+    // Run heavy tasks after response to avoid connection closure on production edge/network timeouts.
+    after(async () => {
+      const bgSupabase = getSupabaseAdmin();
+      let analysisVideoUrl = originalCdnUrl;
 
-    if (analyzedError || !analyzedVideo) {
-      console.error('[Creator Videos Import Link] Analysis fetch error:', analyzedError);
-      return NextResponse.json({
-        video: {
-          ...storedVideo,
-          source_name: source.source_name
+      try {
+        const { buffer, contentType } = await downloadVideoBuffer(originalCdnUrl);
+        const uploadResult = await uploadCreatorVideoToStorage({
+          userId,
+          fileName: expectedVideoFileName,
+          buffer,
+          contentType
+        });
+
+        analysisVideoUrl = uploadResult.publicUrl;
+
+        await bgSupabase
+          .from('creator_source_videos')
+          .update({ video_cdn_url: uploadResult.publicUrl })
+          .eq('id', storedVideoId);
+      } catch (storageError) {
+        console.warn('[Creator Videos Import Link] Background storage upload failed, using TikTok CDN URL:', storageError);
+      }
+
+      try {
+        const fallbackCover = await fetchTikTokCoverByUrl(originalUrl);
+        if (fallbackCover) {
+          const coverFile = await downloadVideoBuffer(fallbackCover);
+          const coverUpload = await uploadCreatorVideoCoverToStorage({
+            userId,
+            fileName: expectedCoverFileName,
+            buffer: coverFile.buffer,
+            contentType: coverFile.contentType
+          });
+
+          await bgSupabase
+            .from('creator_source_videos')
+            .update({ cover_url: coverUpload.publicUrl })
+            .eq('id', storedVideoId);
         }
-      });
-    }
+      } catch (fallbackError) {
+        console.warn('[Creator Videos Import Link] Cover download failed:', fallbackError);
+      }
+
+      try {
+        await analyzeCreatorVideoAndUpdate({
+          supabase: bgSupabase,
+          videoId: storedVideoId,
+          videoUrl: analysisVideoUrl,
+          sourceName: sourceNameForAnalysis,
+          durationSeconds: storedVideo.duration_seconds
+        });
+      } catch (analysisError) {
+        console.error('[Creator Videos Import Link] Background analysis failed:', analysisError);
+      }
+    });
 
     return NextResponse.json({
       video: {
-        ...analyzedVideo,
+        ...storedVideo,
         source_name: source.source_name
       }
     });

@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { Buffer } from 'buffer';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { uploadCreatorVideoToStorage } from '@/lib/creator-videos-storage';
 import { analyzeCreatorVideoAndUpdate } from '@/lib/creator-video-analysis';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 300;
-export const experimental_bodySizeLimit = 500 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,32 +15,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
+    const body = await request.json();
+    const storagePath = typeof body.storagePath === 'string' ? body.storagePath.trim() : '';
+    const fileName = typeof body.fileName === 'string' ? body.fileName.trim() : '';
+    const fileType = typeof body.fileType === 'string' ? body.fileType.trim() : '';
 
-    if (!file) {
-      return NextResponse.json({ error: 'No video file provided' }, { status: 400 });
+    if (!storagePath || !fileName || !fileType) {
+      return NextResponse.json({ error: 'storagePath, fileName and fileType are required' }, { status: 400 });
     }
 
-    if (!file.type.startsWith('video/')) {
+    if (!fileType.startsWith('video/')) {
       return NextResponse.json({ error: 'Only video files are supported' }, { status: 400 });
+    }
+
+    if (!storagePath.startsWith(`creator-videos/${userId}/`)) {
+      return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
 
-    const arrayBuffer = await file.arrayBuffer();
-    const uploadResult = await uploadCreatorVideoToStorage({
-      userId,
-      fileName: file.name,
-      buffer: Buffer.from(arrayBuffer),
-      contentType: file.type
-    });
+    const { error: signedUrlError } = await supabase.storage
+      .from('competitor_videos')
+      .createSignedUrl(storagePath, 60);
+
+    if (signedUrlError) {
+      console.error('[Creator Videos Upload] Uploaded file lookup error:', signedUrlError);
+      return NextResponse.json({ error: 'Uploaded video not found. Please upload again.' }, { status: 400 });
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('competitor_videos')
+      .getPublicUrl(storagePath);
+
+    const uploadedPublicUrl = publicUrlData.publicUrl;
 
     const coverUrl: string | null = null;
 
     const sourceName = 'Uploaded';
 
-    // Schema verified via Supabase MCP (2026-01-28): creator_sources
+    // Schema verified via Supabase MCP (2026-02-26): creator_sources
     const { data: existingSources, error: sourceError } = await supabase
       .from('creator_sources')
       .select('*')
@@ -75,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     const platformVideoId = crypto.randomUUID();
 
-    // Schema verified via Supabase MCP (2026-01-28): creator_source_videos includes analysis_status
+    // Schema verified via Supabase MCP (2026-02-26): creator_source_videos includes analysis_status
     const { data: storedVideo, error: videoError } = await supabase
       .from('creator_source_videos')
       .insert({
@@ -83,8 +93,8 @@ export async function POST(request: NextRequest) {
         source_id: source.id,
         platform: 'tiktok',
         platform_video_id: platformVideoId,
-        video_url: uploadResult.publicUrl,
-        video_cdn_url: uploadResult.publicUrl,
+        video_url: uploadedPublicUrl,
+        video_cdn_url: uploadedPublicUrl,
         cover_url: coverUrl,
         analysis_status: 'pending',
         analysis_error: null

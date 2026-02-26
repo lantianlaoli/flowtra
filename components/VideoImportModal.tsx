@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import CompetitorShotsEditor from '@/components/CompetitorShotsEditor';
 import { parseShotsFromAnalysis } from '@/lib/competitor-shot-form';
+import { getSupabase } from '@/lib/supabase';
 
 interface PreviewVideo {
   platform_video_id: string;
@@ -42,6 +43,21 @@ interface VideoImportModalProps {
 
 type ImportStep = 'choose' | 'link' | 'upload' | 'creator' | 'creator-preview' | 'processing' | 'processing-batch';
 type ProcessingOrigin = 'upload' | 'link' | 'creator' | null;
+
+const readApiErrorMessage = async (response: Response, fallback: string) => {
+  const text = await response.text();
+  if (!text) return fallback;
+
+  try {
+    const parsed = JSON.parse(text) as { error?: string };
+    if (typeof parsed.error === 'string' && parsed.error.trim()) {
+      return parsed.error;
+    }
+    return fallback;
+  } catch {
+    return text.slice(0, 180);
+  }
+};
 
 export default function VideoImportModal({
   isOpen,
@@ -220,6 +236,10 @@ export default function VideoImportModal({
       setError('Please select a video file to upload.');
       return;
     }
+    if (!fileToUpload.type.startsWith('video/')) {
+      setError('Only video files are supported.');
+      return;
+    }
 
     setStep('processing');
     setIsSubmitting(true);
@@ -230,17 +250,54 @@ export default function VideoImportModal({
     setProcessingVideo(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', fileToUpload);
+      const signedResponse = await fetch('/api/creator-videos/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: fileToUpload.name,
+          fileType: fileToUpload.type
+        })
+      });
+      if (!signedResponse.ok) {
+        throw new Error(await readApiErrorMessage(signedResponse, 'Failed to initialize upload.'));
+      }
+
+      const signedData = await signedResponse.json() as {
+        path: string;
+        token: string;
+      };
+
+      if (!signedData.path || !signedData.token) {
+        throw new Error('Failed to initialize upload.');
+      }
+
+      const supabase = getSupabase();
+      const { error: uploadError } = await supabase.storage
+        .from('competitor_videos')
+        .uploadToSignedUrl(signedData.path, signedData.token, fileToUpload, {
+          contentType: fileToUpload.type || 'video/mp4',
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
       const response = await fetch('/api/creator-videos/upload', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storagePath: signedData.path,
+          fileName: fileToUpload.name,
+          fileType: fileToUpload.type
+        })
       });
 
-      const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to upload video.');
+        throw new Error(await readApiErrorMessage(response, 'Failed to process uploaded video.'));
       }
+
+      const data = await response.json();
 
       const imported = data.videos || (data.video ? [data.video] : []);
       const nextVideo = imported[0] || null;
@@ -701,51 +758,55 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing' && (
-              <div className={`assets-modal-body grid grid-cols-1 ${requiresFirstFrameForMotionSwap ? 'lg:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]' : 'lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]'} gap-6 p-6 flex-1 min-h-0 overflow-hidden`}>
-                <div className={`grid gap-4 ${requiresFirstFrameForMotionSwap ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 p-6 overflow-hidden ${requiresFirstFrameForMotionSwap ? 'lg:grid-cols-[minmax(0,0.6fr)_minmax(0,0.4fr)]' : 'lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]'}`}>
+                <div className={`grid min-h-0 h-full min-w-0 gap-4 overflow-hidden ${requiresFirstFrameForMotionSwap ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {requiresFirstFrameForMotionSwap && (
-                    <label className="assets-video-import-preview h-full min-h-0 aspect-[9/16] rounded-xl border-2 border-dashed border-gray-300 bg-white overflow-hidden flex items-center justify-center text-center px-5 cursor-pointer transition-colors hover:border-gray-500">
-                      {processingVideo?.cover_url ? (
-                        <img
-                          src={processingVideo.cover_url}
-                          alt="Uploaded first frame"
-                          className="w-full h-full object-cover"
+                    <label className="assets-video-import-preview min-w-0 overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-white cursor-pointer transition-colors hover:border-gray-500">
+                      <div className="mx-auto w-full max-w-[320px] aspect-[9/16] min-h-0 overflow-hidden flex items-center justify-center text-center px-5">
+                        {processingVideo?.cover_url ? (
+                          <img
+                            src={processingVideo.cover_url}
+                            alt="Uploaded first frame"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center gap-3">
+                            <Upload className="w-5 h-5 text-gray-500" />
+                            <p className="text-sm text-gray-600">
+                              {isFirstFrameUploading ? 'Uploading first frame...' : 'Optional, required for Motion Swap'}
+                            </p>
+                          </div>
+                        )}
+                        <span className="sr-only">Upload first frame</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={isFirstFrameUploading}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0] || null;
+                            void handleUploadFirstFrame(file);
+                            event.currentTarget.value = '';
+                          }}
                         />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center gap-3">
-                          <Upload className="w-5 h-5 text-gray-500" />
-                          <p className="text-sm text-gray-600">
-                            {isFirstFrameUploading ? 'Uploading first frame...' : 'Optional, required for Motion Swap'}
-                          </p>
-                        </div>
-                      )}
-                      <span className="sr-only">Upload first frame</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={isFirstFrameUploading}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0] || null;
-                          void handleUploadFirstFrame(file);
-                          event.currentTarget.value = '';
-                        }}
-                      />
+                      </div>
                     </label>
                   )}
-                  <div className="assets-video-import-preview bg-black/95 rounded-xl overflow-hidden flex items-center justify-center h-full min-h-0 aspect-[9/16]">
-                    {processingVideo?.video_cdn_url ? (
-                      <VideoPlayer
-                        src={processingVideo.video_cdn_url}
-                        className="w-full h-full"
-                        showControls
-                      />
-                    ) : (
-                      <div className="assets-video-import-preview-empty flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Preparing video preview...
-                      </div>
-                    )}
+                  <div className="assets-video-import-preview min-w-0 min-h-0 h-full overflow-hidden rounded-xl border-2 border-gray-300 bg-white p-1 flex items-center justify-center">
+                    <div className="h-full w-auto max-w-full aspect-[9/16] min-h-0 rounded-lg overflow-hidden bg-black flex items-center justify-center">
+                      {processingVideo?.video_cdn_url ? (
+                        <VideoPlayer
+                          src={processingVideo.video_cdn_url}
+                          className="w-full h-full object-cover"
+                          showControls
+                        />
+                      ) : (
+                        <div className="assets-video-import-preview-empty flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Preparing video preview...
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="assets-video-import-panel flex flex-col gap-4 min-h-0 h-full overflow-hidden">
