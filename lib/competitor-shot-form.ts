@@ -33,24 +33,63 @@ const clampDuration = (value: number, fallback = 6): number => {
   return Math.max(1, Math.round(value));
 };
 
+const formatSecondsToTime = (seconds: number): string => {
+  const safe = Math.max(0, Math.floor(seconds));
+  const mm = Math.floor(safe / 60).toString().padStart(2, '0');
+  const ss = (safe % 60).toString().padStart(2, '0');
+  return `${mm}:${ss}`;
+};
+
+const normalizeTimeValue = (value: unknown): string => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return formatSecondsToTime(value);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '00:00';
+    // If model returned numeric-like string ("3", "19.5"), convert to MM:SS
+    const maybeNum = Number(trimmed);
+    if (Number.isFinite(maybeNum)) {
+      return formatSecondsToTime(maybeNum);
+    }
+    return trimmed;
+  }
+
+  return '00:00';
+};
+
 export const parseShotsFromAnalysis = (analysisShots: unknown): CompetitorShotForm[] => {
   if (!Array.isArray(analysisShots)) return [];
   return analysisShots.map((shot, index) => {
     const record = toRecord(shot) || {};
+    const fallbackDescription = toStringValue(
+      record.description ?? record.visual_description ?? record.summary
+    );
+
+    const normalizedStartTime = normalizeTimeValue(record.start_time);
+    const normalizedEndTime = normalizeTimeValue(record.end_time);
+    const startSeconds = toNumberValue(record.start_time, NaN);
+    const endSeconds = toNumberValue(record.end_time, NaN);
+    const derivedDuration = Number.isFinite(startSeconds) && Number.isFinite(endSeconds)
+      ? Math.max(1, Math.round(endSeconds - startSeconds))
+      : 0;
+    const durationRaw = toNumberValue(record.duration_seconds, derivedDuration || 6);
+
     return {
       shot_id: clampDuration(toNumberValue(record.shot_id, index + 1), index + 1),
-      start_time: toStringValue(record.start_time) || '00:00',
-      end_time: toStringValue(record.end_time) || '00:00',
-      duration_seconds: clampDuration(toNumberValue(record.duration_seconds, 6)),
-      first_frame_description: toStringValue(record.first_frame_description),
-      subject: toStringValue(record.subject),
-      context_environment: toStringValue(record.context_environment),
-      action: toStringValue(record.action),
-      style: toStringValue(record.style),
-      camera_motion_positioning: toStringValue(record.camera_motion_positioning),
-      composition: toStringValue(record.composition),
-      ambiance_colour_lighting: toStringValue(record.ambiance_colour_lighting),
-      audio: toStringValue(record.audio)
+      start_time: normalizedStartTime,
+      end_time: normalizedEndTime,
+      duration_seconds: clampDuration(durationRaw),
+      first_frame_description: toStringValue(record.first_frame_description) || fallbackDescription,
+      subject: toStringValue(record.subject ?? record.main_subject ?? record.hero_subject),
+      context_environment: toStringValue(record.context_environment ?? record.environment),
+      action: toStringValue(record.action) || fallbackDescription,
+      style: toStringValue(record.style ?? record.visual_style),
+      camera_motion_positioning: toStringValue(record.camera_motion_positioning ?? record.camera_motion ?? record.camera),
+      composition: toStringValue(record.composition ?? record.framing),
+      ambiance_colour_lighting: toStringValue(record.ambiance_colour_lighting ?? record.lighting),
+      audio: toStringValue(record.audio ?? record.dialogue ?? record.voiceover)
     };
   });
 };
