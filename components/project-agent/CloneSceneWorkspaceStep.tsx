@@ -103,6 +103,40 @@ const normalizeScene = (scene: WorkspaceScene): WorkspaceScene => ({
   segmentStatus: scene.segmentStatus ?? null
 });
 
+const mergeIncomingWithRecentLocalEdits = (prev: WorkspaceScene[], incoming: WorkspaceScene[]): WorkspaceScene[] => {
+  const prevBySceneIndex = new Map(prev.map((scene) => [scene.sceneIndex, scene]));
+  return incoming.map((incomingScene) => {
+    const prevScene = prevBySceneIndex.get(incomingScene.sceneIndex);
+    if (!prevScene) return incomingScene;
+
+    const mergedShots = incomingScene.shots.map((incomingShot, shotIndex) => {
+      const prevShot = prevScene.shots[shotIndex];
+      if (!prevShot) return incomingShot;
+      return {
+        ...incomingShot,
+        id: prevShot.id,
+        time_range: prevShot.time_range,
+        subject: prevShot.subject,
+        context_environment: prevShot.context_environment,
+        action: prevShot.action,
+        style: prevShot.style,
+        camera_motion_positioning: prevShot.camera_motion_positioning,
+        composition: prevShot.composition,
+        ambiance_colour_lighting: prevShot.ambiance_colour_lighting,
+        audio: prevShot.audio,
+        dialogue: prevShot.dialogue,
+        language: prevShot.language
+      };
+    });
+
+    return {
+      ...incomingScene,
+      imagePrompt: prevScene.imagePrompt,
+      shots: mergedShots
+    };
+  });
+};
+
 const sceneProgressLabel = (kind: 'frame' | 'video', state: SceneProgressState) => {
   if (kind === 'frame') {
     if (state === 'ready') return 'Frame ready';
@@ -138,15 +172,22 @@ export default function CloneSceneWorkspaceStep({
   const [openShots, setOpenShots] = useState<Record<string, boolean>>({});
   const [frameOverlayVisible, setFrameOverlayVisible] = useState<Record<number, boolean>>({});
   const frameOverlayHideTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const lastLocalEditAtRef = useRef(0);
   const prefersReducedMotion = useReducedMotion();
 
   const sceneSignature = useMemo(() => JSON.stringify(scenes), [scenes]);
 
   useEffect(() => {
-    setLocalScenes(scenes.map(normalizeScene));
+    const normalizedIncoming = scenes.map(normalizeScene);
+    setLocalScenes((prev) => {
+      const justEdited = Date.now() - lastLocalEditAtRef.current < 1200;
+      if (!justEdited) return normalizedIncoming;
+      return mergeIncomingWithRecentLocalEdits(prev, normalizedIncoming);
+    });
   }, [sceneSignature, scenes]);
 
   const updateLocalScenes = (updater: (current: WorkspaceScene[]) => WorkspaceScene[]) => {
+    lastLocalEditAtRef.current = Date.now();
     setLocalScenes((prev) => {
       const next = updater(prev);
       onScenesChange?.(next);

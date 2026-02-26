@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import NextImage from 'next/image';
 import clsx from 'clsx';
 import { ShoppingBag, User } from 'lucide-react';
+import { getActiveMentionQuery } from '@/lib/prompt-mention';
 
 type MentionType = 'character' | 'product';
 
@@ -36,11 +37,6 @@ const TOKEN_PARSE_REGEX = /^@(character|product)\(([^)]*)\)\s*$/;
 
 const buildMentionToken = (item: PromptMentionItem) => `@${item.type}(${item.label})`;
 
-const isValidMentionStart = (text: string, index: number) => {
-  if (index === 0) return true;
-  return /\s/.test(text[index - 1]);
-};
-
 export default function PromptMentionTextarea({
   value,
   onChange,
@@ -68,8 +64,8 @@ export default function PromptMentionTextarea({
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [lastCaretDirection, setLastCaretDirection] = useState<'left' | 'right' | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
   const mentionEnabled = characterMentions.length > 0 || productMentions.length > 0;
 
   const filteredCharacters = useMemo(() => {
@@ -122,23 +118,15 @@ export default function PromptMentionTextarea({
       setMentionQuery('');
       return;
     }
-    const textBefore = nextValue.slice(0, caret);
-    const atIndex = textBefore.lastIndexOf('@');
-    if (atIndex === -1 || !isValidMentionStart(textBefore, atIndex)) {
+    const mention = getActiveMentionQuery(nextValue, caret);
+    if (!mention) {
       setMentionOpen(false);
       setMentionStart(null);
       setMentionQuery('');
       return;
     }
-    const after = textBefore.slice(atIndex + 1);
-    if (/\s/.test(after)) {
-      setMentionOpen(false);
-      setMentionStart(null);
-      setMentionQuery('');
-      return;
-    }
-    setMentionStart(atIndex);
-    setMentionQuery(after);
+    setMentionStart(mention.start);
+    setMentionQuery(mention.query);
     setMentionOpen(true);
     setActiveIndex(0);
   };
@@ -216,17 +204,6 @@ export default function PromptMentionTextarea({
     return getTokenRanges(text).filter((range) => range.end > start && range.start < end);
   };
 
-  const snapSelectionIfInsideToken = () => {
-    const target = textareaRef.current;
-    if (!target) return;
-    const start = target.selectionStart ?? 0;
-    const end = target.selectionEnd ?? start;
-    const token = findTokenAt(value, start);
-    if (!token) return;
-    const nextPosition = lastCaretDirection === 'left' ? token.start : token.end;
-    target.setSelectionRange(nextPosition, nextPosition);
-  };
-
   const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nextValue = event.target.value;
     commitValue(nextValue);
@@ -241,7 +218,6 @@ export default function PromptMentionTextarea({
       return;
     }
     updateMentionState(target.value, target.selectionStart ?? target.value.length);
-    snapSelectionIfInsideToken();
   };
 
   const handleScroll = () => {
@@ -276,6 +252,7 @@ export default function PromptMentionTextarea({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isComposing || event.nativeEvent.isComposing) return;
     if (!mentionEnabled) return;
 
     const isUndo = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z';
@@ -304,7 +281,6 @@ export default function PromptMentionTextarea({
       return;
     }
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      setLastCaretDirection(event.key === 'ArrowLeft' ? 'left' : 'right');
       const target = textareaRef.current;
       if (!target) return;
       const caret = target.selectionStart ?? 0;
@@ -532,6 +508,11 @@ export default function PromptMentionTextarea({
           onScroll={handleScroll}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={(event) => {
+            setIsComposing(false);
+            updateMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length);
+          }}
           rows={rows}
           disabled={disabled}
           readOnly={readOnly}

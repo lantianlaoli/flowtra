@@ -21,12 +21,12 @@ import {
   type CloneExecutionSegmentPrompt
 } from '@/components/project-agent/CloneSceneReviewStep';
 import CloneSceneWorkspaceStep, {
-  type WorkspaceScene,
-  type WorkspaceShot
+  type WorkspaceScene
 } from '@/components/project-agent/CloneSceneWorkspaceStep';
 import { useCredits } from '@/contexts/CreditsContext';
 import { createClient } from '@/lib/supabase/client';
 import { type VideoModel } from '@/lib/constants';
+import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 
 interface SessionState {
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
@@ -402,44 +402,6 @@ const normalizeVideoModel = (raw: unknown): VideoModel => {
   return 'veo3_fast';
 };
 
-const sceneToSegmentPrompt = (scene: CloneDraftScene, fallbackLanguage: string): CloneExecutionSegmentPrompt => {
-  const shots = typeof scene.videoPrompt === 'string'
-    ? [{
-        id: 1,
-        time_range: '00:00 - 00:08',
-        subject: scene.videoPrompt,
-        context_environment: '',
-        action: '',
-        style: '',
-        camera_motion_positioning: '',
-        composition: '',
-        ambiance_colour_lighting: '',
-        audio: '',
-        dialogue: '',
-        language: fallbackLanguage
-      }]
-    : scene.videoPrompt.shots.map((shot, index) => ({
-        id: shot.id || index + 1,
-        time_range: shot.time_range || '00:00 - 00:08',
-        subject: shot.subject || '',
-        context_environment: shot.context_environment || '',
-        action: shot.action || '',
-        style: shot.style || '',
-        camera_motion_positioning: shot.camera_motion_positioning || '',
-        composition: shot.composition || '',
-        ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
-        audio: shot.audio || '',
-        dialogue: shot.dialogue || '',
-        language: shot.language || fallbackLanguage
-      }));
-
-  return {
-    first_frame_description: scene.imagePrompt || '',
-    shots,
-    is_continuation_from_prev: scene.sceneIndex > 1
-  };
-};
-
 const workspacePromptToDraftScene = (scene: WorkspaceScene): CloneDraftScene => ({
   sceneIndex: scene.sceneIndex,
   imagePrompt: scene.imagePrompt,
@@ -461,40 +423,6 @@ const workspacePromptToDraftScene = (scene: WorkspaceScene): CloneDraftScene => 
     }))
   }
 });
-
-const segmentPromptToWorkspaceShots = (prompt?: CloneExecutionSegmentPrompt): WorkspaceShot[] => {
-  if (!prompt?.shots?.length) {
-    return [{
-      id: 1,
-      time_range: '00:00 - 00:08',
-      subject: '',
-      context_environment: '',
-      action: '',
-      style: '',
-      camera_motion_positioning: '',
-      composition: '',
-      ambiance_colour_lighting: '',
-      audio: '',
-      dialogue: '',
-      language: 'en'
-    }];
-  }
-
-  return prompt.shots.map((shot, index) => ({
-    id: Number.isFinite(shot.id) && shot.id > 0 ? shot.id : index + 1,
-    time_range: shot.time_range || '00:00 - 00:08',
-    subject: shot.subject || '',
-    context_environment: shot.context_environment || '',
-    action: shot.action || '',
-    style: shot.style || '',
-    camera_motion_positioning: shot.camera_motion_positioning || '',
-    composition: shot.composition || '',
-    ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
-    audio: shot.audio || '',
-    dialogue: shot.dialogue || '',
-    language: shot.language || 'en'
-  }));
-};
 
 const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'merging' | 'completed' | 'failed' => {
   const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
@@ -2316,41 +2244,10 @@ export default function ProjectAgentPage() {
   const workspaceScenes = useMemo<WorkspaceScene[]>(() => {
     const draftScenes = sessionState?.cloneReplacementDraft?.scenes ?? [];
     const executionSegments = sessionState?.cloneExecution?.segments ?? [];
-    const segmentBySceneIndex = new Map(executionSegments.map((segment) => [segment.segmentIndex + 1, segment]));
-    const allSceneIndexes = new Set<number>();
-
-    draftScenes.forEach((scene) => allSceneIndexes.add(scene.sceneIndex));
-    executionSegments.forEach((segment) => allSceneIndexes.add(segment.segmentIndex + 1));
-
-    const sortedIndexes = Array.from(allSceneIndexes).sort((a, b) => a - b);
-    return sortedIndexes.map((sceneIndex) => {
-      const draftScene = draftScenes.find((scene) => scene.sceneIndex === sceneIndex);
-      const segment = segmentBySceneIndex.get(sceneIndex);
-      const promptFromSegment = segment?.prompt;
-
-      const draftShots = draftScene
-        ? segmentPromptToWorkspaceShots(sceneToSegmentPrompt(draftScene, sessionState?.language || 'en'))
-        : [];
-      const shots = promptFromSegment?.shots?.length
-        ? segmentPromptToWorkspaceShots(promptFromSegment)
-        : draftShots;
-
-      return {
-        sceneIndex,
-        sourceSummary: draftScene?.sourceSummary ?? null,
-        imagePrompt: promptFromSegment?.first_frame_description || draftScene?.imagePrompt || '',
-        shots,
-        frameUrl: segment?.firstFrameUrl ?? null,
-        videoUrl: segment?.videoUrl ?? null,
-        frameError: (segment?.status === 'failed' && !segment?.videoUrl)
-          ? (segment?.errorMessage ?? null)
-          : null,
-        videoError: (segment?.status === 'failed' && Boolean(segment?.firstFrameUrl))
-          ? (segment?.errorMessage ?? null)
-          : null,
-        segmentStatus: segment?.status ?? null,
-        isContinuation: Boolean(promptFromSegment?.is_continuation_from_prev) || sceneIndex > 1
-      };
+    return buildWorkspaceScenes({
+      draftScenes,
+      executionSegments,
+      fallbackLanguage: sessionState?.language || 'en'
     });
   }, [sessionState?.cloneExecution?.segments, sessionState?.cloneReplacementDraft?.scenes, sessionState?.language]);
 
