@@ -153,6 +153,68 @@ export default function VideoImportModal({
     return () => window.clearInterval(timer);
   }, [analysisLoadingMessages.length, processingVideo?.analysis_result, processingVideo?.analysis_status, step]);
 
+  useEffect(() => {
+    const videoId = processingVideo?.id;
+    const shouldTrack = step === 'processing' &&
+      Boolean(videoId) &&
+      !processingVideo?.analysis_result &&
+      processingVideo?.analysis_status !== 'failed';
+
+    if (!shouldTrack || !videoId) return;
+
+    let stopped = false;
+    let inFlight = false;
+
+    const applyVideoUpdate = (next: ImportedVideo) => {
+      setProcessingVideo(next);
+      if (next.analysis_status === 'failed') {
+        setProcessingMessage('Video added. Analysis failed.');
+      } else if (next.analysis_status === 'completed' || next.analysis_result) {
+        setProcessingMessage('Video added. Analysis completed.');
+      }
+    };
+
+    const syncVideo = async () => {
+      if (stopped || inFlight) return;
+      inFlight = true;
+      try {
+        const response = await fetch(`/api/creator-videos/${videoId}`, { method: 'GET' });
+        if (!response.ok) return;
+        const data = await response.json() as { video?: ImportedVideo };
+        if (!data.video || stopped) return;
+        applyVideoUpdate(data.video);
+      } catch {
+        // Best-effort fallback sync.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const supabase = getSupabase();
+    const channel = supabase
+      .channel(`creator-video-import-${videoId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'creator_source_videos',
+        filter: `id=eq.${videoId}`
+      }, payload => {
+        if (stopped) return;
+        const next = payload.new as ImportedVideo;
+        applyVideoUpdate(next);
+      })
+      .subscribe();
+
+    void syncVideo();
+    const interval = window.setInterval(() => { void syncVideo(); }, 8000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [processingVideo?.analysis_result, processingVideo?.analysis_status, processingVideo?.id, step]);
+
   const canUseForClone = Boolean(processingVideo?.analysis_result);
   const requiresFirstFrameForMotionSwap = processingOrigin === 'upload';
   const hasFirstFrameImage = Boolean(processingVideo?.cover_url);
