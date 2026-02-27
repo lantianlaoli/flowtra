@@ -60,7 +60,6 @@ interface SessionState {
   language?: string;
   videoDurationSeconds?: number;
   videoAspectRatio?: '16:9' | '9:16';
-  imageModel?: string;
   videoModel?: string;
   projectId?: string;
   generatedPrompts?: Record<string, unknown> | null;
