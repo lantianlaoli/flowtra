@@ -72,8 +72,8 @@ const REPLICA_ASPECT_RATIOS: ReplicaAspectRatio[] = [
   "16:9",
   "21:9",
 ];
-const REPLICA_RESOLUTIONS: ReplicaResolution[] = ["1K", "2K", "4K"];
-const REPLICA_OUTPUT_FORMATS: ReplicaOutputFormat[] = ["png", "jpg"];
+const REPLICA_RESOLUTIONS: ReplicaResolution[] = ["1K"];
+const REPLICA_OUTPUT_FORMATS: ReplicaOutputFormat[] = ["png"];
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
   generating_cover:
@@ -235,10 +235,6 @@ export default function CompetitorUgcReplicationPage() {
   const [selectedModel, setSelectedModel] = useState<VideoModel>("veo3_fast");
   const [format, setFormat] = useState<Format>("9:16");
 
-  // Image and language
-  const [selectedImageModel] = useState<"nano_banana" | "seedream">(
-    "nano_banana",
-  );
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>("en");
 
   // Other states
@@ -267,7 +263,7 @@ export default function CompetitorUgcReplicationPage() {
   const [photoAspectRatio, setPhotoAspectRatio] =
     useState<ReplicaAspectRatio>("9:16");
   const [photoResolution, setPhotoResolution] =
-    useState<ReplicaResolution>("2K");
+    useState<ReplicaResolution>("1K");
   const [photoOutputFormat, setPhotoOutputFormat] =
     useState<ReplicaOutputFormat>("png");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -279,10 +275,6 @@ export default function CompetitorUgcReplicationPage() {
     competitorId: null,
     appliedLanguage: null,
   });
-  const effectiveImageModel = hasCompetitorReference
-    ? "nano_banana_pro"
-    : selectedImageModel;
-
   useEffect(() => {
     const loadAssetVideos = async () => {
       setIsLoadingAssetVideos(true);
@@ -523,11 +515,9 @@ export default function CompetitorUgcReplicationPage() {
     useCompetitorUgcReplicationWorkflow(
       user?.id,
       selectedModel,
-      effectiveImageModel,
       updateCredits,
       refetchCredits,
       elementsCount,
-      format,
       format as "16:9" | "9:16",
       effectiveVideoDuration,
       selectedLanguage,
@@ -1736,7 +1726,7 @@ export default function CompetitorUgcReplicationPage() {
 
       const workflowResult = await startWorkflowWithSelectedProduct({
         elementsCountOverride: elementsCount,
-        imageSizeOverride: format,
+        aspectRatioOverride: format,
         generateVideo: shouldGenerateVideo,
         creatorSourceVideoId:
           selectedReferenceVideo.source_type === "competitor_ad"

@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
- * KIE Image Webhook Payload (nano-banana-pro)
- * Documentation: docs/kie/nano_banana_pro.md
+ * KIE Image Webhook Payload (Nano Banana 2)
+ * Documentation: docs/kie/nano-banana-2.md
  */
 interface KIEImageWebhookPayload {
   code: number;

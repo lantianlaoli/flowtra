@@ -1,9 +1,10 @@
 import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import {
-  getActualImageModel,
-  IMAGE_MODELS,
   GENERATION_COSTS,
+  NON_AGENT_IMAGE_MODEL,
+  NON_AGENT_IMAGE_OUTPUT_FORMAT,
+  NON_AGENT_IMAGE_RESOLUTION,
   getGenerationCost,
   getSegmentCountFromDuration,
   getSegmentDurationForModel,
@@ -75,8 +76,6 @@ export interface StartWorkflowRequest {
   selectedProductIds?: string[];
   userId: string;
   videoModel: VideoModel;
-  imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
-  imageSize?: string;
   elementsCount?: number;
   photoOnly?: boolean;
   shouldGenerateVideo?: boolean;
@@ -1243,7 +1242,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         request.userId,
         'usage',
         generationCost,
-        `Competitor UGC Replication - Replica photo generation (Nano Banana Pro, ${replicaResolution})`,
+        `Competitor UGC Replication - Replica photo generation (Nano Banana 2, ${replicaResolution})`,
         undefined,
         true
       );
@@ -1859,13 +1858,13 @@ async function generateReplicaPhoto({
   }
 
   const requestBody = {
-    model: IMAGE_MODELS.nano_banana_pro,
+    model: NON_AGENT_IMAGE_MODEL,
     input: {
       prompt,
       image_input: referenceImages.slice(0, 8),
       aspect_ratio: aspectRatio || '9:16',
-      resolution: resolution || '1K',
-      output_format: outputFormat || 'png'
+      resolution: NON_AGENT_IMAGE_RESOLUTION,
+      output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
     }
   };
 
@@ -3141,7 +3140,7 @@ async function createFrameFromText(
 ): Promise<string> {
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
-  const imageModel = IMAGE_MODELS.nano_banana_pro;
+  const imageModel = NON_AGENT_IMAGE_MODEL;
 
   // Build prompt from shot description + brand context
   const brandInfo = brandContext && brandContext.brand_name
@@ -3179,8 +3178,8 @@ Technical Requirements:
       input: {
         prompt,
         aspect_ratio: aspectRatio,
-        resolution: '1K',
-        output_format: 'png'
+        resolution: NON_AGENT_IMAGE_RESOLUTION,
+        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
       },
       callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates
     })
@@ -3203,8 +3202,7 @@ Technical Requirements:
  * Used when reference images are available (brand, product, character, or continuation)
  */
 type FrameGenerationOverrides = {
-  imageModelOverride?: 'nano_banana' | 'seedream' | 'nano_banana_pro';
-  imageSizeOverride?: string;
+  aspectRatioOverride?: string;
   resolutionOverride?: '1K' | '2K' | '4K';
   characterPhotoUrls?: string[] | null;
 };
@@ -3228,13 +3226,9 @@ async function createFrameFromImage(
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
 
-  let imageModelKey: 'nano_banana' | 'seedream' | 'nano_banana_pro' = overrides?.imageModelOverride || 'nano_banana_pro';
-  if (!overrides?.imageModelOverride) {
-    console.log('🎨 Forcing nano_banana_pro for all keyframes (docs/kie/nano_banana_pro.md)');
-  }
-  const imageModel = IMAGE_MODELS[imageModelKey];
-  const resolvedAspectRatio = overrides?.imageSizeOverride || aspectRatio;
-  const resolvedResolution = overrides?.resolutionOverride || '1K';
+  const imageModel = NON_AGENT_IMAGE_MODEL;
+  const resolvedAspectRatio = overrides?.aspectRatioOverride || aspectRatio;
+  const resolvedResolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
 
   const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
 
@@ -3259,14 +3253,9 @@ Render Instructions:
   const inputPayload: Record<string, unknown> = {
     prompt,
     image_input: limitedReferences,
-    output_format: 'png'
-  };
-
-  if (imageModelKey === 'nano_banana_pro') {
-    inputPayload.aspect_ratio = resolvedAspectRatio;
-    inputPayload.resolution = resolvedResolution || '1K';
-  } else {
-    inputPayload.image_size = resolvedAspectRatio;
+    aspect_ratio: resolvedAspectRatio,
+    resolution: resolvedResolution,
+    output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
   }
 
   console.log(`📤 [createFrameFromImage] Sending to KIE API:`, {
@@ -3366,7 +3355,7 @@ export async function createSmartSegmentFrame(
     console.log(`   - Segment ${segmentIndex + 1} ${frameType} frame`);
 
     const frameDescription = resolveFrameDescription(promptForProvider, frameType);
-    const imageModel = IMAGE_MODELS.nano_banana_pro;
+    const imageModel = NON_AGENT_IMAGE_MODEL;
 
     // Build image_input from multiple sources
     const imageInput: string[] = [];
@@ -3408,8 +3397,8 @@ export async function createSmartSegmentFrame(
         prompt: frameDescription,
         ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
         aspect_ratio: aspectRatio,
-        resolution: overrides?.resolutionOverride || '1K',
-        output_format: 'png'
+        resolution: overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION,
+        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
       },
       callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates
     };

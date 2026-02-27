@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { NON_AGENT_IMAGE_MODEL, NON_AGENT_IMAGE_OUTPUT_FORMAT, NON_AGENT_IMAGE_RESOLUTION } from '@/lib/constants';
 
 const KIE_API_BASE_URL = 'https://api.kie.ai/api/v1/jobs';
 // Product photo purification is FREE - no credits required
@@ -50,16 +51,16 @@ export async function POST(request: NextRequest) {
 
     const callBackUrl = `${siteUrl}/api/user-products/webhooks/purify`;
 
-    // 4. Create purification task with nano-banana-pro (FREE - no credits required)
+    // 4. Create purification task with Nano Banana 2 (FREE - no credits required)
     const payload = {
-      model: 'nano-banana-pro',
+      model: NON_AGENT_IMAGE_MODEL,
       callBackUrl, // Add webhook URL
       input: {
         prompt: PURIFICATION_PROMPT,
         image_input: [imageUrl],
         aspect_ratio: '1:1', // Square for product photos
-        resolution: '2K',    // High quality
-        output_format: 'png' // PNG for transparency support
+        resolution: NON_AGENT_IMAGE_RESOLUTION,
+        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
       }
     };
 

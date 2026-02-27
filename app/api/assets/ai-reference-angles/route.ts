@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { IMAGE_MODELS } from '@/lib/constants';
 
 const KIE_UPLOAD_ENDPOINT = 'https://kieai.redpandaai.co/api/file-base64-upload';
 const KIE_CREATE_TASK_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_RECORD_INFO_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/recordInfo';
+const AI_REFERENCE_MODEL = 'nano-banana-2';
+const AI_REFERENCE_RESOLUTION = '1K';
+const AI_REFERENCE_OUTPUT_FORMAT = 'png';
 
 type AssetType = 'product' | 'avatar' | 'universal';
 type SourceAspect = 'portrait' | 'square' | 'landscape';
@@ -81,6 +83,12 @@ const ANGLE_PRESETS: Record<AssetType, AnglePreset[]> = {
 
 function getUniversalImageSize(sourceAspect?: SourceAspect): '9:16' | '1:1' {
   return sourceAspect === 'portrait' ? '9:16' : '1:1';
+}
+
+function getAspectRatio(assetType: AssetType, sourceAspect?: SourceAspect): '9:16' | '1:1' {
+  if (assetType === 'avatar') return '9:16';
+  if (assetType === 'product') return '1:1';
+  return getUniversalImageSize(sourceAspect);
 }
 
 function getImageExtensionFromDataUrl(dataUrl: string): string {
@@ -195,6 +203,7 @@ export async function POST(request: NextRequest) {
     );
     const tasks = await Promise.all(
       presets.map(async (preset) => {
+        const aspectRatio = getAspectRatio(assetType, sourceAspect);
         const createTaskResponse = await fetchWithRetry(KIE_CREATE_TASK_ENDPOINT, {
           method: 'POST',
           headers: {
@@ -202,16 +211,13 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            model: IMAGE_MODELS.nano_banana,
+            model: AI_REFERENCE_MODEL,
             input: {
               prompt: preset.prompt,
-              image_urls: [sourceImageUrl],
-              output_format: 'png',
-              image_size: assetType === 'avatar'
-                ? '9:16'
-                : assetType === 'universal'
-                  ? getUniversalImageSize(sourceAspect)
-                  : '1:1'
+              image_input: [sourceImageUrl],
+              aspect_ratio: aspectRatio,
+              resolution: AI_REFERENCE_RESOLUTION,
+              output_format: AI_REFERENCE_OUTPUT_FORMAT
             }
           })
         }, 3, 30000);

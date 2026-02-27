@@ -1,4 +1,5 @@
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { NON_AGENT_IMAGE_MODEL, NON_AGENT_IMAGE_OUTPUT_FORMAT, NON_AGENT_IMAGE_RESOLUTION } from '@/lib/constants';
 
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_FILE_URL_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-url-upload';
@@ -112,13 +113,13 @@ export const createMotionSwapPreviewTask = async (
   callbackUrl: string
 ): Promise<string> => {
   const requestBody = {
-    model: 'nano-banana-pro',
+    model: NON_AGENT_IMAGE_MODEL,
     input: {
       prompt: input.prompt || buildMotionSwapPreviewPrompt({ hasAvatar: Boolean(input.avatarUrl), hasProduct: Boolean(input.productUrl) }),
       image_input: [input.coverUrl, input.avatarUrl, input.productUrl].filter(Boolean).slice(0, 8),
       aspect_ratio: input.aspectRatio || '9:16',
-      resolution: '1K',
-      output_format: 'png'
+      resolution: NON_AGENT_IMAGE_RESOLUTION,
+      output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
     },
     callBackUrl: callbackUrl
   };

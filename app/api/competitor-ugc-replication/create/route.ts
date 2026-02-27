@@ -74,12 +74,6 @@ export async function POST(request: NextRequest) {
       requestData.photoOnly = true;
     }
 
-    // Fix model selection issue: ensure nano_banana selection doesn't show as auto
-    if (requestData.imageModel === 'auto') {
-      // Default to use nano_banana as the actual model for auto
-      requestData.imageModel = 'nano_banana';
-    }
-
     console.log('🚀 Competitor UGC Replication workflow request received:', {
       imageUrl: requestData.imageUrl,
       competitorAdId: requestData.competitorAdId,
@@ -89,8 +83,6 @@ export async function POST(request: NextRequest) {
       selectedProductIds: requestData.selectedProductIds,
       userId: requestData.userId,
       videoModel: requestData.videoModel,
-      imageModel: requestData.imageModel,
-      imageSize: requestData.imageSize,
       elementsCount: requestData.elementsCount,
       photoOnly: requestData.photoOnly,
       language: requestData.language,

@@ -38,11 +38,6 @@ interface KieCreditsStatus {
 
 
 const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
-const DEFAULT_IMAGE_MODEL = 'nano_banana_pro' as const;
-const IMAGE_SIZE_BY_ASPECT: Record<'16:9' | '9:16', 'landscape_16_9' | 'portrait_16_9'> = {
-  '16:9': 'landscape_16_9',
-  '9:16': 'portrait_16_9'
-};
 const SESSION_STORAGE_KEY = 'flowtra_avatar_ads_generations';
 
 // Format AVATAR_ADS_DURATION_OPTIONS for ConfigPopover
@@ -114,7 +109,6 @@ interface CharacterAdsStatusPayload {
     current_step?: string | null;
     progress_percentage?: number | null;
     video_duration_seconds?: number | null;
-    image_model?: string | null;
     video_model?: string | null;
     video_aspect_ratio?: string | null;
     credits_cost?: number | null;
@@ -387,8 +381,6 @@ const formatDurationLabel = (seconds: number) => {
       }
       formData.append('talking_head_mode', isTalkingHeadMode ? 'true' : 'false');
       formData.append('video_duration_seconds', videoDuration.toString());
-      formData.append('image_model', DEFAULT_IMAGE_MODEL);
-      formData.append('image_size', IMAGE_SIZE_BY_ASPECT[format as '16:9' | '9:16']);
       formData.append('video_model', DEFAULT_VIDEO_MODEL);
       formData.append('video_aspect_ratio', format);
       formData.append('language', selectedLanguage);

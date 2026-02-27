@@ -1,5 +1,13 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { IMAGE_MODELS, GENERATION_COSTS, getLanguagePromptName, getLanguageVoiceStyle, type LanguageCode } from '@/lib/constants';
+import {
+  GENERATION_COSTS,
+  NON_AGENT_IMAGE_MODEL,
+  NON_AGENT_IMAGE_OUTPUT_FORMAT,
+  NON_AGENT_IMAGE_RESOLUTION,
+  getLanguagePromptName,
+  getLanguageVoiceStyle,
+  type LanguageCode
+} from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
@@ -18,7 +26,6 @@ interface AvatarAdsProject {
   product_image_urls: string[];
   video_duration_seconds: number;
   image_model: string;
-  image_size?: string;
   image_prompt?: string; // Prompt used for cover image generation
   video_model: string;
   video_aspect_ratio?: string;
@@ -437,127 +444,60 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
   }
 }
 
-// Helper function to get correct parameters for different image models
-function getImageModelParameters(model: string, customImageSize?: string, videoAspectRatio?: string): Record<string, unknown> {
+function resolveAspectRatio(customImageSize?: string, videoAspectRatio?: string): string {
   // Map UI-friendly sizes to Ratio strings (shared logic)
-  const mapUiToRatio = (val?: string, fallbackAspect?: string) => {
-    switch (val) {
-      case 'square':
-      case 'square_hd':
-      case '1:1':
-        return '1:1';
-      case 'portrait_16_9':
-      case '9:16':
-        return '9:16';
-      case 'landscape_16_9':
-      case '16:9':
-        return '16:9';
-      case 'portrait_4_3':
-      case '3:4':
-        return '3:4';
-      case 'landscape_4_3':
-      case '4:3':
-        return '4:3';
-      case 'portrait_3_2':
-      case '2:3':
-        return '2:3';
-      case 'landscape_3_2':
-      case '3:2':
-        return '3:2';
-      case 'portrait_5_4':
-      case '4:5':
-        return '4:5';
-      case 'landscape_5_4':
-      case '5:4':
-        return '5:4';
-      case 'landscape_21_9':
-      case '21:9':
-        return '21:9';
-      case 'auto':
-      case undefined:
-      case '':
-        // Choose based on video aspect ratio if provided
-        if (fallbackAspect === '9:16') return '9:16';
-        if (fallbackAspect === '16:9') return '16:9';
-        return undefined;
-      default:
-        return undefined;
-    }
-  };
-
-  // Handle Nano Banana Pro specifically (nano-banana-pro)
-  if (model === 'nano-banana-pro' || model === 'nano_banana_pro') {
-    const ratio = mapUiToRatio(customImageSize, videoAspectRatio);
-    return {
-      output_format: "png",
-      resolution: "1K",
-      ...(ratio ? { aspect_ratio: ratio } : { aspect_ratio: "1:1" })
-    };
-  } 
-  // Handle original Nano Banana (google/nano-banana-edit)
-  else if (model === IMAGE_MODELS.nano_banana || model === 'nano_banana' || model.includes('nano-banana')) {
-    // Nano Banana parameters (google/nano-banana-edit)
-    // Supports image_size in ratio strings like '1:1', '16:9', '9:16', '3:4', '4:3', '3:2', '2:3', '21:9'
-    const imageSize = customImageSize;
-    const ratio = mapUiToRatio(imageSize as string | undefined, videoAspectRatio);
-    return {
-      output_format: "png",
-      ...(ratio ? { image_size: ratio } : {})
-    };
-  } else if (model === IMAGE_MODELS.seedream || model === 'seedream' || model.includes('seedream')) {
-    // Seedream V4 parameters (bytedance/seedream-v4-edit)
-    let imageSize = customImageSize;
-    
-    // If no custom size or auto, determine based on video aspect ratio
-    if (!imageSize || imageSize === 'auto') {
-      if (videoAspectRatio === '9:16') {
-        imageSize = 'portrait_16_9';
-      } else {
-        imageSize = 'landscape_16_9'; // Default for 16:9 or unknown
-      }
-    }
-    
-    return {
-      image_size: imageSize,
-      image_resolution: "1K",
-      max_images: 1
-    };
-  } else {
-    // Default to Nano Banana format for unknown models
-    return {
-      output_format: "png"
-    };
+  switch (customImageSize) {
+    case 'square':
+    case 'square_hd':
+    case '1:1':
+      return '1:1';
+    case 'portrait_16_9':
+    case '9:16':
+      return '9:16';
+    case 'landscape_16_9':
+    case '16:9':
+      return '16:9';
+    case 'portrait_4_3':
+    case '3:4':
+      return '3:4';
+    case 'landscape_4_3':
+    case '4:3':
+      return '4:3';
+    case 'portrait_3_2':
+    case '2:3':
+      return '2:3';
+    case 'landscape_3_2':
+    case '3:2':
+      return '3:2';
+    case 'portrait_5_4':
+    case '4:5':
+      return '4:5';
+    case 'landscape_5_4':
+    case '5:4':
+      return '5:4';
+    case 'landscape_21_9':
+    case '21:9':
+      return '21:9';
+    default:
+      if (videoAspectRatio === '9:16') return '9:16';
+      if (videoAspectRatio === '16:9') return '16:9';
+      return '1:1';
   }
 }
 
 // KIE Platform API integration
 async function generateImageWithKIE(
   prompt: Record<string, unknown>,
-  imageModel: string,
   referenceImages: string[],
   customImageSize?: string,
   videoAspectRatio?: string
 ): Promise<{ taskId: string }> {
-  // Get the correct parameters for this model
-  const modelParams = getImageModelParameters(imageModel, customImageSize, videoAspectRatio);
-
-  // Determine if using Nano Banana Pro (for image_input field vs image_urls)
-  const isNanoBananaPro = imageModel === 'nano-banana-pro' || imageModel === 'nano_banana_pro';
-
-  // Handle prompt: for Pro, we need string. For others, we kept JSON stringified object.
   let promptValue: string;
-  if (isNanoBananaPro) {
-    // Extract simple string from prompt object if present
-    if (prompt && typeof prompt.image_prompt === 'string') {
-       promptValue = prompt.image_prompt;
-    } else if (prompt && typeof prompt.prompt === 'string') {
-       promptValue = prompt.prompt;
-    } else {
-       // Fallback: just stringify
-       promptValue = JSON.stringify(prompt);
-    }
+  if (prompt && typeof prompt.image_prompt === 'string') {
+     promptValue = prompt.image_prompt;
+  } else if (prompt && typeof prompt.prompt === 'string') {
+     promptValue = prompt.prompt;
   } else {
-    // Legacy behavior
     promptValue = JSON.stringify(prompt);
   }
 
@@ -566,12 +506,13 @@ async function generateImageWithKIE(
   const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/image` : undefined;
 
   const payload = {
-    model: imageModel,
+    model: NON_AGENT_IMAGE_MODEL,
     input: {
       prompt: promptValue,
-      // Use image_input for Pro, image_urls for others
-      ...(isNanoBananaPro ? { image_input: referenceImages } : { image_urls: referenceImages }),
-      ...modelParams  // Spread the model-specific parameters
+      image_input: referenceImages.slice(0, 8),
+      aspect_ratio: resolveAspectRatio(customImageSize, videoAspectRatio),
+      resolution: NON_AGENT_IMAGE_RESOLUTION,
+      output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
     },
     ...(callBackUrl && { callBackUrl }) // Add callBackUrl only if NEXT_PUBLIC_SITE_URL is set
   };
@@ -1099,15 +1040,10 @@ export async function processAvatarAdsProject(
 
         const referenceImages = [...project.person_image_urls, ...project.product_image_urls];
 
-        // Map short model name to full KIE model name
-        const fullModelName = IMAGE_MODELS[project.image_model as keyof typeof IMAGE_MODELS] || project.image_model;
-
         // Use project-level image_prompt instead of scene 0 prompt
         const { taskId } = await generateImageWithKIE(
           { prompt: project.image_prompt } as Record<string, unknown>,
-          fullModelName,
           referenceImages,
-          project.image_size,
           project.video_aspect_ratio
         );
 

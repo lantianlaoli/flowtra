@@ -37,8 +37,8 @@ export default function ModelPricingSection() {
       quality: ['1080p', '4K'],
     },
     {
-      name: 'Nano Banana Pro',
-      description: 'High-resolution generation with zero cost',
+      name: 'Nano Banana 2',
+      description: 'Consistent image generation for multi-angle and reference photos',
       icon: Google,
       badge: 'Free',
       durationRange: '8-64s',
@@ -46,7 +46,7 @@ export default function ModelPricingSection() {
       pricingOptions: [
         { duration: '1 min', credits: 0, unit: 'per min' },
       ] as PricingOption[],
-      quality: ['1K', '2K', '4K'],
+      quality: ['1K'],
     },
     {
       name: 'Kling 2.6 Motion Control',

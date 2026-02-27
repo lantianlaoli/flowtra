@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { IMAGE_MODELS } from '@/lib/constants';
+import { NON_AGENT_IMAGE_MODEL, NON_AGENT_IMAGE_OUTPUT_FORMAT, NON_AGENT_IMAGE_RESOLUTION } from '@/lib/constants';
 
 const KIE_API_BASE_URL = 'https://api.kie.ai/api/v1/jobs';
 
@@ -23,12 +23,13 @@ export async function POST(request: NextRequest) {
     const optimizationPrompt = prompt || "Generate a clear, high-quality portrait of this person, upper body only, photorealistic, 8k resolution, natural lighting.";
 
     const payload = {
-      model: IMAGE_MODELS.nano_banana, // google/nano-banana-edit
+      model: NON_AGENT_IMAGE_MODEL,
       input: {
         prompt: optimizationPrompt,
-        image_urls: [imageUrl],
-        output_format: "png",
-        image_size: "9:16" // Default to portrait for avatar ads
+        image_input: [imageUrl],
+        aspect_ratio: '9:16',
+        resolution: NON_AGENT_IMAGE_RESOLUTION,
+        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
       }
     };
 

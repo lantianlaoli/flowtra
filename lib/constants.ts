@@ -26,54 +26,9 @@ export type HighResResolution = '720p' | keyof typeof HIGH_RES_DOWNLOAD_COSTS;
 // NOTE: Platform presets have been removed
 // Platform selection is no longer a feature of the system
 
-// Image models for cover generation
-export const IMAGE_MODELS = {
-  'nano_banana': 'google/nano-banana-edit',
-  'seedream': 'bytedance/seedream-v4-edit',
-  'nano_banana_pro': 'nano-banana-pro'
-} as const
-
-// Image size options for different models
-export const IMAGE_SIZE_OPTIONS = {
-  'nano_banana': [
-    'auto',
-    'square',
-    // 'square_hd' removed for Banana to avoid duplicate 1:1 option
-    'portrait_4_3',
-    'portrait_3_2',
-    'portrait_16_9',
-    'portrait_5_4',
-    'landscape_4_3',
-    'landscape_3_2',
-    'landscape_16_9',
-    'landscape_5_4',
-    'landscape_21_9'
-  ],
-  'seedream': [
-    'auto',
-    'square',
-    'square_hd', 
-    'portrait_4_3',
-    'portrait_3_2',
-    'portrait_16_9',
-    'landscape_4_3',
-    'landscape_3_2', 
-    'landscape_16_9',
-    'landscape_21_9'
-  ],
-  'nano_banana_pro': [
-    '1:1',
-    '2:3',
-    '3:2',
-    '3:4',
-    '4:3',
-    '4:5',
-    '5:4',
-    '9:16',
-    '16:9',
-    '21:9'
-  ]
-} as const
+export const NON_AGENT_IMAGE_MODEL = 'nano-banana-2' as const;
+export const NON_AGENT_IMAGE_RESOLUTION = '1K' as const;
+export const NON_AGENT_IMAGE_OUTPUT_FORMAT = 'png' as const;
 
 // Video aspect ratio options for different models
 export const VIDEO_ASPECT_RATIO_OPTIONS = {
@@ -83,26 +38,12 @@ export const VIDEO_ASPECT_RATIO_OPTIONS = {
   'kling_3': ['16:9', '9:16']
 } as const
 
-// Credit costs for different image models (all free)
-export const IMAGE_CREDIT_COSTS = {
-  'nano_banana': 0,    // Nano Banana: Free, fast generation
-  'seedream': 0,       // Seedream 4.0: Free, high quality generation
-  'nano_banana_pro': 24 // Replica mode: 24 credits per generation
-} as const
-
 // Processing times for different video models
 export const MODEL_PROCESSING_TIMES = {
   'veo3_fast': '2-3 min',         // Veo3.1 fast: 2-3 minutes processing time
   'veo3': '5-8 min',              // Veo3.1: 5-8 minutes processing time
   'seedance_1_5_pro': '1-2 min',  // Seedance 1.5 Pro: 1-2 minutes processing time
   'kling_3': '2-4 min'            // Kling 3.0 Pro: 2-4 minutes processing time
-} as const
-
-// Processing times for different image models
-export const IMAGE_PROCESSING_TIMES = {
-  'nano_banana': '1-2 min',    // Nano Banana: 1-2 minutes processing time
-  'seedream': '2-4 min',       // Seedream 4.0: 2-4 minutes processing time
-  'nano_banana_pro': '1-2 min'
 } as const
 
 // Replica photo generation credits (competitor photo mode)
@@ -215,7 +156,7 @@ export function getDownloadCost(
 // Get replica photo credit cost for a specific resolution (defaults to 2K pricing)
 export function getReplicaPhotoCredits(resolution?: ReplicaPhotoResolution): number {
   const resolved = resolution ? REPLICA_PHOTO_CREDITS[resolution] : undefined;
-  return typeof resolved === 'number' ? resolved : REPLICA_PHOTO_CREDITS['2K'];
+  return typeof resolved === 'number' ? resolved : REPLICA_PHOTO_CREDITS['1K'];
 }
 
 // Get processing time for video model
@@ -223,41 +164,10 @@ export function getProcessingTime(model: keyof typeof MODEL_PROCESSING_TIMES): s
   return MODEL_PROCESSING_TIMES[model]
 }
 
-// Get processing time for image model
-export function getImageProcessingTime(model: keyof typeof IMAGE_PROCESSING_TIMES): string {
-  return IMAGE_PROCESSING_TIMES[model]
-}
-
-// Get credit cost for image model
-export function getImageCreditCost(model: keyof typeof IMAGE_CREDIT_COSTS): number {
-  return IMAGE_CREDIT_COSTS[model]
-}
-
 // Check if user has sufficient credits for a model
 // Version 2.0: ALL models require credits at generation time
 export function canAffordModel(userCredits: number, model: VideoModel): boolean {
   return userCredits >= GENERATION_COSTS[model];
-}
-
-// Auto mode intelligent image model selection (prioritize seedream for better aspect ratio support)
-export function getAutoImageModeSelection(): 'nano_banana' | 'seedream' {
-  // Return seedream as default since it supports more aspect ratios (16:9, 9:16)
-  return 'seedream'
-}
-
-// Check if user has sufficient credits for an image model (always true since free)
- 
-export function canAffordImageModel(_userCredits: number, _model: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro'): boolean {
-  // All image models are free, so always affordable
-  return true
-}
-
-// Get the actual image model that will be used (resolves auto to specific model)
-export function getActualImageModel(selectedModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro'): 'nano_banana' | 'seedream' | 'nano_banana_pro' {
-  if (selectedModel === 'auto') {
-    return getAutoImageModeSelection()
-  }
-  return selectedModel
 }
 
 // Map product_id to credits and package info
@@ -309,37 +219,15 @@ export const KIE_CREDIT_THRESHOLD = (() => {
 // Complete workflow cost breakdown:
 // - Image description: ~1-2 credits (OpenRouter API) - FREE for users
 // - Prompt generation: ~1-2 credits (OpenRouter API) - FREE for users
-// - Cover generation: 0 credits (Seedream/Nano Banana) - FREE
+// - Cover generation: 0 credits (Nano Banana 2) - FREE
 // - Video generation: 20 credits (Veo3.1 fast, per 8s segment) or 150 credits (Veo3.1, per 8s segment)
 // - Video download: FREE (no credits charged)
 // Total for complete workflow: 20-1200 credits depending on model and duration
 // New users receive a 100-credit welcome bonus.
 
-// Get image size options for a specific model
-export function getImageSizeOptions(model: 'nano_banana' | 'seedream'): readonly string[] {
-  return IMAGE_SIZE_OPTIONS[model]
-}
-
 // Get video aspect ratio options for a specific model
 export function getVideoAspectRatioOptions(model: VideoModel): readonly string[] {
   return VIDEO_ASPECT_RATIO_OPTIONS[model]
-}
-
-// Get auto image size based on video aspect ratio for seedream
-export function getAutoImageSize(videoAspectRatio: '16:9' | '9:16', imageModel: 'nano_banana' | 'seedream'): string {
-  if (imageModel === 'nano_banana') {
-    // For Banana, choose a sensible default matching video aspect ratio
-    return videoAspectRatio === '9:16' ? 'portrait_16_9' : 'landscape_16_9'
-  }
-
-  // For seedream, map video aspect ratio to image size
-  if (videoAspectRatio === '16:9') {
-    return 'landscape_16_9'
-  } else if (videoAspectRatio === '9:16') {
-    return 'portrait_16_9'
-  }
-
-  return 'auto' // fallback
 }
 
 // Video model capabilities based on quality and duration

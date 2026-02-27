@@ -392,7 +392,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (shouldRegeneratePhoto) {
-      // Version 2.0: Image generation is always free (nano_banana_pro, nano_banana, seedream)
+      // Version 2.0: Image generation is always free with Nano Banana 2.
       // No credits deducted for first frame regeneration
 
       const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
@@ -417,8 +417,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         brandContext,
         competitorFileType === 'video' ? 'video' : null,
         {
-          imageModelOverride: 'nano_banana_pro',
-          imageSizeOverride: frameImageSize,
+          aspectRatioOverride: frameImageSize,
           resolutionOverride: '1K',
           characterPhotoUrls: characterPhotoUrls.length > 0 ? characterPhotoUrls : null
         },

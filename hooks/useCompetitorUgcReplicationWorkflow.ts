@@ -38,16 +38,14 @@ export interface WorkflowState {
 export const useCompetitorUgcReplicationWorkflow = (
   userId?: string | null,
   selectedModel: VideoModel = 'veo3_fast',
-  selectedImageModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' = 'nano_banana',
   updateCredits?: (newCredits: number) => void,
   refetchCredits?: () => Promise<void>,
   elementsCount: number = 1,
-  imageSize: string = 'auto',
   videoAspectRatio: '16:9' | '9:16' = '16:9',
   videoDuration: VideoDuration = '8',
   selectedLanguage: string = 'en',
-  useCustomScript: boolean = false,
-  customScript: string = ''
+    useCustomScript: boolean = false,
+    customScript: string = ''
 ) => {
   // Initialize guest usage limits
   const maxGuestUsage = 1; // Guest users: 1 VEO3_fast
@@ -200,14 +198,14 @@ export const useCompetitorUgcReplicationWorkflow = (
 
   const startWorkflowWithSelectedProduct = useCallback(async ({
     elementsCountOverride,
-    imageSizeOverride,
+    aspectRatioOverride,
     generateVideo = true,
     competitorAdId,
     creatorSourceVideoId,
     replicaOptions
   }: {
     elementsCountOverride?: number;
-    imageSizeOverride?: string;
+    aspectRatioOverride?: string;
     generateVideo?: boolean;
     competitorAdId?: string;
     creatorSourceVideoId?: string;
@@ -242,9 +240,8 @@ export const useCompetitorUgcReplicationWorkflow = (
       const requestData = {
         userId: userId,
         videoModel: selectedModel,
-        imageModel: selectedImageModel,
         elementsCount: elementsCountOverride ?? elementsCount,
-        imageSize: imageSizeOverride ?? imageSize,
+        photoAspectRatio: replicaOptions?.photoAspectRatio ?? aspectRatioOverride,
         shouldGenerateVideo: generateVideo,
         photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
@@ -255,7 +252,6 @@ export const useCompetitorUgcReplicationWorkflow = (
         useCustomScript: useCustomScript,
         customScript: customScript?.trim() ? customScript.trim() : undefined,
         referenceImageUrls: replicaOptions?.referenceImageUrls,
-        photoAspectRatio: replicaOptions?.photoAspectRatio,
         photoResolution: replicaOptions?.photoResolution,
         photoOutputFormat: replicaOptions?.photoOutputFormat,
         replicaMode: replicaOptions?.replicaMode
@@ -322,9 +318,7 @@ export const useCompetitorUgcReplicationWorkflow = (
   }, [
     userId,
     selectedModel,
-    selectedImageModel,
     elementsCount,
-    imageSize,
     videoAspectRatio,
     videoDuration,
     selectedLanguage,

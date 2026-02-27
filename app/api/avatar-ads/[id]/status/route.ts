@@ -60,7 +60,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         current_step: project.current_step,
         progress_percentage: project.progress_percentage,
         video_duration_seconds: project.video_duration_seconds,
-        image_model: project.image_model,
         video_model: 'veo3_fast', // Avatar Ads only supports veo3_fast
         credits_cost: project.credits_cost,
         person_image_urls: project.person_image_urls,
