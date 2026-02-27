@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { ReactNode } from "react";
 import {
   GiftIcon,
   Check,
@@ -9,13 +10,37 @@ import {
   Sparkles,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
-import { Kling } from "@lobehub/icons";
+import { Google, Kling } from "@lobehub/icons";
 import TikTokInputHero from "@/components/pages/landing/TikTokInputHero";
 import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
 import BlackFridayBadge from "@/components/landing/BlackFridayBadge";
 
 interface HeroSectionProps {
   activatedUserCount: number;
+}
+
+function LiveModelBadge({
+  icon,
+  label,
+}: {
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#fafafa] border border-[#e9e9e7] rounded-full text-sm shadow-[0_1px_0_rgba(255,255,255,0.9)_inset,0_1px_2px_rgba(0,0,0,0.04)]">
+      <span className="shrink-0">{icon}</span>
+      <span className="text-xs font-semibold text-[#37352f]">{label}</span>
+      <span
+        aria-hidden="true"
+        className="relative ml-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center"
+      >
+        <span className="absolute inset-0 rounded-full bg-emerald-400/35 blur-[2px] motion-safe:animate-pulse motion-reduce:animate-none" />
+        <span className="absolute h-3.5 w-3.5 rounded-full border border-emerald-400/45 bg-emerald-400/10" />
+        <span className="absolute h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(34,197,94,0.55)]" />
+        <span className="absolute h-1.5 w-1.5 rounded-full bg-white/75" />
+      </span>
+    </div>
+  );
 }
 
 export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
@@ -29,16 +54,14 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
         {/* Top Badges */}
         <div className="flex flex-wrap items-center gap-3">
           <BlackFridayBadge />
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#fafafa] border border-[#e9e9e7] rounded-full text-sm">
-            <Kling className="w-3.5 h-3.5 text-[#37352f]" />
-            <span
-              aria-hidden="true"
-              className="h-2 w-2 rounded-full bg-green-500 motion-safe:animate-pulse motion-reduce:animate-none"
-            />
-            <span className="text-xs font-semibold text-[#37352f]">
-              Kling 3.0 is live
-            </span>
-          </div>
+          <LiveModelBadge
+            icon={<Kling className="w-3.5 h-3.5 text-[#37352f]" />}
+            label="Kling 3.0 is live"
+          />
+          <LiveModelBadge
+            icon={<Google className="w-3.5 h-3.5 text-[#37352f]" />}
+            label="Nano Banana 2 is live"
+          />
         </div>
 
         <h1 className="text-[34px] sm:text-5xl lg:text-6xl font-bold text-black leading-[1.08] tracking-[-0.02em]">
