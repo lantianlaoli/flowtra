@@ -4,6 +4,13 @@ import { convertToModelMessages, generateText, jsonSchema, stepCountIs, streamTe
 import { createOpenAI } from '@ai-sdk/openai';
 import { getSupabaseAdmin, normalizeAvatarPhotoSet } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import {
+  MERGE_CONFIRMATION_TOKEN,
+  isMergeConfirmationCommand,
+  isMergeIntentCommand,
+  isRegenerateVideoCommand,
+  mapClonePhaseFromStatusPayload as mapClonePhaseFromPayload
+} from '@/lib/project-agent/clone-workflow-control';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -75,7 +82,7 @@ type SessionState = {
   };
   cloneExecution?: {
     projectId: string;
-    phase: 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'merging' | 'completed' | 'failed';
+    phase: 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'awaiting_merge' | 'merging' | 'completed' | 'failed';
     model?: 'veo3' | 'veo3_fast' | 'seedance_1_5_pro';
     duration?: string;
     creditsCost?: number;
@@ -96,13 +103,18 @@ type SessionState = {
   language?: string;
   videoDurationSeconds?: number;
   videoAspectRatio?: '16:9' | '9:16';
-  imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro';
+  imageModel?: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' | 'seedream_5_lite';
   videoModel?: 'veo3_fast';
   projectId?: string;
   generatedPrompts?: Record<string, unknown> | null;
   imagePrompt?: string | null;
   generatedImageUrl?: string | null;
   pendingUpdatedPrompts?: Record<string, unknown> | null;
+  pendingMergeConfirmation?: {
+    projectId: string;
+    requestedAt: string;
+    token: '确认合并';
+  } | null;
 };
 
 const DEFAULT_STATE: SessionState = {
@@ -111,7 +123,7 @@ const DEFAULT_STATE: SessionState = {
   language: 'en',
   videoDurationSeconds: 16,
   videoAspectRatio: '9:16',
-  imageModel: 'nano_banana_pro',
+  imageModel: 'seedream_5_lite',
   videoModel: 'veo3_fast'
 };
 
@@ -193,7 +205,7 @@ const isRegenerateFrameCommand = (text: string) => {
 const hasVideoGenerationSignal = (state: SessionState) => {
   const execution = state.cloneExecution;
   if (!execution) return false;
-  if (execution.phase === 'generating_videos' || execution.phase === 'merging' || execution.phase === 'completed') {
+  if (execution.phase === 'generating_videos' || execution.phase === 'awaiting_merge' || execution.phase === 'merging' || execution.phase === 'completed') {
     return true;
   }
   return Boolean(
@@ -228,10 +240,18 @@ const buildWorkflowFallbackReply = (latestUserTurnText: string, state: SessionSt
     return 'I am regenerating the requested frame now.';
   }
 
+  if (isRegenerateVideoCommand(raw)) {
+    const sceneIndex = parseSceneIndexFromUserTurn(raw);
+    if (sceneIndex && Number.isFinite(sceneIndex)) {
+      return `I am regenerating the video for Scene ${sceneIndex} now.`;
+    }
+    return 'I am regenerating the requested scene video now.';
+  }
+
   return null;
 };
 
-type ForcedToolChoice = { type: 'tool'; toolName: 'startCloneVideoGeneration' | 'mergeCloneVideos' } | undefined;
+type ForcedToolChoice = { type: 'tool'; toolName: 'startCloneVideoGeneration' | 'mergeCloneVideos' | 'regenerateCloneVideos' } | undefined;
 
 const tryParseJsonObject = (raw: string): Record<string, unknown> | null => {
   const trimmed = raw.trim();
@@ -258,10 +278,16 @@ const classifyToolIntent = async (input: {
   latestUserTurnText: string;
   clonePhase?: SessionState['cloneExecution'] extends { phase: infer P } ? P : string;
   hasCloneProject: boolean;
+  pendingMergeConfirmation?: SessionState['pendingMergeConfirmation'] | null;
 }): Promise<ForcedToolChoice> => {
   const userText = input.latestUserTurnText.trim();
   if (!userText) return undefined;
   if (!input.hasCloneProject) return undefined;
+
+  const hasPendingMerge = Boolean(input.pendingMergeConfirmation?.projectId);
+  if (hasPendingMerge && isMergeConfirmationCommand(userText)) {
+    return { type: 'tool', toolName: 'mergeCloneVideos' };
+  }
 
   const normalized = userText.toLowerCase();
   // Deterministic routing for explicit workflow commands to avoid LLM-confidence misses.
@@ -273,11 +299,11 @@ const classifyToolIntent = async (input: {
   ) {
     return { type: 'tool', toolName: 'startCloneVideoGeneration' };
   }
-  if (
-    /\b(merge|stitch|finali[sz]e)\b[\s\w-]{0,24}\b(video|videos)\b/.test(normalized) ||
-    /合并.*视频|拼接.*视频|导出.*视频/.test(userText)
-  ) {
+  if (isMergeIntentCommand(userText)) {
     return { type: 'tool', toolName: 'mergeCloneVideos' };
+  }
+  if (isRegenerateVideoCommand(userText)) {
+    return { type: 'tool', toolName: 'regenerateCloneVideos' };
   }
 
   const { text } = await generateText({
@@ -287,13 +313,14 @@ const classifyToolIntent = async (input: {
       'Detect whether the user is explicitly asking to start video generation or merge/finalize videos.',
       'Do NOT route frame/image/photo regeneration requests.',
       'Support any language.',
-      'Return JSON only: {"tool":"startCloneVideoGeneration"|"mergeCloneVideos"|"none","confidence":0..1}'
+      'Return JSON only: {"tool":"startCloneVideoGeneration"|"mergeCloneVideos"|"regenerateCloneVideos"|"none","confidence":0..1}'
     ].join(' '),
     prompt: [
       `User message: ${userText}`,
       `Clone phase: ${input.clonePhase || 'unknown'}`,
       'Choose "startCloneVideoGeneration" only when user asks to begin/render/generate videos.',
       'Choose "mergeCloneVideos" only when user asks to merge/stitch/finalize completed segment videos.',
+      'Choose "regenerateCloneVideos" only when user asks to regenerate one specific scene video.',
       'Otherwise choose "none".'
     ].join('\n')
   });
@@ -309,7 +336,7 @@ const classifyToolIntent = async (input: {
     return undefined;
   }
 
-  if (tool === 'startCloneVideoGeneration' || tool === 'mergeCloneVideos') {
+  if (tool === 'startCloneVideoGeneration' || tool === 'mergeCloneVideos' || tool === 'regenerateCloneVideos') {
     return { type: 'tool', toolName: tool };
   }
   return undefined;
@@ -337,6 +364,9 @@ const buildSystemPrompt = (state: SessionState) => {
   const cloneExecutionPhase = state.cloneExecution?.phase || 'idle';
   const cloneExecutionSegments = Array.isArray(state.cloneExecution?.segments) ? state.cloneExecution?.segments.length : 0;
   const cloneExecutionMergedVideo = state.cloneExecution?.mergedVideoUrl || 'not ready';
+  const pendingMergeConfirmation = state.pendingMergeConfirmation?.projectId
+    ? `${state.pendingMergeConfirmation.token} (${state.pendingMergeConfirmation.projectId})`
+    : 'none';
 
   return `You are Flowtra Project Agent. You orchestrate Flowtra video workflows through a conversational flow.
 
@@ -382,7 +412,8 @@ Workflow rules:
   - Step 1: choose reference video.
   - Step 2: choose replacement avatar and/or product.
   - Step 3: review replaced prompts, then ask me in chat to start generation.
-  - Step 4: review first frames per scene; if needed, ask me in chat to regenerate frame(s), then ask me in chat to start video generation/merge.
+  - Step 4: review first frames per scene; if needed, ask me in chat to regenerate frame(s), then ask me in chat to start video generation.
+  - Step 5: after all scene videos are ready, allow frame/video regeneration before merge; merge requires explicit chat confirmation token.
   - Keep replies progress-aware and concise at each phase.
 - For competitor_ugc_replication, the sequence must follow the existing manual flow:
   1) First ask user to select ONE reference video.
@@ -409,8 +440,9 @@ Workflow rules:
   20.3) If both selected avatar and selected product already exist in current state and user confirms to continue, call generateCloneReplacementDraft even when the latest message does not restate the names.
   21) If the latest user message indicates they already confirmed replacements (e.g. "I selected replacement ... Continue to the next step..."), do NOT ask for confirmation again. Instead, acknowledge the chosen avatar/product and say you are now applying those replacements to the original prompt structure.
   22) In that post-confirmation turn, guide the user to review/edit the generated Scene and shot fields in Step 3 (subject, context/background, action, style, camera, composition, lighting, audio, dialogue), then tell them to send a chat command to start generation.
-  24) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only. During clone execution phases, never instruct clicking removed buttons. Use command-style guidance, e.g. "Say 'regenerate scene 2 frame'" or "say 'start video generation'".
-  25) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft. If the user asks to regenerate frames, call regenerateCloneFrames. If user asks to start video generation after frame review, call startCloneVideoGeneration. If user asks to stitch/finalize when awaiting merge, call mergeCloneVideos.
+  24) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only. During clone execution phases, never instruct clicking removed buttons. Use command-style guidance, e.g. "Say 'regenerate scene 2 frame'", "say 'regenerate scene 2 video'" or "say 'start video generation'".
+  25) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft. If user asks to regenerate frames, call regenerateCloneFrames. If user asks to regenerate scene videos, call regenerateCloneVideos. If user asks to start video generation after frame review, call startCloneVideoGeneration.
+  25.1) For merge/finalize requests in clone flow: first ask for confirmation token "${MERGE_CONFIRMATION_TOKEN}" and do not merge immediately. Only call mergeCloneVideos after the user sends the confirmation token.
   26) Download guidance rule: after merge starts or when cloneExecutionPhase is "completed", explicitly tell the user to check "My Ads" to view/download the final video.
   27) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it."
   23) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
@@ -434,6 +466,7 @@ Current state:
 - Clone Execution Phase: ${cloneExecutionPhase}
 - Clone Execution Segments: ${cloneExecutionSegments}
 - Clone Execution Merged Video URL: ${cloneExecutionMergedVideo}
+- Pending Merge Confirmation: ${pendingMergeConfirmation}
 - Custom Dialogue: ${dialogueLabel}
 - Duration: ${state.videoDurationSeconds ?? 'unset'}
 - Aspect: ${state.videoAspectRatio ?? 'unset'}
@@ -450,42 +483,7 @@ const mergeState = (state: SessionState, patch: Partial<SessionState>) => ({
   ...patch
 });
 
-const mapClonePhaseFromStatusPayload = (payload: Record<string, unknown>): 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'merging' | 'completed' | 'failed' => {
-  const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
-  const step = typeof payload.current_step === 'string' ? payload.current_step : '';
-  const status = typeof payload.status === 'string' ? payload.status : '';
-  const mergeTaskId = typeof data.mergeTaskId === 'string' ? data.mergeTaskId : '';
-
-  if (status === 'completed') return 'completed';
-  if (status === 'failed') return 'failed';
-  if (step === 'merging_segments' || Boolean(mergeTaskId)) return 'merging';
-
-  const segmentStatus = (data.segmentStatus && typeof data.segmentStatus === 'object')
-    ? data.segmentStatus as Record<string, unknown>
-    : null;
-  const total = Number(segmentStatus?.total ?? 0);
-  const framesReady = Number(segmentStatus?.framesReady ?? 0);
-  const videosReady = Number(segmentStatus?.videosReady ?? 0);
-  const videoGenerationRequested = Boolean(data.videoGenerationRequested);
-
-  if (
-    step === 'generating_segment_videos' ||
-    step === 'ready_for_video' ||
-    step === 'awaiting_merge' ||
-    step === 'generating_video' ||
-    status === 'awaiting_merge' ||
-    videosReady > 0 ||
-    videoGenerationRequested
-  ) {
-    return 'generating_videos';
-  }
-
-  if (total > 0 && framesReady === total && videosReady < total) {
-    return 'reviewing_frames';
-  }
-
-  return 'generating_frames';
-};
+const mapClonePhaseFromStatusPayload = mapClonePhaseFromPayload;
 
 const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<string, unknown>): NonNullable<SessionState['cloneExecution']> => {
   const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
@@ -857,7 +855,8 @@ export async function POST(request: Request) {
         hasCloneProject: Boolean(
           sessionState.cloneExecution?.projectId ||
           sessionState.projectId
-        )
+        ),
+        pendingMergeConfirmation: sessionState.pendingMergeConfirmation ?? null
       });
     } catch (intentError) {
       console.warn('[Project Agent] Tool intent classification failed, falling back to model autonomy:', intentError);
@@ -1188,7 +1187,7 @@ export async function POST(request: Request) {
             const formData = new FormData();
             formData.set('user_id', userId);
             formData.set('video_duration_seconds', duration.toString());
-            formData.set('image_model', sessionState.imageModel ?? 'nano_banana_pro');
+            formData.set('image_model', sessionState.imageModel ?? 'seedream_5_lite');
             formData.set('image_size', imageSize);
             formData.set('video_model', sessionState.videoModel ?? 'veo3_fast');
             formData.set('video_aspect_ratio', aspect);
@@ -1394,7 +1393,8 @@ export async function POST(request: Request) {
               videoDuration,
               language: sessionState.language || 'en',
               shouldGenerateVideo: true,
-              segmentPrompts
+              segmentPrompts,
+              requestSource: 'project_agent_clone'
             };
             if (sessionState.cloneReferenceVideo.sourceType === 'competitor_ad') {
               createPayload.competitorAdId = sessionState.cloneReferenceVideo.sourceId || sessionState.cloneReferenceVideo.id;
@@ -1403,6 +1403,7 @@ export async function POST(request: Request) {
             }
 
             await persistSession({
+              pendingMergeConfirmation: null,
               cloneExecution: {
                 projectId: '',
                 phase: 'generating_frames',
@@ -1449,10 +1450,12 @@ export async function POST(request: Request) {
 
             if (statusResponse.ok && statusPayload?.data) {
               await persistSession({
+                pendingMergeConfirmation: null,
                 cloneExecution: toCloneExecutionFromStatusPayload(projectId, statusPayload as Record<string, unknown>)
               });
             } else {
               await persistSession({
+                pendingMergeConfirmation: null,
                 cloneExecution: {
                   projectId,
                   phase: 'generating_frames',
@@ -1493,6 +1496,7 @@ export async function POST(request: Request) {
             const precheckStatusPayload = await precheckStatusResponse.json().catch(() => ({}));
             if (precheckStatusResponse.ok && precheckStatusPayload?.data) {
               await persistSession({
+                pendingMergeConfirmation: null,
                 cloneExecution: toCloneExecutionFromStatusPayload(projectId, precheckStatusPayload as Record<string, unknown>)
               });
 
@@ -1525,6 +1529,7 @@ export async function POST(request: Request) {
             // after queueing video generation. Keep UI aligned with user intent immediately.
             const previousExecution = sessionState.cloneExecution;
             await persistSession({
+              pendingMergeConfirmation: null,
               cloneExecution: {
                 projectId,
                 phase: 'generating_videos',
@@ -1548,6 +1553,7 @@ export async function POST(request: Request) {
                 ? { ...mapped, phase: 'generating_videos' as const }
                 : mapped;
               await persistSession({
+                pendingMergeConfirmation: null,
                 cloneExecution: normalized
               });
             }
@@ -1660,6 +1666,7 @@ export async function POST(request: Request) {
             const refreshedStatusPayload = await refreshedStatusResponse.json().catch(() => ({}));
             if (refreshedStatusResponse.ok && refreshedStatusPayload?.data) {
               await persistSession({
+                pendingMergeConfirmation: null,
                 cloneExecution: toCloneExecutionFromStatusPayload(projectId, refreshedStatusPayload as Record<string, unknown>)
               });
             }
@@ -1683,6 +1690,93 @@ export async function POST(request: Request) {
             };
           }
         }),
+        regenerateCloneVideos: tool({
+          description: 'Regenerate clone video for one specific scene number; sceneIndex is 1-based.',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              sceneIndex: { type: 'integer', minimum: 1 }
+            },
+            required: []
+          }),
+          execute: async ({ sceneIndex }) => {
+            const projectId = await resolveCloneProjectId();
+            if (!projectId) {
+              return { success: false, message: 'Clone project is not initialized yet.' };
+            }
+
+            const resolvedSceneIndex = typeof sceneIndex === 'number' ? sceneIndex : inferredSceneIndexFromTurn;
+            if (typeof resolvedSceneIndex !== 'number' || !Number.isFinite(resolvedSceneIndex) || resolvedSceneIndex < 1) {
+              return {
+                success: false,
+                message: 'Please specify exactly which scene video to regenerate, for example: "regenerate scene 2 video".'
+              };
+            }
+
+            const internalHeaders: HeadersInit = {
+              'x-project-agent-internal': '1'
+            };
+            if (userId) {
+              internalHeaders['x-project-agent-user-id'] = userId;
+            }
+
+            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+              cache: 'no-store',
+              headers: internalHeaders
+            });
+            const statusPayload = await statusResponse.json().catch(() => ({}));
+            if (!statusResponse.ok || !statusPayload?.data) {
+              return { success: false, message: statusPayload?.error || 'Failed to load clone status before video regeneration.' };
+            }
+
+            const segments = Array.isArray((statusPayload.data as Record<string, unknown>).segments)
+              ? (statusPayload.data as Record<string, unknown>).segments as Array<Record<string, unknown>>
+              : [];
+            if (segments.length === 0) {
+              return { success: false, message: 'No segments available to regenerate.' };
+            }
+
+            const targetIndex = Math.max(0, resolvedSceneIndex - 1);
+            const segmentExists = segments.some((segment) => Number(segment.index ?? -1) === targetIndex);
+            if (!segmentExists) {
+              return {
+                success: false,
+                message: `Scene ${resolvedSceneIndex} does not exist in this project.`
+              };
+            }
+
+            const regenerateResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/segments/${targetIndex}`, {
+              method: 'PATCH',
+              headers: {
+                ...internalHeaders,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ regenerate: 'video' })
+            });
+            const regeneratePayload = await regenerateResponse.json().catch(() => ({}));
+            if (!regenerateResponse.ok) {
+              return { success: false, message: regeneratePayload?.error || 'Failed to regenerate scene video.' };
+            }
+
+            const refreshedStatusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+              cache: 'no-store',
+              headers: internalHeaders
+            });
+            const refreshedStatusPayload = await refreshedStatusResponse.json().catch(() => ({}));
+            if (refreshedStatusResponse.ok && refreshedStatusPayload?.data) {
+              await persistSession({
+                pendingMergeConfirmation: null,
+                cloneExecution: toCloneExecutionFromStatusPayload(projectId, refreshedStatusPayload as Record<string, unknown>)
+              });
+            }
+
+            return {
+              success: true,
+              regeneratedScenes: [targetIndex + 1],
+              message: `Scene ${targetIndex + 1} video regeneration started.`
+            };
+          }
+        }),
         mergeCloneVideos: tool({
           description: 'Merge generated clone scene videos into the final output when the project is awaiting merge',
           inputSchema: emptySchema,
@@ -1692,11 +1786,51 @@ export async function POST(request: Request) {
               return { success: false, message: 'Clone project is not initialized yet.' };
             }
 
+            const needsMergeConfirmation = (
+              !sessionState.pendingMergeConfirmation ||
+              sessionState.pendingMergeConfirmation.projectId !== projectId ||
+              !isMergeConfirmationCommand(latestUserTurnText)
+            );
+            if (needsMergeConfirmation) {
+              await persistSession({
+                pendingMergeConfirmation: {
+                  projectId,
+                  requestedAt: new Date().toISOString(),
+                  token: MERGE_CONFIRMATION_TOKEN
+                }
+              });
+              return {
+                success: false,
+                message: `If all scene videos look good, reply "${MERGE_CONFIRMATION_TOKEN}" and I will start the final merge.`
+              };
+            }
+
             const internalHeaders: HeadersInit = {
               'x-project-agent-internal': '1'
             };
             if (userId) {
               internalHeaders['x-project-agent-user-id'] = userId;
+            }
+
+            const precheckResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+              cache: 'no-store',
+              headers: internalHeaders
+            });
+            const precheckPayload = await precheckResponse.json().catch(() => ({}));
+            if (!precheckResponse.ok || !precheckPayload?.data) {
+              return { success: false, message: precheckPayload?.error || 'Failed to verify merge readiness.' };
+            }
+            const precheckData = precheckPayload.data as Record<string, unknown>;
+            const currentStep = typeof precheckPayload.current_step === 'string' ? precheckPayload.current_step : '';
+            const workflowStatus = typeof precheckPayload.status === 'string' ? precheckPayload.status : '';
+            const segments = Array.isArray(precheckData.segments) ? precheckData.segments as Array<Record<string, unknown>> : [];
+            const allVideosReady = segments.length > 0 && segments.every((segment) => typeof segment.videoUrl === 'string' && segment.videoUrl.length > 0);
+            const isAwaitingMerge = currentStep === 'awaiting_merge' || workflowStatus === 'awaiting_merge';
+            if (!isAwaitingMerge || !allVideosReady) {
+              return {
+                success: false,
+                message: 'Merge is not ready yet. You can continue regenerating scene frame/video and merge after all scene videos are ready.'
+              };
             }
 
             const mergeResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/merge`, {
@@ -1715,6 +1849,7 @@ export async function POST(request: Request) {
             const statusPayload = await statusResponse.json().catch(() => ({}));
             if (statusResponse.ok && statusPayload?.data) {
               await persistSession({
+                pendingMergeConfirmation: null,
                 cloneExecution: toCloneExecutionFromStatusPayload(projectId, statusPayload as Record<string, unknown>)
               });
             }

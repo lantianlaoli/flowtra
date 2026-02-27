@@ -93,6 +93,7 @@ export interface StartWorkflowRequest {
   customScript?: string; // User-provided video script for direct video generation
   useCustomScript?: boolean; // Flag to enable custom script mode
   resolvedVideoModel?: VideoModel;
+  requestSource?: 'project_agent_clone' | 'default';
   segmentPrompts?: Array<{
     first_frame_description?: string;
     is_continuation_from_prev?: boolean;
@@ -1348,7 +1349,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         primaryAvatarId: cloneReferenceAssets.selectedAvatarId || null,
         primaryProductId: cloneReferenceAssets.selectedProductId || null,
         avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
-        productIds: cloneReferenceAssets.selectedProductIds || []
+        productIds: cloneReferenceAssets.selectedProductIds || [],
+        workflowSource: request.requestSource || 'default',
+        mergePolicy: request.requestSource === 'project_agent_clone' ? 'manual_confirm' : 'auto'
       }
     };
 

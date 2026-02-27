@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const supabase = getSupabaseAdmin();
     const { data: project, error: projectError } = await supabase
       .from('competitor_ugc_replication_projects')
-      .select('id,user_id,is_segmented,segment_status,video_aspect_ratio,segment_count,fal_merge_task_id,current_step,video_url,merged_video_url')
+      .select('id,user_id,is_segmented,segment_status,video_aspect_ratio,segment_count,fal_merge_task_id,current_step,status,video_url,merged_video_url')
       .eq('id', id)
       .single();
 
@@ -45,6 +45,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (project.fal_merge_task_id) {
       return NextResponse.json({ error: 'Merge already in progress' }, { status: 400 });
+    }
+
+    if (project.current_step !== 'awaiting_merge' && project.status !== 'awaiting_merge') {
+      return NextResponse.json({ error: 'Project is not awaiting merge confirmation yet' }, { status: 400 });
     }
 
     const status = (project.segment_status as { videosReady?: number; total?: number }) || {};

@@ -47,7 +47,7 @@ interface SessionState {
   cloneReplacementDraft?: ClonePromptDraft;
   cloneExecution?: {
     projectId: string;
-    phase: 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'merging' | 'completed' | 'failed';
+    phase: 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'awaiting_merge' | 'merging' | 'completed' | 'failed';
     model?: VideoModel;
     duration?: string;
     creditsCost?: number;
@@ -424,7 +424,7 @@ const workspacePromptToDraftScene = (scene: WorkspaceScene): CloneDraftScene => 
   }
 });
 
-const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'merging' | 'completed' | 'failed' => {
+const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'awaiting_merge' | 'merging' | 'completed' | 'failed' => {
   const data = (payload.data && typeof payload.data === 'object') ? payload.data as Record<string, unknown> : {};
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
   const status = typeof payload.status === 'string' ? payload.status : '';
@@ -433,6 +433,7 @@ const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'gene
   if (status === 'completed') return 'completed';
   if (status === 'failed') return 'failed';
   if (step === 'merging_segments' || Boolean(mergeTaskId)) return 'merging';
+  if (step === 'awaiting_merge' || status === 'awaiting_merge') return 'awaiting_merge';
 
   const segmentStatus = (data.segmentStatus && typeof data.segmentStatus === 'object')
     ? data.segmentStatus as Record<string, unknown>
@@ -445,9 +446,7 @@ const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'gene
   if (
     step === 'generating_segment_videos' ||
     step === 'ready_for_video' ||
-    step === 'awaiting_merge' ||
     step === 'generating_video' ||
-    status === 'awaiting_merge' ||
     videosReady > 0 ||
     videoGenerationRequested
   ) {

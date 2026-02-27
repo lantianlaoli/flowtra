@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
-import { CREDIT_COSTS, NON_AGENT_IMAGE_MODEL } from '@/lib/constants';
+import { CREDIT_COSTS, NON_AGENT_IMAGE_MODEL, getActualImageModel } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
@@ -23,6 +23,8 @@ export async function POST(request: NextRequest) {
     // Extract form data
     const userId = formData.get('user_id') as string;
     const videoDurationSeconds = parseInt(formData.get('video_duration_seconds') as string);
+    const requestedImageModel = (formData.get('image_model') as string | null)?.trim() || null;
+    const imageSize = (formData.get('image_size') as string | null)?.trim() || null;
     const videoModel = formData.get('video_model') as string;
     const customDialogue = (formData.get('custom_dialogue') as string) || '';
     const videoAspectRatio = (formData.get('video_aspect_ratio') as '16:9' | '9:16') || '16:9';
@@ -34,7 +36,18 @@ export async function POST(request: NextRequest) {
     const talkingHeadModeFlag = formData.get('talking_head_mode');
     let talkingHeadMode = typeof talkingHeadModeFlag === 'string' && talkingHeadModeFlag.toLowerCase() === 'true';
 
-    console.log('Extracted form data:', { userId, videoDurationSeconds, videoModel, videoAspectRatio, selectedPersonPhotoUrl, selectedProductId, language, clientProjectId });
+    console.log('Extracted form data:', {
+      userId,
+      videoDurationSeconds,
+      requestedImageModel,
+      imageSize,
+      videoModel,
+      videoAspectRatio,
+      selectedPersonPhotoUrl,
+      selectedProductId,
+      language,
+      clientProjectId
+    });
 
     if (!userId || !videoDurationSeconds || !videoModel) {
       return NextResponse.json(
@@ -51,6 +64,14 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedAspectRatio: '16:9' | '9:16' = videoAspectRatio === '9:16' ? '9:16' : '16:9';
+    const enforcedImageSize = normalizedAspectRatio === '9:16' ? 'portrait_16_9' : 'landscape_16_9';
+    if (imageSize && imageSize !== enforcedImageSize) {
+      console.warn('Character ads image size mismatch. Overriding.', {
+        provided: imageSize,
+        enforced: enforcedImageSize,
+        aspect: normalizedAspectRatio
+      });
+    }
 
     // Validate video duration
     if (!AVATAR_ADS_DURATION_OPTIONS.includes(videoDurationSeconds as typeof AVATAR_ADS_DURATION_OPTIONS[number])) {
@@ -61,7 +82,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate models
+    const validImageModels = ['auto', 'nano_banana', 'seedream', 'nano_banana_pro', 'seedream_5_lite'];
     const validVideoModels = ['veo3_fast'];
+
+    if (requestedImageModel && !validImageModels.includes(requestedImageModel)) {
+      return NextResponse.json(
+        { error: 'Invalid image model' },
+        { status: 400 }
+      );
+    }
 
     if (!validVideoModels.includes(videoModel)) {
       return NextResponse.json(
@@ -203,6 +232,11 @@ export async function POST(request: NextRequest) {
       productImageUrls.push(uploadResult.publicUrl);
     }
 
+    const actualImageModel = requestedImageModel
+      ? getActualImageModel(
+          requestedImageModel as 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' | 'seedream_5_lite'
+        )
+      : NON_AGENT_IMAGE_MODEL;
     const resolvedVideoModel = 'veo3_fast' as const;
 
     const sceneUnitSeconds = 8;
@@ -214,6 +248,7 @@ export async function POST(request: NextRequest) {
 
     // Create project in database
     const supabase = getSupabaseAdmin();
+    // Schema verified via Supabase MCP (2026-02-27): avatar_ads_projects includes image_model and nullable image_size.
     const projectInsert: Record<string, unknown> = {
       user_id: userId,
       person_image_urls: personImageUrls,
@@ -221,9 +256,10 @@ export async function POST(request: NextRequest) {
       selected_product_id: selectedProductId && !selectedProductId.startsWith('temp') ? selectedProductId : null,
       product_context: productContext,
       video_duration_seconds: videoDurationSeconds,
-      image_model: NON_AGENT_IMAGE_MODEL,
+      image_model: actualImageModel,
       video_model: resolvedVideoModel,
       video_aspect_ratio: normalizedAspectRatio,
+      image_size: enforcedImageSize,
       custom_dialogue: customDialogue || null,
       language: language, // Language for AI-generated content
       credits_cost: totalCredits,

@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
       // Get project info and all segments
       const { data: project } = await supabase
         .from('competitor_ugc_replication_projects')
-        .select('id, segment_count, is_segmented, status, fal_merge_task_id, video_aspect_ratio')
+        .select('id, segment_count, is_segmented, status, fal_merge_task_id, video_aspect_ratio, selected_inputs')
         .eq('id', segment.project_id)
         .single();
 
@@ -228,6 +228,29 @@ export async function POST(request: NextRequest) {
 
             console.log(`✅ [UGC Video Webhook] Single segment project ${segment.project_id} completed without merge`);
           } else {
+            const selectedInputs = (project.selected_inputs && typeof project.selected_inputs === 'object')
+              ? project.selected_inputs as Record<string, unknown>
+              : null;
+            const workflowSource = typeof selectedInputs?.workflowSource === 'string' ? selectedInputs.workflowSource : '';
+            const mergePolicy = typeof selectedInputs?.mergePolicy === 'string' ? selectedInputs.mergePolicy : '';
+            const requireManualMerge = workflowSource === 'project_agent_clone' && mergePolicy === 'manual_confirm';
+
+            if (requireManualMerge) {
+              await supabase
+                .from('competitor_ugc_replication_projects')
+                .update({
+                  status: 'awaiting_merge',
+                  current_step: 'awaiting_merge',
+                  progress_percentage: 90,
+                  fal_merge_task_id: null,
+                  last_processed_at: new Date().toISOString()
+                })
+                .eq('id', segment.project_id);
+
+              console.log(`✅ [UGC Video Webhook] Project ${segment.project_id} is awaiting manual merge confirmation`);
+              return NextResponse.json({ success: true, message: 'Awaiting manual merge confirmation' }, { status: 200 });
+            }
+
             // Multiple segments: auto-start merge as soon as all segment videos are ready.
             if (project.fal_merge_task_id) {
               console.log(`ℹ️ [UGC Video Webhook] Merge already started for project ${segment.project_id}: ${project.fal_merge_task_id}`);

@@ -497,12 +497,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const segmentStatus = buildSegmentStatusPayload(allSegments as CompetitorUgcReplicationSegment[], project.merged_video_url || null);
 
+    const projectUpdates: Record<string, unknown> = {
+      segment_status: segmentStatus,
+      last_processed_at: now
+    };
+
+    if (shouldRegenerateVideo) {
+      projectUpdates.status = 'processing';
+      projectUpdates.current_step = 'generating_segment_videos';
+      projectUpdates.progress_percentage = 70;
+    } else if (shouldRegeneratePhoto) {
+      projectUpdates.status = 'processing';
+      projectUpdates.current_step = 'generating_segment_frames';
+      projectUpdates.progress_percentage = 35;
+    }
+
     await supabase
       .from('competitor_ugc_replication_projects')
-      .update({
-        segment_status: segmentStatus,
-        last_processed_at: now
-      })
+      .update(projectUpdates)
       .eq('id', projectId);
 
     const updatedSegment = (allSegments as CompetitorUgcReplicationSegment[]).find(seg => seg.segment_index === index);
