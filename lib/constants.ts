@@ -30,6 +30,7 @@ export type HighResResolution = '720p' | keyof typeof HIGH_RES_DOWNLOAD_COSTS;
 export const IMAGE_MODELS = {
   'nano_banana': 'google/nano-banana-edit',
   'seedream': 'bytedance/seedream-v4-edit',
+  'seedream_5_lite': 'seedream/5-lite-image-to-image',
   'nano_banana_pro': 'nano-banana-pro'
 } as const
 
@@ -247,13 +248,18 @@ export function getAutoImageModeSelection(): 'nano_banana' | 'seedream' {
 
 // Check if user has sufficient credits for an image model (always true since free)
  
-export function canAffordImageModel(_userCredits: number, _model: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro'): boolean {
+export function canAffordImageModel(
+  _userCredits: number,
+  _model: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' | 'seedream_5_lite'
+): boolean {
   // All image models are free, so always affordable
   return true
 }
 
 // Get the actual image model that will be used (resolves auto to specific model)
-export function getActualImageModel(selectedModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro'): 'nano_banana' | 'seedream' | 'nano_banana_pro' {
+export function getActualImageModel(
+  selectedModel: 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' | 'seedream_5_lite'
+): 'nano_banana' | 'seedream' | 'nano_banana_pro' | 'seedream_5_lite' {
   if (selectedModel === 'auto') {
     return getAutoImageModeSelection()
   }

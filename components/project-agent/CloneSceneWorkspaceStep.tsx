@@ -60,6 +60,7 @@ type WorkspacePhase =
   | 'generating_frames'
   | 'reviewing_frames'
   | 'generating_videos'
+  | 'awaiting_merge'
   | 'merging'
   | 'completed'
   | 'failed';
@@ -257,6 +258,7 @@ export default function CloneSceneWorkspaceStep({
     if (phase === 'generating_frames') return 'Frame generation in progress.';
     if (phase === 'reviewing_frames') return 'Review frame results and refine prompts if needed.';
     if (phase === 'generating_videos') return 'Video generation in progress for each scene.';
+    if (phase === 'awaiting_merge') return 'All scene videos are ready. You can keep regenerating scene frame/video, then confirm merge in chat.';
     if (phase === 'merging') return 'Merging scene videos...';
     if (phase === 'completed') return 'Generation completed.';
     if (phase === 'failed') return 'Generation encountered an issue.';

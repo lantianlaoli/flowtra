@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate models
-    const validImageModels = ['auto', 'nano_banana', 'seedream', 'nano_banana_pro'];
+    const validImageModels = ['auto', 'nano_banana', 'seedream', 'nano_banana_pro', 'seedream_5_lite'];
     const validVideoModels = ['veo3_fast'];
 
     if (!validImageModels.includes(imageModel)) {
@@ -222,7 +222,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert 'auto' values to actual models using constants
-    const actualImageModel = getActualImageModel(imageModel as 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro');
+    const actualImageModel = getActualImageModel(
+      imageModel as 'auto' | 'nano_banana' | 'seedream' | 'nano_banana_pro' | 'seedream_5_lite'
+    );
     const resolvedVideoModel = 'veo3_fast' as const;
 
     const sceneUnitSeconds = 8;

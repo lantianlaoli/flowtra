@@ -21,7 +21,7 @@ type MentionOption = {
 type CloneMergedVideoReviewStepProps = {
   execution: {
     projectId: string;
-    phase: 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'merging' | 'completed' | 'failed';
+    phase: 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'awaiting_merge' | 'merging' | 'completed' | 'failed';
     mergedVideoUrl?: string | null;
     segments?: CloneExecutionSegment[];
   };

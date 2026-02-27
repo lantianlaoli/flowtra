@@ -504,6 +504,14 @@ function getImageModelParameters(model: string, customImageSize?: string, videoA
       output_format: "png",
       ...(ratio ? { image_size: ratio } : {})
     };
+  } else if (model === IMAGE_MODELS.seedream_5_lite || model === 'seedream_5_lite') {
+    // Seedream 5 Lite parameters (seedream/5-lite-image-to-image)
+    // Docs: docs/kie/seedream_5_lite.md
+    const ratio = mapUiToRatio(customImageSize, videoAspectRatio) || '1:1';
+    return {
+      aspect_ratio: ratio,
+      quality: 'basic'
+    };
   } else if (model === IMAGE_MODELS.seedream || model === 'seedream' || model.includes('seedream')) {
     // Seedream V4 parameters (bytedance/seedream-v4-edit)
     let imageSize = customImageSize;
@@ -543,10 +551,11 @@ async function generateImageWithKIE(
 
   // Determine if using Nano Banana Pro (for image_input field vs image_urls)
   const isNanoBananaPro = imageModel === 'nano-banana-pro' || imageModel === 'nano_banana_pro';
+  const isSeedream5Lite = imageModel === IMAGE_MODELS.seedream_5_lite || imageModel === 'seedream_5_lite';
 
   // Handle prompt: for Pro, we need string. For others, we kept JSON stringified object.
   let promptValue: string;
-  if (isNanoBananaPro) {
+  if (isNanoBananaPro || isSeedream5Lite) {
     // Extract simple string from prompt object if present
     if (prompt && typeof prompt.image_prompt === 'string') {
        promptValue = prompt.image_prompt;
@@ -569,12 +578,22 @@ async function generateImageWithKIE(
     model: imageModel,
     input: {
       prompt: promptValue,
-      // Use image_input for Pro, image_urls for others
+      // Use image_input for Nano Banana Pro, image_urls for others (including Seedream 5 Lite)
       ...(isNanoBananaPro ? { image_input: referenceImages } : { image_urls: referenceImages }),
       ...modelParams  // Spread the model-specific parameters
     },
     ...(callBackUrl && { callBackUrl }) // Add callBackUrl only if NEXT_PUBLIC_SITE_URL is set
   };
+
+  const payloadInput = payload.input as Record<string, unknown>;
+  console.log('[generateImageWithKIE] Request payload summary:', {
+    model: payload.model,
+    inputFields: Object.keys(payloadInput),
+    usesImageInput: Object.prototype.hasOwnProperty.call(payloadInput, 'image_input'),
+    usesImageUrls: Object.prototype.hasOwnProperty.call(payloadInput, 'image_urls'),
+    aspect_ratio: payloadInput.aspect_ratio ?? null,
+    quality: payloadInput.quality ?? null
+  });
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
