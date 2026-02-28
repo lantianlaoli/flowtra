@@ -10,6 +10,7 @@ import {
   type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
 import { getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
+import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 
 /**
  * POST /api/competitor-ugc-replication/[id]/segments/[segmentIndex]/generate-video
@@ -200,6 +201,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   } catch (error) {
     console.error('[Manual Video Trigger] Error:', error);
+    const klingResponse = getKlingPromptValidationResponse(error);
+    if (klingResponse) {
+      return NextResponse.json(
+        { error: klingResponse.error },
+        { status: klingResponse.status }
+      );
+    }
+
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Failed to start video generation',

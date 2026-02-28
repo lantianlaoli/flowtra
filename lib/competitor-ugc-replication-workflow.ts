@@ -29,6 +29,12 @@ import {
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import { compilePromptForExecution } from '@/lib/competitor-ugc-replication-prompt-compiler';
+import {
+  KLING_PROMPT_MAX_CHARS,
+  KLING_PROMPT_SOFT_TARGET,
+  buildKlingPromptSections,
+  fitKlingPromptWithinLimit
+} from '@/lib/kling-prompt-budget';
 
 async function retryAsync<T>(fn: () => Promise<T>, options?: { maxAttempts?: number; baseDelayMs?: number; label?: string }): Promise<T> {
   const attempts = options?.maxAttempts && options.maxAttempts > 0 ? options.maxAttempts : 3;
@@ -171,6 +177,15 @@ type CloneReferenceAssets = {
   productName?: string | null;
 };
 
+export type CloneReferenceSourceType = 'competitor_ad' | 'creator_source_video';
+
+export type CloneModeResolution = {
+  isCloneMode: boolean;
+  sourceType: CloneReferenceSourceType | null;
+  mediaType: 'video' | null;
+  sourceId: string | null;
+};
+
 const normalizeSelectedIds = (
   primaryId: string | null | undefined,
   ids: string[] | undefined,
@@ -190,6 +205,66 @@ const normalizeSelectedIds = (
   }
   return normalized;
 };
+
+const normalizeReferenceSourceType = (value: unknown): CloneReferenceSourceType | null => {
+  if (value === 'competitor_ad' || value === 'creator_source_video') {
+    return value;
+  }
+  return null;
+};
+
+const normalizeReferenceMediaType = (value: unknown): 'video' | null => {
+  return value === 'video' ? 'video' : null;
+};
+
+const normalizeReferenceSourceId = (value: unknown): string | null => {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+};
+
+export function resolveCloneModeFromProject(project: SingleVideoProject | Record<string, unknown> | null | undefined): CloneModeResolution {
+  const projectRecord = project && typeof project === 'object'
+    ? project as Record<string, unknown>
+    : null;
+  const selectedInputs =
+    projectRecord?.selected_inputs && typeof projectRecord.selected_inputs === 'object'
+      ? projectRecord.selected_inputs as Record<string, unknown>
+      : null;
+
+  const sourceType = normalizeReferenceSourceType(selectedInputs?.referenceSourceType);
+  const mediaType = normalizeReferenceMediaType(selectedInputs?.referenceSourceMediaType);
+  const sourceId = normalizeReferenceSourceId(selectedInputs?.referenceSourceId);
+  const isCloneFlag = selectedInputs?.isCloneMode === true;
+
+  if (isCloneFlag || mediaType === 'video') {
+    return {
+      isCloneMode: true,
+      sourceType,
+      mediaType: 'video',
+      sourceId
+    };
+  }
+
+  const legacyProjectRecord = projectRecord as Record<string, unknown> | null | undefined;
+  const legacyCompetitorAdId = typeof legacyProjectRecord?.competitor_ad_id === 'string' && legacyProjectRecord.competitor_ad_id.trim().length > 0
+    ? legacyProjectRecord.competitor_ad_id.trim()
+    : null;
+
+  if (legacyCompetitorAdId) {
+    return {
+      isCloneMode: true,
+      sourceType: sourceType || 'competitor_ad',
+      mediaType: 'video',
+      sourceId: sourceId || legacyCompetitorAdId
+    };
+  }
+
+  return {
+    isCloneMode: false,
+    sourceType,
+    mediaType,
+    sourceId
+  };
+}
 
 export type SerializedSegmentPlan = {
   segments: Array<SerializedSegmentPlanSegment>;
@@ -1343,6 +1418,24 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         : null,
     };
 
+    const cloneReferenceSource = request.competitorAdId
+      ? {
+          referenceSourceType: 'competitor_ad' as const,
+          referenceSourceMediaType: 'video' as const,
+          referenceSourceId: request.competitorAdId,
+          isCloneMode: true
+        }
+      : request.creatorSourceVideoId
+        ? {
+            referenceSourceType: 'creator_source_video' as const,
+            referenceSourceMediaType: 'video' as const,
+            referenceSourceId: request.creatorSourceVideoId,
+            isCloneMode: true
+          }
+        : {
+            isCloneMode: false
+          };
+
     const projectInsertWithSelectedInputs = {
       ...projectInsertBase,
       selected_inputs: {
@@ -1351,7 +1444,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
         productIds: cloneReferenceAssets.selectedProductIds || [],
         workflowSource: request.requestSource || 'default',
-        mergePolicy: request.requestSource === 'project_agent_clone' ? 'manual_confirm' : 'auto'
+        mergePolicy: request.requestSource === 'project_agent_clone' ? 'manual_confirm' : 'auto',
+        ...cloneReferenceSource
       }
     };
 
@@ -3208,6 +3302,7 @@ type FrameGenerationOverrides = {
   aspectRatioOverride?: string;
   resolutionOverride?: '1K' | '2K' | '4K';
   characterPhotoUrls?: string[] | null;
+  usePromptAsIs?: boolean;
 };
 
 async function createFrameFromImage(
@@ -3352,6 +3447,76 @@ export async function createSmartSegmentFrame(
 
   // 🎯 COMPETITOR CLONE MODE: Direct text-to-image shortcut
   const isCompetitorCloneMode = competitorFileType === 'video';
+  const usesContinuationReference = Boolean(
+    continuationReferenceUrl && frameType === 'first' && promptForProvider.is_continuation_from_prev
+  );
+  const usePromptAsIs = Boolean(overrides?.usePromptAsIs && frameType === 'first');
+
+  if (usePromptAsIs) {
+    const frameDescription = resolveFrameDescription(promptForProvider, frameType);
+    const imageModel = NON_AGENT_IMAGE_MODEL;
+    const characterPhotos = Array.isArray(overrides?.characterPhotoUrls)
+      ? overrides.characterPhotoUrls.filter(url => typeof url === 'string' && url.length > 0)
+      : [];
+    const normalizedProductImages = Array.isArray(productImageUrls)
+      ? productImageUrls.filter(url => typeof url === 'string' && url.length > 0)
+      : [];
+    const imageInput = Array.from(
+      new Set([
+        ...(usesContinuationReference && continuationReferenceUrl ? [continuationReferenceUrl] : []),
+        ...characterPhotos,
+        ...(brandLogoUrl ? [brandLogoUrl] : []),
+        ...normalizedProductImages
+      ])
+    );
+
+    console.log('[Frame Routing]', {
+      segmentIndex,
+      frameType,
+      isCloneMode: isCompetitorCloneMode,
+      referenceSourceType: isCompetitorCloneMode ? 'video' : null,
+      usesContinuationReference,
+      imageInputCount: imageInput.length,
+      usePromptAsIs: true
+    });
+
+    const requestPayload = {
+      model: imageModel,
+      input: {
+        prompt: frameDescription,
+        ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
+        aspect_ratio: overrides?.aspectRatioOverride || aspectRatio,
+        resolution: overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION,
+        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
+      },
+      callBackUrl: FRAME_WEBHOOK_URL
+    };
+
+    console.log('   - 📤 Manual frame regeneration using raw prompt');
+    console.log(`   - Prompt: ${frameDescription.substring(0, 100)}...`);
+    console.log(`   - 📤 image_input URLs:`, imageInput);
+    console.log(`   - 📤 Full KIE API request payload:`, JSON.stringify(requestPayload, null, 2));
+
+    const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestPayload)
+    }, 5, 30000);
+
+    if (!response.ok) {
+      throw new Error(`Manual raw-prompt frame generation failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.code !== 200) {
+      throw new Error(data.msg || 'Failed to generate frame from raw prompt');
+    }
+
+    return data.data.taskId;
+  }
 
   if (isCompetitorCloneMode) {
     console.log(`🎨 Competitor clone mode detected: Using direct text-to-image`);
@@ -3364,9 +3529,7 @@ export async function createSmartSegmentFrame(
     const imageInput: string[] = [];
 
     // 1. Continuation reference (for segment continuity)
-    const shouldUseContinuation = Boolean(
-      continuationReferenceUrl && frameType === 'first' && promptForProvider.is_continuation_from_prev
-    );
+    const shouldUseContinuation = usesContinuationReference;
     if (shouldUseContinuation && continuationReferenceUrl) {
       imageInput.push(continuationReferenceUrl);
       console.log(`   - 🔗 Continuation mode: Using previous segment's first frame as reference`);
@@ -3390,6 +3553,14 @@ export async function createSmartSegmentFrame(
       console.log(`   - 📦 Product references: Using ${normalizedProductImages.length} product photo(s)`);
     }
 
+    console.log('[Frame Routing]', {
+      segmentIndex,
+      frameType,
+      isCloneMode: true,
+      referenceSourceType: 'video',
+      usesContinuationReference,
+      imageInputCount: imageInput.length
+    });
     console.log(`   - Prompt: ${frameDescription.substring(0, 100)}...`);
     console.log(`   - 📤 Sending to KIE API - image_input count: ${imageInput.length}`);
     console.log(`   - 📤 image_input URLs:`, imageInput);
@@ -3438,9 +3609,7 @@ export async function createSmartSegmentFrame(
   const hasBrandLogo = Boolean(brandLogoUrl);
   const isBrandShot = !hasProductImages && hasBrandLogo;
 
-  const shouldUseContinuationReference = Boolean(
-    continuationReferenceUrl && frameType === 'first' && promptForProvider.is_continuation_from_prev
-  );
+  const shouldUseContinuationReference = usesContinuationReference;
   const continuationReferences: string[] = shouldUseContinuationReference && continuationReferenceUrl
     ? [continuationReferenceUrl]
     : [];
@@ -3466,6 +3635,15 @@ export async function createSmartSegmentFrame(
       ...normalizedProductImages
     ])
   );
+
+  console.log('[Frame Routing]', {
+    segmentIndex,
+    frameType,
+    isCloneMode: false,
+    referenceSourceType: null,
+    usesContinuationReference: shouldUseContinuationReference,
+    imageInputCount: combinedReferenceImages.length
+  });
 
   if (combinedReferenceImages.length > 0) {
     console.log(`   ✅ Using Image-to-Image with ${combinedReferenceImages.length} reference(s)`);
@@ -3625,7 +3803,7 @@ type NormalizedVideoShot = {
   camera_motion_positioning: string;
 };
 
-type KlingMentionType = 'character' | 'product';
+type KlingMentionType = 'character' | 'product' | 'unknown';
 
 type KlingMention = {
   type: KlingMentionType;
@@ -3639,7 +3817,8 @@ type KlingElement = {
   element_input_urls: string[];
 };
 
-const MENTION_REGEX = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
+const MENTION_REGEX = /@(?<type>character|product)\s*\((?<name>[^)]*)\)/g;
+const PLAIN_AT_REFERENCE_REGEX = /@(?<name>[a-z0-9][a-z0-9_-]*)/gi;
 const KLING_SHOT_MIN_DURATION_SECONDS = 1;
 const KLING_SHOT_MAX_DURATION_SECONDS = 12;
 
@@ -3724,6 +3903,18 @@ function collectKlingMentions(texts: string[]): KlingMention[] {
         map.set(key, { type, name, key });
       }
     }
+    for (const match of text.matchAll(PLAIN_AT_REFERENCE_REGEX)) {
+      const name = (match.groups?.name || '').trim();
+      if (!name) continue;
+      const lowered = name.toLowerCase();
+      if (lowered === 'character' || lowered === 'product' || lowered.startsWith('element_')) {
+        continue;
+      }
+      const key = `unknown:${lowered}`;
+      if (!map.has(key)) {
+        map.set(key, { type: 'unknown', name, key });
+      }
+    }
   });
   return Array.from(map.values());
 }
@@ -3736,21 +3927,10 @@ function slugifyElementName(value: string): string {
     .slice(0, 24) || 'asset';
 }
 
-function buildShortStableToken(value: string): string {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = ((hash << 5) - hash + value.charCodeAt(i)) >>> 0;
-  }
-  return hash.toString(36).slice(0, 4).padEnd(4, '0');
-}
-
-function buildKlingElementName(rawName: string, mentionKey: string, usedNames: Set<string>): string {
-  const MAX_LEN = 20;
-  const stableToken = buildShortStableToken(mentionKey.toLowerCase());
+function buildKlingElementName(rawName: string, _mentionKey: string, usedNames: Set<string>): string {
+  const MAX_LEN = 24;
   const slug = slugifyElementName(rawName).replace(/^element_+/, '') || 'asset';
-  const suffix = `_${stableToken}`;
-  const headLen = Math.max(1, MAX_LEN - suffix.length);
-  let candidate = `${slug.slice(0, headLen)}${suffix}`;
+  let candidate = `element_${slug}`.slice(0, MAX_LEN);
 
   if (!usedNames.has(candidate)) {
     return candidate;
@@ -3759,7 +3939,7 @@ function buildKlingElementName(rawName: string, mentionKey: string, usedNames: S
   for (let i = 2; i < 200; i++) {
     const dedupeSuffix = `_${i.toString(36)}`;
     const baseLen = Math.max(1, MAX_LEN - dedupeSuffix.length);
-    candidate = `${candidate.slice(0, baseLen)}${dedupeSuffix}`;
+    candidate = `${`element_${slug}`.slice(0, baseLen)}${dedupeSuffix}`;
     if (!usedNames.has(candidate)) {
       return candidate;
     }
@@ -3768,33 +3948,45 @@ function buildKlingElementName(rawName: string, mentionKey: string, usedNames: S
   return candidate.slice(0, MAX_LEN);
 }
 
-function optimizeKlingPromptText(text: string): string {
-  if (!text) return text;
-  return text
-    .split('\n')
-    .map(line =>
-      line
-        .replace(/[ \t]{2,}/g, ' ')
-        .replace(/\.{2,}/g, '.')
-        .trim()
-    )
-    .filter((line, index, arr) => !(line === '' && arr[index - 1] === ''))
-    .join('\n')
-    .trim();
+function extractUnresolvedKlingReferences(text: string): string[] {
+  const references = new Set<string>();
+
+  for (const match of text.matchAll(MENTION_REGEX)) {
+    references.add(match[0]);
+  }
+
+  const shorthandMatches = text.match(/@(character|product)\b/g) || [];
+  shorthandMatches.forEach(match => references.add(match));
+
+  return Array.from(references);
 }
 
-function replacePromptMentions(text: string, tokenMap: Record<string, string>): string {
+function replacePromptMentions(
+  text: string,
+  tokenMap: Record<string, string>,
+  plainTokenMap: Record<string, string>
+): string {
   if (!text) return text;
-  return text.replace(MENTION_REGEX, (_, type: string, name: string) => {
+  const typedReplaced = text.replace(MENTION_REGEX, (_, type: string, name: string) => {
     const key = `${type}:${String(name || '').trim().toLowerCase()}`;
     const mapped = tokenMap[key];
-    // If mention cannot be mapped to kling_elements, degrade to plain text
-    // to avoid Kling failing on unresolved @element references.
     return mapped ? `@${mapped}` : String(name || '').trim();
+  });
+  return typedReplaced.replace(PLAIN_AT_REFERENCE_REGEX, (match, name: string) => {
+    const lowered = String(name || '').trim().toLowerCase();
+    if (!lowered || lowered.startsWith('element_') || lowered === 'character' || lowered === 'product') {
+      return match;
+    }
+    const mapped = plainTokenMap[lowered];
+    return mapped ? `@${mapped}` : match;
   });
 }
 
-function collectElementKeysFromText(text: string, tokenMap: Record<string, string>): string[] {
+function collectElementKeysFromText(
+  text: string,
+  tokenMap: Record<string, string>,
+  plainTokenMap: Record<string, string>
+): string[] {
   if (!text) return [];
   const tags: string[] = [];
   for (const match of text.matchAll(MENTION_REGEX)) {
@@ -3806,14 +3998,26 @@ function collectElementKeysFromText(text: string, tokenMap: Record<string, strin
       tags.push(`@${mapped}`);
     }
   }
+  for (const match of text.matchAll(PLAIN_AT_REFERENCE_REGEX)) {
+    const name = (match.groups?.name || '').trim().toLowerCase();
+    if (!name || name.startsWith('element_') || name === 'character' || name === 'product') continue;
+    const mapped = plainTokenMap[name];
+    if (mapped) {
+      tags.push(`@${mapped}`);
+    }
+  }
   return tags;
 }
 
-function collectElementTagsFromTexts(texts: string[], tokenMap: Record<string, string>): string[] {
+function collectElementTagsFromTexts(
+  texts: string[],
+  tokenMap: Record<string, string>,
+  plainTokenMap: Record<string, string>
+): string[] {
   const seen = new Set<string>();
   const ordered: string[] = [];
   for (const text of texts) {
-    const tags = collectElementKeysFromText(text, tokenMap);
+    const tags = collectElementKeysFromText(text, tokenMap, plainTokenMap);
     for (const tag of tags) {
       if (!seen.has(tag)) {
         seen.add(tag);
@@ -3824,33 +4028,12 @@ function collectElementTagsFromTexts(texts: string[], tokenMap: Record<string, s
   return ordered;
 }
 
-function appendTrailingElementTags(basePrompt: string, tags: string[], maxChars = 2500): string {
-  if (!tags.length) {
-    return truncateText(optimizeKlingPromptText(basePrompt), maxChars);
-  }
-
-  const trailing = tags.join(' ');
-  const optimizedBasePrompt = optimizeKlingPromptText(basePrompt);
-  if (optimizedBasePrompt.length + 1 + trailing.length <= maxChars) {
-    return `${optimizedBasePrompt}\n${trailing}`;
-  }
-
-  const allowedBaseLen = Math.max(0, maxChars - 1 - trailing.length);
-  const trimmedBase = truncateText(optimizedBasePrompt, allowedBaseLen);
-  if (trimmedBase.length + 1 + trailing.length <= maxChars) {
-    return `${trimmedBase}\n${trailing}`;
-  }
-
-  const allowedTrailingLen = Math.max(0, maxChars - 1 - trimmedBase.length);
-  return `${trimmedBase}\n${trailing.slice(0, allowedTrailingLen)}`.trim();
-}
-
 async function buildKlingElementsFromMentions(
   userId: string,
   mentions: KlingMention[]
-): Promise<{ elements: KlingElement[]; tokenMap: Record<string, string>; skippedMentions: KlingMention[] }> {
+): Promise<{ elements: KlingElement[]; tokenMap: Record<string, string>; plainTokenMap: Record<string, string>; skippedMentions: KlingMention[] }> {
   if (!mentions.length) {
-    return { elements: [], tokenMap: {}, skippedMentions: [] };
+    return { elements: [], tokenMap: {}, plainTokenMap: {}, skippedMentions: [] };
   }
 
   const mentionNames = Array.from(new Set(mentions.map(mention => mention.name.toLowerCase())));
@@ -3907,8 +4090,14 @@ async function buildKlingElementsFromMentions(
   const productsByName = new Map(
     products.map(product => [(product.product_name || '').toLowerCase(), product])
   );
+  const productsBySlug = new Map(
+    products.map(product => [slugifyElementName(product.product_name || ''), product])
+  );
   const avatarsByName = new Map(
     avatars.map(avatar => [(avatar.avatar_name || '').toLowerCase(), avatar])
+  );
+  const avatarsBySlug = new Map(
+    avatars.map(avatar => [slugifyElementName(avatar.avatar_name || ''), avatar])
   );
 
   const collectAvatarUrls = (avatar: Record<string, unknown> | undefined): string[] => {
@@ -3958,13 +4147,20 @@ async function buildKlingElementsFromMentions(
   };
 
   const tokenMap: Record<string, string> = {};
+  const plainTokenMap: Record<string, string> = {};
   const elements: KlingElement[] = [];
   const usedElementNames = new Set<string>();
   const skippedMentions: KlingMention[] = [];
 
   mentions.forEach((mention) => {
-    const product = mention.type === 'product' ? productsByName.get(mention.name.toLowerCase()) : undefined;
-    const avatar = mention.type === 'character' ? avatarsByName.get(mention.name.toLowerCase()) : undefined;
+    const mentionNameLower = mention.name.toLowerCase();
+    const mentionNameSlug = slugifyElementName(mention.name);
+    const product = mention.type === 'character'
+      ? undefined
+      : (productsByName.get(mentionNameLower) || productsBySlug.get(mentionNameSlug));
+    const avatar = mention.type === 'product'
+      ? undefined
+      : (avatarsByName.get(mentionNameLower) || avatarsBySlug.get(mentionNameSlug));
 
     const productUrls = product?.user_product_photos
       ? [
@@ -3988,6 +4184,8 @@ async function buildKlingElementsFromMentions(
     const elementName = buildKlingElementName(mention.name, mention.key, usedElementNames);
     usedElementNames.add(elementName);
     tokenMap[mention.key] = elementName;
+    plainTokenMap[mentionNameLower] = elementName;
+    plainTokenMap[mentionNameSlug] = elementName;
 
     elements.push({
       name: elementName,
@@ -3999,42 +4197,25 @@ async function buildKlingElementsFromMentions(
     });
   });
 
-  return { elements, tokenMap, skippedMentions };
+  return { elements, tokenMap, plainTokenMap, skippedMentions };
 }
+
+type KlingPromptBuildResult = {
+  prompt: string;
+  originalLength: number;
+  finalLength: number;
+  wasCompressed: boolean;
+  tagCount: number;
+};
 
 function buildKlingShotPrompt(
   segmentPrompt: SegmentPrompt,
   shot: NormalizedVideoShot,
   shotIndex: number,
   tokenMap: Record<string, string>,
+  plainTokenMap: Record<string, string>,
   replaceMention: (text: string) => string
-): string {
-  const shotParts: string[] = [];
-  if (shot.action) shotParts.push(shot.action);
-  if (shot.subject) shotParts.push(`Subject: ${shot.subject}`);
-  if (shot.dialogue) shotParts.push(`Dialogue: ${shot.dialogue}`);
-  if (shot.style) shotParts.push(`Style: ${shot.style}`);
-  if (shot.composition) shotParts.push(`Composition: ${shot.composition}`);
-  if (shot.context_environment) shotParts.push(`Environment: ${shot.context_environment}`);
-  if (shot.ambiance_colour_lighting) shotParts.push(`Lighting: ${shot.ambiance_colour_lighting}`);
-  if (shot.camera_motion_positioning) shotParts.push(`Camera: ${shot.camera_motion_positioning}`);
-  if (shot.audio) shotParts.push(`Audio: ${shot.audio}`);
-
-  const headerParts: string[] = [];
-  if (shot.time_range) {
-    headerParts.push(`Time range: ${shot.time_range}`);
-  }
-  if (shotIndex === 0 && segmentPrompt.first_frame_description) {
-    headerParts.push(`Opening frame: ${segmentPrompt.first_frame_description}`);
-  }
-
-  const merged = [
-    `Shot ${shotIndex + 1}`,
-    ...headerParts,
-    shotParts.join('. ')
-  ]
-    .filter(Boolean)
-    .join('\n');
+): KlingPromptBuildResult {
   const trailingTags = collectElementTagsFromTexts([
     shot.action,
     shot.subject,
@@ -4044,33 +4225,38 @@ function buildKlingShotPrompt(
     shot.style,
     shot.ambiance_colour_lighting,
     shot.camera_motion_positioning,
-    shot.audio,
-    shotIndex === 0 ? segmentPrompt.first_frame_description : ''
-  ].filter(Boolean) as string[], tokenMap);
-  return appendTrailingElementTags(replaceMention(merged), trailingTags, 2500);
+    shot.audio
+  ].filter(Boolean) as string[], tokenMap, plainTokenMap);
+
+  const sections = buildKlingPromptSections({
+    shot
+  });
+
+  const fitted = fitKlingPromptWithinLimit({
+    sections,
+    tags: trailingTags,
+    replaceMention,
+    maxChars: KLING_PROMPT_MAX_CHARS,
+    softTarget: KLING_PROMPT_SOFT_TARGET
+  });
+
+  return {
+    prompt: fitted.finalPrompt,
+    originalLength: fitted.originalLength,
+    finalLength: fitted.finalLength,
+    wasCompressed: fitted.wasCompressed,
+    tagCount: fitted.tagCount
+  };
 }
 
 function buildKlingSinglePrompt(
   segmentPrompt: SegmentPrompt,
   shot: NormalizedVideoShot,
   tokenMap: Record<string, string>,
+  plainTokenMap: Record<string, string>,
   replaceMention: (text: string) => string
-): string {
-  const parts: string[] = [];
-  if (segmentPrompt.first_frame_description) {
-    parts.push(`Opening frame: ${segmentPrompt.first_frame_description}`);
-  }
-  if (shot.subject) parts.push(`Subject: ${shot.subject}`);
-  if (shot.action) parts.push(`Action: ${shot.action}`);
-  if (shot.dialogue) parts.push(`Dialogue: ${shot.dialogue}`);
-  if (shot.style) parts.push(`Style: ${shot.style}`);
-  if (shot.context_environment) parts.push(`Environment: ${shot.context_environment}`);
-  if (shot.composition) parts.push(`Composition: ${shot.composition}`);
-  if (shot.ambiance_colour_lighting) parts.push(`Lighting: ${shot.ambiance_colour_lighting}`);
-  if (shot.camera_motion_positioning) parts.push(`Camera: ${shot.camera_motion_positioning}`);
-  if (shot.audio) parts.push(`Audio: ${shot.audio}`);
+): KlingPromptBuildResult {
   const trailingTags = collectElementTagsFromTexts([
-    segmentPrompt.first_frame_description,
     shot.subject,
     shot.action,
     shot.dialogue,
@@ -4080,8 +4266,27 @@ function buildKlingSinglePrompt(
     shot.ambiance_colour_lighting,
     shot.camera_motion_positioning,
     shot.audio
-  ].filter(Boolean) as string[], tokenMap);
-  return appendTrailingElementTags(replaceMention(parts.join('\n')), trailingTags, 2500);
+  ].filter(Boolean) as string[], tokenMap, plainTokenMap);
+
+  const sections = buildKlingPromptSections({
+    shot
+  });
+
+  const fitted = fitKlingPromptWithinLimit({
+    sections,
+    tags: trailingTags,
+    replaceMention,
+    maxChars: KLING_PROMPT_MAX_CHARS,
+    softTarget: KLING_PROMPT_SOFT_TARGET
+  });
+
+  return {
+    prompt: fitted.finalPrompt,
+    originalLength: fitted.originalLength,
+    finalLength: fitted.finalLength,
+    wasCompressed: fitted.wasCompressed,
+    tagCount: fitted.tagCount
+  };
 }
 
 function allocateKlingShotDurations(totalDuration: number, shotCount: number): number[] {
@@ -4106,9 +4311,10 @@ function buildKlingMultiPrompt(
   segmentPrompt: SegmentPrompt,
   normalizedShots: NormalizedVideoShot[],
   tokenMap: Record<string, string>,
+  plainTokenMap: Record<string, string>,
   replaceMention: (text: string) => string,
   totalDuration: number
-): Array<{ prompt: string; duration: number }> {
+): Array<{ prompt: string; duration: number; originalLength: number; finalLength: number; wasCompressed: boolean; tagCount: number }> {
   const sourceShots = normalizedShots.length > 0 ? normalizedShots : [
     {
       time_range: `00:00 - ${formatTimecode(totalDuration)}`,
@@ -4147,7 +4353,7 @@ function buildKlingMultiPrompt(
 
   const shotDurations = allocateKlingShotDurations(totalDuration, desiredShotCount);
   return mergedShots.map((shot, index) => ({
-    prompt: buildKlingShotPrompt(segmentPrompt, shot, index, tokenMap, replaceMention),
+    ...buildKlingShotPrompt(segmentPrompt, shot, index, tokenMap, plainTokenMap, replaceMention),
     duration: shotDurations[index]
   }));
 }
@@ -4164,7 +4370,6 @@ async function startSegmentVideoTaskKling(
 ): Promise<string> {
   const boundedDuration = Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_TASK_DURATION_SECONDS, taskDuration));
   const mentionSourceTexts = [
-    segmentPrompt.first_frame_description,
     segmentPrompt.action,
     segmentPrompt.subject,
     segmentPrompt.dialogue,
@@ -4187,8 +4392,8 @@ async function startSegmentVideoTaskKling(
   ].filter(Boolean) as string[];
 
   const mentions = collectKlingMentions(mentionSourceTexts);
-  const { elements, tokenMap, skippedMentions } = await buildKlingElementsFromMentions(project.user_id, mentions);
-  const replaceMention = (text: string) => replacePromptMentions(text, tokenMap);
+  const { elements, tokenMap, plainTokenMap, skippedMentions } = await buildKlingElementsFromMentions(project.user_id, mentions);
+  const replaceMention = (text: string) => replacePromptMentions(text, tokenMap, plainTokenMap);
   const hasMultipleShots = normalizedShots.length > 1;
   const primaryShot = normalizedShots[0] || {
     time_range: `00:00 - ${formatTimecode(boundedDuration)}`,
@@ -4204,15 +4409,34 @@ async function startSegmentVideoTaskKling(
     camera_motion_positioning: segmentPrompt.camera_motion_positioning || ''
   };
   const multiPrompt = hasMultipleShots
-    ? buildKlingMultiPrompt(segmentPrompt, normalizedShots, tokenMap, replaceMention, boundedDuration)
+    ? buildKlingMultiPrompt(segmentPrompt, normalizedShots, tokenMap, plainTokenMap, replaceMention, boundedDuration)
     : [];
   const singlePrompt = hasMultipleShots
-    ? ''
-    : buildKlingSinglePrompt(segmentPrompt, primaryShot, tokenMap, replaceMention);
+    ? null
+    : buildKlingSinglePrompt(segmentPrompt, primaryShot, tokenMap, plainTokenMap, replaceMention);
   const hasClosingFrame = Boolean(closingFrameUrl && closingFrameUrl !== firstFrameUrl);
   const imageUrls = hasMultipleShots
     ? [firstFrameUrl]
     : (hasClosingFrame ? [firstFrameUrl, closingFrameUrl as string] : [firstFrameUrl]);
+
+  const unresolvedPromptReferences = hasMultipleShots
+    ? multiPrompt.flatMap(item => extractUnresolvedKlingReferences(item.prompt))
+    : extractUnresolvedKlingReferences(singlePrompt?.prompt || '');
+
+  if (unresolvedPromptReferences.length > 0) {
+    console.error('[Kling Prompt] Unresolved mention references before API call:', {
+      segmentIndex,
+      unresolvedPromptReferences,
+      multiShots: hasMultipleShots,
+      promptPreview: hasMultipleShots
+        ? multiPrompt.map((item, index) => ({
+            shotIndex: index,
+            preview: item.prompt.slice(0, 220)
+          }))
+        : (singlePrompt?.prompt || '').slice(0, 220)
+    });
+    throw new Error(`Kling prompt still contains unresolved references: ${unresolvedPromptReferences.join(', ')}`);
+  }
 
   const requestBody: Record<string, unknown> = {
     model: 'kling-3.0/video',
@@ -4228,9 +4452,9 @@ async function startSegmentVideoTaskKling(
   };
 
   if (hasMultipleShots) {
-    (requestBody.input as Record<string, unknown>).multi_prompt = multiPrompt;
+    (requestBody.input as Record<string, unknown>).multi_prompt = multiPrompt.map(({ prompt, duration }) => ({ prompt, duration }));
   } else {
-    (requestBody.input as Record<string, unknown>).prompt = singlePrompt;
+    (requestBody.input as Record<string, unknown>).prompt = singlePrompt?.prompt || '';
   }
 
   if (elements.length > 0) {
@@ -4249,9 +4473,26 @@ async function startSegmentVideoTaskKling(
     skippedMentionsCount: skippedMentions.length,
     trailingTagMode: 'shot-only',
     inlineAndTrailing: true,
+    promptLimit: KLING_PROMPT_MAX_CHARS,
+    softTarget: KLING_PROMPT_SOFT_TARGET,
+    promptMetrics: hasMultipleShots
+      ? multiPrompt.map((item, index) => ({
+          shotIndex: index,
+          originalLength: item.originalLength,
+          finalLength: item.finalLength,
+          wasCompressed: item.wasCompressed,
+          tagCount: item.tagCount
+        }))
+      : [{
+          shotIndex: 0,
+          originalLength: singlePrompt?.originalLength || 0,
+          finalLength: singlePrompt?.finalLength || 0,
+          wasCompressed: singlePrompt?.wasCompressed || false,
+          tagCount: singlePrompt?.tagCount || 0
+        }],
     trailingTagCounts: hasMultipleShots
-      ? multiPrompt.map(item => (item.prompt.match(/@element_[a-z0-9_]+/g) || []).length)
-      : [(singlePrompt.match(/@element_[a-z0-9_]+/g) || []).length]
+      ? multiPrompt.map(item => (item.prompt.match(/@[a-z0-9_]+/g) || []).length)
+      : [((singlePrompt?.prompt || '').match(/@[a-z0-9_]+/g) || []).length]
   });
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {

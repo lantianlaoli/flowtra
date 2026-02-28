@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
 import { buildSegmentStatusPayload, startSegmentVideoTask, type SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
+import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
 import { mergeVideosWithFal } from '@/lib/video-merge';
 
 export const dynamic = 'force-dynamic';
@@ -371,7 +372,9 @@ export async function POST(request: NextRequest) {
             .from('competitor_ugc_replication_segments')
             .update({
               status: 'failed',
-              error_message: `Retry failed: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`,
+              error_message: isKlingPromptValidationError(retryError)
+                ? (retryError instanceof Error ? retryError.message : 'Kling 3.0 prompt validation failed during retry.')
+                : `Retry failed: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`,
               video_webhook_received_at: new Date().toISOString()
             })
             .eq('id', segment.id);

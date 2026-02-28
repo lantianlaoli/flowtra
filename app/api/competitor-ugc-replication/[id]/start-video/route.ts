@@ -7,6 +7,8 @@ import {
   type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
 import { getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
+import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
+import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import {
   getSupabaseAdmin,
   type CompetitorUgcReplicationSegment,
@@ -116,6 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let inProgressCount = 0;
     let readyCount = 0;
     const startErrors: string[] = [];
+    let promptValidationFailure = false;
 
     if (project.is_segmented && segments.length > 0) {
       const projectModel = (project.video_model ?? null) as VideoModel | null;
@@ -191,6 +194,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           const message = segmentStartError instanceof Error
             ? segmentStartError.message
             : 'Unknown task start error';
+          if (isKlingPromptValidationError(segmentStartError)) {
+            promptValidationFailure = true;
+            await supabase
+              .from('competitor_ugc_replication_segments')
+              .update({
+                status: 'failed',
+                error_message: message,
+                video_webhook_received_at: now,
+                updated_at: now
+              })
+              .eq('id', segment.id);
+          }
           startErrors.push(`Segment ${segmentIndex + 1}: ${message}`);
         }
       }
@@ -237,7 +252,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (project.is_segmented && startedCount === 0 && inProgressCount === 0 && readyCount === 0 && startErrors.length > 0) {
       return NextResponse.json(
         { error: `Failed to start segment video tasks: ${startErrors[0]}` },
-        { status: 500 }
+        { status: promptValidationFailure ? 422 : 500 }
       );
     }
 
@@ -257,6 +272,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
   } catch (error) {
     console.error('start-video API error:', error);
+    const klingResponse = getKlingPromptValidationResponse(error);
+    if (klingResponse) {
+      return NextResponse.json({ error: klingResponse.error }, { status: klingResponse.status });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

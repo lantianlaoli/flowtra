@@ -9,12 +9,14 @@ import {
   startSegmentVideoTask,
   serializeSegmentPrompt,
   hydrateSerializedSegmentPrompt,
+  resolveCloneModeFromProject,
   type SegmentPrompt,
   type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
 import { getGenerationCost, getReplicaPhotoCredits, getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 
 type PatchPayload = {
   prompt?: Partial<SegmentPrompt>;
@@ -103,7 +105,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { data: project, error: projectError } = await supabase
       .from('competitor_ugc_replication_projects')
       .select(
-        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,competitor_ad_id'
+        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,competitor_ad_id,selected_inputs'
       )
       .eq('id', projectId)
       .single();
@@ -151,6 +153,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       ...existingPrompt,
       ...(payload.prompt || {})
     } as SegmentPrompt;
+    const cloneMode = resolveCloneModeFromProject(project as Record<string, unknown>);
     const defaultFrameImageSize = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
     const previousFrameSize = typeof existingPrompt.first_frame_image_size === 'string'
       ? existingPrompt.first_frame_image_size
@@ -259,7 +262,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     };
     const characterPhotoUrls: string[] = [];
     let brandContext: { brand_name: string } | undefined;
-    let competitorFileType: 'video' | 'image' | null = null;
 
     const ensureCredits = async (amount: number, description: string) => {
       if (!projectUserId || amount <= 0) return;
@@ -359,15 +361,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
         console.log('[SEGMENT API] Character photo URLs extracted:', characterPhotoUrls);
       }
-
-      if (project.competitor_ad_id) {
-        const { data: competitor } = await supabase
-          .from('competitor_ads')
-          .select('file_type')
-          .eq('id', project.competitor_ad_id)
-          .single();
-        competitorFileType = competitor?.file_type as 'video' | 'image' | null;
-      }
     };
 
     if (shouldRegeneratePhoto || shouldRegenerateVideo) {
@@ -401,10 +394,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       console.log('[SEGMENT API] Calling createSmartSegmentFrame with:', {
         segmentIndex: index,
         frameType: 'first',
+        isCloneMode: cloneMode.isCloneMode,
+        referenceSourceType: cloneMode.sourceType,
         brandLogoUrl: brandLogoUrl ? 'present' : 'null',
         productImageUrlsCount: productImageUrls.length,
         characterPhotoUrlsCount: characterPhotoUrls.length,
-        characterPhotoUrls
+        characterPhotoUrls,
+        usesContinuationReference: Boolean(continuationReferenceUrl),
+        imageInputCount: productImageUrls.length + characterPhotoUrls.length + (continuationReferenceUrl ? 1 : 0)
       });
 
       const firstFrameTaskId = await createSmartSegmentFrame(
@@ -415,11 +412,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         brandLogoUrl,
         productImageUrls.length ? productImageUrls : null,
         brandContext,
-        competitorFileType === 'video' ? 'video' : null,
+        cloneMode.mediaType,
         {
           aspectRatioOverride: frameImageSize,
           resolutionOverride: '1K',
-          characterPhotoUrls: characterPhotoUrls.length > 0 ? characterPhotoUrls : null
+          characterPhotoUrls: characterPhotoUrls.length > 0 ? characterPhotoUrls : null,
+          usePromptAsIs: true
         },
         continuationReferenceUrl,
         projectModel || undefined
@@ -550,6 +548,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     console.error('Segment update error:', error);
+    const klingResponse = getKlingPromptValidationResponse(error);
+    if (klingResponse) {
+      return NextResponse.json(
+        { error: klingResponse.error },
+        { status: klingResponse.status }
+      );
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to update segment' },
       { status: 500 }
