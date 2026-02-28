@@ -11,6 +11,11 @@ import {
 } from '@/lib/competitor-ugc-replication-workflow';
 import { getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
+import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import {
+  getEffectiveSegmentDurationSeconds,
+  getSegmentPromptVideoGenerationCost
+} from '@/lib/competitor-ugc-segment-billing';
 
 /**
  * POST /api/competitor-ugc-replication/[id]/segments/[segmentIndex]/generate-video
@@ -19,6 +24,11 @@ import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
  * User must approve video generation after reviewing the segment's first frame.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; segmentIndex: string }> }) {
+  let chargedCredits = 0;
+  let chargedUserId: string | null = null;
+  let chargedProjectId: string | null = null;
+  let chargeDescription: string | null = null;
+  let projectGenerationCreditsUsed = 0;
   try {
     // 1. Verify user authentication
     const { userId } = await auth();
@@ -39,7 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { data: project, error: projectError } = await supabase
       .from('competitor_ugc_replication_projects')
       .select(
-        'id,user_id,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_duration,video_quality,language,video_prompts,segment_plan,merged_video_url'
+        'id,user_id,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_duration,video_quality,language,video_prompts,segment_plan,merged_video_url,generation_credits_used'
       )
       .eq('id', projectId)
       .single();
@@ -47,6 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (projectError || !project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+    projectGenerationCreditsUsed = Number(project.generation_credits_used || 0);
 
     if (project.user_id !== userId) {
       return NextResponse.json({ error: 'Forbidden - you do not own this project' }, { status: 403 });
@@ -100,6 +111,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       index,
       segmentDurationSeconds
     );
+    const segmentCost = getSegmentPromptVideoGenerationCost(
+      projectModel || 'veo3_fast',
+      segmentPrompt.shots,
+      segmentDurationSeconds
+    );
+    const effectiveSegmentDurationSeconds = getEffectiveSegmentDurationSeconds(
+      segmentPrompt.shots,
+      segmentDurationSeconds
+    );
 
     console.log(`[Manual Video Trigger] Segment ${index}: Prompt hydrated successfully`);
 
@@ -114,6 +134,69 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url || null;
 
     console.log(`[Manual Video Trigger] Segment ${index}: Using closing frame: ${closingFrameUrl ? 'available' : 'single-frame mode'}`);
+
+    if (segmentCost > 0) {
+      const creditCheck = await checkCredits(userId, segmentCost);
+      if (!creditCheck.success) {
+        return NextResponse.json({ error: creditCheck.error || 'Failed to check credits' }, { status: 500 });
+      }
+      if (!creditCheck.hasEnoughCredits) {
+        return NextResponse.json(
+          { error: `Insufficient credits: need ${segmentCost}, have ${creditCheck.currentCredits || 0}` },
+          { status: 402 }
+        );
+      }
+
+      const deduction = await deductCredits(userId, segmentCost);
+      if (!deduction.success) {
+        return NextResponse.json({ error: deduction.error || 'Failed to deduct credits' }, { status: 500 });
+      }
+
+      chargeDescription = projectModel === 'kling_3'
+        ? `Competitor UGC Replication - Segment ${index + 1} video generation (KLING_3, ${effectiveSegmentDurationSeconds}s)`
+        : `Competitor UGC Replication - Segment ${index + 1} video generation (${String(project.video_model || 'veo3_fast').toUpperCase()})`;
+
+      const transaction = await recordCreditTransaction(
+        userId,
+        'usage',
+        segmentCost,
+        chargeDescription,
+        project.id,
+        true
+      );
+
+      if (!transaction.success) {
+        await deductCredits(userId, -segmentCost);
+        return NextResponse.json({ error: transaction.error || 'Failed to record transaction' }, { status: 500 });
+      }
+
+      const updatedGenerationCreditsUsed = projectGenerationCreditsUsed + segmentCost;
+      const { error: creditsUpdateError } = await supabase
+        .from('competitor_ugc_replication_projects')
+        .update({
+          generation_credits_used: updatedGenerationCreditsUsed,
+          last_processed_at: new Date().toISOString()
+        })
+        .eq('id', projectId);
+
+      if (creditsUpdateError) {
+        await deductCredits(userId, -segmentCost);
+        await recordCreditTransaction(
+          userId,
+          'refund',
+          segmentCost,
+          `${chargeDescription} refund`,
+          project.id,
+          true
+        );
+        return NextResponse.json({ error: 'Failed to persist generation charge' }, { status: 500 });
+      }
+
+      chargedCredits = segmentCost;
+      chargedUserId = userId;
+      chargedProjectId = projectId;
+      projectGenerationCreditsUsed = updatedGenerationCreditsUsed;
+    }
 
     // 9. Start video generation task
     const videoTaskId = await startSegmentVideoTask(
@@ -201,6 +284,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   } catch (error) {
     console.error('[Manual Video Trigger] Error:', error);
+    if (chargedCredits > 0 && chargedUserId && chargedProjectId) {
+      try {
+        await deductCredits(chargedUserId, -chargedCredits);
+        await recordCreditTransaction(
+          chargedUserId,
+          'refund',
+          chargedCredits,
+          `${chargeDescription || 'Competitor UGC Replication - Segment video generation'} refund`,
+          chargedProjectId,
+          true
+        );
+        await getSupabaseAdmin()
+          .from('competitor_ugc_replication_projects')
+          .update({
+            generation_credits_used: Math.max(0, projectGenerationCreditsUsed - chargedCredits)
+          })
+          .eq('id', chargedProjectId);
+      } catch (refundError) {
+        console.error('[Manual Video Trigger] Failed to refund credits after error:', refundError);
+      }
+    }
     const klingResponse = getKlingPromptValidationResponse(error);
     if (klingResponse) {
       return NextResponse.json(

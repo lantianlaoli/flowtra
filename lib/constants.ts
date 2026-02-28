@@ -143,6 +143,21 @@ export function getGenerationCost(
   return GENERATION_COSTS[model] * segments;
 }
 
+export function getSegmentVideoGenerationCost(
+  model: VideoModel,
+  segmentDurationSeconds?: number
+): number {
+  if (model === 'kling_3') {
+    const duration = Number(segmentDurationSeconds);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return GENERATION_COSTS.kling_3 * DEFAULT_SEGMENT_DURATION_SECONDS;
+    }
+    return Math.ceil(duration) * GENERATION_COSTS.kling_3;
+  }
+
+  return GENERATION_COSTS[model];
+}
+
 // Get download cost (ALL downloads are FREE in Version 2.0)
 export function getDownloadCost(
   model: VideoModel,

@@ -33,6 +33,8 @@ import type { UserAvatar } from '@/lib/supabase';
 import { getFlagEmoji } from '@/lib/language-utils';
 import { useToast } from '@/contexts/ToastContext';
 import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
+import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segment-billing';
+import type { VideoModel } from '@/lib/constants';
 
 export type SegmentShotPayload = {
   id: number;
@@ -197,6 +199,14 @@ export default function SegmentFormColumn({
 
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { showError } = useToast();
+  const segmentVideoCost = useMemo(() => {
+    const resolvedModel = videoModel as VideoModel | undefined;
+    if (!resolvedModel) {
+      return 0;
+    }
+
+    return getSegmentPromptVideoGenerationCost(resolvedModel, shots);
+  }, [shots, videoModel]);
 
   const firstFrameUrl = segment?.firstFrameUrl || null;
   const videoUrl = segment?.videoUrl || null;
@@ -604,12 +614,12 @@ export default function SegmentFormColumn({
       {/* Form Content */}
       <div className="clone-editor-form-body flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          {/* Photo Prompt Section */}
+          {/* Image Prompt Section */}
           <div className="clone-editor-card rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3">
             <div className="flex items-center gap-2 justify-between">
               <div className="flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-black" />
-                <p className="clone-editor-label text-sm font-semibold text-black">Photo Prompt</p>
+                <p className="clone-editor-label text-sm font-semibold text-black">Image Prompt</p>
               </div>
               <span className="clone-editor-helper text-xs text-[#666666]">Type @ to insert a character or product</span>
             </div>
@@ -643,7 +653,7 @@ export default function SegmentFormColumn({
               insufficientPhotosLabel="Need 2 photos"
             />
             {photoPromptTooLong && (
-              <p className="text-xs text-red-600">Photo prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
+              <p className="text-xs text-red-600">Image prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
             )}
             {segmentIndex >= 1 && (
               <button
@@ -1207,7 +1217,7 @@ export default function SegmentFormColumn({
                 {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <VideoIcon className="w-4 h-4" />}
                 Generate Video
                 <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
-                  FREE
+                  {segmentVideoCost} credits
                 </span>
               </button>
               {!regenEnabled && (

@@ -9,6 +9,7 @@ import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDispl
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
 import { MODEL_PROCESSING_TIMES, type VideoModel } from '@/lib/constants';
+import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segment-billing';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import { getFlagEmoji } from '@/lib/language-utils';
 import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
@@ -188,6 +189,14 @@ export default function SegmentInspector({
   const videoUrl = segment?.videoUrl || null;
   const lastFirstFrameUrlRef = useRef<string | null>(firstFrameUrl);
   const lastVideoUrlRef = useRef<string | null>(videoUrl);
+  const segmentVideoCost = useMemo(() => {
+    const resolvedModel = videoModel as VideoModel | undefined;
+    if (!resolvedModel) {
+      return 0;
+    }
+
+    return getSegmentPromptVideoGenerationCost(resolvedModel, shots);
+  }, [shots, videoModel]);
   const promptSeedSignature = useMemo(() => JSON.stringify({
     photo: initialPhotoPrompt?.trim() || '',
     shots: initialShots
@@ -592,7 +601,7 @@ export default function SegmentInspector({
               <div className="flex items-center gap-2 justify-between">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-gray-900" />
-                  <p className="text-sm font-semibold text-gray-900">Photo prompt</p>
+                  <p className="text-sm font-semibold text-gray-900">Image Prompt</p>
                 </div>
                 <span className="text-xs text-gray-500">Type @ to insert a character or product</span>
               </div>
@@ -619,7 +628,7 @@ export default function SegmentInspector({
                 insufficientPhotosLabel="Need 2 photos"
               />
               {photoPromptTooLong && (
-                <p className="text-xs text-red-600">Photo prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
+                <p className="text-xs text-red-600">Image prompt exceeds {PHOTO_CHAR_LIMIT} characters.</p>
               )}
               {segmentIndex >= 1 && (
                 <button
@@ -1098,7 +1107,7 @@ export default function SegmentInspector({
                   {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <VideoIcon className="w-4 h-4" />}
                   Generate Video
                   <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
-                    FREE
+                    {segmentVideoCost} credits
                   </span>
                 </button>
                 {!regenEnabled && (

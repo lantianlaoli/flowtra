@@ -23,7 +23,6 @@ import SegmentInspector, {
 } from "@/components/competitor-ugc-replication/SegmentInspector";
 
 import {
-  canAffordModel,
   getGenerationCost,
   getSegmentCountFromDuration,
   snapDurationToModel,
@@ -803,7 +802,10 @@ export default function CompetitorUgcReplicationPage() {
               typeof payloadData?.photoOnly === "boolean"
                 ? payloadData.photoOnly
                 : gen.isPhotoOnly,
-            creditsCost: payloadData?.credits_cost ?? gen.creditsCost,
+            creditsCost:
+              typeof payloadData?.photoOnly === "boolean"
+                ? (payloadData.photoOnly ? payloadData.credits_cost ?? gen.creditsCost : 0)
+                : (gen.isPhotoOnly ? payloadData?.credits_cost ?? gen.creditsCost : 0),
             error:
               payload.data?.errorMessage ||
               (resolvedStatus === "failed"
@@ -1158,6 +1160,9 @@ export default function CompetitorUgcReplicationPage() {
         }
 
         await fetchStatusForProject(projectId);
+        if (type === "video" && refetchCredits) {
+          await refetchCredits();
+        }
         const successText =
           type === "photo"
             ? "First frame regeneration queued."
@@ -1181,6 +1186,7 @@ export default function CompetitorUgcReplicationPage() {
       segmentInspector,
       inspectorPrompt,
       fetchStatusForProject,
+      refetchCredits,
       showSuccess,
       showError,
     ],
@@ -1307,6 +1313,9 @@ export default function CompetitorUgcReplicationPage() {
         }
 
         await fetchStatusForProject(projectId);
+        if (type === "video" && refetchCredits) {
+          await refetchCredits();
+        }
         const successText =
           type === "photo"
             ? "First frame regeneration queued."
@@ -1324,7 +1333,7 @@ export default function CompetitorUgcReplicationPage() {
         showError(message);
       }
     },
-    [generations, fetchStatusForProject, showSuccess, showError],
+    [generations, fetchStatusForProject, refetchCredits, showSuccess, showError],
   );
 
   const handleMergeProject = useCallback(
@@ -1564,6 +1573,9 @@ export default function CompetitorUgcReplicationPage() {
         showSuccess(
           "Video generation resumed. We will notify you once it is ready.",
         );
+        if (refetchCredits) {
+          await refetchCredits();
+        }
         fetchStatusForProject(generation.projectId);
       } catch (error) {
         const message =
@@ -1580,7 +1592,7 @@ export default function CompetitorUgcReplicationPage() {
         );
       }
     },
-    [fetchStatusForProject, showError, showSuccess],
+    [fetchStatusForProject, refetchCredits, showError, showSuccess],
   );
 
   // Platform change handler has been removed (platform feature deprecated)
@@ -1707,7 +1719,7 @@ export default function CompetitorUgcReplicationPage() {
       mergeLoading: false,
       videoGenerationRequested: false,
       isPhotoOnly: isCompetitorPhotoMode,
-      creditsCost: generationCost,
+      creditsCost: isCompetitorPhotoMode ? generationCost : 0,
     };
 
     setGenerations((prev) => [newGeneration, ...prev]);
@@ -1822,10 +1834,11 @@ export default function CompetitorUgcReplicationPage() {
   const generationCost = isCompetitorPhotoMode
     ? replicaPhotoCredits
     : getGenerationCost(selectedModel, effectiveVideoDuration.toString());
+  const composerGenerationCost = isCompetitorPhotoMode ? generationCost : 0;
   const downloadCost = 0; // Version 2.0: ALL downloads are FREE
   const canAfford = isCompetitorPhotoMode
     ? (userCredits || 0) >= generationCost
-    : canAffordModel(userCredits || 0, selectedModel);
+    : true;
   const replicaSelectionValid =
     !isCompetitorPhotoMode || Boolean(competitorImageUrl);
   const canGenerate =
@@ -2046,9 +2059,9 @@ export default function CompetitorUgcReplicationPage() {
         onGenerate={handleStartWorkflow}
         canGenerate={canGenerate}
         isGenerating={isGenerating}
-        generationCost={generationCost}
+        generationCost={composerGenerationCost}
         userCredits={userCredits || 0}
-        generateButtonText={isCompetitorPhotoMode ? "Generate" : "Start Editing"}
+        generateButtonText={isCompetitorPhotoMode ? "Generate" : "Create Project"}
       />
 
       {segmentInspector && inspectorContext && (

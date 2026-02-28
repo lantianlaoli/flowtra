@@ -10,6 +10,7 @@ import { getGenerationCost, getSegmentDurationForModel, type VideoModel } from '
 import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segment-billing';
 import {
   getSupabaseAdmin,
   type CompetitorUgcReplicationSegment,
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let chargedProjectId: string | null = null;
   let chargedUserId: string | null = null;
   let startedAnyTask = false;
+  let projectGenerationCreditsUsed = 0;
   try {
     const isInternalRequest = request.headers.get('x-project-agent-internal') === '1';
     const internalUserId = request.headers.get('x-project-agent-user-id');
@@ -60,6 +62,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!isInternalRequest && project.user_id !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    projectGenerationCreditsUsed = Number(project.generation_credits_used || 0);
 
     let segments: Array<CompetitorUgcReplicationSegment> = [];
     let framesReady = 0;
@@ -125,85 +128,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let readyCount = 0;
     const startErrors: string[] = [];
     let promptValidationFailure = false;
-    const generationCost = Number(project.generation_credits_used || 0) > 0
-      ? Number(project.generation_credits_used || 0)
-      : getGenerationCost(
-          project.video_model as VideoModel,
-          project.video_duration || '8',
-          project.video_quality || 'standard'
-        );
-
-    const hasPendingVideoWork = project.is_segmented
-      ? segments.some((segment) => !segment.video_url)
-      : !project.video_url;
-
-    if (hasPendingVideoWork && Number(project.generation_credits_used || 0) <= 0 && generationCost > 0) {
-      const creditCheck = await checkCredits(userId, generationCost);
-      if (!creditCheck.success) {
-        return NextResponse.json({ error: creditCheck.error || 'Failed to check credits' }, { status: 500 });
-      }
-      if (!creditCheck.hasEnoughCredits) {
-        return NextResponse.json(
-          {
-            error: `Insufficient credits: need ${generationCost}, have ${creditCheck.currentCredits || 0}`
-          },
-          { status: 402 }
-        );
-      }
-
-      const deduction = await deductCredits(userId, generationCost);
-      if (!deduction.success) {
-        return NextResponse.json({ error: deduction.error || 'Failed to deduct credits' }, { status: 500 });
-      }
-
-      chargeDescription = `Competitor UGC Replication - Video generation (${String(project.video_model || 'veo3_fast').toUpperCase()})`;
-      const transaction = await recordCreditTransaction(
-        userId,
-        'usage',
-        generationCost,
-        chargeDescription,
-        project.id,
-        true
-      );
-      if (!transaction.success) {
-        await deductCredits(userId, -generationCost);
-        return NextResponse.json({ error: transaction.error || 'Failed to record transaction' }, { status: 500 });
-      }
-
-      chargedCredits = generationCost;
-      chargedProjectId = project.id;
-      chargedUserId = userId;
-
-      const { error: chargeUpdateError } = await supabase
-        .from('competitor_ugc_replication_projects')
-        .update({
-          generation_credits_used: generationCost,
-          last_processed_at: now
-        })
-        .eq('id', id);
-
-      if (chargeUpdateError) {
-        await deductCredits(userId, -generationCost);
-        await recordCreditTransaction(
-          userId,
-          'refund',
-          generationCost,
-          `${chargeDescription} refund`,
-          project.id,
-          true
-        );
-        return NextResponse.json({ error: 'Failed to persist generation charge' }, { status: 500 });
-      }
-    }
+    const projectModel = (project.video_model ?? null) as VideoModel | null;
+    const segmentDurationSeconds = project.segment_duration_seconds || getSegmentDurationForModel(projectModel);
+    const normalizedProject = {
+      ...(project as SingleVideoProject),
+      video_prompts: project.video_prompts
+    } as SingleVideoProject;
+    const segmentsToStart: Array<{
+      segment: CompetitorUgcReplicationSegment;
+      segmentIndex: number;
+      segmentPrompt: ReturnType<typeof hydrateSerializedSegmentPrompt>;
+      closingFrameUrl: string | null;
+      segmentCost: number;
+    }> = [];
 
     if (project.is_segmented && segments.length > 0) {
-      const projectModel = (project.video_model ?? null) as VideoModel | null;
-      const segmentDurationSeconds = project.segment_duration_seconds || getSegmentDurationForModel(projectModel);
-      const normalizedProject = {
-        ...(project as SingleVideoProject),
-        video_prompts: project.video_prompts
-      } as SingleVideoProject;
-
       for (let i = 0; i < segments.length; i += 1) {
         const segment = segments[i];
         const segmentIndex = segment.segment_index ?? i;
@@ -230,20 +169,110 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
         const nextSegment = segments[i + 1];
         const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url || null;
+        const segmentPrompt = hydrateSerializedSegmentPrompt(
+          segment.prompt as SerializedSegmentPlanSegment,
+          segmentIndex,
+          segmentDurationSeconds
+        );
+        const segmentCost = getSegmentPromptVideoGenerationCost(
+          projectModel || 'veo3_fast',
+          segmentPrompt.shots,
+          segmentDurationSeconds
+        );
 
+        segmentsToStart.push({
+          segment,
+          segmentIndex,
+          segmentPrompt,
+          closingFrameUrl,
+          segmentCost
+        });
+      }
+    }
+
+    const generationCost = project.is_segmented
+      ? segmentsToStart.reduce((sum, entry) => sum + entry.segmentCost, 0)
+      : getGenerationCost(
+          project.video_model as VideoModel,
+          project.video_duration || '8',
+          project.video_quality || 'standard'
+        );
+
+    const hasPendingVideoWork = project.is_segmented
+      ? segmentsToStart.length > 0
+      : !project.video_url;
+
+    if (hasPendingVideoWork && generationCost > 0) {
+      const creditCheck = await checkCredits(userId, generationCost);
+      if (!creditCheck.success) {
+        return NextResponse.json({ error: creditCheck.error || 'Failed to check credits' }, { status: 500 });
+      }
+      if (!creditCheck.hasEnoughCredits) {
+        return NextResponse.json(
+          {
+            error: `Insufficient credits: need ${generationCost}, have ${creditCheck.currentCredits || 0}`
+          },
+          { status: 402 }
+        );
+      }
+
+      const deduction = await deductCredits(userId, generationCost);
+      if (!deduction.success) {
+        return NextResponse.json({ error: deduction.error || 'Failed to deduct credits' }, { status: 500 });
+      }
+
+      chargeDescription = project.is_segmented
+        ? `Competitor UGC Replication - Remaining segment video generation (${String(project.video_model || 'veo3_fast').toUpperCase()})`
+        : `Competitor UGC Replication - Video generation (${String(project.video_model || 'veo3_fast').toUpperCase()})`;
+      const transaction = await recordCreditTransaction(
+        userId,
+        'usage',
+        generationCost,
+        chargeDescription,
+        project.id,
+        true
+      );
+      if (!transaction.success) {
+        await deductCredits(userId, -generationCost);
+        return NextResponse.json({ error: transaction.error || 'Failed to record transaction' }, { status: 500 });
+      }
+
+      chargedCredits = generationCost;
+      chargedProjectId = project.id;
+      chargedUserId = userId;
+      projectGenerationCreditsUsed += generationCost;
+
+      const { error: chargeUpdateError } = await supabase
+        .from('competitor_ugc_replication_projects')
+        .update({
+          generation_credits_used: projectGenerationCreditsUsed,
+          last_processed_at: now
+        })
+        .eq('id', id);
+
+      if (chargeUpdateError) {
+        await deductCredits(userId, -generationCost);
+        await recordCreditTransaction(
+          userId,
+          'refund',
+          generationCost,
+          `${chargeDescription} refund`,
+          project.id,
+          true
+        );
+        return NextResponse.json({ error: 'Failed to persist generation charge' }, { status: 500 });
+      }
+    }
+
+    if (project.is_segmented && segments.length > 0) {
+      for (const entry of segmentsToStart) {
         try {
-          const segmentPrompt = hydrateSerializedSegmentPrompt(
-            segment.prompt as SerializedSegmentPlanSegment,
-            segmentIndex,
-            segmentDurationSeconds
-          );
-
           const videoTaskId = await startSegmentVideoTask(
             normalizedProject,
-            segmentPrompt,
-            segment.first_frame_url,
-            closingFrameUrl,
-            segmentIndex,
+            entry.segmentPrompt,
+            entry.segment.first_frame_url as string,
+            entry.closingFrameUrl,
+            entry.segmentIndex,
             project.segment_count || segments.length
           );
 
@@ -258,10 +287,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               video_webhook_received_at: null,
               updated_at: now
             })
-            .eq('id', segment.id);
+            .eq('id', entry.segment.id);
 
           if (segmentUpdateError) {
-            startErrors.push(`Segment ${segmentIndex + 1}: failed to update status.`);
+            startErrors.push(`Segment ${entry.segmentIndex + 1}: failed to update status.`);
             continue;
           }
 
@@ -281,9 +310,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 video_webhook_received_at: now,
                 updated_at: now
               })
-              .eq('id', segment.id);
+              .eq('id', entry.segment.id);
           }
-          startErrors.push(`Segment ${segmentIndex + 1}: ${message}`);
+          startErrors.push(`Segment ${entry.segmentIndex + 1}: ${message}`);
         }
       }
 
@@ -340,7 +369,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         await supabase
           .from('competitor_ugc_replication_projects')
           .update({
-            generation_credits_used: 0,
+            generation_credits_used: Math.max(0, projectGenerationCreditsUsed - chargedCredits),
             video_generation_requested: false,
             current_step: 'ready_for_video',
             progress_percentage: 60,
@@ -386,7 +415,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             await getSupabaseAdmin()
               .from('competitor_ugc_replication_projects')
               .update({
-                generation_credits_used: 0,
+                generation_credits_used: Math.max(0, projectGenerationCreditsUsed - chargedCredits),
                 video_generation_requested: false,
                 current_step: 'ready_for_video',
                 progress_percentage: 60

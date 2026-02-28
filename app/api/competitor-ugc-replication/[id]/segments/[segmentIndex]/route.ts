@@ -13,10 +13,14 @@ import {
   type SegmentPrompt,
   type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
-import { getGenerationCost, getReplicaPhotoCredits, getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
+import { getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
+import {
+  getEffectiveSegmentDurationSeconds,
+  getSegmentPromptVideoGenerationCost
+} from '@/lib/competitor-ugc-segment-billing';
 
 type PatchPayload = {
   prompt?: Partial<SegmentPrompt>;
@@ -53,6 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   let projectUserId: string | null = null;
   let projectId: string | null = null;
   const creditCharges: Array<{ amount: number; description: string }> = [];
+  let projectGenerationCreditsUsed = 0;
 
   try {
     const isInternalRequest = request.headers.get('x-project-agent-internal') === '1';
@@ -105,7 +110,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { data: project, error: projectError } = await supabase
       .from('competitor_ugc_replication_projects')
       .select(
-        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,competitor_ad_id,selected_inputs'
+        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,competitor_ad_id,selected_inputs,generation_credits_used'
       )
       .eq('id', projectId)
       .single();
@@ -126,6 +131,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     projectUserId = project.user_id;
+    projectGenerationCreditsUsed = Number(project.generation_credits_used || 0);
 
     if (!project.is_segmented) {
       return NextResponse.json({ error: 'Segment editing is only available for segmented projects' }, { status: 400 });
@@ -288,6 +294,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         true
       );
 
+      const updatedGenerationCreditsUsed = projectGenerationCreditsUsed + amount;
+      const { error: creditsUpdateError } = await supabase
+        .from('competitor_ugc_replication_projects')
+        .update({
+          generation_credits_used: updatedGenerationCreditsUsed,
+          last_processed_at: now
+        })
+        .eq('id', project.id);
+
+      if (creditsUpdateError) {
+        await deductCredits(projectUserId, -amount);
+        await recordCreditTransaction(
+          projectUserId,
+          'refund',
+          amount,
+          `${description} refund`,
+          project.id,
+          true
+        );
+        throw new Error('Failed to persist generation charge');
+      }
+
+      projectGenerationCreditsUsed = updatedGenerationCreditsUsed;
       creditCharges.push({ amount, description });
     };
 
@@ -443,8 +472,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // CRITICAL: Clear webhook timestamp to allow new webhook to process
       segmentUpdates.video_webhook_received_at = null;
 
-      // Regenerating videos from the segment editor is free (no credit deduction).
-
       const hasFreshFirstFrame = shouldRegeneratePhoto ? false : Boolean(segmentRow.first_frame_url);
 
       if (!shouldRegeneratePhoto && !segmentRow.first_frame_url) {
@@ -455,6 +482,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
 
       if (!shouldRegeneratePhoto && hasFreshFirstFrame) {
+        const segmentVideoCost = getSegmentPromptVideoGenerationCost(
+          projectModel || 'veo3_fast',
+          mergedPrompt.shots,
+          segmentDurationSeconds
+        );
+        const effectiveSegmentDurationSeconds = getEffectiveSegmentDurationSeconds(
+          mergedPrompt.shots,
+          segmentDurationSeconds
+        );
+        const videoChargeDescription = projectModel === 'kling_3'
+          ? `Competitor UGC Replication - Segment ${index + 1} video generation (KLING_3, ${effectiveSegmentDurationSeconds}s)`
+          : `Competitor UGC Replication - Segment ${index + 1} video generation (${String(project.video_model || 'veo3_fast').toUpperCase()})`;
+
+        await ensureCredits(segmentVideoCost, videoChargeDescription);
+
         const videoTaskId = await startSegmentVideoTask(
           {
             ...(project as SingleVideoProject),
@@ -541,6 +583,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             projectId || undefined,
             true
           );
+          projectGenerationCreditsUsed = Math.max(0, projectGenerationCreditsUsed - charge.amount);
+          if (projectId) {
+            await getSupabaseAdmin()
+              .from('competitor_ugc_replication_projects')
+              .update({
+                generation_credits_used: projectGenerationCreditsUsed
+              })
+              .eq('id', projectId);
+          }
         } catch (refundError) {
           console.error('Failed to refund credits after segment error:', refundError);
         }
