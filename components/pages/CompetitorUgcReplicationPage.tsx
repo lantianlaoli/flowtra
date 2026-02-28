@@ -86,7 +86,7 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   merging_segments: "Stitching viral moments into one compelling story…",
   awaiting_merge: "All scenes are ready – assembling your video clone…",
   ready_for_video:
-    "Your competitor strategy is dialed in! Ready to generate the final video",
+    "Clone prompts loaded. Edit each scene before generating frames or videos.",
   generating_video: "Creating your winning video… it's almost time to viral!",
   processing:
     "Analyzing competitor tactics and adapting them for your product…",
@@ -1691,7 +1691,7 @@ export default function CompetitorUgcReplicationPage() {
       progress: 5,
       stage: isCompetitorPhotoMode
         ? "Preparing replica photo…"
-        : "Initializing…",
+        : "Loading clone prompts…",
       brand: undefined,
       videoModel: shouldGenerateVideo ? selectedModel : undefined,
       videoAspectRatio: shouldGenerateVideo ? selectedVideoAspectRatio : null,
@@ -1756,19 +1756,12 @@ export default function CompetitorUgcReplicationPage() {
         projectId,
       );
 
-      const startedSegmented = Boolean(
-        initialSegmentCount && initialSegmentCount > 1,
-      );
       const nextStage = isCompetitorPhotoMode
         ? "Generating replica photo…"
-        : startedSegmented
-          ? STEP_DESCRIPTIONS.generating_segment_frames
-          : STEP_DESCRIPTIONS.generating_cover;
+        : "Clone prompts loaded. Edit each scene before generating frames or videos.";
       const nextProgress = isCompetitorPhotoMode
         ? 30
-        : startedSegmented
-          ? STEP_PROGRESS_HINTS.generating_segment_frames
-          : STEP_PROGRESS_HINTS.generating_cover;
+        : STEP_PROGRESS_HINTS.ready_for_video;
 
       console.log(
         "📝 [Before setGenerations] projectId:",
@@ -1803,7 +1796,7 @@ export default function CompetitorUgcReplicationPage() {
       showSuccess(
         isCompetitorPhotoMode
           ? "Replica photo generation started!"
-          : "Cover generation started! Review the result above before generating the video.",
+          : "Clone prompts loaded. Edit scenes, then generate frames when ready.",
       );
     } catch (error: unknown) {
       console.error("Failed to start workflow:", error);
@@ -2055,7 +2048,7 @@ export default function CompetitorUgcReplicationPage() {
         isGenerating={isGenerating}
         generationCost={generationCost}
         userCredits={userCredits || 0}
-        generateButtonText="Generate"
+        generateButtonText={isCompetitorPhotoMode ? "Generate" : "Start Editing"}
       />
 
       {segmentInspector && inspectorContext && (

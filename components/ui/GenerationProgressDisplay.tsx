@@ -340,6 +340,18 @@ function GenerationCard({
     totalSegments > 0 &&
     videosReady === totalSegments
   );
+  const editorFlowLabels = projectType === 'competitor-ugc-replication'
+    ? {
+        step1: 'Edit Prompts',
+        step2: 'Generate First Frames',
+        step3: 'Generate Videos',
+        step4: 'Merge Final Video'
+      }
+    : {
+        step1: 'Refine Frames & Assets',
+        step2: 'Generate Segment Clips',
+        step3: 'Merge Final Video'
+      };
 
   const downloadMetaLabel = useMemo(() => {
     if (downloaded) return 'Downloaded';
@@ -687,24 +699,32 @@ function GenerationCard({
                     <div className="flex items-center gap-2">
                       <span className="flex items-center justify-center w-5 h-5 rounded-full bg-black text-white text-[10px] font-bold">1</span>
                       <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
-                        <ImageIcon className="w-3.5 h-3.5" />
-                        <span>Refine Frames & Assets</span>
+                        <PencilLine className="w-3.5 h-3.5" />
+                        <span>{editorFlowLabels.step1}</span>
                       </div>
                     </div>
                     <ArrowRight className="w-3 h-3 text-gray-300" />
                     <div className="flex items-center gap-2">
                       <span className="flex items-center justify-center w-5 h-5 rounded-full bg-black text-white text-[10px] font-bold">2</span>
                       <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
-                        <Clapperboard className="w-3.5 h-3.5" />
-                        <span>Generate Segment Clips</span>
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>{editorFlowLabels.step2}</span>
                       </div>
                     </div>
                     <ArrowRight className="w-3 h-3 text-gray-300" />
                     <div className="flex items-center gap-2">
                       <span className="flex items-center justify-center w-5 h-5 rounded-full bg-black text-white text-[10px] font-bold">3</span>
                       <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+                        <Clapperboard className="w-3.5 h-3.5" />
+                        <span>{editorFlowLabels.step3}</span>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-3 h-3 text-gray-300" />
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-black text-white text-[10px] font-bold">4</span>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
                         <Layers className="w-3.5 h-3.5" />
-                        <span>Merge Final Video</span>
+                        <span>{editorFlowLabels.step4}</span>
                       </div>
                     </div>
                   </div>

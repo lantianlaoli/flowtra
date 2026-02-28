@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     const { data: stuckProjects, error: fetchError } = await supabase
       .from('competitor_ugc_replication_projects')
-      .select('id, user_id, credits_cost, video_model, video_duration, created_at')
+      .select('id, user_id, credits_cost, generation_credits_used, video_model, video_duration, created_at')
       .eq('status', 'processing')
       .is('video_prompts', null)
       .lt('created_at', threeMinutesAgo);
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
           .from('competitor_ugc_replication_projects')
           .update({
             status: 'failed',
-            error_message: 'Workflow timeout: AI prompt generation exceeded function timeout limit (auto-cleanup). Credits have been refunded. Please try again with a simpler competitor ad.',
+            error_message: 'Workflow timeout: AI prompt generation exceeded function timeout limit (auto-cleanup). Please try again with a simpler competitor ad.',
             progress_percentage: 0,
             current_step: 'failed',
             updated_at: new Date().toISOString()
@@ -86,24 +86,33 @@ export async function POST(request: NextRequest) {
         }
 
         // Refund credits if they were charged
-        if (project.credits_cost && project.credits_cost > 0) {
+        const chargedCredits = Number(project.generation_credits_used || 0);
+        if (chargedCredits > 0) {
           try {
-            await deductCredits(project.user_id, -project.credits_cost); // Negative = refund
+            await deductCredits(project.user_id, -chargedCredits); // Negative = refund
             await recordCreditTransaction(
               project.user_id,
               'refund',
-              project.credits_cost,
+              chargedCredits,
               `Competitor UGC Replication - Auto-refund for timeout failure (${project.video_model?.toUpperCase()}, ${project.video_duration}s)`,
               project.id,
               true
             );
 
-            console.log(`[cleanup-timeout] ✅ Refunded ${project.credits_cost} credits to user ${project.user_id}`);
+            console.log(`[cleanup-timeout] ✅ Refunded ${chargedCredits} credits to user ${project.user_id}`);
+
+            await supabase
+              .from('competitor_ugc_replication_projects')
+              .update({
+                generation_credits_used: 0,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', project.id);
 
             results.push({
               projectId: project.id,
               success: true,
-              refunded: project.credits_cost
+              refunded: chargedCredits
             });
           } catch (refundError) {
             console.error(`[cleanup-timeout] Failed to refund credits for project ${project.id}:`, refundError);

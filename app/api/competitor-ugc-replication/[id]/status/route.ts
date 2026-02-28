@@ -119,7 +119,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         coverTaskId: record.cover_task_id || null,
         videoTaskId: record.video_task_id || null,
         errorMessage: record.error_message || null,
-        creditsUsed: record.credits_cost || 0,
+        creditsUsed: record.generation_credits_used || 0,
         videoModel: record.video_model || 'veo3_fast',
         videoDuration: record.video_duration || null,
         segmentCount: record.segment_count || null,
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         describing: '🔍 Reverse-engineering your competitor\'s viral formula…',
         generating_prompts: '💡 Adapting winning strategies to your product – stealing their thunder!',
         generating_cover: '✨ Creating the hook that stops the scroll – your competitor\'s edge with your product',
-        ready_for_video: '🎯 Competitor strategy decoded! Ready to generate your viral rival video',
+        ready_for_video: '📝 Clone prompts loaded. Edit each scene before generating frames or videos.',
         generating_video: '🚀 Building your video clone… the winning formula is almost live!'
       },
       isCompleted: record.status === 'completed',

@@ -104,12 +104,12 @@ export interface SingleVideoProject {
   selected_inputs?: Record<string, unknown> | null // Multi-selection context (primary + arrays)
   brand_logo_url?: string | null
   product_image_urls?: string[] | null
-  competitor_file_type?: 'video' | 'image' | null
   video_generation_requested?: boolean | null // Whether user approved moving from cover to video
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
   video_generation_prompt?: Record<string, unknown> // JSONB field containing the prompt used for video generation
   video_duration?: string | null // Video duration in seconds (e.g., '8', '10', '15') - applicable to all video models
   video_quality?: 'standard' | 'high' | null // Video quality setting - applicable to all video models
+  generation_credits_used?: number | null // Credits actually charged for generation
   is_segmented?: boolean // Whether this project uses segmented generation
   segment_count?: number // Number of segments requested (default 1)
   segment_duration_seconds?: number | null // Duration per segment (defaults to 8)

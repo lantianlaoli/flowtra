@@ -177,6 +177,16 @@ type CloneReferenceAssets = {
   productName?: string | null;
 };
 
+type CloneManualEditSeedInput = {
+  projectId: string;
+  request: StartWorkflowRequest & {
+    imageUrl?: string;
+    resolvedVideoModel: VideoModel;
+  };
+  prompts: SegmentPrompt[];
+  metadataSource?: Record<string, unknown> | null;
+};
+
 export type CloneReferenceSourceType = 'competitor_ad' | 'creator_source_video';
 
 export type CloneModeResolution = {
@@ -953,6 +963,48 @@ function buildSegmentPlanFromKlingSegments(
   });
 }
 
+export function buildManualCloneSeedPrompts(options: {
+  videoModel: VideoModel;
+  segmentCount: number;
+  videoDuration?: VideoDuration;
+  language?: string;
+  competitorShots: CompetitorShot[];
+  competitorTotalDurationSeconds?: number;
+}): SegmentPrompt[] {
+  const {
+    videoModel,
+    segmentCount,
+    videoDuration,
+    language,
+    competitorShots,
+    competitorTotalDurationSeconds
+  } = options;
+
+  if (segmentCount <= 0) {
+    return [];
+  }
+
+  if (videoModel === 'kling_3') {
+    const klingTargetDuration = Number(videoDuration || competitorTotalDurationSeconds || 8);
+    const plannedKlingSegments = planKlingSegmentsFromShots(competitorShots, klingTargetDuration);
+    return buildSegmentPlanFromKlingSegments(
+      plannedKlingSegments,
+      language || 'en'
+    );
+  }
+
+  if (competitorShots.length > 0) {
+    return buildSegmentPlanFromCompetitorShots(segmentCount, competitorShots);
+  }
+
+  return normalizeSegmentPrompts(
+    { segments: Array.from({ length: segmentCount }, (_, index) => ({ index: index + 1 })) },
+    segmentCount,
+    undefined,
+    resolvePerSegmentDurationSeconds(videoModel, videoDuration, segmentCount)
+  );
+}
+
 function alignKlingPromptsToPlan(
   prompts: Record<string, unknown>,
   plannedSegments: PlannedKlingSegment[],
@@ -1243,12 +1295,16 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Precompute shot-to-segment mapping asap so we can persist plans even if prompt generation fails later
     let shotPlanForSegments: CompetitorShot[] | undefined;
     let precomputedSegmentPlan: SegmentPrompt[] | undefined;
-    if (actualVideoModel === 'kling_3' && plannedKlingSegments?.length) {
-      precomputedSegmentPlan = buildSegmentPlanFromKlingSegments(
-        plannedKlingSegments,
-        request.language || competitorAdContext?.language || 'en'
-      );
-      console.log(`📐 Prepared Kling segment plan (${plannedKlingSegments.length} segments)`);
+    if (segmentCount > 0 && actualVideoModel === 'kling_3') {
+      precomputedSegmentPlan = buildManualCloneSeedPrompts({
+        videoModel: actualVideoModel,
+        segmentCount,
+        videoDuration: request.videoDuration,
+        language: request.language || competitorAdContext?.language || 'en',
+        competitorShots: competitorShotTimeline?.shots || [],
+        competitorTotalDurationSeconds: competitorShotTimeline?.totalDurationSeconds
+      });
+      console.log(`📐 Prepared Kling segment plan (${precomputedSegmentPlan.length} segments)`);
     } else if (segmentCount > 0 && competitorShotTimeline?.shots.length) {
       if (competitorShotTimeline.shots.length === segmentCount) {
         shotPlanForSegments = competitorShotTimeline.shots;
@@ -1260,15 +1316,28 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         );
       }
 
-      precomputedSegmentPlan = buildSegmentPlanFromCompetitorShots(segmentCount, shotPlanForSegments);
+      precomputedSegmentPlan = buildManualCloneSeedPrompts({
+        videoModel: actualVideoModel,
+        segmentCount,
+        videoDuration: request.videoDuration,
+        language: request.language || competitorAdContext?.language || 'en',
+        competitorShots: shotPlanForSegments
+      });
     }
 
     let remainingCreditsAfterDeduction: number | undefined;
+    let creditsDeductedAtCreate = false;
     const isReplicaMode = Boolean(
       request.replicaMode &&
       request.photoOnly &&
       Array.isArray(request.referenceImageUrls) &&
       request.referenceImageUrls.length > 0
+    );
+    const isReferenceCloneCreate = Boolean(
+      !isReplicaMode &&
+      !request.useCustomScript &&
+      request.requestSource !== 'project_agent_clone' &&
+      (request.competitorAdId || request.creatorSourceVideoId)
     );
 
     // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
@@ -1322,6 +1391,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         undefined,
         true
       );
+      creditsDeductedAtCreate = true;
     } else if (!request.photoOnly) {
       // Calculate generation cost based on model
       generationCost = getGenerationCost(
@@ -1340,8 +1410,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         totalCost: generationCost
       });
 
-      // Check and deduct credits for ALL models
-      if (generationCost > 0) {
+      // Clone projects now seed prompts for manual editing first.
+      // Defer billing until the user explicitly starts video generation.
+      if (generationCost > 0 && !isReferenceCloneCreate) {
         // Check if user has enough credits
         const creditCheck = await checkCredits(request.userId, generationCost);
         if (!creditCheck.success) {
@@ -1380,6 +1451,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           undefined,
           true
         );
+        creditsDeductedAtCreate = true;
       }
     } else {
       generationCost = 0; // Photo-only mode is free
@@ -1394,11 +1466,14 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       status: 'processing',
       current_step: request.useCustomScript
         ? 'ready_for_video'
+        : isReferenceCloneCreate
+          ? 'ready_for_video'
         : hasSegmentFlow
           ? 'generating_segment_frames'
           : 'generating_cover',
-      progress_percentage: request.useCustomScript ? 50 : hasSegmentFlow ? 25 : 20,
+      progress_percentage: request.useCustomScript ? 50 : isReferenceCloneCreate ? 60 : hasSegmentFlow ? 25 : 20,
       credits_cost: generationCost, // Only generation cost (download cost charged separately)
+      generation_credits_used: isReferenceCloneCreate ? 0 : generationCost,
       language: request.language || 'en', // Language for AI-generated content
       // Generic video fields
       video_duration: duration || '8',
@@ -1513,6 +1588,31 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           productContext,
           competitorAdContext
         );
+      } else if (isReferenceCloneCreate) {
+        const cloneSeedPrompts = precomputedSegmentPlan?.length === segmentCount
+          ? precomputedSegmentPlan
+          : normalizeSegmentPrompts(
+              { segments: [] },
+              segmentCount,
+              shotPlanForSegments,
+              resolvedSegmentDuration
+            );
+
+        await initializeCloneProjectForManualEditing({
+          projectId: project.id,
+          request: { ...request, imageUrl, resolvedVideoModel: actualVideoModel },
+          prompts: cloneSeedPrompts,
+          metadataSource: {
+            clone_reference_assets: {
+              selectedAvatarId: cloneReferenceAssets.selectedAvatarId || request.selectedAvatarId || null,
+              selectedProductId: cloneReferenceAssets.selectedProductId || request.selectedProductId || null,
+              selectedAvatarIds: cloneReferenceAssets.selectedAvatarIds || [],
+              selectedProductIds: cloneReferenceAssets.selectedProductIds || [],
+              avatarPhotoUrls: cloneReferenceAssets.avatarPhotoUrls,
+              productImageUrls: cloneReferenceAssets.productImageUrls
+            }
+          }
+        });
       } else {
         await startAIWorkflow(
           project.id,
@@ -1537,7 +1637,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       });
 
       // REFUND credits on failure (ALL models now charge at generation)
-      if (generationCost > 0) {
+      if (creditsDeductedAtCreate && generationCost > 0) {
         console.log(`⚠️ Refunding ${generationCost} credits due to workflow failure`);
         try {
           await deductCredits(request.userId, -generationCost); // Negative = refund
@@ -1587,7 +1687,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       success: true,
       projectId: project.id,
       remainingCredits: remainingCreditsAfterDeduction,
-      creditsUsed: generationCost
+      creditsUsed: creditsDeductedAtCreate ? generationCost : 0
     };
 
   } catch (error) {
@@ -1597,6 +1697,91 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       error: 'Failed to start workflow',
       details: error instanceof Error ? error.message : 'Unknown error'
     };
+  }
+}
+
+async function initializeCloneProjectForManualEditing({
+  projectId,
+  request,
+  prompts,
+  metadataSource
+}: CloneManualEditSeedInput): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const now = new Date().toISOString();
+  const normalizedSegments = normalizeSegmentPrompts(
+    { segments: prompts },
+    prompts.length,
+    undefined,
+    resolvePerSegmentDurationSeconds(
+      request.resolvedVideoModel,
+      request.videoDuration,
+      prompts.length
+    )
+  ).map(segment => ({
+    ...segment,
+    first_frame_image_size: segment.first_frame_image_size || (request.videoAspectRatio === '9:16' ? '9:16' : '16:9')
+  }));
+
+  const serializedPlan = serializeSegmentPlan(normalizedSegments);
+  const storedVideoPrompts = buildStoredVideoPromptsPayload(
+    normalizedSegments,
+    metadataSource || null
+  );
+
+  const { error: cleanupError } = await supabase
+    .from('competitor_ugc_replication_segments')
+    .delete()
+    .eq('project_id', projectId);
+  if (cleanupError) {
+    console.error('Failed to clear old segments before manual clone initialization:', cleanupError);
+    throw new Error('Failed to reset previous clone segments');
+  }
+
+  // Schema verified via Supabase MCP (2026-02-28):
+  // competitor_ugc_replication_segments includes project_id, segment_index, status, prompt,
+  // first_frame_task_id, first_frame_url, video_task_id, video_url, error_message.
+  const segmentRows = normalizedSegments.map((segmentPrompt, index) => ({
+    project_id: projectId,
+    segment_index: index,
+    status: 'pending_first_frame',
+    prompt: serializeSegmentPrompt(segmentPrompt),
+    first_frame_task_id: null,
+    first_frame_url: null,
+    video_task_id: null,
+    video_url: null,
+    error_message: null
+  }));
+
+  const { data: insertedSegments, error: insertError } = await supabase
+    .from('competitor_ugc_replication_segments')
+    .insert(segmentRows)
+    .select();
+
+  if (insertError || !insertedSegments) {
+    console.error('Failed to seed manual clone segments:', insertError);
+    throw new Error('Failed to initialize clone segments');
+  }
+
+  const segments = insertedSegments as CompetitorUgcReplicationSegment[];
+  const segmentStatus = buildSegmentStatusPayload(segments);
+
+  const { error: projectUpdateError } = await supabase
+    .from('competitor_ugc_replication_projects')
+    .update({
+      video_prompts: storedVideoPrompts,
+      segment_plan: serializedPlan,
+      current_step: 'ready_for_video',
+      status: 'processing',
+      progress_percentage: 60,
+      video_generation_requested: false,
+      segment_status: segmentStatus,
+      last_processed_at: now
+    })
+    .eq('id', projectId);
+
+  if (projectUpdateError) {
+    console.error('Failed to update clone project for manual editing:', projectUpdateError);
+    throw new Error('Failed to finalize clone prompt seeding');
   }
 }
 
