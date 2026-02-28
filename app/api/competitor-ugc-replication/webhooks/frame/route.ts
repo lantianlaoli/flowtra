@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   createSmartSegmentFrame,
   hydrateSerializedSegmentPrompt,
+  resolveCloneModeFromProject,
   serializeSegmentPrompt,
   type SegmentPrompt,
   type SerializedSegmentPlanSegment
@@ -291,8 +292,16 @@ export async function POST(request: NextRequest) {
                   ...productImageUrls,
                   ...cloneReferenceAssets.productImageUrls
                 ], 8);
-                const competitorFileType = fullProject.competitor_file_type as 'video' | null;
+                const cloneMode = resolveCloneModeFromProject(fullProject as Record<string, unknown>);
                 const videoModel = (fullProject.video_model || 'veo3_fast') as VideoModel;
+                console.log('[UGC Frame Webhook] Continuation routing:', {
+                  segmentIndex: nextSegmentIndex,
+                  frameType: 'first',
+                  isCloneMode: cloneMode.isCloneMode,
+                  referenceSourceType: cloneMode.sourceType,
+                  usesContinuationReference: true,
+                  imageInputCount: mergedProductImageUrls.length + cloneReferenceAssets.avatarPhotoUrls.length + 1
+                });
 
                 // Mark as generating
                 await supabase
@@ -313,7 +322,7 @@ export async function POST(request: NextRequest) {
                   brandLogoUrl,
                   mergedProductImageUrls.length > 0 ? mergedProductImageUrls : null,
                   undefined, // brandContext - not needed for continuation
-                  competitorFileType === 'video' ? 'video' : null,
+                  cloneMode.mediaType,
                   {
                     characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0
                       ? cloneReferenceAssets.avatarPhotoUrls
@@ -427,8 +436,16 @@ export async function POST(request: NextRequest) {
             ...productImageUrls,
             ...cloneReferenceAssets.productImageUrls
           ], 8);
-          const competitorFileType = fullProject.competitor_file_type as 'video' | null;
+          const cloneMode = resolveCloneModeFromProject(fullProject as Record<string, unknown>);
           const videoModel = (fullProject.video_model || 'veo3_fast') as VideoModel;
+          console.log('[UGC Frame Webhook] Retry routing:', {
+            segmentIndex: segment.segment_index,
+            frameType: 'first',
+            isCloneMode: cloneMode.isCloneMode,
+            referenceSourceType: cloneMode.sourceType,
+            usesContinuationReference: false,
+            imageInputCount: mergedProductImageUrls.length + cloneReferenceAssets.avatarPhotoUrls.length
+          });
 
           // Retry frame generation
           const taskId = await createSmartSegmentFrame(
@@ -439,7 +456,7 @@ export async function POST(request: NextRequest) {
             brandLogoUrl,
             mergedProductImageUrls.length > 0 ? mergedProductImageUrls : null,
             undefined,
-            competitorFileType === 'video' ? 'video' : null,
+            cloneMode.mediaType,
             {
               characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0
                 ? cloneReferenceAssets.avatarPhotoUrls
