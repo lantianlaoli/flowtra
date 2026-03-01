@@ -58,7 +58,6 @@ export type ClonePromptDraft = {
     id: string;
     name: string;
     photoUrl?: string | null;
-    brandName?: string | null;
   };
   scenes: CloneDraftScene[];
 };

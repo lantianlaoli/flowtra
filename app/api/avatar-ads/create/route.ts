@@ -112,7 +112,6 @@ export async function POST(request: NextRequest) {
     // Product context for AI workflow
     let productContext: {
       product_name?: string;
-      brand_name?: string;
       talking_head_script?: string;
     } | null = null;
 
@@ -133,17 +132,14 @@ export async function POST(request: NextRequest) {
         }
         // For temp products, productContext remains null (will be analyzed during workflow)
       } else {
-        // Get product with brand information from database
+        // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
+        // user_products is product-first and no longer depends on brand tables.
         const supabase = getSupabaseAdmin();
         const { data: product, error: productError } = await supabase
           .from('user_products')
           .select(`
             *,
-            user_product_photos (*),
-            brand:user_brands (
-              id,
-              brand_name
-            )
+            user_product_photos (*)
           `)
           .eq('id', selectedProductId)
           .eq('user_id', userId)
@@ -167,8 +163,7 @@ export async function POST(request: NextRequest) {
         productImageUrls.push(...product.user_product_photos.map((photo: { photo_url: string }) => photo.photo_url));
 
         productContext = {
-          product_name: product.product_name,
-          brand_name: product.brand?.brand_name
+          product_name: product.product_name
         };
       }
     } else {

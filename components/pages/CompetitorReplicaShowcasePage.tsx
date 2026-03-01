@@ -223,7 +223,7 @@ export default function CompetitorReplicaShowcasePage() {
                   </div>
                   <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_origin.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_source.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       showControls={false}
@@ -239,7 +239,7 @@ export default function CompetitorReplicaShowcasePage() {
                   </div>
                   <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_result.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_result.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       showControls={false}
@@ -487,7 +487,7 @@ export default function CompetitorReplicaShowcasePage() {
             <div className="lg:sticky lg:top-24">
                 <div className="relative aspect-[9/16] w-full max-w-sm mx-auto bg-black rounded-[2rem] overflow-hidden shadow-2xl border-4 border-black">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_parse.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_parse.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       showControls={false}
@@ -512,7 +512,7 @@ export default function CompetitorReplicaShowcasePage() {
                  <div className="grid gap-4">
                     <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
                       <LazyVideoPlayer
-                        src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone-video-image-prompt.mp4"
+                        src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_prompt_image.mp4"
                         wrapperClassName="w-full"
                         className="w-full h-auto"
                         showControls={false}
@@ -523,7 +523,7 @@ export default function CompetitorReplicaShowcasePage() {
                     </div>
                     <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
                       <LazyVideoPlayer
-                        src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone-video-video-promp.mp4"
+                        src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_prompt_video.mp4"
                         wrapperClassName="w-full"
                         className="w-full h-auto"
                         showControls={false}

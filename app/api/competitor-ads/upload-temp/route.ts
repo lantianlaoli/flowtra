@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { Buffer } from 'buffer';
+import { buildCompetitorAdTempUploadPath } from '@/lib/storage/paths';
+import { buildStorageRef } from '@/lib/storage/ops';
+import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -25,13 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const brandId = formData.get('brand_id') as string;
     const adFile = formData.get('ad_file') as File | null;
-
-    // Validation
-    if (!brandId || !brandId.trim()) {
-      return NextResponse.json({ error: 'Brand ID is required' }, { status: 400 });
-    }
 
     if (!adFile) {
       return NextResponse.json({ error: 'Advertisement file is required' }, { status: 400 });
@@ -48,18 +45,18 @@ export async function POST(request: NextRequest) {
 
     console.log(`[POST /api/competitor-ads/upload-temp] Uploading temp file for analysis: ${adFile.name}`);
 
-    // Upload to temporary location
-    const fileExt = adFile.name.split('.').pop();
-    const timestamp = Date.now();
-    const fileName = `${timestamp}_${userId.slice(0, 8)}_temp.${fileExt}`;
-    const filePath = `${brandId}/temp/${fileName}`;
+    const filePath = buildCompetitorAdTempUploadPath({
+      userId,
+      draftId: crypto.randomUUID(),
+      fileName: adFile.name
+    });
 
     const supabase = getSupabaseAdmin();
     const arrayBuffer = await adFile.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
     const { data, error } = await supabase.storage
-      .from('competitor_videos')
+      .from(STORAGE_BUCKETS.tempUploads)
       .upload(filePath, buffer, {
         cacheControl: '3600',
         upsert: false,
@@ -74,16 +71,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('competitor_videos')
-      .getPublicUrl(filePath);
+    const ref = buildStorageRef(supabase, STORAGE_BUCKETS.tempUploads, data.path);
 
-    console.log(`[POST /api/competitor-ads/upload-temp] ✅ Temp file uploaded: ${publicUrl}`);
+    console.log(`[POST /api/competitor-ads/upload-temp] ✅ Temp file uploaded: ${ref.publicUrl}`);
 
     return NextResponse.json({
       success: true,
-      path: data.path,
-      publicUrl,
+      bucket: ref.bucket,
+      path: ref.path,
+      publicUrl: ref.publicUrl,
       fileType: 'video'
     }, { status: 200 });
 

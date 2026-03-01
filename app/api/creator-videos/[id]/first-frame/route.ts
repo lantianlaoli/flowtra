@@ -61,6 +61,7 @@ export async function POST(
     const arrayBuffer = await file.arrayBuffer();
     const uploadResult = await uploadCreatorVideoCoverToStorage({
       userId,
+      creatorVideoId: existingVideo.id,
       fileName: file.name || `${existingVideo.platform_video_id || existingVideo.id}.png`,
       buffer: Buffer.from(arrayBuffer),
       contentType: file.type,
@@ -68,7 +69,11 @@ export async function POST(
 
     const { data: updatedVideo, error: updateError } = await supabase
       .from('creator_source_videos')
-      .update({ cover_url: uploadResult.publicUrl })
+      .update({
+        cover_url: uploadResult.publicUrl,
+        cover_storage_bucket: uploadResult.bucket,
+        cover_storage_path: uploadResult.path
+      })
       .eq('id', existingVideo.id)
       .eq('user_id', userId)
       .select('*')

@@ -110,7 +110,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { data: project, error: projectError } = await supabase
       .from('competitor_ugc_replication_projects')
       .select(
-        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,selected_brand_id,competitor_ad_id,selected_inputs,generation_credits_used'
+        'id,user_id,credits_cost,status,created_at,updated_at,is_segmented,segment_count,segment_duration_seconds,video_model,video_aspect_ratio,video_quality,video_duration,language,video_prompts,segment_plan,segment_status,merged_video_url,competitor_ad_id,selected_inputs,generation_credits_used'
       )
       .eq('id', projectId)
       .single();
@@ -256,7 +256,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       updated_at: now
     };
 
-    let brandLogoUrl: string | null = null;
     const productImageUrls: string[] = [];
     const addProductPhotoUrl = (url?: string | null) => {
       if (!url || productImageUrls.length >= PRODUCT_REFERENCE_LIMIT) {
@@ -267,8 +266,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     };
     const characterPhotoUrls: string[] = [];
-    let brandContext: { brand_name: string } | undefined;
-
     const ensureCredits = async (amount: number, description: string) => {
       if (!projectUserId || amount <= 0) return;
 
@@ -321,10 +318,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     };
 
     const ensureBrandAndProductAssets = async () => {
-      // Brand step has been removed from clone flow; keep brand references disabled.
-      brandLogoUrl = null;
-      brandContext = undefined;
-
       if (requestedProductIds.length > 0) {
         const { data: requestedProducts } = await supabase
           .from('user_products')
@@ -425,7 +418,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         frameType: 'first',
         isCloneMode: cloneMode.isCloneMode,
         referenceSourceType: cloneMode.sourceType,
-        brandLogoUrl: brandLogoUrl ? 'present' : 'null',
         productImageUrlsCount: productImageUrls.length,
         characterPhotoUrlsCount: characterPhotoUrls.length,
         characterPhotoUrls,
@@ -438,9 +430,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         index,
         'first',
         aspectRatio,
-        brandLogoUrl,
         productImageUrls.length ? productImageUrls : null,
-        brandContext,
         cloneMode.mediaType,
         {
           aspectRatioOverride: frameImageSize,

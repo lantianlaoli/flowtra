@@ -27,7 +27,7 @@ export const successCases: SuccessCase[] = [
   {
     id: 'competitor-ugc-replication',
     user: '@laolilantian',
-    avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_1.jpg',
+    avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/landing/user_avatar_1.jpg',
     quote: 'Turn viral TikToks into your own UGC with Flowtra AI! Learn to swap products and use scene linking for consistent, high-quality results.',
     tiktokUrl: 'https://www.tiktok.com/@laolilantian/video/7586255739849559297',
     tiktokText: 'See the Tutorial',
@@ -40,7 +40,7 @@ export const successCases: SuccessCase[] = [
   {
     id: 'avatar-ads',
     user: '@laolilantian',
-    avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_1.jpg',
+    avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/landing/user_avatar_1.jpg',
     quote: 'Learn to create viral UGC videos faster. Set up your brand in Assets, choose an avatar, and let AI script the rest. Preview and refine for perfect results.',
     tiktokUrl: 'https://www.tiktok.com/@laolilantian/video/7588829313886162184',
     tiktokText: 'See the Tutorial',

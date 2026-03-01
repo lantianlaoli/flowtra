@@ -10,7 +10,6 @@ import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } f
 
 interface ProductCardProps {
   product: UserProduct;
-  brandLabel?: string;
   // Quick edit mode (inline name editing)
   onEdit?: (productId: string, newName: string) => void;
   // Full edit mode (open modal with product object)
@@ -29,7 +28,6 @@ interface ProductCardProps {
 
 export default function ProductCard({
   product,
-  brandLabel,
   onEdit,
   onEditClick,
   onDelete,
@@ -229,11 +227,6 @@ export default function ProductCard({
             <h4 className="assets-product-card-title font-medium text-sm text-gray-900 line-clamp-2 min-h-[2.5rem]">
               {product.product_name}
             </h4>
-            {brandLabel && (
-              <span className="assets-product-card-chip inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 text-gray-600 mb-2">
-                {brandLabel}
-              </span>
-            )}
             <div className="mt-3">
               <button
                 onClick={handleEditClick}

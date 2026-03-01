@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { parseStorageObjectRefFromPublicUrl } from '@/lib/storage/ops';
 
 export async function POST(
   request: NextRequest,
@@ -45,6 +46,7 @@ export async function POST(
     // Extract filename from URL or generate a default one
     const urlParts = imageUrl.split('/');
     const fileName = urlParts[urlParts.length - 1] || `product-photo-${Date.now()}.png`;
+    const parsedRef = parseStorageObjectRefFromPublicUrl(imageUrl);
 
     console.log('[from-url] Creating photo record:', { productId, userId, imageUrl, fileName });
 
@@ -54,6 +56,8 @@ export async function POST(
         product_id: productId,
         photo_url: imageUrl,
         file_name: fileName,
+        storage_bucket: parsedRef?.bucket || null,
+        storage_path: parsedRef?.path || null,
         photo_role: 'frontal',
         is_primary: true,
         user_id: userId
@@ -71,6 +75,8 @@ export async function POST(
           product_id: productId,
           photo_url: imageUrl,
           file_name: fileName,
+          storage_bucket: parsedRef?.bucket || null,
+          storage_path: parsedRef?.path || null,
           is_primary: true,
           user_id: userId
         })

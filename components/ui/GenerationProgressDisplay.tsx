@@ -56,7 +56,6 @@ export interface Generation {
   videoUrl?: string;
   coverUrl?: string;
   platform?: string;
-  brand?: string;
   product?: string;
   error?: string;
   videoModel?: VideoModel;
@@ -301,7 +300,6 @@ function GenerationCard({
     videoUrl,
     coverUrl,
     platform,
-    brand,
     product,
     error,
     videoModel,
@@ -555,7 +553,6 @@ function GenerationCard({
 
         {/* Metadata Row */}
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {brand && <MetaTag icon={User} text={brand} />}
           {product && <MetaTag icon={Package} text={product} />}
           {videoAspectRatio && <MetaTag icon={Maximize} text={videoAspectRatio} />}
           {videoDuration && <MetaTag icon={Clock} text={`${videoDuration}s`} />}

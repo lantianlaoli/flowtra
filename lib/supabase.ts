@@ -1,5 +1,21 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { Buffer } from 'buffer'
+import {
+  buildAvatarAdsDraftUploadPath,
+  buildCreatorVideoPath,
+  buildTempProductPhotoPath,
+  buildToolTempUploadPath,
+  buildUserAvatarImagePath,
+  buildUserProductPhotoPath,
+  getFileExtension,
+} from '@/lib/storage/paths'
+import {
+  buildStorageRef,
+  removeStorageObject,
+  removeStorageObjectByUrl,
+  removeStorageObjectWithFallback,
+} from '@/lib/storage/ops'
+import { STORAGE_BUCKETS, type StorageBucket } from '@/lib/storage/types'
 
 // Lazily initialize clients to avoid evaluating env vars during build time
 let browserClient: SupabaseClient | null = null
@@ -100,9 +116,7 @@ export interface SingleVideoProject {
   current_step?: 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'completed'
   progress_percentage?: number
   last_processed_at?: string
-  selected_brand_id?: string | null // Reference to user_brands table
   selected_inputs?: Record<string, unknown> | null // Multi-selection context (primary + arrays)
-  brand_logo_url?: string | null
   product_image_urls?: string[] | null
   video_generation_requested?: boolean | null // Whether user approved moving from cover to video
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
@@ -132,7 +146,6 @@ export interface CompetitorUgcReplicationSegment {
   segment_index: number
   status: string
   prompt?: Record<string, unknown> | null
-  contains_brand?: boolean
   contains_product?: boolean
   first_frame_task_id?: string | null
   first_frame_url?: string | null
@@ -184,6 +197,8 @@ export interface UserAvatar {
   avatar_name: string
   photo_url: string
   file_name: string
+  storage_bucket?: StorageBucket | null
+  storage_path?: string | null
   photo_set_json?: AvatarPhotoSet | null
   primary_photo_url?: string
   reference_photos?: AvatarPhotoEntry[]
@@ -206,26 +221,14 @@ export interface AvatarPhotoSet {
   updated_at: string
 }
 
-// Database types for user_brands table
-export interface UserBrand {
-  id: string
-  user_id: string
-  brand_name: string
-  brand_logo_url?: string | null
-  created_at: string
-  updated_at: string
-}
-
 // Database types for user_products table
 export interface UserProduct {
   id: string
   user_id: string
   product_name: string
-  brand_id?: string
   created_at: string
   updated_at: string
   user_product_photos?: UserProductPhoto[]
-  brand?: UserBrand // Joined data when fetching with brand relationship
 }
 
 // Database types for user_product_photos table
@@ -235,6 +238,8 @@ export interface UserProductPhoto {
   user_id: string
   photo_url: string
   file_name: string
+  storage_bucket?: StorageBucket | null
+  storage_path?: string | null
   photo_role: 'frontal' | 'reference'
   is_primary: boolean
   created_at: string
@@ -272,7 +277,11 @@ export interface CreatorSourceVideo {
   platform_video_id: string
   video_url: string
   video_cdn_url?: string | null
+  storage_bucket?: StorageBucket | null
+  storage_path?: string | null
   cover_url?: string | null
+  cover_storage_bucket?: StorageBucket | null
+  cover_storage_path?: string | null
   description?: string | null
   stats?: Record<string, unknown> | null
   duration_seconds?: number | null
@@ -334,11 +343,11 @@ export interface MotionSwapProject {
 export interface CompetitorAd {
   id: string
   user_id: string
-  brand_id: string
   competitor_name: string
+  source_storage_bucket?: StorageBucket | null
+  source_storage_path?: string | null
   created_at: string
   updated_at: string
-  brand?: UserBrand // Joined data when fetching with brand relationship
   // Analysis fields - these contain all valuable data from competitor ads
   analysis_result?: Record<string, unknown> | null // 10 Veo elements analysis (complete shot breakdown)
   language?: string | null // Language short code (e.g., 'en', 'zh', 'es')
@@ -393,30 +402,40 @@ export type TablesUpdate<T extends keyof Database['public']['Tables']> = Databas
 
 // Storage helpers
 export const uploadImageToStorage = async (file: File, filename?: string) => {
-  const fileExt = file.name.split('.').pop()
-  const fileName = filename || `${Math.random().toString(36).substring(2)}.${fileExt}`
-  const filePath = `temporary_products/${fileName}`
+  const fileName = filename || file.name
+  const extension = getFileExtension(fileName, 'png')
+  const draftId = crypto.randomUUID()
+  const inferredRole = fileName.includes('/person/') ? 'person' : 'product'
+  const filePath = buildAvatarAdsDraftUploadPath({
+    userId: 'shared',
+    draftId,
+    role: inferredRole,
+    index: 0,
+    fileName: `${draftId}.${extension}`
+  })
 
-  const supabase = getSupabase()
+  const supabase = getSupabaseAdmin()
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
   const { data, error } = await supabase.storage
-    .from('images')
-    .upload(filePath, file, {
+    .from(STORAGE_BUCKETS.tempUploads)
+    .upload(filePath, buffer, {
       cacheControl: '3600',
-      upsert: false
+      upsert: false,
+      contentType: file.type || 'image/png'
     })
 
   if (error) {
-    throw error
+    throw new Error(`Storage upload failed: ${error.message}`)
   }
 
-  const { data: { publicUrl } } = supabase.storage
-    .from('images')
-    .getPublicUrl(filePath)
+  const ref = buildStorageRef(supabase, STORAGE_BUCKETS.tempUploads, data.path)
 
   return {
-    path: data.path,
-    publicUrl,
-    fullUrl: publicUrl
+    bucket: ref.bucket,
+    path: ref.path,
+    publicUrl: ref.publicUrl,
+    fullUrl: ref.publicUrl
   }
 }
 
@@ -597,16 +616,27 @@ export const promoteAvatarReferenceToPrimary = (
   }
 }
 
-export const uploadAvatarPhotoToStorage = async (file: File, userId: string) => {
+export const uploadAvatarPhotoToStorage = async (
+  file: File,
+  userId: string,
+  options?: { avatarId?: string; referenceIndex?: number }
+) => {
   const fileName = `${userId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-  const filePath = `avatars/${fileName}`
+  const extension = getFileExtension(file.name, 'png')
+  const avatarId = options?.avatarId || crypto.randomUUID()
+  const filePath = buildUserAvatarImagePath({
+    userId,
+    avatarId,
+    extension,
+    referenceIndex: options?.referenceIndex
+  })
   const supabase = getSupabaseAdmin()
 
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
 
   const { data, error } = await supabase.storage
-    .from('images')
+    .from(STORAGE_BUCKETS.userImages)
     .upload(filePath, buffer, {
       cacheControl: '3600',
       upsert: false,
@@ -617,40 +647,36 @@ export const uploadAvatarPhotoToStorage = async (file: File, userId: string) => 
     throw new Error(`Storage upload failed: ${error.message}`)
   }
 
-  const { data: { publicUrl } } = supabase.storage
-    .from('images')
-    .getPublicUrl(filePath)
+  const ref = buildStorageRef(supabase, STORAGE_BUCKETS.userImages, data.path)
 
   return {
     fileName,
-    path: data.path,
-    publicUrl
+    bucket: ref.bucket,
+    path: ref.path,
+    publicUrl: ref.publicUrl
   }
 }
 
-export const deleteAvatarPhotoFromStorage = async (photoUrl: string | null | undefined) => {
-  if (!photoUrl) return
-
+export const deleteAvatarPhotoFromStorage = async (options: {
+  bucket?: string | null
+  path?: string | null
+  photoUrl?: string | null
+}) => {
   const supabase = getSupabaseAdmin()
-  const urlParts = photoUrl.split('/images/')
-  if (urlParts.length < 2) return
-
-  const filePath = urlParts[1]
-  const { error } = await supabase.storage
-    .from('images')
-    .remove([filePath])
-
-  if (error) {
-    throw new Error(`Failed to delete avatar photo: ${error.message}`)
-  }
+  await removeStorageObjectWithFallback(supabase, {
+    bucket: options.bucket,
+    path: options.path,
+    publicUrl: options.photoUrl
+  })
 }
 
 export const uploadAvatarToStorage = async (file: File, userId: string, avatarName: string) => {
   console.log(`[uploadAvatarToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes), name: ${avatarName}`);
 
   const supabase = getSupabaseAdmin()
-  const uploadResult = await uploadAvatarPhotoToStorage(file, userId)
-  const { fileName, path, publicUrl } = uploadResult
+  const avatarId = crypto.randomUUID()
+  const uploadResult = await uploadAvatarPhotoToStorage(file, userId, { avatarId })
+  const { bucket, fileName, path, publicUrl } = uploadResult
 
   console.log(`[uploadAvatarToStorage] Generated public URL for user ${userId}: ${publicUrl}`);
 
@@ -659,10 +685,13 @@ export const uploadAvatarToStorage = async (file: File, userId: string, avatarNa
   const { data: avatarRecord, error: dbError } = await supabase
     .from('user_avatars')
     .insert({
+      id: avatarId,
       user_id: userId,
       avatar_name: avatarName,
       photo_url: publicUrl,
       file_name: fileName,
+      storage_bucket: bucket,
+      storage_path: path,
       photo_set_json: createAvatarPhotoSet(publicUrl, fileName),
       is_active: true
     })
@@ -679,7 +708,7 @@ export const uploadAvatarToStorage = async (file: File, userId: string, avatarNa
     // If database insert fails, cleanup the uploaded file
     console.log(`[uploadAvatarToStorage] Cleaning up uploaded file due to database error: ${path}`);
     try {
-      await supabase.storage.from('images').remove([path])
+      await removeStorageObject(supabase, bucket, path)
       console.log(`[uploadAvatarToStorage] Cleanup successful for file: ${path}`);
     } catch (cleanupError) {
       console.error(`[uploadAvatarToStorage] Cleanup failed for file ${path}:`, cleanupError);
@@ -742,7 +771,11 @@ export const deleteAvatar = async (avatarId: string, userId: string): Promise<vo
 
   // Delete from storage (hard delete)
   try {
-    await deleteAvatarPhotoFromStorage(avatar.photo_url)
+    await deleteAvatarPhotoFromStorage({
+      bucket: avatar.storage_bucket,
+      path: avatar.storage_path,
+      photoUrl: avatar.photo_url
+    })
   } catch (storageError) {
     console.warn('[deleteAvatar] Failed to remove primary photo:', storageError)
   }
@@ -754,7 +787,9 @@ export const deleteAvatar = async (avatarId: string, userId: string): Promise<vo
   )
   for (const reference of normalizedPhotoSet.references) {
     try {
-      await deleteAvatarPhotoFromStorage(reference.photo_url)
+      await deleteAvatarPhotoFromStorage({
+        photoUrl: reference.photo_url
+      })
     } catch (storageError) {
       console.warn('[deleteAvatar] Failed to remove reference photo:', storageError)
     }
@@ -776,12 +811,16 @@ export const uploadAvatarFromUrl = async (imageUrl: string, userId: string, avat
     const ext = mimeType.split('/')[1] || 'png';
 
     const supabase = getSupabaseAdmin();
-
+    const avatarId = crypto.randomUUID();
     const fileName = `${userId}_${Date.now()}_optimized.${ext}`;
-    const filePath = `avatars/${fileName}`;
+    const filePath = buildUserAvatarImagePath({
+      userId,
+      avatarId,
+      extension: ext
+    });
 
     const { data, error } = await supabase.storage
-      .from('images')
+      .from(STORAGE_BUCKETS.userImages)
       .upload(filePath, buffer, {
         contentType: mimeType,
         cacheControl: '3600',
@@ -790,32 +829,34 @@ export const uploadAvatarFromUrl = async (imageUrl: string, userId: string, avat
 
     if (error) throw error;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('images')
-      .getPublicUrl(filePath);
+    const ref = buildStorageRef(supabase, STORAGE_BUCKETS.userImages, data.path);
 
     const { data: avatarRecord, error: dbError } = await supabase
       .from('user_avatars')
       .insert({
+        id: avatarId,
         user_id: userId,
         avatar_name: avatarName,
-        photo_url: publicUrl,
+        photo_url: ref.publicUrl,
         file_name: fileName,
-        photo_set_json: createAvatarPhotoSet(publicUrl, fileName),
+        storage_bucket: ref.bucket,
+        storage_path: ref.path,
+        photo_set_json: createAvatarPhotoSet(ref.publicUrl, fileName),
         is_active: true
       })
       .select()
       .single();
 
     if (dbError) {
-       await supabase.storage.from('images').remove([filePath]);
+       await removeStorageObject(supabase, ref.bucket, ref.path);
        throw dbError;
     }
 
     return {
-      path: data.path,
-      publicUrl,
-      fullUrl: publicUrl,
+      bucket: ref.bucket,
+      path: ref.path,
+      publicUrl: ref.publicUrl,
+      fullUrl: ref.publicUrl,
       avatarRecord
     };
 
@@ -855,10 +896,34 @@ export const updateAvatarName = async (
 }
 
 // Upload product photo to storage in the correct product folder
-export const uploadProductPhotoToStorage = async (file: File, userId: string) => {
+export const uploadProductPhotoToStorage = async (
+  file: File,
+  userId: string,
+  options?: {
+    productId?: string
+    photoId?: string
+    draftId?: string
+    variant?: 'original' | 'purified'
+    bucket?: StorageBucket
+  }
+) => {
   console.log(`[uploadProductPhotoToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes)`);
-  const fileName = `${userId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-  const filePath = `product/${fileName}`
+  const extension = getFileExtension(file.name, 'jpg')
+  const bucket = options?.bucket || STORAGE_BUCKETS.userImages
+  const photoId = options?.photoId || crypto.randomUUID()
+  const filePath = bucket === STORAGE_BUCKETS.tempUploads
+    ? buildTempProductPhotoPath({
+      userId,
+      draftId: options?.draftId || photoId,
+      fileName: file.name
+    })
+    : buildUserProductPhotoPath({
+      userId,
+      productId: options?.productId || 'temporary',
+      photoId,
+      extension,
+      variant: options?.variant || 'original'
+    })
   const supabase = getSupabaseAdmin()
 
   const arrayBuffer = await file.arrayBuffer()
@@ -867,7 +932,7 @@ export const uploadProductPhotoToStorage = async (file: File, userId: string) =>
   // Upload to storage
   console.log(`[uploadProductPhotoToStorage] Uploading to storage path: ${filePath}`);
   const { data, error } = await supabase.storage
-    .from('images')
+    .from(bucket)
     .upload(filePath, buffer, {
       cacheControl: '3600',
       upsert: false,
@@ -885,118 +950,31 @@ export const uploadProductPhotoToStorage = async (file: File, userId: string) =>
 
   console.log(`[uploadProductPhotoToStorage] Storage upload successful for user ${userId}, path: ${data.path}`);
 
-  const { data: { publicUrl } } = supabase.storage
-    .from('images')
-    .getPublicUrl(filePath)
+  const ref = buildStorageRef(supabase, bucket, data.path)
 
-  console.log(`[uploadProductPhotoToStorage] Generated public URL for user ${userId}: ${publicUrl}`);
+  console.log(`[uploadProductPhotoToStorage] Generated public URL for user ${userId}: ${ref.publicUrl}`);
 
   return {
-    path: data.path,
-    publicUrl,
-    fullUrl: publicUrl
+    bucket: ref.bucket,
+    path: ref.path,
+    photoId,
+    publicUrl: ref.publicUrl,
+    fullUrl: ref.publicUrl
   }
 }
 
-export const deleteProductPhotoFromStorage = async (photoUrl: string | null | undefined) => {
-  if (!photoUrl) return
-
+export const deleteProductPhotoFromStorage = async (options: {
+  bucket?: string | null
+  path?: string | null
+  photoUrl?: string | null | undefined
+}) => {
   const supabase = getSupabaseAdmin()
-  const urlParts = photoUrl.split('/images/')
-  if (urlParts.length < 2) {
-    console.warn(`[deleteProductPhotoFromStorage] Invalid photo URL format: ${photoUrl}`)
-    return
-  }
-
-  const filePath = urlParts[1]
-  console.log(`[deleteProductPhotoFromStorage] Deleting file at path: ${filePath}`)
-
-  const { error } = await supabase.storage
-    .from('images')
-    .remove([filePath])
-
-  if (error) {
-    console.error(`[deleteProductPhotoFromStorage] Error deleting file:`, error)
-    throw new Error(`Failed to delete product photo: ${error.message}`)
-  }
-
-  console.log(`[deleteProductPhotoFromStorage] Successfully deleted file: ${filePath}`)
-}
-
-// Upload brand logo to storage in brands folder
-export const uploadBrandLogoToStorage = async (file: File, userId: string) => {
-  console.log(`[uploadBrandLogoToStorage] Starting upload for user: ${userId}, file: ${file.name} (${file.size} bytes)`);
-
-  const fileExt = file.name.split('.').pop()
-  const uuid = Math.random().toString(36).substring(2, 15)
-  const fileName = `${uuid}_logo.${fileExt}`
-  const filePath = `brands/${userId}/${fileName}`
-
-  const supabase = getSupabaseAdmin()
-  const arrayBuffer = await file.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
-
-  // Upload to storage
-  console.log(`[uploadBrandLogoToStorage] Uploading to storage path: ${filePath}`);
-  const { data, error } = await supabase.storage
-    .from('images')
-    .upload(filePath, buffer, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: file.type || 'image/png'
-    })
-
-  if (error) {
-    console.error(`[uploadBrandLogoToStorage] Storage upload error for user ${userId}:`, {
-      error: error.message,
-      filePath,
-      fileName: file.name
-    });
-    throw new Error(`Storage upload failed: ${error.message}`);
-  }
-
-  console.log(`[uploadBrandLogoToStorage] Storage upload successful for user ${userId}, path: ${data.path}`);
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('images')
-    .getPublicUrl(filePath)
-
-  console.log(`[uploadBrandLogoToStorage] Generated public URL for user ${userId}: ${publicUrl}`);
-
-  return {
-    path: data.path,
-    publicUrl,
-    fullUrl: publicUrl
-  }
-}
-
-// Delete brand logo from storage
-export const deleteBrandLogoFromStorage = async (logoUrl: string | null | undefined): Promise<void> => {
-  if (!logoUrl) return
-
-  const supabase = getSupabaseAdmin()
-
-  // Extract file path from URL
-  // Format: https://{project}.supabase.co/storage/v1/object/public/images/brands/{userId}/{filename}
-  const urlParts = logoUrl.split('/images/')
-  if (urlParts.length < 2) {
-    console.error(`[deleteBrandLogoFromStorage] Invalid logo URL format: ${logoUrl}`);
-    return
-  }
-
-  const filePath = urlParts[1]
-  console.log(`[deleteBrandLogoFromStorage] Deleting file at path: ${filePath}`);
-
-  const { error } = await supabase.storage
-    .from('images')
-    .remove([filePath])
-
-  if (error) {
-    console.error(`[deleteBrandLogoFromStorage] Error deleting file:`, error);
-    throw new Error(`Failed to delete brand logo: ${error.message}`);
-  }
-
-  console.log(`[deleteBrandLogoFromStorage] Successfully deleted file: ${filePath}`);
+  console.log('[deleteProductPhotoFromStorage] Deleting file from storage', options)
+  await removeStorageObjectWithFallback(supabase, {
+    bucket: options.bucket,
+    path: options.path,
+    publicUrl: options.photoUrl
+  })
 }
 
 // NOTE: Competitor ad storage functions have been removed

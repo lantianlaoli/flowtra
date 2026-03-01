@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { buildToolTempUploadPath } from '@/lib/storage/paths';
+import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +18,11 @@ const buildSafeFileName = (originalName: string, kind: 'video' | 'image') => {
  */
 export async function POST(request: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { filename, fileType, kind } = body as {
       filename?: string;
@@ -28,10 +36,15 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const safeName = buildSafeFileName(filename, kind);
-    const storagePath = `tools/${kind}/${safeName}`;
+    const storagePath = buildToolTempUploadPath({
+      userId,
+      sessionId: crypto.randomUUID(),
+      kind,
+      fileName: safeName
+    });
 
     const { data, error } = await supabase.storage
-      .from('temp')
+      .from(STORAGE_BUCKETS.tempUploads)
       .createSignedUploadUrl(storagePath);
 
     if (error) {

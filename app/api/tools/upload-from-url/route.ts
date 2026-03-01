@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
+import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 const KIE_UPLOAD_ENDPOINT = 'https://kieai.redpandaai.co/api/file-url-upload';
 
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const { data: signedData, error: signedError } = await supabase.storage
-      .from('temp')
+      .from(STORAGE_BUCKETS.tempUploads)
       .createSignedUrl(path, 600);
 
     if (signedError || !signedData?.signedUrl) {
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
         originalFileType: fileType
       });
     } finally {
-      const { error: deleteError } = await supabase.storage.from('temp').remove([path]);
+      const { error: deleteError } = await supabase.storage.from(STORAGE_BUCKETS.tempUploads).remove([path]);
       if (deleteError) {
         console.error('[tools/upload-from-url] Temp file cleanup failed:', deleteError);
       }

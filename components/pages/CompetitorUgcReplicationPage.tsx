@@ -506,7 +506,7 @@ export default function CompetitorUgcReplicationPage() {
     };
   }, []);
 
-  // Auto-derive brand info
+  // Auto-derive product-linked copy
   const derivedAdCopy = "";
   const shouldGenerateVideo = !isCompetitorPhotoMode;
 
@@ -1704,7 +1704,6 @@ export default function CompetitorUgcReplicationPage() {
       stage: isCompetitorPhotoMode
         ? "Preparing replica photo…"
         : "Loading clone prompts…",
-      brand: undefined,
       videoModel: shouldGenerateVideo ? selectedModel : undefined,
       videoAspectRatio: shouldGenerateVideo ? selectedVideoAspectRatio : null,
       downloaded: false,

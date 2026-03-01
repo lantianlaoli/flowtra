@@ -282,7 +282,6 @@ export async function POST(request: NextRequest) {
                   throw new Error(`Next segment prompt not found (segment ${nextSegmentIndex})`);
                 }
                 const aspectRatio = (fullProject.video_aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16';
-                const brandLogoUrl = fullProject.brand_logo_url as string | null;
                 const cloneReferenceAssets = readCloneReferenceAssets(fullProject as Record<string, unknown>);
                 const productImageUrls = normalizeStringArray(
                   (fullProject as { product_image_urls?: unknown }).product_image_urls,
@@ -319,9 +318,7 @@ export async function POST(request: NextRequest) {
                   nextSegmentIndex,
                   'first',
                   aspectRatio,
-                  brandLogoUrl,
                   mergedProductImageUrls.length > 0 ? mergedProductImageUrls : null,
-                  undefined, // brandContext - not needed for continuation
                   cloneMode.mediaType,
                   {
                     characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0
@@ -426,7 +423,6 @@ export async function POST(request: NextRequest) {
           }
 
           const aspectRatio = (fullProject.video_aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16';
-          const brandLogoUrl = fullProject.brand_logo_url as string | null;
           const cloneReferenceAssets = readCloneReferenceAssets(fullProject as Record<string, unknown>);
           const productImageUrls = normalizeStringArray(
             (fullProject as { product_image_urls?: unknown }).product_image_urls,
@@ -453,9 +449,7 @@ export async function POST(request: NextRequest) {
             segment.segment_index,
             'first',
             aspectRatio,
-            brandLogoUrl,
             mergedProductImageUrls.length > 0 ? mergedProductImageUrls : null,
-            undefined,
             cloneMode.mediaType,
             {
               characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0

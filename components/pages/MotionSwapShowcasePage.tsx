@@ -111,7 +111,7 @@ export default function MotionSwapShowcasePage() {
                 </div>
                 <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-xl overflow-hidden shadow-xl border border-gray-200">
                   <LazyVideoPlayer
-                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/motion_swap_refer_1.mp4"
+                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_refer.mp4"
                     wrapperClassName="h-full w-full"
                     className="h-full w-full object-cover"
                     playsInline
@@ -128,7 +128,7 @@ export default function MotionSwapShowcasePage() {
                 </div>
                 <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-xl overflow-hidden shadow-xl border-2 border-black">
                   <LazyVideoPlayer
-                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/motion_swap_result_1.mp4"
+                    src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_result.mp4"
                     wrapperClassName="h-full w-full"
                     className="h-full w-full object-cover"
                     playsInline
@@ -181,7 +181,7 @@ export default function MotionSwapShowcasePage() {
             {/* Right: Video */}
             <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-200">
               <LazyVideoPlayer
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/import-paths.mp4"
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/import_video_paths.mp4"
                 wrapperClassName="w-full"
                 className="w-full h-auto"
                 showControls={false}
@@ -201,7 +201,7 @@ export default function MotionSwapShowcasePage() {
             {/* Left: Video */}
             <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-200 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
               <LazyVideoPlayer
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/import-tiktok-name.mp4"
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/import_tiktok_name.mp4"
                 wrapperClassName="w-full"
                 className="w-full h-auto"
                 showControls={false}
@@ -309,7 +309,7 @@ export default function MotionSwapShowcasePage() {
             {/* Right: Video */}
             <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-200 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
               <LazyVideoPlayer
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/motion-swap.mp4"
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_demo.mp4"
                 wrapperClassName="w-full"
                 className="w-full h-auto"
                 showControls={false}

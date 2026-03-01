@@ -49,7 +49,6 @@ interface AvatarAdsProject {
   last_webhook_check?: string; // NEW: Timestamp of last fallback polling check
   product_context?: {
     product_name?: string;
-    brand_name?: string;
     talking_head_script?: string;
   } | null;
 }
@@ -112,7 +111,6 @@ Provide a concise product name (max 80 characters).`;
 async function generatePrompts(
   productContext: {
     product_name?: string;
-    brand_name?: string;
     talking_head_script?: string;
   } | null,
   personImageUrl: string,
@@ -138,7 +136,6 @@ async function generatePrompts(
 async function _generatePromptsInternal(
   productContext: {
     product_name?: string;
-    brand_name?: string;
     talking_head_script?: string;
   } | null,
   personImageUrl: string,
@@ -211,10 +208,10 @@ Your task:
 3. Generate ${videoScenes} video scene prompt(s) with CORRECT gender-specific voice
 4. Generate 1 cover image prompt
 
-${productContext && (productContext.product_name || productContext.brand_name) ? `
-Product & Brand Context from Database:
-${productContext.product_name ? `Product: ${productContext.product_name}\n` : ''}${productContext.brand_name ? `Brand: ${productContext.brand_name}\n` : ''}
-IMPORTANT: Use this authentic product and brand context to enhance the video prompts.
+${productContext?.product_name ? `
+Product Context from Database:
+Product: ${productContext.product_name}
+IMPORTANT: Use this authentic product context to enhance the video prompts.
 ` : ''}
 
 CRITICAL RULES FOR GENDER:
@@ -934,8 +931,7 @@ export async function processAvatarAdsProject(
         if (!productContext && hasProductImages) {
           const productName = await analyzeProductImageOnly(project.product_image_urls[0]);
           productContext = {
-            product_name: productName.trim(),
-            brand_name: 'Unknown Brand'
+            product_name: productName.trim()
           };
 
           await supabase.from('avatar_ads_projects')
@@ -976,7 +972,7 @@ export async function processAvatarAdsProject(
 
         // ✅ Fix Bug 2: Direct Gemini analysis - no separate person analysis or gender detection
         const prompts = await generatePrompts(
-          productContext as { product_name?: string; brand_name?: string; talking_head_script?: string } | null,
+          productContext as { product_name?: string; talking_head_script?: string } | null,
           personImageUrl,
           productImageUrl,
           project.video_duration_seconds,

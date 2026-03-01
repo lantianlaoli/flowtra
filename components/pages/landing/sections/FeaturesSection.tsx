@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UserPlus, Copy, ArrowRight, Check, RefreshCw } from "lucide-react";
+import { UserPlus, Copy, ArrowRight, Check, RefreshCw, Bot, AtSign, Replace, MessageSquareText } from "lucide-react";
 import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
 
 export default function FeaturesSection() {
@@ -88,7 +88,7 @@ export default function FeaturesSection() {
 
                   <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_origin.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_source.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       playsInline
@@ -105,7 +105,7 @@ export default function FeaturesSection() {
 
                   <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/clone_competitor_result.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_result.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       playsInline
@@ -182,12 +182,100 @@ export default function FeaturesSection() {
             <div className="flex-1 w-full">
               <div className="relative aspect-[9/16] max-w-[320px] mx-auto bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
                 <LazyVideoPlayer
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/character-ad-case-1.mp4"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/character_ads_case.mp4"
                   wrapperClassName="h-full w-full"
                   className="h-full w-full object-cover"
                   playsInline
                   loop
                 />
+              </div>
+            </div>
+          </article>
+
+          <article className="flex flex-col lg:flex-row-reverse items-center gap-10 md:gap-16">
+            <div className="flex-1 space-y-8">
+              <div className="flex items-start gap-4">
+                <div
+                  className="w-12 h-12 bg-[#F7F7F7] rounded-lg flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
+                  <Bot className="w-6 h-6 text-black" />
+                </div>
+
+                <div>
+                  <h3 className="text-[24px] font-bold text-black mb-3">
+                    AI Agent
+                  </h3>
+
+                  <p className="text-lg text-[#666666] leading-relaxed">
+                    Talk through image prompts, video prompts, people swaps, and product swaps with an agent built for long-form clone workflows.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 pl-0 md:pl-12">
+                <ul className="space-y-4">
+                  {[
+                    "Automatic people and product replacement",
+                    "@mentions for asset referencing",
+                    "Supports TikTok clone workflows up to 60 seconds",
+                    "Subscribers use it without credit deductions",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-center gap-3 text-[#666666]"
+                    >
+                      <Check className="w-4 h-4 text-black flex-shrink-0" />
+
+                      <span className="font-medium">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <Link
+                  href="/features/ai-agent"
+                  className="inline-flex items-center gap-2 text-black font-semibold hover:gap-3 transition-all pt-2 border-b-2 border-transparent hover:border-black"
+                >
+                  Learn More
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="flex-1 w-full">
+              <div className="max-w-xl mx-auto rounded-[28px] border border-[#E5E5E5] bg-white p-4 shadow-[0_20px_40px_rgba(0,0,0,0.08)]">
+                <div className="rounded-[22px] border border-[#E5E5E5] bg-[#FAFAFA] p-4">
+                  <div className="flex items-center justify-between border-b border-[#ECECEC] pb-3">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#666666]">Agent Workspace</p>
+                      <p className="mt-1 text-lg font-semibold text-black">Prompt-driven cloning</p>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-full bg-black px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
+                      <AtSign className="w-3.5 h-3.5" />
+                      Asset-aware
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    <div className="rounded-2xl bg-black px-4 py-3 text-sm text-white">
+                      Swap <span className="font-semibold">@character(jade)</span> into scene 1 and replace the product with <span className="font-semibold">@product(flexbeam)</span>. Keep the original pacing.
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-[#E5E5E5] bg-white p-4">
+                        <Replace className="w-4 h-4 text-black" />
+                        <p className="mt-3 text-sm font-semibold text-black">Prompt replacement</p>
+                      </div>
+                      <div className="rounded-2xl border border-[#E5E5E5] bg-white p-4">
+                        <MessageSquareText className="w-4 h-4 text-black" />
+                        <p className="mt-3 text-sm font-semibold text-black">Chat-first editing</p>
+                      </div>
+                      <div className="rounded-2xl border border-dashed border-[#D0D0D0] bg-white p-4">
+                        <p className="text-sm font-semibold text-black">Clone asset slot</p>
+                        <p className="mt-2 text-xs leading-relaxed text-[#666666]">Reserved for future before-and-after media.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </article>
@@ -260,7 +348,7 @@ export default function FeaturesSection() {
 
                   <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/motion_swap_refer_1.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_refer.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       playsInline
@@ -276,7 +364,7 @@ export default function FeaturesSection() {
 
                   <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/motion_swap_result_1.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_result.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       playsInline

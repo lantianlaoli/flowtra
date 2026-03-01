@@ -5,7 +5,7 @@ import { auth } from '@clerk/nextjs/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// GET - List all competitor ads for a specific brand
+// GET - List all competitor ads for the authenticated user
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -16,18 +16,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Fetch competitor ads (optionally filtered by brand)
-    // Schema verified via Supabase MCP (2026-01-28): competitor_ads
+    // Schema verified via Supabase MCP (2026-03-01): competitor_ads has no brand dependency after migration 20260301_restructure_storage_and_remove_brands.
     let query = supabase
       .from('competitor_ads')
       .select('*')
       .eq('user_id', userId);
-
-    const { searchParams } = new URL(request.url);
-    const brandId = searchParams.get('brandId');
-    if (brandId) {
-      query = query.eq('brand_id', brandId);
-    }
 
     const { data: competitorAds, error } = await query.order('created_at', { ascending: false });
 

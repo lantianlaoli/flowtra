@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { analyzeCompetitorAdWithLanguage } from '@/lib/competitor-ugc-replication-workflow';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchTikTokVideoUrl, TikTokFetchError } from '@/lib/fetch-tiktok-video';
+import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
       if (needsFileCleanup && cleanupPath) {
         try {
           await supabase.storage
-            .from('competitor_videos')
+            .from(STORAGE_BUCKETS.tempUploads)
             .remove([cleanupPath]);
           console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Temporary file deleted: ${cleanupPath}`);
         } catch (deleteError) {
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
       if (needsFileCleanup && cleanupPath) {
         try {
           await supabase.storage
-            .from('competitor_videos')
+            .from(STORAGE_BUCKETS.tempUploads)
             .remove([cleanupPath]);
           console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Temporary file deleted after error: ${cleanupPath}`);
         } catch (deleteError) {

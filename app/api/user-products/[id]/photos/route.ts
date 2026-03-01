@@ -173,8 +173,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       );
     }
 
-    // Upload to storage using product photo utility
-    const uploadResult = await uploadProductPhotoToStorage(file, userId);
+    const photoId = crypto.randomUUID();
+
+    // Upload to storage using canonical product photo path.
+    const uploadResult = await uploadProductPhotoToStorage(file, userId, {
+      productId: id,
+      photoId
+    });
 
     if (!uploadResult) {
       throw new Error('Failed to upload to storage');
@@ -194,10 +199,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let data;
     let insertError;
     const insertPayload = {
+      id: photoId,
       product_id: id,
       user_id: userId,
       photo_url: uploadResult.publicUrl,
       file_name: file.name,
+      storage_bucket: uploadResult.bucket,
+      storage_path: uploadResult.path,
       photo_role: photoRole,
       is_primary: isPrimary
     };
@@ -215,10 +223,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const insertWithoutRole = await supabase
         .from('user_product_photos')
         .insert({
+          id: photoId,
           product_id: id,
           user_id: userId,
           photo_url: uploadResult.publicUrl,
           file_name: file.name,
+          storage_bucket: uploadResult.bucket,
+          storage_path: uploadResult.path,
           is_primary: isPrimary
         })
         .select()
@@ -268,7 +279,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       .eq('id', photoId)
       .eq('product_id', id)
       .eq('user_id', userId)
-      .select('photo_url')
+      .select('photo_url, storage_bucket, storage_path')
       .single();
 
     if (error) {
@@ -278,9 +289,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       throw error;
     }
 
-    if (deletedPhoto?.photo_url) {
+    if (deletedPhoto) {
       try {
-        await deleteProductPhotoFromStorage(deletedPhoto.photo_url);
+        await deleteProductPhotoFromStorage({
+          bucket: deletedPhoto.storage_bucket,
+          path: deletedPhoto.storage_path,
+          photoUrl: deletedPhoto.photo_url
+        });
       } catch (storageError) {
         console.warn('Failed to delete product photo from storage:', storageError);
       }

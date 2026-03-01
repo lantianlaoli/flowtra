@@ -76,7 +76,7 @@ export default function AvatarAdsShowcasePage() {
           <div className="flex justify-center lg:justify-end w-full">
              <div className="relative aspect-[9/16] max-w-[320px] w-full bg-gray-100 rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
                 <LazyVideoPlayer
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/character-ad-case-1.mp4"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/character_ads_case.mp4"
                   wrapperClassName="h-full w-full"
                   className="h-full w-full object-cover"
                   showControls={false}
@@ -237,7 +237,7 @@ export default function AvatarAdsShowcasePage() {
               {/* Left: Video (Alternating layout) */}
               <div className="order-2 lg:order-1 relative rounded-2xl overflow-hidden shadow-xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
                 <LazyVideoPlayer
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/asset.mp4"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/avatar_ads_asset.mp4"
                   wrapperClassName="w-full"
                   className="w-full h-auto"
                   showControls={false}
@@ -327,7 +327,7 @@ export default function AvatarAdsShowcasePage() {
               {/* Right: Video */}
               <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-200 group transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
                 <LazyVideoPlayer
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/avatar-ads.mp4"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/avatar_ads_demo.mp4"
                   wrapperClassName="w-full"
                   className="w-full h-auto"
                   showControls={false}

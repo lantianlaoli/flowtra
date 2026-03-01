@@ -133,7 +133,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
                     className="inline-block w-7 h-7 rounded-full ring-2 ring-white overflow-hidden"
                   >
                     <Image
-                      src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_avatar_${i}.${i === 1 ? "jpg" : "png"}`}
+                      src={`https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/landing/user_avatar_${i}.${i === 1 ? "jpg" : "png"}`}
                       alt={`User avatar ${i}`}
                       width={28}
                       height={28}

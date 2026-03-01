@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { buildCreatorVideoPath, getFileExtension } from '@/lib/storage/paths';
+import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-const sanitizeFileName = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,11 +28,16 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const safeName = sanitizeFileName(fileName);
-    const storagePath = `creator-videos/${userId}/${Date.now()}_${safeName}`;
+    const creatorVideoId = crypto.randomUUID();
+    const storagePath = buildCreatorVideoPath({
+      userId,
+      creatorVideoId,
+      extension: getFileExtension(fileName, 'mp4'),
+      variant: 'source'
+    });
 
     const { data, error } = await supabase.storage
-      .from('competitor_videos')
+      .from(STORAGE_BUCKETS.userVideos)
       .createSignedUploadUrl(storagePath);
 
     if (error) {
@@ -41,6 +46,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
+      bucket: STORAGE_BUCKETS.userVideos,
+      creatorVideoId,
       signedUrl: data.signedUrl,
       token: data.token,
       path: data.path
@@ -50,4 +57,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

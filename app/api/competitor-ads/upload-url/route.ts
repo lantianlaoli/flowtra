@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
+import { buildCompetitorAdTempUploadPath } from '@/lib/storage/paths';
+import { buildStorageRef } from '@/lib/storage/ops';
+import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,22 +22,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { filename, fileType, brandId, competitorName } = body;
+    const { filename, fileType } = body;
 
-    if (!filename || !fileType || !brandId || !competitorName) {
+    if (!filename || !fileType) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
-    const fileExt = filename.split('.').pop();
-    const timestamp = Date.now();
-    const cleanCompetitorName = competitorName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    const storagePath = `${brandId}/${cleanCompetitorName}/${timestamp}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const storagePath = buildCompetitorAdTempUploadPath({
+      userId,
+      draftId: crypto.randomUUID(),
+      fileName: filename
+    });
 
     console.log(`[POST /api/competitor-ads/upload-url] Generating upload URL for ${storagePath}`);
 
     const { data, error } = await supabase.storage
-      .from('competitor_videos')
+      .from(STORAGE_BUCKETS.tempUploads)
       .createSignedUploadUrl(storagePath);
 
     if (error) {
@@ -42,16 +46,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to generate upload URL' }, { status: 500 });
     }
 
-    // Get public URL for the record
-    const { data: publicUrlData } = supabase.storage
-      .from('competitor_videos')
-      .getPublicUrl(storagePath);
+    const ref = buildStorageRef(supabase, STORAGE_BUCKETS.tempUploads, storagePath);
 
     return NextResponse.json({
       success: true,
+      bucket: ref.bucket,
       signedUrl: data.signedUrl,
       path: data.path,
-      publicUrl: publicUrlData.publicUrl,
+      publicUrl: ref.publicUrl,
       token: data.token
     });
 

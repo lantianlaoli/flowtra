@@ -578,7 +578,6 @@ export default function MotionSwapPage() {
             ? selectedVideo?.cover_url
             : undefined) ||
           undefined,
-        brand: undefined,
         product: item.product_id
           ? productById.get(item.product_id)?.product_name || undefined
           : undefined,

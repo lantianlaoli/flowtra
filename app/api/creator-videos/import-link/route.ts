@@ -143,6 +143,7 @@ export async function POST(request: NextRequest) {
         const { buffer, contentType } = await downloadVideoBuffer(originalCdnUrl);
         const uploadResult = await uploadCreatorVideoToStorage({
           userId,
+          creatorVideoId: storedVideoId,
           fileName: expectedVideoFileName,
           buffer,
           contentType
@@ -152,7 +153,11 @@ export async function POST(request: NextRequest) {
 
         await bgSupabase
           .from('creator_source_videos')
-          .update({ video_cdn_url: uploadResult.publicUrl })
+          .update({
+            video_cdn_url: uploadResult.publicUrl,
+            storage_bucket: uploadResult.bucket,
+            storage_path: uploadResult.path
+          })
           .eq('id', storedVideoId);
       } catch (storageError) {
         console.warn('[Creator Videos Import Link] Background storage upload failed, using TikTok CDN URL:', storageError);
@@ -164,6 +169,7 @@ export async function POST(request: NextRequest) {
           const coverFile = await downloadVideoBuffer(fallbackCover);
           const coverUpload = await uploadCreatorVideoCoverToStorage({
             userId,
+            creatorVideoId: storedVideoId,
             fileName: expectedCoverFileName,
             buffer: coverFile.buffer,
             contentType: coverFile.contentType
@@ -171,7 +177,11 @@ export async function POST(request: NextRequest) {
 
           await bgSupabase
             .from('creator_source_videos')
-            .update({ cover_url: coverUpload.publicUrl })
+            .update({
+              cover_url: coverUpload.publicUrl,
+              cover_storage_bucket: coverUpload.bucket,
+              cover_storage_path: coverUpload.path
+            })
             .eq('id', storedVideoId);
         }
       } catch (fallbackError) {

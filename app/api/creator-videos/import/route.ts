@@ -127,18 +127,25 @@ export async function POST(request: NextRequest) {
       }
 
       let storedUrl: string | null = null;
+      let storageBucket: string | null = null;
+      let storagePath: string | null = null;
       let coverUrl: string | null = null;
+      let coverStorageBucket: string | null = null;
+      let coverStoragePath: string | null = null;
       try {
         let downloadTarget = cdnUrl;
         try {
           const { buffer, contentType } = await downloadVideoBuffer(downloadTarget);
           const uploadResult = await uploadCreatorVideoToStorage({
             userId,
+            creatorVideoId: platformVideoId,
             fileName: `${platformVideoId}.mp4`,
             buffer,
             contentType
           });
           storedUrl = uploadResult.publicUrl;
+          storageBucket = uploadResult.bucket;
+          storagePath = uploadResult.path;
         } catch (primaryError) {
           if (playUrl) {
             console.warn('[Creator Videos Import] Play URL download failed, retrying with RapidAPI URL:', primaryError);
@@ -147,11 +154,14 @@ export async function POST(request: NextRequest) {
               const { buffer, contentType } = await downloadVideoBuffer(downloadTarget);
               const uploadResult = await uploadCreatorVideoToStorage({
                 userId,
+                creatorVideoId: platformVideoId,
                 fileName: `${platformVideoId}.mp4`,
                 buffer,
                 contentType
               });
               storedUrl = uploadResult.publicUrl;
+              storageBucket = uploadResult.bucket;
+              storagePath = uploadResult.path;
             } catch (fallbackError) {
               console.warn('[Creator Videos Import] Fallback download failed, skipping video:', fallbackError);
               return null;
@@ -170,11 +180,14 @@ export async function POST(request: NextRequest) {
           const coverFile = await downloadVideoBuffer(video.cover_url);
           const coverUpload = await uploadCreatorVideoCoverToStorage({
             userId,
+            creatorVideoId: platformVideoId,
             fileName: `${platformVideoId}.png`,
             buffer: coverFile.buffer,
             contentType: coverFile.contentType
           });
           coverUrl = coverUpload.publicUrl;
+          coverStorageBucket = coverUpload.bucket;
+          coverStoragePath = coverUpload.path;
         } catch (coverError) {
           console.warn('[Creator Videos Import] Cover download failed:', coverError);
         }
@@ -187,7 +200,11 @@ export async function POST(request: NextRequest) {
         platform_video_id: platformVideoId,
         video_url: videoUrl,
         video_cdn_url: storedUrl,
+        storage_bucket: storageBucket,
+        storage_path: storagePath,
         cover_url: coverUrl,
+        cover_storage_bucket: coverStorageBucket,
+        cover_storage_path: coverStoragePath,
         description: video.description || null,
         duration_seconds: video.duration_seconds || null,
         analysis_status: 'pending',

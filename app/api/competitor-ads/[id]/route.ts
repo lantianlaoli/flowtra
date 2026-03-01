@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
 import { parseCompetitorTimeline } from '@/lib/competitor-shots';
+import { removeStorageObjectWithFallback } from '@/lib/storage/ops';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -194,7 +195,7 @@ export async function DELETE(
     console.log(`[DELETE /api/competitor-ads/[id]] Verifying record ownership...`);
     const { data: existingAd, error: fetchError } = await supabase
       .from('competitor_ads')
-      .select('id, user_id')
+      .select('id, user_id, source_storage_bucket, source_storage_path')
       .eq('id', id)
       .eq('user_id', userId)
       .single();
@@ -209,7 +210,7 @@ export async function DELETE(
 
     console.log(`[DELETE /api/competitor-ads/[id]] Record verified, proceeding with deletion...`);
 
-    // Delete from database (no file storage to clean up)
+    // Delete from database and clean stored source media when present.
     const { error: deleteError } = await supabase
       .from('competitor_ads')
       .delete()
@@ -227,6 +228,16 @@ export async function DELETE(
         { error: 'Failed to delete competitor ad', details: deleteError.message },
         { status: 500 }
       );
+    }
+
+    try {
+      await removeStorageObjectWithFallback(supabase, {
+        bucket: existingAd.source_storage_bucket,
+        path: existingAd.source_storage_path,
+        publicUrl: null
+      });
+    } catch (storageError) {
+      console.warn('[DELETE /api/competitor-ads/[id]] Failed to remove stored source file:', storageError);
     }
 
     console.log(`[DELETE /api/competitor-ads/[id]] Successfully deleted competitor ad: ${id}`);

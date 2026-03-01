@@ -325,17 +325,19 @@ export default function VideoImportModal({
       }
 
       const signedData = await signedResponse.json() as {
+        bucket: string;
+        creatorVideoId: string;
         path: string;
         token: string;
       };
 
-      if (!signedData.path || !signedData.token) {
+      if (!signedData.bucket || !signedData.creatorVideoId || !signedData.path || !signedData.token) {
         throw new Error('Failed to initialize upload.');
       }
 
       const supabase = getSupabase();
       const { error: uploadError } = await supabase.storage
-        .from('competitor_videos')
+        .from(signedData.bucket)
         .uploadToSignedUrl(signedData.path, signedData.token, fileToUpload, {
           contentType: fileToUpload.type || 'video/mp4',
           upsert: false
@@ -349,6 +351,8 @@ export default function VideoImportModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          creatorVideoId: signedData.creatorVideoId,
+          storageBucket: signedData.bucket,
           storagePath: signedData.path,
           fileName: fileToUpload.name,
           fileType: fileToUpload.type

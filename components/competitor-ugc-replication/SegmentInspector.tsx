@@ -104,7 +104,7 @@ const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: 
   return [createEmptyShotPayload(1, fallbackLanguage)];
 };
 
-type BrandProduct = {
+type ProductOption = {
   id: string;
   product_name: string;
   user_product_photos?: Array<{ photo_url: string; is_primary?: boolean }>;
@@ -182,8 +182,8 @@ export default function SegmentInspector({
   }, [openLanguageDropdownId]);
   const [photoPreviewPending, setPhotoPreviewPending] = useState(false);
   const [videoPreviewPending, setVideoPreviewPending] = useState(false);
-  const [productOptions, setProductOptions] = useState<BrandProduct[]>([]);
-  const productCacheRef = useRef<Record<string, { items: BrandProduct[]; error?: string }>>({});
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
+  const productCacheRef = useRef<Record<string, { items: ProductOption[]; error?: string }>>({});
   const [characterOptions, setCharacterOptions] = useState<UserAvatar[]>([]);
   const firstFrameUrl = segment?.firstFrameUrl || null;
   const videoUrl = segment?.videoUrl || null;
@@ -262,21 +262,21 @@ export default function SegmentInspector({
         const data = await response.json();
         if (cancelled) return;
 
-        const items: BrandProduct[] = Array.isArray(data?.products) ? data.products : [];
+        const items: ProductOption[] = Array.isArray(data?.products) ? data.products : [];
         productCacheRef.current[cacheKey] = { items };
         setProductOptions(items);
       } catch (error) {
         if (cancelled || controller.signal.aborted) {
           return;
         }
-        console.error(`Failed to fetch brand products (attempt ${attempt}):`, error);
+        console.error(`Failed to fetch products (attempt ${attempt}):`, error);
         if (attempt < PRODUCT_FETCH_MAX_ATTEMPTS) {
           const delay = attempt * 1000;
           retryTimeout = setTimeout(() => {
             fetchProducts(attempt + 1);
           }, delay);
         } else {
-          const message = 'Unable to load products for this brand. Please refresh and try again.';
+          const message = 'Unable to load products. Please refresh and try again.';
           productCacheRef.current[cacheKey] = { items: [], error: message };
           setProductOptions([]);
         }
@@ -405,12 +405,12 @@ export default function SegmentInspector({
     }
     return { productIds: Array.from(productIds), characterIds: Array.from(characterIds) };
   };
-  const getProductPhotoUrl = (product?: BrandProduct | null) => {
+  const getProductPhotoUrl = (product?: ProductOption | null) => {
     if (!product?.user_product_photos?.length) return null;
     const primary = product.user_product_photos.find(photo => photo.is_primary);
     return primary?.photo_url || product.user_product_photos[0]?.photo_url || null;
   };
-  const getProductPhotoCount = (product?: BrandProduct | null) =>
+  const getProductPhotoCount = (product?: ProductOption | null) =>
     Array.isArray(product?.user_product_photos)
       ? product.user_product_photos.filter(photo => Boolean(photo?.photo_url)).length
       : 0;

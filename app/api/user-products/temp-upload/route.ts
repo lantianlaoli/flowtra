@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { uploadProductPhotoToStorage } from '@/lib/supabase';
 import { validateImageFormat } from '@/lib/image-validation';
+import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 export const experimental_bodySizeLimit = 20 * 1024 * 1024; // 20MB limit for image uploads
 
@@ -34,12 +35,16 @@ export async function POST(request: NextRequest) {
     // 4. Upload to storage
     console.log('[temp-upload] Uploading file:', { userId, fileName: file.name, fileSize: file.size });
 
-    const uploadResult = await uploadProductPhotoToStorage(file, userId);
+    const uploadResult = await uploadProductPhotoToStorage(file, userId, {
+      bucket: STORAGE_BUCKETS.tempUploads,
+      draftId: crypto.randomUUID()
+    });
 
     console.log('[temp-upload] Upload successful:', { userId, publicUrl: uploadResult.publicUrl });
 
     return NextResponse.json({
       success: true,
+      bucket: uploadResult.bucket,
       publicUrl: uploadResult.publicUrl,
       path: uploadResult.path
     });

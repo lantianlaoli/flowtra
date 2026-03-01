@@ -329,7 +329,10 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'You can add up to 3 reference photos.' }, { status: 400 });
       }
 
-      const uploadedFile = await uploadAvatarPhotoToStorage(file, userId);
+      const uploadedFile = await uploadAvatarPhotoToStorage(file, userId, {
+        avatarId,
+        referenceIndex: action === 'add_reference' ? currentPhotoSet.references.length : undefined
+      });
       let nextPhotoSet = {
         ...currentPhotoSet,
         updated_at: new Date().toISOString()
@@ -350,7 +353,9 @@ export async function PUT(request: NextRequest) {
           .update({
             photo_set_json: nextPhotoSet,
             photo_url: nextPhotoSet.primary.photo_url,
-            file_name: nextPhotoSet.primary.file_name
+            file_name: nextPhotoSet.primary.file_name,
+            storage_bucket: uploadedFile.bucket,
+            storage_path: uploadedFile.path
           })
           .eq('id', avatarId)
           .eq('user_id', userId)
@@ -362,7 +367,11 @@ export async function PUT(request: NextRequest) {
         }
 
         try {
-          await deleteAvatarPhotoFromStorage(previousPrimary.photo_url);
+          await deleteAvatarPhotoFromStorage({
+            bucket: existingAvatar.storage_bucket,
+            path: existingAvatar.storage_path,
+            photoUrl: previousPrimary.photo_url
+          });
         } catch (storageError) {
           console.warn('Failed to delete old avatar primary photo:', storageError);
         }
@@ -428,7 +437,9 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
-        await deleteAvatarPhotoFromStorage(deletedReference.photo_url);
+        await deleteAvatarPhotoFromStorage({
+          photoUrl: deletedReference.photo_url
+        });
       } catch (storageError) {
         console.warn('Failed to delete avatar reference photo:', storageError);
       }

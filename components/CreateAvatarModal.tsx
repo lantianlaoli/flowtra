@@ -14,8 +14,8 @@ interface CreateAvatarModalProps {
   onAvatarCreated: (avatar: UserAvatar) => void;
 }
 
-const GOOD_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/user-photos/character_ad_example.png';
-const BLURRY_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/competitor_videos/user-photos/character_ad_bad.png';
+const GOOD_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/examples/avatar-quality/character_ad_example.png';
+const BLURRY_EXAMPLE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/examples/avatar-quality/character_ad_bad.png';
 
 interface PreviewFile {
   file: File;

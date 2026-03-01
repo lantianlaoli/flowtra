@@ -40,12 +40,12 @@ export default function CompetitorUgcReplicationShowcasePage() {
     {
       id: 1,
       productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/competitor_ugc_replication_1_product.jpg',
-      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/competitor_ugc_replication_1_video.mp4',
+      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_source.mp4',
     },
     {
       id: 2,
       productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/competitor_ugc_replication_2_product.png',
-      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_videos/competitor_ugc_replication_2_video.mp4',
+      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_result.mp4',
     },
   ];
 

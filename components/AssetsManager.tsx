@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { Search, Loader2, Package, ExternalLink, UserCircle, Video } from 'lucide-react';
-import { UserBrand, UserProduct, UserAvatar } from '@/lib/supabase';
+import { UserProduct, UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
 import { useToast } from '@/contexts/ToastContext';
 import ProductCard from './ProductCard';
@@ -47,12 +47,10 @@ interface VideoAsset extends CreatorSourceVideo {
 }
 
 interface AssetsData {
-  brands: UserBrand[];
-  products: (UserProduct & { brand?: UserBrand | null })[];
+  products: UserProduct[];
   creatorSources: CreatorSource[];
   videos: VideoAsset[];
   stats: {
-    totalBrands: number;
     totalProducts: number;
     totalCreatorSources?: number;
     totalCreatorVideos?: number;
@@ -62,11 +60,10 @@ interface AssetsData {
 export default function AssetsManager() {
   const { showSuccess, showError } = useToast();
   const [assetsData, setAssetsData] = useState<AssetsData>({
-    brands: [],
     creatorSources: [],
     products: [],
     videos: [],
-    stats: { totalBrands: 0, totalProducts: 0, totalCreatorSources: 0, totalCreatorVideos: 0 }
+    stats: { totalProducts: 0, totalCreatorSources: 0, totalCreatorVideos: 0 }
   });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -111,7 +108,6 @@ export default function AssetsManager() {
           products: data.products || [],
           videos: data.videos || [],
           stats: {
-            totalBrands: data.stats?.totalBrands || 0,
             totalProducts: data.stats?.totalProducts || 0,
             totalCreatorSources: data.stats?.totalCreatorSources || 0,
             totalCreatorVideos: data.stats?.totalCreatorVideos || 0
@@ -478,7 +474,6 @@ export default function AssetsManager() {
                     onPhotoUpload={handlePhotoUpload}
                     isDeleting={deletingProductId === product.id}
                     mode="compact"
-                    brandLabel={undefined}
                   />
                 ))}
               </div>
@@ -648,7 +643,6 @@ export default function AssetsManager() {
           setShowCreateProductModal(false);
         }}
         onProductCreated={handleProductCreated}
-        preselectedBrandId={null}
       />
 
       <CreateAvatarModal

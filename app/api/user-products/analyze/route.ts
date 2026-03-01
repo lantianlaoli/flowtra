@@ -31,7 +31,11 @@ export async function POST(request: NextRequest) {
       const metadata = await analyzeProductImage(uploadResult.publicUrl);
       return NextResponse.json({ success: true, ...metadata });
     } finally {
-      await deleteProductPhotoFromStorage(uploadResult.publicUrl).catch(error => {
+      await deleteProductPhotoFromStorage({
+        bucket: uploadResult.bucket,
+        path: uploadResult.path,
+        photoUrl: uploadResult.publicUrl
+      }).catch(error => {
         console.warn('[user-products/analyze] Failed to delete temporary asset:', error);
       });
     }

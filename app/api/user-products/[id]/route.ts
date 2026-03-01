@@ -11,7 +11,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const supabase = getSupabaseAdmin();
-    // Schema verified via Supabase MCP (2026-01-12): user_products has product_name, brand_id
+    // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
+    // user_products has product_name and no brand dependency.
     const { data, error } = await supabase
       .from('user_products')
       .select(`
@@ -53,7 +54,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await req.json();
-    const { product_name, brand_id } = body;
+    const { product_name } = body;
 
     // Build update object dynamically to handle partial updates
     const updateData: Record<string, string | null> = {};
@@ -63,10 +64,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
       }
       updateData.product_name = product_name;
-    }
-
-    if (brand_id !== undefined) {
-      updateData.brand_id = brand_id || null;
     }
 
     // If no fields to update, return error
@@ -127,7 +124,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const { data: productPhotos } = await supabase
       .from('user_product_photos')
-      .select('photo_url')
+      .select('photo_url, storage_bucket, storage_path')
       .eq('product_id', id)
       .eq('user_id', userId);
 
@@ -169,8 +166,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     if (productPhotos?.length) {
       for (const photo of productPhotos) {
-        if (photo.photo_url) {
-          deleteProductPhotoFromStorage(photo.photo_url).catch(err => {
+        if (photo.photo_url || (photo.storage_bucket && photo.storage_path)) {
+          deleteProductPhotoFromStorage({
+            bucket: photo.storage_bucket,
+            path: photo.storage_path,
+            photoUrl: photo.photo_url
+          }).catch(err => {
             console.warn('Failed to delete product photo from storage:', err);
           });
         }

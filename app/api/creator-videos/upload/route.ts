@@ -2,6 +2,7 @@ import { after, NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { analyzeCreatorVideoAndUpdate } from '@/lib/creator-video-analysis';
+import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -17,25 +18,31 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const storagePath = typeof body.storagePath === 'string' ? body.storagePath.trim() : '';
+    const storageBucket = typeof body.storageBucket === 'string' ? body.storageBucket.trim() : '';
+    const creatorVideoId = typeof body.creatorVideoId === 'string' ? body.creatorVideoId.trim() : '';
     const fileName = typeof body.fileName === 'string' ? body.fileName.trim() : '';
     const fileType = typeof body.fileType === 'string' ? body.fileType.trim() : '';
 
-    if (!storagePath || !fileName || !fileType) {
-      return NextResponse.json({ error: 'storagePath, fileName and fileType are required' }, { status: 400 });
+    if (!storagePath || !storageBucket || !creatorVideoId || !fileName || !fileType) {
+      return NextResponse.json({ error: 'storagePath, storageBucket, creatorVideoId, fileName and fileType are required' }, { status: 400 });
     }
 
     if (!fileType.startsWith('video/')) {
       return NextResponse.json({ error: 'Only video files are supported' }, { status: 400 });
     }
 
-    if (!storagePath.startsWith(`creator-videos/${userId}/`)) {
+    if (storageBucket !== STORAGE_BUCKETS.userVideos) {
+      return NextResponse.json({ error: 'Invalid storage bucket' }, { status: 400 });
+    }
+
+    if (!storagePath.startsWith(`users/${userId}/creator-videos/${creatorVideoId}/source/`)) {
       return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
 
     const { error: signedUrlError } = await supabase.storage
-      .from('competitor_videos')
+      .from(STORAGE_BUCKETS.userVideos)
       .createSignedUrl(storagePath, 60);
 
     if (signedUrlError) {
@@ -44,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from('competitor_videos')
+      .from(STORAGE_BUCKETS.userVideos)
       .getPublicUrl(storagePath);
 
     const uploadedPublicUrl = publicUrlData.publicUrl;
@@ -85,16 +92,20 @@ export async function POST(request: NextRequest) {
 
     const platformVideoId = crypto.randomUUID();
 
-    // Schema verified via Supabase MCP (2026-02-26): creator_source_videos includes analysis_status
+    // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
+    // creator_source_videos includes analysis_status plus storage_bucket/storage_path columns.
     const { data: storedVideo, error: videoError } = await supabase
       .from('creator_source_videos')
       .insert({
+        id: creatorVideoId,
         user_id: userId,
         source_id: source.id,
         platform: 'tiktok',
         platform_video_id: platformVideoId,
         video_url: uploadedPublicUrl,
         video_cdn_url: uploadedPublicUrl,
+        storage_bucket: storageBucket,
+        storage_path: storagePath,
         cover_url: coverUrl,
         analysis_status: 'pending',
         analysis_error: null

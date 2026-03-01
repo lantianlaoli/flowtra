@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { parseStorageObjectRefFromPublicUrl } from '@/lib/storage/ops';
 
 /**
  * POST /api/user-products/temp-photo
@@ -18,13 +19,17 @@ export async function POST(request: NextRequest) {
 
     // 2. Get image URL from request body
     const body = await request.json();
-    const { imageUrl, fileName } = body;
+    const { imageUrl, fileName, storageBucket, storagePath } = body;
 
     if (!imageUrl || typeof imageUrl !== 'string') {
       return NextResponse.json({
         error: 'Image URL is required'
       }, { status: 400 });
     }
+
+    const parsedRef = typeof storageBucket === 'string' && typeof storagePath === 'string'
+      ? { bucket: storageBucket, path: storagePath }
+      : parseStorageObjectRefFromPublicUrl(imageUrl);
 
     // 3. Create temporary photo record (product_id NULL for now)
     const supabase = getSupabaseAdmin();
@@ -35,6 +40,8 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         photo_url: imageUrl,
         file_name: fileName || `temp-photo-${Date.now()}.png`,
+        storage_bucket: parsedRef?.bucket || null,
+        storage_path: parsedRef?.path || null,
         photo_role: 'frontal',
         is_primary: true,
         purification_status: 'uploading'
@@ -53,6 +60,8 @@ export async function POST(request: NextRequest) {
           user_id: userId,
           photo_url: imageUrl,
           file_name: fileName || `temp-photo-${Date.now()}.png`,
+          storage_bucket: parsedRef?.bucket || null,
+          storage_path: parsedRef?.path || null,
           is_primary: true,
           purification_status: 'uploading'
         })

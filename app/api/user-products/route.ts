@@ -38,7 +38,6 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   type CreateProductRequest = {
     product_name?: string;
-    brand_id?: string | null;
   };
 
   let requestBody: CreateProductRequest | null = null;
@@ -53,12 +52,11 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as CreateProductRequest;
     requestBody = body;
-    const { product_name, brand_id } = body;
+    const { product_name } = body;
 
     console.log('[POST /api/user-products] Incoming request', {
       userId,
-      hasName: Boolean(product_name),
-      brandId: brand_id || null
+      hasName: Boolean(product_name)
     });
 
     if (!product_name) {
@@ -68,13 +66,13 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabaseAdmin();
     let data;
     try {
-      // Schema verified via Supabase MCP (2026-01-12): user_products has product_name, brand_id
+      // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
+      // user_products persists top-level user-owned products.
       const response = await supabase
         .from('user_products')
         .insert({
           user_id: userId,
-          product_name,
-          brand_id: brand_id || null
+          product_name
         })
         .select()
         .single();

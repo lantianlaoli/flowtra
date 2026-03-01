@@ -19,30 +19,13 @@ export async function GET() {
     // Use admin client to bypass RLS (we're already checking Clerk auth)
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-01-28): user_brands
-    // Fetch all brands
-    const { data: brands, error: brandsError } = await supabase
-      .from('user_brands')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (brandsError) {
-      console.error('Error fetching brands:', brandsError);
-      return NextResponse.json(
-        { error: 'Failed to fetch brands' },
-        { status: 500 }
-      );
-    }
-
-    // Schema verified via Supabase MCP (2026-01-28): user_products, user_product_photos, user_brands
-    // Fetch all products with photos + brand
+    // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
+    // user_products is product-first and no longer depends on brand tables.
     const { data: allProducts, error: productsError } = await supabase
       .from('user_products')
       .select(`
         *,
-        user_product_photos(*),
-        brand:user_brands(*)
+        user_product_photos(*)
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
@@ -109,7 +92,7 @@ export async function GET() {
     const competitorVideos = (competitorAds || []).map(ad => ({
       id: ad.id,
       user_id: ad.user_id,
-      source_id: ad.brand_id,
+      source_id: ad.id,
       platform: 'tiktok',
       platform_video_id: ad.id,
       video_url: '',
@@ -131,12 +114,10 @@ export async function GET() {
     }));
 
     const response = {
-      brands: brands || [],
       products,
       creatorSources: creatorSources || [],
       videos: [...competitorVideos, ...videos],
       stats: {
-        totalBrands: brands?.length || 0,
         totalProducts: (allProducts?.length || 0),
         totalCreatorSources: creatorSources?.length || 0,
         totalCreatorVideos: creatorSourceVideoCount + competitorVideos.length

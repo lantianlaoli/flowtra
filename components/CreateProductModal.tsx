@@ -12,7 +12,6 @@ interface CreateProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   onProductCreated: (product: UserProduct) => void;
-  preselectedBrandId?: string | null;
 }
 
 interface PreviewFile {
@@ -23,8 +22,7 @@ interface PreviewFile {
 export default function CreateProductModal({
   isOpen,
   onClose,
-  onProductCreated,
-  preselectedBrandId = null
+  onProductCreated
 }: CreateProductModalProps) {
   const [productName, setProductName] = useState('');
   const [frontalImage, setFrontalImage] = useState<PreviewFile | null>(null);
@@ -289,8 +287,7 @@ export default function CreateProductModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product_name: productName.trim(),
-          brand_id: preselectedBrandId
+          product_name: productName.trim()
         })
       });
 
