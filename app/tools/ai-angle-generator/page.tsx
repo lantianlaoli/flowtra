@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import imageCompression from "browser-image-compression";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Check, Copy, Download, Loader2, Sparkles, Upload } from "lucide-react";
@@ -32,11 +33,68 @@ type GeneratedImage = {
 
 type SourceAspect = "portrait" | "square" | "landscape";
 
+type AngleSlot = {
+  key: string;
+  label: string;
+  description: string;
+};
+
 const POLL_MAX_ATTEMPTS = 45;
 const POLL_INTERVAL_MS = 2500;
+const VERCEL_FUNCTION_BODY_LIMIT_BYTES = 4.5 * 1024 * 1024;
+const REQUEST_SIZE_BUFFER_BYTES = 350 * 1024;
+const MAX_CLIENT_UPLOAD_SIZE_MB = 2.6;
+const MAX_CLIENT_UPLOAD_DIMENSION = 2048;
+const ANGLE_SLOTS: AngleSlot[] = [
+  {
+    key: "front_left_45",
+    label: "45° Front Left",
+    description: "Camera positioned at the subject's front-left, with the left side more visible than the right.",
+  },
+  {
+    key: "front_right_45",
+    label: "45° Front Right",
+    description: "Camera positioned at the subject's front-right, with the right side more visible than the left.",
+  },
+  {
+    key: "back_view",
+    label: "Back View",
+    description: "Completes the rear view while preserving the same finish, palette, and overall image atmosphere.",
+  },
+];
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
+  const dataUrlPrefixLength = `data:${mimeType || "image/jpeg"};base64,`.length;
+  const base64Size = Math.ceil(fileSize / 3) * 4;
+  const jsonEnvelopeSize = 1024;
+  return dataUrlPrefixLength + base64Size + jsonEnvelopeSize;
+}
+
+function AngleSkeletonCard({ label, description }: AngleSlot) {
+  const lineWidths = ["w-[82%]", "w-[68%]", "w-[74%]", "w-[56%]"];
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
+      <div className="relative overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F3F3F3]">
+        <div className="absolute inset-0 -translate-x-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.85)_50%,transparent_100%)] bg-[length:200%_100%] animate-shimmer" />
+        <div className="aspect-square w-full bg-[#F3F3F3]" />
+      </div>
+
+      <div className="mt-3 space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <h4 className="text-sm font-semibold text-black">{label}</h4>
+          <span className="rounded-full border border-[#E5E5E5] bg-[#F7F7F7] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#666666]">
+            Generating
+          </span>
+        </div>
+        <p className="text-xs leading-5 text-[#666666]">{description}</p>
+      </div>
+    </article>
+  );
 }
 
 export default function AiAngleGeneratorPage() {
@@ -50,10 +108,15 @@ export default function AiAngleGeneratorPage() {
   const isBusy = status === "uploading" || status === "generating";
 
   const helperText = useMemo(() => {
-    if (status === "uploading") return "Reading and validating your image...";
-    if (status === "generating") return "Generating 3 angle photos. This can take up to 2 minutes.";
+    if (status === "uploading") return "Optimizing, validating, and uploading your image...";
+    if (status === "generating") return "Generating 3 angle photos while preserving the original style. This can take up to 2 minutes.";
     return null;
   }, [status]);
+
+  const generatedImagesByKey = useMemo(
+    () => new Map(generatedImages.map((item) => [item.key, item])),
+    [generatedImages]
+  );
 
   const getSourceAspect = (width: number, height: number): SourceAspect => {
     if (height > width) return "portrait";
@@ -61,7 +124,9 @@ export default function AiAngleGeneratorPage() {
     return "landscape";
   };
 
-  const validateAndReadDataUrl = async (file: File): Promise<{ imageDataUrl: string; sourceAspect: SourceAspect }> => {
+  const validateAndReadDataUrl = async (
+    file: File
+  ): Promise<{ imageDataUrl: string; sourceAspect: SourceAspect }> => {
     const formatCheck = validateImageFormat(file);
     if (!formatCheck.isValid) {
       throw new Error(formatCheck.error);
@@ -87,11 +152,38 @@ export default function AiAngleGeneratorPage() {
       );
     }
 
+    const needsOptimization =
+      file.size > MAX_CLIENT_UPLOAD_SIZE_MB * 1024 * 1024 ||
+      Math.max(dimensions.width, dimensions.height) > MAX_CLIENT_UPLOAD_DIMENSION;
+
+    const uploadFile = needsOptimization
+      ? await imageCompression(file, {
+          maxSizeMB: MAX_CLIENT_UPLOAD_SIZE_MB,
+          maxWidthOrHeight: MAX_CLIENT_UPLOAD_DIMENSION,
+          useWebWorker: true,
+          initialQuality: 0.92,
+          preserveExif: false,
+          fileType: file.type || undefined,
+        })
+      : file;
+
+    const estimatedRequestSize = estimateDataUrlRequestSize(
+      uploadFile.size,
+      uploadFile.type || file.type || "image/jpeg"
+    );
+
+    if (estimatedRequestSize > VERCEL_FUNCTION_BODY_LIMIT_BYTES - REQUEST_SIZE_BUFFER_BYTES) {
+      const optimizedSizeMb = (uploadFile.size / 1024 / 1024).toFixed(2);
+      throw new Error(
+        `This image is still too large for production upload after optimization (${optimizedSizeMb} MB). Please use a smaller image or reduce the dimensions before uploading.`
+      );
+    }
+
     const imageDataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = () => reject(new Error("Failed to read image file."));
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(uploadFile);
     });
 
     return {
@@ -246,7 +338,7 @@ export default function AiAngleGeneratorPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-black">Generate 3 additional angles</h2>
                   <p className="text-sm text-[#666666] mt-1">
-                    Upload a JPG or PNG frontal image (minimum 300x300).
+                    Upload a JPG or PNG frontal image (minimum 300x300). Large images are automatically optimized before upload to avoid production payload limits.
                   </p>
                 </div>
               </div>
@@ -297,7 +389,12 @@ export default function AiAngleGeneratorPage() {
 
           {frontalPreview && (
             <section className="space-y-4">
-              <h3 className="text-2xl font-semibold text-black tracking-tight">Photo set</h3>
+              <div className="space-y-1">
+                <h3 className="text-2xl font-semibold text-black tracking-tight">Photo set</h3>
+                <p className="text-sm text-[#666666]">
+                  The generated angles stay locked to your reference image style instead of switching to a new rendering look.
+                </p>
+              </div>
               <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-4">
                 <article className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
                   <div className="overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
@@ -311,59 +408,61 @@ export default function AiAngleGeneratorPage() {
                     />
                   </div>
                   <h4 className="mt-3 text-sm font-semibold text-black">Frontal Input</h4>
+                  <p className="mt-1 text-xs leading-5 text-[#666666]">
+                    This image acts as the style anchor for all generated viewing angles.
+                  </p>
                 </article>
 
-                {generatedImages.map((item) => (
-                  <article
-                    key={item.taskId}
-                    className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_20px_45px_rgba(0,0,0,0.08)]"
-                  >
-                    <div className="overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
-                      <Image
-                        src={item.imageUrl}
-                        alt={item.label}
-                        width={560}
-                        height={560}
-                        className="h-auto w-full object-cover"
-                        unoptimized
-                      />
-                    </div>
-                    <h4 className="mt-3 text-sm font-semibold text-black">{item.label}</h4>
-                    <div className="mt-4 flex w-full flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleCopyUrl(item.taskId, item.imageUrl)}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-black px-3 py-2 text-xs font-medium text-white transition hover:bg-[#333333]"
-                      >
-                        {copiedTaskId === item.taskId ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                        <span>{copiedTaskId === item.taskId ? "Copied" : "Copy URL"}</span>
-                      </button>
+                {ANGLE_SLOTS.map((slot) => {
+                  const image = generatedImagesByKey.get(slot.key);
 
-                      <a
-                        href={item.imageUrl}
-                        download={`${item.key}.png`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#E5E5E5] px-3 py-2 text-xs font-medium text-black transition hover:bg-[#F7F7F7]"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        <span>Download</span>
-                      </a>
-                    </div>
-                  </article>
-                ))}
+                  if (!image) {
+                    return status === "generating" ? (
+                      <AngleSkeletonCard key={slot.key} label={slot.label} description={slot.description} />
+                    ) : null;
+                  }
 
-                {status === "generating" &&
-                  Array.from({ length: Math.max(0, 3 - generatedImages.length) }).map((_, index) => (
+                  return (
                     <article
-                      key={`placeholder-${index}`}
-                      className="rounded-2xl border border-dashed border-[#D9D9D9] bg-[#FAFAFA] p-4"
+                      key={image.taskId}
+                      className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_20px_45px_rgba(0,0,0,0.08)]"
                     >
-                      <div className="aspect-square w-full rounded-xl border border-dashed border-[#D9D9D9] bg-white" />
-                      <h4 className="mt-3 text-sm font-semibold text-black">Generating...</h4>
-                      <p className="mt-1 text-xs text-[#666666]">Angle photo is being created.</p>
+                      <div className="overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
+                        <Image
+                          src={image.imageUrl}
+                          alt={slot.label}
+                          width={560}
+                          height={560}
+                          className="h-auto w-full object-cover"
+                          unoptimized
+                        />
+                      </div>
+                      <h4 className="mt-3 text-sm font-semibold text-black">{slot.label}</h4>
+                      <p className="mt-1 text-xs leading-5 text-[#666666]">{slot.description}</p>
+                      <div className="mt-4 flex w-full flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyUrl(image.taskId, image.imageUrl)}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-black px-3 py-2 text-xs font-medium text-white transition hover:bg-[#333333]"
+                        >
+                          {copiedTaskId === image.taskId ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span>{copiedTaskId === image.taskId ? "Copied" : "Copy URL"}</span>
+                        </button>
+
+                        <a
+                          href={image.imageUrl}
+                          download={`${image.key}.png`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#E5E5E5] px-3 py-2 text-xs font-medium text-black transition hover:bg-[#F7F7F7]"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          <span>Download</span>
+                        </a>
+                      </div>
                     </article>
-                  ))}
+                  );
+                })}
               </div>
             </section>
           )}

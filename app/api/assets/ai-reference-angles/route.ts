@@ -18,65 +18,92 @@ type AnglePreset = {
   prompt: string;
 };
 
+const STYLE_LOCK_SUFFIX = [
+  'Maintain exact stylistic consistency with the reference image.',
+  'Preserve the original visual medium, rendering approach, and image character.',
+  'If the reference image is an illustration, animation frame, painting, sketch, 3D render, product render, or casual mobile photo, retain that format rather than converting it into a different visual style.',
+  'Preserve the original color palette, lighting quality, tonal balance, contrast, saturation, texture treatment, and background atmosphere.',
+  'Do not restyle, embellish, beautify, or reinterpret the reference.'
+].join(' ');
+
+function withStyleLock(prompt: string) {
+  return `${prompt} ${STYLE_LOCK_SUFFIX}`;
+}
+
+const CAMERA_LEFT_DEFINITION =
+  'The camera is positioned 45 degrees to the subject front-left. The generated image must clearly show more of the subject left side than the right side. Do not return a near-frontal view, and do not mirror the opposite angle.';
+
+const CAMERA_RIGHT_DEFINITION =
+  'The camera is positioned 45 degrees to the subject front-right. The generated image must clearly show more of the subject right side than the left side. Do not return a near-frontal view, and do not mirror the opposite angle.';
+
 const ANGLE_PRESETS: Record<AssetType, AnglePreset[]> = {
   product: [
     {
       key: 'front_left_45',
       label: '45° Front Left',
-      prompt:
-        'Generate a realistic product photo from a 45-degree front-left angle. Keep the same product identity, materials, labels, colors, and proportions. Studio lighting, clean background, high detail.'
+      prompt: withStyleLock(
+        `Generate the same product from a 45-degree front-left perspective. ${CAMERA_LEFT_DEFINITION} Show the left-front plane and left-side depth more prominently than the right side. Preserve the exact product identity, materials, labels, colors, proportions, and compositional structure. Maintain a clean background and high visual fidelity.`
+      )
     },
     {
       key: 'front_right_45',
       label: '45° Front Right',
-      prompt:
-        'Generate a realistic product photo from a 45-degree front-right angle. Keep the same product identity, materials, labels, colors, and proportions. Studio lighting, clean background, high detail.'
+      prompt: withStyleLock(
+        `Generate the same product from a 45-degree front-right perspective. ${CAMERA_RIGHT_DEFINITION} Show the right-front plane and right-side depth more prominently than the left side. Preserve the exact product identity, materials, labels, colors, proportions, and compositional structure. Maintain a clean background and high visual fidelity.`
+      )
     },
     {
       key: 'back_view',
       label: 'Back View',
-      prompt:
-        'Generate a realistic product photo from a centered back view angle. Keep the same product identity, shape language, materials, and design details. Studio lighting, clean background, high detail.'
+      prompt: withStyleLock(
+        'Generate the same product from a centered rear view. Preserve the exact product identity, shape language, materials, labels, and design details. Maintain a clean background and high visual fidelity.'
+      )
     }
   ],
   avatar: [
     {
       key: 'left_45_portrait',
       label: '45° Left Portrait',
-      prompt:
-        'Generate a photorealistic portrait of the same person from a 45-degree left angle. Preserve identity, facial features, hairstyle, skin tone, and clothing style. Clean background, natural lighting.'
+      prompt: withStyleLock(
+        `Generate the same person from a 45-degree left portrait angle. ${CAMERA_LEFT_DEFINITION} The viewer should see more of the left cheek, left jawline, and left ear than the right side of the face. Preserve identity, facial structure, hairstyle, skin tone, expression, posture, and clothing characteristics. Maintain a clean background and faithful lighting.`
+      )
     },
     {
       key: 'right_45_portrait',
       label: '45° Right Portrait',
-      prompt:
-        'Generate a photorealistic portrait of the same person from a 45-degree right angle. Preserve identity, facial features, hairstyle, skin tone, and clothing style. Clean background, natural lighting.'
+      prompt: withStyleLock(
+        `Generate the same person from a 45-degree right portrait angle. ${CAMERA_RIGHT_DEFINITION} The viewer should see more of the right cheek, right jawline, and right ear than the left side of the face. Preserve identity, facial structure, hairstyle, skin tone, expression, posture, and clothing characteristics. Maintain a clean background and faithful lighting.`
+      )
     },
     {
       key: 'side_profile',
       label: 'Side Profile',
-      prompt:
-        'Generate a photorealistic side-profile portrait of the same person. Preserve identity, facial features, hairstyle, skin tone, and clothing style. Clean background, natural lighting.'
+      prompt: withStyleLock(
+        'Generate a side-profile portrait of the same person. Preserve identity, facial structure, hairstyle, skin tone, expression, posture, and clothing characteristics. Maintain a clean background and faithful lighting.'
+      )
     }
   ],
   universal: [
     {
       key: 'front_left_45',
       label: '45° Front Left',
-      prompt:
-        'Generate a photorealistic image of the same subject/object/entity from a 45-degree front-left angle. Preserve identity and all defining visual traits: shape, proportions, colors, textures, fur/material details, and distinguishing marks. Do not add any new objects, products, logos, text, packaging, accessories, or props. Keep a clean background and high detail.'
+      prompt: withStyleLock(
+        `Generate the same subject, object, or entity from a 45-degree front-left perspective. ${CAMERA_LEFT_DEFINITION} Preserve identity and all defining visual characteristics, including shape, proportions, colors, textures, fur or material detail, and distinguishing marks. Do not introduce new objects, products, logos, text, packaging, accessories, or props. Maintain a clean background and high detail.`
+      )
     },
     {
       key: 'front_right_45',
       label: '45° Front Right',
-      prompt:
-        'Generate a photorealistic image of the same subject/object/entity from a 45-degree front-right angle. Preserve identity and all defining visual traits: shape, proportions, colors, textures, fur/material details, and distinguishing marks. Do not add any new objects, products, logos, text, packaging, accessories, or props. Keep a clean background and high detail.'
+      prompt: withStyleLock(
+        `Generate the same subject, object, or entity from a 45-degree front-right perspective. ${CAMERA_RIGHT_DEFINITION} Preserve identity and all defining visual characteristics, including shape, proportions, colors, textures, fur or material detail, and distinguishing marks. Do not introduce new objects, products, logos, text, packaging, accessories, or props. Maintain a clean background and high detail.`
+      )
     },
     {
       key: 'back_view',
       label: 'Back View',
-      prompt:
-        'Generate a photorealistic centered back-view image of the same subject/object/entity. Preserve identity and all defining visual traits: shape, proportions, colors, textures, fur/material details, and distinguishing marks. Do not add any new objects, products, logos, text, packaging, accessories, or props. Keep a clean background and high detail.'
+      prompt: withStyleLock(
+        'Generate a centered rear-view image of the same subject, object, or entity. Preserve identity and all defining visual characteristics, including shape, proportions, colors, textures, fur or material detail, and distinguishing marks. Do not introduce new objects, products, logos, text, packaging, accessories, or props. Maintain a clean background and high detail.'
+      )
     }
   ]
 };
