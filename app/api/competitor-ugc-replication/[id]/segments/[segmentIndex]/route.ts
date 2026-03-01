@@ -15,7 +15,7 @@ import {
 } from '@/lib/competitor-ugc-replication-workflow';
 import { getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
-import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import {
   getEffectiveSegmentDurationSeconds,
@@ -343,14 +343,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       if (requestedCharacterIds.length > 0) {
         console.log('[SEGMENT API] Fetching character photos:', { requestedCharacterIds });
-        const systemAvatarMap = new Map(SYSTEM_AVATARS.map(avatar => [avatar.id, avatar.photo_url]));
+        const systemAvatarMap = new Map(SYSTEM_AVATARS.map(avatar => [avatar.id, avatar]));
         const userCharacterIds = requestedCharacterIds.filter(id => !systemAvatarMap.has(id));
 
         requestedCharacterIds.forEach((charId) => {
-          const systemPhotoUrl = systemAvatarMap.get(charId);
-          if (systemPhotoUrl && !characterPhotoUrls.includes(systemPhotoUrl)) {
-            characterPhotoUrls.push(systemPhotoUrl);
-          }
+          const systemAvatar = systemAvatarMap.get(charId);
+          if (!systemAvatar) return;
+          characterPhotoUrls.push(...getAvatarPhotoUrls(systemAvatar));
         });
 
         if (userCharacterIds.length === 0) {
@@ -358,9 +357,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
 
         if (userCharacterIds.length > 0) {
+          // Schema verified via Supabase MCP (2026-03-01): user_avatars includes id, photo_url, photo_set_json.
           const { data: characters, error: characterError } = await supabase
             .from('user_avatars')
-            .select('id, photo_url')
+            .select('id, photo_url, photo_set_json')
             .in('id', userCharacterIds)
             .eq('user_id', project.user_id);
 
@@ -370,17 +370,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
           if (characters && characters.length > 0) {
             console.log('[SEGMENT API] Characters fetched:', characters);
-            const charMap = new Map(characters.map(c => [c.id, c.photo_url]));
+            const charMap = new Map(characters.map(c => [c.id, c]));
             requestedCharacterIds.forEach(charId => {
-              const photoUrl = charMap.get(charId);
-              if (photoUrl && typeof photoUrl === 'string' && photoUrl.length > 0) {
-                characterPhotoUrls.push(photoUrl);
-              }
+              const avatar = charMap.get(charId);
+              if (!avatar) return;
+              characterPhotoUrls.push(...getAvatarPhotoUrls(avatar));
             });
           } else {
             console.warn('[SEGMENT API] No user characters found in database for requested IDs');
           }
         }
+        const dedupedCharacterPhotoUrls = Array.from(new Set(characterPhotoUrls)).slice(0, PRODUCT_REFERENCE_LIMIT);
+        characterPhotoUrls.splice(0, characterPhotoUrls.length, ...dedupedCharacterPhotoUrls);
         console.log('[SEGMENT API] Character photo URLs extracted:', characterPhotoUrls);
       }
     };

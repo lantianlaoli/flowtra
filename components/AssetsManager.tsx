@@ -11,6 +11,7 @@ import CreateProductModal from './CreateProductModal';
 import CreateAvatarModal from './CreateAvatarModal';
 import EditAvatarModal from './EditAvatarModal';
 import AvatarCard from './AvatarCard';
+import SystemAvatarDetailsModal from './SystemAvatarDetailsModal';
 import VideoImportModal from './VideoImportModal';
 import VideoAssetCard from './VideoAssetCard';
 import VideoAssetDetailsModal from './VideoAssetDetailsModal';
@@ -80,6 +81,7 @@ export default function AssetsManager() {
   const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<UserProduct | null>(null);
   const [editingAvatar, setEditingAvatar] = useState<UserAvatar | null>(null);
+  const [systemAvatarDetails, setSystemAvatarDetails] = useState<SystemAvatar | null>(null);
   const [showVideoImportModal, setShowVideoImportModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoAsset | null>(null);
   const [showVideoDetails, setShowVideoDetails] = useState(false);
@@ -275,8 +277,12 @@ export default function AssetsManager() {
   };
 
   const handleEditAvatar = (avatar: AvatarItem) => {
-    if (!('user_id' in avatar)) return;
-    setEditingAvatar(avatar);
+    if ('user_id' in avatar) {
+      setEditingAvatar(avatar);
+      return;
+    }
+
+    setSystemAvatarDetails(avatar);
   };
 
   const handleDeleteAvatar = async (avatarId: string) => {
@@ -658,6 +664,11 @@ export default function AssetsManager() {
         onAvatarUpdated={handleAvatarUpdated}
         onDelete={handleDeleteAvatar}
         isDeleting={deletingAvatarId === editingAvatar?.id}
+      />
+      <SystemAvatarDetailsModal
+        isOpen={!!systemAvatarDetails}
+        avatar={systemAvatarDetails}
+        onClose={() => setSystemAvatarDetails(null)}
       />
       <VideoImportModal
         isOpen={showVideoImportModal}

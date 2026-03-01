@@ -27,7 +27,7 @@ import {
   type CompetitorShot
 } from '@/lib/competitor-shots';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
-import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
 import { compilePromptForExecution } from '@/lib/competitor-ugc-replication-prompt-compiler';
 import {
   KLING_PROMPT_MAX_CHARS,
@@ -334,29 +334,6 @@ const collectDistinctUrls = (values: Array<string | null | undefined>, max = 10)
   return output;
 };
 
-const readAvatarPhotoSetUrls = (photoSetRaw: unknown): string[] => {
-  if (!photoSetRaw || typeof photoSetRaw !== 'object') return [];
-  const photoSet = photoSetRaw as Record<string, unknown>;
-  const primary = photoSet.primary && typeof photoSet.primary === 'object'
-    ? (photoSet.primary as Record<string, unknown>)
-    : null;
-  const references = Array.isArray(photoSet.references)
-    ? photoSet.references
-    : [];
-
-  const referenceUrls = references
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return null;
-      const url = (entry as Record<string, unknown>).photo_url;
-      return typeof url === 'string' ? url : null;
-    });
-
-  return collectDistinctUrls([
-    typeof primary?.photo_url === 'string' ? primary.photo_url : null,
-    ...referenceUrls
-  ], 4);
-};
-
 async function resolveCloneReferenceAssets(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   request: StartWorkflowRequest
@@ -432,7 +409,7 @@ async function resolveCloneReferenceAssets(
         if (avatarIndex === 0) {
           primaryAvatarName = systemAvatar.avatar_name || null;
         }
-        mergedAvatarUrls.push(systemAvatar.photo_url);
+        mergedAvatarUrls.push(...getAvatarPhotoUrls(systemAvatar));
         continue;
       }
 
@@ -470,9 +447,13 @@ async function resolveCloneReferenceAssets(
       if (avatarIndex === 0) {
         primaryAvatarName = avatarName;
       }
-      const primaryUrl = typeof avatarData.photo_url === 'string' ? avatarData.photo_url : null;
-      const photoSetUrls = readAvatarPhotoSetUrls(avatarData.photo_set_json);
-      mergedAvatarUrls.push(primaryUrl, ...photoSetUrls);
+      mergedAvatarUrls.push(...getAvatarPhotoUrls({
+        photo_url: typeof avatarData.photo_url === 'string' ? avatarData.photo_url : null,
+        photo_set_json:
+          avatarData.photo_set_json && typeof avatarData.photo_set_json === 'object'
+            ? (avatarData.photo_set_json as Record<string, unknown>)
+            : null,
+      }));
     }
 
     assets.avatarPhotoUrls = collectDistinctUrls(mergedAvatarUrls, 4);
@@ -4247,51 +4228,9 @@ async function buildKlingElementsFromMentions(
     avatars.map(avatar => [slugifyElementName(avatar.avatar_name || ''), avatar])
   );
 
-  const collectAvatarUrls = (avatar: Record<string, unknown> | undefined): string[] => {
-    if (!avatar) return [];
-
-    const urls: string[] = [];
-    const pushIfString = (value: unknown) => {
-      if (typeof value === 'string' && value.trim()) {
-        urls.push(value.trim());
-      }
-    };
-
-    pushIfString(avatar.photo_url);
-    const referencePhotos = Array.isArray(avatar.reference_photos)
-      ? avatar.reference_photos
-      : [];
-    referencePhotos.forEach((entry) => {
-      if (entry && typeof entry === 'object') {
-        pushIfString((entry as Record<string, unknown>).photo_url);
-      }
-    });
-
-    const photoSet = avatar.photo_set_json && typeof avatar.photo_set_json === 'object'
-      ? (avatar.photo_set_json as Record<string, unknown>)
-      : null;
-
-    if (photoSet) {
-      const primary = photoSet.primary && typeof photoSet.primary === 'object'
-        ? (photoSet.primary as Record<string, unknown>)
-        : null;
-      if (primary) {
-        pushIfString(primary.photo_url);
-      }
-
-      const setReferences = Array.isArray(photoSet.references)
-        ? photoSet.references
-        : [];
-      setReferences.forEach((entry) => {
-        if (entry && typeof entry === 'object') {
-          pushIfString((entry as Record<string, unknown>).photo_url);
-        }
-      });
-    }
-
-    // Kling image element requires 2-4 images
-    return Array.from(new Set(urls)).slice(0, 4);
-  };
+  const collectAvatarUrls = (avatar: Record<string, unknown> | undefined): string[] => (
+    getAvatarPhotoUrls(avatar as Parameters<typeof getAvatarPhotoUrls>[0])
+  );
 
   const tokenMap: Record<string, string> = {};
   const plainTokenMap: Record<string, string> = {};

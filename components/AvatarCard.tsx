@@ -39,7 +39,6 @@ export default function AvatarCard({
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isSystemAvatar) return;
     onEdit(avatar);
   };
 
@@ -91,9 +90,8 @@ export default function AvatarCard({
               <>
                 <button
                   onClick={handleEditClick}
-                  className={`assets-avatar-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25 ${isSystemAvatar ? 'opacity-40 cursor-not-allowed hover:bg-black' : ''}`}
-                  title={isSystemAvatar ? 'System avatar' : 'View details'}
-                  disabled={isSystemAvatar}
+                  className="assets-avatar-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                  title={isSystemAvatar ? 'View system avatar details' : 'View details'}
                 >
                   <Eye className="w-4 h-4" />
                   <span>View Details</span>

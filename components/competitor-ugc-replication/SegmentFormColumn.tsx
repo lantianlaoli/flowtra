@@ -30,6 +30,7 @@ import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDispl
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
+import type { SystemAvatar } from '@/lib/default-avatars';
 import { getFlagEmoji } from '@/lib/language-utils';
 import { useToast } from '@/contexts/ToastContext';
 import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
@@ -50,6 +51,8 @@ export type SegmentShotPayload = {
   ambiance_colour_lighting: string;
   camera_motion_positioning: string;
 };
+
+type AvatarOption = UserAvatar | SystemAvatar;
 
 export type SegmentPromptPayload = {
   first_frame_description: string;
@@ -195,7 +198,7 @@ export default function SegmentFormColumn({
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const productCacheRef = useRef<Record<string, { items: ProductOption[]; error?: string }>>({});
 
-  const [characterOptions, setCharacterOptions] = useState<UserAvatar[]>([]);
+  const [characterOptions, setCharacterOptions] = useState<AvatarOption[]>([]);
 
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { showError } = useToast();
@@ -370,7 +373,7 @@ export default function SegmentFormColumn({
         const data = await response.json();
         if (cancelled) return;
 
-        const characters: UserAvatar[] = Array.isArray(data?.avatars) ? data.avatars : [];
+        const characters: AvatarOption[] = Array.isArray(data?.avatars) ? data.avatars : [];
         setCharacterOptions(characters);
       } catch (error) {
         if (cancelled) return;
@@ -453,7 +456,7 @@ export default function SegmentFormColumn({
     Array.isArray(product?.user_product_photos)
       ? product.user_product_photos.filter(photo => Boolean(photo?.photo_url)).length
       : 0;
-  const getCharacterPhotoCount = (character?: UserAvatar | null) => {
+  const getCharacterPhotoCount = (character?: AvatarOption | null) => {
     if (!character) return 0;
     const referenceCount = Array.isArray(character.reference_photos)
       ? character.reference_photos.filter(photo => Boolean(photo?.photo_url)).length

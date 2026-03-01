@@ -8,6 +8,7 @@ import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
+import type { SystemAvatar } from '@/lib/default-avatars';
 import { MODEL_PROCESSING_TIMES, type VideoModel } from '@/lib/constants';
 import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segment-billing';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
@@ -62,6 +63,7 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: stri
 
 const DEFAULT_LANGUAGE: LanguageCode = 'en';
 const PRODUCT_FETCH_MAX_ATTEMPTS = 3;
+type AvatarOption = UserAvatar | SystemAvatar;
 
 const normalizeShotLanguage = (value?: string): LanguageCode => {
   if (!value) return DEFAULT_LANGUAGE;
@@ -184,7 +186,7 @@ export default function SegmentInspector({
   const [videoPreviewPending, setVideoPreviewPending] = useState(false);
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const productCacheRef = useRef<Record<string, { items: ProductOption[]; error?: string }>>({});
-  const [characterOptions, setCharacterOptions] = useState<UserAvatar[]>([]);
+  const [characterOptions, setCharacterOptions] = useState<AvatarOption[]>([]);
   const firstFrameUrl = segment?.firstFrameUrl || null;
   const videoUrl = segment?.videoUrl || null;
   const lastFirstFrameUrlRef = useRef<string | null>(firstFrameUrl);
@@ -313,7 +315,7 @@ export default function SegmentInspector({
         const data = await response.json();
         if (cancelled) return;
 
-        const characters: UserAvatar[] = Array.isArray(data?.avatars) ? data.avatars : [];
+        const characters: AvatarOption[] = Array.isArray(data?.avatars) ? data.avatars : [];
         setCharacterOptions(characters);
       } catch (error) {
         if (cancelled) return;
@@ -414,7 +416,7 @@ export default function SegmentInspector({
     Array.isArray(product?.user_product_photos)
       ? product.user_product_photos.filter(photo => Boolean(photo?.photo_url)).length
       : 0;
-  const getCharacterPhotoCount = (character?: UserAvatar | null) => {
+  const getCharacterPhotoCount = (character?: AvatarOption | null) => {
     if (!character) return 0;
     const referenceCount = Array.isArray(character.reference_photos)
       ? character.reference_photos.filter(photo => Boolean(photo?.photo_url)).length
