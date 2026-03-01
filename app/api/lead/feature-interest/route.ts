@@ -3,37 +3,14 @@ import { auth, clerkClient } from '@clerk/nextjs/server';
 import { sendEmail } from '@/lib/resend';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { deductCredits } from '@/lib/credits';
+import {
+  FEATURE_INTEREST_ALLOWED_VALUES,
+  getFeatureInterestLabel,
+  type FeatureInterestOption,
+} from '@/lib/feature-interest';
 
 const FEATURE_INTEREST_REWARD_DESCRIPTION = 'Feature interest reward (100 credits)';
 const FEATURE_INTEREST_REWARD_AMOUNT = 100;
-
-const ALLOWED_FEATURES = new Set([
-  'avatar_ads',
-  'competitor_ugc_replication',
-  'motion_swap',
-  'other',
-]);
-
-type FeatureInterestOption =
-  | 'avatar_ads'
-  | 'competitor_ugc_replication'
-  | 'motion_swap'
-  | 'other';
-
-function getFeatureLabel(feature: FeatureInterestOption, otherText?: string): string {
-  const labels: Record<Exclude<FeatureInterestOption, 'other'>, string> = {
-    avatar_ads: 'Avatar Ads',
-    competitor_ugc_replication: 'Competitor UGC Replication',
-    motion_swap: 'Motion Swap',
-  };
-
-  if (feature === 'other') {
-    const safeText = otherText?.trim();
-    return safeText ? `Other (${safeText})` : 'Other';
-  }
-
-  return labels[feature];
-}
 
 export async function POST(req: Request) {
   try {
@@ -47,7 +24,7 @@ export async function POST(req: Request) {
     const otherText = typeof body?.otherText === 'string' ? body.otherText.trim() : '';
     const selectedPlatform = typeof body?.selectedPlatform === 'string' ? body.selectedPlatform.trim() : '';
 
-    if (!ALLOWED_FEATURES.has(featureRaw)) {
+    if (!FEATURE_INTEREST_ALLOWED_VALUES.has(featureRaw as FeatureInterestOption)) {
       return NextResponse.json({ success: false, error: 'Invalid feature selection' }, { status: 400 });
     }
 
@@ -59,7 +36,7 @@ export async function POST(req: Request) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-22):
+    // Schema verified via Supabase MCP (2026-03-01):
     // user_credits columns used: user_id, purchased_credits, subscription_credits, credits_remaining
     // credit_transactions columns used: user_id, type, amount, description, created_at
     const { data: existingReward } = await supabaseAdmin
@@ -141,7 +118,7 @@ export async function POST(req: Request) {
         console.warn('Failed to fetch Clerk user for feature-interest lead:', clerkError);
       }
 
-      const featureLabel = getFeatureLabel(feature, otherText);
+      const featureLabel = getFeatureInterestLabel(feature, otherText);
       const subject = 'New feature interest lead (100-credit reward claimed)';
       const html = `
         <div>

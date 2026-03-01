@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import {
+  Bot,
   UserCircle,
   Copy,
   RefreshCw,
@@ -105,6 +106,25 @@ export default function Header({
               </button>
               <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-64 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                 <div className="py-2">
+                  <Link
+                    href="/features/ai-agent"
+                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                      <Bot className="w-5 h-5 text-black" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold text-black">AI Agent</div>
+                        <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
+                          New
+                        </span>
+                      </div>
+                      <div className="text-[12px] opacity-70">
+                        Talk through clone workflows
+                      </div>
+                    </div>
+                  </Link>
                   <Link
                     href="/features/avatar-ads"
                     className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
@@ -302,6 +322,16 @@ export default function Header({
         }`}
       >
         <div className="px-4 py-6 flex flex-col gap-4">
+          <Link
+            href="/features/ai-agent"
+            className="text-[16px] font-medium text-black inline-flex items-center gap-2"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <span>AI Agent</span>
+            <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
+              New
+            </span>
+          </Link>
           <Link
             href="/features/avatar-ads"
             className="text-[16px] font-medium text-black"

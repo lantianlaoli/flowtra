@@ -1,690 +1,276 @@
-'use client';
-
-import Link from 'next/link';
 import Script from 'next/script';
-import {
-  SparklesIcon,
-  ArrowRightIcon
-} from '@heroicons/react/24/outline';
-import {
-  Copy,
-  Zap,
-  Target,
-  Sparkles,
-  Users,
-  Globe,
-  Clock,
-  Scissors,
-  Link as LinkIcon,
-  HelpCircle
-} from 'lucide-react';
+import Link from 'next/link';
+import { Clock3, Globe2, Scissors } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import { FeatureSignupCTA } from '@/components/cta/FeatureSignupCTA';
+import FeatureBenefitRow from '@/components/features/FeatureBenefitRow';
+import FeatureHero from '@/components/features/FeatureHero';
+import FeatureStepsSection from '@/components/features/FeatureStepsSection';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
-import { BookDemoCTA } from '@/components/cta/BookDemoCTA';
-import { useState, useEffect } from 'react';
-import { useUser } from '@clerk/nextjs';
-import { TikTokAnalysisModal } from '@/components/showcase/TikTokAnalysisModal';
-import { useToast } from '@/contexts/ToastContext';
+
+const steps = [
+  {
+    title: 'Add your product context',
+    description: 'Upload the product and brand details that should replace the original ad assets.'
+  },
+  {
+    title: 'Import the viral reference',
+    description: 'Choose the competitor video you want to break down and clone.'
+  },
+  {
+    title: 'Review the generated structure',
+    description: 'Let Flowtra map the scenes, prompts, timing, and shot order before generation.'
+  },
+  {
+    title: 'Adjust prompts and assets',
+    description: 'Refine image prompts, video prompts, and replacements until the clone matches your goals.'
+  },
+  {
+    title: 'Generate and merge the final ad',
+    description: 'Run the segments, review the outputs, and merge the final version when every scene is ready.'
+  }
+];
+
+const analysisShots = [
+  {
+    id: '01',
+    timeRange: '0.0s - 2.1s',
+    action: 'Macro beauty close-up introduces the product with immediate application motion.',
+    audio: 'Hook lands immediately with a direct promise and tight pacing.',
+    visual: 'High-contrast cosmetic framing, face-forward composition, premium clean background.'
+  },
+  {
+    id: '02',
+    timeRange: '2.1s - 5.4s',
+    action: 'Product texture and hand movement stay centered while the subject continues the demo.',
+    audio: 'Middle section explains the benefit while maintaining the same rhythm.',
+    visual: 'Controlled hand placement, product label visibility, consistent skin-tone lighting.'
+  },
+  {
+    id: '03',
+    timeRange: '5.4s - 8.0s',
+    action: 'Ending pose and product hold create a clean finish for the final CTA beat.',
+    audio: 'Closing line resolves the promise and cues the conversion moment.',
+    visual: 'Held frame, minimal camera movement, reusable end-card composition.'
+  }
+];
+
+const primaryCta = { href: '/dashboard/competitor-ugc-replication', label: 'Start Cloning' };
+const secondaryCta = { href: '/#pricing', label: 'View Pricing' };
 
 export default function CompetitorReplicaShowcasePage() {
-  const { isSignedIn } = useUser();
-  const { showError } = useToast();
-  const [tiktokUrl, setTiktokUrl] = useState('');
-  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
-  const [selectedTikTokUrl, setSelectedTikTokUrl] = useState('');
-  const [hasUsedFreeAnalysis, setHasUsedFreeAnalysis] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
-
-  // Check if user has already used free analysis
-  useEffect(() => {
-    const analysisUsed = sessionStorage.getItem('tiktok_analysis_used');
-    if (analysisUsed) {
-      setHasUsedFreeAnalysis(true);
-    }
-  }, []);
-
-  const validateUrl = (url: string) => {
-    if (!url) {
-      setValidationError(null);
-      return false;
-    }
-    const isValid = isValidTikTokUrl(url);
-    if (!isValid) {
-      setValidationError('Please enter a valid TikTok video URL (e.g., https://www.tiktok.com/@user/video/...)');
-    } else {
-      setValidationError(null);
-    }
-    return isValid;
-  };
-
-  const isValidTikTokUrl = (url: string): boolean => {
-    const patterns = [
-      /^https?:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/video\/\d+/,
-      /^https?:\/\/vm\.tiktok\.com\/[\w]+/
-    ];
-    return patterns.some(pattern => pattern.test(url.trim()));
-  };
-
-  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const url = e.target.value;
-    setTiktokUrl(url);
-    validateUrl(url);
-  };
-
-  const handleAnalyzeTikTok = () => {
-    // Check session rate limit
-    const analysisUsed = sessionStorage.getItem('tiktok_analysis_used');
-    if (analysisUsed) {
-      showError('You have already used your free analysis for this session. Sign up to analyze more videos!');
-      return;
-    }
-
-    // Validate TikTok URL
-    if (!tiktokUrl || !validateUrl(tiktokUrl)) {
-      showError('Please enter a valid TikTok video URL');
-      return;
-    }
-
-    // Open modal (no redirect, no auth check)
-    setSelectedTikTokUrl(tiktokUrl);
-    setIsAnalysisModalOpen(true);
-  };
-
-  const features = [
-    {
-      icon: Copy,
-      title: 'Clone Creative Structure',
-      description: 'AI analyzes viral videos to extract the complete narrative structure, camera movements, and visual style.',
-    },
-    {
-      icon: Sparkles,
-      title: 'Smart Product Replacement',
-      description: 'Seamlessly replace viral products with yours while maintaining the proven creative framework.',
-    },
-    {
-      icon: Zap,
-      title: 'Minutes, Not Days',
-      description: 'Launch viral creatives in minutes instead of weeks of production time and creative brainstorming.',
-    },
-    {
-      icon: Target,
-      title: 'Proven Performance',
-      description: 'Build on top-performing viral ads that have already proven to resonate with your target audience.',
-    },
-    {
-      icon: Users,
-      title: 'Consistent Characters',
-      description: 'Maintain the same character appearance across all segments and shots, ensuring a seamless and believable narrative.',
-    },
-  ];
-
-  const useCases = [
-    'Quick Market Entry',
-    'Competitive Analysis',
-    'A/B Testing',
-    'Product Launches',
-    'Social Media Ads',
-    'E-commerce Marketing',
-    'Dropshipping Stores',
-    'Brand Competition',
-  ];
-
-  const demoAnalysisData = {
-    name: "elf-glow-reviver-lip-oil-swatch",
-    detected_language: "es",
-    video_duration_seconds: 15,
-    shots: [
-      {
-        shot_id: 1,
-        start_time: "00:00",
-        end_time: "00:03",
-        action: "Hand presents four boxes of lip oil to the camera",
-        audio: "Voiceover: 'Te pedí cuatro tonos...'",
-        first_frame_description: "A close-up, first-person perspective shot features a hand holding four distinct boxes..."
-      },
-      {
-        shot_id: 2,
-        start_time: "00:03",
-        end_time: "00:05",
-        action: "Woman holds up the specific shade 'Crystal Baller'",
-        audio: "Voiceover: 'El primero es Crystal Baller...'",
-        first_frame_description: "A close-up of a single rectangular product bottle held between thumb and forefinger..."
-      },
-      {
-        shot_id: 3,
-        start_time: "00:05",
-        end_time: "00:09",
-        action: "Applying the lip oil to lips",
-        audio: "Voiceover: '...que tiene destellitos...'",
-        first_frame_description: "A medium close-up centers on a young woman with long brunette hair..."
-      },
-      {
-        shot_id: 4,
-        start_time: "00:09",
-        end_time: "00:13",
-        action: "Detailed application and display of glossy finish",
-        audio: "Voiceover: 'De una vez les digo...'",
-        first_frame_description: "An extreme close-up focuses entirely on the lower half of the woman's face..."
-      },
-      {
-        shot_id: 5,
-        start_time: "00:13",
-        end_time: "00:15",
-        action: "Presenting the 'Candy Coated' shade",
-        audio: "Voiceover: 'Seguimos con el tono...'",
-        first_frame_description: "The frame transitions to the model holding a new shade open..."
-      }
-    ]
-  };
-
   return (
     <div className="min-h-screen bg-white">
       <Header />
 
-      {/* Hero Section */}
-      <section className="pt-20 pb-12 md:pb-16 lg:pt-28 lg:pb-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <div className="inline-block px-4 py-2 bg-black text-white rounded-full mb-6">
-                <span className="text-sm font-semibold">Viral Clone Demo</span>
-              </div>
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-black mb-6 leading-tight">
-                Clone a Viral Video
-              </h1>
-              <p className="text-base sm:text-lg text-gray-600 mb-8 leading-relaxed">
-                Flowtra mapped this entire viral ad beat-for-beat, swapped the product, and delivered a launch-ready clone in minutes. Same structure. Same energy. Your brand.
+      <FeatureHero
+        title="Viral Clone"
+        description="Clone a proven creative structure, swap in your product, and move from reference video to launch-ready output without rebuilding the ad from scratch."
+        primaryCta={primaryCta}
+        secondaryCta={secondaryCta}
+        mediaVariant="comparison"
+        media={
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#666666]">
+                Viral Video
               </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="/dashboard/competitor-ugc-replication"
-                  className="inline-flex items-center justify-center px-8 py-4 bg-black text-white rounded-lg font-semibold hover:bg-black/90 active:scale-[0.98] transition-all shadow-sm"
-                >
-                  Start Cloning
-                  <ArrowRightIcon className="ml-2 w-5 h-5" />
-                </Link>
-                <Link
-                  href="/#pricing"
-                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-black border border-[#E5E5E5] rounded-lg font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all shadow-sm"
-                >
-                  View Pricing
-                </Link>
+              <div className="relative aspect-[9/16] overflow-hidden rounded-[20px] border border-[#E5E5E5] bg-[#F5F5F5]">
+                <LazyVideoPlayer
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_source.mp4"
+                  wrapperClassName="h-full w-full"
+                  className="h-full w-full object-cover"
+                  showControls={false}
+                  playsInline
+                  loop
+                  autoPlay
+                />
               </div>
             </div>
-            
-            {/* Hero Right: Side-by-Side Comparison */}
-            <div className="flex justify-center lg:justify-end w-full">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-[600px]">
-                <div className="space-y-3">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-300 rounded-full text-sm font-semibold text-gray-700">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    Viral Video
-                  </div>
-                  <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
-                    <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_source.mp4"
-                      wrapperClassName="h-full w-full"
-                      className="h-full w-full object-cover"
-                      showControls={false}
-                      playsInline
-                      loop
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-sm font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    Clone
-                  </div>
-                  <div className="relative aspect-[9/16] w-full bg-gray-100 rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
-                    <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_result.mp4"
-                      wrapperClassName="h-full w-full"
-                      className="h-full w-full object-cover"
-                      showControls={false}
-                      playsInline
-                      loop
-                    />
-                  </div>
-                </div>
+            <div className="space-y-3">
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-black">
+                Your Clone
+              </p>
+              <div className="relative aspect-[9/16] overflow-hidden rounded-[20px] border border-black bg-[#F5F5F5]">
+                <LazyVideoPlayer
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_result.mp4"
+                  wrapperClassName="h-full w-full"
+                  className="h-full w-full object-cover"
+                  showControls={false}
+                  playsInline
+                  loop
+                  autoPlay
+                />
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        }
+      />
 
-      {/* Tutorial Section (New) */}
-      <section className="py-12 md:py-16 lg:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-           <div className="grid lg:grid-cols-2 gap-12 items-center">
-              {/* Left: Steps */}
-              <div className="space-y-8">
-                 <h2 className="text-3xl md:text-4xl font-bold text-black mb-6">
-                    Clone in 5 Simple Steps
-                 </h2>
-                 <div className="space-y-6">
-                    {/* Step 1 */}
-                    <div className="flex gap-4">
-                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">1</div>
-                       <div>
-                          <h3 className="text-xl font-semibold text-black">Configure Brand & Product</h3>
-                          <p className="text-gray-600 mt-1">Upload your product image and define your brand details.</p>
-                       </div>
-                    </div>
-                    {/* Step 2 */}
-                    <div className="flex gap-4">
-                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">2</div>
-                       <div>
-                          <h3 className="text-xl font-semibold text-black">Upload & Analyze</h3>
-                          <p className="text-gray-600 mt-1">Upload a viral UGC video. AI automatically analyzes the shot content.</p>
-                       </div>
-                    </div>
-                    {/* Step 3 */}
-                    <div className="flex gap-4">
-                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">3</div>
-                       <div>
-                          <h3 className="text-xl font-semibold text-black">Select Video to Clone</h3>
-                          <p className="text-gray-600 mt-1">Choose the specific video you want to clone.</p>
-                       </div>
-                    </div>
-                    {/* Step 4 */}
-                    <div className="flex gap-4">
-                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">4</div>
-                       <div>
-                          <h3 className="text-xl font-semibold text-black">Edit Segments & Prompts</h3>
-                          <p className="text-gray-600 mt-1">Edit segment photos and video prompts until satisfied.</p>
-                       </div>
-                    </div>
-                    {/* Step 5 */}
-                    <div className="flex gap-4">
-                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-bold">5</div>
-                       <div>
-                          <h3 className="text-xl font-semibold text-black">Merge Final Video</h3>
-                          <p className="text-gray-600 mt-1">Combine segments to generate the final video.</p>
-                       </div>
-                    </div>
-                 </div>
-                 <div className="pt-6">
-                    <Link
-                      href="/dashboard/competitor-ugc-replication"
-                      className="inline-flex items-center justify-center gap-2 bg-black text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-black/90 active:scale-[0.98] transition-all shadow-sm"
-                    >
-                      Start Cloning
-                      <ArrowRightIcon className="w-4 h-4" />
-                    </Link>
-                 </div>
-              </div>
-
-              {/* Right: TikTok Video */}
-              <div className="flex justify-center lg:justify-end w-full">
-                <blockquote
-                  className="tiktok-embed"
-                  cite="https://www.tiktok.com/@laolilantian/video/7600702812682587400?lang=en"
-                  data-video-id="7600702812682587400"
-                  style={{ maxWidth: '605px', minWidth: '280px' }}
-                >
-                  <section>
-                    <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">
-                      @laolilantian
-                    </a>{' '}
-                    Watch how we quickly clone viral videos and swap products using our optimized tool. Adjust every frame and prompt in the editor for perfect results.{' '}
-                    <a title="videoai" target="_blank" href="https://www.tiktok.com/tag/videoai?refer=embed">
-                      #VideoAI
-                    </a>{' '}
-                    <a title="contentcreation" target="_blank" href="https://www.tiktok.com/tag/contentcreation?refer=embed">
-                      #ContentCreation
-                    </a>{' '}
-                    <a title="productmarketing" target="_blank" href="https://www.tiktok.com/tag/productmarketing?refer=embed">
-                      #ProductMarketing
-                    </a>{' '}
-                    <a title="techdemo" target="_blank" href="https://www.tiktok.com/tag/techdemo?refer=embed">
-                      #TechDemo
-                    </a>{' '}
-                    <a target="_blank" title="♬ original sound  - Lantian laoli" href="https://www.tiktok.com/mus/original-sound-Lantian-laoli-7588830007134063381?refer=embed">
-                      ♬ original sound  - Lantian laoli
-                    </a>
-                  </section>
-                </blockquote>
-                <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
-              </div>
-           </div>
-        </div>
-      </section>
-
-      {/* AI Analysis Demo Section */}
-      <section className="py-12 md:py-16 lg:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-start">
-
-            {/* Left: AI Analysis Results (Notion Style) */}
-            <div className="space-y-8">
-               <div>
-                  <div className="inline-block px-3 py-1 bg-black text-white text-xs font-mono rounded mb-4">
-                    AI Analysis Result
-                  </div>
-                  <h2 className="text-3xl font-bold text-black mb-4">Deep Video Understanding</h2>
-                  <p className="text-gray-600 mb-6 leading-relaxed">
-                    Our AI deconstructs every second of the video, capturing timing, actions, voiceovers, and camera angles to recreate the winning formula.
-                  </p>
-
-                  {/* Selling Points */}
-                  <div className="flex flex-wrap gap-3 mb-8">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm">
-                      <Globe className="w-4 h-4 text-blue-500" />
-                      <span>10+ Languages Detected</span>
-                    </div>
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm">
-                      <Clock className="w-4 h-4 text-orange-500" />
-                      <span>Up to 60s Video</span>
-                    </div>
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm">
-                      <Scissors className="w-4 h-4 text-purple-500" />
-                      <span>Auto-Scene Detection</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="relative flex-1 !h-14">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                          <LinkIcon className="w-5 h-5 text-gray-400" />
-                        </div>
-                        <input
-                          type="url"
-                          placeholder="Paste TikTok video URL..."
-                          value={tiktokUrl}
-                          onChange={handleUrlChange}
-                          className={`w-full !h-14 pl-12 pr-10 border-2 rounded-xl text-base font-medium placeholder:text-gray-400 bg-white focus:ring-0 focus:outline-none transition-all shadow-sm focus:shadow-md ${
-                            validationError 
-                              ? 'border-red-300 focus:border-red-400' 
-                              : 'border-[#D9D9D9] focus:border-black/50'
-                          }`}
-                        />
-                        {/* Help Tooltip */}
-                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center group">
-                          <HelpCircle className="w-5 h-5 text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-                          <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 leading-relaxed">
-                            <p className="font-semibold mb-1">How to get the URL:</p>
-                            <ol className="list-decimal pl-4 space-y-1 text-gray-300">
-                              <li>Find a video on TikTok web</li>
-                              <li>Copy the URL from browser address bar</li>
-                            </ol>
-                            <div className="absolute bottom-[-6px] right-4 w-3 h-3 bg-gray-900 rotate-45"></div>
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleAnalyzeTikTok}
-                        disabled={!tiktokUrl.trim() || !!validationError}
-                        className="flex-shrink-0 w-full sm:w-12 h-14 inline-flex items-center justify-center gap-2 bg-black text-white rounded-xl border-2 border-black hover:bg-black/90 active:scale-[0.98] transition-all disabled:bg-[#F7F7F7] disabled:text-[#999999] disabled:border-[#E5E5E5] disabled:cursor-not-allowed shadow-sm"
-                        aria-label="Analyze TikTok Video"
-                      >
-                        <span className="sm:hidden font-semibold">Analyze</span>
-                        <ArrowRightIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {/* Validation Error Message */}
-                    {validationError && (
-                      <p className="text-sm text-red-500 pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                        {validationError}
-                      </p>
-                    )}
-
-                    {/* Rate Limit Warning */}
-                    {hasUsedFreeAnalysis && (
-                      <div className="p-4 bg-[#F7F6F3] border border-[#E5E5E5] rounded-lg">
-                        <p className="text-sm text-[#37352F]">
-                          You&apos;ve used your free analysis for this session.{' '}
-                          <Link href="/sign-up" className="underline font-medium text-black hover:text-[#37352F]">
-                            Sign up
-                          </Link>{' '}
-                          to analyze more videos.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-               </div>
-
-               <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden font-mono text-sm">
-                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 flex justify-between items-center">
-                    <span className="font-semibold text-gray-700">Video Blueprint</span>
-                    <span className="text-xs text-gray-500">15s • {demoAnalysisData.shots.length} shots detected</span>
-                  </div>
-                  <div className="max-h-[400px] overflow-y-auto p-0">
-                    {demoAnalysisData.shots.map((shot) => (
-                      <div key={shot.shot_id} className="border-b border-gray-100 last:border-0 p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 mb-2">
-                           <span className="text-xs font-bold text-gray-400 w-16 shrink-0 font-sans">
-                             {shot.start_time} - {shot.end_time}
-                           </span>
-                           <span className="text-xs font-semibold text-purple-600 uppercase tracking-wider font-sans">
-                             Shot {shot.shot_id}
-                           </span>
-                        </div>
-                        <div className="grid gap-2 pl-0 sm:pl-20">
-                           <div>
-                             <span className="text-gray-400 text-[10px] uppercase tracking-wide font-sans block mb-1">Action</span>
-                             <p className="text-gray-800 leading-snug">{shot.action}</p>
-                           </div>
-                           <div>
-                             <span className="text-gray-400 text-[10px] uppercase tracking-wide font-sans block mb-1">Audio</span>
-                             <p className="text-gray-600 italic leading-snug">&quot;{shot.audio}&quot;</p>
-                           </div>
-                           <div>
-                             <span className="text-gray-400 text-[10px] uppercase tracking-wide font-sans block mb-1">Visual</span>
-                             <p className="text-gray-500 text-xs leading-relaxed">{shot.first_frame_description}</p>
-                           </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-               </div>
-            </div>
-
-            {/* Right: Video */}
-            <div className="lg:sticky lg:top-24">
-                <div className="relative aspect-[9/16] w-full max-w-sm mx-auto bg-black rounded-[2rem] overflow-hidden shadow-2xl border-4 border-black">
-                    <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_parse.mp4"
-                      wrapperClassName="h-full w-full"
-                      className="h-full w-full object-cover"
-                      showControls={false}
-                      playsInline
-                      loop
-                      autoPlay
-                    />
-                </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* Segment Editor Demo Section */}
-      <section className="py-12 md:py-16 lg:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-           <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
-              
-              {/* Video Side */}
-              <div className="w-full lg:w-3/5">
-                 <div className="grid gap-4">
-                    <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
-                      <LazyVideoPlayer
-                        src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_prompt_image.mp4"
-                        wrapperClassName="w-full"
-                        className="w-full h-auto"
-                        showControls={false}
-                        playsInline
-                        loop
-                        autoPlay
-                      />
-                    </div>
-                    <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-50 group transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
-                      <LazyVideoPlayer
-                        src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_prompt_video.mp4"
-                        wrapperClassName="w-full"
-                        className="w-full h-auto"
-                        showControls={false}
-                        playsInline
-                        loop
-                        autoPlay
-                      />
-                    </div>
-                 </div>
-              </div>
-
-              {/* Text Side */}
-              <div className="w-full lg:w-2/5 space-y-8">
-                 <div>
-                    <div className="inline-block px-3 py-1 bg-black text-white text-xs font-mono rounded mb-4">
-                      Granular Control
-                    </div>
-                    <h2 className="text-3xl md:text-4xl font-bold text-black mb-4 leading-tight">
-                       Prompt Control for Viral Clone
-                    </h2>
-                    <p className="text-gray-600 text-lg leading-relaxed">
-                      Keep the same proven structure, then customize each prompt detail for your product and audience.
-                    </p>
-                 </div>
-                 
-                 <div className="space-y-6">
-                    <div className="flex gap-4 items-start">
-                       <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                          <Target className="w-5 h-5 text-purple-600" />
-                       </div>
-                       <div>
-                          <h3 className="text-lg font-semibold text-gray-900">@ Mentions in Image Prompt</h3>
-                          <p className="text-gray-600 mt-1">Type <span className="font-semibold text-black">@</span> to quickly insert people, products, or pets into the image prompt without manual rewriting.</p>
-                       </div>
-                    </div>
-                    
-                    <div className="flex gap-4 items-start">
-                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                          <Copy className="w-5 h-5 text-blue-600" />
-                       </div>
-                       <div>
-                          <h3 className="text-lg font-semibold text-gray-900">Fully Custom Video Prompt</h3>
-                          <p className="text-gray-600 mt-1">Write your own video prompt end-to-end, including background, language, camera movement, and shot-level motion style.</p>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-4 items-start">
-                       <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                          <Sparkles className="w-5 h-5 text-green-600" />
-                       </div>
-                       <div>
-                          <h3 className="text-lg font-semibold text-gray-900">Scene-Level Flexibility</h3>
-                          <p className="text-gray-600 mt-1">Adjust each segment independently so your final ad fits platform style, pacing, and conversion goals.</p>
-                        </div>
-                    </div>
-                 </div>
-
-                 <div className="pt-4">
-                    <Link
-                      href="/dashboard/competitor-ugc-replication"
-                      className="inline-flex items-center justify-center px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-black/90 active:scale-[0.98] transition-all shadow-sm"
-                    >
-                      Start Editing
-                      <ArrowRightIcon className="ml-2 w-4 h-4" />
-                    </Link>
-                 </div>
-              </div>
-
-           </div>
-        </div>
-      </section>
-
-      {/* Key Features Section */}
-      <section className="py-12 md:py-16 lg:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
-              Why Choose Viral Clone?
-            </h2>
-            <p className="text-lg text-gray-600">
-              Leverage proven creative strategies without the guesswork
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature, index) => {
-              const IconComponent = feature.icon;
-              return (
-                <div
-                  key={index}
-                  className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow"
-                >
-                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                    <IconComponent className="w-6 h-6 text-black" />
-                  </div>
-                  <h3 className="text-xl font-bold text-black mb-2">
-                    {feature.title}
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    {feature.description}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Use Cases Section */}
-      <section className="py-12 md:py-16 lg:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
-              Perfect For
-            </h2>
-            <p className="text-lg text-gray-600">
-              Use cases where viral clone excels
-            </p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {useCases.map((useCase, index) => (
-              <div
-                key={index}
-                className="bg-white rounded-xl px-6 py-6 text-center border border-gray-200 hover:shadow-md transition-shadow"
+      <FeatureStepsSection
+        title="Move from competitor reference to editable clone workflow"
+        steps={steps}
+        primaryCta={primaryCta}
+        secondaryCta={secondaryCta}
+        media={
+          <div className="w-fit max-w-full lg:ml-auto">
+            <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-white shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
+              <blockquote
+                className="tiktok-embed !my-0"
+                cite="https://www.tiktok.com/@laolilantian/video/7600702812682587400?lang=en"
+                data-video-id="7600702812682587400"
+                style={{ maxWidth: '380px', minWidth: '280px' }}
               >
-                <span className="text-sm font-semibold text-gray-900">
-                  {useCase}
-                </span>
+                <section>
+                  <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">
+                    @laolilantian
+                  </a>{' '}
+                  Watch how we quickly clone viral videos and swap products using our optimized tool. Adjust every frame and prompt in the editor for precise results.
+                </section>
+              </blockquote>
+              <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
+            </div>
+          </div>
+        }
+      />
+
+      <section className="px-4 py-16 md:px-6 md:py-20 lg:py-28">
+        <div className="mx-auto grid max-w-7xl items-start gap-14 lg:grid-cols-[0.98fr_1.02fr] lg:gap-20">
+          <div className="space-y-8">
+            <div>
+              <p className="inline-flex rounded-full bg-black px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white">
+                AI Analysis Result
+              </p>
+              <h2 className="mt-5 text-[30px] font-bold tracking-[-0.02em] text-black md:text-[40px]">
+                Deep video understanding
+              </h2>
+              <p className="mt-4 max-w-xl text-[16px] leading-7 text-[#666666]">
+                Flowtra breaks the winning ad into timing, actions, spoken beats, and visual structure before generation starts, so the clone stays faithful to what made the reference work.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-[#E5E5E5] bg-white px-3 py-2 text-[13px] font-medium text-black shadow-sm">
+                <Globe2 className="h-4 w-4" />
+                <span>10+ Languages Detected</span>
               </div>
-            ))}
+              <div className="inline-flex items-center gap-2 rounded-xl border border-[#E5E5E5] bg-white px-3 py-2 text-[13px] font-medium text-black shadow-sm">
+                <Clock3 className="h-4 w-4" />
+                <span>Up to 60s Structure</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-xl border border-[#E5E5E5] bg-white px-3 py-2 text-[13px] font-medium text-black shadow-sm">
+                <Scissors className="h-4 w-4" />
+                <span>Auto-Scene Detection</span>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-white shadow-[0_18px_40px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center justify-between border-b border-[#EDEDED] bg-[#FAFAFA] px-4 py-3">
+                <span className="text-[13px] font-semibold text-black">Video Blueprint</span>
+                <span className="text-[12px] text-[#666666]">8s • 3 shots detected</span>
+              </div>
+              <div className="max-h-[420px] overflow-y-auto">
+                {analysisShots.map((shot) => (
+                  <div key={shot.id} className="border-b border-[#F1F1F1] px-4 py-4 last:border-b-0">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#666666]">
+                        {shot.timeRange}
+                      </span>
+                      <span className="rounded-full bg-[#F5F5F5] px-2.5 py-1 text-[11px] font-semibold text-black">
+                        Shot {shot.id}
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#999999]">Action</p>
+                        <p className="mt-1 text-[14px] leading-6 text-black">{shot.action}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#999999]">Audio</p>
+                        <p className="mt-1 text-[14px] leading-6 text-[#666666]">{shot.audio}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#999999]">Visual</p>
+                        <p className="mt-1 text-[13px] leading-6 text-[#666666]">{shot.visual}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+              <Link
+                href={primaryCta.href}
+                className="inline-flex min-h-12 items-center justify-center rounded-xl bg-black px-6 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#1A1A1A]"
+              >
+                {primaryCta.label}
+              </Link>
+              <Link
+                href={secondaryCta.href}
+                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#E5E5E5] bg-white px-6 py-3 text-[15px] font-semibold text-black transition-colors hover:bg-[#F7F7F7]"
+              >
+                {secondaryCta.label}
+              </Link>
+            </div>
+          </div>
+
+          <div className="mx-auto max-w-sm overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
+            <LazyVideoPlayer
+              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_parse.mp4"
+              wrapperClassName="h-full w-full"
+              className="h-full w-full object-cover"
+              showControls={false}
+              playsInline
+              loop
+              autoPlay
+            />
           </div>
         </div>
       </section>
 
-      {/* Free Credits CTA - Compact */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <BookDemoCTA
-          variant="compact"
-          title="Ready to Clone Viral Videos?"
-          description="Tell us what you want to test and claim 100 free credits instantly."
-        />
-      </section>
+      <FeatureBenefitRow
+        title="Prompt control for viral clone"
+        bullets={[
+          'Rewrite image prompts and video prompts while preserving the structure you want to keep.',
+          'Adjust each segment independently so the final ad fits your product, pacing, and audience.',
+          'Use a cleaner review loop instead of committing to the first generated version.'
+        ]}
+        reverse
+        primaryCta={primaryCta}
+        secondaryCta={secondaryCta}
+        media={
+          <div className="grid gap-4">
+            <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
+              <LazyVideoPlayer
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_prompt_image.mp4"
+                wrapperClassName="w-full"
+                className="w-full h-auto"
+                showControls={false}
+                playsInline
+                loop
+                autoPlay
+              />
+            </div>
+            <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
+              <LazyVideoPlayer
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_prompt_video.mp4"
+                wrapperClassName="w-full"
+                className="w-full h-auto"
+                showControls={false}
+                playsInline
+                loop
+                autoPlay
+              />
+            </div>
+          </div>
+        }
+      />
 
-      {/* TikTok Analysis Modal */}
-      <TikTokAnalysisModal
-        isOpen={isAnalysisModalOpen}
-        onClose={() => setIsAnalysisModalOpen(false)}
-        tiktokUrl={selectedTikTokUrl}
-        onComplete={(result) => {
-          // Mark session as used
-          sessionStorage.setItem('tiktok_analysis_used', JSON.stringify({
-            used: true,
-            timestamp: Date.now()
-          }));
-          setHasUsedFreeAnalysis(true);
-
-          // Save analysis for dashboard
-          sessionStorage.setItem('showcase_tiktok_analysis', JSON.stringify({
-            ...result,
-            tiktokUrl: selectedTikTokUrl
-          }));
-        }}
+      <FeatureSignupCTA
+        title="Ready to clone a winning ad?"
+        description="Create your account and start turning references into launch-ready clones."
       />
 
       <Footer />

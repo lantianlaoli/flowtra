@@ -4,13 +4,16 @@ import { useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { SignInButton, useUser } from '@clerk/nextjs';
 import { ArrowUpRight, Copy, Gift, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  FEATURE_INTEREST_OPTIONS,
+  getFeatureInterestLabel,
+  type FeatureInterestOption,
+} from '@/lib/feature-interest';
 import { getSocialMediaLinks } from '@/lib/social-links';
 
-export type FeatureInterestOption =
-  | 'avatar_ads'
-  | 'competitor_ugc_replication'
-  | 'motion_swap'
-  | 'other';
+export type { FeatureInterestOption } from '@/lib/feature-interest';
 
 export interface FeatureInterestPayload {
   feature: FeatureInterestOption;
@@ -39,20 +42,8 @@ interface FeatureInterestRewardProps {
   submitLabel?: string;
 }
 
-const FEATURE_OPTIONS: Array<{ value: FeatureInterestOption; label: string }> = [
-  { value: 'avatar_ads', label: 'Avatar Ads' },
-  { value: 'competitor_ugc_replication', label: 'Competitor UGC Replication' },
-  { value: 'motion_swap', label: 'Motion Swap' },
-  { value: 'other', label: 'Other' },
-];
-
 function getFeatureDisplayName(feature: FeatureInterestOption, otherText?: string): string {
-  if (feature === 'other') {
-    return otherText?.trim() ? `Other (${otherText.trim()})` : 'Other';
-  }
-
-  const match = FEATURE_OPTIONS.find((option) => option.value === feature);
-  return match?.label ?? 'Unknown';
+  return getFeatureInterestLabel(feature, otherText);
 }
 
 function getShareMessage(feature: FeatureInterestOption, otherText?: string): string {
@@ -64,7 +55,7 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
   const { isLoaded, isSignedIn } = useUser();
   const socialLinks = getSocialMediaLinks();
 
-  const [feature, setFeature] = useState<FeatureInterestOption>('competitor_ugc_replication');
+  const [feature, setFeature] = useState<FeatureInterestOption>('ai_agent');
   const [otherText, setOtherText] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -74,6 +65,10 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
   const [copied, setCopied] = useState(false);
 
   const shareMessage = useMemo(() => getShareMessage(feature, otherText), [feature, otherText]);
+  const selectedFeatureOption = useMemo(
+    () => FEATURE_INTEREST_OPTIONS.find((option) => option.value === feature),
+    [feature]
+  );
 
   const mailtoLink = useMemo(() => {
     const emailEntry = socialLinks.find((link) => link.label === 'Email' && link.href.startsWith('mailto:'));
@@ -155,17 +150,32 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
 
           <div>
             <label className="block text-[12px] font-medium tracking-wide uppercase text-[#666666] mb-2">Feature</label>
-            <select
-              value={feature}
-              onChange={(event) => setFeature(event.target.value as FeatureInterestOption)}
-              className="w-full rounded-xl border border-[#D9D9D9] bg-white px-3 py-3 text-[15px] text-black focus:outline-none focus:ring-2 focus:ring-black"
-            >
-              {FEATURE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <Select value={feature} onValueChange={(value) => setFeature(value as FeatureInterestOption)}>
+              <SelectTrigger aria-label="Feature">
+                <div className="flex min-w-0 items-center gap-2">
+                  <SelectValue placeholder="Select a feature" />
+                  {selectedFeatureOption?.isNew ? (
+                    <Badge className="rounded-full bg-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:bg-black">
+                      New
+                    </Badge>
+                  ) : null}
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {FEATURE_INTEREST_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <div className="flex w-full items-center justify-between gap-3">
+                      <SelectItemText>{option.label}</SelectItemText>
+                      {option.isNew ? (
+                        <Badge className="rounded-full bg-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:bg-black">
+                          New
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {feature === 'other' && (

@@ -44,6 +44,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/features/ai-agent" className="text-[14px] text-[#666666] hover:text-black transition-colors">
+                  AI Agent
+                </Link>
+              </li>
+              <li>
                 <Link href="/features/motion-swap" className="text-[14px] text-[#666666] hover:text-black transition-colors">
                   Motion Swap
                 </Link>
