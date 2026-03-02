@@ -5,6 +5,11 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { getSupabaseAdmin, normalizeAvatarPhotoSet } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import {
+  getPrimaryCloneSelection,
+  normalizeCloneSelections,
+  normalizeSelectedIds
+} from '@/lib/project-agent/clone-selection';
+import {
   MERGE_CONFIRMATION_TOKEN,
   isMergeConfirmationCommand,
   isMergeIntentCommand,
@@ -56,7 +61,9 @@ type SessionState = {
   cloneReplacementDraft?: {
     status: 'idle' | 'generating' | 'ready' | 'failed';
     error?: string | null;
+    selectedAvatars?: Array<{ id: string; name: string; photoUrl?: string | null }>;
     selectedAvatar?: { id: string; name: string; photoUrl?: string | null };
+    selectedProducts?: Array<{ id: string; name: string; photoUrl?: string | null }>;
     selectedProduct?: { id: string; name: string; photoUrl?: string | null };
     scenes: Array<{
       sceneIndex: number;
@@ -103,6 +110,7 @@ type SessionState = {
   language?: string;
   videoDurationSeconds?: number;
   videoAspectRatio?: '16:9' | '9:16';
+  imageModel?: 'auto' | 'nano_banana' | 'nano_banana_2' | 'seedream' | 'nano_banana_pro' | 'seedream_5_lite';
   videoModel?: 'veo3_fast';
   projectId?: string;
   generatedPrompts?: Record<string, unknown> | null;
@@ -122,7 +130,38 @@ const DEFAULT_STATE: SessionState = {
   language: 'en',
   videoDurationSeconds: 16,
   videoAspectRatio: '9:16',
+  imageModel: 'nano_banana_2',
   videoModel: 'veo3_fast'
+};
+
+type CloneDraftScene = NonNullable<SessionState['cloneReplacementDraft']>['scenes'][number];
+
+const cloneDraftSceneToSegmentPrompt = (
+  scene: CloneDraftScene,
+  fallbackLanguage: string
+) => {
+  const shots = Array.isArray(scene.videoPrompt?.shots)
+    ? scene.videoPrompt.shots.map((shot, index) => ({
+        id: Number.isFinite(Number(shot.id)) ? Number(shot.id) : index + 1,
+        time_range: typeof shot.time_range === 'string' ? shot.time_range : '00:00 - 00:08',
+        subject: shot.subject || '',
+        context_environment: shot.context_environment || '',
+        action: shot.action || '',
+        style: shot.style || '',
+        camera_motion_positioning: shot.camera_motion_positioning || '',
+        composition: shot.composition || '',
+        ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
+        audio: shot.audio || '',
+        dialogue: shot.dialogue || '',
+        language: shot.language || fallbackLanguage
+      }))
+    : [];
+
+  return {
+    first_frame_description: scene.imagePrompt || '',
+    shots,
+    is_continuation_from_prev: (scene.sceneIndex ?? 1) > 1
+  };
 };
 
 type ProductRow = {
@@ -227,7 +266,7 @@ const buildWorkflowFallbackReply = (latestUserTurnText: string, state: SessionSt
   }
 
   if (isStartFrameGenerationCommand(raw)) {
-    return 'Frame generation has started. I am generating first frames scene by scene now.';
+    return 'Frame generation has started. I am generating the first frames for all scenes now.';
   }
 
   if (isRegenerateFrameCommand(raw)) {
@@ -287,6 +326,10 @@ const classifyToolIntent = async (input: {
     return { type: 'tool', toolName: 'mergeCloneVideos' };
   }
 
+  if (isMergeIntentCommand(userText)) {
+    return { type: 'tool', toolName: 'mergeCloneVideos' };
+  }
+
   const normalized = userText.toLowerCase();
   // Deterministic routing for explicit workflow commands to avoid LLM-confidence misses.
   if (
@@ -296,9 +339,6 @@ const classifyToolIntent = async (input: {
     /开始.*视频|生成.*视频|开始视频生成/.test(userText)
   ) {
     return { type: 'tool', toolName: 'startCloneVideoGeneration' };
-  }
-  if (isMergeIntentCommand(userText)) {
-    return { type: 'tool', toolName: 'mergeCloneVideos' };
   }
   if (isRegenerateVideoCommand(userText)) {
     return { type: 'tool', toolName: 'regenerateCloneVideos' };
@@ -341,8 +381,20 @@ const classifyToolIntent = async (input: {
 };
 
 const buildSystemPrompt = (state: SessionState) => {
-  const avatarLabel = state.cloneReplacementDraft?.selectedAvatar?.name || state.avatar?.name || 'not selected';
-  const productLabel = state.cloneReplacementDraft?.selectedProduct?.name || state.product?.name || 'not selected';
+  const selectedAvatars = normalizeCloneSelections(
+    state.cloneReplacementDraft?.selectedAvatars,
+    state.cloneReplacementDraft?.selectedAvatar
+  );
+  const selectedProducts = normalizeCloneSelections(
+    state.cloneReplacementDraft?.selectedProducts,
+    state.cloneReplacementDraft?.selectedProduct
+  );
+  const avatarLabel = selectedAvatars.length > 0
+    ? selectedAvatars.map((avatar) => avatar.name).join(', ')
+    : (state.avatar?.name || 'not selected');
+  const productLabel = selectedProducts.length > 0
+    ? selectedProducts.map((product) => product.name).join(', ')
+    : (state.product?.name || 'not selected');
   const dialogueLabel = state.customDialogue?.trim() ? 'provided' : 'not provided';
   const referenceVideoLabel = state.cloneReferenceVideo
     ? (state.cloneReferenceVideo.name || 'selected video')
@@ -356,8 +408,8 @@ const buildSystemPrompt = (state: SessionState) => {
   const cloneDraftStatus = state.cloneReplacementDraft?.status || 'idle';
   const cloneDraftSceneCount = Array.isArray(state.cloneReplacementDraft?.scenes) ? state.cloneReplacementDraft.scenes.length : 0;
   const cloneDraftSelection = [
-    state.cloneReplacementDraft?.selectedAvatar?.name ? `avatar=${state.cloneReplacementDraft.selectedAvatar.name}` : null,
-    state.cloneReplacementDraft?.selectedProduct?.name ? `product=${state.cloneReplacementDraft.selectedProduct.name}` : null
+    selectedAvatars.length > 0 ? `avatars=${selectedAvatars.map((avatar) => avatar.name).join(', ')}` : null,
+    selectedProducts.length > 0 ? `products=${selectedProducts.map((product) => product.name).join(', ')}` : null
   ].filter(Boolean).join(', ') || 'none';
   const cloneExecutionPhase = state.cloneExecution?.phase || 'idle';
   const cloneExecutionSegments = Array.isArray(state.cloneExecution?.segments) ? state.cloneExecution?.segments.length : 0;
@@ -409,7 +461,7 @@ Workflow rules:
 - If the user picks competitor_ugc_replication, run the executable clone flow end-to-end in chat:
   - Step 1: choose reference video.
   - Step 2: choose replacement avatar and/or product.
-  - Step 3: review replaced prompts, then ask me in chat to start generation.
+  - Step 3: review replaced prompts, then ask me in chat to start frame generation.
   - Step 4: review first frames per scene; if needed, ask me in chat to regenerate frame(s), then ask me in chat to start video generation.
   - Step 5: after all scene videos are ready, allow frame/video regeneration before merge; merge requires explicit chat confirmation token.
   - Keep replies progress-aware and concise at each phase.
@@ -437,13 +489,14 @@ Workflow rules:
   20.2) Manual-selection rule: if current state already has selected avatar/product (from left panel) and user says they are done/selected/continue without repeating names, explicitly read back the selected avatar/product from state and ask whether to proceed to next step.
   20.3) If both selected avatar and selected product already exist in current state and user confirms to continue, call generateCloneReplacementDraft even when the latest message does not restate the names.
   21) If the latest user message indicates they already confirmed replacements (e.g. "I selected replacement ... Continue to the next step..."), do NOT ask for confirmation again. Instead, acknowledge the chosen avatar/product and say you are now applying those replacements to the original prompt structure.
-  22) In that post-confirmation turn, guide the user to review/edit the generated Scene and shot fields in Step 3 (subject, context/background, action, style, camera, composition, lighting, audio, dialogue), then tell them to send a chat command to start generation.
-  24) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only. During clone execution phases, never instruct clicking removed buttons. Use command-style guidance, e.g. "Say 'regenerate scene 2 frame'", "say 'regenerate scene 2 video'" or "say 'start video generation'".
+  22) In that post-confirmation turn, guide the user to review/edit the generated Scene and shot fields in Step 3 (subject, context/background, action, style, camera, composition, lighting, audio, dialogue), then tell them to send a chat command to start frame generation.
+  23) If cloneReplacementDraft.status is ready and cloneExecutionPhase is still idle, never tell the user to start video generation yet. At this stage, always guide them to start frame generation first.
+  24) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only. During clone execution phases, never instruct clicking removed buttons. Use command-style guidance, e.g. "Say 'start frame generation'", "say 'regenerate scene 2 frame'", "say 'regenerate scene 2 video'" or, only after frame review, "say 'start video generation'".
   25) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft. If user asks to regenerate frames, call regenerateCloneFrames. If user asks to regenerate scene videos, call regenerateCloneVideos. If user asks to start video generation after frame review, call startCloneVideoGeneration.
   25.1) For merge/finalize requests in clone flow: first ask for confirmation token "${MERGE_CONFIRMATION_TOKEN}" and do not merge immediately. Only call mergeCloneVideos after the user sends the confirmation token.
   26) Download guidance rule: after merge starts or when cloneExecutionPhase is "completed", explicitly tell the user to check "My Ads" to view/download the final video.
   27) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it."
-  23) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
+  28) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
 - If the user picks motion_swap, collect requirements and guide to the existing workflow entrypoint.
 - When user asks what workflows are available, always list ALL three:
   1) Avatar Ads
@@ -951,6 +1004,11 @@ export async function POST(request: Request) {
                   error: null,
                   scenes: []
                 }),
+                selectedAvatars: [{
+                  id: match.id,
+                  name: match.avatar_name || 'Unnamed Avatar',
+                  photoUrl: match.photo_url ?? null
+                }],
                 selectedAvatar: {
                   id: match.id,
                   name: match.avatar_name || 'Unnamed Avatar',
@@ -1022,6 +1080,11 @@ export async function POST(request: Request) {
                   error: null,
                   scenes: []
                 }),
+                selectedProducts: [{
+                  id: match.id,
+                  name: match.product_name,
+                  photoUrl: null
+                }],
                 selectedProduct: {
                   id: match.id,
                   name: match.product_name,
@@ -1048,22 +1111,54 @@ export async function POST(request: Request) {
               return { success: true, message: 'Replacement draft is already ready.' };
             }
 
-            const selectedAvatarId =
-              sessionState.cloneReplacementDraft?.selectedAvatar?.id ||
-              sessionState.avatar?.id;
-            const selectedProductId =
-              sessionState.cloneReplacementDraft?.selectedProduct?.id ||
-              sessionState.product?.id;
+            const selectedAvatars = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedAvatars,
+              sessionState.cloneReplacementDraft?.selectedAvatar
+            );
+            const selectedProducts = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedProducts,
+              sessionState.cloneReplacementDraft?.selectedProduct
+            );
+            const selectedAvatarIds = normalizeSelectedIds(
+              sessionState.avatar?.id ?? selectedAvatars[0]?.id,
+              selectedAvatars.map((avatar) => avatar.id),
+              8
+            );
+            const selectedProductIds = normalizeSelectedIds(
+              sessionState.product?.id ?? selectedProducts[0]?.id,
+              selectedProducts.map((product) => product.id),
+              8
+            );
+            const primaryAvatar = getPrimaryCloneSelection(selectedAvatars) ?? (
+              sessionState.avatar
+                ? {
+                    id: sessionState.avatar.id,
+                    name: sessionState.avatar.name,
+                    photoUrl: sessionState.avatar.photoUrl
+                  }
+                : null
+            );
+            const primaryProduct = getPrimaryCloneSelection(selectedProducts) ?? (
+              sessionState.product
+                ? {
+                    id: sessionState.product.id,
+                    name: sessionState.product.name,
+                    photoUrl: null
+                  }
+                : null
+            );
 
-            if (!selectedAvatarId && !selectedProductId) {
+            if (selectedAvatarIds.length === 0 && selectedProductIds.length === 0) {
               return { success: false, message: 'Please select at least one replacement (avatar or product) first.' };
             }
 
             const generatingDraft = {
               status: 'generating' as const,
               error: null,
-              selectedAvatar: sessionState.cloneReplacementDraft?.selectedAvatar,
-              selectedProduct: sessionState.cloneReplacementDraft?.selectedProduct,
+              selectedAvatars,
+              selectedAvatar: primaryAvatar,
+              selectedProducts,
+              selectedProduct: primaryProduct,
               scenes: []
             };
 
@@ -1084,8 +1179,10 @@ export async function POST(request: Request) {
               headers: internalHeaders,
               body: JSON.stringify({
                 sessionId: resolvedSessionId,
-                avatarId: selectedAvatarId,
-                productId: selectedProductId
+                avatarId: selectedAvatarIds[0],
+                productId: selectedProductIds[0],
+                avatarIds: selectedAvatarIds,
+                productIds: selectedProductIds
               })
             });
 
@@ -1185,6 +1282,7 @@ export async function POST(request: Request) {
             const formData = new FormData();
             formData.set('user_id', userId);
             formData.set('video_duration_seconds', duration.toString());
+            formData.set('image_model', sessionState.imageModel ?? 'nano_banana_2');
             formData.set('image_size', imageSize);
             formData.set('video_model', sessionState.videoModel ?? 'veo3_fast');
             formData.set('video_aspect_ratio', aspect);
@@ -1322,13 +1420,32 @@ export async function POST(request: Request) {
               return { success: false, message: 'Replacement draft is not ready yet.' };
             }
 
-            const selectedAvatarId = draft.selectedAvatar?.id || sessionState.avatar?.id || undefined;
-            const selectedProductId = draft.selectedProduct?.id || sessionState.product?.id;
+            const selectedAvatars = normalizeCloneSelections(
+              draft.selectedAvatars,
+              draft.selectedAvatar
+            );
+            const selectedProducts = normalizeCloneSelections(
+              draft.selectedProducts,
+              draft.selectedProduct
+            );
+            const selectedAvatarIds = normalizeSelectedIds(
+              sessionState.avatar?.id ?? selectedAvatars[0]?.id,
+              selectedAvatars.map((avatar) => avatar.id),
+              8
+            );
+            const selectedProductIds = normalizeSelectedIds(
+              sessionState.product?.id ?? selectedProducts[0]?.id,
+              selectedProducts.map((product) => product.id),
+              8
+            );
+            const selectedAvatarId = selectedAvatarIds[0] || undefined;
+            const selectedProductId = selectedProductIds[0] || undefined;
+            const primaryProduct = getPrimaryCloneSelection(selectedProducts);
             if (!selectedProductId) {
               return { success: false, message: 'A replacement product is required before generation.' };
             }
 
-            let selectedProductImageUrl = draft.selectedProduct?.photoUrl || null;
+            let selectedProductImageUrl = primaryProduct?.photoUrl || draft.selectedProduct?.photoUrl || null;
             if (!selectedProductImageUrl) {
               const { data: product, error: productError } = await supabase
                 .from('user_products')
@@ -1350,31 +1467,9 @@ export async function POST(request: Request) {
               return { success: false, message: 'Selected product is missing an image.' };
             }
 
-            const sceneToSegmentPrompt = (scene: NonNullable<SessionState['cloneReplacementDraft']>['scenes'][number]) => {
-              const shots = Array.isArray(scene.videoPrompt?.shots)
-                ? scene.videoPrompt.shots.map((shot, index) => ({
-                    id: Number.isFinite(Number(shot.id)) ? Number(shot.id) : index + 1,
-                    time_range: typeof shot.time_range === 'string' ? shot.time_range : '00:00 - 00:08',
-                    subject: shot.subject || '',
-                    context_environment: shot.context_environment || '',
-                    action: shot.action || '',
-                    style: shot.style || '',
-                    camera_motion_positioning: shot.camera_motion_positioning || '',
-                    composition: shot.composition || '',
-                    ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
-                    audio: shot.audio || '',
-                    dialogue: shot.dialogue || '',
-                    language: shot.language || (sessionState.language ?? 'en')
-                  }))
-                : [];
-              return {
-                first_frame_description: scene.imagePrompt || '',
-                shots,
-                is_continuation_from_prev: (scene.sceneIndex ?? 1) > 1
-              };
-            };
-
-            const segmentPrompts = draft.scenes.map(sceneToSegmentPrompt);
+            const segmentPrompts = draft.scenes.map((scene) => (
+              cloneDraftSceneToSegmentPrompt(scene, sessionState.language ?? 'en')
+            ));
             const videoDuration = String(Math.max(1, draft.scenes.length) * 8);
             const normalizedModel: 'veo3_fast' = 'veo3_fast';
 
@@ -1383,8 +1478,8 @@ export async function POST(request: Request) {
               imageUrl: selectedProductImageUrl,
               selectedAvatarId,
               selectedProductId,
-              selectedAvatarIds: selectedAvatarId ? [selectedAvatarId] : [],
-              selectedProductIds: selectedProductId ? [selectedProductId] : [],
+              selectedAvatarIds,
+              selectedProductIds,
               videoModel: normalizedModel,
               videoAspectRatio: sessionState.videoAspectRatio || '9:16',
               videoDuration,
@@ -1484,6 +1579,38 @@ export async function POST(request: Request) {
             };
             if (userId) {
               internalHeaders['x-project-agent-user-id'] = userId;
+            }
+
+            const latestDraftScenes = Array.isArray(sessionState.cloneReplacementDraft?.scenes)
+              ? sessionState.cloneReplacementDraft.scenes
+              : [];
+            if (latestDraftScenes.length > 0) {
+              const syncFailures: string[] = [];
+              for (let index = 0; index < latestDraftScenes.length; index += 1) {
+                const promptOverride = cloneDraftSceneToSegmentPrompt(
+                  latestDraftScenes[index],
+                  sessionState.language ?? 'en'
+                );
+                const syncResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/segments/${index}`, {
+                  method: 'PATCH',
+                  headers: {
+                    ...internalHeaders,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ prompt: promptOverride })
+                });
+                if (!syncResponse.ok) {
+                  const syncPayload = await syncResponse.json().catch(() => ({}));
+                  syncFailures.push(`Scene ${index + 1}: ${syncPayload?.error || 'Failed to sync prompt edits before video generation.'}`);
+                }
+              }
+
+              if (syncFailures.length > 0) {
+                return {
+                  success: false,
+                  message: syncFailures.join(' | ')
+                };
+              }
             }
 
             const precheckStatusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
@@ -1614,18 +1741,28 @@ export async function POST(request: Request) {
             }
 
             const targetIndices = [targetIndex];
+            const latestDraftScenes = Array.isArray(sessionState.cloneReplacementDraft?.scenes)
+              ? sessionState.cloneReplacementDraft.scenes
+              : [];
 
             const failures: Array<{ index: number; error: string }> = [];
             const regeneratedIndices: number[] = [];
             const alreadyInProgressIndices: number[] = [];
             for (const index of targetIndices) {
+              const draftScene = latestDraftScenes[index];
+              const promptOverride = draftScene
+                ? cloneDraftSceneToSegmentPrompt(draftScene, sessionState.language ?? 'en')
+                : undefined;
               const regenerateResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/segments/${index}`, {
                 method: 'PATCH',
                 headers: {
                   ...internalHeaders,
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ regenerate: 'photo' })
+                body: JSON.stringify({
+                  regenerate: 'photo',
+                  ...(promptOverride ? { prompt: promptOverride } : {})
+                })
               });
               const regeneratePayload = await regenerateResponse.json().catch(() => ({}));
               if (!regenerateResponse.ok) {
@@ -1748,7 +1885,20 @@ export async function POST(request: Request) {
                 ...internalHeaders,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ regenerate: 'video' })
+              body: JSON.stringify({
+                regenerate: 'video',
+                ...(
+                  Array.isArray(sessionState.cloneReplacementDraft?.scenes) &&
+                  sessionState.cloneReplacementDraft.scenes[targetIndex]
+                    ? {
+                        prompt: cloneDraftSceneToSegmentPrompt(
+                          sessionState.cloneReplacementDraft.scenes[targetIndex],
+                          sessionState.language ?? 'en'
+                        )
+                      }
+                    : {}
+                )
+              })
             });
             const regeneratePayload = await regenerateResponse.json().catch(() => ({}));
             if (!regenerateResponse.ok) {
