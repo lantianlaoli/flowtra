@@ -2,6 +2,7 @@ import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVide
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import {
   GENERATION_COSTS,
+  IMAGE_MODELS,
   NON_AGENT_IMAGE_MODEL,
   NON_AGENT_IMAGE_OUTPUT_FORMAT,
   NON_AGENT_IMAGE_RESOLUTION,
@@ -82,6 +83,8 @@ export interface StartWorkflowRequest {
   selectedProductIds?: string[];
   userId: string;
   videoModel: VideoModel;
+  imageModel?: 'auto' | 'nano_banana' | 'nano_banana_2' | 'seedream' | 'nano_banana_pro';
+  imageSize?: string;
   elementsCount?: number;
   photoOnly?: boolean;
   shouldGenerateVideo?: boolean;
@@ -318,9 +321,36 @@ const SEGMENT_DEFAULTS: DerivedSegmentDetails = {
 
 const cleanSegmentText = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
+  const trimmed = value
+    .replace(/(^|[\s(])'s\b/g, '$1')
+    .replace(/\bof\s+'s\b/g, 'of')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
   return trimmed.length > 0 ? trimmed : undefined;
 };
+
+function buildProjectAgentFramePrompt(input: {
+  segmentIndex: number;
+  frameType: 'first' | 'closing';
+  frameDescription: string;
+  isBrandShot: boolean;
+}): string {
+  const { segmentIndex, frameType, frameDescription, isBrandShot } = input;
+  const frameLabel = frameType === 'first' ? 'opening' : 'closing';
+  const sanitizedDescription = cleanSegmentText(frameDescription) || 'Product-focused close-up frame.';
+
+  return `Segment ${segmentIndex + 1} ${frameLabel} frame for a premium advertisement.
+
+Use the provided ${isBrandShot ? 'brand asset' : 'product image'} as the canonical reference. Maintain identical proportions, textures, materials, and branding.
+
+Scene Focus:
+- Description: ${sanitizedDescription}
+
+Render Instructions:
+- Follow the scene description exactly and prioritize the frame prompt over any earlier shot-planning wording
+- Ensure composition seamlessly transitions ${frameType === 'first' ? 'into the upcoming motion clip' : 'out of the prior scene'}
+- No text overlays, no watermarks, no borders`;
+}
 
 const collectDistinctUrls = (values: Array<string | null | undefined>, max = 10): string[] => {
   const output: string[] = [];
@@ -3013,10 +3043,13 @@ async function startSegmentedWorkflow(
     })
     .eq('id', projectId);
 
+  const shouldStartAllAgentFramesImmediately = request.requestSource === 'project_agent_clone';
+
   for (const segment of segments) {
     const promptData = normalizedSegments[segment.segment_index];
     const aspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
     const shouldWaitForContinuation = Boolean(
+      !shouldStartAllAgentFramesImmediately &&
       promptData.is_continuation_from_prev && segment.segment_index > 0
     );
 
@@ -3042,7 +3075,8 @@ async function startSegmentedWorkflow(
       normalizedProductImageUrls.length > 0 ? normalizedProductImageUrls : null,
       competitorFileType || null,
       {
-        characterPhotoUrls: normalizedAvatarPhotoUrls.length > 0 ? normalizedAvatarPhotoUrls : null
+        characterPhotoUrls: normalizedAvatarPhotoUrls.length > 0 ? normalizedAvatarPhotoUrls : null,
+        workflowSourceOverride: request.requestSource || 'default'
       },
       null,
       request.resolvedVideoModel
@@ -3443,10 +3477,22 @@ Technical Requirements:
  */
 type FrameGenerationOverrides = {
   aspectRatioOverride?: string;
+  imageModelOverride?: 'nano_banana' | 'nano_banana_2' | 'seedream' | 'nano_banana_pro';
+  imageSizeOverride?: string;
   resolutionOverride?: '1K' | '2K' | '4K';
   characterPhotoUrls?: string[] | null;
+  workflowSourceOverride?: 'project_agent_clone' | 'default';
   usePromptAsIs?: boolean;
 };
+
+function resolveAgentFrameModelKey(
+  overrides?: FrameGenerationOverrides
+): 'nano_banana' | 'nano_banana_2' | 'seedream' | 'nano_banana_pro' {
+  if (overrides?.imageModelOverride) {
+    return overrides.imageModelOverride;
+  }
+  return overrides?.workflowSourceOverride === 'project_agent_clone' ? 'nano_banana_2' : 'nano_banana_pro';
+}
 
 async function createFrameFromImage(
   referenceImageUrls: string[],
@@ -3466,13 +3512,28 @@ async function createFrameFromImage(
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
 
-  const imageModel = NON_AGENT_IMAGE_MODEL;
-  const resolvedAspectRatio = overrides?.aspectRatioOverride || aspectRatio;
-  const resolvedResolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
+  const imageModelKey = resolveAgentFrameModelKey(overrides);
+  const isProjectAgentClone = overrides?.workflowSourceOverride === 'project_agent_clone';
+  if (!overrides?.imageModelOverride) {
+    console.log(
+      imageModelKey === 'nano_banana_2'
+        ? '🎨 Project Agent clone detected: using nano_banana_2 keyframes (docs/kie/nano_banana_2.md)'
+        : '🎨 Using default nano_banana_pro keyframes (docs/kie/nano_banana_pro.md)'
+    );
+  }
+  const imageModel = IMAGE_MODELS[imageModelKey];
+  const resolvedAspectRatio = overrides?.imageSizeOverride || overrides?.aspectRatioOverride || aspectRatio;
+  const resolvedResolution = overrides?.resolutionOverride || '1K';
 
   const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
-
-  const prompt = `Segment ${segmentIndex + 1} ${frameLabel} frame for a premium advertisement.
+  const prompt = isProjectAgentClone
+    ? buildProjectAgentFramePrompt({
+        segmentIndex,
+        frameType,
+        frameDescription,
+        isBrandShot: false
+      })
+    : `Segment ${segmentIndex + 1} ${frameLabel} frame for a premium advertisement.
 
 Use the provided reference images as the canonical reference. Maintain identical product proportions, textures, materials, and packaging details.
 
@@ -3491,9 +3552,15 @@ Render Instructions:
   const inputPayload: Record<string, unknown> = {
     prompt,
     image_input: limitedReferences,
-    aspect_ratio: resolvedAspectRatio,
-    resolution: resolvedResolution,
-    output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
+    output_format: 'png',
+    google_search: false
+  };
+
+  if (imageModelKey === 'nano_banana_pro' || imageModelKey === 'nano_banana_2') {
+    inputPayload.aspect_ratio = resolvedAspectRatio;
+    inputPayload.resolution = resolvedResolution || '1K';
+  } else {
+    inputPayload.image_size = resolvedAspectRatio;
   }
 
   console.log(`📤 [createFrameFromImage] Sending to KIE API:`, {
@@ -3590,7 +3657,9 @@ export async function createSmartSegmentFrame(
 
   if (usePromptAsIs) {
     const frameDescription = resolveFrameDescription(promptForProvider, frameType);
-    const imageModel = NON_AGENT_IMAGE_MODEL;
+    const imageModelKey = resolveAgentFrameModelKey(overrides);
+    const imageModel = IMAGE_MODELS[imageModelKey];
+    const resolvedAspectRatio = overrides?.imageSizeOverride || overrides?.aspectRatioOverride || aspectRatio;
     const characterPhotos = Array.isArray(overrides?.characterPhotoUrls)
       ? overrides.characterPhotoUrls.filter(url => typeof url === 'string' && url.length > 0)
       : [];
@@ -3615,15 +3684,32 @@ export async function createSmartSegmentFrame(
       usePromptAsIs: true
     });
 
+    const prompt = overrides?.workflowSourceOverride === 'project_agent_clone'
+      ? buildProjectAgentFramePrompt({
+          segmentIndex,
+          frameType,
+          frameDescription,
+          isBrandShot: false
+        })
+      : frameDescription;
+
+    const requestInput: Record<string, unknown> = {
+      prompt,
+      ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
+      output_format: 'png',
+      google_search: false
+    };
+
+    if (imageModelKey === 'nano_banana_pro' || imageModelKey === 'nano_banana_2') {
+      requestInput.aspect_ratio = resolvedAspectRatio;
+      requestInput.resolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
+    } else {
+      requestInput.image_size = resolvedAspectRatio;
+    }
+
     const requestPayload = {
       model: imageModel,
-      input: {
-        prompt: frameDescription,
-        ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
-        aspect_ratio: overrides?.aspectRatioOverride || aspectRatio,
-        resolution: overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION,
-        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
-      },
+      input: requestInput,
       callBackUrl: FRAME_WEBHOOK_URL
     };
 
@@ -3658,7 +3744,10 @@ export async function createSmartSegmentFrame(
     console.log(`   - Segment ${segmentIndex + 1} ${frameType} frame`);
 
     const frameDescription = resolveFrameDescription(promptForProvider, frameType);
-    const imageModel = NON_AGENT_IMAGE_MODEL;
+    const imageModelKey = resolveAgentFrameModelKey(overrides);
+    const imageModel = IMAGE_MODELS[imageModelKey];
+    const isProjectAgentClone = overrides?.workflowSourceOverride === 'project_agent_clone';
+    const resolvedAspectRatio = overrides?.imageSizeOverride || overrides?.aspectRatioOverride || aspectRatio;
 
     // Build image_input from multiple sources
     const imageInput: string[] = [];
@@ -3700,15 +3789,32 @@ export async function createSmartSegmentFrame(
     console.log(`   - 📤 Sending to KIE API - image_input count: ${imageInput.length}`);
     console.log(`   - 📤 image_input URLs:`, imageInput);
 
+    const prompt = isProjectAgentClone
+      ? buildProjectAgentFramePrompt({
+          segmentIndex,
+          frameType,
+          frameDescription,
+          isBrandShot: false
+        })
+      : frameDescription;
+
     const requestPayload = {
       model: imageModel,
-      input: {
-        prompt: frameDescription,
-        ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
-        aspect_ratio: aspectRatio,
-        resolution: overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION,
-        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
-      },
+      input: (() => {
+        const input: Record<string, unknown> = {
+          prompt,
+          ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
+          output_format: 'png',
+          google_search: false
+        };
+        if (imageModelKey === 'nano_banana_pro' || imageModelKey === 'nano_banana_2') {
+          input.aspect_ratio = resolvedAspectRatio;
+          input.resolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
+        } else {
+          input.image_size = resolvedAspectRatio;
+        }
+        return input;
+      })(),
       callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates
     };
 
@@ -4749,3 +4855,8 @@ async function startSegmentVideoTaskSeedance(
   console.log(`✅ Seedance task created: ${result.data.taskId} for segment ${segmentIndex + 1}`);
   return result.data.taskId;
 }
+
+export const __test__ = {
+  cleanSegmentText,
+  buildProjectAgentFramePrompt
+};

@@ -413,6 +413,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
       const frameImageSize = mergedPrompt.first_frame_image_size || aspectRatio;
+      const workflowSource = (
+        project.selected_inputs
+        && typeof project.selected_inputs === 'object'
+        && (project.selected_inputs as { workflowSource?: unknown }).workflowSource === 'project_agent_clone'
+      )
+        ? 'project_agent_clone'
+        : 'default';
 
       console.log('[SEGMENT API] Calling createSmartSegmentFrame with:', {
         segmentIndex: index,
@@ -434,9 +441,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         productImageUrls.length ? productImageUrls : null,
         cloneMode.mediaType,
         {
+          imageModelOverride: workflowSource === 'project_agent_clone' ? 'nano_banana_2' : 'nano_banana_pro',
+          imageSizeOverride: frameImageSize,
           aspectRatioOverride: frameImageSize,
           resolutionOverride: '1K',
           characterPhotoUrls: characterPhotoUrls.length > 0 ? characterPhotoUrls : null,
+          workflowSourceOverride: workflowSource,
           usePromptAsIs: true
         },
         continuationReferenceUrl,

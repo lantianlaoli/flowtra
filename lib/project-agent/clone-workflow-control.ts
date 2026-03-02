@@ -5,6 +5,8 @@ export const isMergeIntentCommand = (text: string) => {
   if (!normalized) return false;
   return (
     /\b(merge|stitch|finali[sz]e)\b[\s\w-]{0,24}\b(video|videos)\b/.test(normalized) ||
+    /^(merge|stitch|combine|finali[sz]e)\s+(them|it|all|everything|clips|segments)\b/.test(normalized) ||
+    /^(merge|stitch|combine)\s+now\b/.test(normalized) ||
     /合并.*视频|拼接.*视频|导出.*视频/.test(text)
   );
 };
