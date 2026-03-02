@@ -38,7 +38,12 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       handleHover,
       handleLeave,
       handleClickEnable,
-    } = useVideoAudio({ videoRef: currentRef, instanceId });
+    } = useVideoAudio({
+      videoRef: currentRef,
+      instanceId,
+      // Detail viewers with native controls should keep audio after pointer leave.
+      releaseAudioOnLeave: !showControls
+    });
 
     return (
       <div 
