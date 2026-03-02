@@ -49,11 +49,22 @@ export type CloneDraftScene = {
 export type ClonePromptDraft = {
   status: 'idle' | 'generating' | 'ready' | 'failed';
   error?: string | null;
+  selectedAvatars?: Array<{
+    id: string;
+    name: string;
+    photoUrl?: string | null;
+  }>;
   selectedAvatar?: {
     id: string;
     name: string;
     photoUrl?: string | null;
   };
+  selectedProducts?: Array<{
+    id: string;
+    name: string;
+    photoUrl?: string | null;
+    brandName?: string | null;
+  }>;
   selectedProduct?: {
     id: string;
     name: string;

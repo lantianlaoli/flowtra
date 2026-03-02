@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import {
+  getPrimaryCloneSelection,
+  normalizeCloneSelections,
+  normalizeSelectedIds
+} from '@/lib/project-agent/clone-selection';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
 
 type ShotPrompt = {
@@ -31,11 +36,21 @@ type ScenePrompt = {
 type CloneReplacementDraft = {
   status: 'idle' | 'generating' | 'ready' | 'failed';
   error?: string | null;
+  selectedAvatars?: Array<{
+    id: string;
+    name: string;
+    photoUrl?: string | null;
+  }>;
   selectedAvatar?: {
     id: string;
     name: string;
     photoUrl?: string | null;
   };
+  selectedProducts?: Array<{
+    id: string;
+    name: string;
+    photoUrl?: string | null;
+  }>;
   selectedProduct?: {
     id: string;
     name: string;
@@ -451,18 +466,20 @@ export async function POST(request: NextRequest) {
       sessionId?: string;
       avatarId?: string;
       productId?: string;
+      avatarIds?: string[];
+      productIds?: string[];
     };
 
     const sessionId = body.sessionId?.trim();
-    const avatarId = body.avatarId?.trim();
-    const productId = body.productId?.trim();
+    const avatarIds = normalizeSelectedIds(body.avatarId?.trim(), body.avatarIds, 8);
+    const productIds = normalizeSelectedIds(body.productId?.trim(), body.productIds, 8);
 
     if (!sessionId) {
       return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
     }
 
-    if (!avatarId && !productId) {
-      return NextResponse.json({ error: 'At least one of avatarId or productId is required' }, { status: 400 });
+    if (avatarIds.length === 0 && productIds.length === 0) {
+      return NextResponse.json({ error: 'At least one avatar or product selection is required' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
@@ -484,6 +501,14 @@ export async function POST(request: NextRequest) {
 
     const state = (session.state as SessionState | null) || {};
     const reference = state.cloneReferenceVideo;
+    const existingSelectedAvatars = normalizeCloneSelections(
+      state.cloneReplacementDraft?.selectedAvatars,
+      state.cloneReplacementDraft?.selectedAvatar
+    );
+    const existingSelectedProducts = normalizeCloneSelections(
+      state.cloneReplacementDraft?.selectedProducts,
+      state.cloneReplacementDraft?.selectedProduct
+    );
 
     if (!reference?.id) {
       return NextResponse.json({ error: 'Reference video is not selected yet.' }, { status: 400 });
@@ -494,6 +519,10 @@ export async function POST(request: NextRequest) {
       cloneReplacementDraft: {
         status: 'generating',
         error: null,
+        selectedAvatars: existingSelectedAvatars,
+        selectedAvatar: getPrimaryCloneSelection(existingSelectedAvatars),
+        selectedProducts: existingSelectedProducts,
+        selectedProduct: getPrimaryCloneSelection(existingSelectedProducts),
         scenes: []
       }
     };
@@ -507,61 +536,87 @@ export async function POST(request: NextRequest) {
       .eq('id', sessionId)
       .eq('user_id', userId);
 
-    let avatarSelection: CloneReplacementDraft['selectedAvatar'];
-    if (avatarId) {
-      const systemAvatar = SYSTEM_AVATARS.find((item) => item.id === avatarId);
-      if (systemAvatar) {
-        avatarSelection = {
-          id: systemAvatar.id,
-          name: systemAvatar.avatar_name,
-          photoUrl: systemAvatar.photo_url
-        };
-      } else {
+    const avatarSelections: NonNullable<CloneReplacementDraft['selectedAvatars']> = [];
+    if (avatarIds.length > 0) {
+      const systemAvatarMap = new Map(
+        SYSTEM_AVATARS
+          .filter((item) => avatarIds.includes(item.id))
+          .map((item) => [item.id, item] as const)
+      );
+      const customAvatarIds = avatarIds.filter((id) => !systemAvatarMap.has(id));
+      const customAvatarMap = new Map<string, { id: string; avatar_name: string | null; photo_url: string | null }>();
+
+      if (customAvatarIds.length > 0) {
         // Schema verified via Supabase MCP (2026-02-11): user_avatars includes id,user_id,avatar_name,photo_url.
-        const { data: avatar } = await supabase
+        const { data: avatars } = await supabase
           .from('user_avatars')
           .select('id,avatar_name,photo_url')
-          .eq('id', avatarId)
-          .eq('user_id', userId)
-          .maybeSingle();
+          .in('id', customAvatarIds)
+          .eq('user_id', userId);
 
-        if (!avatar) {
-          return NextResponse.json({ error: 'Selected avatar not found.' }, { status: 404 });
+        (avatars ?? []).forEach((avatar) => {
+          customAvatarMap.set(avatar.id, avatar);
+        });
+      }
+
+      for (const avatarId of avatarIds) {
+        const systemAvatar = systemAvatarMap.get(avatarId);
+        if (systemAvatar) {
+          avatarSelections.push({
+            id: systemAvatar.id,
+            name: systemAvatar.avatar_name,
+            photoUrl: systemAvatar.photo_url
+          });
+          continue;
         }
 
-        avatarSelection = {
+        const avatar = customAvatarMap.get(avatarId);
+        if (!avatar) {
+          return NextResponse.json({ error: 'One of the selected avatars was not found.' }, { status: 404 });
+        }
+
+        avatarSelections.push({
           id: avatar.id,
           name: avatar.avatar_name || 'Unnamed Avatar',
           photoUrl: avatar.photo_url || null
-        };
+        });
       }
     }
 
-    let productSelection: CloneReplacementDraft['selectedProduct'];
-    if (productId) {
+    const productSelections: NonNullable<CloneReplacementDraft['selectedProducts']> = [];
+    if (productIds.length > 0) {
       // Schema verified via Supabase MCP (2026-02-11): user_products includes id,user_id,product_name.
-      const { data: product } = await supabase
+      const { data: products } = await supabase
         .from('user_products')
         .select('id,product_name,user_product_photos(photo_url,is_primary)')
-        .eq('id', productId)
-        .eq('user_id', userId)
-        .maybeSingle();
+        .in('id', productIds)
+        .eq('user_id', userId);
 
-      if (!product) {
-        return NextResponse.json({ error: 'Selected product not found.' }, { status: 404 });
+      const productMap = new Map(
+        (products ?? []).map((product) => [product.id, product] as const)
+      );
+
+      for (const productId of productIds) {
+        const product = productMap.get(productId);
+        if (!product) {
+          return NextResponse.json({ error: 'One of the selected products was not found.' }, { status: 404 });
+        }
+
+        const photos = Array.isArray(product.user_product_photos)
+          ? product.user_product_photos as Array<{ photo_url?: string; is_primary?: boolean }>
+          : [];
+        const primaryPhoto = photos.find((photo) => photo.is_primary) || photos[0];
+
+        productSelections.push({
+          id: product.id,
+          name: product.product_name || 'Unnamed Product',
+          photoUrl: primaryPhoto?.photo_url || null
+        });
       }
-
-      const photos = Array.isArray(product.user_product_photos)
-        ? product.user_product_photos as Array<{ photo_url?: string; is_primary?: boolean }>
-        : [];
-      const primaryPhoto = photos.find((photo) => photo.is_primary) || photos[0];
-
-      productSelection = {
-        id: product.id,
-        name: product.product_name || 'Unnamed Product',
-        photoUrl: primaryPhoto?.photo_url || null
-      };
     }
+
+    const avatarSelection = getPrimaryCloneSelection(avatarSelections);
+    const productSelection = getPrimaryCloneSelection(productSelections);
 
     const referenceSourceType = reference.sourceType || 'creator';
     const referenceSourceId = reference.sourceId || reference.id;
@@ -623,7 +678,9 @@ export async function POST(request: NextRequest) {
     const cloneReplacementDraft: CloneReplacementDraft = {
       status: 'ready',
       error: null,
+      selectedAvatars: avatarSelections,
       selectedAvatar: avatarSelection,
+      selectedProducts: productSelections,
       selectedProduct: productSelection,
       scenes: generatedScenes
     };

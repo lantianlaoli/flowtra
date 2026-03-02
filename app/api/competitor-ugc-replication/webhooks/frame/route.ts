@@ -293,6 +293,13 @@ export async function POST(request: NextRequest) {
                 ], 8);
                 const cloneMode = resolveCloneModeFromProject(fullProject as Record<string, unknown>);
                 const videoModel = (fullProject.video_model || 'veo3_fast') as VideoModel;
+                const workflowSource = (
+                  fullProject.selected_inputs
+                  && typeof fullProject.selected_inputs === 'object'
+                  && (fullProject.selected_inputs as { workflowSource?: unknown }).workflowSource === 'project_agent_clone'
+                )
+                  ? 'project_agent_clone'
+                  : 'default';
                 console.log('[UGC Frame Webhook] Continuation routing:', {
                   segmentIndex: nextSegmentIndex,
                   frameType: 'first',
@@ -323,7 +330,8 @@ export async function POST(request: NextRequest) {
                   {
                     characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0
                       ? cloneReferenceAssets.avatarPhotoUrls
-                      : null
+                      : null,
+                    workflowSourceOverride: workflowSource
                   },
                   imageUrl, // Use current segment's first frame as continuation reference
                   videoModel
@@ -434,6 +442,13 @@ export async function POST(request: NextRequest) {
           ], 8);
           const cloneMode = resolveCloneModeFromProject(fullProject as Record<string, unknown>);
           const videoModel = (fullProject.video_model || 'veo3_fast') as VideoModel;
+          const workflowSource = (
+            fullProject.selected_inputs
+            && typeof fullProject.selected_inputs === 'object'
+            && (fullProject.selected_inputs as { workflowSource?: unknown }).workflowSource === 'project_agent_clone'
+          )
+            ? 'project_agent_clone'
+            : 'default';
           console.log('[UGC Frame Webhook] Retry routing:', {
             segmentIndex: segment.segment_index,
             frameType: 'first',
@@ -454,7 +469,8 @@ export async function POST(request: NextRequest) {
             {
               characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0
                 ? cloneReferenceAssets.avatarPhotoUrls
-                : null
+                : null,
+              workflowSourceOverride: workflowSource
             },
             undefined,
             videoModel

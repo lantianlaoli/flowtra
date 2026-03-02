@@ -8,6 +8,15 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 300;
 
+const normalizeStorageSegment = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -35,7 +44,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid storage bucket' }, { status: 400 });
     }
 
-    if (!storagePath.startsWith(`users/${userId}/creator-videos/${creatorVideoId}/source/`)) {
+    const normalizedUserId = normalizeStorageSegment(userId);
+    const normalizedCreatorVideoId = normalizeStorageSegment(creatorVideoId);
+    const sourcePathPatterns = [
+      new RegExp(`^users/${escapeRegExp(normalizedUserId)}/creator-videos/${escapeRegExp(normalizedCreatorVideoId)}/source/original\\.[a-z0-9]+$`, 'i'),
+      new RegExp(`^users/${escapeRegExp(normalizedUserId)}/creator-videos/${escapeRegExp(normalizedCreatorVideoId)}/source\\.[a-z0-9]+$`, 'i'),
+      new RegExp(`^users/${escapeRegExp(normalizedUserId)}/creator-videos/${escapeRegExp(normalizedCreatorVideoId)}/original\\.[a-z0-9]+$`, 'i')
+    ];
+
+    if (!sourcePathPatterns.some(pattern => pattern.test(storagePath))) {
+      console.error('[Creator Videos Upload] Storage path mismatch:', {
+        creatorVideoId,
+        normalizedCreatorVideoId,
+        normalizedUserId,
+        storagePath,
+        userId
+      });
       return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 });
     }
 

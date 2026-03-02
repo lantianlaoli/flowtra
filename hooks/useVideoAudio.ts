@@ -6,6 +6,7 @@ import VideoAudioManager from './useVideoAudioManager';
 interface UseVideoAudioOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   instanceId?: string; // Optional custom instance ID
+  releaseAudioOnLeave?: boolean;
 }
 
 // Generate unique instance ID
@@ -14,7 +15,11 @@ function generateInstanceId(): string {
   return `video-${Date.now()}-${++instanceCounter}`;
 }
 
-export function useVideoAudio({ videoRef, instanceId }: UseVideoAudioOptions) {
+export function useVideoAudio({
+  videoRef,
+  instanceId,
+  releaseAudioOnLeave = true
+}: UseVideoAudioOptions) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [userHasInteracted, setUserHasInteracted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -143,6 +148,10 @@ export function useVideoAudio({ videoRef, instanceId }: UseVideoAudioOptions) {
   const handleLeave = useCallback(() => {
     setIsHovered(false);
 
+    if (!releaseAudioOnLeave) {
+      return;
+    }
+
     if (videoRef.current && managerRef.current) {
       try {
         // Release audio control from manager
@@ -155,7 +164,7 @@ export function useVideoAudio({ videoRef, instanceId }: UseVideoAudioOptions) {
         console.warn('Failed to mute video:', error);
       }
     }
-  }, [videoRef]);
+  }, [releaseAudioOnLeave, videoRef]);
 
   const handleClickEnable = useCallback(() => {
     if (!videoRef.current || !managerRef.current) return;

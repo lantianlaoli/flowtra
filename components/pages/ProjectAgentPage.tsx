@@ -26,6 +26,10 @@ import CloneSceneWorkspaceStep, {
 import { useCredits } from '@/contexts/CreditsContext';
 import { createClient } from '@/lib/supabase/client';
 import { type VideoModel } from '@/lib/constants';
+import {
+  getPrimaryCloneSelection,
+  normalizeCloneSelections
+} from '@/lib/project-agent/clone-selection';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 
 interface SessionState {
@@ -102,8 +106,12 @@ type CloneProductOption = {
   photoUrl?: string | null;
 };
 
+type CloneAvatarSelection = NonNullable<ClonePromptDraft['selectedAvatar']>;
+type CloneProductSelection = NonNullable<ClonePromptDraft['selectedProduct']>;
+
 const SESSION_STORAGE_KEY = 'flowtra_project_agent_session_id';
 const HISTORY_STORAGE_KEY = 'flowtra_project_agent_history_ids';
+const MAX_CLONE_MULTI_SELECT = 8;
 const THINKING_MESSAGES = [
   'Thinking this through carefully...',
   'Almost there, polishing the details...',
@@ -118,6 +126,13 @@ const createSessionId = () => {
     return globalThis.crypto.randomUUID();
   }
   return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
+
+const formatSelectionSummary = (items: Array<{ name: string }>) => {
+  if (items.length === 0) return 'none';
+  const names = items.map((item) => item.name);
+  if (names.length <= 2) return names.join(', ');
+  return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
 };
 
 const extractMessageText = (message: { parts?: Array<{ type?: string; text?: string }>; content?: string }) => {
@@ -662,8 +677,8 @@ export default function ProjectAgentPage() {
   const [cloneAvatarOptions, setCloneAvatarOptions] = useState<CloneAvatarOption[]>([]);
   const [cloneProductOptions, setCloneProductOptions] = useState<CloneProductOption[]>([]);
   const [isCloneOptionsLoading, setIsCloneOptionsLoading] = useState(false);
-  const [selectedCloneAvatarId, setSelectedCloneAvatarId] = useState<string | null>(null);
-  const [selectedCloneProductId, setSelectedCloneProductId] = useState<string | null>(null);
+  const [selectedCloneAvatarIds, setSelectedCloneAvatarIds] = useState<string[]>([]);
+  const [selectedCloneProductIds, setSelectedCloneProductIds] = useState<string[]>([]);
   const [isGeneratingCloneProject, setIsGeneratingCloneProject] = useState(false);
   const [awaitingCloneDraftReply, setAwaitingCloneDraftReply] = useState(false);
   const [cloneDraftReplyBaseline, setCloneDraftReplyBaseline] = useState(0);
@@ -677,6 +692,8 @@ export default function ProjectAgentPage() {
   const lastLocalCloneDraftEditAtRef = useRef(0);
   const lastAutoRetryRef = useRef<{ text: string; at: number } | null>(null);
   const pendingCloneSelectionPersistRef = useRef<Promise<void> | null>(null);
+  const latestCloneDraftRef = useRef<ClonePromptDraft | null>(null);
+  const pendingCloneDraftPersistRef = useRef<Promise<void> | null>(null);
 
   const ensureHistoryTracked = useCallback((id: string, options?: { prependIfNew?: boolean }) => {
     const ids = readHistoryIds();
@@ -763,7 +780,7 @@ export default function ProjectAgentPage() {
     transport: new DefaultChatTransport({
       api: '/api/project-agent/chat',
       prepareSendMessagesRequest: ({ id, messages }) => {
-        const draftSelection = sessionState?.cloneReplacementDraft;
+        const draftSelection = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
         const statePatch: Record<string, unknown> = {};
 
         if (sessionState?.avatar) {
@@ -774,13 +791,23 @@ export default function ProjectAgentPage() {
           statePatch.product = sessionState.product;
         }
 
-        if (draftSelection?.selectedAvatar || draftSelection?.selectedProduct) {
+        const selectedAvatars = normalizeCloneSelections(
+          draftSelection?.selectedAvatars,
+          draftSelection?.selectedAvatar
+        );
+        const selectedProducts = normalizeCloneSelections(
+          draftSelection?.selectedProducts,
+          draftSelection?.selectedProduct
+        );
+        if (draftSelection && (selectedAvatars.length > 0 || selectedProducts.length > 0)) {
           statePatch.cloneReplacementDraft = {
             status: draftSelection.status ?? 'idle',
             error: draftSelection.error ?? null,
             scenes: Array.isArray(draftSelection.scenes) ? draftSelection.scenes : [],
-            selectedAvatar: draftSelection.selectedAvatar ?? null,
-            selectedProduct: draftSelection.selectedProduct ?? null
+            selectedAvatars,
+            selectedAvatar: getPrimaryCloneSelection(selectedAvatars),
+            selectedProducts,
+            selectedProduct: getPrimaryCloneSelection(selectedProducts)
           };
         }
 
@@ -1029,6 +1056,33 @@ export default function ProjectAgentPage() {
     if (pendingCloneSelectionPersistRef.current) {
       await pendingCloneSelectionPersistRef.current;
     }
+    if (pendingCloneDraftPersistRef.current) {
+      await pendingCloneDraftPersistRef.current;
+    }
+    const latestDraft = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
+    if (latestDraft) {
+      if (draftPersistTimerRef.current) {
+        clearTimeout(draftPersistTimerRef.current);
+        draftPersistTimerRef.current = null;
+      }
+
+      const persistTask = fetch('/api/project-agent/session', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          statePatch: { cloneReplacementDraft: latestDraft }
+        })
+      }).then(() => undefined);
+      pendingCloneDraftPersistRef.current = persistTask;
+      try {
+        await persistTask;
+      } finally {
+        if (pendingCloneDraftPersistRef.current === persistTask) {
+          pendingCloneDraftPersistRef.current = null;
+        }
+      }
+    }
 
     setDraft('');
     clearError();
@@ -1051,7 +1105,8 @@ export default function ProjectAgentPage() {
     messages.length,
     sendMessageSafely,
     sendLocked,
-    sessionId
+    sessionId,
+    sessionState?.cloneReplacementDraft
   ]);
 
   const retryLastUserMessage = useCallback(async () => {
@@ -1212,8 +1267,8 @@ export default function ProjectAgentPage() {
     setCloneEntryReplyBaseline(0);
     setHandledCloneIntentUserMessageId(null);
     setShowCloneReplacementSelectors(false);
-    setSelectedCloneAvatarId(null);
-    setSelectedCloneProductId(null);
+    setSelectedCloneAvatarIds([]);
+    setSelectedCloneProductIds([]);
     setAwaitingCloneDraftReply(false);
     setCloneDraftReplyBaseline(0);
     setAwaitingCloneStructureReply(true);
@@ -1286,8 +1341,8 @@ export default function ProjectAgentPage() {
     setAwaitingCloneStructureReply(false);
     setCloneStructureReplyReady(false);
     setAwaitingCloneDraftReply(false);
-    setSelectedCloneAvatarId(null);
-    setSelectedCloneProductId(null);
+    setSelectedCloneAvatarIds([]);
+    setSelectedCloneProductIds([]);
     setRetryableUserMessageId(null);
     setAutoRetriedUserMessageIds([]);
     setIsGeneratingCloneProject(false);
@@ -1312,8 +1367,8 @@ export default function ProjectAgentPage() {
     setAwaitingCloneStructureReply(false);
     setCloneStructureReplyReady(false);
     setAwaitingCloneDraftReply(false);
-    setSelectedCloneAvatarId(null);
-    setSelectedCloneProductId(null);
+    setSelectedCloneAvatarIds([]);
+    setSelectedCloneProductIds([]);
     setRetryableUserMessageId(null);
     setAutoRetriedUserMessageIds([]);
     setIsGeneratingCloneProject(false);
@@ -1469,11 +1524,25 @@ export default function ProjectAgentPage() {
 
   const persistCloneSelection = useCallback(async (
     next: {
-      selectedAvatar?: { id: string; name: string; photoUrl?: string | null } | null;
-      selectedProduct?: { id: string; name: string; photoUrl?: string | null } | null;
+      selectedAvatars?: CloneAvatarSelection[] | null;
+      selectedProducts?: CloneProductSelection[] | null;
     }
   ) => {
     if (!sessionId) return;
+    const nextSelectedAvatars = next.selectedAvatars !== undefined
+      ? normalizeCloneSelections(next.selectedAvatars)
+      : normalizeCloneSelections(
+          sessionState?.cloneReplacementDraft?.selectedAvatars,
+          sessionState?.cloneReplacementDraft?.selectedAvatar
+        );
+    const nextSelectedProducts = next.selectedProducts !== undefined
+      ? normalizeCloneSelections(next.selectedProducts)
+      : normalizeCloneSelections(
+          sessionState?.cloneReplacementDraft?.selectedProducts,
+          sessionState?.cloneReplacementDraft?.selectedProduct
+        );
+    const primaryAvatar = getPrimaryCloneSelection(nextSelectedAvatars);
+    const primaryProduct = getPrimaryCloneSelection(nextSelectedProducts);
     const statePatch: Record<string, unknown> = {
       cloneReplacementDraft: {
         ...(sessionState?.cloneReplacementDraft ?? {
@@ -1481,22 +1550,36 @@ export default function ProjectAgentPage() {
           error: null,
           scenes: []
         }),
-        ...(next.selectedAvatar !== undefined ? { selectedAvatar: next.selectedAvatar } : {}),
-        ...(next.selectedProduct !== undefined ? { selectedProduct: next.selectedProduct } : {})
+        ...(next.selectedAvatars !== undefined
+          ? {
+              selectedAvatars: nextSelectedAvatars,
+              selectedAvatar: primaryAvatar
+            }
+          : {}),
+        ...(next.selectedProducts !== undefined
+          ? {
+              selectedProducts: nextSelectedProducts,
+              selectedProduct: primaryProduct
+            }
+          : {})
       }
     };
-    if (next.selectedAvatar) {
-      statePatch.avatar = {
-        id: next.selectedAvatar.id,
-        name: next.selectedAvatar.name,
-        photoUrl: next.selectedAvatar.photoUrl || ''
-      };
+    if (next.selectedAvatars !== undefined) {
+      statePatch.avatar = primaryAvatar
+        ? {
+            id: primaryAvatar.id,
+            name: primaryAvatar.name,
+            photoUrl: primaryAvatar.photoUrl || ''
+          }
+        : null;
     }
-    if (next.selectedProduct) {
-      statePatch.product = {
-        id: next.selectedProduct.id,
-        name: next.selectedProduct.name
-      };
+    if (next.selectedProducts !== undefined) {
+      statePatch.product = primaryProduct
+        ? {
+            id: primaryProduct.id,
+            name: primaryProduct.name
+          }
+        : null;
     }
 
     const persistTask = (async () => {
@@ -1524,69 +1607,95 @@ export default function ProjectAgentPage() {
   }, [sessionId, sessionState?.cloneReplacementDraft, setStatusNote]);
 
   const handleManualAvatarSelection = useCallback((avatarId: string) => {
-    setSelectedCloneAvatarId(avatarId);
     const selected = cloneAvatarOptions.find((avatar) => avatar.id === avatarId);
     if (!selected) return;
+    const isSelected = selectedCloneAvatarIds.includes(avatarId);
+    if (!isSelected && selectedCloneAvatarIds.length >= MAX_CLONE_MULTI_SELECT) {
+      setStatusNote(`You can select up to ${MAX_CLONE_MULTI_SELECT} avatars for one clone.`);
+      return;
+    }
+    setStatusNote('');
+    const nextAvatarIds = isSelected
+      ? selectedCloneAvatarIds.filter((id) => id !== avatarId)
+      : [...selectedCloneAvatarIds, avatarId];
+    const nextSelectedAvatars = nextAvatarIds
+      .map((id) => cloneAvatarOptions.find((avatar) => avatar.id === id))
+      .filter((avatar): avatar is CloneAvatarOption => Boolean(avatar))
+      .map((avatar) => ({
+        id: avatar.id,
+        name: avatar.name,
+        photoUrl: avatar.photoUrl || null
+      }));
+    const primaryAvatar = nextSelectedAvatars[0] ?? null;
+    setSelectedCloneAvatarIds(nextAvatarIds);
     setSessionState((prev) => (
       prev
         ? {
             ...prev,
-            avatar: {
-              id: selected.id,
-              name: selected.name,
-              photoUrl: selected.photoUrl || ''
-            },
+            avatar: primaryAvatar
+              ? {
+                  id: primaryAvatar.id,
+                  name: primaryAvatar.name,
+                  photoUrl: primaryAvatar.photoUrl || ''
+                }
+              : null,
             cloneReplacementDraft: {
               ...(prev.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
-              selectedAvatar: {
-                id: selected.id,
-                name: selected.name,
-                photoUrl: selected.photoUrl || null
-              }
+              selectedAvatars: nextSelectedAvatars,
+              selectedAvatar: primaryAvatar
             }
           }
         : prev
     ));
     void persistCloneSelection({
-      selectedAvatar: {
-        id: selected.id,
-        name: selected.name,
-        photoUrl: selected.photoUrl || null
-      }
+      selectedAvatars: nextSelectedAvatars
     });
-  }, [cloneAvatarOptions, persistCloneSelection]);
+  }, [cloneAvatarOptions, persistCloneSelection, selectedCloneAvatarIds, setStatusNote]);
 
   const handleManualProductSelection = useCallback((productId: string) => {
-    setSelectedCloneProductId(productId);
     const selected = cloneProductOptions.find((product) => product.id === productId);
     if (!selected) return;
+    const isSelected = selectedCloneProductIds.includes(productId);
+    if (!isSelected && selectedCloneProductIds.length >= MAX_CLONE_MULTI_SELECT) {
+      setStatusNote(`You can select up to ${MAX_CLONE_MULTI_SELECT} products for one clone.`);
+      return;
+    }
+    setStatusNote('');
+    const nextProductIds = isSelected
+      ? selectedCloneProductIds.filter((id) => id !== productId)
+      : [...selectedCloneProductIds, productId];
+    const nextSelectedProducts = nextProductIds
+      .map((id) => cloneProductOptions.find((product) => product.id === id))
+      .filter((product): product is CloneProductOption => Boolean(product))
+      .map((product) => ({
+        id: product.id,
+        name: product.name,
+        photoUrl: product.photoUrl || null
+      }));
+    const primaryProduct = nextSelectedProducts[0] ?? null;
+    setSelectedCloneProductIds(nextProductIds);
     setSessionState((prev) => (
       prev
         ? {
             ...prev,
-            product: {
-              id: selected.id,
-              name: selected.name
-            },
+            product: primaryProduct
+              ? {
+                  id: primaryProduct.id,
+                  name: primaryProduct.name
+                }
+              : null,
             cloneReplacementDraft: {
               ...(prev.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
-              selectedProduct: {
-                id: selected.id,
-                name: selected.name,
-                photoUrl: selected.photoUrl || null
-              }
+              selectedProducts: nextSelectedProducts,
+              selectedProduct: primaryProduct
             }
           }
         : prev
     ));
     void persistCloneSelection({
-      selectedProduct: {
-        id: selected.id,
-        name: selected.name,
-        photoUrl: selected.photoUrl || null
-      }
+      selectedProducts: nextSelectedProducts
     });
-  }, [cloneProductOptions, persistCloneSelection]);
+  }, [cloneProductOptions, persistCloneSelection, selectedCloneProductIds, setStatusNote]);
 
   const latestUserText = useMemo(() => {
     const lastUser = [...displayMessages].reverse().find((message) => message.role === 'user');
@@ -1791,9 +1900,17 @@ export default function ProjectAgentPage() {
 
     if (!awaitingCloneStructureReply) {
       const draftStatus = sessionState?.cloneReplacementDraft?.status;
+      const selectedAvatars = normalizeCloneSelections(
+        sessionState?.cloneReplacementDraft?.selectedAvatars,
+        sessionState?.cloneReplacementDraft?.selectedAvatar
+      );
+      const selectedProducts = normalizeCloneSelections(
+        sessionState?.cloneReplacementDraft?.selectedProducts,
+        sessionState?.cloneReplacementDraft?.selectedProduct
+      );
       const hasExistingReplacementSelection = Boolean(
-        sessionState?.cloneReplacementDraft?.selectedAvatar?.id ||
-        sessionState?.cloneReplacementDraft?.selectedProduct?.id ||
+        selectedAvatars.length > 0 ||
+        selectedProducts.length > 0 ||
         sessionState?.avatar?.id ||
         sessionState?.product?.id
       );
@@ -1811,8 +1928,10 @@ export default function ProjectAgentPage() {
     sessionState?.product?.id,
     sessionState?.intent,
     sessionState?.cloneReferenceVideo?.id,
-    sessionState?.cloneReplacementDraft?.selectedAvatar?.id,
-    sessionState?.cloneReplacementDraft?.selectedProduct?.id,
+    sessionState?.cloneReplacementDraft?.selectedAvatar,
+    sessionState?.cloneReplacementDraft?.selectedAvatars,
+    sessionState?.cloneReplacementDraft?.selectedProduct,
+    sessionState?.cloneReplacementDraft?.selectedProducts,
     sessionState?.cloneReplacementDraft?.status
   ]);
 
@@ -1890,23 +2009,44 @@ export default function ProjectAgentPage() {
   ]);
 
   useEffect(() => {
-    if (!sessionState?.avatar?.id) return;
-    setSelectedCloneAvatarId(sessionState.avatar.id);
-  }, [sessionState?.avatar?.id]);
+    const nextSelectedAvatars = normalizeCloneSelections(
+      sessionState?.cloneReplacementDraft?.selectedAvatars,
+      sessionState?.cloneReplacementDraft?.selectedAvatar
+    );
+    if (nextSelectedAvatars.length > 0) {
+      setSelectedCloneAvatarIds(nextSelectedAvatars.map((avatar) => avatar.id));
+      return;
+    }
+    if (sessionState?.avatar?.id) {
+      setSelectedCloneAvatarIds([sessionState.avatar.id]);
+      return;
+    }
+    setSelectedCloneAvatarIds([]);
+  }, [
+    sessionState?.avatar?.id,
+    sessionState?.cloneReplacementDraft?.selectedAvatar,
+    sessionState?.cloneReplacementDraft?.selectedAvatars
+  ]);
 
   useEffect(() => {
-    if (!sessionState?.product?.id) return;
-    setSelectedCloneProductId(sessionState.product.id);
-  }, [sessionState?.product?.id]);
-
-  useEffect(() => {
-    if (sessionState?.cloneReplacementDraft?.selectedAvatar?.id) {
-      setSelectedCloneAvatarId(sessionState.cloneReplacementDraft.selectedAvatar.id);
+    const nextSelectedProducts = normalizeCloneSelections(
+      sessionState?.cloneReplacementDraft?.selectedProducts,
+      sessionState?.cloneReplacementDraft?.selectedProduct
+    );
+    if (nextSelectedProducts.length > 0) {
+      setSelectedCloneProductIds(nextSelectedProducts.map((product) => product.id));
+      return;
     }
-    if (sessionState?.cloneReplacementDraft?.selectedProduct?.id) {
-      setSelectedCloneProductId(sessionState.cloneReplacementDraft.selectedProduct.id);
+    if (sessionState?.product?.id) {
+      setSelectedCloneProductIds([sessionState.product.id]);
+      return;
     }
-  }, [sessionState?.cloneReplacementDraft?.selectedAvatar?.id, sessionState?.cloneReplacementDraft?.selectedProduct?.id]);
+    setSelectedCloneProductIds([]);
+  }, [
+    sessionState?.product?.id,
+    sessionState?.cloneReplacementDraft?.selectedProduct,
+    sessionState?.cloneReplacementDraft?.selectedProducts
+  ]);
 
   useEffect(() => {
     if (!awaitingCloneDraftReply) return;
@@ -2114,12 +2254,19 @@ export default function ProjectAgentPage() {
         ...prev.cloneReplacementDraft,
         scenes
       };
+      latestCloneDraftRef.current = nextDraft;
 
       if (draftPersistTimerRef.current) {
         clearTimeout(draftPersistTimerRef.current);
       }
       draftPersistTimerRef.current = setTimeout(() => {
-        void persistCloneState({ cloneReplacementDraft: nextDraft });
+        const persistTask = persistCloneState({ cloneReplacementDraft: nextDraft });
+        pendingCloneDraftPersistRef.current = persistTask;
+        void persistTask.finally(() => {
+          if (pendingCloneDraftPersistRef.current === persistTask) {
+            pendingCloneDraftPersistRef.current = null;
+          }
+        });
         draftPersistTimerRef.current = null;
       }, 600);
 
@@ -2136,6 +2283,10 @@ export default function ProjectAgentPage() {
       draftPersistTimerRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    latestCloneDraftRef.current = sessionState?.cloneReplacementDraft ?? null;
+  }, [sessionState?.cloneReplacementDraft]);
 
   useEffect(() => {
     const projectId = sessionState?.cloneExecution?.projectId;
@@ -2199,25 +2350,39 @@ export default function ProjectAgentPage() {
     chatBottomRef.current?.scrollIntoView({ behavior, block: 'end' });
   }, []);
 
+  const selectedCloneAvatars = useMemo(
+    () => normalizeCloneSelections(
+      sessionState?.cloneReplacementDraft?.selectedAvatars,
+      sessionState?.cloneReplacementDraft?.selectedAvatar
+    ),
+    [sessionState?.cloneReplacementDraft?.selectedAvatar, sessionState?.cloneReplacementDraft?.selectedAvatars]
+  );
+
+  const selectedCloneProducts = useMemo(
+    () => normalizeCloneSelections(
+      sessionState?.cloneReplacementDraft?.selectedProducts,
+      sessionState?.cloneReplacementDraft?.selectedProduct
+    ),
+    [sessionState?.cloneReplacementDraft?.selectedProduct, sessionState?.cloneReplacementDraft?.selectedProducts]
+  );
+
   const characterMentions = useMemo(() => {
     const options = cloneAvatarOptions.map((avatar) => ({
       id: avatar.id,
       label: avatar.name,
       imageUrl: avatar.photoUrl || null
     }));
-    const selected = sessionState?.cloneReplacementDraft?.selectedAvatar;
-    if (selected?.id && selected?.name) {
+    selectedCloneAvatars.forEach((selected) => {
       const exists = options.some((item) => item.id === selected.id);
-      if (!exists) {
-        options.unshift({
-          id: selected.id,
-          label: selected.name,
-          imageUrl: selected.photoUrl || null
-        });
-      }
-    }
+      if (exists) return;
+      options.unshift({
+        id: selected.id,
+        label: selected.name,
+        imageUrl: selected.photoUrl || null
+      });
+    });
     return options;
-  }, [cloneAvatarOptions, sessionState?.cloneReplacementDraft?.selectedAvatar]);
+  }, [cloneAvatarOptions, selectedCloneAvatars]);
 
   const productMentions = useMemo(() => {
     const options = cloneProductOptions.map((product) => ({
@@ -2225,19 +2390,17 @@ export default function ProjectAgentPage() {
       label: product.name,
       imageUrl: product.photoUrl || null
     }));
-    const selected = sessionState?.cloneReplacementDraft?.selectedProduct;
-    if (selected?.id && selected?.name) {
+    selectedCloneProducts.forEach((selected) => {
       const exists = options.some((item) => item.id === selected.id);
-      if (!exists) {
-        options.unshift({
-          id: selected.id,
-          label: selected.name,
-          imageUrl: selected.photoUrl || null
-        });
-      }
-    }
+      if (exists) return;
+      options.unshift({
+        id: selected.id,
+        label: selected.name,
+        imageUrl: selected.photoUrl || null
+      });
+    });
     return options;
-  }, [cloneProductOptions, sessionState?.cloneReplacementDraft?.selectedProduct]);
+  }, [cloneProductOptions, selectedCloneProducts]);
 
   const workspaceScenes = useMemo<WorkspaceScene[]>(() => {
     const draftScenes = sessionState?.cloneReplacementDraft?.scenes ?? [];
@@ -2264,8 +2427,8 @@ export default function ProjectAgentPage() {
     sessionState?.intent === 'competitor_ugc_replication' &&
     sessionState?.cloneReferenceVideo?.id &&
     !cloneStructureReplyReady &&
-    !sessionState?.cloneReplacementDraft?.selectedAvatar?.id &&
-    !sessionState?.cloneReplacementDraft?.selectedProduct?.id &&
+    selectedCloneAvatars.length === 0 &&
+    selectedCloneProducts.length === 0 &&
     !sessionState?.avatar?.id &&
     !sessionState?.product?.id &&
     (sessionState?.cloneReplacementDraft?.status ?? 'idle') === 'idle' &&
@@ -2410,14 +2573,26 @@ export default function ProjectAgentPage() {
                       ) : (
                         <>
                           <div className="space-y-2">
-                            <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Avatar</p>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Avatars</p>
+                              <p className="text-[11px] text-[#6d6d6a]">
+                                {selectedCloneAvatarIds.length === 0
+                                  ? `0/${MAX_CLONE_MULTI_SELECT} selected`
+                                  : `${selectedCloneAvatarIds.length}/${MAX_CLONE_MULTI_SELECT} selected`}
+                              </p>
+                            </div>
+                            {selectedCloneAvatars.length > 0 ? (
+                              <p className="text-xs text-[#6d6d6a]">
+                                {formatSelectionSummary(selectedCloneAvatars)}
+                              </p>
+                            ) : null}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                               {cloneAvatarOptions.map((avatar) => (
                                 <button
                                   key={avatar.id}
                                   type="button"
                                   onClick={() => handleManualAvatarSelection(avatar.id)}
-                                  className={`rounded-xl border p-2 text-left transition-colors ${selectedCloneAvatarId === avatar.id ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                  className={`rounded-xl border p-2 text-left transition-colors ${selectedCloneAvatarIds.includes(avatar.id) ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                 >
                                   <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#efefed] mb-1.5">
                                     {avatar.photoUrl ? (
@@ -2432,14 +2607,26 @@ export default function ProjectAgentPage() {
                           </div>
 
                           <div className="space-y-2">
-                            <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Product</p>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Products</p>
+                              <p className="text-[11px] text-[#6d6d6a]">
+                                {selectedCloneProductIds.length === 0
+                                  ? `0/${MAX_CLONE_MULTI_SELECT} selected`
+                                  : `${selectedCloneProductIds.length}/${MAX_CLONE_MULTI_SELECT} selected`}
+                              </p>
+                            </div>
+                            {selectedCloneProducts.length > 0 ? (
+                              <p className="text-xs text-[#6d6d6a]">
+                                {formatSelectionSummary(selectedCloneProducts)}
+                              </p>
+                            ) : null}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                               {cloneProductOptions.map((product) => (
                                 <button
                                   key={product.id}
                                   type="button"
                                   onClick={() => handleManualProductSelection(product.id)}
-                                  className={`rounded-xl border p-2 text-left transition-colors ${selectedCloneProductId === product.id ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                  className={`rounded-xl border p-2 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                 >
                                   <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#efefed] mb-1.5">
                                     {product.photoUrl ? (

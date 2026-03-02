@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   GENERATION_COSTS,
+  IMAGE_MODELS,
   NON_AGENT_IMAGE_MODEL,
   NON_AGENT_IMAGE_OUTPUT_FORMAT,
   NON_AGENT_IMAGE_RESOLUTION,
@@ -442,59 +443,130 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
   }
 }
 
-function resolveAspectRatio(customImageSize?: string, videoAspectRatio?: string): string {
-  // Map UI-friendly sizes to Ratio strings (shared logic)
-  switch (customImageSize) {
-    case 'square':
-    case 'square_hd':
-    case '1:1':
-      return '1:1';
-    case 'portrait_16_9':
-    case '9:16':
-      return '9:16';
-    case 'landscape_16_9':
-    case '16:9':
-      return '16:9';
-    case 'portrait_4_3':
-    case '3:4':
-      return '3:4';
-    case 'landscape_4_3':
-    case '4:3':
-      return '4:3';
-    case 'portrait_3_2':
-    case '2:3':
-      return '2:3';
-    case 'landscape_3_2':
-    case '3:2':
-      return '3:2';
-    case 'portrait_5_4':
-    case '4:5':
-      return '4:5';
-    case 'landscape_5_4':
-    case '5:4':
-      return '5:4';
-    case 'landscape_21_9':
-    case '21:9':
-      return '21:9';
-    default:
-      if (videoAspectRatio === '9:16') return '9:16';
-      if (videoAspectRatio === '16:9') return '16:9';
-      return '1:1';
+function getImageModelParameters(model: string, customImageSize?: string, videoAspectRatio?: string): Record<string, unknown> {
+  // Map UI-friendly sizes to ratio strings.
+  const mapUiToRatio = (val?: string, fallbackAspect?: string) => {
+    switch (val) {
+      case 'square':
+      case 'square_hd':
+      case '1:1':
+        return '1:1';
+      case 'portrait_16_9':
+      case '9:16':
+        return '9:16';
+      case 'landscape_16_9':
+      case '16:9':
+        return '16:9';
+      case 'portrait_4_3':
+      case '3:4':
+        return '3:4';
+      case 'landscape_4_3':
+      case '4:3':
+        return '4:3';
+      case 'portrait_3_2':
+      case '2:3':
+        return '2:3';
+      case 'landscape_3_2':
+      case '3:2':
+        return '3:2';
+      case 'portrait_5_4':
+      case '4:5':
+        return '4:5';
+      case 'landscape_5_4':
+      case '5:4':
+        return '5:4';
+      case 'landscape_21_9':
+      case '21:9':
+        return '21:9';
+      case 'auto':
+      case undefined:
+      case '':
+        // Choose based on video aspect ratio if provided
+        if (fallbackAspect === '9:16') return '9:16';
+        if (fallbackAspect === '16:9') return '16:9';
+        return undefined;
+      default:
+        return undefined;
+    }
+  };
+
+  if (model === IMAGE_MODELS.nano_banana_2 || model === 'nano_banana_2') {
+    const ratio = mapUiToRatio(customImageSize, videoAspectRatio) || '1:1';
+    return {
+      aspect_ratio: ratio,
+      resolution: '1K',
+      output_format: 'png',
+      google_search: false
+    };
   }
+  if (model === 'nano-banana-pro' || model === 'nano_banana_pro') {
+    const ratio = mapUiToRatio(customImageSize, videoAspectRatio);
+    return {
+      output_format: "png",
+      resolution: "1K",
+      ...(ratio ? { aspect_ratio: ratio } : { aspect_ratio: "1:1" })
+    };
+  }
+  if (model === IMAGE_MODELS.nano_banana || model === 'nano_banana' || model.includes('nano-banana')) {
+    const imageSize = customImageSize;
+    const ratio = mapUiToRatio(imageSize as string | undefined, videoAspectRatio);
+    return {
+      output_format: "png",
+      ...(ratio ? { image_size: ratio } : {})
+    };
+  }
+  if (model === IMAGE_MODELS.seedream_5_lite || model === 'seedream_5_lite') {
+    const ratio = mapUiToRatio(customImageSize, videoAspectRatio) || '1:1';
+    return {
+      aspect_ratio: ratio,
+      quality: 'basic'
+    };
+  }
+  if (model === IMAGE_MODELS.seedream || model === 'seedream' || model.includes('seedream')) {
+    let imageSize = customImageSize;
+    if (!imageSize || imageSize === 'auto') {
+      if (videoAspectRatio === '9:16') {
+        imageSize = 'portrait_16_9';
+      } else {
+        imageSize = 'landscape_16_9';
+      }
+    }
+    return {
+      image_size: imageSize,
+      image_resolution: "1K",
+      max_images: 1
+    };
+  }
+
+  return {
+    output_format: "png"
+  };
 }
 
 // KIE Platform API integration
 async function generateImageWithKIE(
   prompt: Record<string, unknown>,
+  imageModel: string,
   referenceImages: string[],
   customImageSize?: string,
   videoAspectRatio?: string
 ): Promise<{ taskId: string }> {
+  const limitedReferenceImages = referenceImages.slice(0, 8);
+  const modelParams = getImageModelParameters(imageModel, customImageSize, videoAspectRatio);
+
+  const isNanoBanana2 = imageModel === IMAGE_MODELS.nano_banana_2 || imageModel === 'nano_banana_2';
+  const isNanoBananaPro = imageModel === 'nano-banana-pro' || imageModel === 'nano_banana_pro';
+  const isSeedream5Lite = imageModel === IMAGE_MODELS.seedream_5_lite || imageModel === 'seedream_5_lite';
+
   let promptValue: string;
-  if (prompt && typeof prompt.image_prompt === 'string') {
-     promptValue = prompt.image_prompt;
-  } else if (prompt && typeof prompt.prompt === 'string') {
-     promptValue = prompt.prompt;
+  if (isNanoBanana2 || isNanoBananaPro || isSeedream5Lite) {
+    if (prompt && typeof prompt.image_prompt === 'string') {
+       promptValue = prompt.image_prompt;
+    } else if (prompt && typeof prompt.prompt === 'string') {
+       promptValue = prompt.prompt;
+    } else {
+       promptValue = JSON.stringify(prompt);
+    }
   } else {
     promptValue = JSON.stringify(prompt);
   }
@@ -504,13 +576,11 @@ async function generateImageWithKIE(
   const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/image` : undefined;
 
   const payload = {
-    model: NON_AGENT_IMAGE_MODEL,
+    model: imageModel,
     input: {
       prompt: promptValue,
-      image_input: referenceImages.slice(0, 8),
-      aspect_ratio: resolveAspectRatio(customImageSize, videoAspectRatio),
-      resolution: NON_AGENT_IMAGE_RESOLUTION,
-      output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
+      ...((isNanoBanana2 || isNanoBananaPro) ? { image_input: limitedReferenceImages } : { image_urls: limitedReferenceImages }),
+      ...modelParams
     },
     ...(callBackUrl && { callBackUrl }) // Add callBackUrl only if NEXT_PUBLIC_SITE_URL is set
   };
@@ -522,6 +592,8 @@ async function generateImageWithKIE(
     usesImageInput: Object.prototype.hasOwnProperty.call(payloadInput, 'image_input'),
     usesImageUrls: Object.prototype.hasOwnProperty.call(payloadInput, 'image_urls'),
     aspect_ratio: payloadInput.aspect_ratio ?? null,
+    resolution: payloadInput.resolution ?? null,
+    google_search: payloadInput.google_search ?? null,
     quality: payloadInput.quality ?? null
   });
 
@@ -1050,6 +1122,7 @@ export async function processAvatarAdsProject(
         // Use project-level image_prompt instead of scene 0 prompt
         const { taskId } = await generateImageWithKIE(
           { prompt: project.image_prompt } as Record<string, unknown>,
+          project.image_model || NON_AGENT_IMAGE_MODEL,
           referenceImages,
           project.image_size,
           project.video_aspect_ratio

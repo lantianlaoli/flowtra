@@ -174,6 +174,7 @@ export default function CloneSceneWorkspaceStep({
   const [frameOverlayVisible, setFrameOverlayVisible] = useState<Record<number, boolean>>({});
   const frameOverlayHideTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const lastLocalEditAtRef = useRef(0);
+  const pendingScenesChangeEmitRef = useRef(false);
   const prefersReducedMotion = useReducedMotion();
 
   const sceneSignature = useMemo(() => JSON.stringify(scenes), [scenes]);
@@ -189,12 +190,15 @@ export default function CloneSceneWorkspaceStep({
 
   const updateLocalScenes = (updater: (current: WorkspaceScene[]) => WorkspaceScene[]) => {
     lastLocalEditAtRef.current = Date.now();
-    setLocalScenes((prev) => {
-      const next = updater(prev);
-      onScenesChange?.(next);
-      return next;
-    });
+    pendingScenesChangeEmitRef.current = true;
+    setLocalScenes((prev) => updater(prev));
   };
+
+  useEffect(() => {
+    if (!pendingScenesChangeEmitRef.current) return;
+    pendingScenesChangeEmitRef.current = false;
+    onScenesChange?.(localScenes);
+  }, [localScenes, onScenesChange]);
 
   useEffect(() => {
     const hideTimers = frameOverlayHideTimersRef.current;
@@ -262,7 +266,7 @@ export default function CloneSceneWorkspaceStep({
     if (phase === 'merging') return 'Merging scene videos...';
     if (phase === 'completed') return 'Generation completed.';
     if (phase === 'failed') return 'Generation encountered an issue.';
-    return 'Edit prompts, then use chat to start generation.';
+    return 'Edit prompts, then use chat to start frame generation.';
   }, [phase]);
 
   const progressSummary = useMemo(() => {
@@ -343,64 +347,68 @@ export default function CloneSceneWorkspaceStep({
 
           return (
             <div key={scene.sceneIndex} className={`${promptUi.sectionCard}`}>
-              <button
-                type="button"
-                onClick={() => toggleScene(scene.sceneIndex)}
-                className="group w-full px-3 py-3 text-left transition-colors hover:bg-[#f7f7f6]"
-                aria-expanded={expanded}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-[#454543]" />
-                    <span className="text-sm font-semibold text-[#1f1f1e]">Scene {scene.sceneIndex}</span>
-                  </div>
-                  <div className="inline-flex items-center gap-2 text-xs">
-                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${badgeClassForState(frameState)}`}>
-                      {frameState === 'ready' ? (
-                        <CheckCircle2 className="h-3 w-3" />
-                      ) : frameState === 'generating' ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : frameState === 'failed' ? (
-                        <AlertCircle className="h-3 w-3" />
-                      ) : null}
-                      {sceneProgressLabel('frame', frameState)}
-                    </span>
-                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${badgeClassForState(videoState)}`}>
-                      {videoState === 'ready' ? (
-                        <CheckCircle2 className="h-3 w-3" />
-                      ) : videoState === 'generating' ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : videoState === 'failed' ? (
-                        <AlertCircle className="h-3 w-3" />
-                      ) : null}
-                      {sceneProgressLabel('video', videoState)}
-                    </span>
-                    {(scene.frameError || scene.videoError) ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex h-4 w-4 items-center justify-center text-[#b23b3b]"
-                            aria-label={`Scene ${scene.sceneIndex} failure details`}
-                          >
-                            <AlertCircle className="h-3.5 w-3.5" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="left" sideOffset={8} className="max-w-[320px] whitespace-normal leading-5">
-                          {scene.videoError || scene.frameError}
-                        </TooltipContent>
-                      </Tooltip>
+              <div className="px-3 py-3 transition-colors hover:bg-[#f7f7f6]">
+                <div className="flex items-start justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleScene(scene.sceneIndex)}
+                    className="group min-w-0 flex-1 text-left"
+                    aria-expanded={expanded}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="inline-flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-[#454543]" />
+                        <span className="text-sm font-semibold text-[#1f1f1e]">Scene {scene.sceneIndex}</span>
+                      </div>
+                      <div className="inline-flex items-center gap-2 text-xs">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${badgeClassForState(frameState)}`}>
+                          {frameState === 'ready' ? (
+                            <CheckCircle2 className="h-3 w-3" />
+                          ) : frameState === 'generating' ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : frameState === 'failed' ? (
+                            <AlertCircle className="h-3 w-3" />
+                          ) : null}
+                          {sceneProgressLabel('frame', frameState)}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${badgeClassForState(videoState)}`}>
+                          {videoState === 'ready' ? (
+                            <CheckCircle2 className="h-3 w-3" />
+                          ) : videoState === 'generating' ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : videoState === 'failed' ? (
+                            <AlertCircle className="h-3 w-3" />
+                          ) : null}
+                          {sceneProgressLabel('video', videoState)}
+                        </span>
+                        <ChevronDown className={`h-4 w-4 text-[#787876] transition-transform duration-200 ease-out group-hover:text-[#1f1f1e] ${expanded ? 'rotate-180' : 'rotate-0'}`} />
+                      </div>
+                    </div>
+                    {scene.sourceSummary ? (
+                      <p className="mt-1 text-[11px] text-[#787876] line-clamp-2 inline-flex items-start gap-1.5">
+                        <TextQuote className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[#9a9a97]" />
+                        <span>{scene.sourceSummary}</span>
+                      </p>
                     ) : null}
-                    <ChevronDown className={`h-4 w-4 text-[#787876] transition-transform duration-200 ease-out group-hover:text-[#1f1f1e] ${expanded ? 'rotate-180' : 'rotate-0'}`} />
-                  </div>
+                  </button>
+                  {(scene.frameError || scene.videoError) ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center text-[#b23b3b]"
+                          aria-label={`Scene ${scene.sceneIndex} failure details`}
+                        >
+                          <AlertCircle className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" sideOffset={8} className="max-w-[320px] whitespace-normal leading-5">
+                        {scene.videoError || scene.frameError}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : null}
                 </div>
-                {scene.sourceSummary ? (
-                  <p className="mt-1 text-[11px] text-[#787876] line-clamp-2 inline-flex items-start gap-1.5">
-                    <TextQuote className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[#9a9a97]" />
-                    <span>{scene.sourceSummary}</span>
-                  </p>
-                ) : null}
-              </button>
+              </div>
 
               <AnimatePresence initial={false}>
                 {expanded ? (

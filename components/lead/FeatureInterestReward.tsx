@@ -150,7 +150,7 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
 
           <div>
             <label className="block text-[12px] font-medium tracking-wide uppercase text-[#666666] mb-2">Feature</label>
-            <Select value={feature} onValueChange={(value) => setFeature(value as FeatureInterestOption)}>
+            <Select value={feature} onValueChange={(value: string) => setFeature(value as FeatureInterestOption)}>
               <SelectTrigger aria-label="Feature">
                 <div className="flex min-w-0 items-center gap-2">
                   <SelectValue placeholder="Select a feature" />
